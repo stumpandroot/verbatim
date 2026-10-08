@@ -140,3 +140,26 @@ body.vb-topnew-hidden #topNew{display:none}
 .demo-badge{color:#7a5417;font-size:11px}
 .library-head h2 span{color:#4F3FC2}
 .visual-caption span{color:#b4482c}
+
+/* Export preview dialog (offline preview only) */
+.export-dialog textarea{width:100%;min-height:220px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:#f8f7fb;border:1px solid #e9e7ed;border-radius:12px;padding:12px;margin:0 0 14px;resize:vertical;box-sizing:border-box}
+
+/* ---- One icon family: 2 px stroke SVGs. Raster icons retired. ---- */
+.nav-icon.brand-icon,.mobile-link img{width:24px;height:24px;opacity:1}
+.mobile-link img{opacity:.85}.mobile-link.selected img{opacity:1}
+.feature-symbol img,.info-tile .feature-symbol img{width:30px;height:30px}
+.empty-note-illustration{width:64px;height:64px;padding:16px}
+.search-field-icon,.url-chain.url-icon{width:22px;height:22px}
+.ai-icon{width:30px;height:30px}
+.processing-mark img{width:56px;height:56px}
+.play-disc img{width:30px;height:30px}
+.library-image{background-size:46%}
+/* Sound-to-text illustration as one SVG; bars breathe, lines settle. */
+.signature-illustration{width:330px;height:165px;display:block;filter:drop-shadow(0 10px 15px #5d46c81a)}
+.sig-bar{transform-box:fill-box;transform-origin:center;animation:vb-sig-breathe 2.8s ease-in-out infinite}
+.sig-bar:nth-child(2){animation-delay:.17s}.sig-bar:nth-child(3){animation-delay:.34s}.sig-bar:nth-child(4){animation-delay:.51s}.sig-bar:nth-child(5){animation-delay:.68s}
+@keyframes vb-sig-breathe{0%,100%{transform:scaleY(1)}30%{transform:scaleY(1.12)}60%{transform:scaleY(.9)}}
+.sig-line{transform-box:fill-box;transform-origin:left center;animation:vb-sig-line 3.5s ease-in-out infinite}
+.sig-line:nth-child(2){animation-delay:.25s}.sig-line:nth-child(3){animation-delay:.5s}
+@keyframes vb-sig-line{50%{transform:scaleX(.8)}}
+@media(prefers-reduced-motion:reduce){.sig-bar,.sig-line{animation:none!important}}
