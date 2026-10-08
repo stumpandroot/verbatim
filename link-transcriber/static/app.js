@@ -187,12 +187,16 @@
     document.addEventListener('touchcancel',()=>{if(active){active=false;settle();}},{passive:true});
   })();
   // Bars compact while scrolling down and come back when scrolling up or near the top.
-  (()=>{let lastY=scrollY,acc=0,ticking=false;
-    const set=(on)=>{if(document.body.classList.contains('bars-compact')!==on)document.body.classList.toggle('bars-compact',on);};
-    addEventListener('scroll',()=>{if(ticking)return;ticking=true;requestAnimationFrame(()=>{ticking=false;const y=scrollY;const d=y-lastY;lastY=y;
-      if(y<40){acc=0;set(false);return;}
+  // Hysteresis: a toggle needs 48px of travel in one direction and then holds for 400ms,
+  // and rubber-band scrolling past either end is ignored, so the bars never flip-flop.
+  (()=>{let lastY=scrollY,acc=0,ticking=false,lockUntil=0;
+    const set=(on)=>{if(document.body.classList.contains('bars-compact')===on)return;document.body.classList.toggle('bars-compact',on);lockUntil=performance.now()+400;acc=0;};
+    addEventListener('scroll',()=>{if(ticking)return;ticking=true;requestAnimationFrame(()=>{ticking=false;
+      const max=Math.max(0,document.documentElement.scrollHeight-innerHeight);const y=Math.min(Math.max(0,scrollY),max);const d=y-lastY;lastY=y;
+      if(y<40){set(false);return;}
+      if(performance.now()<lockUntil||Math.abs(d)<1)return;
       if(Math.sign(d)!==Math.sign(acc))acc=0;acc+=d;
-      if(acc>24)set(true);else if(acc<-18)set(false);});},{passive:true});
+      if(acc>48)set(true);else if(acc<-32)set(false);});},{passive:true});
   })();
   // Tab bar capsule: one continuous spring moves both edges. The leading edge is critically damped
   // (no overshoot, never leaves the bar's padding); the trailing edge is underdamped, so it lags,

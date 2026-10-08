@@ -455,11 +455,10 @@ body[data-dir="right"] .vb-in{animation-name:vb-from-left}
   .mobile-link svg.vb-icon,.mobile-link img{transition:transform .45s var(--spring)}
   body.bars-compact .tab-label{opacity:0;max-height:0;transform:translateY(4px)}
   body.bars-compact .mobile-link svg.vb-icon,body.bars-compact .mobile-link img{transform:scale(1.08)}
-  .topbar{transition:padding .4s var(--spring),background .3s}
+  .topbar{transition:background .3s}
   .topbar .mobile-brand,.topbar .topbar-right{transition:transform .45s var(--spring)}
   .topbar .mobile-brand{transform-origin:0 50%}.topbar .topbar-right{transform-origin:100% 50%}
-  body.bars-compact .topbar{padding-top:max(4px,env(safe-area-inset-top,0px));padding-bottom:2px}
-  body.bars-compact .topbar .mobile-brand,body.bars-compact .topbar .topbar-right{transform:scale(.82)}
+  body.bars-compact .topbar .mobile-brand{transform:scale(.82) translateY(-2px)}body.bars-compact .topbar .topbar-right{transform:scale(.82)}
 }
 /* ---- Swipe paging ----
    While dragging, the page follows the finger with no transition. A cancelled drag springs back;
@@ -470,7 +469,7 @@ body[data-dir="right"] .vb-in{animation-name:vb-from-left}
 .page.swipe-in-right{animation:vb-page-from-left .32s cubic-bezier(.2,.9,.25,1) both}
 @keyframes vb-page-from-right{from{transform:translate3d(32%,0,0);opacity:.2}to{transform:none;opacity:1}}
 @keyframes vb-page-from-left{from{transform:translate3d(-32%,0,0);opacity:.2}to{transform:none;opacity:1}}
-html,body{overflow-x:hidden}
+#mainContent{overflow-x:clip}
 @media (prefers-reduced-motion:reduce){.mobile-nav{transition:none!important}.page.swipe-in-left,.page.swipe-in-right{animation:none}}
 
 /* Toast with an action (Undo) */
