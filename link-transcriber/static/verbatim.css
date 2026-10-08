@@ -419,10 +419,10 @@ body.vb-topnew-hidden #topNew{display:none}
 /* Tab icons with character: gear spins, books clap then spread, home bounces */
 .mobile-link.selected .vb-icon[data-src*="settings"],.nav-link.selected .vb-icon[data-src*="settings"]{animation:vb-gear .9s var(--spring)}
 @keyframes vb-gear{0%{transform:rotate(0) scale(.8)}60%{transform:rotate(200deg) scale(1.15)}100%{transform:rotate(180deg) scale(1)}}
-.mobile-link.selected .vb-icon[data-src*="library"] rect{transform-origin:6.6px 21px;animation:vb-book-l .9s var(--spring)}
-.mobile-link.selected .vb-icon[data-src*="library"] path{transform-origin:14px 21px;animation:vb-book-r .9s var(--spring)}
-@keyframes vb-book-l{0%{transform:rotate(0)}35%{transform:rotate(16deg) translateX(2px)}70%{transform:rotate(-10deg) translateX(-1px)}100%{transform:rotate(0)}}
-@keyframes vb-book-r{0%{transform:rotate(0)}35%{transform:rotate(-26deg) translateX(-3px)}70%{transform:rotate(4deg) translateX(1px)}100%{transform:rotate(0)}}
+.mobile-link.selected .vb-icon[data-src*="library"] rect{transform-origin:6.6px 21px;animation:vb-book-l 1.25s var(--spring)}
+.mobile-link.selected .vb-icon[data-src*="library"] path{transform-origin:14px 21px;animation:vb-book-r 1.25s var(--spring)}
+@keyframes vb-book-l{0%{transform:rotate(0)}30%{transform:rotate(16deg) translateX(2px)}45%{transform:rotate(16deg) translateX(2px)}75%{transform:rotate(-10deg) translateX(-1px)}100%{transform:rotate(0)}}
+@keyframes vb-book-r{0%{transform:rotate(0)}30%{transform:rotate(-26deg) translateX(-3px)}45%{transform:rotate(-26deg) translateX(-3px)}75%{transform:rotate(4deg) translateX(1px)}100%{transform:rotate(0)}}
 .mobile-link.selected .vb-icon[data-src*="home"]{animation:vb-tab-icon .6s var(--spring)}
 /* Verbie has headroom; nothing clips his hop */
 .verbie{overflow:visible}
