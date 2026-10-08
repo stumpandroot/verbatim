@@ -360,7 +360,8 @@ body.vb-topnew-hidden #topNew{display:none}
 @keyframes vb-jump-big{0%{transform:translateY(0) scale(1)}35%{transform:translateY(-14px) scale(1.25) rotate(-8deg)}65%{transform:translateY(2px) scale(.95)}100%{transform:none}}
 /* tab bar: a capsule slides behind the selected tab */
 .mobile-nav{position:fixed}
-.nav-pill{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px - 8px)/3);border-radius:999px;background:var(--iris-tint);transition:transform .6s var(--spring);z-index:0;pointer-events:none}
+.nav-track{position:absolute;inset:5px;border-radius:999px;overflow:hidden;z-index:0;pointer-events:none}
+.nav-pill{position:absolute;top:0;bottom:0;left:0;width:calc((100% - 8px)/3);border-radius:999px;background:var(--iris-tint);transition:transform .6s var(--spring);pointer-events:none}
 .mobile-link{position:relative;z-index:1;background:transparent!important}
 .mobile-link.selected svg.vb-icon,.mobile-link.selected img{animation:vb-tab-icon .6s var(--spring)}
 @keyframes vb-tab-icon{0%{transform:scale(.7) translateY(4px)}50%{transform:scale(1.25) translateY(-3px)}75%{transform:scale(.95)}100%{transform:none}}
