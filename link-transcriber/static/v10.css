@@ -151,3 +151,15 @@ svg.vb-icon{display:inline-block;flex:none;vertical-align:middle;width:1em;heigh
 .generic-heading h1{font-size:clamp(34px,9vw,44px)}
 #libraryNew{background:var(--ink)}
 .settings-tools .outline-btn{background:var(--coral-tint);color:#8a3a24}
+
+/* ---- File entry: a real second button inside the hero card ---- */
+.hero-card .file-entry{margin:0}
+.hero-card .file-link{display:flex;width:100%;align-items:center;justify-content:center;gap:9px;min-height:46px;border-radius:var(--r-pill);background:#ffffff14;border:1.5px solid #ffffff66;color:#fff;font-size:15px;font-weight:800;padding:0 16px;box-sizing:border-box}
+.hero-card .file-link:active{background:#ffffff28}
+.hero-card .file-link svg.vb-icon path,.hero-card .file-link svg.vb-icon{stroke:#fff}
+.hero-card .file-link svg.vb-icon path[stroke="#FF8A6B"]{stroke:var(--coral)}
+.hero-card .file-link .ui-icon{width:20px;height:20px}
+.hero-card #fileNote{color:#fff;opacity:.85;font-size:13px;margin:0}
+.hero-card #fileNote:empty{display:none}
+@media (max-width:660px){.hero-card .file-link{min-height:44px;font-size:14px}}
+@media (max-width:660px) and (max-height:625px){.hero-card .file-link{min-height:42px}}

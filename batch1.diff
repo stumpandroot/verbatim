@@ -288,7 +288,7 @@ index e9cef8a..bf5b919 100644
  httpx>=0.27,<1
 +python-multipart>=0.0.9,<1
 diff --git a/link-transcriber/static/app.js b/link-transcriber/static/app.js
-index 5d542b3..330535a 100644
+index 5d542b3..424a667 100644
 --- a/link-transcriber/static/app.js
 +++ b/link-transcriber/static/app.js
 @@ -15,12 +15,15 @@
@@ -309,7 +309,7 @@ index 5d542b3..330535a 100644
    const sample = {
      id:'verbatim-sample',demo:true,title:'The work behind a meaningful brand story',platform:'YouTube',source_type:'auto_captions',url:'',duration:226,detected_language:'en',refine_status:'completed',
      segments:[
-@@ -48,26 +51,79 @@
+@@ -48,26 +51,98 @@
    function store(){ try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch{if(!demoOnly)notify('Storage is unavailable on this device.');} }
    function elem(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
    function replace(el,...content){el.replaceChildren(...content);}
@@ -334,7 +334,7 @@ index 5d542b3..330535a 100644
 -  async function startReal(url){const ticket=++actionToken;current=null;jobId=null;navigate('processing');$('processNotice').textContent='Progress tracks processing stages, not an exact time remaining. Keep this tab open until it finishes.';drawProgress(3,'Connecting','Checking access to the video…');try{const response=await fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,language:$('videoLanguage').value})});const data=await response.json();if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'The video could not be submitted.');jobId=data.job_id;while(ticket===actionToken){const poll=await fetch(`/api/jobs/${encodeURIComponent(jobId)}`,{cache:'no-store'});if(!poll.ok)throw new Error('The transcription status could not be retrieved.');const j=await poll.json();if(j.status==='failed')throw new Error(j.error||'We could not access captions or audio for this video.');if(j.status==='completed'){current=j;activeTab='original';renderResult();navigate('result');notify('Transcript ready');return;}const stages={queued:'Preparing your video',fetching:'Checking existing captions',downloading:'Listening to the audio',transcribing:'Turning speech into text'};drawProgress(j.progress||5,stages[j.status]||'Processing video',j.message||'This can take a little time.');await new Promise(resolve=>setTimeout(resolve,1250));}}
 -    catch(error){if(ticket!==actionToken)return;navigate('home');$('formError').textContent=error.message||'Could not retrieve text from this video.';$('formError').hidden=false;notify('Could not get a transcript from this link.');}}
 -  function linkedTime(t){const b=elem('button','timecode',shortTime(t));b.type='button';b.title='Open video at this timestamp';b.onclick=()=>{if(current?.demo){notify('This sample has no corresponding source video.');return;}let link=current?.url;try{const u=new URL(link);if(current.platform==='YouTube'){u.searchParams.set('t',String(Math.floor(t))+'s');link=u.toString();}else if(current.platform==='Vimeo'){u.hash=`t=${Math.floor(t)}s`;link=u.toString();}window.open(link,'_blank','noopener,noreferrer');}catch{notify('Source video is unavailable.');}};return b;}
-+  function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processBar').setAttribute('aria-valuenow',String(Math.round(percent)));$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
++  function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processBar').setAttribute('aria-valuenow',String(Math.round(percent)));$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;$('stageBars').dataset.stage=String(percent>=100?3:index);for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
 +  function rememberJob(id){try{if(id)sessionStorage.setItem(activeJobKey,id);else sessionStorage.removeItem(activeJobKey);}catch{}}
 +  async function readJson(response){try{return await response.json();}catch{return {};}}
 +  async function pollJob(id,ticket){
@@ -390,13 +390,32 @@ index 5d542b3..330535a 100644
 +    return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
 +  }
 +  async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
++  // Inline SVG icons so CSS can animate their strokes. Falls back to <img> when fetch is unavailable (file://).
++  const iconCache=new Map();
++  async function inlineIcons(root=document){
++    if(location.protocol==='file:')return;
++    const imgs=[...root.querySelectorAll('img[src$=".svg"]:not([data-inlined])')].filter(i=>/\/icons\//.test(i.getAttribute('src')));
++    await Promise.all(imgs.map(async img=>{
++      const src=img.getAttribute('src');img.dataset.inlined='1';
++      try{
++        if(!iconCache.has(src))iconCache.set(src,fetch(src).then(r=>r.ok?r.text():''));
++        const text=await iconCache.get(src);if(!text||!img.isConnected)return;
++        const doc=new DOMParser().parseFromString(text,'image/svg+xml');const svg=doc.documentElement;if(svg.nodeName!=='svg')return;
++        svg.setAttribute('class',(img.className||'')+' vb-icon');svg.setAttribute('focusable','false');svg.removeAttribute('role');svg.setAttribute('aria-hidden','true');
++        if(img.id)svg.id=img.id;svg.dataset.src=src;
++        img.replaceWith(document.adoptNode(svg));
++      }catch{}
++    }));
++  }
++  function pop(el){if(!el)return;el.classList.remove('vb-pop');void el.offsetWidth;el.classList.add('vb-pop');}
++  new MutationObserver(muts=>{for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)inlineIcons(n.matches&&n.matches('img')?n.parentNode:n);}).observe(document.body,{childList:true,subtree:true});
    function iconSrc(name){return (window.VERBATIM_EMBEDDED_ICONS||{})[name] || '/static/icons/'+name;}
 -  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind==='clean'?'clean.svg':kind+'.png');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
 +  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind+'.svg');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
    function renderBody(){if(!current)return;const body=$('workspaceBody');body.replaceChildren();const isReady=current.refine_status==='completed';$('searchWrap').hidden=activeTab!=='original';$('transcriptSearch').value=activeTab==='original' ? $('transcriptSearch').value : '';
      for(const b of document.querySelectorAll('[data-tab]')){const selected=b.dataset.tab===activeTab;b.classList.toggle('selected',selected);b.setAttribute('aria-selected',String(selected));}
      if(activeTab==='original'){const q=$('transcriptSearch').value.trim().toLowerCase();const filtered=current.segments.filter(s=>!q||(s.text||'').toLowerCase().includes(q));$('searchCount').textContent=q?`${filtered.length} match${filtered.length===1?'':'es'}`:'';if(!filtered.length){body.append(emptyNote('Nothing found','Try another word or phrase.','search'));return;}for(const s of filtered){const row=elem('div','transcript-segment');const p=elem('p');highlightText(p,s.text||'',q);row.append(linkedTime(s.start||0),p);body.append(row);}return;}
-@@ -76,16 +132,32 @@
+@@ -76,17 +151,33 @@
      if(activeTab==='review'){if(!isReady){body.append(emptyNote('Phrases to double-check','Use “Clean & summarize” to identify uncertain phrases for review.','review'));return;}const flags=current.review_flags||[];body.append(elem('p','state-explain','These phrases may need review. They are not confirmed errors.'));if(!flags.length){body.append(emptyNote('Nothing flagged','No phrases were identified for manual checking.','review'));return;}for(const flag of flags){const div=elem('div','review-item');div.append(elem('strong','',`“${flag.phrase}”`),elem('p','',flag.reason));if(flag.time_seconds!=null){const wrap=elem('div');wrap.style.marginTop='10px';wrap.append(linkedTime(flag.time_seconds));div.append(wrap);}body.append(div);}}
    }
    function renderResult(){if(!current)return;const isDemo=!!current.demo;const txt=getText(current.segments);$('resultTitle').textContent=current.title||'Untitled video';$('resultPlatform').textContent=(current.platform||'VIDEO').toUpperCase()+'  /  TEXT';$('resultSource').textContent=isDemo?'ILLUSTRATIVE SAMPLE':(sourceNames[current.source_type]||'TRANSCRIPT').toUpperCase();$('resultSource').title=isDemo?'This is example content, not a real transcription.':`Source: ${sourceNames[current.source_type]||'Unknown'}. Check against the video before quoting.`;$('resultDuration').textContent=shortTime(current.duration||0);$('resultWords').textContent=`${words(txt).toLocaleString()} words`;$('resultLanguage').textContent=langNames[(current.detected_language||'').split('-')[0]]||current.detected_language||'Unknown';$('demoBadge').hidden=!isDemo;
@@ -414,6 +433,7 @@ index 5d542b3..330535a 100644
 -  function renderLibrary(){updateSavedCount();const root=$('libraryItems');root.replaceChildren();if(!saved.length){const wrap=elem('div','input-surface');wrap.append(emptyNote('Your saved transcripts','Save a transcript to find it here later. Library items stay in this browser.','library'));const tryBtn=elem('button','primary-btn compact','Open sample transcript');tryBtn.onclick=()=>openSample();wrap.append(tryBtn);root.append(wrap);return;}for(const item of saved){const row=elem('div','library-card');const thumb=elem('div','library-image');thumb.append(makePlatformBadge(item.platform||''));const main=elem('div','library-card-main');main.append(elem('h3','',item.title||'Untitled video'),elem('p','',`${item.platform||'Video'} · ${shortTime(item.duration||0)} · Saved on this device`));const open=elem('button','library-open','Open');open.onclick=()=>{current=structuredClone(item);jobId=null;activeTab='original';renderResult();navigate('result');};const remove=elem('button','library-remove','Remove');remove.onclick=()=>{saved=saved.filter(x=>x.id!==item.id);store();renderLibrary();notify('Removed from library');};row.append(thumb,main,open,remove);root.append(row);}}
 -  function setSaveLabel(isSaved){const button=$('saveButton');button.classList.toggle('is-saved',isSaved);button.querySelector('img').src=iconSrc((isSaved?'saved':'save')+'.svg');button.lastChild.textContent=isSaved?' Saved':' Save';}
 -  function saveTranscript(){if(!current)return;const exists=saved.some(s=>s.id===current.id);if(exists){saved=saved.filter(s=>s.id!==current.id);notify('Removed from library');}else{saved=[structuredClone(current),...saved].slice(0,25);notify('Saved in this browser');}store();updateSavedCount();setSaveLabel(!exists);}
+-  for(const nav of document.querySelectorAll('[data-view]'))nav.addEventListener('click',()=>navigate(nav.dataset.view));
 +  // Every text that leaves the app says what it is and where it came from.
 +  function provenanceHeader(){
 +    if(!current)return '';
@@ -431,13 +451,14 @@ index 5d542b3..330535a 100644
 +  function showExportPreview(filename,text){const d=$('exportDialog');$('exportName').textContent=filename;$('exportText').value=text;d.showModal();}
 +  function download(ext,text,mime){if(!current)return;if(demoOnly){showExportPreview(`${(current.title||'transcript').slice(0,40)}.${ext}`,text);return;}const filename=(current.title||'verbatim-transcript').normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').slice(0,58)||'transcript';const blob=new Blob([text],{type:mime});const link=URL.createObjectURL(blob);const a=document.createElement('a');a.href=link;a.download=`${filename}.${ext}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(link),1000);notify(`${ext.toUpperCase()} exported`);}
 +  function renderLibrary(){updateSavedCount();const root=$('libraryItems');root.replaceChildren();if(!saved.length){const wrap=elem('div','input-surface');wrap.append(emptyNote('Your saved transcripts','Save a transcript to find it here later. Library items stay in this browser.','library'));const tryBtn=elem('button','primary-btn compact','Open sample transcript');tryBtn.onclick=()=>openSample();wrap.append(tryBtn);root.append(wrap);return;}for(const item of saved){const row=elem('div','library-card');const thumb=elem('div','library-image');thumb.append(makePlatformBadge(item.platform||''));const main=elem('div','library-card-main');main.append(elem('h3','',item.title||'Untitled video'),elem('p','',`${item.platform||'Video'} · ${shortTime(item.duration||0)} · ${item.refine_status==='completed'?'With AI notes':'Original only'} · Saved in this browser`));const open=elem('button','library-open','Open');open.onclick=()=>{current=structuredClone(item);jobId=null;activeTab='original';renderResult();navigate('result');};const remove=elem('button','library-remove','Remove');remove.onclick=()=>{if(!confirmAction(`Remove “${item.title||'Untitled video'}” from this browser’s library?`,'rm-'+item.id))return;saved=saved.filter(x=>x.id!==item.id);store();renderLibrary();notify('Removed from library');};row.append(thumb,main,open,remove);root.append(row);}}
-+  function setSaveLabel(isSaved){const button=$('saveButton');button.classList.toggle('is-saved',isSaved);button.querySelector('img').src=iconSrc((isSaved?'saved':'save')+'.svg');button.lastChild.textContent=isSaved?' Saved':' Save';button.title=isSaved?'Saved in this browser. Tap again to update the saved copy.':'Save in this browser';}
++  function setSaveLabel(isSaved){const button=$('saveButton');button.classList.toggle('is-saved',isSaved);const ic=button.querySelector('img,svg.vb-icon');const want=iconSrc((isSaved?'saved':'save')+'.svg');if(ic&&ic.tagName==='IMG')ic.src=want;else if(ic&&ic.dataset.src!==want){const img=elem('img','save-action-icon');img.alt='';img.src=want;ic.replaceWith(img);}pop(button);button.lastChild.textContent=isSaved?' Saved':' Save';button.title=isSaved?'Saved in this browser. Tap again to update the saved copy.':'Save in this browser';}
 +  // Save never removes. A second tap refreshes the stored copy (for example after AI notes arrive). Removal lives in the Library with a confirmation.
 +  function saveTranscript(){if(!current)return;const exists=saved.some(s=>s.id===current.id);const copy=structuredClone(current);if(exists){saved=saved.map(s=>s.id===current.id?copy:s);notify('Saved copy updated');}else{if(saved.length>=25)notify('Library is full (25). The oldest transcript was removed.');saved=[copy,...saved].slice(0,25);notify('Saved in this browser');}store();updateSavedCount();setSaveLabel(true);}
-   for(const nav of document.querySelectorAll('[data-view]'))nav.addEventListener('click',()=>navigate(nav.dataset.view));
++  for(const nav of document.querySelectorAll('[data-view]'))nav.addEventListener('click',()=>{navigate(nav.dataset.view);pop(nav.querySelector('.vb-icon,img'));});
    for(const n of ['topNew','libraryNew'])$(n).addEventListener('click',()=>{navigate('home');$('videoUrl').focus();});
    $('resultBack').addEventListener('click',()=>navigate('home'));
-@@ -111,24 +183,28 @@
+   $('backDuring').addEventListener('click',()=>navigate('home'));
+@@ -111,24 +202,28 @@
        notify('Link pasted from clipboard');
      }catch{ $('videoUrl').focus();notify('Use iPhone Paste from the text field.'); }
    });
@@ -449,7 +470,7 @@ index 5d542b3..330535a 100644
    $('refineButton').addEventListener('click',refine);
 -  $('copyButton').addEventListener('click',async()=>{if(!current)return;let text=currentText();if(!text){notify('Generate this view first.');return;}try{await navigator.clipboard.writeText(text);notify('Copied to clipboard');}catch{notify('Clipboard unavailable in this browser. Try export.');}});
 -  $('downloadTxt').addEventListener('click',()=>{if(!current)return;let text=currentText();if(!text){notify('Generate this view first.');return;}download('txt',text,'text/plain;charset=utf-8');});
-+  $('copyButton').addEventListener('click',async()=>{if(!current)return;const text=textWithProvenance();if(!text){notify('Generate this view first.');return;}try{await navigator.clipboard.writeText(text);notify(`Copied: ${viewNames[activeTab]||'transcript'}`);}catch{notify('Clipboard unavailable in this browser. Try export.');}});
++  $('copyButton').addEventListener('click',async()=>{if(!current)return;pop($('copyButton'));const text=textWithProvenance();if(!text){notify('Generate this view first.');return;}try{await navigator.clipboard.writeText(text);notify(`Copied: ${viewNames[activeTab]||'transcript'}`);}catch{notify('Clipboard unavailable in this browser. Try export.');}});
 +  $('downloadTxt').addEventListener('click',()=>{if(!current)return;const text=textWithProvenance();if(!text){notify('Generate this view first.');return;}download('txt',text,'text/plain;charset=utf-8');});
    $('downloadSrt').addEventListener('click',()=>download('srt',subtitle('srt'),'text/plain;charset=utf-8'));
    $('downloadVtt').addEventListener('click',()=>download('vtt',subtitle('vtt'),'text/vtt;charset=utf-8'));
@@ -468,10 +489,10 @@ index 5d542b3..330535a 100644
    $('platformDialog').addEventListener('click',e=>{if(e.target===$('platformDialog'))$('platformDialog').close();});
    if(demoOnly){const d=elem('span','demo-badge','INTERACTIVE DESIGN PREVIEW');document.querySelector('.topbar-right').prepend(d);$('videoUrl').placeholder='Demo only · open a sample below';}
 -  updateSavedCount();navigate('home');
-+  updateSavedCount();navigate('home');loadCapabilities();resumeJob();
++  updateSavedCount();navigate('home');inlineIcons();loadCapabilities();resumeJob();
  })();
 diff --git a/link-transcriber/static/index.html b/link-transcriber/static/index.html
-index 38bc5bd..ee846a1 100644
+index 38bc5bd..a0ed820 100644
 --- a/link-transcriber/static/index.html
 +++ b/link-transcriber/static/index.html
 @@ -2,65 +2,62 @@
@@ -483,7 +504,7 @@ index 38bc5bd..ee846a1 100644
  <meta content="#faf8f2" name="theme-color"/><meta content="yes" name="apple-mobile-web-app-capable"/><meta content="default" name="apple-mobile-web-app-status-bar-style"/><link href="/static/app-icon.png" rel="apple-touch-icon"/><link href="/static/app-icon.png" rel="icon" type="image/png"/><link href="/static/manifest.webmanifest" rel="manifest"/><meta content="Paste accessible video links to get searchable transcripts and optional AI summaries. Keep the source text for reference." name="description"/>
  <title>Verbatim | Video transcripts and summaries</title>
 -<link href="/static/styles.css" rel="stylesheet"/><link href="/static/v5.css" rel="stylesheet"/><link href="/static/v6.css" rel="stylesheet"/><link href="/static/v7.css" rel="stylesheet"/><link href="/static/v8.css" rel="stylesheet"/><script defer="" src="/static/app.js"></script>
-+<link href="/static/styles.css" rel="stylesheet"/><link href="/static/v5.css" rel="stylesheet"/><link href="/static/v6.css" rel="stylesheet"/><link href="/static/v7.css" rel="stylesheet"/><link href="/static/v8.css" rel="stylesheet"/><link href="/static/v9.css" rel="stylesheet"/><script defer="" src="/static/app.js"></script>
++<link href="/static/styles.css" rel="stylesheet"/><link href="/static/v5.css" rel="stylesheet"/><link href="/static/v6.css" rel="stylesheet"/><link href="/static/v7.css" rel="stylesheet"/><link href="/static/v8.css" rel="stylesheet"/><link href="/static/v9.css" rel="stylesheet"/><link href="/static/v10.css" rel="stylesheet"/><script defer="" src="/static/app.js"></script>
  </head>
  <body>
  <div class="app-shell">
@@ -508,7 +529,6 @@ index 38bc5bd..ee846a1 100644
  <section aria-labelledby="heroTitle" class="page active" id="page-home">
  <div class="hero-grid">
 -<div class="hero-copy"><span class="eyebrow"><span class="eyebrow-line"></span> VIDEO TRANSCRIPTS AND SUMMARIES</span><h1 id="heroTitle">Turn videos into <span class="text-gradient">searchable text.</span></h1><p class="hero-description">Paste a video link to find what was said, search the transcript, and pull out key points without rewatching.</p></div>
-+<div class="hero-copy"><h1 id="heroTitle">Turn videos into <span class="text-gradient">searchable text.</span></h1><p class="hero-description">Paste a video link to find what was said, search the transcript, and pull out key points without rewatching.</p></div>
  <div aria-hidden="true" class="ribbon-stage signature-stage">
  <div class="stage-orbit stage-orbit-one"></div><div class="stage-orbit stage-orbit-two"></div>
  <div class="stage-top-note">SPEECH TO TEXT</div>
@@ -524,11 +544,12 @@ index 38bc5bd..ee846a1 100644
 -<form class="input-surface" id="transcribeForm" novalidate=""><div class="input-top"><div><span class="input-kicker">START HERE <span class="light-arrow"><img alt="" aria-hidden="true" class="tiny-arrow" src="/static/icons/arrow-se.svg"/></span></span><h2>Your transcript starts with a link.</h2></div><span class="tiny-stamp">CAPTIONS FIRST</span></div>
 -<label class="field-label" for="videoUrl">VIDEO LINK</label><div class="url-row"><img alt="" class="url-chain url-icon" src="/static/icons/link.png"/><input autocomplete="url" id="videoUrl" inputmode="url" placeholder="Paste a YouTube, Vimeo or TikTok URL…" required="" spellcheck="false" type="url"/><button aria-label="Paste from clipboard" class="paste-btn" id="pasteButton" type="button">Paste</button><button class="primary-btn" id="submitBtn" type="submit"><span>Get transcript</span><span aria-hidden="true"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div><p class="form-error" hidden="" id="formError" role="alert"></p><p aria-live="polite" class="platform-detect" id="platformDetect"></p>
 -<div class="input-foot"><div class="platform-row"><span class="muted-label">SUPPORTED LINKS</span><span class="platform-pill"><span class="platform-badge platform-youtube"><img src="/static/platform-icons/youtube.svg" alt="" loading="eager"/></span><span class="platform-label">YouTube</span></span><span class="platform-pill"><span class="platform-badge platform-vimeo"><img src="/static/platform-icons/vimeo.svg" alt="" loading="eager"/></span><span class="platform-label">Vimeo</span></span><span class="platform-pill"><span class="platform-badge platform-tiktok"><img src="/static/platform-icons/tiktok.svg" alt="" loading="eager"/></span><span class="platform-label">TikTok</span></span><span class="platform-pill"><span class="platform-badge platform-instagram"><img src="/static/platform-icons/instagram.svg" alt="" loading="eager"/></span><span class="platform-label">Instagram</span></span><button class="all-platforms" id="showPlatforms" type="button">+ 11 more</button></div><div class="input-actions"><select aria-label="Spoken language" id="videoLanguage"><option value="auto">Auto language</option><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option><option value="it">Italian</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="hi">Hindi</option><option value="ar">Arabic</option></select></div></div>
-+<form aria-labelledby="formTitle" class="input-surface" id="transcribeForm" novalidate=""><h2 class="sr-only" id="formTitle">Get a transcript</h2>
-+<label class="field-label sr-only" for="videoUrl">Video link</label><div class="url-row"><img alt="" class="url-chain url-icon" src="/static/icons/link.svg"/><input aria-describedby="platformDetect formError" autocomplete="url" enterkeyhint="go" id="videoUrl" inputmode="url" placeholder="Paste a YouTube, Vimeo or TikTok URL…" required="" spellcheck="false" type="url"/><button aria-label="Paste from clipboard" class="paste-btn" id="pasteButton" type="button">Paste</button><button class="primary-btn" id="submitBtn" type="submit"><span>Get transcript</span><span aria-hidden="true"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div><p class="form-error" hidden="" id="formError" role="alert"></p><p aria-live="polite" class="platform-detect" id="platformDetect"></p>
-+<div class="input-foot"><div class="platform-row"><span class="muted-label">SUPPORTED LINKS</span><span class="platform-pill"><span class="platform-badge platform-youtube"><img src="/static/platform-icons/youtube.svg" alt="" loading="eager"/></span><span class="platform-label">YouTube</span></span><span class="platform-pill"><span class="platform-badge platform-vimeo"><img src="/static/platform-icons/vimeo.svg" alt="" loading="eager"/></span><span class="platform-label">Vimeo</span></span><span class="platform-pill"><span class="platform-badge platform-tiktok"><img src="/static/platform-icons/tiktok.svg" alt="" loading="eager"/></span><span class="platform-label">TikTok</span></span><span class="platform-pill"><span class="platform-badge platform-instagram"><img src="/static/platform-icons/instagram.svg" alt="" loading="eager"/></span><span class="platform-label">Instagram</span></span><span class="sr-only">Also Facebook, X, Reddit, Twitch, Dailymotion, LinkedIn, Loom, Streamable, Rumble, Pinterest, and Bluesky.</span><button aria-label="See all 15 supported platforms" class="all-platforms" id="showPlatforms" type="button">+ 11 more</button></div><div class="input-actions"><select aria-label="Spoken language" id="videoLanguage"><option value="auto">Auto language</option><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option><option value="it">Italian</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="hi">Hindi</option><option value="ar">Arabic</option></select></div></div>
++<form aria-labelledby="heroTitle" class="input-surface hero-card" id="transcribeForm" novalidate="">
++<div class="hero-copy"><h1 id="heroTitle">Turn videos into <span class="text-gradient">searchable text.</span></h1><p class="hero-description">Paste a link or add a recording. Search what was said and pull out key points without rewatching.</p></div>
++<label class="field-label sr-only" for="videoUrl">Video link</label><div class="url-row"><div class="url-field"><img alt="" class="url-chain url-icon" src="/static/icons/link.svg"/><input aria-describedby="platformDetect formError" autocomplete="url" enterkeyhint="go" id="videoUrl" inputmode="url" placeholder="Paste a YouTube, Vimeo or TikTok link" required="" spellcheck="false" type="url"/></div><div class="url-actions"><button aria-label="Paste from clipboard" class="paste-btn" id="pasteButton" type="button">Paste</button><button class="primary-btn" id="submitBtn" type="submit"><span>Get transcript</span><span aria-hidden="true"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div></div><p class="form-error" hidden="" id="formError" role="alert"></p><p aria-live="polite" class="platform-detect" id="platformDetect"></p>
  </form>
 -<div class="home-section-head"><div><span class="section-kicker">THREE WAYS TO USE IT</span><h2>What you get <span class="little-asterisk"><img alt="" aria-hidden="true" class="micro-symbol" src="/static/icons/burst.svg"/></span></h2></div><button class="text-action" id="sampleButton" type="button">Try a sample <span><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div>
++<div class="input-foot under-card"><div class="platform-row"><span class="muted-label">SUPPORTED LINKS</span><span class="platform-pill"><span class="platform-badge platform-youtube"><img src="/static/platform-icons/youtube.svg" alt="" loading="eager"/></span><span class="platform-label">YouTube</span></span><span class="platform-pill"><span class="platform-badge platform-vimeo"><img src="/static/platform-icons/vimeo.svg" alt="" loading="eager"/></span><span class="platform-label">Vimeo</span></span><span class="platform-pill"><span class="platform-badge platform-tiktok"><img src="/static/platform-icons/tiktok.svg" alt="" loading="eager"/></span><span class="platform-label">TikTok</span></span><span class="platform-pill"><span class="platform-badge platform-instagram"><img src="/static/platform-icons/instagram.svg" alt="" loading="eager"/></span><span class="platform-label">Instagram</span></span><span class="sr-only">Also Facebook, X, Reddit, Twitch, Dailymotion, LinkedIn, Loom, Streamable, Rumble, Pinterest, and Bluesky.</span><button aria-label="See all 15 supported platforms" class="all-platforms" id="showPlatforms" type="button">+ 11 more</button></div><div class="input-actions"><select aria-label="Spoken language" id="videoLanguage"><option value="auto">Auto language</option><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option><option value="it">Italian</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="hi">Hindi</option><option value="ar">Arabic</option></select></div></div>
 +<div class="file-entry"><input accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aiff,.caf,.mp4,.mov,.m4v,.webm,.mkv" class="sr-only" id="fileInput" type="file"/><button class="quiet-link file-link" id="fileButton" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/transcribe.svg"/> Or transcribe a recording or video file</button><p aria-live="polite" class="platform-detect" id="fileNote"></p></div>
 +<div class="home-section-head"><div><h2>What you get <span class="little-asterisk"><img alt="" aria-hidden="true" class="micro-symbol" src="/static/icons/burst.svg"/></span></h2></div><button class="text-action" id="sampleButton" type="button">Try a sample <span><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div>
  <div class="feature-grid">
@@ -545,9 +566,9 @@ index 38bc5bd..ee846a1 100644
 -<section aria-label="Transcript workspace" class="page" id="page-result"><div class="result-head"><button class="back-link" id="resultBack" type="button"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-left.svg"/> BACK HOME</button><div class="result-actions"><span class="result-source-pill" id="resultSource">CAPTIONS</span><button class="outline-btn" id="saveButton" type="button"><img alt="" aria-hidden="true" class="save-action-icon" src="/static/icons/save.svg"/> Save</button><button class="primary-btn compact" id="copyButton" type="button">Copy text <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button></div></div><div class="result-intro"><span class="section-kicker" id="resultPlatform">YOUR TRANSCRIPT</span><h1 id="resultTitle">Brand Story: The work behind the work</h1><div class="result-meta"><span id="resultDuration">12 min</span><span>·</span><span id="resultWords">630 words</span><span>·</span><span id="resultLanguage">English</span><span class="demo-badge" hidden="" id="demoBadge">DEMO TRANSCRIPT</span></div><p class="trust-disclaimer">The original stays unchanged. AI-generated notes are separate and should be checked against the source.</p></div>
 -<div class="result-layout"><div class="result-main"><div class="workspace-nav"><div aria-label="Transcript view" class="tab-scroller" role="tablist"><button aria-selected="true" class="workspace-tab selected" data-tab="original" role="tab" type="button">Original</button><button aria-selected="false" class="workspace-tab" data-tab="cleaned" role="tab" type="button">Cleaned</button><button aria-selected="false" class="workspace-tab" data-tab="summary" role="tab" type="button">Summary</button><button aria-selected="false" class="workspace-tab" data-tab="review" role="tab" type="button">Review flags</button></div></div><div class="search-row" id="searchWrap"><img alt="" class="search-field-icon" src="/static/icons/search.png"/><input aria-label="Search transcript" id="transcriptSearch" placeholder="Find a word or phrase in the transcript…" type="search"/><span class="search-count" id="searchCount"></span></div><div class="workspace-body" id="workspaceBody" role="tabpanel" tabindex="0"></div><div class="ai-bottom" id="aiBottom"><div><img alt="" class="ai-icon" src="/static/icons/summary.png"/><strong>Want a cleaner version or key points?</strong><p id="aiStatusText">Create an easier-to-read version and summary. The original transcript stays unchanged.</p></div><button class="primary-btn compact" id="refineButton" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/burst.svg"/> Clean &amp; summarize</button></div></div>
 -<aside class="result-side"><div class="source-preview"><div class="source-preview-header"><span>THE SOURCE</span><span class="source-dots"><i class="source-dot-iris"></i><i class="source-dot-coral"></i><i class="source-dot-lime"></i></span></div><div class="preview-visual"><div class="play-disc"><img alt="" src="/static/icons/transcribe.png"/></div><div class="visual-caption">SPEECH <span>TO</span> TEXT</div><div class="mini-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><a class="open-source" href="#" id="originalVideoLink" rel="noopener noreferrer" target="_blank">Open original video <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></a></div><div class="detail-card"><span class="detail-kicker">A FEW DETAILS</span><div class="detail-row"><span>Source</span><strong id="detailPlatform">Video</strong></div><div class="detail-row"><span>Transcript type</span><strong id="detailSourceType">Captions</strong></div><div class="detail-row"><span>Duration</span><strong id="detailDuration">—</strong></div><div class="detail-row"><span>Language</span><strong id="detailLanguage">English</strong></div></div><div class="export-card"><span class="detail-kicker">TAKE IT WITH YOU</span><h3>Export the transcript.</h3><p>Copy or download the transcript, subtitles, or AI notes.</p><div class="export-buttons"><button id="downloadTxt" type="button">TXT <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button><button id="downloadSrt" type="button">SRT <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button><button id="downloadVtt" type="button">VTT <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button></div></div></aside></div>
-+<section aria-label="Transcription progress" class="page" id="page-processing"><div class="process-card"><div class="process-top"><span class="eyebrow">WORKING <span class="working-dot"></span></span><button class="ghost-button" id="backDuring"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-left.svg"/> Home</button></div><h1 class="process-title">Preparing your <span class="text-gradient">transcript.</span></h1><p aria-live="polite" class="process-copy" id="processMessage">Checking for existing captions first.</p><div aria-hidden="true" class="processing-art"><div class="processing-mark"><img alt="" src="/static/icons/processing.svg"/></div><svg viewbox="0 0 600 150"><path class="process-line" d="M4 78 C40 78 55 36 86 36 S146 122 186 122 S246 28 286 28 S350 124 391 112 S446 49 488 58 S553 84 596 62"></path><circle class="process-ball" cx="594" cy="62" fill="#d1ed8b" r="10"></circle></svg></div><div class="process-progress-meta"><span id="processStage">Looking for captions</span><span class="sr-only" id="processPercent">12%</span></div><div aria-labelledby="processStage" aria-valuemax="100" aria-valuemin="0" aria-valuenow="12" class="progress-bar" id="processBar" role="progressbar"><span id="processFill" style="width:12%"></span></div><div class="step-list" id="stepList"><div class="step-item"><span class="step-marker current">1</span><span>Check the source</span></div><div class="step-item"><span class="step-marker">2</span><span>Retrieve the text</span></div><div class="step-item"><span class="step-marker">3</span><span>Prepare transcript</span></div></div><div class="process-notice" id="processNotice">Keep this screen open. The bar shows stages, not time left.</div></div></section>
++<section aria-label="Transcription progress" class="page" id="page-processing"><div class="process-card"><div class="process-top"><span class="eyebrow">WORKING</span><button class="ghost-button" id="backDuring"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-left.svg"/> Home</button></div><h1 class="process-title">Preparing your <span class="text-gradient">transcript.</span></h1><p aria-live="polite" class="process-copy" id="processMessage">Checking for existing captions first.</p><div aria-hidden="true" class="stage-bars" data-stage="0" id="stageBars"><span class="stage-bar"><i></i></span><span class="stage-bar"><i></i></span><span class="stage-bar"><i></i></span></div><div class="step-list" id="stepList"><div class="step-item"><span class="step-marker current">1</span><span>Check the source</span></div><div class="step-item"><span class="step-marker">2</span><span>Retrieve the text</span></div><div class="step-item"><span class="step-marker">3</span><span>Prepare transcript</span></div></div><div class="process-progress-meta"><span id="processStage">Looking for captions</span><span class="sr-only" id="processPercent">12%</span></div><div aria-labelledby="processStage" aria-valuemax="100" aria-valuemin="0" aria-valuenow="12" class="progress-bar" id="processBar" role="progressbar"><span id="processFill" style="width:12%"></span></div><div class="process-notice" id="processNotice">Keep this screen open. The bar shows stages, not time left.</div></div></section>
 +<section aria-label="Transcript workspace" class="page" id="page-result"><div class="result-head"><button class="back-link" id="resultBack" type="button"><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-left.svg"/> BACK HOME</button><div class="result-actions"><span class="result-source-pill" id="resultSource">CAPTIONS</span><button class="outline-btn" id="saveButton" type="button"><img alt="" aria-hidden="true" class="save-action-icon" src="/static/icons/save.svg"/> Save</button><button class="primary-btn compact" id="copyButton" type="button">Copy text <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button></div></div><div class="result-intro"><span class="section-kicker" id="resultPlatform">YOUR TRANSCRIPT</span><h1 id="resultTitle">Brand Story: The work behind the work</h1><div class="result-meta"><span id="resultDuration">12 min</span><span>·</span><span id="resultWords">630 words</span><span>·</span><span id="resultLanguage">English</span><span class="demo-badge" hidden="" id="demoBadge">DEMO TRANSCRIPT</span></div><p class="trust-disclaimer">The original stays unchanged. AI notes are separate. Check names, numbers, and quotes against the video before you use them.</p></div>
-+<div class="result-layout"><div class="result-main"><div class="workspace-nav"><div aria-label="Transcript view" class="tab-scroller" role="tablist"><button aria-selected="true" class="workspace-tab selected" data-tab="original" role="tab" type="button">Original</button><button aria-selected="false" class="workspace-tab" data-tab="cleaned" role="tab" type="button">Cleaned</button><button aria-selected="false" class="workspace-tab" data-tab="summary" role="tab" type="button">Summary</button><button aria-selected="false" class="workspace-tab" data-tab="review" role="tab" type="button">Review flags</button></div></div><div class="search-row" id="searchWrap"><img alt="" class="search-field-icon" src="/static/icons/search.svg"/><input aria-label="Search transcript" id="transcriptSearch" placeholder="Find a word or phrase in the transcript…" type="search"/><span class="search-count" id="searchCount"></span></div><div class="workspace-body" id="workspaceBody" role="tabpanel" tabindex="0"></div><div class="ai-bottom" id="aiBottom"><div><img alt="" class="ai-icon" src="/static/icons/summary.svg"/><strong>Create a cleaned version and key points</strong><p id="aiStatusText">Creates an AI-edited version and key points. The original stays unchanged.</p></div><button class="primary-btn compact" id="refineButton" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/burst.svg"/> Clean &amp; summarize</button></div></div>
++<div class="result-layout"><div class="result-main"><div class="workspace-nav"><div aria-label="Transcript view" class="tab-scroller" role="tablist"><button aria-selected="true" class="workspace-tab selected" data-tab="original" role="tab" type="button">Original</button><button aria-selected="false" class="workspace-tab" data-tab="cleaned" role="tab" type="button">Cleaned</button><button aria-selected="false" class="workspace-tab" data-tab="summary" role="tab" type="button">Summary</button><button aria-selected="false" class="workspace-tab" data-tab="review" role="tab" type="button">Review</button></div></div><div class="search-row" id="searchWrap"><img alt="" class="search-field-icon" src="/static/icons/search.svg"/><input aria-label="Search transcript" id="transcriptSearch" placeholder="Find a word or phrase in the transcript…" type="search"/><span class="search-count" id="searchCount"></span></div><div class="workspace-body" id="workspaceBody" role="tabpanel" tabindex="0"></div><div class="ai-bottom" id="aiBottom"><div><img alt="" class="ai-icon" src="/static/icons/summary.svg"/><strong>Create a cleaned version and key points</strong><p id="aiStatusText">Creates an AI-edited version and key points. The original stays unchanged.</p></div><button class="primary-btn compact" id="refineButton" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/burst.svg"/> Clean &amp; summarize</button></div></div>
 +<aside class="result-side"><div class="source-preview"><div class="source-preview-header"><span>THE SOURCE</span><span class="source-dots"><i class="source-dot-iris"></i><i class="source-dot-coral"></i><i class="source-dot-lime"></i></span></div><div class="preview-visual"><div class="play-disc"><img alt="" src="/static/icons/transcribe.svg"/></div><div class="visual-caption">SPEECH <span>TO</span> TEXT</div><div class="mini-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><a class="open-source" href="#" id="originalVideoLink" rel="noopener noreferrer" target="_blank">Open original video <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></a></div><div class="detail-card"><span class="detail-kicker">A FEW DETAILS</span><div class="detail-row"><span>Source</span><strong id="detailPlatform">Video</strong></div><div class="detail-row"><span>Transcript type</span><strong id="detailSourceType">Captions</strong></div><div class="detail-row"><span>Duration</span><strong id="detailDuration">—</strong></div><div class="detail-row"><span>Language</span><strong id="detailLanguage">English</strong></div></div><div class="export-card"><span class="detail-kicker">TAKE IT WITH YOU</span><h3>Export the transcript.</h3><p>Downloads include the title, source link, and whether the text is original or AI-edited.</p><div class="export-buttons"><button id="downloadTxt" type="button">TXT <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button><button id="downloadSrt" type="button">SRT <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button><button id="downloadVtt" type="button">VTT <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button></div></div></aside></div>
  </section>
 -<section class="page" id="page-library"><div class="generic-heading"><span class="eyebrow">SAVED TRANSCRIPTS</span><h1>Saved for <span class="text-gradient">later.</span></h1><p>Find your saved transcripts here. They are stored in this browser.</p></div><div class="library-head"><h2>Your library <span id="libraryLabelCount">0</span></h2><button class="primary-btn compact" id="libraryNew" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/add.svg"/> New transcript</button></div><div class="library-items" id="libraryItems"></div></section>
@@ -567,6 +588,165 @@ index 38bc5bd..ee846a1 100644
 +<dialog class="platform-dialog" id="platformDialog"><div class="dialog-head"><h2>Video platforms we support</h2><button aria-label="Close" class="icon-button" id="closePlatforms" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>Verbatim can attempt links from these 15 platforms. The video must provide accessible captions or audio.</p><div class="platform-dialog-list" id="platformList"></div><button class="primary-btn" id="dialogDone" type="button">Done <img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></button></dialog>
  </body>
  </html>
+diff --git a/link-transcriber/static/v10.css b/link-transcriber/static/v10.css
+new file mode 100644
+index 0000000..a6d273d
+--- /dev/null
++++ b/link-transcriber/static/v10.css
+@@ -0,0 +1,153 @@
++/* Verbatim v10: color as surface. Navy entry card, three-bar stage indicator, tinted view tags,
++   borderless tiles, 24-28 px radii, inline icon micro-animations. Loads last; overrides earlier layers. */
++
++:root{
++  --ink:#1E2340;--iris:#6C5CE7;--iris-deep:#5A4BD6;--coral:#FF8A6B;--lime:#B7E67E;--mist:#E8E7EE;
++  --iris-tint:#ECE9FF;--coral-tint:#FFE9E1;--lime-tint:#EEF7DC;--mist-tint:#F1F0F5;
++  --r-card:28px;--r-field:18px;--r-pill:999px;
++}
++
++/* ---- Inline icons: same sizing as the <img> they replace ---- */
++svg.vb-icon{display:inline-block;flex:none;vertical-align:middle;width:1em;height:1em}
++.nav-icon.brand-icon,.mobile-link svg.vb-icon{width:24px;height:24px}
++.ui-icon{width:19px;height:19px}.button-arrow{width:15px;height:15px;margin-left:5px}
++.tiny-arrow,.tiny-note-icon{width:14px;height:14px}.micro-symbol{width:17px;height:17px}
++.feature-symbol svg.vb-icon,.info-tile .feature-symbol svg.vb-icon{width:30px;height:30px}
++.empty-note-illustration{width:64px;height:64px;padding:16px;box-sizing:border-box}
++.search-field-icon,.url-chain.url-icon{width:22px;height:22px}
++.ai-icon{width:30px;height:30px}.save-action-icon{width:17px;height:17px}.file-link .ui-icon{width:20px;height:20px}
++.primary-btn svg.button-arrow,.primary-btn svg.ui-icon,#libraryNew svg.ui-icon,#refineButton svg.ui-icon{stroke:#fff}
++.primary-btn svg.button-arrow path,.primary-btn svg.ui-icon path,#libraryNew svg.ui-icon path,#refineButton svg.ui-icon path{stroke:#fff}
++#refineButton.is-ready svg.ui-icon path{stroke:currentColor}
++.primary-btn .button-arrow,.mobile-plus .ui-icon,#libraryNew .ui-icon,#refineButton .ui-icon{filter:none}
++
++/* ---- Micro-animations (tap feedback only; nothing moves while reading) ---- */
++@keyframes vb-pop{0%{transform:scale(1)}40%{transform:scale(1.14)}70%{transform:scale(.96)}100%{transform:scale(1)}}
++.vb-pop{animation:vb-pop .26s cubic-bezier(.2,.9,.24,1)}
++.mobile-link svg.vb-icon path:last-child,.nav-link svg.vb-icon path:last-child{transition:stroke-dashoffset .3s ease,opacity .3s ease}
++.mobile-link:not(.selected) svg.vb-icon path:last-child,.nav-link:not(.selected) svg.vb-icon path:last-child{opacity:.45}
++#saveButton svg.vb-icon{transition:transform .2s cubic-bezier(.2,.9,.24,1)}
++#copyButton.vb-pop svg.vb-icon{animation:vb-pop .26s}
++@media(prefers-reduced-motion:reduce){.vb-pop{animation:none}}
++
++/* ---- Global surfaces: no hairlines, no shadows, bigger radii ---- */
++.input-surface,.result-main,.library-card,.info-tile,.detail-card,.export-card,.process-card,.platform-dialog,.empty-note,.review-item,.summary-header{border:0;box-shadow:none}
++.result-main,.library-card,.info-tile,.detail-card,.export-card,.process-card{border-radius:var(--r-card)}
++.result-main{background:#fff}
++.workspace-nav{border-bottom:0;padding:16px 16px 0}
++.info-tile{background:var(--mist-tint)}.info-tile:nth-child(2){background:var(--iris-tint)}.info-tile:nth-child(3){background:var(--lime-tint)}
++.detail-card{background:var(--mist-tint)}.export-card{background:var(--iris-tint)}
++.library-card{background:#fff}
++.library-image{background:var(--iris-tint);border-radius:18px}
++.library-card:nth-child(3n+2) .library-image{background:var(--coral-tint)}.library-card:nth-child(3n) .library-image{background:var(--lime-tint)}
++.library-open{background:var(--ink);color:#fff}.library-remove{background:var(--coral-tint)}
++.topbar{border-bottom:0;background:transparent}
++.sidebar{border-right:0;background:transparent}
++.icon-button{border:0;background:var(--mist-tint)}
++.outline-btn{border:0;background:var(--mist-tint)}
++.primary-btn{box-shadow:none;border-radius:var(--r-pill)}
++.primary-btn:hover:not(:disabled){box-shadow:none;transform:none}
++.mobile-nav{border-top:0;box-shadow:none;background:#faf8f2f0}
++.toast{border-radius:var(--r-pill)}
++.search-row{border:0;background:var(--mist-tint);border-radius:var(--r-field)}
++.transcript-segment{border-bottom:0}
++.ai-bottom{border-top:0;background:var(--mist-tint);border-radius:0 0 var(--r-card) var(--r-card)}
++.review-item{background:var(--coral-tint)}
++.summary-header{background:var(--lime-tint);border-radius:20px}
++
++/* ---- Home: the navy entry card is the hero ---- */
++.hero-grid{min-height:0;margin-bottom:0}
++#page-home .signature-stage{background:none}
++.input-surface.hero-card{background:var(--ink);color:#fff;border-radius:var(--r-card);padding:22px 20px 18px;display:flex;flex-direction:column;gap:12px;margin:0}
++.hero-card .hero-copy{display:block}
++.hero-card h1{color:#fff;margin:0;font-size:clamp(28px,7.6vw,36px);line-height:1.05;letter-spacing:-.045em;max-width:100%}
++.hero-card .text-gradient{background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--lime)}
++.hero-card .hero-description{color:#fff;opacity:.9;margin:0;font-size:14px;line-height:1.45;max-width:100%}
++#page-home .hero-card .hero-description{color:#fff}
++.url-row{display:flex;flex-direction:column;gap:10px;border:0;padding:0;margin:0;min-height:0;background:transparent}
++#page-home .url-row{display:flex;grid-template-columns:none;padding:0;row-gap:10px}
++.url-field{display:flex;align-items:center;gap:10px;background:#fff;border-radius:var(--r-field);padding:0 14px;min-height:52px;color:var(--ink)}
++.url-field input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:var(--ink);min-height:48px;padding:0;width:auto}
++.url-field input::placeholder{color:#6F6E84}
++.url-field:focus-within{box-shadow:0 0 0 3px var(--lime) inset}
++#page-home .url-row input{min-height:48px;grid-column:auto;grid-row:auto;padding:0}
++#page-home .url-chain.url-icon{grid-column:auto;grid-row:auto;justify-self:auto}
++.url-actions{display:flex;gap:8px}
++#page-home .url-row .paste-btn,.paste-btn{grid-column:auto;grid-row:auto;background:#ffffff22;color:#fff;border:0;border-radius:var(--r-pill);min-height:46px;width:auto;padding:0 20px;font-size:15px;font-weight:800}
++#page-home .url-row .primary-btn,.url-row .primary-btn{grid-column:auto;grid-row:auto;flex:1;background:var(--lime);color:var(--ink);min-height:46px;border-radius:var(--r-pill);font-size:15px;font-weight:800;padding:0 16px;margin:0}
++.url-row .primary-btn:hover:not(:disabled){background:#c6ec92}
++.url-row .primary-btn svg.button-arrow path,.url-row .primary-btn svg.button-arrow{stroke:var(--ink)}
++.url-row .primary-btn .button-arrow{filter:none}
++.hero-card .form-error{color:#FFD9CF;font-size:13px;margin:0}
++.hero-card .platform-detect{color:#fff;opacity:.85;font-size:13px;margin:0}
++.hero-card .platform-detect.is-recognized{color:var(--lime);opacity:1}
++.hero-card .platform-detect.is-recognized:before{filter:brightness(0) saturate(100%) invert(93%) sepia(14%) saturate(900%) hue-rotate(40deg)}
++.input-foot.under-card{margin:12px 2px 0;display:flex;align-items:center;justify-content:space-between;gap:10px}
++#page-home .input-foot.under-card{margin-top:12px}
++.platform-pill{color:var(--muted)}
++.input-actions select{border:0;background:var(--mist-tint);border-radius:var(--r-field);color:var(--ink)}
++.file-entry{margin-top:6px}
++#page-home .home-section-head{padding-top:4px}
++@media (max-width:660px){
++  #page-home .signature-stage{height:92px;min-height:92px;margin:0 auto 2px}
++  #page-home .signature-illustration{transform:scale(.42)}
++  #page-home .input-surface.hero-card{padding:18px 16px 14px;gap:10px}
++  .hero-card h1{font-size:clamp(26px,7.4vw,32px);margin:0}
++  #page-home .hero-card .hero-description{font-size:13.5px;line-height:1.4}
++  #page-home .input-foot.under-card{margin-top:10px}
++}
++@media (max-width:660px) and (max-height:760px){
++  #page-home .signature-stage{height:70px;min-height:70px}
++  #page-home .signature-illustration{transform:scale(.32)}
++  #page-home .hero-card .hero-description{display:block;font-size:13px}
++  .file-entry{margin-top:2px}
++}
++@media (max-width:660px) and (max-height:625px){
++  #page-home .signature-stage{display:none}
++  #page-home .hero-card .hero-description{display:none}
++}
++
++/* ---- Processing: the three logo bars fill by stage ---- */
++.process-card{background:#fff;padding-top:28px}
++.stage-bars{display:flex;align-items:flex-end;justify-content:center;gap:16px;height:190px;margin:26px 0 8px}
++.stage-bar{display:block;width:48px;height:100%;border-radius:var(--r-pill);background:var(--mist-tint);position:relative;overflow:hidden}
++.stage-bar:nth-child(2){height:78%}.stage-bar:nth-child(3){height:56%}
++.stage-bar i{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:var(--r-pill);transition:height .7s cubic-bezier(.2,.9,.24,1)}
++.stage-bar:nth-child(1) i{background:var(--iris)}.stage-bar:nth-child(2) i{background:var(--coral)}.stage-bar:nth-child(3) i{background:var(--lime)}
++/* current stage breathes between 55% and 85%; finished stages are full */
++@keyframes vb-stage-breathe{0%,100%{height:58%}50%{height:86%}}
++.stage-bars[data-stage="0"] .stage-bar:nth-child(1) i{animation:vb-stage-breathe 2.2s ease-in-out infinite}
++.stage-bars[data-stage="1"] .stage-bar:nth-child(1) i{height:100%}
++.stage-bars[data-stage="1"] .stage-bar:nth-child(2) i{animation:vb-stage-breathe 2.2s ease-in-out infinite}
++.stage-bars[data-stage="2"] .stage-bar:nth-child(1) i,.stage-bars[data-stage="2"] .stage-bar:nth-child(2) i{height:100%}
++.stage-bars[data-stage="2"] .stage-bar:nth-child(3) i{animation:vb-stage-breathe 2.2s ease-in-out infinite}
++.stage-bars[data-stage="3"] .stage-bar i{height:100%;animation:none}
++@media(prefers-reduced-motion:reduce){.stage-bar i{animation:none!important;transition:none}
++  .stage-bars[data-stage="0"] .stage-bar:nth-child(1) i,.stage-bars[data-stage="1"] .stage-bar:nth-child(2) i,.stage-bars[data-stage="2"] .stage-bar:nth-child(3) i{height:70%}}
++.step-list{grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px;text-align:center}
++.step-item{justify-content:center;font-size:12px;letter-spacing:.3px;text-transform:uppercase;font-weight:800;color:var(--text-label)}
++.step-marker{display:none}
++.process-progress-meta{justify-content:center;margin:10px 0 4px}
++.progress-bar{display:none}
++.process-title{font-size:clamp(30px,8vw,40px)}
++@media (max-width:660px){.stage-bars{height:150px;gap:14px}.stage-bar{width:42px}.step-list{grid-template-columns:repeat(3,1fr)}.step-item{font-size:11px}}
++
++/* ---- Transcript: views as tinted tags ---- */
++.tab-scroller{gap:8px;padding-bottom:12px;overflow:auto}
++.workspace-tab{padding:0 14px;min-height:40px;border-radius:var(--r-pill);background:var(--mist-tint);color:var(--ink);font-size:13.5px;font-weight:800}
++.workspace-tab.selected:after{display:none}
++.workspace-tab.selected{color:var(--ink)}
++.workspace-tab[data-tab="original"].selected{background:var(--iris);color:#fff}
++.workspace-tab[data-tab="cleaned"].selected{background:var(--coral);color:var(--ink)}
++.workspace-tab[data-tab="summary"].selected{background:var(--lime);color:var(--ink)}
++.workspace-tab[data-tab="review"].selected{background:var(--ink);color:#fff}
++.result-source-pill{background:var(--lime-tint);color:#3f5a1e}
++.timecode{background:var(--iris-tint);color:var(--iris-deep)}
++.summary-time{background:var(--lime-tint);color:#3f5a1e}
++.summary-num{background:var(--lime);color:var(--ink)}
++.empty-note-illustration{background:var(--iris-tint)}
++
++/* ---- Library and About ---- */
++.generic-heading h1{font-size:clamp(34px,9vw,44px)}
++#libraryNew{background:var(--ink)}
++.settings-tools .outline-btn{background:var(--coral-tint);color:#8a3a24}
 diff --git a/link-transcriber/static/v9.css b/link-transcriber/static/v9.css
 new file mode 100644
 index 0000000..c7c634a
@@ -751,7 +931,7 @@ index 0000000..c7c634a
 +}
 +@media (max-width:660px) and (max-height:625px){ .file-link{min-height:36px} }
 diff --git a/link-transcriber/tests/test_app.py b/link-transcriber/tests/test_app.py
-index 003156b..4e4c06b 100644
+index 003156b..bbac08d 100644
 --- a/link-transcriber/tests/test_app.py
 +++ b/link-transcriber/tests/test_app.py
 @@ -13,7 +13,7 @@ client = TestClient(backend.app)
@@ -759,7 +939,7 @@ index 003156b..4e4c06b 100644
      response = client.get("/")
      assert response.status_code == 200
 -    assert "Your transcript starts with a link." in response.text
-+    assert "Get transcript" in response.text and "viewport-fit=cover" in response.text
++    assert "Get transcript" in response.text and "viewport-fit=cover" in response.text and "stageBars" in response.text
  
  
  def test_health():
