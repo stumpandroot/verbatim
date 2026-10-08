@@ -12,7 +12,7 @@
   --font:'Avenir Next','Nunito',ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --hand:'Caveat','Bradley Hand','Segoe Print','Comic Sans MS',cursive;
   --r-card:28px;--r-field:999px;
-  --spring:cubic-bezier(.2,1.2,.3,1);--ease:cubic-bezier(.2,.8,.2,1);
+  --spring:cubic-bezier(.34,1.56,.64,1);--spring-soft:cubic-bezier(.2,1.2,.3,1);--ease:cubic-bezier(.2,.8,.2,1);
   --nav-h:64px;--nav-gap:16px;
   color-scheme:light;
 }
@@ -337,3 +337,67 @@ body.vb-topnew-hidden #topNew{display:none}
   .stage-bars[data-stage="0"] .stage-bar:nth-child(1) i,.stage-bars[data-stage="1"] .stage-bar:nth-child(2) i,.stage-bars[data-stage="2"] .stage-bar:nth-child(3) i{height:70%}
   .brand-letter,.brand-bars,.platform-badge,.mobile-nav{opacity:1;transform:none}
 }
+
+
+/* ===== Lively pass: press/release with overshoot, sliding tab capsule, bursts, squash-and-stretch ===== */
+/* Press: squash hard. Release: overshoot past rest, settle. Driven by JS classes so release animates even after the finger lifts off. */
+.btn,.link-btn,.hand-btn,.icon-button,.paste-btn,.chip,.timecode,.summary-time,.library-open,.library-remove,.mobile-link,.nav-link,.platform-badge,.url-field,.tile,.library-card{transition:transform .22s var(--ease),background .2s,box-shadow .2s,color .2s}
+.is-pressed{transform:scale(.9)!important;transition:transform .08s ease-out!important}
+.vb-release{animation:vb-release .55s var(--spring) both!important}
+@keyframes vb-release{0%{transform:scale(.9)}45%{transform:scale(1.07)}75%{transform:scale(.985)}100%{transform:scale(1)}}
+.url-field.vb-release{animation-name:vb-release-field}
+@keyframes vb-release-field{0%{transform:scale(.985)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
+/* page changes: more travel, more overshoot */
+.page.active{animation:vb-page-big .6s var(--spring) both}
+@keyframes vb-page-big{0%{opacity:0;transform:translateY(26px) scale(.96)}60%{opacity:1}100%{opacity:1;transform:none}}
+/* chips: the selected one jumps and the others breathe out of its way */
+.chip.selected{animation:vb-chip .55s var(--spring)}
+@keyframes vb-chip{0%{transform:scale(.85)}45%{transform:scale(1.14)}70%{transform:scale(.96)}100%{transform:scale(1)}}
+/* link recognized: the field pulses lime and bounces */
+.url-field.is-recognized{animation:vb-field-hit .7s var(--spring);box-shadow:0 0 0 3px var(--lime) inset}
+@keyframes vb-field-hit{0%{transform:scale(1)}30%{transform:scale(1.04)}60%{transform:scale(.99)}100%{transform:scale(1)}}
+.platform-badge.is-hit{animation:vb-jump-big .7s var(--spring)}
+@keyframes vb-jump-big{0%{transform:translateY(0) scale(1)}35%{transform:translateY(-14px) scale(1.25) rotate(-8deg)}65%{transform:translateY(2px) scale(.95)}100%{transform:none}}
+/* tab bar: a capsule slides behind the selected tab */
+.mobile-nav{position:fixed}
+.nav-pill{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px - 8px)/3);border-radius:999px;background:var(--iris-tint);transition:transform .6s var(--spring);z-index:0;pointer-events:none}
+.mobile-link{position:relative;z-index:1;background:transparent!important}
+.mobile-link.selected svg.vb-icon,.mobile-link.selected img{animation:vb-tab-icon .6s var(--spring)}
+@keyframes vb-tab-icon{0%{transform:scale(.7) translateY(4px)}50%{transform:scale(1.25) translateY(-3px)}75%{transform:scale(.95)}100%{transform:none}}
+/* save burst: three bars fly out, like a like */
+.burst-host{position:relative}
+.burst{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:3}
+.burst i{position:absolute;left:-4px;top:-12px;width:8px;height:24px;border-radius:99px;transform-origin:center 12px;animation:vb-burst .8s var(--spring) both}
+.burst i:nth-child(1){background:var(--iris);--a:-40deg}.burst i:nth-child(2){background:var(--coral);--a:0deg}.burst i:nth-child(3){background:var(--lime);--a:40deg}
+.burst i:nth-child(4){background:var(--coral);--a:-80deg}.burst i:nth-child(5){background:var(--iris);--a:80deg}
+@keyframes vb-burst{0%{opacity:1;transform:rotate(var(--a)) translateY(0) scale(.4)}60%{opacity:1;transform:rotate(var(--a)) translateY(-38px) scale(1.1)}100%{opacity:0;transform:rotate(var(--a)) translateY(-52px) scale(.6)}}
+#saveButton.is-saved{background:var(--iris-tint);color:var(--iris-ink)}
+/* copy: the button flips to a check for a beat */
+.btn.vb-done{animation:vb-done .6s var(--spring)}
+@keyframes vb-done{0%{transform:scale(.9)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+/* stage bars: finished bars overshoot the top */
+.stage-bar i{transition:height .9s var(--spring)}
+.stage-bars[data-stage="3"] .stage-bar i{animation:vb-bar-done .7s var(--spring)}
+@keyframes vb-bar-done{0%{transform:scaleY(.6)}50%{transform:scaleY(1.08)}100%{transform:scaleY(1)}}
+/* Verbie: squash and stretch */
+.verbie .v-breathe{animation:vb-sq 2.6s ease-in-out infinite;transform-origin:70px 150px}
+@keyframes vb-sq{0%,100%{transform:scale(1,1)}50%{transform:scale(.985,1.03)}}
+.verbie-home .v-arm-wave{animation:vb-wave-arm 1.1s ease-in-out infinite}
+@keyframes vb-wave-arm{0%,100%{transform:rotate(0)}30%{transform:rotate(-24deg)}60%{transform:rotate(6deg)}}
+.verbie-home:active .v-breathe,.verbie-home.vb-release .v-breathe{animation:vb-hop .6s var(--spring)}
+@keyframes vb-hop{0%{transform:scale(1.15,.85) translateY(0)}45%{transform:scale(.92,1.1) translateY(-18px)}75%{transform:scale(1.05,.95) translateY(0)}100%{transform:none}}
+.verbie-proc .v-nod{animation:vb-groove 1.1s ease-in-out infinite;transform-origin:70px 150px}
+@keyframes vb-groove{0%,100%{transform:rotate(-4deg) scale(1,1)}25%{transform:rotate(0) scale(1.02,.98)}50%{transform:rotate(4deg) scale(1,1)}75%{transform:rotate(0) scale(1.02,.98)}}
+.verbie-ready .v-cheer{animation:vb-cheer-big 1s var(--spring) both,vb-bounce-idle 1.4s ease-in-out 1s infinite;transform-origin:70px 150px}
+@keyframes vb-cheer-big{0%{transform:translateY(60px) scale(1.2,.7);opacity:0}40%{transform:translateY(-22px) scale(.9,1.15);opacity:1}70%{transform:translateY(4px) scale(1.06,.95)}100%{transform:none}}
+@keyframes vb-bounce-idle{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-6px) scale(.98,1.03)}}
+/* toast: bigger pop */
+.toast{transition:opacity .2s,transform .6s var(--spring)}
+.toast{transform:translate(-50%,30px) scale(.8)}
+.toast.visible{transform:translate(-50%,0) scale(1)}
+/* glass bar entrance with overshoot */
+@keyframes vb-nav-in{0%{transform:translateY(60px) scale(.9);opacity:0}60%{transform:translateY(-6px) scale(1.02);opacity:1}100%{transform:none;opacity:1}}
+/* library cards and tiles stagger in */
+.library-card:nth-child(1){animation-delay:.02s}.library-card:nth-child(2){animation-delay:.08s}.library-card:nth-child(3){animation-delay:.14s}.library-card:nth-child(4){animation-delay:.2s}
+.tile{animation:vb-rise .6s var(--spring) both}.tile:nth-child(2){animation-delay:.08s}.tile:nth-child(3){animation-delay:.16s}
+@media (prefers-reduced-motion:reduce){.is-pressed,.vb-release,.chip.selected,.url-field.is-recognized,.platform-badge.is-hit,.burst i,.verbie *{animation:none!important;transform:none!important}.nav-pill{transition:none}}
