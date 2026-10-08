@@ -138,8 +138,14 @@ docker run --rm -p 127.0.0.1:8000:8000 verbatim
 
 Docker includes FFmpeg and Whisper. For **local AI refinement** in Docker, Ollama is not included; connect the container to your running Ollama instance or use the OpenAI provider. The default local Ollama endpoint in this example is not automatically accessible from inside a Docker container, so follow your platform's host-networking configuration to run it there. If you do not need refinement, `AI_PROVIDER=none` is sufficient.
 
+## Transcribe your own files
+
+Tap **Or transcribe a recording or video file** on the home screen, or `POST /api/jobs/upload` with a multipart `file` field and an optional `language`. Accepted: MP3, M4A, WAV, AAC, FLAC, OGG, Opus, AIFF, CAF, MP4, MOV, M4V, WebM, MKV. Video containers need FFmpeg. The file is written to a temporary directory on the server, transcribed with Faster Whisper, and deleted when the job finishes. Nothing is fetched from the internet for an uploaded file. Size and duration follow `MAX_DOWNLOAD_MB` and `MAX_VIDEO_SECONDS`.
+
 ## API
 
+- `POST /api/jobs/upload` multipart with `file` and optional `language`; transcribes a local recording.
+- `GET /api/capabilities` reports the AI provider, whether FFmpeg is present, the Whisper model, and upload limits.
 - `POST /api/jobs` with `{"url":"https://www.tiktok.com/@creator/video/<id>","language":"auto"}` or another supported single-video HTTPS URL.
 - `GET /api/jobs/{job_id}` returns current progress, transcript segments, source provenance, and optional AI output.
 - `POST /api/jobs/{job_id}/refine` begins optional AI editing after transcript completion.

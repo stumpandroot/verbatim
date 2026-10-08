@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -544,29 +544,76 @@ def process_video(job: Job) -> None:
                 audio_path = max(candidates, key=lambda candidate: candidate.stat().st_size)
                 if audio_path.stat().st_size > MAX_DOWNLOAD_BYTES:
                     raise RuntimeError(f"Download is too large. The limit is {MAX_DOWNLOAD_BYTES // 1048576} MB.")
-                update_job(job, status="transcribing", message="Preparing the speech model…", progress=39)
-                model = load_model()
-                lang = None if job.language == "auto" else job.language
-                segments, info = model.transcribe(str(audio_path), language=lang, beam_size=5,
-                                                  vad_filter=True, condition_on_previous_text=True)
-                detected = str(info.language or "")
-                duration = duration or float(info.duration or 0)
-                update_job(job, message="Transcribing speech…", detected_language=detected,
-                           duration=duration, source_type="speech_recognition", progress=42)
-                for segment in segments:
-                    text = str(segment.text or "").strip()
-                    if not text:
-                        continue
-                    entry = {"start": round(float(segment.start), 2),
-                             "end": round(float(segment.end), 2), "text": text}
-                    with _jobs_lock:
-                        job.segments.append(entry)
-                        if duration:
-                            job.progress = max(job.progress, min(98, 42 + 56 * segment.end / duration))
-                update_job(job, status="completed", message="Speech transcription complete", progress=100)
+                _transcribe_local_file(job, audio_path, duration)
         except Exception as exc:
             logger.exception("Transcription failed for job %s", job.id)
             update_job(job, status="failed", message="Transcription failed", error=_public_error(exc))
+
+
+def _transcribe_local_file(job: Job, audio_path: Path, duration: float) -> None:
+    """Run Whisper on a file already on disk. Shared by the link path and the upload path."""
+    update_job(job, status="transcribing", message="Preparing the speech model…", progress=39)
+    model = load_model()
+    lang = None if job.language == "auto" else job.language
+    segments, info = model.transcribe(str(audio_path), language=lang, beam_size=5,
+                                      vad_filter=True, condition_on_previous_text=True)
+    detected = str(info.language or "")
+    duration = duration or float(info.duration or 0)
+    if duration > MAX_VIDEO_SECONDS:
+        raise RuntimeError(f"Video is too long. The limit is {MAX_VIDEO_SECONDS // 60} minutes.")
+    update_job(job, message="Transcribing speech…", detected_language=detected,
+               duration=duration, source_type="speech_recognition", progress=42)
+    for segment in segments:
+        text = str(segment.text or "").strip()
+        if not text:
+            continue
+        entry = {"start": round(float(segment.start), 2),
+                 "end": round(float(segment.end), 2), "text": text}
+        with _jobs_lock:
+            job.segments.append(entry)
+            if duration:
+                job.progress = max(job.progress, min(98, 42 + 56 * segment.end / duration))
+    update_job(job, status="completed", message="Speech transcription complete", progress=100)
+
+
+UPLOAD_EXTENSIONS = {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".opus", ".aiff", ".aif", ".caf",
+                     ".mp4", ".mov", ".m4v", ".webm", ".mkv", ".mpeg", ".mpg", ".3gp"}
+
+
+def _media_duration(path: Path) -> float:
+    """Duration via ffprobe when available, else 0 (checked again after transcription)."""
+    import shutil
+    import subprocess
+    if not shutil.which("ffprobe"):
+        return 0.0
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                              "-of", "default=nw=1:nk=1", str(path)],
+                             capture_output=True, text=True, timeout=30, check=False).stdout.strip()
+        return float(out or 0)
+    except (ValueError, subprocess.SubprocessError):
+        return 0.0
+
+
+def process_upload(job: Job, directory: str, media_path: Path) -> None:
+    """Transcribe a file the user uploaded. The temp directory is removed when done."""
+    with _worker_slot:
+        try:
+            try:
+                update_job(job, status="fetching", message="Checking the file…", progress=5)
+                duration = _media_duration(media_path)
+                if duration > MAX_VIDEO_SECONDS:
+                    raise RuntimeError(f"Video is too long. The limit is {MAX_VIDEO_SECONDS // 60} minutes.")
+                _transcribe_local_file(job, media_path, duration)
+            except Exception as exc:
+                logger.exception("Upload transcription failed for job %s", job.id)
+                message = _public_error(exc)
+                if message.startswith("We couldn't get captions"):
+                    message = "We couldn't read this file. Try an MP3, M4A, WAV, MP4, or MOV with clear audio."
+                update_job(job, status="failed", message="Transcription failed", error=message)
+        finally:
+            import shutil
+            shutil.rmtree(directory, ignore_errors=True)
 
 
 def _ai_json(prompt: str) -> dict:
@@ -704,6 +751,8 @@ def capabilities():
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "whisper_model": WHISPER_MODEL,
         "max_video_minutes": MAX_VIDEO_SECONDS // 60,
+        "max_upload_mb": MAX_DOWNLOAD_BYTES // 1048576,
+        "upload_extensions": sorted(UPLOAD_EXTENSIONS),
     }
 
 
@@ -724,6 +773,49 @@ def create_job(request: TranscriptRequest):
         job = Job(id=job_id, url=url, language=request.language, platform=platform_for(url))
         _jobs[job_id] = job
     threading.Thread(target=process_video, args=(job,), daemon=True).start()
+    return {"job_id": job_id, "status": job.status}
+
+
+@app.post("/api/jobs/upload", status_code=202)
+async def create_upload_job(file: UploadFile = File(...), language: str = Form("auto")):
+    """Transcribe a file from the user's device. Nothing is fetched from the internet."""
+    if language not in SUPPORTED_LANGUAGES:
+        raise HTTPException(status_code=422, detail="Unsupported language option.")
+    name = Path(file.filename or "recording").name
+    ext = Path(name).suffix.lower()
+    if ext not in UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=422, detail="Choose an audio or video file (MP3, M4A, WAV, MP4, MOV, and similar).")
+    cleanup_jobs()
+    with _jobs_lock:
+        unfinished = sum(job.status not in TERMINAL_STATES for job in _jobs.values())
+        if unfinished >= MAX_UNFINISHED_JOBS:
+            raise HTTPException(status_code=429, detail="Too many pending videos. Try again after one finishes.")
+    directory = tempfile.mkdtemp(prefix="verbatim-upload-")
+    media_path = Path(directory) / f"source{ext}"
+    written = 0
+    try:
+        with media_path.open("wb") as handle:
+            while chunk := await file.read(1024 * 1024):
+                written += len(chunk)
+                if written > MAX_DOWNLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail=f"File is too large. The limit is {MAX_DOWNLOAD_BYTES // 1048576} MB.")
+                handle.write(chunk)
+    except HTTPException:
+        import shutil
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    finally:
+        await file.close()
+    if written == 0:
+        import shutil
+        shutil.rmtree(directory, ignore_errors=True)
+        raise HTTPException(status_code=422, detail="The file is empty.")
+    job_id = str(uuid.uuid4())
+    title = Path(name).stem.replace("_", " ").strip()[:250] or "Recording"
+    job = Job(id=job_id, url="", language=language, platform="File", title=title, message="Waiting to start…")
+    with _jobs_lock:
+        _jobs[job_id] = job
+    threading.Thread(target=process_upload, args=(job, directory, media_path), daemon=True).start()
     return {"job_id": job_id, "status": job.status}
 
 

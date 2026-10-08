@@ -389,3 +389,36 @@ def test_refine_errors_are_public(monkeypatch):
     assert backend._public_refine_error(error) == "The AI service returned an error (401)."
     assert "api.openai.com" not in backend._public_refine_error(error)
     assert backend._public_refine_error(RuntimeError("Ollama isn't running.")) == "Ollama isn't running."
+
+
+def test_upload_transcribes_local_file(monkeypatch):
+    from types import SimpleNamespace
+    class FakeModel:
+        def transcribe(self, path, language, beam_size, vad_filter, condition_on_previous_text):
+            assert Path(path).read_bytes() == b"fake audio bytes"
+            return iter([SimpleNamespace(start=0, end=2.5, text=" From a file.")]), SimpleNamespace(language="en", duration=2.5)
+    monkeypatch.setattr(backend, "load_model", lambda: FakeModel())
+    monkeypatch.setattr(backend, "_media_duration", lambda path: 2.5)
+    captured = {}
+    class InlineThread:
+        def __init__(self, target, args, daemon): captured["call"] = (target, args)
+        def start(self): captured["call"][0](*captured["call"][1])
+    monkeypatch.setattr(backend.threading, "Thread", InlineThread)
+    response = client.post("/api/jobs/upload", data={"language": "auto"},
+                           files={"file": ("Team_call.m4a", b"fake audio bytes", "audio/m4a")})
+    assert response.status_code == 202, response.text
+    job = backend._jobs.pop(response.json()["job_id"])
+    assert job.status == "completed" and job.platform == "File" and job.title == "Team call"
+    assert job.source_type == "speech_recognition" and job.segments[0]["text"] == "From a file."
+    assert job.url == ""
+    directory = captured["call"][1][1]
+    assert not Path(directory).exists(), "temp upload directory must be removed"
+
+
+def test_upload_rejects_bad_type_and_oversize(monkeypatch):
+    response = client.post("/api/jobs/upload", files={"file": ("notes.txt", b"hello", "text/plain")})
+    assert response.status_code == 422
+    monkeypatch.setattr(backend, "MAX_DOWNLOAD_BYTES", 10)
+    response = client.post("/api/jobs/upload", files={"file": ("big.mp3", b"x" * 64, "audio/mpeg")})
+    assert response.status_code == 413
+    assert not [j for j in backend._jobs.values() if j.platform == "File"]

@@ -15,7 +15,7 @@
       img.src=(window.VERBATIM_EMBEDDED_PLATFORM_ICONS||{})[slug]||'/static/platform-icons/'+slug+'.svg';
       badge.append(img);
     } else {
-      badge.textContent=({'Loom':'L','Streamable':'S','Rumble':'R'})[name]||'?';
+      if(name==='File'){const img=elem('img');img.alt='';img.src=iconSrc('transcribe.svg');badge.append(img);}else badge.textContent=({'Loom':'L','Streamable':'S','Rumble':'R'})[name]||'?';
     }
     return badge;
   }
@@ -70,7 +70,7 @@
   function rememberJob(id){try{if(id)sessionStorage.setItem(activeJobKey,id);else sessionStorage.removeItem(activeJobKey);}catch{}}
   async function readJson(response){try{return await response.json();}catch{return {};}}
   async function pollJob(id,ticket){
-    const stages={queued:'Waiting to start',fetching:'Checking existing captions',downloading:'Downloading audio',transcribing:'Turning speech into text'};
+    const stages={queued:'Waiting to start',fetching:'Checking the source',downloading:'Downloading audio',transcribing:'Turning speech into text'};
     while(ticket===actionToken){
       const poll=await fetch(`/api/jobs/${encodeURIComponent(id)}`,{cache:'no-store'});
       if(poll.status===404)throw new Error('This transcript is no longer on the server. Paste the link again.');
@@ -85,6 +85,26 @@
   function showJobError(message){navigate('home');$('formError').textContent=message||'Could not retrieve text from this video.';$('formError').hidden=false;notify('Could not get a transcript from this link.');}
   async function startReal(url){const ticket=++actionToken;current=null;jobId=null;navigate('processing');$('processNotice').textContent='Keep this screen open. The bar shows stages, not time left.';drawProgress(3,'Connecting','Checking access to the video…');try{const response=await fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,language:$('videoLanguage').value})});const data=await readJson(response);if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'The video could not be submitted.');jobId=data.job_id;rememberJob(jobId);await pollJob(jobId,ticket);}
     catch(error){if(ticket!==actionToken)return;rememberJob(null);showJobError(error.message);}}
+  function uploadFile(file){
+    return new Promise((resolve,reject)=>{
+      const form=new FormData();form.append('file',file,file.name);form.append('language',$('videoLanguage').value);
+      const xhr=new XMLHttpRequest();xhr.open('POST','/api/jobs/upload');
+      xhr.upload.onprogress=(e)=>{if(e.lengthComputable)drawProgress(2+28*e.loaded/e.total,'Uploading file',`Sending ${file.name}… ${Math.round(100*e.loaded/e.total)}%`);};
+      xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{}if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(typeof data.detail==='string'?data.detail:'The file could not be uploaded.'));};
+      xhr.onerror=()=>reject(new Error('The file could not be uploaded. Check the connection to the Verbatim server.'));
+      xhr.send(form);
+    });
+  }
+  async function startUpload(file){
+    if(!file)return;
+    if(demoOnly){$('fileNote').textContent='This preview uses sample data. Run the app to transcribe your own files.';return;}
+    if(caps&&caps.max_upload_mb&&file.size>caps.max_upload_mb*1048576){$('fileNote').textContent=`That file is larger than the ${caps.max_upload_mb} MB limit.`;return;}
+    const ticket=++actionToken;current=null;jobId=null;navigate('processing');
+    $('processNotice').textContent='The file is transcribed on the computer running Verbatim and deleted when done. Keep this screen open.';
+    drawProgress(2,'Uploading file',`Sending ${file.name}…`);
+    try{const data=await uploadFile(file);if(ticket!==actionToken)return;jobId=data.job_id;rememberJob(jobId);await pollJob(jobId,ticket);}
+    catch(error){if(ticket!==actionToken)return;rememberJob(null);showJobError(error.message);}
+  }
   async function resumeJob(){
     let id=null;try{id=sessionStorage.getItem(activeJobKey);}catch{}
     if(!id||demoOnly)return false;
@@ -93,7 +113,7 @@
     try{await pollJob(id,ticket);}catch(error){if(ticket!==actionToken)return true;rememberJob(null);showJobError(error.message);}
     return true;
   }
-  function linkedTime(t){const b=elem('button','timecode',shortTime(t));b.type='button';b.title='Open video at this timestamp';b.onclick=()=>{if(current?.demo){notify('This sample has no corresponding source video.');return;}let link=current?.url;try{const u=new URL(link);if(current.platform==='YouTube'){u.searchParams.set('t',String(Math.floor(t))+'s');link=u.toString();}else if(current.platform==='Vimeo'){u.hash=`t=${Math.floor(t)}s`;link=u.toString();}window.open(link,'_blank','noopener,noreferrer');}catch{notify('Source video is unavailable.');}};return b;}
+  function linkedTime(t){const b=elem('button','timecode',shortTime(t));b.type='button';b.title='Open video at this timestamp';b.onclick=()=>{if(current?.demo){notify('This sample has no corresponding source video.');return;}if(current?.platform==='File'||!current?.url){notify(`${shortTime(t)} in your file`);return;}let link=current?.url;try{const u=new URL(link);if(current.platform==='YouTube'){u.searchParams.set('t',String(Math.floor(t))+'s');link=u.toString();}else if(current.platform==='Vimeo'){u.hash=`t=${Math.floor(t)}s`;link=u.toString();}window.open(link,'_blank','noopener,noreferrer');}catch{notify('Source video is unavailable.');}};return b;}
   function highlightText(par,text,query){if(!query){par.textContent=text;return;}const index=text.toLowerCase().indexOf(query.toLowerCase());if(index===-1){par.textContent=text;return;}par.append(document.createTextNode(text.slice(0,index)),elem('mark','highlight',text.slice(index,index+query.length)),document.createTextNode(text.slice(index+query.length)));}
   function aiDestination(){
     if(!caps)return 'Creates an AI-edited version and key points. The original stays unchanged.';
@@ -101,7 +121,7 @@
     if(caps.ai_provider==='ollama')return `Uses Ollama on the computer running Verbatim (${caps.ai_model||'model not set'}). Nothing leaves that computer. The original stays unchanged.`;
     return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
   }
-  async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(current)renderResult();}
+  async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
   function iconSrc(name){return (window.VERBATIM_EMBEDDED_ICONS||{})[name] || '/static/icons/'+name;}
   function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind+'.svg');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
   function renderBody(){if(!current)return;const body=$('workspaceBody');body.replaceChildren();const isReady=current.refine_status==='completed';$('searchWrap').hidden=activeTab!=='original';$('transcriptSearch').value=activeTab==='original' ? $('transcriptSearch').value : '';
@@ -163,6 +183,8 @@
       notify('Link pasted from clipboard');
     }catch{ $('videoUrl').focus();notify('Use iPhone Paste from the text field.'); }
   });
+  $('fileButton').addEventListener('click',()=>{$('fileNote').textContent='';$('fileInput').click();});
+  $('fileInput').addEventListener('change',()=>{const f=$('fileInput').files&&$('fileInput').files[0];$('fileInput').value='';startUpload(f);});
   $('transcriptSearch').addEventListener('input',()=>renderBody());
   for(const tab of document.querySelectorAll('[data-tab]'))tab.addEventListener('click',()=>{activeTab=tab.dataset.tab;$('transcriptSearch').value='';renderBody();});
   $('saveButton').addEventListener('click',saveTranscript);
