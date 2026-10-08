@@ -212,6 +212,8 @@ def test_transcription_pipeline_without_network(monkeypatch, tmp_path):
 
     monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
     monkeypatch.setattr(backend, "load_model", lambda: FakeModel())
+    # Keep the suite offline: without this, the Vimeo caption route makes a real request to player.vimeo.com.
+    monkeypatch.setattr(backend, "get_vimeo_captions", lambda url, language: None)
     job = backend.Job(id="mockjob", url="https://vimeo.com/123456", language="auto")
     backend.process_video(job)
     assert job.status == "completed"
