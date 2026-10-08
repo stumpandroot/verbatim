@@ -61,7 +61,7 @@
             <label class="sr-only" for="videoUrl">Video link</label>
             <div class="url-field"><img alt="" class="url-icon" src="/static/icons/link.svg"/><input aria-describedby="platformDetect formError" autocomplete="url" enterkeyhint="go" id="videoUrl" inputmode="url" placeholder="Paste a YouTube, Vimeo or TikTok link" required="" spellcheck="false" type="url"/><button aria-label="Paste from clipboard" class="paste-btn" id="pasteButton" type="button">Paste</button></div>
             <button class="btn btn-dark" id="submitBtn" type="submit"><span>Get transcript</span><span aria-hidden="true" class="sr-only"><img alt="" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button>
-            <div class="file-entry"><input accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aiff,.caf,.mp4,.mov,.m4v,.webm,.mkv" class="sr-only" id="fileInput" type="file"/><button class="btn btn-outline file-link" id="fileButton" type="button"><img alt="" class="ui-icon" src="/static/icons/mic.svg"/><span>Choose a recording or video file</span></button><p aria-live="polite" class="note" id="fileNote"></p></div>
+            <div class="file-entry"><input accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aiff,.caf,.mp4,.mov,.m4v,.webm,.mkv" class="sr-only" id="fileInput" type="file"/><button class="btn btn-outline file-link" id="fileButton" type="button"><img alt="" class="ui-icon" src="/static/icons/upload.svg"/><span>Choose a recording or video file</span></button><p aria-live="polite" class="note" id="fileNote"></p></div>
             <p class="form-error" hidden="" id="formError" role="alert"></p>
             <p aria-live="polite" class="note platform-detect" id="platformDetect"></p>
           </form>
@@ -103,7 +103,7 @@
 
         <div class="result-intro">
           <h1 id="resultTitle">Transcript</h1>
-          <p class="meta"><span id="resultPlatform">Video</span> · <span id="resultDuration">00:00</span> · <span id="resultSource">Captions</span> · <span id="resultLanguage">English</span> · <span id="resultWords">0 words</span></p>
+          <p class="meta"><span id="resultPlatform">Video</span> · <span id="resultDuration">00:00</span> · <span id="resultSource">Captions</span> · <span id="resultLanguage">English</span> · <span id="resultWords">0 words</span> <span class="demo-badge" hidden id="demoBadge">Demo</span></p>
           <p class="trust-note">The original stays unchanged. AI notes are separate. Check names, numbers, and quotes against the video before you use them.</p>
         </div>
 
@@ -131,7 +131,7 @@
         <div class="tiles">
           <div class="tile tint-iris"><img alt="" class="tile-icon" src="/static/icons/caption.svg"/><h2>Captions first</h2><p>Verbatim looks for existing captions before transcribing audio. Availability varies by platform and video, and captions can contain errors.</p></div>
           <div class="tile tint-coral"><img alt="" class="tile-icon" src="/static/icons/review.svg"/><h2>Originals stay original</h2><p>Cleaning and summarizing never overwrite the source transcript. Exports say whether text is original or AI-edited.</p></div>
-          <div class="tile tint-lime"><img alt="" class="tile-icon" src="/static/icons/processing.svg"/><h2>Where your data goes</h2><p>Transcription runs on the computer hosting Verbatim. Nothing is uploaded unless OpenAI is turned on for AI notes, and the app says so before you start. Saved items stay in this browser.</p></div>
+          <div class="tile tint-lime"><img alt="" class="tile-icon" src="/static/icons/processing.svg"/><h2>Where your data goes</h2><p>Links and files you add are sent to the computer running Verbatim, transcribed there, and uploaded files are deleted when the job finishes. Nothing goes to a third party unless OpenAI is turned on for AI notes, and the app says so before you start. Saved transcripts stay in this browser only.</p></div>
         </div>
         <p class="note">This is a responsive web app, not a native iOS app. For iPhone access the backend must be reachable on a network. Safari's Add to Home Screen can place a shortcut on your device.</p>
         <div class="settings-tools"><button class="btn btn-soft danger" id="clearLibrary" type="button">Clear saved library</button><button class="btn btn-dark btn-sm" id="settingsSample" type="button">Try the sample</button></div>
@@ -149,7 +149,7 @@
 
 <dialog class="sheet" id="exportDialog"><div class="dialog-head"><h2>Export</h2><button aria-label="Close" class="icon-button" id="closeExport" type="button"><img alt="" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>This is the file that will be saved as <strong id="exportName">transcript.txt</strong>.</p><textarea aria-label="Export contents" id="exportText" readonly="" rows="12"></textarea><button class="btn btn-dark" id="copyExport" type="button">Copy contents</button></dialog>
 
-<dialog class="sheet" id="platformDialog"><div class="dialog-head"><h2>Supported platforms</h2><button aria-label="Close" class="icon-button" id="closePlatforms" type="button"><img alt="" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>Verbatim can attempt links from these 15 platforms. The video must provide accessible captions or audio.</p><div class="platform-dialog-list" id="platformList"></div><button class="btn btn-dark" id="dialogDone" type="button">Done</button></dialog>
+<dialog class="sheet" id="platformDialog"><div class="dialog-head"><h2>Platforms Verbatim can try</h2><button aria-label="Close" class="icon-button" id="closePlatforms" type="button"><img alt="" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>Links from these 15 platforms can work when the video has captions or audio Verbatim is allowed to read. Private, paywalled, or login-only videos usually don’t.</p><div class="platform-dialog-list" id="platformList"></div><button class="btn btn-dark" id="dialogDone" type="button">Done</button></dialog>
 
 </body>
 </html>

@@ -472,3 +472,9 @@ body[data-dir="right"] .vb-in{animation-name:vb-from-left}
 @keyframes vb-page-from-left{from{transform:translate3d(-32%,0,0);opacity:.2}to{transform:none;opacity:1}}
 html,body{overflow-x:hidden}
 @media (prefers-reduced-motion:reduce){.mobile-nav{transition:none!important}.page.swipe-in-left,.page.swipe-in-right{animation:none}}
+
+/* Toast with an action (Undo) */
+.toast.has-action{display:inline-flex;align-items:center;gap:14px;padding-right:8px;pointer-events:auto;white-space:nowrap}
+.toast-action{background:#ffffff22;color:#fff;border:0;border-radius:999px;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer}
+.toast-action:active{background:#ffffff38}
+.library-card h3 .demo-badge{vertical-align:middle;font-size:11px}
