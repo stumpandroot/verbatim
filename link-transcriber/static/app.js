@@ -15,7 +15,7 @@
       img.src=(window.VERBATIM_EMBEDDED_PLATFORM_ICONS||{})[slug]||'/static/platform-icons/'+slug+'.svg';
       badge.append(img);
     } else {
-      if(name==='File'){const img=elem('img');img.alt='';img.src=iconSrc('transcribe.svg');badge.append(img);}else badge.textContent=({'Loom':'L','Streamable':'S','Rumble':'R'})[name]||'?';
+      if(name==='File'){const img=elem('img');img.alt='';img.src=iconSrc('mic.svg');badge.append(img);}else badge.textContent=({'Loom':'L','Streamable':'S','Rumble':'R'})[name]||'?';
     }
     return badge;
   }
@@ -64,7 +64,7 @@
   function openSample(tab='original'){
     const ticket=++actionToken;jobId=null;current=null;activeTab=tab;navigate('processing');$('processNotice').textContent='Sample preview only · no real video is being processed.';
     let n=0;const stages=[{p:20,s:'Checking the source',m:'Loading sample transcript content…'},{p:48,s:'Retrieving the text',m:'Matching sample text to timestamps…'},{p:76,s:'Preparing transcript',m:'Showing the sample summary and review notes…'},{p:100,s:'Sample ready',m:'Explore the original, cleaned, and summary views.'}];
-    const tick=()=>{if(ticket!==actionToken)return;const st=stages[n++];drawProgress(st.p,st.s,st.m);if(n<stages.length)setTimeout(tick,460);else setTimeout(()=>{if(ticket!==actionToken)return;current=structuredClone(sample);renderResult();navigate('result');notify('Sample transcript ready');},460);};tick();
+    const tick=()=>{if(ticket!==actionToken)return;const st=stages[n++];drawProgress(st.p,st.s,st.m);if(n<stages.length)setTimeout(tick,460);else setTimeout(()=>{if(ticket!==actionToken)return;current=structuredClone(sample);renderResult();showReady(true);navigate('result');},460);};tick();
   }
   function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processBar').setAttribute('aria-valuenow',String(Math.round(percent)));$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;$('stageBars').dataset.stage=String(percent>=100?3:index);for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
   function rememberJob(id){try{if(id)sessionStorage.setItem(activeJobKey,id);else sessionStorage.removeItem(activeJobKey);}catch{}}
@@ -77,8 +77,8 @@
       if(!poll.ok)throw new Error('The transcription status could not be retrieved.');
       const j=await poll.json();
       if(j.status==='failed')throw new Error(j.error||'We could not access captions or audio for this video.');
-      if(j.status==='completed'){rememberJob(null);current=j;activeTab='original';renderResult();navigate('result');notify('Transcript ready');return;}
-      drawProgress(j.progress||5,stages[j.status]||'Processing video',j.message||'This can take a little time.');
+      if(j.status==='completed'){rememberJob(null);current=j;activeTab='original';renderResult();showReady(true);navigate('result');return;}
+      drawProgress(j.progress||5,stages[j.status]||'Processing video',j.message||'This can take a little time.');$('processHand').textContent=j.status==='transcribing'?'listening…':j.status==='downloading'?'fetching audio…':'reading captions…';
       await new Promise(resolve=>setTimeout(resolve,1250));
     }
   }
@@ -122,6 +122,35 @@
     return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
   }
   async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
+  // Verbie. Poses are built from the <defs> symbols in index.html so he is identical on every screen.
+  const NS='http://www.w3.org/2000/svg';
+  function vUse(id,attrs={}){const u=document.createElementNS(NS,'use');u.setAttribute('href','#'+id);for(const [k,v] of Object.entries(attrs))u.setAttribute(k,v);return u;}
+  function vPath(d,attrs={}){const p=document.createElementNS(NS,'path');p.setAttribute('d',d);p.setAttribute('stroke','#1E2340');p.setAttribute('stroke-width','5');p.setAttribute('stroke-linecap','round');p.setAttribute('fill','none');for(const [k,v] of Object.entries(attrs))p.setAttribute(k,v);return p;}
+  function vDot(cx,cy,rx=7,ry=4){const e=document.createElementNS(NS,'ellipse');e.setAttribute('cx',cx);e.setAttribute('cy',cy);e.setAttribute('rx',rx);e.setAttribute('ry',ry);e.setAttribute('fill','#1E2340');return e;}
+  function vGroup(cls,...kids){const g=document.createElementNS(NS,'g');if(cls)g.setAttribute('class',cls);for(const k of kids)g.append(k);return g;}
+  function verbie(pose){
+    const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox','0 0 140 170');svg.setAttribute('aria-hidden','true');
+    const eyes=()=>{const g=vGroup('v-eyes',vUse('v-eyes'));return g;};
+    const face=(closed=false,flat=false)=>vGroup('',closed?vUse('v-eyes-closed'):eyes(),vUse(flat?'v-flat':'v-smile'));
+    let body;
+    if(pose==='wave'){
+      body=vGroup('v-breathe',vUse('v-body'),face(),vUse('v-legs'),vGroup('v-arm-wave',vPath('M40 70 18 46'),vDot(16,43,6,6)),vPath('M100 80l16 10'),vUse('v-bar-coral',{x:110,y:66}));
+    }else if(pose==='listen'){
+      body=vGroup('v-nod',vUse('v-body'),face(true),vUse('v-legs'),vUse('v-phones'),vPath('M40 95 30 110'),vPath('M100 95l10 15'));
+      svg.append(body);
+      const l=vGroup('v-sidebar',vUse('v-bar-coral',{x:8,y:60}));const r=vGroup('v-sidebar',vUse('v-bar-lime',{x:118,y:66}));r.style.animationDelay='.3s';svg.append(l,r);return svg;
+    }else if(pose==='cheer'){
+      body=vGroup('v-cheer',vUse('v-body'),face(),vUse('v-legs'),vGroup('v-arm-l',vPath('M40 60 18 30'),vUse('v-bar-coral',{x:6,y:-8,transform:'rotate(-12 14 20)'})),vGroup('v-arm-r',vPath('M100 60l22-30'),vUse('v-bar-lime',{x:118,y:0,transform:'rotate(12 126 20)'})));
+    }else if(pose==='sit'){
+      body=vGroup('v-breathe',vUse('v-body',{transform:'translate(0 20)'}),vGroup('',vUse('v-eyes',{transform:'translate(0 20)'}),vUse('v-smile',{transform:'translate(0 20)'})),vPath('M56 148c0 8 8 10 20 10h22'),vPath('M84 148c0 8 8 10 20 10h14'),vDot(100,158,8,4.5),vDot(120,158,8,4.5),vPath('M40 102 22 120'),vDot(20,122,6,4),vUse('v-bar-coral',{x:6,y:100,transform:'rotate(-18 14 124)'}),vUse('v-bar-lime',{x:118,y:112,transform:'rotate(18 126 129)'}));
+    }else if(pose==='shrug'){
+      body=vGroup('',vUse('v-body'),face(false,true),vUse('v-legs'),vPath('M40 80 20 72'),vPath('M100 80l20-8'),vDot(17,70),vDot(123,70),vUse('v-bar-coral',{x:4,y:140,transform:'rotate(-80 12 152)'}));
+    }else{
+      body=vGroup('v-breathe',vUse('v-body'),face(),vUse('v-legs'),vPath('M40 80 22 100'),vPath('M100 80l18 20'),vDot(20,102,6,4),vDot(120,102,6,4),vUse('v-bar-coral',{x:112,y:104}),vUse('v-bar-lime',{x:128,y:118}));
+    }
+    svg.append(body);return svg;
+  }
+  function mountVerbies(root=document){for(const el of root.querySelectorAll('.verbie[data-pose]')){if(!el.firstChild)el.append(verbie(el.dataset.pose));}}
   // Inline SVG icons so CSS can animate their strokes. Falls back to <img> when fetch is unavailable (file://).
   const iconCache=new Map();
   async function inlineIcons(root=document){
@@ -142,7 +171,7 @@
   function pop(el){if(!el)return;el.classList.remove('vb-pop');void el.offsetWidth;el.classList.add('vb-pop');}
   new MutationObserver(muts=>{for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)inlineIcons(n.matches&&n.matches('img')?n.parentNode:n);}).observe(document.body,{childList:true,subtree:true});
   function iconSrc(name){return (window.VERBATIM_EMBEDDED_ICONS||{})[name] || '/static/icons/'+name;}
-  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind+'.svg');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
+  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const v=elem('span','verbie');v.setAttribute('aria-hidden','true');v.append(verbie(kind==='library'?'sit':kind==='search'?'shrug':'stand'));div.append(v,elem('strong','',title),elem('p','',message));return div;}
   function renderBody(){if(!current)return;const body=$('workspaceBody');body.replaceChildren();const isReady=current.refine_status==='completed';$('searchWrap').hidden=activeTab!=='original';$('transcriptSearch').value=activeTab==='original' ? $('transcriptSearch').value : '';
     for(const b of document.querySelectorAll('[data-tab]')){const selected=b.dataset.tab===activeTab;b.classList.toggle('selected',selected);b.setAttribute('aria-selected',String(selected));}
     if(activeTab==='original'){const q=$('transcriptSearch').value.trim().toLowerCase();const filtered=current.segments.filter(s=>!q||(s.text||'').toLowerCase().includes(q));$('searchCount').textContent=q?`${filtered.length} match${filtered.length===1?'':'es'}`:'';if(!filtered.length){body.append(emptyNote('Nothing found','Try another word or phrase.','search'));return;}for(const s of filtered){const row=elem('div','transcript-segment');const p=elem('p');highlightText(p,s.text||'',q);row.append(linkedTime(s.start||0),p);body.append(row);}return;}
@@ -150,7 +179,9 @@
     if(activeTab==='summary'){if(!isReady){body.append(emptyNote('Key points not created yet','Select “Clean & summarize” to create a point-by-point summary.','summary'));return;}const head=elem('div','summary-header');head.append(elem('h3','','Key points from this video'),elem('p','','AI-generated summary. Check important details against the source.'));body.append(head);const pts=current.summary_points||[];if(!pts.length)body.append(emptyNote('No summary points','The AI editor did not return any summary points.','summary'));for(const [i,pt] of pts.entries()){const row=elem('div','summary-item');row.append(elem('span','summary-num',String(i+1).padStart(2,'0')),elem('span','summary-item-content',pt.point));if(pt.time_seconds!=null){const t=linkedTime(pt.time_seconds);t.className='summary-time';row.append(t);}body.append(row);}return;}
     if(activeTab==='review'){if(!isReady){body.append(emptyNote('Phrases to double-check','Use “Clean & summarize” to identify uncertain phrases for review.','review'));return;}const flags=current.review_flags||[];body.append(elem('p','state-explain','These phrases may need review. They are not confirmed errors.'));if(!flags.length){body.append(emptyNote('Nothing flagged','No phrases were identified for manual checking.','review'));return;}for(const flag of flags){const div=elem('div','review-item');div.append(elem('strong','',`“${flag.phrase}”`),elem('p','',flag.reason));if(flag.time_seconds!=null){const wrap=elem('div');wrap.style.marginTop='10px';wrap.append(linkedTime(flag.time_seconds));div.append(wrap);}body.append(div);}}
   }
-  function renderResult(){if(!current)return;const isDemo=!!current.demo;const txt=getText(current.segments);$('resultTitle').textContent=current.title||'Untitled video';$('resultPlatform').textContent=(current.platform||'VIDEO').toUpperCase()+'  /  TEXT';$('resultSource').textContent=isDemo?'ILLUSTRATIVE SAMPLE':(sourceNames[current.source_type]||'TRANSCRIPT').toUpperCase();$('resultSource').title=isDemo?'This is example content, not a real transcription.':`Source: ${sourceNames[current.source_type]||'Unknown'}. Check against the video before quoting.`;$('resultDuration').textContent=shortTime(current.duration||0);$('resultWords').textContent=`${words(txt).toLocaleString()} words`;$('resultLanguage').textContent=langNames[(current.detected_language||'').split('-')[0]]||current.detected_language||'Unknown';$('demoBadge').hidden=!isDemo;
+  let readyTimer=null;
+  function showReady(fresh){const b=$('readyBlock');clearTimeout(readyTimer);if(!fresh){b.hidden=true;return;}b.hidden=false;b.classList.remove('is-collapsed');const v=b.querySelector('.verbie');v.replaceChildren(verbie('cheer'));readyTimer=setTimeout(()=>b.classList.add('is-collapsed'),3200);}
+  function renderResult(){if(!current)return;const isDemo=!!current.demo;const txt=getText(current.segments);$('resultTitle').textContent=current.title||'Untitled video';$('resultPlatform').textContent=current.platform||'Video';$('resultSource').textContent=isDemo?'Sample':(sourceNames[current.source_type]||'Transcript');$('resultSource').title=isDemo?'This is example content, not a real transcription.':`Source: ${sourceNames[current.source_type]||'Unknown'}. Check against the video before quoting.`;$('resultDuration').textContent=shortTime(current.duration||0);$('resultWords').textContent=`${words(txt).toLocaleString()} words`;$('resultLanguage').textContent=langNames[(current.detected_language||'').split('-')[0]]||current.detected_language||'Unknown';$('demoBadge').hidden=!isDemo;
     $('detailPlatform').textContent=current.platform||'Video';$('detailSourceType').textContent=isDemo?'Example content':sourceNames[current.source_type]||'Unknown';$('detailDuration').textContent=shortTime(current.duration||0);$('detailLanguage').textContent=$('resultLanguage').textContent;const source=$('originalVideoLink');const okUrl=!isDemo&&safePlatform(current.url||'');source.hidden=isDemo||!okUrl;source.href=okUrl?current.url:'#';
     setSaveLabel(saved.some(i=>i.id===current.id));const ready=current.refine_status==='completed';const processing=current.refine_status==='processing';const noAi=!isDemo&&caps&&caps.ai_provider==='none';const savedOnly=!isDemo&&!jobId&&!ready;$('refineButton').disabled=ready||processing||noAi||savedOnly;$('refineButton').classList.toggle('is-ready',ready);$('refineButton').classList.toggle('is-processing',processing);$('refineButton').lastChild.textContent=ready?' Notes ready':processing?' Creating notes…':' Clean & summarize';
     $('aiStatusText').textContent=isDemo?'This is sample content. No real video was processed.':processing?(current.refine_message||'Organizing the cleaned text and the key points…'):ready?'The cleaned transcript and key points are ready. Check important details against the original.':current.refine_status==='failed'?`AI notes failed: ${current.refine_error||'Please try again.'}`:savedOnly?'Saved transcripts can’t be refined later. Paste the link again to create AI notes.':aiDestination();
@@ -173,7 +204,7 @@
   function subtitle(mode){let out=mode==='vtt'?`WEBVTT\n\nNOTE\nOriginal transcript cues from Verbatim. Source: ${current?.demo?'sample':(current?.url||'unknown')}. Type: ${sourceNames[current?.source_type]||'Unknown'}.\n\n`:'';for(const [i,s] of (current?.segments||[]).entries()){const fmt=(sec)=>{let n=Math.max(0,Math.round(Number(sec||0)*1000));const milli=n%1000;n=Math.floor(n/1000);const ss=n%60;n=Math.floor(n/60);const mm=n%60;const hh=Math.floor(n/60);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}${mode==='vtt'?'.':','}${String(milli).padStart(3,'0')}`;};out+=(mode==='srt'?`${i+1}\n`:'')+`${fmt(s.start)} --> ${fmt(s.end||s.start+2)}\n${s.text}\n\n`;}return out;}
   function showExportPreview(filename,text){const d=$('exportDialog');$('exportName').textContent=filename;$('exportText').value=text;d.showModal();}
   function download(ext,text,mime){if(!current)return;if(demoOnly){showExportPreview(`${(current.title||'transcript').slice(0,40)}.${ext}`,text);return;}const filename=(current.title||'verbatim-transcript').normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').slice(0,58)||'transcript';const blob=new Blob([text],{type:mime});const link=URL.createObjectURL(blob);const a=document.createElement('a');a.href=link;a.download=`${filename}.${ext}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(link),1000);notify(`${ext.toUpperCase()} exported`);}
-  function renderLibrary(){updateSavedCount();const root=$('libraryItems');root.replaceChildren();if(!saved.length){const wrap=elem('div','input-surface');wrap.append(emptyNote('Your saved transcripts','Save a transcript to find it here later. Library items stay in this browser.','library'));const tryBtn=elem('button','primary-btn compact','Open sample transcript');tryBtn.onclick=()=>openSample();wrap.append(tryBtn);root.append(wrap);return;}for(const item of saved){const row=elem('div','library-card');const thumb=elem('div','library-image');thumb.append(makePlatformBadge(item.platform||''));const main=elem('div','library-card-main');main.append(elem('h3','',item.title||'Untitled video'),elem('p','',`${item.platform||'Video'} · ${shortTime(item.duration||0)} · ${item.refine_status==='completed'?'With AI notes':'Original only'} · Saved in this browser`));const open=elem('button','library-open','Open');open.onclick=()=>{current=structuredClone(item);jobId=null;activeTab='original';renderResult();navigate('result');};const remove=elem('button','library-remove','Remove');remove.onclick=()=>{if(!confirmAction(`Remove “${item.title||'Untitled video'}” from this browser’s library?`,'rm-'+item.id))return;saved=saved.filter(x=>x.id!==item.id);store();renderLibrary();notify('Removed from library');};row.append(thumb,main,open,remove);root.append(row);}}
+  function renderLibrary(){updateSavedCount();const root=$('libraryItems');root.replaceChildren();if(!saved.length){const wrap=elem('div','empty-wrap');wrap.append(emptyNote('Your saved transcripts','Save a transcript to find it here later. Library items stay in this browser.','library'));const tryBtn=elem('button','btn btn-dark btn-sm','Open sample transcript');tryBtn.onclick=()=>openSample();wrap.append(tryBtn);root.append(wrap);return;}for(const item of saved){const row=elem('div','library-card');const thumb=elem('div','library-image');thumb.append(makePlatformBadge(item.platform||''));const main=elem('div','library-card-main');main.append(elem('h3','',item.title||'Untitled video'),elem('p','',`${item.platform||'Video'} · ${shortTime(item.duration||0)} · ${item.refine_status==='completed'?'With AI notes':'Original only'} · Saved in this browser`));const open=elem('button','library-open','Open');open.onclick=()=>{current=structuredClone(item);jobId=null;activeTab='original';renderResult();showReady(false);navigate('result');};const remove=elem('button','library-remove','Remove');remove.onclick=()=>{if(!confirmAction(`Remove “${item.title||'Untitled video'}” from this browser’s library?`,'rm-'+item.id))return;saved=saved.filter(x=>x.id!==item.id);store();renderLibrary();notify('Removed from library');};row.append(thumb,main,open,remove);root.append(row);}}
   function setSaveLabel(isSaved){const button=$('saveButton');button.classList.toggle('is-saved',isSaved);const ic=button.querySelector('img,svg.vb-icon');const want=iconSrc((isSaved?'saved':'save')+'.svg');if(ic&&ic.tagName==='IMG')ic.src=want;else if(ic&&ic.dataset.src!==want){const img=elem('img','save-action-icon');img.alt='';img.src=want;ic.replaceWith(img);}pop(button);button.lastChild.textContent=isSaved?' Saved':' Save';button.title=isSaved?'Saved in this browser. Tap again to update the saved copy.':'Save in this browser';}
   // Save never removes. A second tap refreshes the stored copy (for example after AI notes arrive). Removal lives in the Library with a confirmation.
   function saveTranscript(){if(!current)return;const exists=saved.some(s=>s.id===current.id);const copy=structuredClone(current);if(exists){saved=saved.map(s=>s.id===current.id?copy:s);notify('Saved copy updated');}else{if(saved.length>=25)notify('Library is full (25). The oldest transcript was removed.');saved=[copy,...saved].slice(0,25);notify('Saved in this browser');}store();updateSavedCount();setSaveLabel(true);}
@@ -189,7 +220,7 @@
     $('formError').hidden=true;
     const value=$('videoUrl').value.trim();
     const platform=safePlatform(value);
-    $('platformDetect').textContent=value ? (platform ? `${platform} link recognized. Captions checked first.` : 'Paste an accessible video URL from a supported service.') : ''; $('platformDetect').classList.toggle('is-recognized',Boolean(platform));
+    $('platformDetect').textContent=value ? (platform ? `${platform} link recognized. Captions checked first.` : 'Paste an accessible video URL from a supported service.') : ''; $('platformDetect').classList.toggle('is-recognized',Boolean(platform));const slug=platformSlugs[platform];for(const b of document.querySelectorAll('#page-home .platform-badge'))b.classList.remove('is-hit');if(slug){const hit=document.querySelector('#page-home .platform-badge.platform-'+slug);if(hit){void hit.offsetWidth;hit.classList.add('is-hit');}}
   });
   $('pasteButton').addEventListener('click',async()=>{
     try{
@@ -202,6 +233,14 @@
       notify('Link pasted from clipboard');
     }catch{ $('videoUrl').focus();notify('Use iPhone Paste from the text field.'); }
   });
+  // Drag and drop anywhere on the page (desktop). Names aren't readable before the drop, so the overlay says what will happen.
+  (()=>{const zone=$('dropZone');if(!zone)return;let depth=0;
+    const hasFiles=e=>e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files');
+    document.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();depth++;const n=e.dataTransfer.items?e.dataTransfer.items.length:1;$('dropTitle').textContent=n>1?`Drop ${n} files here to begin transcription`:'Drop your file here to begin transcription';$('dropNote').textContent=demoOnly?'This preview uses sample data; files are not transcribed here.':`Audio and video files${caps&&caps.max_upload_mb?` up to ${caps.max_upload_mb} MB`:''}. The file stays on this computer.`;zone.classList.add('is-active');});
+    document.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault();});
+    document.addEventListener('dragleave',e=>{if(!hasFiles(e))return;depth=Math.max(0,depth-1);if(depth===0)zone.classList.remove('is-active');});
+    document.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();depth=0;zone.classList.remove('is-active');const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f){navigate('home');startUpload(f);}});
+  })();
   $('fileButton').addEventListener('click',()=>{$('fileNote').textContent='';$('fileInput').click();});
   $('fileInput').addEventListener('change',()=>{const f=$('fileInput').files&&$('fileInput').files[0];$('fileInput').value='';startUpload(f);});
   $('transcriptSearch').addEventListener('input',()=>renderBody());
@@ -224,6 +263,6 @@
   $('closePlatforms').addEventListener('click',()=>$('platformDialog').close());
   $('dialogDone').addEventListener('click',()=>$('platformDialog').close());
   $('platformDialog').addEventListener('click',e=>{if(e.target===$('platformDialog'))$('platformDialog').close();});
-  if(demoOnly){const d=elem('span','demo-badge','INTERACTIVE DESIGN PREVIEW');document.querySelector('.topbar-right').prepend(d);$('videoUrl').placeholder='Demo only · open a sample below';}
-  updateSavedCount();navigate('home');inlineIcons();loadCapabilities();resumeJob();
+  if(demoOnly){const d=elem('span','demo-badge','Preview · sample only');document.querySelector('.topbar-right').prepend(d);$('videoUrl').placeholder='Preview only · try the sample below';}
+  updateSavedCount();mountVerbies();navigate('home');inlineIcons();loadCapabilities();resumeJob();
 })();

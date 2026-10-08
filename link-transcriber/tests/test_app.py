@@ -13,7 +13,7 @@ client = TestClient(backend.app)
 def test_homepage_is_served():
     response = client.get("/")
     assert response.status_code == 200
-    assert "Get transcript" in response.text and "viewport-fit=cover" in response.text and "stageBars" in response.text
+    assert "Get transcript" in response.text and "viewport-fit=cover" in response.text and "stageBars" in response.text and "verbatim.css" in response.text
 
 
 def test_health():
