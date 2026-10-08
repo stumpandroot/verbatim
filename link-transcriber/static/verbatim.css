@@ -266,7 +266,7 @@ body.vb-topnew-hidden #topNew{display:none}
   .sidebar{display:none}
   .mobile-brand{display:flex}
   .topbar{position:sticky;top:0;z-index:5;background:#faf8f2e8;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:10px 20px 6px}
-  .mobile-nav{position:fixed;z-index:11;left:18px;right:18px;bottom:calc(var(--nav-gap) + env(safe-area-inset-bottom,0px));height:var(--nav-h);border-radius:999px;background:rgba(255,255,255,.66);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);box-shadow:0 10px 30px #1E234024,inset 0 0 0 1px #ffffffb0,0 0 0 1px #1E234010;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:5px;animation:vb-nav-in .7s var(--spring) both;animation-delay:.2s}
+  .mobile-nav{position:fixed;z-index:11;left:18px;right:18px;bottom:calc(var(--nav-gap) + env(safe-area-inset-bottom,0px));height:var(--nav-h);border-radius:999px;background:rgba(255,255,255,.66);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);box-shadow:0 10px 30px #1E234024,inset 0 0 0 1px #ffffffb0,0 0 0 1px #1E234010;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:5px;animation:vb-nav-in .7s var(--spring) .2s backwards}
   @keyframes vb-nav-in{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
   .mobile-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:500;color:var(--mist-ink);border-radius:999px;transition:background .25s,transform .35s var(--spring)}
   .mobile-link img,.mobile-link svg.vb-icon{width:24px;height:24px}
@@ -360,8 +360,9 @@ body.vb-topnew-hidden #topNew{display:none}
 @keyframes vb-jump-big{0%{transform:translateY(0) scale(1)}35%{transform:translateY(-14px) scale(1.25) rotate(-8deg)}65%{transform:translateY(2px) scale(.95)}100%{transform:none}}
 /* tab bar: a capsule slides behind the selected tab */
 .mobile-nav{position:fixed}
-.nav-track{position:absolute;inset:5px;border-radius:999px;overflow:hidden;z-index:0;pointer-events:none}
-.nav-pill{position:absolute;top:0;bottom:0;left:0;width:calc((100% - 8px)/3);border-radius:999px;background:var(--iris-tint);transition:transform .6s var(--spring);pointer-events:none}
+/* The capsule is moved by a spring simulation in app.js: the leading edge settles without overshoot,
+   the trailing edge lags and springs inward, so the capsule never crosses the bar's inner padding. */
+.nav-pill{position:absolute;top:5px;bottom:5px;left:5px;width:0;border-radius:999px;background:var(--iris-tint);z-index:0;pointer-events:none;will-change:left,width}
 .mobile-link{position:relative;z-index:1;background:transparent!important}
 .mobile-link.selected svg.vb-icon,.mobile-link.selected img{animation:vb-tab-icon .6s var(--spring)}
 @keyframes vb-tab-icon{0%{transform:scale(.7) translateY(4px)}50%{transform:scale(1.25) translateY(-3px)}75%{transform:scale(.95)}100%{transform:none}}
@@ -401,7 +402,7 @@ body.vb-topnew-hidden #topNew{display:none}
 /* library cards and tiles stagger in */
 .library-card:nth-child(1){animation-delay:.02s}.library-card:nth-child(2){animation-delay:.08s}.library-card:nth-child(3){animation-delay:.14s}.library-card:nth-child(4){animation-delay:.2s}
 .tile{animation:vb-rise .6s var(--spring) both}.tile:nth-child(2){animation-delay:.08s}.tile:nth-child(3){animation-delay:.16s}
-@media (prefers-reduced-motion:reduce){.is-pressed,.vb-release,.chip.selected,.url-field.is-recognized,.platform-badge.is-hit,.burst i,.verbie *{animation:none!important;transform:none!important}.nav-pill{transition:none}}
+@media (prefers-reduced-motion:reduce){.is-pressed,.vb-release,.chip.selected,.url-field.is-recognized,.platform-badge.is-hit,.burst i,.verbie *{animation:none!important;transform:none!important}}
 
 
 /* ===== Pass 3: contained overshoot, icon character, stagger-in, swipe ===== */
@@ -442,3 +443,32 @@ body[data-dir="right"] .vb-in{animation-name:vb-from-left}
 
 /* The sliding capsule overshoots but never leaves the bar. */
 .mobile-nav{overflow:hidden;isolation:isolate}
+
+/* ---- Bars react to scrolling and swiping (iPhone) ----
+   Scrolling down compacts both bars; scrolling up or reaching the top restores them.
+   During a swipe the tab bar follows the finger a little, then springs back. */
+@media (max-width:860px){
+  .mobile-nav{--sx:0px;--ns:1;transform:translateX(var(--sx)) scale(var(--ns));transform-origin:50% 100%;transition:transform .55s var(--spring),box-shadow .3s,background .3s;will-change:transform}
+  .mobile-nav.is-dragging{transition:none}
+  body.bars-compact .mobile-nav{--ns:.86;background:rgba(255,255,255,.78)}
+  .tab-label{display:block;line-height:1.1;max-height:14px;opacity:1;transition:opacity .2s,max-height .35s var(--spring),transform .35s var(--spring)}
+  .mobile-link svg.vb-icon,.mobile-link img{transition:transform .45s var(--spring)}
+  body.bars-compact .tab-label{opacity:0;max-height:0;transform:translateY(4px)}
+  body.bars-compact .mobile-link svg.vb-icon,body.bars-compact .mobile-link img{transform:scale(1.08)}
+  .topbar{transition:padding .4s var(--spring),background .3s}
+  .topbar .mobile-brand,.topbar .topbar-right{transition:transform .45s var(--spring)}
+  .topbar .mobile-brand{transform-origin:0 50%}.topbar .topbar-right{transform-origin:100% 50%}
+  body.bars-compact .topbar{padding-top:max(4px,env(safe-area-inset-top,0px));padding-bottom:2px}
+  body.bars-compact .topbar .mobile-brand,body.bars-compact .topbar .topbar-right{transform:scale(.82)}
+}
+/* ---- Swipe paging ----
+   While dragging, the page follows the finger with no transition. A cancelled drag springs back;
+   a committed swipe slides the next page in as one piece (no per-element stagger). */
+.page{transition:transform .38s var(--spring),opacity .25s ease}
+.page.is-dragging{transition:none;will-change:transform,opacity}
+.page.swipe-in-left{animation:vb-page-from-right .32s cubic-bezier(.2,.9,.25,1) both}
+.page.swipe-in-right{animation:vb-page-from-left .32s cubic-bezier(.2,.9,.25,1) both}
+@keyframes vb-page-from-right{from{transform:translate3d(32%,0,0);opacity:.2}to{transform:none;opacity:1}}
+@keyframes vb-page-from-left{from{transform:translate3d(-32%,0,0);opacity:.2}to{transform:none;opacity:1}}
+html,body{overflow-x:hidden}
+@media (prefers-reduced-motion:reduce){.mobile-nav{transition:none!important}.page.swipe-in-left,.page.swipe-in-right{animation:none}}

@@ -59,7 +59,8 @@
   function getText(segs){return (segs||[]).map(x=>x.text||'').join(' ').trim();}
   function words(s){return (s.match(/\S+/g)||[]).length;}
   function safePlatform(url){try{const u=new URL(url);if(u.protocol!=='https:'||u.username||u.password)return null;const host=u.hostname.toLowerCase().replace(/\.$/,'');let key=host.replace(/^www\./,'').replace(/^m\./,'').replace(/^music\./,'').replace(/^player\./,'');return hosts[key]||null;}catch{return null;}}
-  function navigate(page){screen=page;document.body.classList.toggle('vb-home-view',page==='home');for(const section of document.querySelectorAll('.page')){const on=section.id==='page-'+page;section.classList.toggle('active',on);if(on)staggerIn(section);}for(const b of document.querySelectorAll('[data-view]')){const on=b.dataset.view===page;b.classList.toggle('selected',on);if(b.classList.contains('mobile-link')||b.classList.contains('nav-link')){if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}}document.body.classList.toggle('vb-topnew-hidden',page==='home');if(page==='library')renderLibrary();moveNavPill();window.scrollTo({top:0,behavior:'smooth'});}
+  let swipeNav=null;
+  function navigate(page,opts={}){swipeNav=opts.swipe||null;screen=page;document.body.classList.toggle('vb-home-view',page==='home');for(const section of document.querySelectorAll('.page')){const on=section.id==='page-'+page;section.classList.toggle('active',on);section.style.transform='';section.style.opacity='';section.classList.remove('swipe-in-left','swipe-in-right');if(on){if(swipeNav){for(const k of section.querySelectorAll('.vb-in'))k.classList.remove('vb-in');void section.offsetWidth;section.classList.add('swipe-in-'+swipeNav);}else staggerIn(section);}}for(const b of document.querySelectorAll('[data-view]')){const on=b.dataset.view===page;b.classList.toggle('selected',on);if(b.classList.contains('mobile-link')||b.classList.contains('nav-link')){if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}}document.body.classList.toggle('vb-topnew-hidden',page==='home');if(page==='library')renderLibrary();document.body.classList.remove('bars-compact');moveNavPill();window.scrollTo({top:0,behavior:swipeNav?'instant':'smooth'});swipeNav=null;}
   function updateSavedCount(){ $('libraryCount').textContent=String(saved.length);$('libraryLabelCount').textContent=String(saved.length); }
   function openSample(tab='original'){
     const ticket=++actionToken;jobId=null;current=null;activeTab=tab;navigate('processing');$('processNotice').textContent='Sample preview only · no real video is being processed.';
@@ -162,13 +163,67 @@
     const release=()=>{if(!cur)return;const el=cur;cur=null;el.classList.remove('is-pressed');void el.offsetWidth;el.classList.add('vb-release');el.addEventListener('animationend',()=>el.classList.remove('vb-release'),{once:true});};
     document.addEventListener('pointerup',release,{passive:true});document.addEventListener('pointercancel',release,{passive:true});
   })();
-  // Swipe left or right between Home, Library, and About.
-  (()=>{const order=['home','library','settings'];let sx=0,sy=0,t0=0,active=false;
-    document.addEventListener('touchstart',e=>{if(!order.includes(screen))return;const t=e.touches[0];sx=t.clientX;sy=t.clientY;t0=Date.now();active=true;},{passive:true});
-    document.addEventListener('touchend',e=>{if(!active)return;active=false;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy;if(Math.abs(dx)<60||Math.abs(dy)>Math.abs(dx)*.7||Date.now()-t0>600)return;const tgt=e.target&&e.target.nodeType===1?e.target:null;if(tgt&&tgt.closest('input,textarea,select,.chips'))return;const i=order.indexOf(screen);const next=order[i+(dx<0?1:-1)];if(!next)return;document.body.dataset.dir=dx<0?'left':'right';navigate(next);setTimeout(()=>{delete document.body.dataset.dir;},700);},{passive:true});
+  // Swipe between Home, Library, and About. The page and the tab bar follow the finger from the first
+  // move; on release the next page slides in as one piece. A quick flick counts as a swipe.
+  (()=>{const order=['home','library','settings'];let sx=0,sy=0,lx=0,lt=0,vx=0,pts=[],active=false,horiz=null,sec=null,nav=null;
+    const skip='input,textarea,select,.chips,dialog,.workspace-body,.transcript';
+    document.addEventListener('touchstart',e=>{if(!order.includes(screen)||e.touches.length>1)return;const tgt=e.target.nodeType===1?e.target:null;if(tgt&&tgt.closest(skip))return;
+      const t=e.touches[0];sx=lx=t.clientX;sy=t.clientY;lt=performance.now();vx=0;pts=[[lt,sx]];active=true;horiz=null;sec=document.querySelector('.page.active');nav=document.querySelector('.mobile-nav');},{passive:true});
+    document.addEventListener('touchmove',e=>{if(!active)return;const t=e.touches[0];const dx=t.clientX-sx,dy=t.clientY-sy;
+      if(horiz===null){if(Math.abs(dx)<6&&Math.abs(dy)<6)return;horiz=Math.abs(dx)>Math.abs(dy)*1.15;
+        if(horiz){for(const el of document.querySelectorAll('.is-pressed'))el.classList.remove('is-pressed');sec.classList.add('is-dragging');nav&&nav.classList.add('is-dragging');}else{active=false;return;}}
+      const now=performance.now();lx=t.clientX;lt=now;pts.push([now,lx]);while(pts.length>2&&now-pts[0][0]>100)pts.shift();vx=(lx-pts[0][1])/Math.max(8,now-pts[0][0]);
+      const i=order.indexOf(screen);const edge=(dx>0&&i===0)||(dx<0&&i===order.length-1);
+      const move=edge?dx*.18:dx*.42;sec.style.transform=`translate3d(${move.toFixed(1)}px,0,0)`;sec.style.opacity=String(1-Math.min(.35,Math.abs(move)/600));
+      if(nav)nav.style.setProperty('--sx',(Math.sign(dx)*Math.min(14,Math.abs(dx)*(edge?.03:.07))).toFixed(1)+'px');},{passive:true});
+    const settle=()=>{if(sec){sec.classList.remove('is-dragging');sec.style.transform='';sec.style.opacity='';}if(nav){nav.classList.remove('is-dragging');nav.style.setProperty('--sx','0px');}};
+    document.addEventListener('touchend',()=>{if(!active)return;active=false;if(!horiz)return;
+      const dx=lx-sx;const i=order.indexOf(screen);const dir=dx<0?1:-1;const next=order[i+dir];
+      const commit=next&&(Math.abs(dx)>70||(Math.abs(dx)>24&&Math.abs(vx)>.3&&Math.sign(vx)===Math.sign(dx)));
+      if(!commit){settle();return;}
+      sec.classList.remove('is-dragging');
+      if(nav){nav.classList.remove('is-dragging');nav.style.setProperty('--sx',(dir>0?-10:10)+'px');requestAnimationFrame(()=>requestAnimationFrame(()=>nav.style.setProperty('--sx','0px')));}
+      navigate(next,{swipe:dir>0?'left':'right'});},{passive:true});
+    document.addEventListener('touchcancel',()=>{if(active){active=false;settle();}},{passive:true});
   })();
+  // Bars compact while scrolling down and come back when scrolling up or near the top.
+  (()=>{let lastY=scrollY,acc=0,ticking=false;
+    const set=(on)=>{if(document.body.classList.contains('bars-compact')!==on)document.body.classList.toggle('bars-compact',on);};
+    addEventListener('scroll',()=>{if(ticking)return;ticking=true;requestAnimationFrame(()=>{ticking=false;const y=scrollY;const d=y-lastY;lastY=y;
+      if(y<40){acc=0;set(false);return;}
+      if(Math.sign(d)!==Math.sign(acc))acc=0;acc+=d;
+      if(acc>24)set(true);else if(acc<-18)set(false);});},{passive:true});
+  })();
+  // Tab bar capsule: one continuous spring moves both edges. The leading edge is critically damped
+  // (no overshoot, never leaves the bar's padding); the trailing edge is underdamped, so it lags,
+  // then springs inward past rest and settles.
+  const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  function slotRect(bar,i,count=3){const cs=getComputedStyle(bar);const pad=parseFloat(cs.paddingLeft)||0;const gap=parseFloat(cs.columnGap||cs.gap)||4;const inner=bar.clientWidth-pad*2;const w=(inner-gap*(count-1))/count;const l=pad+i*(w+gap);return {l,r:l+w,w,min:pad,max:bar.clientWidth-pad};}
+  function slidePill(pill,i){
+    const bar=pill.parentElement;if(!bar.clientWidth){delete pill.dataset.ready;pill.dataset.i=String(i);return;}const t=slotRect(bar,i);const st=pill._s||(pill._s={L:t.l,R:t.r,vL:0,vR:0,raf:0});
+    const prev=Number(pill.dataset.i??i);pill.dataset.i=String(i);
+    const draw=()=>{pill.style.left=st.L+'px';pill.style.width=Math.max(0,st.R-st.L)+'px';};
+    if(!pill.dataset.ready||reduceMotion.matches||i===prev){cancelAnimationFrame(st.raf);st.L=t.l;st.R=t.r;st.vL=st.vR=0;pill.dataset.ready='1';draw();return;}
+    const right=i>prev;
+    const lead={k:420,c:2*Math.sqrt(420)};
+    const trail={k:210,c:2*0.5*Math.sqrt(210)};
+    const pL=right?trail:lead, pR=right?lead:trail;
+    cancelAnimationFrame(st.raf);let last=performance.now();
+    const step=(now)=>{let dt=Math.min(.032,(now-last)/1000);last=now;
+      for(let n=0;n<2;n++){const h=dt/2;
+        st.vL+=(-pL.k*(st.L-t.l)-pL.c*st.vL)*h;st.L+=st.vL*h;
+        st.vR+=(-pR.k*(st.R-t.r)-pR.c*st.vR)*h;st.R+=st.vR*h;}
+      if(st.L<t.min){st.L=t.min;st.vL=0;} if(st.R>t.max){st.R=t.max;st.vR=0;}
+      const minW=t.w*.7;if(st.R-st.L<minW){if(right)st.L=st.R-minW;else st.R=st.L+minW;}
+      draw();
+      const done=Math.abs(st.L-t.l)<.3&&Math.abs(st.R-t.r)<.3&&Math.abs(st.vL)<4&&Math.abs(st.vR)<4;
+      if(done){st.L=t.l;st.R=t.r;st.vL=st.vR=0;draw();return;}
+      st.raf=requestAnimationFrame(step);};
+    st.raf=requestAnimationFrame(step);
+  }
+  addEventListener('resize',()=>{for(const p of document.querySelectorAll('.nav-pill')){if(!p._s){moveNavPill();continue;}if(p._s){const t=slotRect(p.parentElement,Number(p.dataset.i||0));cancelAnimationFrame(p._s.raf);Object.assign(p._s,{L:t.l,R:t.r,vL:0,vR:0});p.style.left=t.l+'px';p.style.width=(t.r-t.l)+'px';}}});
   // Tab bar capsule slides behind the selected tab.
-  function moveNavPill(){const nav=document.querySelector('.mobile-nav');if(!nav)return;let pill=nav.querySelector('.nav-pill');if(!pill){const track=elem('span','nav-track');track.setAttribute('aria-hidden','true');pill=elem('span','nav-pill');track.appendChild(pill);nav.prepend(track);}const links=[...nav.querySelectorAll('.mobile-link')];const i=Math.max(0,links.findIndex(l=>l.classList.contains('selected')));pill.style.transform=`translateX(calc(${i} * (100% + 4px)))`;}
+  function moveNavPill(){const nav=document.querySelector('.mobile-nav');if(!nav)return;let pill=nav.querySelector('.nav-pill');if(!pill){pill=elem('span','nav-pill');pill.setAttribute('aria-hidden','true');nav.prepend(pill);}const links=[...nav.querySelectorAll('.mobile-link')];const i=Math.max(0,links.findIndex(l=>l.classList.contains('selected')));slidePill(pill,i);}
   function burst(host){const r=host.getBoundingClientRect();const b=elem('span','burst');b.style.position='fixed';b.style.left=(r.left+r.width/2)+'px';b.style.top=(r.top+r.height/2)+'px';for(let i=0;i<5;i++)b.append(elem('i'));document.body.append(b);setTimeout(()=>b.remove(),900);}
   // Inline SVG icons so CSS can animate their strokes. Falls back to <img> when fetch is unavailable (file://).
   const iconCache=new Map();
