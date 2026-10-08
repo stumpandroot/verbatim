@@ -1,0 +1,41 @@
+/* Verbatim v8: actual locally bundled social/video platform marks. */
+.platform-badge{
+  width:24px;height:24px;min-width:24px;border-radius:8px;
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+  background:#253052;color:white;
+}
+.platform-badge img{display:block;width:15px;height:15px;object-fit:contain;filter:brightness(0) invert(1)}
+.platform-badge.platform-youtube{background:#ff0033}
+.platform-badge.platform-vimeo{background:#1ab7ea}
+.platform-badge.platform-tiktok{background:#171a25}
+.platform-badge.platform-instagram{background:linear-gradient(135deg,#7149c9 4%,#cd3e91 49%,#ff954e 100%)}
+.platform-badge.platform-facebook{background:#0866ff}
+.platform-badge.platform-x{background:#111318}
+.platform-badge.platform-reddit{background:#ff4500}
+.platform-badge.platform-twitch{background:#9146ff}
+.platform-badge.platform-dailymotion{background:#1164f4}
+.platform-badge.platform-linkedin{background:#0a66c2}
+.platform-badge.platform-pinterest{background:#bd081c}
+.platform-badge.platform-bluesky{background:#1185fe}
+.platform-badge.platform-fallback{background:#efedfa;border:1px solid #d9d2eb;color:#555078;font-size:12px;font-weight:850}
+.platform-pill{gap:6px}
+.platform-pill .platform-badge{width:21px;height:21px;min-width:21px;border-radius:6px}
+.platform-pill .platform-badge img{width:14px;height:14px}
+.platform-dialog-list .platform-dialog-item{display:flex;align-items:center;justify-content:flex-start;gap:9px;background:#f7f5fb;border-radius:10px;padding:10px;min-height:45px;text-align:left;font-size:12px;color:#33354b;font-weight:700}
+.platform-dialog-item .platform-dialog-name{overflow-wrap:anywhere;line-height:1.2}
+.platform-dialog-item .platform-badge{width:25px;height:25px;min-width:25px}
+.platform-dialog-item .platform-badge img{width:16px;height:16px}
+.library-image .platform-badge{height:42px;width:42px;border-radius:12px}
+.library-image .platform-badge img{width:26px;height:26px}
+@media(max-width:660px){
+ /* Keep the balanced single-screen home: logos take no extra vertical space. */
+ #page-home .platform-row{display:flex;gap:7px;align-items:center}
+ #page-home .platform-pill{display:inline-flex;align-items:center;justify-content:center;min-width:0;gap:0}
+ #page-home .platform-pill .platform-label{display:none}
+ #page-home .platform-pill .platform-badge{width:21px;height:21px;min-width:21px;border-radius:6px}
+ #page-home .platform-row .muted-label{display:none}
+ #page-home #showPlatforms{font-size:10px;white-space:nowrap}
+ .platform-dialog-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .platform-dialog-list .platform-dialog-item{padding:7px;gap:7px;font-size:11px}
+}
+@media(max-width:345px){#page-home .platform-row{gap:4px}#page-home .platform-pill .platform-badge{width:19px;height:19px;min-width:19px}#page-home #showPlatforms{font-size:9px;padding:4px 1px}}
