@@ -438,3 +438,6 @@ body[data-dir="right"] .vb-in{animation-name:vb-from-left}
 .transcript-segment{animation:none}
 .library-card,.tile{animation:none}
 @media (prefers-reduced-motion:reduce){.vb-in{animation:none!important}.is-pressed>.inner,.vb-release>.inner{animation:none!important;transform:none!important}}
+
+/* The sliding capsule overshoots but never leaves the bar. */
+.mobile-nav{overflow:hidden;isolation:isolate}
