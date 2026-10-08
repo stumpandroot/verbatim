@@ -105,7 +105,7 @@ body.vb-topnew-hidden #topNew{display:none}
 
 /* ---- Pages ---- */
 .page{display:none;width:100%;max-width:760px;margin:0 auto;padding:18px 22px calc(var(--nav-h) + var(--nav-gap) + 28px)}
-.page.active{display:block;animation:vb-page .5s var(--spring) both}
+.page.active{display:block}
 @keyframes vb-page{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
 .page-head{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
 .page-head .count{font-size:16px;color:var(--iris-ink);font-weight:500;vertical-align:middle}
@@ -348,7 +348,7 @@ body.vb-topnew-hidden #topNew{display:none}
 .url-field.vb-release{animation-name:vb-release-field}
 @keyframes vb-release-field{0%{transform:scale(.985)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
 /* page changes: more travel, more overshoot */
-.page.active{animation:vb-page-big .6s var(--spring) both}
+.page.active{animation:none}
 @keyframes vb-page-big{0%{opacity:0;transform:translateY(26px) scale(.96)}60%{opacity:1}100%{opacity:1;transform:none}}
 /* chips: the selected one jumps and the others breathe out of its way */
 .chip.selected{animation:vb-chip .55s var(--spring)}
@@ -401,3 +401,40 @@ body.vb-topnew-hidden #topNew{display:none}
 .library-card:nth-child(1){animation-delay:.02s}.library-card:nth-child(2){animation-delay:.08s}.library-card:nth-child(3){animation-delay:.14s}.library-card:nth-child(4){animation-delay:.2s}
 .tile{animation:vb-rise .6s var(--spring) both}.tile:nth-child(2){animation-delay:.08s}.tile:nth-child(3){animation-delay:.16s}
 @media (prefers-reduced-motion:reduce){.is-pressed,.vb-release,.chip.selected,.url-field.is-recognized,.platform-badge.is-hit,.burst i,.verbie *{animation:none!important;transform:none!important}.nav-pill{transition:none}}
+
+
+/* ===== Pass 3: contained overshoot, icon character, stagger-in, swipe ===== */
+/* The pill holds still; what's inside it squashes and springs. Nothing escapes the container. */
+.inner{display:inline-flex;align-items:center;justify-content:center;gap:inherit;width:100%;height:100%;transform-origin:center;will-change:transform}
+.btn,.chip,.link-btn,.hand-btn,.paste-btn,.timecode,.summary-time,.library-open,.library-remove,.mobile-link,.nav-link,.icon-button{overflow:hidden}
+.is-pressed{transform:scale(.985)!important;transition:transform .08s ease-out!important}
+.is-pressed>.inner{transform:scale(.9);transition:transform .08s ease-out}
+.vb-release{animation:none!important;transform:none!important}
+.vb-release>.inner{animation:vb-release-inner .6s var(--spring) both}
+@keyframes vb-release-inner{0%{transform:scale(.9)}45%{transform:scale(1.06)}75%{transform:scale(.985)}100%{transform:scale(1)}}
+.mobile-link>.inner{flex-direction:column;gap:2px}
+.nav-link>.inner{justify-content:flex-start}
+.platform-badge.is-pressed{transform:scale(.9)!important}
+.verbie-home.is-pressed{transform:none!important}
+/* Tab icons with character: gear spins, books clap then spread, home bounces */
+.mobile-link.selected .vb-icon[data-src*="settings"],.nav-link.selected .vb-icon[data-src*="settings"]{animation:vb-gear .9s var(--spring)}
+@keyframes vb-gear{0%{transform:rotate(0) scale(.8)}60%{transform:rotate(200deg) scale(1.15)}100%{transform:rotate(180deg) scale(1)}}
+.mobile-link.selected .vb-icon[data-src*="library"] rect{transform-origin:6.6px 21px;animation:vb-book-l .9s var(--spring)}
+.mobile-link.selected .vb-icon[data-src*="library"] path{transform-origin:14px 21px;animation:vb-book-r .9s var(--spring)}
+@keyframes vb-book-l{0%{transform:rotate(0)}35%{transform:rotate(16deg) translateX(2px)}70%{transform:rotate(-10deg) translateX(-1px)}100%{transform:rotate(0)}}
+@keyframes vb-book-r{0%{transform:rotate(0)}35%{transform:rotate(-26deg) translateX(-3px)}70%{transform:rotate(4deg) translateX(1px)}100%{transform:rotate(0)}}
+.mobile-link.selected .vb-icon[data-src*="home"]{animation:vb-tab-icon .6s var(--spring)}
+/* Verbie has headroom; nothing clips his hop */
+.verbie{overflow:visible}
+.verbie svg{overflow:visible!important}
+.verbie-home{margin-top:16px}
+/* Elements arrive one after another */
+.vb-in{animation:vb-rise-in .62s var(--spring) both;animation-delay:calc(var(--i,0) * 55ms)}
+@keyframes vb-rise-in{0%{opacity:0;transform:translateY(18px) scale(.97)}60%{opacity:1}100%{opacity:1;transform:none}}
+body[data-dir="left"] .vb-in{animation-name:vb-from-right}
+body[data-dir="right"] .vb-in{animation-name:vb-from-left}
+@keyframes vb-from-right{0%{opacity:0;transform:translateX(36px)}100%{opacity:1;transform:none}}
+@keyframes vb-from-left{0%{opacity:0;transform:translateX(-36px)}100%{opacity:1;transform:none}}
+.transcript-segment{animation:none}
+.library-card,.tile{animation:none}
+@media (prefers-reduced-motion:reduce){.vb-in{animation:none!important}.is-pressed>.inner,.vb-release>.inner{animation:none!important;transform:none!important}}
