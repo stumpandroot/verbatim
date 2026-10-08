@@ -1,7 +1,35 @@
+diff --git a/link-transcriber/README.md b/link-transcriber/README.md
+index b56619a..d30d91c 100644
+--- a/link-transcriber/README.md
++++ b/link-transcriber/README.md
+@@ -138,8 +138,14 @@ docker run --rm -p 127.0.0.1:8000:8000 verbatim
+ 
+ Docker includes FFmpeg and Whisper. For **local AI refinement** in Docker, Ollama is not included; connect the container to your running Ollama instance or use the OpenAI provider. The default local Ollama endpoint in this example is not automatically accessible from inside a Docker container, so follow your platform's host-networking configuration to run it there. If you do not need refinement, `AI_PROVIDER=none` is sufficient.
+ 
++## Transcribe your own files
++
++Tap **Or transcribe a recording or video file** on the home screen, or `POST /api/jobs/upload` with a multipart `file` field and an optional `language`. Accepted: MP3, M4A, WAV, AAC, FLAC, OGG, Opus, AIFF, CAF, MP4, MOV, M4V, WebM, MKV. Video containers need FFmpeg. The file is written to a temporary directory on the server, transcribed with Faster Whisper, and deleted when the job finishes. Nothing is fetched from the internet for an uploaded file. Size and duration follow `MAX_DOWNLOAD_MB` and `MAX_VIDEO_SECONDS`.
++
+ ## API
+ 
++- `POST /api/jobs/upload` multipart with `file` and optional `language`; transcribes a local recording.
++- `GET /api/capabilities` reports the AI provider, whether FFmpeg is present, the Whisper model, and upload limits.
+ - `POST /api/jobs` with `{"url":"https://www.tiktok.com/@creator/video/<id>","language":"auto"}` or another supported single-video HTTPS URL.
+ - `GET /api/jobs/{job_id}` returns current progress, transcript segments, source provenance, and optional AI output.
+ - `POST /api/jobs/{job_id}/refine` begins optional AI editing after transcript completion.
 diff --git a/link-transcriber/app.py b/link-transcriber/app.py
-index 39fe2e3..2b9861d 100644
+index 39fe2e3..e8c260d 100644
 --- a/link-transcriber/app.py
 +++ b/link-transcriber/app.py
+@@ -19,7 +19,7 @@ from pathlib import Path
+ from urllib.parse import parse_qs, urljoin, urlsplit
+ 
+ import httpx
+-from fastapi import FastAPI, HTTPException
++from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+ from fastapi.responses import FileResponse
+ from fastapi.staticfiles import StaticFiles
+ from pydantic import BaseModel, Field
 @@ -186,7 +186,12 @@ def validate_video_url(url: str) -> str:
          raise ValueError("Use an HTTPS video link from a supported platform (YouTube, Vimeo, TikTok, Instagram, and others).")
      if not _looks_like_single_video(hostname, parts.path, parts.query, HOST_TO_PLATFORM[hostname]):
@@ -58,7 +86,106 @@ index 39fe2e3..2b9861d 100644
  
                  def download_progress(data):
                      if data.get("status") != "downloading":
-@@ -644,7 +664,7 @@ TRANSCRIPT:\n""" + part)
+@@ -524,31 +544,78 @@ def process_video(job: Job) -> None:
+                 audio_path = max(candidates, key=lambda candidate: candidate.stat().st_size)
+                 if audio_path.stat().st_size > MAX_DOWNLOAD_BYTES:
+                     raise RuntimeError(f"Download is too large. The limit is {MAX_DOWNLOAD_BYTES // 1048576} MB.")
+-                update_job(job, status="transcribing", message="Preparing the speech model…", progress=39)
+-                model = load_model()
+-                lang = None if job.language == "auto" else job.language
+-                segments, info = model.transcribe(str(audio_path), language=lang, beam_size=5,
+-                                                  vad_filter=True, condition_on_previous_text=True)
+-                detected = str(info.language or "")
+-                duration = duration or float(info.duration or 0)
+-                update_job(job, message="Transcribing speech…", detected_language=detected,
+-                           duration=duration, source_type="speech_recognition", progress=42)
+-                for segment in segments:
+-                    text = str(segment.text or "").strip()
+-                    if not text:
+-                        continue
+-                    entry = {"start": round(float(segment.start), 2),
+-                             "end": round(float(segment.end), 2), "text": text}
+-                    with _jobs_lock:
+-                        job.segments.append(entry)
+-                        if duration:
+-                            job.progress = max(job.progress, min(98, 42 + 56 * segment.end / duration))
+-                update_job(job, status="completed", message="Speech transcription complete", progress=100)
++                _transcribe_local_file(job, audio_path, duration)
+         except Exception as exc:
+             logger.exception("Transcription failed for job %s", job.id)
+             update_job(job, status="failed", message="Transcription failed", error=_public_error(exc))
+ 
+ 
++def _transcribe_local_file(job: Job, audio_path: Path, duration: float) -> None:
++    """Run Whisper on a file already on disk. Shared by the link path and the upload path."""
++    update_job(job, status="transcribing", message="Preparing the speech model…", progress=39)
++    model = load_model()
++    lang = None if job.language == "auto" else job.language
++    segments, info = model.transcribe(str(audio_path), language=lang, beam_size=5,
++                                      vad_filter=True, condition_on_previous_text=True)
++    detected = str(info.language or "")
++    duration = duration or float(info.duration or 0)
++    if duration > MAX_VIDEO_SECONDS:
++        raise RuntimeError(f"Video is too long. The limit is {MAX_VIDEO_SECONDS // 60} minutes.")
++    update_job(job, message="Transcribing speech…", detected_language=detected,
++               duration=duration, source_type="speech_recognition", progress=42)
++    for segment in segments:
++        text = str(segment.text or "").strip()
++        if not text:
++            continue
++        entry = {"start": round(float(segment.start), 2),
++                 "end": round(float(segment.end), 2), "text": text}
++        with _jobs_lock:
++            job.segments.append(entry)
++            if duration:
++                job.progress = max(job.progress, min(98, 42 + 56 * segment.end / duration))
++    update_job(job, status="completed", message="Speech transcription complete", progress=100)
++
++
++UPLOAD_EXTENSIONS = {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".opus", ".aiff", ".aif", ".caf",
++                     ".mp4", ".mov", ".m4v", ".webm", ".mkv", ".mpeg", ".mpg", ".3gp"}
++
++
++def _media_duration(path: Path) -> float:
++    """Duration via ffprobe when available, else 0 (checked again after transcription)."""
++    import shutil
++    import subprocess
++    if not shutil.which("ffprobe"):
++        return 0.0
++    try:
++        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
++                              "-of", "default=nw=1:nk=1", str(path)],
++                             capture_output=True, text=True, timeout=30, check=False).stdout.strip()
++        return float(out or 0)
++    except (ValueError, subprocess.SubprocessError):
++        return 0.0
++
++
++def process_upload(job: Job, directory: str, media_path: Path) -> None:
++    """Transcribe a file the user uploaded. The temp directory is removed when done."""
++    with _worker_slot:
++        try:
++            try:
++                update_job(job, status="fetching", message="Checking the file…", progress=5)
++                duration = _media_duration(media_path)
++                if duration > MAX_VIDEO_SECONDS:
++                    raise RuntimeError(f"Video is too long. The limit is {MAX_VIDEO_SECONDS // 60} minutes.")
++                _transcribe_local_file(job, media_path, duration)
++            except Exception as exc:
++                logger.exception("Upload transcription failed for job %s", job.id)
++                message = _public_error(exc)
++                if message.startswith("We couldn't get captions"):
++                    message = "We couldn't read this file. Try an MP3, M4A, WAV, MP4, or MOV with clear audio."
++                update_job(job, status="failed", message="Transcription failed", error=message)
++        finally:
++            import shutil
++            shutil.rmtree(directory, ignore_errors=True)
++
++
+ def _ai_json(prompt: str) -> dict:
+     """Opt-in AI refinement; local Ollama by default or configured OpenAI API."""
+     if AI_PROVIDER == "ollama":
+@@ -644,7 +711,7 @@ TRANSCRIPT:\n""" + part)
                         review_flags=all_flags, refine_status="completed", refine_message="AI refinement ready")
          except Exception as error:
              logger.exception("Refinement failed for job %s", job.id)
@@ -67,7 +194,7 @@ index 39fe2e3..2b9861d 100644
                         refine_message="AI refinement unavailable")
  
  
-@@ -670,6 +690,23 @@ def health():
+@@ -670,6 +737,25 @@ def health():
      return {"ok": True}
  
  
@@ -85,13 +212,15 @@ index 39fe2e3..2b9861d 100644
 +        "ffmpeg": shutil.which("ffmpeg") is not None,
 +        "whisper_model": WHISPER_MODEL,
 +        "max_video_minutes": MAX_VIDEO_SECONDS // 60,
++        "max_upload_mb": MAX_DOWNLOAD_BYTES // 1048576,
++        "upload_extensions": sorted(UPLOAD_EXTENSIONS),
 +    }
 +
 +
  @app.post("/api/jobs", status_code=202)
  def create_job(request: TranscriptRequest):
      try:
-@@ -684,8 +721,7 @@ def create_job(request: TranscriptRequest):
+@@ -684,13 +770,55 @@ def create_job(request: TranscriptRequest):
          if unfinished >= MAX_UNFINISHED_JOBS:
              raise HTTPException(status_code=429, detail="Too many pending videos. Try again after one finishes.")
          job_id = str(uuid.uuid4())
@@ -101,11 +230,74 @@ index 39fe2e3..2b9861d 100644
          _jobs[job_id] = job
      threading.Thread(target=process_video, args=(job,), daemon=True).start()
      return {"job_id": job_id, "status": job.status}
+ 
+ 
++@app.post("/api/jobs/upload", status_code=202)
++async def create_upload_job(file: UploadFile = File(...), language: str = Form("auto")):
++    """Transcribe a file from the user's device. Nothing is fetched from the internet."""
++    if language not in SUPPORTED_LANGUAGES:
++        raise HTTPException(status_code=422, detail="Unsupported language option.")
++    name = Path(file.filename or "recording").name
++    ext = Path(name).suffix.lower()
++    if ext not in UPLOAD_EXTENSIONS:
++        raise HTTPException(status_code=422, detail="Choose an audio or video file (MP3, M4A, WAV, MP4, MOV, and similar).")
++    cleanup_jobs()
++    with _jobs_lock:
++        unfinished = sum(job.status not in TERMINAL_STATES for job in _jobs.values())
++        if unfinished >= MAX_UNFINISHED_JOBS:
++            raise HTTPException(status_code=429, detail="Too many pending videos. Try again after one finishes.")
++    directory = tempfile.mkdtemp(prefix="verbatim-upload-")
++    media_path = Path(directory) / f"source{ext}"
++    written = 0
++    try:
++        with media_path.open("wb") as handle:
++            while chunk := await file.read(1024 * 1024):
++                written += len(chunk)
++                if written > MAX_DOWNLOAD_BYTES:
++                    raise HTTPException(status_code=413, detail=f"File is too large. The limit is {MAX_DOWNLOAD_BYTES // 1048576} MB.")
++                handle.write(chunk)
++    except HTTPException:
++        import shutil
++        shutil.rmtree(directory, ignore_errors=True)
++        raise
++    finally:
++        await file.close()
++    if written == 0:
++        import shutil
++        shutil.rmtree(directory, ignore_errors=True)
++        raise HTTPException(status_code=422, detail="The file is empty.")
++    job_id = str(uuid.uuid4())
++    title = Path(name).stem.replace("_", " ").strip()[:250] or "Recording"
++    job = Job(id=job_id, url="", language=language, platform="File", title=title, message="Waiting to start…")
++    with _jobs_lock:
++        _jobs[job_id] = job
++    threading.Thread(target=process_upload, args=(job, directory, media_path), daemon=True).start()
++    return {"job_id": job_id, "status": job.status}
++
++
+ @app.post("/api/jobs/{job_id}/refine", status_code=202)
+ def start_refinement(job_id: str):
+     cleanup_jobs()
+diff --git a/link-transcriber/requirements.txt b/link-transcriber/requirements.txt
+index e9cef8a..bf5b919 100644
+--- a/link-transcriber/requirements.txt
++++ b/link-transcriber/requirements.txt
+@@ -4,3 +4,4 @@ pydantic>=2,<3
+ yt-dlp>=2025.1
+ faster-whisper>=1.1,<2
+ httpx>=0.27,<1
++python-multipart>=0.0.9,<1
 diff --git a/link-transcriber/static/app.js b/link-transcriber/static/app.js
-index 5d542b3..3197566 100644
+index 5d542b3..330535a 100644
 --- a/link-transcriber/static/app.js
 +++ b/link-transcriber/static/app.js
-@@ -20,7 +20,10 @@
+@@ -15,12 +15,15 @@
+       img.src=(window.VERBATIM_EMBEDDED_PLATFORM_ICONS||{})[slug]||'/static/platform-icons/'+slug+'.svg';
+       badge.append(img);
+     } else {
+-      badge.textContent=({'Loom':'L','Streamable':'S','Rumble':'R'})[name]||'?';
++      if(name==='File'){const img=elem('img');img.alt='';img.src=iconSrc('transcribe.svg');badge.append(img);}else badge.textContent=({'Loom':'L','Streamable':'S','Rumble':'R'})[name]||'?';
+     }
      return badge;
    }
    const langNames = {en:'English',es:'Spanish',fr:'French',de:'German',pt:'Portuguese',it:'Italian',ja:'Japanese',ko:'Korean',zh:'Chinese',hi:'Hindi',ar:'Arabic'};
@@ -117,7 +309,7 @@ index 5d542b3..3197566 100644
    const sample = {
      id:'verbatim-sample',demo:true,title:'The work behind a meaningful brand story',platform:'YouTube',source_type:'auto_captions',url:'',duration:226,detected_language:'en',refine_status:'completed',
      segments:[
-@@ -48,26 +51,59 @@
+@@ -48,26 +51,79 @@
    function store(){ try{localStorage.setItem(storageKey,JSON.stringify(saved));}catch{if(!demoOnly)notify('Storage is unavailable on this device.');} }
    function elem(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
    function replace(el,...content){el.replaceChildren(...content);}
@@ -141,11 +333,12 @@ index 5d542b3..3197566 100644
 -  function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
 -  async function startReal(url){const ticket=++actionToken;current=null;jobId=null;navigate('processing');$('processNotice').textContent='Progress tracks processing stages, not an exact time remaining. Keep this tab open until it finishes.';drawProgress(3,'Connecting','Checking access to the video…');try{const response=await fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,language:$('videoLanguage').value})});const data=await response.json();if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'The video could not be submitted.');jobId=data.job_id;while(ticket===actionToken){const poll=await fetch(`/api/jobs/${encodeURIComponent(jobId)}`,{cache:'no-store'});if(!poll.ok)throw new Error('The transcription status could not be retrieved.');const j=await poll.json();if(j.status==='failed')throw new Error(j.error||'We could not access captions or audio for this video.');if(j.status==='completed'){current=j;activeTab='original';renderResult();navigate('result');notify('Transcript ready');return;}const stages={queued:'Preparing your video',fetching:'Checking existing captions',downloading:'Listening to the audio',transcribing:'Turning speech into text'};drawProgress(j.progress||5,stages[j.status]||'Processing video',j.message||'This can take a little time.');await new Promise(resolve=>setTimeout(resolve,1250));}}
 -    catch(error){if(ticket!==actionToken)return;navigate('home');$('formError').textContent=error.message||'Could not retrieve text from this video.';$('formError').hidden=false;notify('Could not get a transcript from this link.');}}
+-  function linkedTime(t){const b=elem('button','timecode',shortTime(t));b.type='button';b.title='Open video at this timestamp';b.onclick=()=>{if(current?.demo){notify('This sample has no corresponding source video.');return;}let link=current?.url;try{const u=new URL(link);if(current.platform==='YouTube'){u.searchParams.set('t',String(Math.floor(t))+'s');link=u.toString();}else if(current.platform==='Vimeo'){u.hash=`t=${Math.floor(t)}s`;link=u.toString();}window.open(link,'_blank','noopener,noreferrer');}catch{notify('Source video is unavailable.');}};return b;}
 +  function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processBar').setAttribute('aria-valuenow',String(Math.round(percent)));$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
 +  function rememberJob(id){try{if(id)sessionStorage.setItem(activeJobKey,id);else sessionStorage.removeItem(activeJobKey);}catch{}}
 +  async function readJson(response){try{return await response.json();}catch{return {};}}
 +  async function pollJob(id,ticket){
-+    const stages={queued:'Waiting to start',fetching:'Checking existing captions',downloading:'Downloading audio',transcribing:'Turning speech into text'};
++    const stages={queued:'Waiting to start',fetching:'Checking the source',downloading:'Downloading audio',transcribing:'Turning speech into text'};
 +    while(ticket===actionToken){
 +      const poll=await fetch(`/api/jobs/${encodeURIComponent(id)}`,{cache:'no-store'});
 +      if(poll.status===404)throw new Error('This transcript is no longer on the server. Paste the link again.');
@@ -160,6 +353,26 @@ index 5d542b3..3197566 100644
 +  function showJobError(message){navigate('home');$('formError').textContent=message||'Could not retrieve text from this video.';$('formError').hidden=false;notify('Could not get a transcript from this link.');}
 +  async function startReal(url){const ticket=++actionToken;current=null;jobId=null;navigate('processing');$('processNotice').textContent='Keep this screen open. The bar shows stages, not time left.';drawProgress(3,'Connecting','Checking access to the video…');try{const response=await fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,language:$('videoLanguage').value})});const data=await readJson(response);if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'The video could not be submitted.');jobId=data.job_id;rememberJob(jobId);await pollJob(jobId,ticket);}
 +    catch(error){if(ticket!==actionToken)return;rememberJob(null);showJobError(error.message);}}
++  function uploadFile(file){
++    return new Promise((resolve,reject)=>{
++      const form=new FormData();form.append('file',file,file.name);form.append('language',$('videoLanguage').value);
++      const xhr=new XMLHttpRequest();xhr.open('POST','/api/jobs/upload');
++      xhr.upload.onprogress=(e)=>{if(e.lengthComputable)drawProgress(2+28*e.loaded/e.total,'Uploading file',`Sending ${file.name}… ${Math.round(100*e.loaded/e.total)}%`);};
++      xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{}if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(typeof data.detail==='string'?data.detail:'The file could not be uploaded.'));};
++      xhr.onerror=()=>reject(new Error('The file could not be uploaded. Check the connection to the Verbatim server.'));
++      xhr.send(form);
++    });
++  }
++  async function startUpload(file){
++    if(!file)return;
++    if(demoOnly){$('fileNote').textContent='This preview uses sample data. Run the app to transcribe your own files.';return;}
++    if(caps&&caps.max_upload_mb&&file.size>caps.max_upload_mb*1048576){$('fileNote').textContent=`That file is larger than the ${caps.max_upload_mb} MB limit.`;return;}
++    const ticket=++actionToken;current=null;jobId=null;navigate('processing');
++    $('processNotice').textContent='The file is transcribed on the computer running Verbatim and deleted when done. Keep this screen open.';
++    drawProgress(2,'Uploading file',`Sending ${file.name}…`);
++    try{const data=await uploadFile(file);if(ticket!==actionToken)return;jobId=data.job_id;rememberJob(jobId);await pollJob(jobId,ticket);}
++    catch(error){if(ticket!==actionToken)return;rememberJob(null);showJobError(error.message);}
++  }
 +  async function resumeJob(){
 +    let id=null;try{id=sessionStorage.getItem(activeJobKey);}catch{}
 +    if(!id||demoOnly)return false;
@@ -168,7 +381,7 @@ index 5d542b3..3197566 100644
 +    try{await pollJob(id,ticket);}catch(error){if(ticket!==actionToken)return true;rememberJob(null);showJobError(error.message);}
 +    return true;
 +  }
-   function linkedTime(t){const b=elem('button','timecode',shortTime(t));b.type='button';b.title='Open video at this timestamp';b.onclick=()=>{if(current?.demo){notify('This sample has no corresponding source video.');return;}let link=current?.url;try{const u=new URL(link);if(current.platform==='YouTube'){u.searchParams.set('t',String(Math.floor(t))+'s');link=u.toString();}else if(current.platform==='Vimeo'){u.hash=`t=${Math.floor(t)}s`;link=u.toString();}window.open(link,'_blank','noopener,noreferrer');}catch{notify('Source video is unavailable.');}};return b;}
++  function linkedTime(t){const b=elem('button','timecode',shortTime(t));b.type='button';b.title='Open video at this timestamp';b.onclick=()=>{if(current?.demo){notify('This sample has no corresponding source video.');return;}if(current?.platform==='File'||!current?.url){notify(`${shortTime(t)} in your file`);return;}let link=current?.url;try{const u=new URL(link);if(current.platform==='YouTube'){u.searchParams.set('t',String(Math.floor(t))+'s');link=u.toString();}else if(current.platform==='Vimeo'){u.hash=`t=${Math.floor(t)}s`;link=u.toString();}window.open(link,'_blank','noopener,noreferrer');}catch{notify('Source video is unavailable.');}};return b;}
    function highlightText(par,text,query){if(!query){par.textContent=text;return;}const index=text.toLowerCase().indexOf(query.toLowerCase());if(index===-1){par.textContent=text;return;}par.append(document.createTextNode(text.slice(0,index)),elem('mark','highlight',text.slice(index,index+query.length)),document.createTextNode(text.slice(index+query.length)));}
 +  function aiDestination(){
 +    if(!caps)return 'Creates an AI-edited version and key points. The original stays unchanged.';
@@ -176,14 +389,14 @@ index 5d542b3..3197566 100644
 +    if(caps.ai_provider==='ollama')return `Uses Ollama on the computer running Verbatim (${caps.ai_model||'model not set'}). Nothing leaves that computer. The original stays unchanged.`;
 +    return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
 +  }
-+  async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(current)renderResult();}
++  async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
    function iconSrc(name){return (window.VERBATIM_EMBEDDED_ICONS||{})[name] || '/static/icons/'+name;}
 -  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind==='clean'?'clean.svg':kind+'.png');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
 +  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind+'.svg');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
    function renderBody(){if(!current)return;const body=$('workspaceBody');body.replaceChildren();const isReady=current.refine_status==='completed';$('searchWrap').hidden=activeTab!=='original';$('transcriptSearch').value=activeTab==='original' ? $('transcriptSearch').value : '';
      for(const b of document.querySelectorAll('[data-tab]')){const selected=b.dataset.tab===activeTab;b.classList.toggle('selected',selected);b.setAttribute('aria-selected',String(selected));}
      if(activeTab==='original'){const q=$('transcriptSearch').value.trim().toLowerCase();const filtered=current.segments.filter(s=>!q||(s.text||'').toLowerCase().includes(q));$('searchCount').textContent=q?`${filtered.length} match${filtered.length===1?'':'es'}`:'';if(!filtered.length){body.append(emptyNote('Nothing found','Try another word or phrase.','search'));return;}for(const s of filtered){const row=elem('div','transcript-segment');const p=elem('p');highlightText(p,s.text||'',q);row.append(linkedTime(s.start||0),p);body.append(row);}return;}
-@@ -76,16 +112,32 @@
+@@ -76,16 +132,32 @@
      if(activeTab==='review'){if(!isReady){body.append(emptyNote('Phrases to double-check','Use “Clean & summarize” to identify uncertain phrases for review.','review'));return;}const flags=current.review_flags||[];body.append(elem('p','state-explain','These phrases may need review. They are not confirmed errors.'));if(!flags.length){body.append(emptyNote('Nothing flagged','No phrases were identified for manual checking.','review'));return;}for(const flag of flags){const div=elem('div','review-item');div.append(elem('strong','',`“${flag.phrase}”`),elem('p','',flag.reason));if(flag.time_seconds!=null){const wrap=elem('div');wrap.style.marginTop='10px';wrap.append(linkedTime(flag.time_seconds));div.append(wrap);}body.append(div);}}
    }
    function renderResult(){if(!current)return;const isDemo=!!current.demo;const txt=getText(current.segments);$('resultTitle').textContent=current.title||'Untitled video';$('resultPlatform').textContent=(current.platform||'VIDEO').toUpperCase()+'  /  TEXT';$('resultSource').textContent=isDemo?'ILLUSTRATIVE SAMPLE':(sourceNames[current.source_type]||'TRANSCRIPT').toUpperCase();$('resultSource').title=isDemo?'This is example content, not a real transcription.':`Source: ${sourceNames[current.source_type]||'Unknown'}. Check against the video before quoting.`;$('resultDuration').textContent=shortTime(current.duration||0);$('resultWords').textContent=`${words(txt).toLocaleString()} words`;$('resultLanguage').textContent=langNames[(current.detected_language||'').split('-')[0]]||current.detected_language||'Unknown';$('demoBadge').hidden=!isDemo;
@@ -224,7 +437,13 @@ index 5d542b3..3197566 100644
    for(const nav of document.querySelectorAll('[data-view]'))nav.addEventListener('click',()=>navigate(nav.dataset.view));
    for(const n of ['topNew','libraryNew'])$(n).addEventListener('click',()=>{navigate('home');$('videoUrl').focus();});
    $('resultBack').addEventListener('click',()=>navigate('home'));
-@@ -115,20 +167,22 @@
+@@ -111,24 +183,28 @@
+       notify('Link pasted from clipboard');
+     }catch{ $('videoUrl').focus();notify('Use iPhone Paste from the text field.'); }
+   });
++  $('fileButton').addEventListener('click',()=>{$('fileNote').textContent='';$('fileInput').click();});
++  $('fileInput').addEventListener('change',()=>{const f=$('fileInput').files&&$('fileInput').files[0];$('fileInput').value='';startUpload(f);});
+   $('transcriptSearch').addEventListener('input',()=>renderBody());
    for(const tab of document.querySelectorAll('[data-tab]'))tab.addEventListener('click',()=>{activeTab=tab.dataset.tab;$('transcriptSearch').value='';renderBody();});
    $('saveButton').addEventListener('click',saveTranscript);
    $('refineButton').addEventListener('click',refine);
@@ -252,10 +471,10 @@ index 5d542b3..3197566 100644
 +  updateSavedCount();navigate('home');loadCapabilities();resumeJob();
  })();
 diff --git a/link-transcriber/static/index.html b/link-transcriber/static/index.html
-index 38bc5bd..02971f6 100644
+index 38bc5bd..ee846a1 100644
 --- a/link-transcriber/static/index.html
 +++ b/link-transcriber/static/index.html
-@@ -2,65 +2,61 @@
+@@ -2,65 +2,62 @@
  
  <html lang="en">
  <head>
@@ -310,6 +529,7 @@ index 38bc5bd..02971f6 100644
 +<div class="input-foot"><div class="platform-row"><span class="muted-label">SUPPORTED LINKS</span><span class="platform-pill"><span class="platform-badge platform-youtube"><img src="/static/platform-icons/youtube.svg" alt="" loading="eager"/></span><span class="platform-label">YouTube</span></span><span class="platform-pill"><span class="platform-badge platform-vimeo"><img src="/static/platform-icons/vimeo.svg" alt="" loading="eager"/></span><span class="platform-label">Vimeo</span></span><span class="platform-pill"><span class="platform-badge platform-tiktok"><img src="/static/platform-icons/tiktok.svg" alt="" loading="eager"/></span><span class="platform-label">TikTok</span></span><span class="platform-pill"><span class="platform-badge platform-instagram"><img src="/static/platform-icons/instagram.svg" alt="" loading="eager"/></span><span class="platform-label">Instagram</span></span><span class="sr-only">Also Facebook, X, Reddit, Twitch, Dailymotion, LinkedIn, Loom, Streamable, Rumble, Pinterest, and Bluesky.</span><button aria-label="See all 15 supported platforms" class="all-platforms" id="showPlatforms" type="button">+ 11 more</button></div><div class="input-actions"><select aria-label="Spoken language" id="videoLanguage"><option value="auto">Auto language</option><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option><option value="it">Italian</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="hi">Hindi</option><option value="ar">Arabic</option></select></div></div>
  </form>
 -<div class="home-section-head"><div><span class="section-kicker">THREE WAYS TO USE IT</span><h2>What you get <span class="little-asterisk"><img alt="" aria-hidden="true" class="micro-symbol" src="/static/icons/burst.svg"/></span></h2></div><button class="text-action" id="sampleButton" type="button">Try a sample <span><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div>
++<div class="file-entry"><input accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aiff,.caf,.mp4,.mov,.m4v,.webm,.mkv" class="sr-only" id="fileInput" type="file"/><button class="quiet-link file-link" id="fileButton" type="button"><img alt="" aria-hidden="true" class="ui-icon" src="/static/icons/transcribe.svg"/> Or transcribe a recording or video file</button><p aria-live="polite" class="platform-detect" id="fileNote"></p></div>
 +<div class="home-section-head"><div><h2>What you get <span class="little-asterisk"><img alt="" aria-hidden="true" class="micro-symbol" src="/static/icons/burst.svg"/></span></h2></div><button class="text-action" id="sampleButton" type="button">Try a sample <span><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></button></div>
  <div class="feature-grid">
 -<button class="feature-card feature-indigo" data-demo="original"><span class="feature-symbol"><img alt="" src="/static/icons/transcript.png"/></span><span class="feature-number">01</span><strong>Find what<br/>was said.</strong><span>Search the transcript and revisit a specific moment.</span><span class="feature-end">EXPLORE TRANSCRIPTS <span><img alt="" aria-hidden="true" class="button-arrow" src="/static/icons/arrow-ne.svg"/></span></span><span class="mobile-feature-label">Original</span></button>
@@ -349,10 +569,10 @@ index 38bc5bd..02971f6 100644
  </html>
 diff --git a/link-transcriber/static/v9.css b/link-transcriber/static/v9.css
 new file mode 100644
-index 0000000..dc658f8
+index 0000000..c7c634a
 --- /dev/null
 +++ b/link-transcriber/static/v9.css
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,177 @@
 +/* Verbatim v9.1 (Batch 1): readable type, AA contrast, 44 px targets, safe-area and keyboard fixes.
 +   Overrides earlier layers on purpose; collapsing the five files into one is a separate task. */
 +
@@ -518,8 +738,20 @@ index 0000000..dc658f8
 +.sig-line:nth-child(2){animation-delay:.25s}.sig-line:nth-child(3){animation-delay:.5s}
 +@keyframes vb-sig-line{50%{transform:scaleX(.8)}}
 +@media(prefers-reduced-motion:reduce){.sig-bar,.sig-line{animation:none!important}}
++
++/* ---- File entry: second way in, quiet, 44 px ---- */
++.file-entry{margin-top:8px}
++.file-link{font-size:14px;min-height:44px;gap:8px;padding:0 2px;color:var(--violet-dark)}
++.file-link .ui-icon{width:20px;height:20px}
++#fileNote{margin-top:2px}
++@media (max-width:660px){
++  .file-entry{margin-top:4px}
++  .file-link{font-size:13px;min-height:40px}
++  #page-home .home-section-head{padding-top:6px}
++}
++@media (max-width:660px) and (max-height:625px){ .file-link{min-height:36px} }
 diff --git a/link-transcriber/tests/test_app.py b/link-transcriber/tests/test_app.py
-index 003156b..7fb965e 100644
+index 003156b..4e4c06b 100644
 --- a/link-transcriber/tests/test_app.py
 +++ b/link-transcriber/tests/test_app.py
 @@ -13,7 +13,7 @@ client = TestClient(backend.app)
@@ -540,7 +772,7 @@ index 003156b..7fb965e 100644
      job = backend.Job(id="mockjob", url="https://vimeo.com/123456", language="auto")
      backend.process_video(job)
      assert job.status == "completed"
-@@ -354,3 +356,36 @@ def test_refinement_endpoint(monkeypatch):
+@@ -354,3 +356,69 @@ def test_refinement_endpoint(monkeypatch):
          assert client.post("/api/jobs/refinable/refine").status_code == 409
      finally:
          backend._jobs.pop(job.id)
@@ -577,3 +809,36 @@ index 003156b..7fb965e 100644
 +    assert backend._public_refine_error(error) == "The AI service returned an error (401)."
 +    assert "api.openai.com" not in backend._public_refine_error(error)
 +    assert backend._public_refine_error(RuntimeError("Ollama isn't running.")) == "Ollama isn't running."
++
++
++def test_upload_transcribes_local_file(monkeypatch):
++    from types import SimpleNamespace
++    class FakeModel:
++        def transcribe(self, path, language, beam_size, vad_filter, condition_on_previous_text):
++            assert Path(path).read_bytes() == b"fake audio bytes"
++            return iter([SimpleNamespace(start=0, end=2.5, text=" From a file.")]), SimpleNamespace(language="en", duration=2.5)
++    monkeypatch.setattr(backend, "load_model", lambda: FakeModel())
++    monkeypatch.setattr(backend, "_media_duration", lambda path: 2.5)
++    captured = {}
++    class InlineThread:
++        def __init__(self, target, args, daemon): captured["call"] = (target, args)
++        def start(self): captured["call"][0](*captured["call"][1])
++    monkeypatch.setattr(backend.threading, "Thread", InlineThread)
++    response = client.post("/api/jobs/upload", data={"language": "auto"},
++                           files={"file": ("Team_call.m4a", b"fake audio bytes", "audio/m4a")})
++    assert response.status_code == 202, response.text
++    job = backend._jobs.pop(response.json()["job_id"])
++    assert job.status == "completed" and job.platform == "File" and job.title == "Team call"
++    assert job.source_type == "speech_recognition" and job.segments[0]["text"] == "From a file."
++    assert job.url == ""
++    directory = captured["call"][1][1]
++    assert not Path(directory).exists(), "temp upload directory must be removed"
++
++
++def test_upload_rejects_bad_type_and_oversize(monkeypatch):
++    response = client.post("/api/jobs/upload", files={"file": ("notes.txt", b"hello", "text/plain")})
++    assert response.status_code == 422
++    monkeypatch.setattr(backend, "MAX_DOWNLOAD_BYTES", 10)
++    response = client.post("/api/jobs/upload", files={"file": ("big.mp3", b"x" * 64, "audio/mpeg")})
++    assert response.status_code == 413
++    assert not [j for j in backend._jobs.values() if j.platform == "File"]

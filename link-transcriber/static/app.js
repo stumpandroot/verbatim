@@ -66,7 +66,7 @@
     let n=0;const stages=[{p:20,s:'Checking the source',m:'Loading sample transcript content…'},{p:48,s:'Retrieving the text',m:'Matching sample text to timestamps…'},{p:76,s:'Preparing transcript',m:'Showing the sample summary and review notes…'},{p:100,s:'Sample ready',m:'Explore the original, cleaned, and summary views.'}];
     const tick=()=>{if(ticket!==actionToken)return;const st=stages[n++];drawProgress(st.p,st.s,st.m);if(n<stages.length)setTimeout(tick,460);else setTimeout(()=>{if(ticket!==actionToken)return;current=structuredClone(sample);renderResult();navigate('result');notify('Sample transcript ready');},460);};tick();
   }
-  function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processBar').setAttribute('aria-valuenow',String(Math.round(percent)));$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
+  function drawProgress(percent,stage,message){$('processFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('processPercent').textContent=`${Math.round(percent)}%`;$('processBar').setAttribute('aria-valuenow',String(Math.round(percent)));$('processStage').textContent=stage;$('processMessage').textContent=message;let index=percent<34?0:percent<80?1:2;$('stageBars').dataset.stage=String(percent>=100?3:index);for(const [i,item] of [...$('stepList').children].entries()){const marker=item.firstElementChild;marker.className='step-marker '+(i<index?'done':i===index?'current':'');marker.textContent=i<index?'':String(i+1);}}
   function rememberJob(id){try{if(id)sessionStorage.setItem(activeJobKey,id);else sessionStorage.removeItem(activeJobKey);}catch{}}
   async function readJson(response){try{return await response.json();}catch{return {};}}
   async function pollJob(id,ticket){
@@ -122,6 +122,25 @@
     return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
   }
   async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
+  // Inline SVG icons so CSS can animate their strokes. Falls back to <img> when fetch is unavailable (file://).
+  const iconCache=new Map();
+  async function inlineIcons(root=document){
+    if(location.protocol==='file:')return;
+    const imgs=[...root.querySelectorAll('img[src$=".svg"]:not([data-inlined])')].filter(i=>/\/icons\//.test(i.getAttribute('src')));
+    await Promise.all(imgs.map(async img=>{
+      const src=img.getAttribute('src');img.dataset.inlined='1';
+      try{
+        if(!iconCache.has(src))iconCache.set(src,fetch(src).then(r=>r.ok?r.text():''));
+        const text=await iconCache.get(src);if(!text||!img.isConnected)return;
+        const doc=new DOMParser().parseFromString(text,'image/svg+xml');const svg=doc.documentElement;if(svg.nodeName!=='svg')return;
+        svg.setAttribute('class',(img.className||'')+' vb-icon');svg.setAttribute('focusable','false');svg.removeAttribute('role');svg.setAttribute('aria-hidden','true');
+        if(img.id)svg.id=img.id;svg.dataset.src=src;
+        img.replaceWith(document.adoptNode(svg));
+      }catch{}
+    }));
+  }
+  function pop(el){if(!el)return;el.classList.remove('vb-pop');void el.offsetWidth;el.classList.add('vb-pop');}
+  new MutationObserver(muts=>{for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)inlineIcons(n.matches&&n.matches('img')?n.parentNode:n);}).observe(document.body,{childList:true,subtree:true});
   function iconSrc(name){return (window.VERBATIM_EMBEDDED_ICONS||{})[name] || '/static/icons/'+name;}
   function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const img=elem('img','empty-note-illustration');img.src=iconSrc(kind+'.svg');img.alt='';div.append(img,elem('strong','',title),elem('p','',message));return div;}
   function renderBody(){if(!current)return;const body=$('workspaceBody');body.replaceChildren();const isReady=current.refine_status==='completed';$('searchWrap').hidden=activeTab!=='original';$('transcriptSearch').value=activeTab==='original' ? $('transcriptSearch').value : '';
@@ -155,10 +174,10 @@
   function showExportPreview(filename,text){const d=$('exportDialog');$('exportName').textContent=filename;$('exportText').value=text;d.showModal();}
   function download(ext,text,mime){if(!current)return;if(demoOnly){showExportPreview(`${(current.title||'transcript').slice(0,40)}.${ext}`,text);return;}const filename=(current.title||'verbatim-transcript').normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').slice(0,58)||'transcript';const blob=new Blob([text],{type:mime});const link=URL.createObjectURL(blob);const a=document.createElement('a');a.href=link;a.download=`${filename}.${ext}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(link),1000);notify(`${ext.toUpperCase()} exported`);}
   function renderLibrary(){updateSavedCount();const root=$('libraryItems');root.replaceChildren();if(!saved.length){const wrap=elem('div','input-surface');wrap.append(emptyNote('Your saved transcripts','Save a transcript to find it here later. Library items stay in this browser.','library'));const tryBtn=elem('button','primary-btn compact','Open sample transcript');tryBtn.onclick=()=>openSample();wrap.append(tryBtn);root.append(wrap);return;}for(const item of saved){const row=elem('div','library-card');const thumb=elem('div','library-image');thumb.append(makePlatformBadge(item.platform||''));const main=elem('div','library-card-main');main.append(elem('h3','',item.title||'Untitled video'),elem('p','',`${item.platform||'Video'} · ${shortTime(item.duration||0)} · ${item.refine_status==='completed'?'With AI notes':'Original only'} · Saved in this browser`));const open=elem('button','library-open','Open');open.onclick=()=>{current=structuredClone(item);jobId=null;activeTab='original';renderResult();navigate('result');};const remove=elem('button','library-remove','Remove');remove.onclick=()=>{if(!confirmAction(`Remove “${item.title||'Untitled video'}” from this browser’s library?`,'rm-'+item.id))return;saved=saved.filter(x=>x.id!==item.id);store();renderLibrary();notify('Removed from library');};row.append(thumb,main,open,remove);root.append(row);}}
-  function setSaveLabel(isSaved){const button=$('saveButton');button.classList.toggle('is-saved',isSaved);button.querySelector('img').src=iconSrc((isSaved?'saved':'save')+'.svg');button.lastChild.textContent=isSaved?' Saved':' Save';button.title=isSaved?'Saved in this browser. Tap again to update the saved copy.':'Save in this browser';}
+  function setSaveLabel(isSaved){const button=$('saveButton');button.classList.toggle('is-saved',isSaved);const ic=button.querySelector('img,svg.vb-icon');const want=iconSrc((isSaved?'saved':'save')+'.svg');if(ic&&ic.tagName==='IMG')ic.src=want;else if(ic&&ic.dataset.src!==want){const img=elem('img','save-action-icon');img.alt='';img.src=want;ic.replaceWith(img);}pop(button);button.lastChild.textContent=isSaved?' Saved':' Save';button.title=isSaved?'Saved in this browser. Tap again to update the saved copy.':'Save in this browser';}
   // Save never removes. A second tap refreshes the stored copy (for example after AI notes arrive). Removal lives in the Library with a confirmation.
   function saveTranscript(){if(!current)return;const exists=saved.some(s=>s.id===current.id);const copy=structuredClone(current);if(exists){saved=saved.map(s=>s.id===current.id?copy:s);notify('Saved copy updated');}else{if(saved.length>=25)notify('Library is full (25). The oldest transcript was removed.');saved=[copy,...saved].slice(0,25);notify('Saved in this browser');}store();updateSavedCount();setSaveLabel(true);}
-  for(const nav of document.querySelectorAll('[data-view]'))nav.addEventListener('click',()=>navigate(nav.dataset.view));
+  for(const nav of document.querySelectorAll('[data-view]'))nav.addEventListener('click',()=>{navigate(nav.dataset.view);pop(nav.querySelector('.vb-icon,img'));});
   for(const n of ['topNew','libraryNew'])$(n).addEventListener('click',()=>{navigate('home');$('videoUrl').focus();});
   $('resultBack').addEventListener('click',()=>navigate('home'));
   $('backDuring').addEventListener('click',()=>navigate('home'));
@@ -189,7 +208,7 @@
   for(const tab of document.querySelectorAll('[data-tab]'))tab.addEventListener('click',()=>{activeTab=tab.dataset.tab;$('transcriptSearch').value='';renderBody();});
   $('saveButton').addEventListener('click',saveTranscript);
   $('refineButton').addEventListener('click',refine);
-  $('copyButton').addEventListener('click',async()=>{if(!current)return;const text=textWithProvenance();if(!text){notify('Generate this view first.');return;}try{await navigator.clipboard.writeText(text);notify(`Copied: ${viewNames[activeTab]||'transcript'}`);}catch{notify('Clipboard unavailable in this browser. Try export.');}});
+  $('copyButton').addEventListener('click',async()=>{if(!current)return;pop($('copyButton'));const text=textWithProvenance();if(!text){notify('Generate this view first.');return;}try{await navigator.clipboard.writeText(text);notify(`Copied: ${viewNames[activeTab]||'transcript'}`);}catch{notify('Clipboard unavailable in this browser. Try export.');}});
   $('downloadTxt').addEventListener('click',()=>{if(!current)return;const text=textWithProvenance();if(!text){notify('Generate this view first.');return;}download('txt',text,'text/plain;charset=utf-8');});
   $('downloadSrt').addEventListener('click',()=>download('srt',subtitle('srt'),'text/plain;charset=utf-8'));
   $('downloadVtt').addEventListener('click',()=>download('vtt',subtitle('vtt'),'text/vtt;charset=utf-8'));
@@ -206,5 +225,5 @@
   $('dialogDone').addEventListener('click',()=>$('platformDialog').close());
   $('platformDialog').addEventListener('click',e=>{if(e.target===$('platformDialog'))$('platformDialog').close();});
   if(demoOnly){const d=elem('span','demo-badge','INTERACTIVE DESIGN PREVIEW');document.querySelector('.topbar-right').prepend(d);$('videoUrl').placeholder='Demo only · open a sample below';}
-  updateSavedCount();navigate('home');loadCapabilities();resumeJob();
+  updateSavedCount();navigate('home');inlineIcons();loadCapabilities();resumeJob();
 })();
