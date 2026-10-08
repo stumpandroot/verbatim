@@ -13,7 +13,7 @@ client = TestClient(backend.app)
 def test_homepage_is_served():
     response = client.get("/")
     assert response.status_code == 200
-    assert "Your transcript starts with a link." in response.text
+    assert "Get transcript" in response.text and "viewport-fit=cover" in response.text
 
 
 def test_health():
@@ -354,3 +354,36 @@ def test_refinement_endpoint(monkeypatch):
         assert client.post("/api/jobs/refinable/refine").status_code == 409
     finally:
         backend._jobs.pop(job.id)
+
+
+def test_trailing_dot_hostname_is_normalized_not_500(monkeypatch):
+    class FakeThread:
+        def __init__(self, target, args, daemon): pass
+        def start(self): pass
+    monkeypatch.setattr(backend.threading, "Thread", FakeThread)
+    assert backend.validate_video_url("https://www.youtube.com./watch?v=abc") == "https://www.youtube.com/watch?v=abc"
+    response = client.post("/api/jobs", json={"url": "https://www.YouTube.com./watch?v=abc", "language": "auto"})
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    assert client.get(f"/api/jobs/{job_id}").json()["platform"] == "YouTube"
+    backend._jobs.pop(job_id)
+
+
+def test_capabilities_endpoint_reports_provider(monkeypatch):
+    monkeypatch.setattr(backend, "AI_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    data = client.get("/api/capabilities").json()
+    assert data["ai_provider"] == "none" and data["ai_sends_transcript_offsite"] is False
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    data = client.get("/api/capabilities").json()
+    assert data["ai_provider"] == "openai" and data["ai_sends_transcript_offsite"] is True
+    assert set(data) >= {"ffmpeg", "whisper_model", "max_video_minutes"}
+
+
+def test_refine_errors_are_public(monkeypatch):
+    import httpx as _httpx
+    request = _httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    error = _httpx.HTTPStatusError("boom", request=request, response=_httpx.Response(401, request=request))
+    assert backend._public_refine_error(error) == "The AI service returned an error (401)."
+    assert "api.openai.com" not in backend._public_refine_error(error)
+    assert backend._public_refine_error(RuntimeError("Ollama isn't running.")) == "Ollama isn't running."

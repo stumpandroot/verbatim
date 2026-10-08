@@ -186,7 +186,12 @@ def validate_video_url(url: str) -> str:
         raise ValueError("Use an HTTPS video link from a supported platform (YouTube, Vimeo, TikTok, Instagram, and others).")
     if not _looks_like_single_video(hostname, parts.path, parts.query, HOST_TO_PLATFORM[hostname]):
         raise ValueError("Use a direct link to a single video or post, not a profile, feed, or playlist.")
-    return url
+    # Rebuild with the normalized hostname so later lookups (and yt-dlp) see one canonical form.
+    return parts._replace(netloc=hostname).geturl()
+
+
+def platform_for(url: str) -> str:
+    return HOST_TO_PLATFORM.get((urlsplit(url).hostname or "").lower().rstrip("."), "Video")
 
 
 def update_job(job: Job, **values) -> None:
@@ -227,7 +232,22 @@ def _public_error(error: Exception) -> str:
         return "This video format needs FFmpeg installed. See the README."
     if isinstance(error, RuntimeError) and ("too long" in low or "too large" in low or "live streams" in low):
         return message
-    return "Could not obtain captions or audio. Check the link and its access restrictions."
+    return ("We couldn't get captions or audio from this link. It may be private, age-restricted, "
+            "or blocked for automated access. Try another public video.")
+
+
+def _public_refine_error(error: Exception) -> str:
+    """Hide library and URL details from refinement failures; keep messages we wrote ourselves."""
+    message = str(error)
+    if isinstance(error, RuntimeError) and message and "http" not in message.lower():
+        return message[:300]
+    if isinstance(error, httpx.ConnectError):
+        return "The AI service could not be reached."
+    if isinstance(error, httpx.TimeoutException):
+        return "The AI service took too long to respond. Try again or use a shorter video."
+    if isinstance(error, httpx.HTTPStatusError):
+        return f"The AI service returned an error ({error.response.status_code})."
+    return "AI notes could not be generated. The original transcript is unchanged."
 
 
 def _timestamp_seconds(value: str) -> float:
@@ -469,7 +489,7 @@ def _finish_captions(job: Job, result: tuple[list[dict], dict]) -> None:
 def process_video(job: Job) -> None:
     with _worker_slot:
         try:
-            platform = HOST_TO_PLATFORM.get((urlsplit(job.url).hostname or "").lower(), "Video")
+            platform = platform_for(job.url)
             update_job(job, status="fetching", platform=platform,
                        message=f"Looking for {platform} captions…", progress=3)
             vimeo = vimeo_identifiers(job.url)
@@ -500,7 +520,7 @@ def process_video(job: Job) -> None:
                 if existing:
                     _finish_captions(job, existing)
                     return
-                update_job(job, status="downloading", message=f"No accessible {platform} captions. Retrieving audio…", progress=8)
+                update_job(job, status="downloading", message=f"No accessible {platform} captions. Downloading audio…", progress=8)
 
                 def download_progress(data):
                     if data.get("status") != "downloading":
@@ -644,7 +664,7 @@ TRANSCRIPT:\n""" + part)
                        review_flags=all_flags, refine_status="completed", refine_message="AI refinement ready")
         except Exception as error:
             logger.exception("Refinement failed for job %s", job.id)
-            update_job(job, refine_status="failed", refine_error=str(error)[:500],
+            update_job(job, refine_status="failed", refine_error=_public_refine_error(error),
                        refine_message="AI refinement unavailable")
 
 
@@ -670,6 +690,23 @@ def health():
     return {"ok": True}
 
 
+@app.get("/api/capabilities")
+def capabilities():
+    """Tell the client what this server can do so the UI can say so before the user taps."""
+    import shutil
+    provider = AI_PROVIDER if AI_PROVIDER in {"ollama", "openai"} else "none"
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        provider = "none"
+    return {
+        "ai_provider": provider,
+        "ai_model": OLLAMA_MODEL if provider == "ollama" else OPENAI_MODEL if provider == "openai" else "",
+        "ai_sends_transcript_offsite": provider == "openai",
+        "ffmpeg": shutil.which("ffmpeg") is not None,
+        "whisper_model": WHISPER_MODEL,
+        "max_video_minutes": MAX_VIDEO_SECONDS // 60,
+    }
+
+
 @app.post("/api/jobs", status_code=202)
 def create_job(request: TranscriptRequest):
     try:
@@ -684,8 +721,7 @@ def create_job(request: TranscriptRequest):
         if unfinished >= MAX_UNFINISHED_JOBS:
             raise HTTPException(status_code=429, detail="Too many pending videos. Try again after one finishes.")
         job_id = str(uuid.uuid4())
-        job = Job(id=job_id, url=url, language=request.language,
-                  platform=HOST_TO_PLATFORM[urlsplit(url).hostname.lower()])
+        job = Job(id=job_id, url=url, language=request.language, platform=platform_for(url))
         _jobs[job_id] = job
     threading.Thread(target=process_video, args=(job,), daemon=True).start()
     return {"job_id": job_id, "status": job.status}
