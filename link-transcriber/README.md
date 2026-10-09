@@ -129,17 +129,27 @@ AI cleanup is a *separate, editable interpretation*, not an authenticated correc
 | `MAX_VIDEO_SECONDS` | `7200` | Maximum video length in seconds. |
 | `MAX_DOWNLOAD_MB` | `500` | Maximum audio download size. |
 
-## Mac app (no Terminal after the first build)
+## Mac app
 
-`macapp/build_mac.sh` packages the server, the interface, FFmpeg, and the speech engine into a double-click `Verbatim.app`. Build it once on the Mac that will run it:
+`macapp/build_mac.sh` turns the server, the interface, FFmpeg, and the speech engine into `Verbatim.app` and a `Verbatim.dmg` installer, then signs and notarizes them so the app opens on any Mac like one downloaded from a website.
+
+One-time setup on your Mac:
+
+1. `brew install python@3.11` and install the Xcode command line tools (`xcode-select --install`).
+2. In Xcode, Settings > Accounts, sign in with your Apple Developer account and create a **Developer ID Application** certificate (Manage Certificates > + ).
+3. Make an app-specific password at appleid.apple.com (Sign-In and Security), then store it once:
+   `xcrun notarytool store-credentials verbatim-notary --apple-id YOU@EXAMPLE.COM --team-id TEAMID --password APP-SPECIFIC-PASSWORD`
+
+Build:
 
 ```bash
-brew install python@3.11
 cd link-transcriber
 bash macapp/build_mac.sh
 ```
 
-The script downloads static FFmpeg for your Mac's chip, makes the app icon, bundles everything with PyInstaller, and signs the result for this Mac. Output: `dist/Verbatim.app` (roughly 500–800 MB). Drag it to Applications. On the first launch, right-click the app and choose Open.
+The script downloads static FFmpeg for your chip, makes the icon, bundles with PyInstaller, signs every binary with the hardened runtime, packs a drag-to-Applications disk image, uploads it to Apple for notarization (2–10 minutes), and staples the ticket. Output: `dist/Verbatim.dmg`, ready to host on your site. Set `VERSION=1.1.0` in front of the command to stamp a version.
+
+Without the certificate or the keychain profile, the script still builds an app that runs on the building Mac only.
 
 What the app does on launch:
 
@@ -148,7 +158,7 @@ What the app does on launch:
 - Downloads the Whisper `base` model (about 150 MB) into `~/Library/Application Support/Verbatim/models` the first time you transcribe audio.
 - Turns on AI notes only when Ollama is running on this Mac. Install Ollama and run `ollama pull qwen2.5:7b` if you want them.
 
-Sharing the app with other Macs needs Apple notarization (a paid developer account); without it, their Mac warns about an unidentified developer.
+Updates are manual for now: users download the new DMG. Sparkle can add in-app updates later.
 
 ## Docker
 
