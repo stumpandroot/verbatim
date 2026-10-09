@@ -129,6 +129,27 @@ AI cleanup is a *separate, editable interpretation*, not an authenticated correc
 | `MAX_VIDEO_SECONDS` | `7200` | Maximum video length in seconds. |
 | `MAX_DOWNLOAD_MB` | `500` | Maximum audio download size. |
 
+## Mac app (no Terminal after the first build)
+
+`macapp/build_mac.sh` packages the server, the interface, FFmpeg, and the speech engine into a double-click `Verbatim.app`. Build it once on the Mac that will run it:
+
+```bash
+brew install python@3.11
+cd link-transcriber
+bash macapp/build_mac.sh
+```
+
+The script downloads static FFmpeg for your Mac's chip, makes the app icon, bundles everything with PyInstaller, and signs the result for this Mac. Output: `dist/Verbatim.app` (roughly 500–800 MB). Drag it to Applications. On the first launch, right-click the app and choose Open.
+
+What the app does on launch:
+
+- Starts the Verbatim server on a free local port and opens it in a native window.
+- Uses the bundled FFmpeg, so nothing else needs installing.
+- Downloads the Whisper `base` model (about 150 MB) into `~/Library/Application Support/Verbatim/models` the first time you transcribe audio.
+- Turns on AI notes only when Ollama is running on this Mac. Install Ollama and run `ollama pull qwen2.5:7b` if you want them.
+
+Sharing the app with other Macs needs Apple notarization (a paid developer account); without it, their Mac warns about an unidentified developer.
+
 ## Docker
 
 ```bash

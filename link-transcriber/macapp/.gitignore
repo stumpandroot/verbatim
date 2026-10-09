@@ -1,0 +1,6 @@
+.venv-build/
+build/
+dist/
+macapp/bin/
+macapp/Verbatim.icns
+*.spec
