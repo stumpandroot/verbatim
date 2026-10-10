@@ -2,8 +2,8 @@ name: Build Mac app
 
 # Builds, signs, notarizes, and publishes Verbatim.dmg for Apple Silicon and Intel Macs.
 #
-# Runs on every push of a version tag (v1.0.0) and on demand from the Actions tab.
-# A tag push also creates a GitHub Release with both DMGs attached.
+# Runs on every push to main (DMGs saved as workflow artifacts), on every version tag such as v1.0.0
+# (also publishes a GitHub Release with both DMGs attached), and on demand from the Actions tab.
 #
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   MACOS_CERTIFICATE           Developer ID Application certificate as base64 .p12
@@ -15,7 +15,9 @@ name: Build Mac app
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+    paths-ignore: ["**.md", "static-preview/**"]
   workflow_dispatch:
 
 permissions:
