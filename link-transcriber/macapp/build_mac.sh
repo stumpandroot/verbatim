@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds, signs, packages, and notarizes Verbatim for macOS. Run from the link-transcriber folder:
 #   bash macapp/build_mac.sh
-# Output: dist/Verbatim.app and dist/Verbatim.dmg
+# Output: dist/Verbatim.app and dist/Verbatim.dmg (DMG_SUFFIX=-arm64 names it Verbatim-arm64.dmg)
 #
 # Needs: Python 3.11 or 3.12 (brew install python@3.11), Xcode command line tools, internet access.
 #
@@ -116,7 +116,7 @@ else
 fi
 
 # 6. Disk image: the standard "drag Verbatim to Applications" window
-DMG="dist/Verbatim.dmg"
+DMG="dist/Verbatim${DMG_SUFFIX:-}.dmg"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"

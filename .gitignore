@@ -1,0 +1,11 @@
+*.zip
+*.png
+!link-transcriber/static/**/*.png
+__pycache__/
+.pytest_cache/
+.venv*/
+link-transcriber/build/
+link-transcriber/dist/
+link-transcriber/macapp/bin/
+link-transcriber/macapp/Verbatim.icns
+*.spec
