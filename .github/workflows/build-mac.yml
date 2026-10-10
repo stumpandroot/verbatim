@@ -76,7 +76,12 @@ jobs:
           VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.0' }}
           DMG_SUFFIX: -${{ matrix.arch }}
         run: |
-          VERSION="${VERSION#v}" bash macapp/build_mac.sh
+          set -o pipefail
+          if ! VERSION="${VERSION#v}" bash macapp/build_mac.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            # Surface the tail of the log as annotations so the failure is readable from the API.
+            grep -v '^\s*$' "$RUNNER_TEMP/build.log" | tail -n 12 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            exit 1
+          fi
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
