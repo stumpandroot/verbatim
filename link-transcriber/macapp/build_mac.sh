@@ -18,7 +18,7 @@ VERSION="${VERSION:-1.0.0}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-verbatim-notary}"
 PY="${PYTHON:-}"
 if [ -z "$PY" ]; then
-  for c in python3.12 python3.11 python3; do
+  for c in python3.11 python3.12 python3; do
     if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
   done
 fi
@@ -68,9 +68,10 @@ if [ ! -f macapp/Verbatim.icns ]; then
 fi
 
 # 4. Bundle (PyInstaller signs every binary inside-out when an identity is given)
-SIGN_ARGS=()
+# macOS ships bash 3.2, where an empty array trips `set -u`; seed it with a harmless flag.
+SIGN_ARGS=(--log-level WARN)
 if [ -n "$IDENTITY" ]; then
-  SIGN_ARGS=(--codesign-identity "$IDENTITY" --osx-entitlements-file macapp/entitlements.plist)
+  SIGN_ARGS+=(--codesign-identity "$IDENTITY" --osx-entitlements-file macapp/entitlements.plist)
 fi
 rm -rf build dist
 pyinstaller --noconfirm --clean --windowed --name Verbatim \
