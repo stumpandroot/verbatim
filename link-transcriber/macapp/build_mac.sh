@@ -40,11 +40,12 @@ pip install --quiet -r requirements.txt pywebview pyinstaller pillow
 
 # 2. Static FFmpeg + ffprobe for this Mac's chip
 ARCH="$(uname -m)"            # arm64 or x86_64
+FFARCH="$ARCH"; [ "$ARCH" = "x86_64" ] && FFARCH="amd64"   # the FFmpeg site names Intel builds amd64
 mkdir -p macapp/bin
 for tool in ffmpeg ffprobe; do
   if [ ! -x "macapp/bin/$tool" ]; then
     echo "Downloading static $tool ($ARCH)…"
-    curl -fsSL -o "macapp/$tool.zip" "https://ffmpeg.martin-riedl.de/redirect/latest/macos/$ARCH/release/$tool.zip"
+    curl -fsSL -o "macapp/$tool.zip" "https://ffmpeg.martin-riedl.de/redirect/latest/macos/$FFARCH/release/$tool.zip"
     unzip -qo "macapp/$tool.zip" -d macapp/bin
     rm -f "macapp/$tool.zip"
     chmod +x "macapp/bin/$tool"
