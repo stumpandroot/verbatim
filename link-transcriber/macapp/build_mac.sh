@@ -90,6 +90,10 @@ pyinstaller --noconfirm --clean --windowed --name Verbatim \
   --collect-all onnxruntime \
   --collect-all av \
   --collect-all yt_dlp \
+  --collect-all webview \
+  --collect-submodules uvicorn \
+  --collect-submodules anyio \
+  --hidden-import objc \
   --hidden-import uvicorn.logging \
   --hidden-import uvicorn.loops.auto \
   --hidden-import uvicorn.loops.asyncio \

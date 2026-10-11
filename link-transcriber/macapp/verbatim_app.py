@@ -105,16 +105,52 @@ def open_window(port: int) -> None:
     webview.start(debug=False)
 
 
+def setup_logging() -> Path:
+    """Send output to a log file. A windowed app has no terminal: sys.stdout/stderr are None."""
+    log_dir = Path.home() / "Library" / "Logs" / "Verbatim" if sys.platform == "darwin" else support_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "verbatim.log"
+    try:
+        handle = open(log_path, "a", buffering=1, encoding="utf-8")
+        if sys.stdout is None:
+            sys.stdout = handle
+        if sys.stderr is None:
+            sys.stderr = handle
+    except OSError:
+        pass
+    return log_path
+
+
+def report_failure(title: str, detail: str, log_path: Path) -> None:
+    """Show a native dialog so a launch failure is never silent."""
+    print(detail, file=sys.stderr, flush=True)
+    if sys.platform != "darwin" or "--check" in sys.argv:
+        return
+    import subprocess
+    msg = f"{detail.strip().splitlines()[-1][:300]}\n\nDetails were written to {log_path}"
+    msg = msg.replace("\\", "\\\\").replace('"', '\\"')
+    subprocess.run(["osascript", "-e", f'display dialog "{msg}" with title "{title}" buttons {{"OK"}} default button 1 with icon stop'],
+                   check=False)
+
+
 def main() -> int:
-    configure_environment()
-    port = free_port()
-    start_server(port)
-    caps = wait_ready(port)
-    if "--check" in sys.argv:
-        print(f"ok port={port} ffmpeg={caps.get('ffmpeg')} ai={caps.get('ai_provider')} whisper={caps.get('whisper_model')}")
+    log_path = setup_logging()
+    try:
+        print(f"--- Verbatim launch {time.strftime('%Y-%m-%d %H:%M:%S')} python={sys.version.split()[0]} frozen={bool(getattr(sys, 'frozen', False))}", flush=True)
+        configure_environment()
+        port = free_port()
+        start_server(port)
+        caps = wait_ready(port)
+        print(f"server ready on port {port}: {caps}", flush=True)
+        if "--check" in sys.argv:
+            print(f"ok port={port} ffmpeg={caps.get('ffmpeg')} ai={caps.get('ai_provider')} whisper={caps.get('whisper_model')}")
+            return 0
+        open_window(port)
         return 0
-    open_window(port)
-    return 0
+    except Exception:  # noqa: BLE001 - anything at all must surface to the user
+        import traceback
+        report_failure("Verbatim could not start", traceback.format_exc(), log_path)
+        return 1
 
 
 if __name__ == "__main__":
