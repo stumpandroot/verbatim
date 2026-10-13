@@ -80,15 +80,13 @@ jobs:
           cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
           open build/Build/Products/Release/Verbatim.app
           sleep 10
-          # Is the main thread responsive? A hung app never answers this; cap at 8s.
-          ( osascript -e 'with timeout of 8 seconds
-              tell application "System Events" to tell process "Verbatim" to get name of windows
-            end timeout' > "$OUT/responsive-${GITHUB_RUN_NUMBER}.txt" 2>&1 || echo "NOT RESPONSIVE (or timed out)" >> "$OUT/responsive-${GITHUB_RUN_NUMBER}.txt" ) || true
-          sample Verbatim 3 -file "$OUT/sample-${GITHUB_RUN_NUMBER}.txt" || true
-          screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
+          PID="$(pgrep -x Verbatim | head -1 || true)"
+          # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
+          { echo "pid=$PID"; for i in 1 2 3; do ps -o %cpu=,rss= -p "$PID" || echo "gone"; sleep 2; done; } > "$OUT/cpu-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
+          perl -e 'alarm 25; exec @ARGV' sample "$PID" 3 -file "$OUT/sample-${GITHUB_RUN_NUMBER}.txt" || echo "sample timed out" > "$OUT/sample-${GITHUB_RUN_NUMBER}.txt"
+          perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
           cp "$HOME/Library/Logs/Verbatim/native.log" "$OUT/native-${GITHUB_RUN_NUMBER}.log" || true
-          osascript -e 'tell application "Verbatim" to quit' || true
-          pkill -x Verbatim || true
+          pkill -9 -x Verbatim || true
           cp "$OUT"/*.png dist/screens/ || true
           # The ci-screens branch is reachable where artifact storage is not.
           cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
