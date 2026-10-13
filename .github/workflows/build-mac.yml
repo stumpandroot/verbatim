@@ -17,7 +17,7 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths-ignore: ["**.md", "static-preview/**"]
+    paths-ignore: ["**.md", "static-preview/**", "mac/**", ".github/workflows/build-swift.yml"]
   workflow_dispatch:
 
 permissions:

@@ -1,0 +1,60 @@
+import Foundation
+import AVFoundation
+import Combine
+
+@MainActor
+final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
+    @Published private(set) var isPlaying = false
+    @Published private(set) var time: TimeInterval = 0
+    @Published private(set) var duration: TimeInterval = 0
+    @Published private(set) var loadedURL: URL?
+
+    private var player: AVAudioPlayer?
+    private var timer: Timer?
+
+    func load(_ url: URL) {
+        if loadedURL == url, player != nil { return }
+        stop()
+        player = try? AVAudioPlayer(contentsOf: url)
+        player?.delegate = self
+        player?.prepareToPlay()
+        duration = player?.duration ?? 0
+        time = 0
+        loadedURL = url
+    }
+
+    func toggle() {
+        guard let p = player else { return }
+        if p.isPlaying { p.pause(); isPlaying = false; timer?.invalidate() }
+        else {
+            p.play(); isPlaying = true
+            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.time = self?.player?.currentTime ?? 0 }
+            }
+        }
+    }
+
+    func seek(to t: TimeInterval) {
+        guard let p = player else { return }
+        p.currentTime = max(0, min(t, p.duration))
+        time = p.currentTime
+    }
+
+    func stop() {
+        player?.stop(); player = nil
+        timer?.invalidate(); timer = nil
+        isPlaying = false; time = 0
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            self.isPlaying = false
+            self.timer?.invalidate()
+            self.time = 0
+        }
+    }
+
+    static func duration(of url: URL) -> TimeInterval {
+        (try? AVAudioPlayer(contentsOf: url).duration) ?? 0
+    }
+}

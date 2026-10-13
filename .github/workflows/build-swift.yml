@@ -1,0 +1,93 @@
+name: Build Mac app (SwiftUI)
+
+# Builds, signs, notarizes, and publishes the native Verbatim.app as a universal DMG.
+# Runs on pushes to main that touch mac/, on version tags such as v2.0.0, and on demand.
+# Secrets are the same five as build-mac.yml; without them the build is unsigned.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths: ["mac/**", ".github/workflows/build-swift.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (universal)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: mac
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | tail -1)"; xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import signing certificate
+        if: ${{ env.MACOS_CERTIFICATE != '' }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Store notarization credentials
+        if: ${{ env.APPLE_APP_PASSWORD != '' }}
+        run: |
+          xcrun notarytool store-credentials verbatim-notary \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+
+      - name: Build, sign, package, notarize
+        env:
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.0' }}
+          BUILD: ${{ github.run_number }}
+          DMG_SUFFIX: -universal
+        run: |
+          set -o pipefail
+          if ! VERSION="${VERSION#v}" bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            grep -E "error:|rror\b" "$RUNNER_TEMP/build.log" | grep -v "^\s*$" | head -n 30 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -n 15 "$RUNNER_TEMP/build.log" | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            exit 1
+          fi
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Verbatim-universal
+          path: mac/dist/Verbatim-universal.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dmgs
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dmgs/*.dmg
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

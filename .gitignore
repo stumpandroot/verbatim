@@ -9,3 +9,12 @@ link-transcriber/dist/
 link-transcriber/macapp/bin/
 link-transcriber/macapp/Verbatim.icns
 *.spec
+
+# SwiftUI app
+mac/build/
+mac/dist/
+mac/*.xcodeproj/
+mac/Verbatim/Info.plist
+mac/Verbatim/Verbatim.entitlements
+
+!mac/Verbatim/Resources/**/*.png
