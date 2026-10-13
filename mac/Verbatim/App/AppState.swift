@@ -10,30 +10,29 @@ enum Screen: Equatable {
 }
 
 /// Which way the next screen slides in. Sidebar order decides up/down; opening a transcript pushes.
-enum SlideDirection { case push, pop, up, down }
+enum SlideDirection: Equatable { case push, pop, up, down }
 
 @MainActor
 final class AppState: ObservableObject {
-    @Published var screen: Screen = .home
-    @Published var direction: SlideDirection = .up
-    @Published var search = ""
-    @Published var projectFilter: UUID? = nil
-    @Published var focusLink = false
-    @Published var focusSearch = false
-    @Published var showMicSheet = false
-    @Published var showAppPicker = false
-    @Published var toast: Toast?
-    @Published var verbiePose: VerbiePose = .ready
-    @Published var fetching: String? = nil     // link fetch status line on Home
+    @Changed var screen: Screen = .home
+    @Changed var direction: SlideDirection = .up
+    @Changed var search = ""
+    @Changed var projectFilter: UUID? = nil
+    @Changed var focusLink = false
+    @Changed var focusSearch = false
+    @Changed var showMicSheet = false
+    @Changed var showAppPicker = false
+    @Changed var toast: Toast? = nil
+    @Changed var verbiePose: VerbiePose = .ready
+    @Changed var fetching: String? = nil     // link fetch status line on Home
 
-    // Preferences: plain published values persisted by hand. (@AppStorage is for views; inside an
-    // ObservableObject it can re-invalidate the scene every pass, which hung the app on macOS 26.)
-    @Published var showMenuBar: Bool { didSet { Prefs.set("showMenuBar", showMenuBar) } }
-    @Published var presetRaw: String { didSet { Prefs.set("preset", presetRaw) } }
-    @Published var advEngine: String { didSet { Prefs.set("advEngine", advEngine) } }
-    @Published var advModel: String { didSet { Prefs.set("advModel", advModel) } }
-    @Published var identifySpeakers: Bool { didSet { Prefs.set("identifySpeakers", identifySpeakers) } }
-    @Published var applyDictionary: Bool { didSet { Prefs.set("applyDictionary", applyDictionary) } }
+    // Preferences, persisted in UserDefaults by key. Never @AppStorage or @Published here: see Changed.swift.
+    @Changed("showMenuBar") var showMenuBar = true
+    @Changed("preset") var presetRaw = QualityPreset.balanced.rawValue
+    @Changed("advEngine") var advEngine = "fluid"
+    @Changed("advModel") var advModel = "v3"
+    @Changed("identifySpeakers") var identifySpeakers = true
+    @Changed("applyDictionary") var applyDictionary = true
 
     let store = Store()
     let recorder = Recorder()
@@ -43,12 +42,6 @@ final class AppState: ObservableObject {
     private var bag = Set<AnyCancellable>()
 
     init() {
-        showMenuBar = Prefs.bool("showMenuBar", true)
-        presetRaw = Prefs.string("preset", QualityPreset.balanced.rawValue)
-        advEngine = Prefs.string("advEngine", "fluid")
-        advModel = Prefs.string("advModel", "v3")
-        identifySpeakers = Prefs.bool("identifySpeakers", true)
-        applyDictionary = Prefs.bool("applyDictionary", true)
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
         for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
                   player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher()] {
@@ -333,10 +326,4 @@ struct Toast: Identifiable, Equatable {
         self.message = message; self.action = action; self.onAction = onAction
     }
     static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
-}
-
-enum Prefs {
-    static func bool(_ k: String, _ d: Bool) -> Bool { UserDefaults.standard.object(forKey: k) == nil ? d : UserDefaults.standard.bool(forKey: k) }
-    static func string(_ k: String, _ d: String) -> String { UserDefaults.standard.string(forKey: k) ?? d }
-    static func set(_ k: String, _ v: Any) { UserDefaults.standard.set(v, forKey: k) }
 }
