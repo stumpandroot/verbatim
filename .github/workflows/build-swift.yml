@@ -69,24 +69,24 @@ jobs:
             exit 1
           fi
 
-      - name: Screenshot the app (unsigned builds only)
+      - name: Screenshot the app and publish to the ci-screens branch (unsigned builds only)
         if: ${{ env.MACOS_CERTIFICATE == '' }}
         continue-on-error: true
-        run: |
-          open build/Build/Products/Release/Verbatim.app
-          sleep 12
-          screencapture -x "$RUNNER_TEMP/screen.png"
-          osascript -e 'tell application "Verbatim" to quit' || true
-          mkdir -p dist/screens && cp "$RUNNER_TEMP/screen.png" dist/screens/home.png
-          # Also push the screenshot to the ci-screens branch, which is reachable where artifact storage is not.
-          cd "$RUNNER_TEMP" && rm -rf shots && mkdir shots && cd shots && git init -q
-          git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
-          cp "$RUNNER_TEMP/screen.png" "home-${GITHUB_RUN_NUMBER}.png"
-          cp "$GITHUB_WORKSPACE/mac/dist/Verbatim-universal.dmg" "Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
-          git add . && git commit -q -m "Screens from run ${GITHUB_RUN_NUMBER}"
-          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -x
+          OUT="$RUNNER_TEMP/shots"; rm -rf "$OUT"; mkdir -p "$OUT" dist/screens
+          cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
+          open build/Build/Products/Release/Verbatim.app
+          sleep 12
+          screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
+          osascript -e 'tell application "Verbatim" to quit' || true
+          cp "$OUT"/*.png dist/screens/ || true
+          # The ci-screens branch is reachable where artifact storage is not.
+          cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
+          git add . && git commit -q -m "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
 
       - name: Upload screenshot
         if: ${{ env.MACOS_CERTIFICATE == '' }}
