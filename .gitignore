@@ -18,3 +18,4 @@ mac/Verbatim/Info.plist
 mac/Verbatim/Verbatim.entitlements
 
 !mac/Verbatim/Resources/**/*.png
+mac/Helpers/

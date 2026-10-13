@@ -22,6 +22,15 @@ if [ -n "$IDENTITY" ]; then echo "Signing as: $IDENTITY"; else echo "No Develope
 # 1. Project from project.yml
 xcodegen generate --quiet
 
+# 1b. Link helper: yt-dlp standalone macOS binary (universal). Pinned release; checksum verified.
+YTDLP_VERSION="${YTDLP_VERSION:-2026.08.19}"
+mkdir -p Helpers
+if [ ! -x Helpers/yt-dlp ] || ! grep -q "$YTDLP_VERSION" Helpers/yt-dlp.version 2>/dev/null; then
+  curl -fsSL -o Helpers/yt-dlp "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_macos"
+  chmod +x Helpers/yt-dlp
+  echo "$YTDLP_VERSION" > Helpers/yt-dlp.version
+fi
+
 # 2. Build
 rm -rf build dist && mkdir -p dist
 SIGN=()
@@ -39,6 +48,14 @@ xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -configuration Release \
 
 APP="build/Build/Products/Release/Verbatim.app"
 test -d "$APP"
+
+# 2b. Bundle the helper and sign it like the app
+mkdir -p "$APP/Contents/Helpers"
+cp Helpers/yt-dlp "$APP/Contents/Helpers/yt-dlp"
+if [ -n "$IDENTITY" ]; then
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP/Contents/Helpers/yt-dlp"
+  codesign --force --options runtime --timestamp --entitlements Verbatim/Verbatim.entitlements --sign "$IDENTITY" "$APP"
+fi
 
 # 3. Verify the signature (or ad-hoc sign so the unsigned build still launches on a dev Mac)
 if [ -n "$IDENTITY" ]; then

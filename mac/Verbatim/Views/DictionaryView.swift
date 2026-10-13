@@ -1,0 +1,112 @@
+import SwiftUI
+
+/// Words Verbatim spells your way. Entries come from corrections you chose to remember, or from here.
+struct DictionaryView: View {
+    @EnvironmentObject var app: AppState
+    @State private var filter = ""
+    @State private var adding = false
+    @State private var newPreferred = ""
+    @State private var newHeard = ""
+
+    private var entries: [DictionaryEntry] {
+        let q = filter.trimmingCharacters(in: .whitespaces).lowercased()
+        return app.store.dictionary
+            .filter { q.isEmpty || $0.preferred.lowercased().contains(q) || $0.heardAs.joined(separator: " ").lowercased().contains(q) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Dictionary").font(.system(size: 28, weight: .bold)).foregroundStyle(Ink.ink)
+                Text("Right-click a word in any transcript, choose Correct, and turn on Remember. From then on, every new transcript gets it right. Fixes are listed on each transcript so nothing changes silently.")
+                    .font(.system(size: 13.5)).foregroundStyle(Ink.dim).frame(maxWidth: 560, alignment: .leading).padding(.top, 4).padding(.bottom, 18)
+
+                HStack(spacing: 8) {
+                    TextField("Search \(app.store.dictionary.count) words", text: $filter).textFieldStyle(.roundedBorder)
+                    Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(Ink.ink)
+                }
+                .padding(.bottom, 12)
+
+                if adding {
+                    HStack(spacing: 8) {
+                        TextField("Preferred spelling (Lititz)", text: $newPreferred).textFieldStyle(.roundedBorder)
+                        TextField("Heard as (Lit it's, Lititz's)", text: $newHeard).textFieldStyle(.roundedBorder)
+                        Button("Add") {
+                            let heard = newHeard.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                            let p = newPreferred.trimmingCharacters(in: .whitespaces)
+                            guard !p.isEmpty, !heard.isEmpty else { return }
+                            app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you"))
+                            newPreferred = ""; newHeard = ""; adding = false
+                        }
+                        .buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction)
+                        Button("Cancel") { adding = false }
+                    }
+                    .padding(12).background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+                    .padding(.bottom, 12)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+                }
+
+                if entries.isEmpty {
+                    VStack(spacing: 10) {
+                        VerbieView(pose: filter.isEmpty ? .ready : .nothing).frame(width: 110, height: 120)
+                        Text(filter.isEmpty ? "No words yet" : "Nothing matches “\(filter)”").font(.system(size: 15, weight: .semibold))
+                        if filter.isEmpty {
+                            Text("Brand names, people, and places are the usual suspects. Add them before a transcript, or fix them after.")
+                                .font(.system(size: 13)).foregroundStyle(Ink.mute).multilineTextAlignment(.center).frame(maxWidth: 380)
+                        }
+                    }
+                    .frame(maxWidth: .infinity).padding(.top, 50)
+                } else {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Preferred spelling").frame(width: 180, alignment: .leading)
+                            Text("Heard as").frame(maxWidth: .infinity, alignment: .leading)
+                            Text("Learned from").frame(width: 200, alignment: .leading)
+                            Text("").frame(width: 40)
+                        }
+                        .font(.system(size: 11.5, weight: .medium)).foregroundStyle(Ink.mute)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        Divider()
+                        ForEach(entries) { e in
+                            DictionaryRow(entry: e)
+                            Divider().opacity(0.5)
+                        }
+                    }
+                    .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+                    .tiltCard(tilt: 1.2, lift: 0, radius: 12)
+                }
+            }
+            .frame(maxWidth: 820)
+            .padding(.horizontal, 40).padding(.top, 36).padding(.bottom, 40)
+            .frame(maxWidth: .infinity)
+        }
+        .animation(Motion.settle, value: adding)
+    }
+}
+
+struct DictionaryRow: View {
+    @EnvironmentObject var app: AppState
+    var entry: DictionaryEntry
+    @State private var hover = false
+
+    var body: some View {
+        HStack {
+            Pill(text: entry.preferred).frame(width: 180, alignment: .leading)
+            Text(entry.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(Ink.dim).frame(maxWidth: .infinity, alignment: .leading)
+            Text(entry.learnedFrom).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).frame(width: 200, alignment: .leading)
+            Toggle("", isOn: Binding(get: { entry.enabled }, set: { v in
+                if let i = app.store.dictionary.firstIndex(where: { $0.id == entry.id }) { app.store.dictionary[i].enabled = v }
+            })).toggleStyle(.switch).controlSize(.small).labelsHidden().tint(Color(hex: 0x7FB83A)).frame(width: 40)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 9)
+        .background(hover ? Color(hex: 0xF7F3EC) : .clear)
+        .opacity(entry.enabled ? 1 : 0.55)
+        .onHover { hover = $0 }
+        .contextMenu {
+            Button("Delete", role: .destructive) { app.store.dictionary.removeAll { $0.id == entry.id } }
+        }
+    }
+}

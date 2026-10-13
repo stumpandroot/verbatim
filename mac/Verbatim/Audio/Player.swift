@@ -8,6 +8,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     @Published private(set) var time: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var loadedURL: URL?
+    @Published private(set) var rate: Float = 1
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
@@ -17,6 +18,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         stop()
         player = try? AVAudioPlayer(contentsOf: url)
         player?.delegate = self
+        player?.enableRate = true
+        player?.rate = rate
         player?.prepareToPlay()
         duration = player?.duration ?? 0
         time = 0
@@ -39,6 +42,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         p.currentTime = max(0, min(t, p.duration))
         time = p.currentTime
     }
+
+    func setRate(_ r: Float) { rate = r; player?.rate = r }
 
     func stop() {
         player?.stop(); player = nil

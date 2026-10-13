@@ -17,26 +17,40 @@ final class AppState: ObservableObject {
     @Published var screen: Screen = .home
     @Published var direction: SlideDirection = .up
     @Published var search = ""
+    @Published var projectFilter: UUID? = nil
     @Published var focusLink = false
     @Published var focusSearch = false
     @Published var showMicSheet = false
+    @Published var showAppPicker = false
     @Published var toast: Toast?
     @Published var verbiePose: VerbiePose = .ready
+    @Published var fetching: String? = nil     // link fetch status line on Home
+
     @AppStorage("showMenuBar") var showMenuBar = true
-    @AppStorage("modelName") var modelName = "base"
-    @AppStorage("heroDismissed") var heroDismissed = false
+    @AppStorage("preset") var presetRaw = QualityPreset.balanced.rawValue
+    @AppStorage("advEngine") var advEngine = "fluid"
+    @AppStorage("advModel") var advModel = "v3"
+    @AppStorage("identifySpeakers") var identifySpeakers = true
+    @AppStorage("applyDictionary") var applyDictionary = true
 
     let store = Store()
     let recorder = Recorder()
     let player = Player()
+    let capture = AppAudioCapture()
 
     private var bag = Set<AnyCancellable>()
 
     init() {
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
-        store.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
-        recorder.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
-        player.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
+        for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
+                  player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher()] {
+            o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
+        }
+    }
+
+    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
+    var engineChoice: (engine: String, model: String) {
+        preset == .advanced ? (advEngine, advModel) : (preset.config.0, preset.config.1)
     }
 
     // MARK: Navigation
@@ -61,7 +75,7 @@ final class AppState: ObservableObject {
         switch s { case .home: return "home"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
     }
 
-    // MARK: Recording
+    // MARK: Recording (microphone)
 
     func requestRecord() {
         goHome()
@@ -72,16 +86,14 @@ final class AppState: ObservableObject {
             showMicSheet = true
         default:
             verbiePose = .interrupted
-            toast = Toast("Microphone access is off. Turn it on in System Settings › Privacy & Security.")
+            toast = Toast("Microphone access is off. Turn it on in System Settings › Privacy & Security › Microphone.")
         }
     }
 
     func allowMic() {
         showMicSheet = false
         AVCaptureDevice.requestAccess(for: .audio) { ok in
-            Task { @MainActor in
-                if ok { self.startRecording() } else { self.verbiePose = .ready }
-            }
+            Task { @MainActor in if ok { self.startRecording() } else { self.verbiePose = .ready } }
         }
     }
 
@@ -103,61 +115,53 @@ final class AppState: ObservableObject {
 
     func stopRecording() {
         guard let (url, duration) = recorder.stop() else { return }
-        var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Microphone",
-                           duration: duration, audioFileName: url.lastPathComponent, model: modelName)
-        t.status = .processing
-        store.add(t)
-        verbiePose = .saved
-        Task { try? await Task.sleep(nanoseconds: 900_000_000); if verbiePose == .saved { verbiePose = .working } }
-        transcribe(t)
+        let t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
+                           duration: duration, audioFileName: url.lastPathComponent, model: "")
+        enqueue(t)
     }
 
-    func importFile(_ src: URL) {
-        let dest = store.newAudioURL(ext: src.pathExtension.isEmpty ? "m4a" : src.pathExtension)
-        do {
-            try FileManager.default.copyItem(at: src, to: dest)
-        } catch {
-            toast = Toast("Could not copy the file: \(error.localizedDescription)")
-            return
-        }
-        let duration = Player.duration(of: dest)
-        var t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file,
-                           sourceLabel: src.pathExtension.uppercased() + " file", duration: duration,
-                           audioFileName: dest.lastPathComponent, model: modelName)
-        t.status = .processing
-        store.add(t)
-        verbiePose = .working
-        transcribe(t)
-    }
+    // MARK: App audio
 
-    private func transcribe(_ t: Transcript) {
-        guard let url = store.audioURL(for: t) else { return }
-        let model = modelName
-        Log.note("transcribe start model=\(model) file=\(url.lastPathComponent)")
-        Task.detached(priority: .userInitiated) {
+    func pickApp() { goHome(); showAppPicker = true }
+
+    func startCapture(_ app: AppAudioCapture.RunningApp) {
+        showAppPicker = false
+        Task {
             do {
-                let segments = try await Transcriber.shared.transcribe(url: url, model: model)
-                Log.note("transcribe done segments=\(segments.count)")
-                await MainActor.run {
-                    self.store.update(t.id) { x in
-                        x.segments = segments
-                        x.status = .ready
-                        x.model = Transcriber.displayName(model)
-                        if x.source == .voiceMemo { x.title = Transcript.titleFrom(segments) ?? x.title }
-                    }
-                    self.verbiePose = .saved
-                    self.toast = Toast("Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(t.id)) }
-                    Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
-                }
+                try await capture.start(app: app, to: store.newAudioURL(ext: "wav"))
+                verbiePose = .listening
             } catch {
-                Log.note("transcribe failed: \(error)")
-                await MainActor.run {
-                    self.store.update(t.id) { $0.status = .failed; $0.error = error.localizedDescription }
-                    self.verbiePose = .interrupted
-                    self.toast = Toast("Transcription failed: \(error.localizedDescription)")
-                }
+                verbiePose = .interrupted
+                toast = Toast("Could not capture \(app.name): \(error.localizedDescription). Allow Verbatim under System Settings › Privacy & Security › Screen & System Audio Recording.")
             }
         }
+    }
+
+    func stopCapture() {
+        Task {
+            guard let (url, duration) = await capture.stop() else { return }
+            let t = Transcript(title: capture.appName.isEmpty ? "App audio" : capture.appName, source: .app, sourceLabel: capture.appName,
+                               duration: duration, audioFileName: url.lastPathComponent, model: "")
+            enqueue(t)
+        }
+    }
+
+    // MARK: Files and links
+
+    func importFile(_ src: URL) {
+        let ext = src.pathExtension.isEmpty ? "m4a" : src.pathExtension
+        let dest = store.newAudioURL(ext: ext)
+        do { try FileManager.default.copyItem(at: src, to: dest) } catch {
+            toast = Toast("Could not copy the file: \(error.localizedDescription)"); return
+        }
+        let duration = Player.duration(of: dest)
+        guard duration > 0 else {
+            try? FileManager.default.removeItem(at: dest)
+            toast = Toast("That file has no audio Verbatim can read (\(ext.uppercased()))."); return
+        }
+        let t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file,
+                           sourceLabel: ext.uppercased() + " file", duration: duration, audioFileName: dest.lastPathComponent, model: "")
+        enqueue(t)
     }
 
     /// Accepts a dropped file from Finder.
@@ -170,12 +174,145 @@ final class AppState: ObservableObject {
         return true
     }
 
+    func transcribeLink(_ link: String) {
+        let link = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard LinkFetcher.looksLikeLink(link) else { toast = Toast("That doesn't look like a link."); return }
+        guard LinkFetcher.helperURL != nil else { toast = Toast("Links need the yt-dlp helper, which this build is missing."); return }
+        fetching = "Fetching audio…"
+        verbiePose = .working
+        Task {
+            do {
+                let f = try await LinkFetcher.fetch(link) { s in Task { @MainActor in self.fetching = s } }
+                let dest = store.newAudioURL(ext: f.url.pathExtension.isEmpty ? "m4a" : f.url.pathExtension)
+                try FileManager.default.moveItem(at: f.url, to: dest)
+                let duration = Player.duration(of: dest)
+                var t = Transcript(title: f.title, source: .link, sourceLabel: URL(string: link)?.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
+                                   duration: duration, audioFileName: dest.lastPathComponent, model: "")
+                t.sourceURL = link
+                fetching = nil
+                enqueue(t)
+            } catch {
+                fetching = nil
+                verbiePose = .interrupted
+                toast = Toast("Couldn't fetch that link: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: Pipeline
+
+    func retry(_ t: Transcript) {
+        store.update(t.id) { $0.status = .processing; $0.error = nil; $0.stage = "Queued" }
+        run(t.id)
+    }
+
+    private func enqueue(_ t: Transcript) {
+        var t = t
+        t.status = .processing
+        t.stage = "Queued"
+        if let p = projectFilter { t.projectId = p }
+        store.add(t)
+        verbiePose = .saved
+        Task { try? await Task.sleep(nanoseconds: 700_000_000); if verbiePose == .saved { verbiePose = .working } }
+        run(t.id)
+    }
+
+    private func run(_ id: UUID) {
+        guard let t = store.transcript(id), let url = store.audioURL(for: t) else { return }
+        let (engineId, model) = engineChoice
+        let wantSpeakers = identifySpeakers
+        let dict = applyDictionary ? store.dictionary : []
+        Log.note("transcribe start engine=\(engineId) model=\(model) file=\(url.lastPathComponent)")
+        let progress: @Sendable (EngineProgress) -> Void = { p in
+            Task { @MainActor in self.store.update(id) { $0.stage = p.label } }
+        }
+        Task.detached(priority: .userInitiated) {
+            do {
+                let engine = Engines.engine(for: engineId)
+                var result = try await engine.transcribe(url: url, model: model, progress: progress)
+                Log.note("transcribe done segments=\(result.segments.count)")
+                var speakers: [Speaker] = []
+                if wantSpeakers, result.segments.count > 1 {
+                    do {
+                        let turns = try await FluidDiarizer.shared.diarize(url: url, progress: progress)
+                        speakers = SpeakerAssigner.assign(turns, to: &result.segments)
+                        Log.note("diarize done speakers=\(speakers.count)")
+                    } catch {
+                        Log.note("diarize failed (kept transcript): \(error)")
+                    }
+                }
+                let original = result.segments
+                var fixed = result.segments
+                var corrections: [Correction] = []
+                if !dict.isEmpty {
+                    progress(.applyingDictionary)
+                    corrections = DictionaryApplier.apply(dict, to: &fixed)
+                }
+                let r = result
+                await MainActor.run {
+                    self.store.update(id) { x in
+                        x.original = original
+                        x.segments = fixed
+                        x.speakers = speakers
+                        x.corrections = corrections
+                        x.status = .ready
+                        x.stage = nil
+                        x.engine = r.engine
+                        x.model = r.model
+                        x.language = r.language
+                        if x.source == .voiceMemo || x.source == .app, let auto = Transcript.titleFrom(fixed) { x.title = auto }
+                    }
+                    self.verbiePose = .saved
+                    let n = corrections.count
+                    self.toast = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
+                    Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
+                }
+            } catch {
+                Log.note("transcribe failed: \(error)")
+                await MainActor.run {
+                    self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
+                    self.verbiePose = .interrupted
+                    self.toast = Toast("Transcription failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    // MARK: Editing
+
+    /// Replaces a word in one segment; with `remember`, teaches the Dictionary so future transcripts get it right.
+    func correct(transcript id: UUID, segment sid: UUID, from: String, to: String, remember: Bool) {
+        store.update(id) { t in
+            guard let i = t.segments.firstIndex(where: { $0.id == sid }) else { return }
+            t.segments[i].text = t.segments[i].text.replacingOccurrences(of: from, with: to)
+            t.corrections.append(Correction(segmentId: sid, from: from, to: to, byDictionary: false))
+        }
+        if remember, let t = store.transcript(id) {
+            store.remember(preferred: to, heardAs: from, from: t.title)
+            toast = Toast("\(to) added to Dictionary")
+        }
+    }
+
+    func renameSpeaker(transcript id: UUID, speaker sid: String, to name: String) {
+        store.update(id) { t in
+            if let i = t.speakers.firstIndex(where: { $0.id == sid }) { t.speakers[i].name = name }
+        }
+    }
+
+    func assign(transcript id: UUID, segment seg: UUID, to speaker: String?) {
+        store.update(id) { t in
+            if let i = t.segments.firstIndex(where: { $0.id == seg }) { t.segments[i].speaker = speaker }
+        }
+    }
+
     // MARK: Search
 
     var filtered: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return store.transcripts }
-        return store.transcripts.filter { $0.title.lowercased().contains(q) || $0.text.lowercased().contains(q) }
+        return store.transcripts.filter { t in
+            (projectFilter == nil || t.projectId == projectFilter) &&
+            (q.isEmpty || t.title.lowercased().contains(q) || t.text.lowercased().contains(q))
+        }
     }
 }
 

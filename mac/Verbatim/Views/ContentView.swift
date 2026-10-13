@@ -9,15 +9,11 @@ struct ContentView: View {
     var body: some View {
         HStack(spacing: 0) {
             if sidebarOpen {
-                Sidebar()
-                    .frame(width: 208)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                Sidebar().frame(width: 212).transition(.move(edge: .leading).combined(with: .opacity))
             }
             ZStack {
                 Ink.paper
-                screenView
-                    .id(screenKey)
-                    .transition(transition)
+                screenView.id(screenKey).transition(transition)
             }
             .clipped()
             .overlay(alignment: .bottom) { ToastView() }
@@ -28,34 +24,27 @@ struct ContentView: View {
                 Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
                     .help("Hide or show the sidebar")
             }
-            ToolbarItem(placement: .principal) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-            }
+            ToolbarItem(placement: .principal) { Text(title).font(.system(size: 13, weight: .semibold)) }
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 8) {
                     TextField("Search transcripts", text: $app.search)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .focused($searchFocused)
+                        .textFieldStyle(.roundedBorder).frame(width: 220).focused($searchFocused)
                         .onChange(of: app.search) { _, v in if !v.isEmpty, case .transcript = app.screen { app.go(.home) } }
-                    if case .transcript(let id) = app.screen, let t = app.store.transcript(id) {
-                        ExportMenu(transcript: t)
-                    }
-                    Button { app.go(.home); app.focusLink.toggle() } label: {
-                        Label("New Transcript", systemImage: "plus").labelStyle(.titleAndIcon)
-                    }
-                    .buttonStyle(.borderedProminent).tint(Ink.ink)
+                    if case .transcript(let id) = app.screen, let t = app.store.transcript(id) { ExportMenu(transcript: t) }
+                    Button { app.go(.home); app.focusLink.toggle() } label: { Label("New", systemImage: "plus") }
+                        .buttonStyle(.borderedProminent).tint(Ink.ink)
                 }
             }
         }
         .onChange(of: app.focusSearch) { _, _ in searchFocused = true }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
+        .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
     }
 
     private var title: String {
         switch app.screen {
-        case .home: return "Verbatim"
+        case .home: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Verbatim"
         case .dictionary: return "Dictionary"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
         }
@@ -72,7 +61,7 @@ struct ContentView: View {
     @ViewBuilder private var screenView: some View {
         switch app.screen {
         case .home: HomeView()
-        case .dictionary: DictionaryPlaceholder()
+        case .dictionary: DictionaryView()
         case .transcript(let id): TranscriptView(id: id)
         }
     }
@@ -92,6 +81,8 @@ struct ContentView: View {
 
 struct Sidebar: View {
     @EnvironmentObject var app: AppState
+    @State private var newProject = false
+    @State private var projectName = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -101,17 +92,35 @@ struct Sidebar: View {
             }
             .padding(.horizontal, 9).padding(.top, 10).padding(.bottom, 10)
 
-            SideItem(label: "Home", symbol: "house", selected: app.screen == .home) { app.go(.home) }
-            SideItem(label: "All Transcripts", symbol: "list.bullet", selected: false) { app.go(.home) }
-            SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary) { app.go(.dictionary) }
+            SideItem(label: "All transcripts", symbol: "house", selected: app.screen == .home && app.projectFilter == nil) { app.projectFilter = nil; app.go(.home) }
+            SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)") { app.go(.dictionary) }
 
-            if !app.store.transcripts.isEmpty {
-                Text("Recent").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.mute)
-                    .padding(.horizontal, 9).padding(.top, 16).padding(.bottom, 6)
-                ForEach(app.store.transcripts.prefix(5)) { t in
-                    SideItem(label: t.title, symbol: nil, selected: app.screen == .transcript(t.id)) { app.go(.transcript(t.id)) }
-                }
+            HStack {
+                Text("Projects").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.mute)
+                Spacer()
+                Button { newProject = true } label: { Image(systemName: "plus").font(.system(size: 10, weight: .bold)) }.buttonStyle(.plain).foregroundStyle(Ink.mute)
             }
+            .padding(.horizontal, 9).padding(.top, 16).padding(.bottom, 6)
+            ForEach(app.store.projects) { p in
+                SideItem(label: p.name, symbol: "folder", selected: app.screen == .home && app.projectFilter == p.id,
+                         badge: { let n = app.store.transcripts.filter { $0.projectId == p.id }.count; return n > 0 ? "\(n)" : nil }()) {
+                    app.projectFilter = p.id; app.go(.home)
+                }
+                .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
+            }
+            if app.store.projects.isEmpty && !newProject {
+                Text("Group transcripts by client or job.").font(.system(size: 11.5)).foregroundStyle(Ink.mute).padding(.horizontal, 9)
+            }
+            if newProject {
+                TextField("Project name", text: $projectName, onCommit: {
+                    let n = projectName.trimmingCharacters(in: .whitespaces)
+                    if !n.isEmpty { app.projectFilter = app.store.addProject(n).id; app.go(.home) }
+                    projectName = ""; newProject = false
+                })
+                .textFieldStyle(.roundedBorder).font(.system(size: 12.5)).padding(.horizontal, 6)
+                .onExitCommand { newProject = false; projectName = "" }
+            }
+
             Spacer()
             SettingsLink {
                 HStack { Image(systemName: "gearshape"); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
@@ -132,6 +141,7 @@ struct SideItem: View {
     var label: String
     var symbol: String?
     var selected: Bool
+    var badge: String? = nil
     var action: () -> Void
     @State private var hover = false
 
@@ -141,12 +151,10 @@ struct SideItem: View {
                 if let s = symbol { Image(systemName: s).frame(width: 17) }
                 Text(label).lineLimit(1)
                 Spacer(minLength: 0)
+                if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
             }
             .padding(.horizontal, 9).padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Color(hex: 0xE4DDFB) : hover ? Color.black.opacity(0.05) : .clear)
-            )
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(selected ? Color(hex: 0xE4DDFB) : hover ? Color.black.opacity(0.05) : .clear))
             .foregroundStyle(selected ? Color(hex: 0x3B2FB0) : Ink.ink)
             .fontWeight(selected ? .medium : .regular)
             .contentShape(Rectangle())
@@ -179,7 +187,7 @@ struct ToastView: View {
     var body: some View {
         if let t = app.toast {
             HStack(spacing: 14) {
-                Text(t.message).font(.system(size: 13))
+                Text(t.message).font(.system(size: 13)).lineLimit(2)
                 if let a = t.action {
                     Button(a) { t.onAction?(); app.toast = nil }
                         .buttonStyle(.plain).foregroundStyle(Color(hex: 0xC9BFFF)).fontWeight(.semibold)
@@ -188,17 +196,18 @@ struct ToastView: View {
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(Ink.ink, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .foregroundStyle(.white)
+            .frame(maxWidth: 520)
             .padding(.bottom, 24)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .task(id: t.id) {
-                try? await Task.sleep(nanoseconds: 4_200_000_000)
+                try? await Task.sleep(nanoseconds: 4_500_000_000)
                 if app.toast == t { withAnimation(Motion.settle) { app.toast = nil } }
             }
         }
     }
 }
 
-// MARK: - Mic permission sheet
+// MARK: - Sheets
 
 struct MicSheet: View {
     @EnvironmentObject var app: AppState
@@ -213,20 +222,49 @@ struct MicSheet: View {
                 Button("Allow") { app.allowMic() }.buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction)
             }.padding(.top, 8)
         }
-        .padding(24).frame(width: 360)
-        .background(Ink.paper)
+        .padding(24).frame(width: 360).background(Ink.paper)
     }
 }
 
-struct DictionaryPlaceholder: View {
+struct AppPickerSheet: View {
+    @EnvironmentObject var app: AppState
+    @State private var apps: [AppAudioCapture.RunningApp] = []
+    @State private var error: String?
+    @State private var filter = ""
+
     var body: some View {
-        VStack(spacing: 10) {
-            VerbieView(pose: .working).frame(width: 110, height: 130)
-            Text("Dictionary arrives in the next build").font(.system(size: 15, weight: .semibold))
-            Text("Correct a word in a transcript, choose Remember, and Verbatim spells it your way from then on.")
-                .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center).frame(maxWidth: 420)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Capture audio from").font(.system(size: 15, weight: .semibold))
+            Text("Pick the app that is playing. macOS asks once for Screen & System Audio Recording; Verbatim keeps only the audio, on this Mac.")
+                .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+            TextField("Filter apps", text: $filter).textFieldStyle(.roundedBorder)
+            if let e = error {
+                Text(e).font(.system(size: 12.5)).foregroundStyle(Ink.coral)
+            }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(apps.filter { filter.isEmpty || $0.name.localizedCaseInsensitiveContains(filter) }) { a in
+                        Button { app.startCapture(a) } label: {
+                            HStack(spacing: 10) {
+                                Image(nsImage: NSWorkspace.shared.icon(forFile: NSWorkspace.shared.urlForApplication(withBundleIdentifier: a.id)?.path ?? ""))
+                                    .resizable().frame(width: 22, height: 22)
+                                Text(a.name).font(.system(size: 13))
+                                Spacer()
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 6).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(height: 280)
+            HStack { Spacer(); Button("Cancel") { app.showAppPicker = false }.keyboardShortcut(.cancelAction) }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(20).frame(width: 420).background(Ink.paper)
+        .task {
+            do { apps = try await AppAudioCapture.runningApps() }
+            catch { self.error = "Couldn't list apps: \(error.localizedDescription). Allow Verbatim under Privacy & Security › Screen & System Audio Recording, then try again." }
+        }
     }
 }
 
@@ -234,14 +272,10 @@ struct ExportMenu: View {
     var transcript: Transcript
     var body: some View {
         Menu {
-            ForEach(ExportFormat.allCases) { f in
-                Button("Export \(f.rawValue)…") { Exporter.save(transcript, as: f) }
-            }
+            ForEach(ExportFormat.allCases) { f in Button("Export \(f.rawValue)…") { Exporter.save(transcript, as: f) } }
             Divider()
             Button("Copy Text") { Exporter.copy(transcript) }
-        } label: {
-            Label("Export", systemImage: "square.and.arrow.up")
-        }
+        } label: { Label("Export", systemImage: "square.and.arrow.up") }
         .disabled(transcript.status != .ready)
     }
 }
