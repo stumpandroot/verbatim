@@ -79,9 +79,16 @@ jobs:
           OUT="$RUNNER_TEMP/shots"; rm -rf "$OUT"; mkdir -p "$OUT" dist/screens
           cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
           open build/Build/Products/Release/Verbatim.app
-          sleep 12
+          sleep 10
+          # Is the main thread responsive? A hung app never answers this; cap at 8s.
+          ( osascript -e 'with timeout of 8 seconds
+              tell application "System Events" to tell process "Verbatim" to get name of windows
+            end timeout' > "$OUT/responsive-${GITHUB_RUN_NUMBER}.txt" 2>&1 || echo "NOT RESPONSIVE (or timed out)" >> "$OUT/responsive-${GITHUB_RUN_NUMBER}.txt" ) || true
+          sample Verbatim 3 -file "$OUT/sample-${GITHUB_RUN_NUMBER}.txt" || true
           screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
+          cp "$HOME/Library/Logs/Verbatim/native.log" "$OUT/native-${GITHUB_RUN_NUMBER}.log" || true
           osascript -e 'tell application "Verbatim" to quit' || true
+          pkill -x Verbatim || true
           cp "$OUT"/*.png dist/screens/ || true
           # The ci-screens branch is reachable where artifact storage is not.
           cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
