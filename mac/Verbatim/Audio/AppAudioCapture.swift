@@ -26,6 +26,8 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
     private var startedAt: Date?
     private var timer: Timer?
     private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.capture")
+    private var pendingPeak: Float = 0
+    private var lastMeter = Date.distantPast
 
     static func runningApps() async throws -> [RunningApp] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
@@ -110,8 +112,13 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
         Task { @MainActor [weak self] in
             guard let self else { return }
             try? self.file?.write(from: pcm)
-            let v = min(1, pow(peak, 0.6) * 1.4)
-            self.levels.removeFirst(); self.levels.append(v)
+            // Publish the meter at most ~7 times a second; every SwiftUI update is expensive on macOS 26.
+            self.pendingPeak = max(self.pendingPeak, peak)
+            if Date().timeIntervalSince(self.lastMeter) > 0.15 {
+                let v = min(1, pow(self.pendingPeak, 0.6) * 1.4)
+                self.levels.removeFirst(); self.levels.append(v)
+                self.pendingPeak = 0; self.lastMeter = Date()
+            }
         }
     }
 

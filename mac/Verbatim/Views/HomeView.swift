@@ -166,7 +166,7 @@ struct Meter: View {
                 Capsule().fill(color).frame(width: 3, height: max(3, CGFloat(v) * 22))
             }
         }
-        .frame(height: 22).animation(.linear(duration: 0.1), value: levels)
+        .frame(height: 22)
     }
 }
 
@@ -255,15 +255,7 @@ struct HistoryRow: View {
     }
 }
 
+/// AppKit spinner: Core Animation drives it, so it costs the SwiftUI graph nothing.
 struct ProcessingDots: View {
-    @State private var on = false
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3) { i in
-                Circle().fill(Ink.iris).frame(width: 5, height: 5).opacity(on ? 1 : 0.25)
-                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true).delay(Double(i) * 0.15), value: on)
-            }
-        }
-        .onAppear { on = true }
-    }
+    var body: some View { ProgressView().controlSize(.small) }
 }

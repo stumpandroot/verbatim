@@ -32,7 +32,7 @@ final class Recorder: NSObject, ObservableObject {
         elapsed = 0
         isRecording = true
         isPaused = false
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
     }

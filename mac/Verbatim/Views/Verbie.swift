@@ -23,21 +23,16 @@ struct VerbieView: View {
     @State private var pop = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    // No continuous idle animation on purpose: on macOS 26 every SwiftUI transaction rebuilds the
+    // scene (menus, toolbar, menu bar item), so a 30 fps idle loop pins the main thread. Verbie
+    // moves on pose changes and holds still otherwise. A Core Animation rig can bring idle back.
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
-            let swayR = reduceMotion ? 0 : sin(t * 1.6) * 2.5
-            let swayL = reduceMotion ? 0 : sin(t * 1.3 + 1.1) * 2.2
-            let breathe = reduceMotion ? 1.0 : 1 + 0.012 * sin(t * 1.9)
-            let blinkPhase = t.truncatingRemainder(dividingBy: 4.4)
-            let blink = !reduceMotion && blinkPhase > 4.2 && blinkPhase < 4.32
-            VerbieFigure(pose: pose, swayR: swayR, swayL: swayL, breathe: breathe, blink: blink, pop: pop)
-        }
-        .onChange(of: pose) { _, _ in
-            guard !reduceMotion else { return }
-            withAnimation(.easeOut(duration: 0.12)) { pop = true }
-            withAnimation(Motion.bounce.delay(0.12)) { pop = false }
-        }
+        VerbieFigure(pose: pose, swayR: 0, swayL: 0, breathe: 1, blink: false, pop: pop)
+            .onChange(of: pose) { _, _ in
+                guard !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 0.12)) { pop = true }
+                withAnimation(Motion.bounce.delay(0.12)) { pop = false }
+            }
     }
 }
 
@@ -184,16 +179,12 @@ struct VerbieFigure: View {
 }
 
 private struct WorkingDots: View {
-    @State private var up = false
     var body: some View {
         HStack(spacing: 6) {
             ForEach(0..<3) { i in
-                Circle().fill(Color(hex: 0x7C64F3)).frame(width: 12, height: 12)
-                    .offset(y: up ? -8 : 0).opacity(up ? 1 : 0.5)
-                    .animation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true).delay(Double(i) * 0.15), value: up)
+                Circle().fill(Color(hex: 0x7C64F3)).frame(width: 12, height: 12).opacity(1 - Double(i) * 0.25)
             }
         }
-        .onAppear { up = true }
     }
 }
 
