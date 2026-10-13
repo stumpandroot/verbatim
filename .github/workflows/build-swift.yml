@@ -69,6 +69,24 @@ jobs:
             exit 1
           fi
 
+      - name: Screenshot the app (unsigned builds only)
+        if: ${{ env.MACOS_CERTIFICATE == '' }}
+        continue-on-error: true
+        run: |
+          open build/Build/Products/Release/Verbatim.app
+          sleep 12
+          screencapture -x "$RUNNER_TEMP/screen.png"
+          osascript -e 'tell application "Verbatim" to quit' || true
+          mkdir -p dist/screens && cp "$RUNNER_TEMP/screen.png" dist/screens/home.png
+
+      - name: Upload screenshot
+        if: ${{ env.MACOS_CERTIFICATE == '' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: mac/dist/screens/
+
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
