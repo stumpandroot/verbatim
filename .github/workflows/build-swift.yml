@@ -78,6 +78,14 @@ jobs:
           screencapture -x "$RUNNER_TEMP/screen.png"
           osascript -e 'tell application "Verbatim" to quit' || true
           mkdir -p dist/screens && cp "$RUNNER_TEMP/screen.png" dist/screens/home.png
+          # Also push the screenshot to the ci-screens branch, which is reachable where artifact storage is not.
+          cd "$RUNNER_TEMP" && rm -rf shots && mkdir shots && cd shots && git init -q
+          git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
+          cp "$RUNNER_TEMP/screen.png" "home-${GITHUB_RUN_NUMBER}.png"
+          git add . && git commit -q -m "Screens from run ${GITHUB_RUN_NUMBER}"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload screenshot
         if: ${{ env.MACOS_CERTIFICATE == '' }}
