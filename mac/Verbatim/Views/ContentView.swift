@@ -80,6 +80,7 @@ struct Sidebar: View {
     @EnvironmentObject var app: AppState
     @State private var newProject = false
     @State private var projectName = ""
+    @Namespace private var pill
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -89,8 +90,8 @@ struct Sidebar: View {
             }
             .padding(.horizontal, 9).padding(.top, 10).padding(.bottom, 10)
 
-            SideItem(label: "All transcripts", symbol: "house", selected: app.screen == .home && app.projectFilter == nil) { app.projectFilter = nil; app.go(.home) }
-            SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)") { app.go(.dictionary) }
+            SideItem(label: "All transcripts", symbol: "house", selected: app.screen == .home && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.home) }
+            SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
 
             HStack {
                 Text("Projects").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.mute)
@@ -100,7 +101,7 @@ struct Sidebar: View {
             .padding(.horizontal, 9).padding(.top, 16).padding(.bottom, 6)
             ForEach(app.store.projects) { p in
                 SideItem(label: p.name, symbol: "folder", selected: app.screen == .home && app.projectFilter == p.id,
-                         badge: { let n = app.store.transcripts.filter { $0.projectId == p.id }.count; return n > 0 ? "\(n)" : nil }()) {
+                         badge: { let n = app.store.transcripts.filter { $0.projectId == p.id }.count; return n > 0 ? "\(n)" : nil }(), pill: pill) {
                     app.projectFilter = p.id; app.go(.home)
                 }
                 .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
@@ -139,6 +140,7 @@ struct SideItem: View {
     var symbol: String?
     var selected: Bool
     var badge: String? = nil
+    var pill: Namespace.ID
     var action: () -> Void
     @State private var hover = false
 
@@ -151,7 +153,15 @@ struct SideItem: View {
                 if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
             }
             .padding(.horizontal, 9).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(selected ? Color(hex: 0xE4DDFB) : hover ? Color.black.opacity(0.05) : .clear))
+            .background {
+                ZStack {
+                    if hover && !selected { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.black.opacity(0.05)) }
+                    if selected {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(hex: 0xE4DDFB))
+                            .matchedGeometryEffect(id: "pill", in: pill)
+                    }
+                }
+            }
             .foregroundStyle(selected ? Color(hex: 0x3B2FB0) : Ink.ink)
             .fontWeight(selected ? .medium : .regular)
             .contentShape(Rectangle())
@@ -210,7 +220,7 @@ struct MicSheet: View {
     @EnvironmentObject var app: AppState
     var body: some View {
         VStack(spacing: 8) {
-            VerbieView(pose: .permission).frame(width: 90, height: 100)
+            VerbieView(pose: .permission, tracksPointer: false).frame(width: 80, height: 110)
             Text("Verbatim wants to use the microphone").font(.system(size: 15, weight: .semibold))
             Text("Voice memos are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)

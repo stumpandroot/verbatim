@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Warm paper palette from the Listening Desk prototype.
 enum Ink {
@@ -108,4 +109,29 @@ struct Pill: View {
             .background(tint, in: Capsule())
             .foregroundStyle(fg)
     }
+}
+
+/// Entrance stagger: each element rises 6 pt and fades in, 35 ms after the previous one (first at 0).
+struct StaggerIn: ViewModifier {
+    var index: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduce
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduce ? 0 : 6)
+            .onAppear { withAnimation(Motion.bounce.delay(Double(index) * 0.035)) { shown = true } }
+    }
+}
+extension View { func staggerIn(_ index: Int) -> some View { modifier(StaggerIn(index: index)) } }
+
+/// Short system sounds for the two moments that earn one: record start and transcript done.
+enum Sounds {
+    static var enabled = true
+    static func play(_ name: String) {
+        guard enabled, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        NSSound(named: NSSound.Name(name))?.play()
+    }
+    static func start() { play("Pop") }
+    static func done() { play("Tink") }
 }

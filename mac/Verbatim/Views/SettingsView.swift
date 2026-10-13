@@ -18,6 +18,10 @@ struct SettingsView: View {
             Toggle("Show in menu bar", isOn: $app.showMenuBar)
             Text("Record from anywhere with the menu bar item, or press ⌥⇧R while Verbatim is running.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            Toggle("Sounds", isOn: $app.sounds)
+            Text("A short chime when recording starts and a tick when a transcript is ready. Off automatically with Reduce Motion.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            Toggle("Show the welcome card on Home", isOn: Binding(get: { !app.heroDismissed }, set: { app.heroDismissed = !$0 }))
         }
         .formStyle(.grouped)
     }

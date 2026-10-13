@@ -50,7 +50,7 @@ struct DictionaryView: View {
 
                 if entries.isEmpty {
                     VStack(spacing: 10) {
-                        VerbieView(pose: filter.isEmpty ? .ready : .nothing).frame(width: 110, height: 120)
+                        VerbieView(pose: filter.isEmpty ? .ready : .nothing).frame(width: 96, height: 130)
                         Text(filter.isEmpty ? "No words yet" : "Nothing matches “\(filter)”").font(.system(size: 15, weight: .semibold))
                         if filter.isEmpty {
                             Text("Brand names, people, and places are the usual suspects. Add them before a transcript, or fix them after.")

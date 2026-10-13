@@ -70,10 +70,11 @@ struct TranscriptView: View {
 
     private func speakerChips(_ t: Transcript) -> some View {
         HStack(spacing: 6) {
-            ForEach(t.speakers) { sp in
+            ForEach(Array(t.speakers.enumerated()), id: \.element.id) { i, sp in
                 SpeakerChip(speaker: sp, selected: speakerFilter == sp.id) {
                     speakerFilter = speakerFilter == sp.id ? nil : sp.id
                 } rename: { name in app.renameSpeaker(transcript: t.id, speaker: sp.id, to: name) }
+                .staggerIn(i)
             }
             Text("Click a name to rename, click the chip to filter.").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
         }
@@ -88,7 +89,7 @@ struct TranscriptView: View {
     private func processing(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                VerbieView(pose: .working).frame(width: 44, height: 54)
+                VerbieView(pose: .working, tracksPointer: false).frame(width: 40, height: 56)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(t.stage ?? "Transcribing").font(.system(size: 14, weight: .semibold))
                     Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.")
@@ -104,7 +105,7 @@ struct TranscriptView: View {
 
     private func failed(_ t: Transcript) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            VerbieView(pose: .interrupted).frame(width: 60, height: 70)
+            VerbieView(pose: .interrupted, tracksPointer: false).frame(width: 52, height: 72)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Transcription did not finish").font(.system(size: 14, weight: .semibold))
                 Text(t.error ?? "").font(.system(size: 13)).foregroundStyle(Ink.mute)

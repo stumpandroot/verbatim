@@ -33,6 +33,8 @@ final class AppState: ObservableObject {
     @Changed("advModel") var advModel = "v3"
     @Changed("identifySpeakers") var identifySpeakers = true
     @Changed("applyDictionary") var applyDictionary = true
+    @Changed("heroDismissed") var heroDismissed = false
+    @Changed("sounds") var sounds = true { didSet { Sounds.enabled = sounds } }
 
     let store = Store()
     let recorder = Recorder()
@@ -42,6 +44,7 @@ final class AppState: ObservableObject {
     private var bag = Set<AnyCancellable>()
 
     init() {
+        Sounds.enabled = sounds
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
         for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
                   player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher()] {
@@ -103,6 +106,7 @@ final class AppState: ObservableObject {
         do {
             try recorder.start(to: store.newAudioURL(ext: "wav"))
             verbiePose = .listening
+            Sounds.start()
         } catch {
             verbiePose = .interrupted
             toast = Toast("Could not start recording: \(error.localizedDescription)")
@@ -264,6 +268,7 @@ final class AppState: ObservableObject {
                         if x.source == .voiceMemo || x.source == .app, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                     }
                     self.verbiePose = .saved
+                    Sounds.done()
                     let n = corrections.count
                     self.toast = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
                     Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
