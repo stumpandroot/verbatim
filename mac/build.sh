@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION%%-*}"   # 2.0.0-alpha.1 -> 2.0.0 for CFBundleShortVersionString
 BUILD="${BUILD:-1}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-verbatim-notary}"
 DMG="dist/Verbatim${DMG_SUFFIX:-}.dmg"
