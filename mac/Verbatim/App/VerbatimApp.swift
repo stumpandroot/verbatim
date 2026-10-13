@@ -4,11 +4,14 @@ import SwiftUI
 struct VerbatimApp: App {
     @StateObject private var app = AppState()
 
+    init() { Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))") }
+
     var body: some Scene {
         WindowGroup("Verbatim") {
             ContentView()
                 .environmentObject(app)
                 .frame(minWidth: 980, minHeight: 640)
+                .onAppear { Log.note("window appeared") }
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)

@@ -33,6 +33,7 @@ final class AppState: ObservableObject {
     private var bag = Set<AnyCancellable>()
 
     init() {
+        Log.note("AppState init; transcripts=\(store.transcripts.count)")
         store.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         recorder.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         player.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
@@ -85,6 +86,7 @@ final class AppState: ObservableObject {
     }
 
     func startRecording() {
+        Log.note("startRecording")
         do {
             try recorder.start(to: store.newAudioURL(ext: "wav"))
             verbiePose = .listening
@@ -131,9 +133,11 @@ final class AppState: ObservableObject {
     private func transcribe(_ t: Transcript) {
         guard let url = store.audioURL(for: t) else { return }
         let model = modelName
+        Log.note("transcribe start model=\(model) file=\(url.lastPathComponent)")
         Task.detached(priority: .userInitiated) {
             do {
                 let segments = try await Transcriber.shared.transcribe(url: url, model: model)
+                Log.note("transcribe done segments=\(segments.count)")
                 await MainActor.run {
                     self.store.update(t.id) { x in
                         x.segments = segments
@@ -146,6 +150,7 @@ final class AppState: ObservableObject {
                     Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
                 }
             } catch {
+                Log.note("transcribe failed: \(error)")
                 await MainActor.run {
                     self.store.update(t.id) { $0.status = .failed; $0.error = error.localizedDescription }
                     self.verbiePose = .interrupted

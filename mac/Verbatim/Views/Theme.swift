@@ -45,6 +45,7 @@ struct TiltCard: ViewModifier {
     var lift: Double = 2
     var radius: Double = 12
     @State private var hover: CGPoint? = nil
+    private var hoverKey: String { hover.map { "\(Int($0.x)),\(Int($0.y))" } ?? "" }
     @State private var size: CGSize = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -66,12 +67,12 @@ struct TiltCard: ViewModifier {
             .rotation3DEffect(.degrees(on ? -ny * tilt : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
             .rotation3DEffect(.degrees(on ? nx * tilt : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
             .offset(y: on ? -lift : 0)
-            .shadow(color: .black.opacity(on ? 0.10 : 0), radius: on ? 14 : 0, y: on ? 8 : 0)
+            .animation(hover == nil ? Motion.bounce : Motion.touch, value: hoverKey)
             .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
             .onContinuousHover { phase in
                 switch phase {
-                case .active(let p): withAnimation(Motion.touch) { hover = p }
-                case .ended: withAnimation(Motion.bounce) { hover = nil }
+                case .active(let p): hover = p
+                case .ended: hover = nil
                 }
             }
     }

@@ -20,12 +20,35 @@ enum VerbiePose: Equatable {
 /// Drawn in a 200 × 300 design space and scaled to fit.
 struct VerbieView: View {
     var pose: VerbiePose = .ready
-    @State private var swayR: Double = -2
-    @State private var swayL: Double = 2
-    @State private var blink = false
-    @State private var breathe = false
     @State private var pop = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            let swayR = reduceMotion ? 0 : sin(t * 1.6) * 2.5
+            let swayL = reduceMotion ? 0 : sin(t * 1.3 + 1.1) * 2.2
+            let breathe = reduceMotion ? 1.0 : 1 + 0.012 * sin(t * 1.9)
+            let blinkPhase = t.truncatingRemainder(dividingBy: 4.4)
+            let blink = !reduceMotion && blinkPhase > 4.2 && blinkPhase < 4.32
+            VerbieFigure(pose: pose, swayR: swayR, swayL: swayL, breathe: breathe, blink: blink, pop: pop)
+        }
+        .onChange(of: pose) { _, _ in
+            guard !reduceMotion else { return }
+            withAnimation(.easeOut(duration: 0.12)) { pop = true }
+            withAnimation(Motion.bounce.delay(0.12)) { pop = false }
+        }
+    }
+}
+
+/// The figure itself. Pose changes animate on the Bounce spring; idle motion comes in as plain values.
+struct VerbieFigure: View {
+    var pose: VerbiePose
+    var swayR: Double
+    var swayL: Double
+    var breathe: Double
+    var blink: Bool
+    var pop: Bool
 
     var body: some View {
         GeometryReader { g in
@@ -35,38 +58,20 @@ struct VerbieView: View {
                 legs
                 body3D
                 face
-                ArmView(side: .right, angle: pose.armR + (reduceMotion ? 0 : swayR), grip: 0, pose: pose)
-                ArmView(side: .left, angle: pose.armL + (reduceMotion ? 0 : swayL), grip: pose.barGrip, pose: pose)
+                ArmView(side: .right, angle: pose.armR + swayR, grip: 0, pose: pose)
+                ArmView(side: .left, angle: pose.armL + swayL, grip: pose.barGrip, pose: pose)
                 props
             }
             .frame(width: 200, height: 300)
             .scaleEffect(x: pop ? 1.06 : 1, y: pop ? 0.94 : 1, anchor: .bottom)
-            .scaleEffect(x: 1, y: breathe ? 1.025 : 1, anchor: .bottom)
+            .scaleEffect(x: 1, y: breathe, anchor: .bottom)
             .rotationEffect(.degrees(pose.lean), anchor: .bottom)
             .scaleEffect(s, anchor: .center)
             .frame(width: 200 * s, height: 300 * s)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
+        .drawingGroup()
         .animation(Motion.bounce, value: pose)
-        .onAppear { startIdle() }
-        .onChange(of: pose) { _, _ in
-            guard !reduceMotion else { return }
-            withAnimation(.easeOut(duration: 0.12)) { pop = true }
-            withAnimation(Motion.bounce.delay(0.12)) { pop = false }
-        }
-    }
-
-    private func startIdle() {
-        guard !reduceMotion else { return }
-        withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { breathe = true }
-        withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) { swayR = 3 }
-        withAnimation(.easeInOut(duration: 2.3).repeatForever(autoreverses: true)) { swayL = -2.5 }
-        Timer.scheduledTimer(withTimeInterval: 4.4, repeats: true) { _ in
-            Task { @MainActor in
-                withAnimation(.easeIn(duration: 0.07)) { blink = true }
-                withAnimation(.easeOut(duration: 0.12).delay(0.08)) { blink = false }
-            }
-        }
     }
 
     private var shadow: some View {

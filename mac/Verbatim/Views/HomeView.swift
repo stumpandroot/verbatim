@@ -49,7 +49,6 @@ struct HomeView: View {
                 .offset(y: 8)
                 .allowsHitTesting(false)
         }
-        .tiltCard(tilt: 2.5, lift: 0, radius: 20)
         .shadow(color: Color(hex: 0x3C5A14).opacity(0.14), radius: 14, y: 8)
         .transition(.scale(scale: 0.96).combined(with: .opacity))
     }
@@ -96,7 +95,6 @@ struct HomeView: View {
                     in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(hex: 0x503CB4).opacity(0.12), lineWidth: 1.5))
         .shadow(color: Color(hex: 0x3C328C).opacity(0.12), radius: 15, y: 7)
-        .tiltCard(tilt: 1.8, lift: 0, radius: 18)
         .animation(Motion.settle, value: app.recorder.isRecording)
     }
 

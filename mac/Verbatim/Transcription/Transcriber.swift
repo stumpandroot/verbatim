@@ -23,6 +23,7 @@ actor Transcriber {
     private func pipeline(for model: String) async throws -> WhisperKit {
         if let p = pipe, loadedModel == model { return p }
         pipe = nil
+        Log.note("WhisperKit load model=\(model)")
         let p = try await WhisperKit(
             model: model,
             downloadBase: Paths.models,
