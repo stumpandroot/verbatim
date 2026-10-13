@@ -43,7 +43,7 @@ struct VerbieView: View {
             .scaleEffect(x: pop ? 1.06 : 1, y: pop ? 0.94 : 1, anchor: .bottom)
             .scaleEffect(x: 1, y: breathe ? 1.025 : 1, anchor: .bottom)
             .rotationEffect(.degrees(pose.lean), anchor: .bottom)
-            .scaleEffect(s, anchor: .topLeading)
+            .scaleEffect(s, anchor: .center)
             .frame(width: 200 * s, height: 300 * s)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
