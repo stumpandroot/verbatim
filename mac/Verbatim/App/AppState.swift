@@ -26,12 +26,14 @@ final class AppState: ObservableObject {
     @Published var verbiePose: VerbiePose = .ready
     @Published var fetching: String? = nil     // link fetch status line on Home
 
-    @AppStorage("showMenuBar") var showMenuBar = true
-    @AppStorage("preset") var presetRaw = QualityPreset.balanced.rawValue
-    @AppStorage("advEngine") var advEngine = "fluid"
-    @AppStorage("advModel") var advModel = "v3"
-    @AppStorage("identifySpeakers") var identifySpeakers = true
-    @AppStorage("applyDictionary") var applyDictionary = true
+    // Preferences: plain published values persisted by hand. (@AppStorage is for views; inside an
+    // ObservableObject it can re-invalidate the scene every pass, which hung the app on macOS 26.)
+    @Published var showMenuBar: Bool { didSet { Prefs.set("showMenuBar", showMenuBar) } }
+    @Published var presetRaw: String { didSet { Prefs.set("preset", presetRaw) } }
+    @Published var advEngine: String { didSet { Prefs.set("advEngine", advEngine) } }
+    @Published var advModel: String { didSet { Prefs.set("advModel", advModel) } }
+    @Published var identifySpeakers: Bool { didSet { Prefs.set("identifySpeakers", identifySpeakers) } }
+    @Published var applyDictionary: Bool { didSet { Prefs.set("applyDictionary", applyDictionary) } }
 
     let store = Store()
     let recorder = Recorder()
@@ -41,6 +43,12 @@ final class AppState: ObservableObject {
     private var bag = Set<AnyCancellable>()
 
     init() {
+        showMenuBar = Prefs.bool("showMenuBar", true)
+        presetRaw = Prefs.string("preset", QualityPreset.balanced.rawValue)
+        advEngine = Prefs.string("advEngine", "fluid")
+        advModel = Prefs.string("advModel", "v3")
+        identifySpeakers = Prefs.bool("identifySpeakers", true)
+        applyDictionary = Prefs.bool("applyDictionary", true)
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
         for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
                   player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher()] {
@@ -325,4 +333,10 @@ struct Toast: Identifiable, Equatable {
         self.message = message; self.action = action; self.onAction = onAction
     }
     static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
+}
+
+enum Prefs {
+    static func bool(_ k: String, _ d: Bool) -> Bool { UserDefaults.standard.object(forKey: k) == nil ? d : UserDefaults.standard.bool(forKey: k) }
+    static func string(_ k: String, _ d: String) -> String { UserDefaults.standard.string(forKey: k) ?? d }
+    static func set(_ k: String, _ v: Any) { UserDefaults.standard.set(v, forKey: k) }
 }

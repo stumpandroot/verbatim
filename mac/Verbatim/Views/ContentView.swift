@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject var app: AppState
     @State private var sidebarOpen = true
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -27,16 +26,14 @@ struct ContentView: View {
             ToolbarItem(placement: .principal) { Text(title).font(.system(size: 13, weight: .semibold)) }
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 8) {
-                    TextField("Search transcripts", text: $app.search)
-                        .textFieldStyle(.roundedBorder).frame(width: 220).focused($searchFocused)
-                        .onChange(of: app.search) { _, v in if !v.isEmpty, case .transcript = app.screen { app.go(.home) } }
                     if case .transcript(let id) = app.screen, let t = app.store.transcript(id) { ExportMenu(transcript: t) }
                     Button { app.go(.home); app.focusLink.toggle() } label: { Label("New", systemImage: "plus") }
                         .buttonStyle(.borderedProminent).tint(Ink.ink)
                 }
             }
         }
-        .onChange(of: app.focusSearch) { _, _ in searchFocused = true }
+        .searchable(text: $app.search, placement: .toolbar, prompt: "Search transcripts")
+        .onChange(of: app.search) { _, v in if !v.isEmpty, case .transcript = app.screen { app.go(.home) } }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }

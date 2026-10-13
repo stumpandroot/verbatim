@@ -24,7 +24,7 @@ struct VerbatimApp: App {
                     .keyboardShortcut("r", modifiers: [.option, .shift])
             }
             CommandGroup(after: .textEditing) {
-                Button("Find in Transcripts") { app.focusSearch.toggle() }
+                Button("Find in Transcripts") { app.goHome(); app.focusSearch.toggle() }
                     .keyboardShortcut("f", modifiers: .command)
             }
         }
