@@ -15,7 +15,7 @@ struct VerbatimApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
-        .defaultSize(width: 1200, height: 800)
+        .defaultSize(width: UITest.enabled ? 1000 : 1200, height: UITest.enabled ? 700 : 800)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Transcript") { app.goHome(); app.focusLink.toggle() }
