@@ -108,8 +108,6 @@ struct Sidebar: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            Scribble().stroke(Ink.iris.opacity(0.10), style: StrokeStyle(lineWidth: 26, lineCap: .round, lineJoin: .round))
-                .frame(width: 300, height: 110).rotationEffect(.degrees(-12)).offset(x: -60, y: -120).allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 10) {
                     BrandMark().frame(width: 28, height: 28)
@@ -160,7 +158,13 @@ struct Sidebar: View {
         .font(.system(size: 14))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
+        // The scribble is decoration only: a background layer so it can't widen the sidebar.
+        .background(alignment: .bottomLeading) {
+            Scribble().stroke(Ink.iris.opacity(0.10), style: StrokeStyle(lineWidth: 26, lineCap: .round, lineJoin: .round))
+                .frame(width: 300, height: 110).rotationEffect(.degrees(-12)).offset(x: -60, y: -120).allowsHitTesting(false)
+        }
         .background(Color(hex: 0xF1EDFA))
+        .clipped()
         .overlay(alignment: .trailing) { Ink.hairline.frame(width: 1) }
     }
 }
