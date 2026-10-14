@@ -77,6 +77,9 @@ struct TranscriptView: View {
             .onKeyPress(.leftArrow) { app.player.seek(to: app.player.time - 5); return .handled }
             .onKeyPress(.rightArrow) { app.player.seek(to: app.player.time + 5); return .handled }
             .onKeyPress("b") { bookmark(t); return .handled }
+            .onReceive(NotificationCenter.default.publisher(for: .verbatimShowMode)) { n in
+                if let raw = n.object as? String, let m = Mode(rawValue: raw) { withAnimation(Motion.snap) { view = m } }
+            }
         } else {
             Text("This transcript was deleted.").foregroundStyle(Ink.mute)
         }
@@ -577,3 +580,5 @@ struct NoteCard: View {
         .animation(Motion.touch, value: hover)
     }
 }
+
+extension Notification.Name { static let verbatimShowMode = Notification.Name("verbatimShowMode") }

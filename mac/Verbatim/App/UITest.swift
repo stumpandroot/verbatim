@@ -93,6 +93,10 @@ enum UITest {
         await show("05-library")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
+        NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
+        try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
+        await show("06b-document")
+        NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
         app.go(.dictionary)
         await show("07-dictionary")
         app.dictation.previewPill(seconds: 4)
@@ -139,7 +143,7 @@ enum UITest {
             (11, 18, "Then we shoot the wheels on white, and the wagons out in the field by the shop in Ephrata.", "S1"),
             (18, 24, "Chris mentioned the Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", "S2"),
             (24, 31, "Fine. One hero per product, three details, and a spec table. Keep the copy plain.", "S1"),
-            (31, 37, "And the folding wagon gets its own spread, because that's the one people ask about.", "S2"),
+            (31, 37, "And the folding wagon gets its own spread, because thats the one people ask about.", "S2"),
             (37, 42, "Agreed. I'll send the shot list Thursday.", "S1"),
         ]
         t.segments = lines.map { Segment(start: $0.0, end: $0.1, text: $0.2, speaker: $0.3) }
