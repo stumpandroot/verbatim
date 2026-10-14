@@ -2,158 +2,40 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
 
-/// Home, "Color Pop": headline, the lime capture card with Verbie, Bring something in, recent transcripts.
+/// Home, editorial: a serif invitation, one glass capture toolbar, and recent notes shown as notes, not rows.
+/// Glass is for the controls; the note cards are paper.
 struct HomeView: View {
     @EnvironmentObject var app: AppState
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Make room for your thoughts.")
-                    .font(.system(size: 30, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.7)
-                    .staggerIn(0)
-                CaptureCard().staggerIn(1)
-                CaptureTiles().staggerIn(2)
-                recent
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: 0x4FB056)).frame(width: 8, height: 8)
-                    Text("Transcription runs on this Mac").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
-                    Image(systemName: "info.circle").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                        .help("Models download once and run locally. Fetching a link needs the internet; nothing else does.")
-                }
-                .padding(.top, 4)
-            }
-            .frame(maxWidth: 1100)
-            .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, 36)
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    private var recent: some View {
-        let items = Array(app.filtered.prefix(5))
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Text("Recent transcripts").font(.system(size: 20, weight: .bold)).foregroundStyle(Ink.ink)
-                Spacer()
-                HStack(spacing: 4) { Text("View all"); Image(systemName: "arrow.right") }
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.iris)
-                    .tapArea { app.go(.library) }
-            }
-            .staggerIn(3)
-            if items.isEmpty {
-                emptyState.staggerIn(4)
-            } else {
-                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    HistoryRow(transcript: t, open: { app.go(.transcript(t.id)) })
-                        .uiTarget(i == 0 ? "row-0" : "row-\(i)")
-                        .staggerIn(4 + i)
-                        .contextMenu { RowMenu(transcript: t) }
-                }
-            }
-        }
-        .animation(Motion.settle, value: items.map(\.id))
-    }
-
-    private var emptyState: some View {
-        HStack(spacing: 14) {
-            VerbieView(pose: app.search.isEmpty ? .ready : .nothing, tracksPointer: false).frame(width: 54, height: 72)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(app.search.isEmpty ? "Nothing here yet" : "Nothing found for “\(app.search)”").font(.system(size: 15, weight: .semibold))
-                Text(app.search.isEmpty ? "Your transcripts will collect here. Record something, or bring a link or file in." : "Search looks at titles and every transcript's text.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute)
-            }
-            Spacer()
-        }
-        .padding(16)
-        .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.black.opacity(0.06)))
-    }
-}
-
-/// The two tick marks beside the headline (coral and lime).
-struct Ticks: View {
-    var body: some View {
-        ZStack {
-            Capsule().fill(Ink.coral).frame(width: 7, height: 20).rotationEffect(.degrees(28)).offset(x: 4, y: -6)
-            Capsule().fill(Ink.lime).frame(width: 7, height: 16).rotationEffect(.degrees(-62)).offset(x: 2, y: 8)
-        }
-    }
-}
-
-struct Chip: View {
-    var label: String
-    var selected: Bool
-    var action: () -> Void
-    var body: some View {
-        Text(label).font(.system(size: 12.5, weight: .medium))
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(selected ? Ink.iris : Color(hex: 0xECE8F3), in: Capsule())
-            .foregroundStyle(selected ? .white : Ink.ink)
-            .tapArea(action)
-            .animation(Motion.snap, value: selected)
-    }
-}
-
-// MARK: - Capture card (the hero object)
-
-struct CaptureCard: View {
-    @EnvironmentObject var app: AppState
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Faint sound bars behind Verbie: decoration, never a meter.
-            StillBars().fill(Color.white.opacity(0.4))
-                .frame(width: 520, height: 150)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                .padding(.trailing, 44).allowsHitTesting(false)
-            VStack(alignment: .leading, spacing: 8) {
-                ModeSwitch()
-                Text("Say it. Keep it.").font(.system(size: 28, weight: .bold)).foregroundStyle(Ink.ink).padding(.top, 2)
-                Text(app.captureMode == "dictate" ? "Hold a key anywhere, speak, release. The words land in the app in front." : "Record a thought. Keep every word on your Mac.")
-                    .font(.system(size: 14)).foregroundStyle(Ink.limeDeep.opacity(0.8)).lineLimit(1)
-                Spacer(minLength: 6)
-                if app.recorder.isRecording {
-                    RecordPanel().transition(.scale(scale: 0.96).combined(with: .opacity))
-                } else if app.capture.isCapturing {
-                    CapturePanel().transition(.scale(scale: 0.96).combined(with: .opacity))
-                } else if app.captureMode == "dictate" {
-                    DictateControls().transition(.scale(scale: 0.96).combined(with: .opacity))
-                } else {
-                    HStack(spacing: 18) {
-                        CardButton(tilt: 0, lift: 2, radius: 40, action: { app.requestRecord() }) { RecordButton(size: 72) }
-                            .uiTarget("tile-record")
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Start recording").font(.system(size: 17, weight: .bold)).foregroundStyle(Ink.ink)
-                            MicSourceMenu(status: micStatus)
-                        }
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topTrailing) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Make room for\nyour thoughts.").font(Ink.serif(46, weight: .regular)).foregroundStyle(Ink.ink).lineSpacing(-4)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("A place for everything you think out loud.").font(.system(size: 16.5)).foregroundStyle(Ink.dim)
                     }
-                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VerbieView(pose: verbiePose).frame(width: 104, height: 150).padding(.trailing, 18).padding(.top, -6).allowsHitTesting(false)
                 }
+                .padding(.top, 26).staggerIn(0)
+
+                Group {
+                    if app.recorder.isRecording { RecordPanel() }
+                    else if app.capture.isCapturing { CapturePanel() }
+                    else { CaptureBar() }
+                }
+                .padding(.top, 22).staggerIn(1)
+                .animation(Motion.settle, value: app.recorder.isRecording)
+                .animation(Motion.settle, value: app.capture.isCapturing)
+
+                Rectangle().fill(Ink.hairline).frame(height: 1).padding(.top, 24)
+                RecentNotes().padding(.top, 16).staggerIn(2)
             }
-            .padding(.horizontal, 26).padding(.vertical, 22).padding(.trailing, 230)   // keep the text column clear of Verbie
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VerbieView(pose: verbiePose)
-                .frame(width: 122, height: 190)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 110).padding(.bottom, 10)
-                .allowsHitTesting(false)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 228)
-        .background(Ink.lime, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .tiltCard(tilt: 1, lift: 0, radius: 24, rotates: false)
-        .animation(Motion.settle, value: app.recorder.isRecording)
-        .animation(Motion.settle, value: app.capture.isCapturing)
-        .animation(Motion.settle, value: app.captureMode)
-    }
-
-    private var micStatus: String {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized: return "Microphone ready."
-        case .notDetermined: return "Verbatim will ask for the microphone."
-        default: return "Microphone access is off in System Settings."
+            .frame(maxWidth: 1080)
+            .padding(.horizontal, 40).padding(.bottom, 36)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -162,6 +44,377 @@ struct CaptureCard: View {
         return app.verbiePose
     }
 }
+
+// MARK: - Capture toolbar (glass)
+
+struct CaptureBar: View {
+    @EnvironmentObject var app: AppState
+    @State private var importOpen = false
+    @State private var fileOver = false
+    @State private var mic: AudioDevices.Device? = AudioDevices.current()
+
+    var body: some View {
+        HStack(spacing: 0) {
+            CaptureSegment(action: { app.requestRecord() }) {
+                RecordDot(size: 46)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Voice note").font(.system(size: 16, weight: .medium))
+                    HStack(spacing: 4) {
+                        Image(systemName: mic?.symbol ?? "mic").font(.system(size: 10.5))
+                        Text(mic?.name ?? "Microphone").lineLimit(1)
+                    }
+                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    .help("Recording from \(mic?.name ?? "the system default"). Change it in Settings › General.")
+                }
+            }
+            .uiTarget("tile-record")
+            divider
+            CaptureSegment(action: { app.captureMode = "dictate" }) {
+                Image(systemName: "keyboard").font(.system(size: 24, weight: .regular)).foregroundStyle(Ink.irisDeep).frame(width: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dictate").font(.system(size: 16, weight: .medium))
+                    Text(app.dictation.accessibilityTrusted ? app.dictation.hotkey.title.replacingOccurrences(of: "Hold ", with: "Hold ") : "Needs Accessibility").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                }
+            }
+            .uiTarget("mode-dictate")
+            .popover(isPresented: Binding(get: { app.captureMode == "dictate" }, set: { if !$0 { app.captureMode = "voice" } }), arrowEdge: .bottom) {
+                DictateControls().padding(16).frame(width: 380)
+            }
+            divider
+            CaptureSegment(highlighted: fileOver, action: { importOpen = true }) {
+                Image(systemName: "doc.badge.plus").font(.system(size: 22, weight: .regular)).foregroundStyle(Ink.ink).frame(width: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Import").font(.system(size: 16, weight: .medium))
+                    Text(fileOver ? "Drop to transcribe" : "File or link").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                }
+            }
+            .popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }) }
+            divider
+            CaptureSegment(action: { app.pickApp() }) {
+                Image(systemName: "speaker.wave.2").font(.system(size: 21, weight: .regular)).foregroundStyle(Ink.ink).frame(width: 36)
+                Text("App audio").font(.system(size: 16, weight: .medium))
+            }
+            .uiTarget("tile-app")
+        }
+        .padding(8)
+        .frame(height: 82)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.ink.opacity(0.07)))
+        .shadow(color: Ink.ink.opacity(0.06), radius: 12, y: 4)
+        .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
+        .onChange(of: app.focusLink) { _, _ in importOpen = true }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mic = AudioDevices.current() }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in let m = AudioDevices.current(); if m != mic { mic = m } }
+    }
+
+    private var divider: some View { Rectangle().fill(Ink.hairline).frame(width: 1, height: 34) }
+}
+
+/// One section of the capture toolbar: local tint on hover, slight compression on press.
+struct CaptureSegment<Content: View>: View {
+    var highlighted = false
+    var action: () -> Void
+    @ViewBuilder var content: () -> Content
+    @State private var hover = false
+    @GestureState private var pressed = false
+
+    var body: some View {
+        HStack(spacing: 14) { content() }
+            .foregroundStyle(Ink.ink)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Ink.iris.opacity(highlighted ? 0.12 : pressed ? 0.10 : hover ? 0.055 : 0)))
+            .scaleEffect(pressed ? 0.985 : 1)
+            .contentShape(Rectangle())
+            .onHover { hover = $0 }
+            .gesture(DragGesture(minimumDistance: 0).updating($pressed) { _, s, _ in s = true }.onEnded { v in
+                if abs(v.translation.width) < 8 && abs(v.translation.height) < 8 { action() }
+            })
+            .animation(Motion.touch, value: hover)
+            .animation(Motion.touch, value: pressed)
+    }
+}
+
+/// The coral record dot: deepens on hover, compresses on press (handled by the segment).
+struct RecordDot: View {
+    var size: CGFloat
+    var body: some View {
+        ZStack {
+            Circle().fill(RadialGradient(colors: [Color(hex: 0xFF9278), Ink.coral, Color(hex: 0xF06A4A)], center: UnitPoint(x: 0.5, y: 0.32), startRadius: 0, endRadius: size * 0.62))
+                .shadow(color: Color(hex: 0xF06A4A).opacity(0.3), radius: 4, y: 2)
+            Circle().fill(.white).frame(width: size * 0.26, height: size * 0.26)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// Import a file or paste a link.
+struct ImportPanel: View {
+    @EnvironmentObject var app: AppState
+    var done: () -> Void
+    @State private var link = ""
+    @FocusState private var focused: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Import").font(.system(size: 14, weight: .bold))
+            Button { done(); openFile() } label: { Label("Choose an audio or video file…", systemImage: "doc") }
+                .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
+            Text("Or paste a link").font(.system(size: 12)).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                TextField("https://…", text: $link).textFieldStyle(.roundedBorder).focused($focused).onSubmit(submit)
+                Button("Fetch", action: submit).buttonStyle(.borderedProminent).tint(Ink.iris).disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            Text("YouTube, Vimeo, podcasts, and most video pages. Only the audio is downloaded.").font(.system(size: 11.5)).foregroundStyle(.secondary)
+        }
+        .padding(16).frame(width: 360)
+        .onAppear {
+            if let s = NSPasteboard.general.string(forType: .string), s.hasPrefix("http") { link = s }
+            focused = true
+        }
+    }
+    private func submit() {
+        let l = link.trimmingCharacters(in: .whitespaces); guard !l.isEmpty else { return }
+        app.transcribeLink(l); done()
+    }
+    private func openFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio, .movie, .mpeg4Movie, .mp3, .wav, .aiff, .quickTimeMovie, UTType("public.mpeg-4-audio") ?? .audio]
+        panel.allowsMultipleSelection = true
+        if panel.runModal() == .OK { panel.urls.forEach { app.importFile($0) } }
+    }
+}
+
+// MARK: - Recent notes
+
+struct RecentNotes: View {
+    @EnvironmentObject var app: AppState
+    var body: some View {
+        let items = Array(app.filtered.prefix(3))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recent notes").font(Ink.serif(26, weight: .regular)).foregroundStyle(Ink.ink)
+                    Capsule().fill(Ink.coral).frame(width: 44, height: 5).padding(.leading, 12)
+                }
+                Spacer()
+                HStack(spacing: 4) { Text("View library"); Image(systemName: "arrow.right") }
+                    .font(.system(size: 14)).foregroundStyle(Ink.iris)
+                    .tapArea { app.go(.library) }
+            }
+            .padding(.bottom, 14)
+            if items.isEmpty {
+                empty
+            } else {
+                HStack(alignment: .top, spacing: 18) {
+                    FeaturedNote(transcript: items[0]).uiTarget("row-0")
+                        .frame(maxWidth: .infinity)
+                        .layoutPriority(1.6)
+                    if items.count > 1 {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(items.dropFirst()) { t in NoteTile(transcript: t) }
+                            Text("Say it. Keep it.").font(Ink.serif(17, weight: .regular)).foregroundStyle(Ink.mute).padding(.leading, 4).padding(.top, 2)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+        .animation(Motion.settle, value: items.map(\.id))
+    }
+
+    private var empty: some View {
+        HStack(spacing: 16) {
+            VerbieView(pose: app.search.isEmpty ? .ready : .nothing, tracksPointer: false).frame(width: 54, height: 76)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(app.search.isEmpty ? "Nothing kept yet" : "Nothing found for “\(app.search)”").font(Ink.serif(20, weight: .regular))
+                Text(app.search.isEmpty ? "Record a voice note, dictate, or import a file. It lands here." : "Search looks at titles and every transcript's text.")
+                    .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
+            }
+            Spacer()
+        }
+        .padding(20)
+        .background(NoteCardBackground(hover: false))
+    }
+}
+
+/// Paper card surface: opaque, warm white, a fine border that strengthens on hover.
+struct NoteCardBackground: View {
+    var hover: Bool
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(hover ? Color(hex: 0xFFFBF4) : Color(hex: 0xFFFDF9))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.ink.opacity(hover ? 0.16 : 0.09)))
+    }
+}
+
+/// The newest note, shown as a note: title, the passage you saved (or its opening), your note, and a player.
+struct FeaturedNote: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    @State private var hover = false
+
+    private var savedSegment: Segment? {
+        let ids = transcript.notes.filter(\.isBookmark).compactMap(\.segmentId)
+        return transcript.segments.first { ids.contains($0.id) }
+    }
+    private var quoteSegment: Segment? { savedSegment ?? transcript.segments.first }
+    private var linkedNote: Note? { transcript.notes.first { !$0.isBookmark } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(transcript.title).font(Ink.serif(24, weight: .regular)).foregroundStyle(Ink.ink).lineLimit(2)
+                    Text(meta(transcript)).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
+                }
+                Spacer()
+                RowMenuButton(transcript: transcript)
+            }
+            if transcript.status == .ready, let q = quoteSegment {
+                quote(q).padding(.top, 14)
+                Text(q.start.timecode).font(.system(size: 14)).foregroundStyle(Ink.iris).padding(.top, 6)
+                    .tapArea { app.go(.transcript(transcript.id)); app.player.seek(to: q.start) }
+            } else {
+                Text(transcript.preview).font(.system(size: 14)).foregroundStyle(transcript.status == .failed ? Ink.coral : Ink.dim).lineLimit(2).padding(.top, 12)
+            }
+            if let n = linkedNote {
+                Rectangle().fill(Ink.hairline).frame(height: 1).padding(.top, 12)
+                HStack(spacing: 10) {
+                    Image(systemName: "note.text").foregroundStyle(Ink.dim)
+                    Text(n.text).font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineLimit(1)
+                }
+                .padding(.top, 10)
+            }
+            if transcript.audioFileName != nil, transcript.status == .ready {
+                MiniPlayer(transcript: transcript, clock: app.player.clock).padding(.top, 12)
+            }
+        }
+        .padding(.horizontal, 22).padding(.vertical, 18)
+        .background(NoteCardBackground(hover: hover))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
+        .tapArea { app.go(.transcript(transcript.id)) }
+        .contextMenu { RowMenu(transcript: transcript) }
+    }
+
+    private func quote(_ s: Segment) -> some View {
+        let saved = savedSegment?.id == s.id
+        return Text(s.text).font(.system(size: 20)).foregroundStyle(Ink.ink).lineSpacing(3).lineLimit(3)
+            .padding(.horizontal, saved ? 6 : 0).padding(.vertical, saved ? 2 : 0)
+            .background(saved ? Ink.lime.opacity(0.38) : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .help(saved ? "Saved passage" : "")
+    }
+}
+
+struct MiniPlayer: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    @ObservedObject var clock: PlayerClock
+    private var url: URL? { app.store.audioURL(for: transcript) }
+    private var loaded: Bool { url != nil && app.player.loadedURL == url }
+
+    var body: some View {
+        let total = max(transcript.duration, 0.1)
+        let t = loaded ? clock.time : 0
+        HStack(spacing: 14) {
+            Button {
+                if let u = url { app.player.load(u) }
+                app.player.toggle()
+            } label: {
+                Image(systemName: loaded && app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14, weight: .bold)).foregroundStyle(Ink.ink)
+                    .frame(width: 38, height: 38).background(Circle().fill(.white)).overlay(Circle().strokeBorder(Ink.hairline))
+            }
+            .buttonStyle(PressStyle(scale: 0.92)).help("Play")
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(hex: 0xE7E2EF)).frame(height: 5)
+                    Capsule().fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Ink.iris], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(5, g.size.width * t / total), height: 5)
+                    Circle().fill(.white).overlay(Circle().strokeBorder(Ink.iris, lineWidth: 2)).frame(width: 15, height: 15)
+                        .offset(x: max(0, g.size.width * t / total - 7.5))
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onChanged { v in
+                    if let u = url { app.player.load(u) }
+                    app.player.seek(to: max(0, min(1, v.location.x / g.size.width)) * total)
+                })
+            }
+            .frame(height: 20)
+            Text("\(t.timecode) / \(transcript.duration.timecode)").font(.system(size: 13, design: .monospaced)).foregroundStyle(Ink.dim).fixedSize()
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Ink.hairline))
+    }
+}
+
+/// A smaller note card: serif title, meta, your first note or the opening line; ribbon if bookmarked.
+struct NoteTile: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    @State private var hover = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top) {
+                Text(transcript.title).font(Ink.serif(20, weight: .regular)).foregroundStyle(Ink.ink).lineLimit(2)
+                Spacer(minLength: 34)
+                RowMenuButton(transcript: transcript)
+            }
+            Text(meta(transcript, short: true)).font(.system(size: 13)).foregroundStyle(Ink.mute)
+            Text(transcript.notes.first(where: { !$0.isBookmark })?.text ?? transcript.preview)
+                .font(.system(size: 14)).foregroundStyle(transcript.status == .failed ? Ink.coral : Ink.dim).lineLimit(2).padding(.top, 4)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 16)
+        .background(NoteCardBackground(hover: hover))
+        .overlay(alignment: .topTrailing) {
+            if transcript.notes.contains(where: \.isBookmark) || transcript.pinned {
+                Ribbon().fill(Color(hex: 0x8C78FF)).frame(width: 16, height: 22).padding(.trailing, 54).offset(y: -1)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
+        .tapArea { app.go(.transcript(transcript.id)) }
+        .contextMenu { RowMenu(transcript: transcript) }
+    }
+}
+
+struct Ribbon: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.midX, y: r.maxY - r.height * 0.25)); p.addLine(to: CGPoint(x: r.minX, y: r.maxY)); p.closeSubpath()
+        return p
+    }
+}
+
+struct RowMenuButton: View {
+    var transcript: Transcript
+    var body: some View {
+        Menu { RowMenu(transcript: transcript) } label: {
+            Image(systemName: "ellipsis").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink).frame(width: 30, height: 24)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().hoverChip()
+    }
+}
+
+func meta(_ t: Transcript, short: Bool = false) -> String {
+    let cal = Calendar.current
+    let f = DateFormatter()
+    let day: String
+    if cal.isDateInToday(t.createdAt) { day = "Today" }
+    else if cal.isDateInYesterday(t.createdAt) { day = "Yesterday" }
+    else if let d = cal.dateComponents([.day], from: t.createdAt, to: Date()).day, d < 7 { f.dateFormat = "EEEE"; day = f.string(from: t.createdAt) }
+    else { f.dateFormat = "MMM d"; day = f.string(from: t.createdAt) }
+    var parts = [day]
+    if !short { parts.append(t.source == .dictation ? "Dictation" : t.source == .voiceMemo ? "Voice note" : t.sourceLabel) }
+    parts.append(t.duration.timecode)
+    if !short, t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+    return parts.joined(separator: " · ")
+}
+
 
 /// Which microphone: an icon for the transport, the device name, and a menu to switch. Lives on the capture card
 /// and in Settings so you always know where the audio comes from.
@@ -196,45 +449,6 @@ struct MicSourceMenu: View {
 
     private func refresh() { devices = AudioDevices.inputs(); current = AudioDevices.current() }
     private func choose(_ uid: String?) { AudioDevices.selectedUID = uid; selectedUID = uid; refresh() }
-}
-
-/// Decorative sound bars (a Shape, drawn once).
-struct StillBars: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        let n = 56, step = r.width / CGFloat(n), w: CGFloat = 5
-        for i in 0..<n {
-            let t = Double(i)
-            let v = 0.12 + abs(sin(t * 0.55) * 0.55 + sin(t * 1.9) * 0.2)
-            let h = max(8, CGFloat(min(1, v)) * r.height)
-            p.addRoundedRect(in: CGRect(x: r.minX + CGFloat(i) * step, y: r.midY - h / 2, width: w, height: h), cornerSize: CGSize(width: 2.5, height: 2.5))
-        }
-        return p
-    }
-}
-
-struct ModeSwitch: View {
-    @EnvironmentObject var app: AppState
-    @Namespace private var ns
-    var body: some View {
-        HStack(spacing: 2) {
-            seg("Voice note", "waveform", "voice")
-            seg("Dictate", "text.cursor", "dictate")
-        }
-        .padding(3)
-        .background(Color.white.opacity(0.55), in: Capsule())
-        .fixedSize()
-    }
-    private func seg(_ title: String, _ icon: String, _ key: String) -> some View {
-        let on = app.captureMode == key
-        return HStack(spacing: 7) { Image(systemName: icon); Text(title) }
-            .font(.system(size: 14, weight: .semibold))
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .background { if on { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "seg", in: ns) } }
-            .foregroundStyle(on ? .white : Ink.ink)
-            .tapArea { withAnimation(Motion.snap) { app.captureMode = key } }
-            .uiTarget("mode-" + key)
-    }
 }
 
 struct DictateControls: View {
@@ -273,112 +487,6 @@ struct DictateControls: View {
     }
 }
 
-/// A loose "m" scribble, the brand's doodle.
-struct Scribble: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        let w = r.width, h = r.height
-        p.move(to: CGPoint(x: 0, y: h * 0.8))
-        p.addCurve(to: CGPoint(x: w * 0.25, y: h * 0.2), control1: CGPoint(x: w * 0.05, y: h * 0.1), control2: CGPoint(x: w * 0.2, y: h * 0.0))
-        p.addCurve(to: CGPoint(x: w * 0.5, y: h * 0.8), control1: CGPoint(x: w * 0.3, y: h * 0.4), control2: CGPoint(x: w * 0.4, y: h * 1.1))
-        p.addCurve(to: CGPoint(x: w * 0.75, y: h * 0.2), control1: CGPoint(x: w * 0.55, y: h * 0.1), control2: CGPoint(x: w * 0.7, y: h * 0.0))
-        p.addCurve(to: CGPoint(x: w, y: h * 0.8), control1: CGPoint(x: w * 0.8, y: h * 0.4), control2: CGPoint(x: w * 0.9, y: h * 1.1))
-        return p
-    }
-}
-
-// MARK: - Bring something in
-
-/// Import file · Paste a link · Record app audio, in one compact row. The link tile opens a field in place.
-struct CaptureTiles: View {
-    @EnvironmentObject var app: AppState
-    @State private var link = ""
-    @State private var linkOpen = false
-    @State private var fileOver = false
-    @FocusState private var linkFocused: Bool
-
-    var body: some View {
-        HStack(spacing: 16) {
-            BringRow(title: "Import file", hint: fileOver ? "Drop to transcribe" : "Audio or video", tint: Ink.irisTint, fg: Ink.iris, icon: "doc.text", highlighted: fileOver) { openFile() }
-                .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
-            if linkOpen || app.fetching != nil {
-                linkField
-            } else {
-                BringRow(title: "Paste a link", hint: "Video or audio URL", tint: Ink.irisTint, fg: Ink.iris, icon: "link") {
-                    if let s = NSPasteboard.general.string(forType: .string), s.hasPrefix("http") { link = s }
-                    withAnimation(Motion.snap) { linkOpen = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { linkFocused = true }
-                }
-            }
-            BringRow(title: "Record app audio", hint: "Capture sound from an app", tint: Ink.coralTint, fg: Ink.coral, icon: "rectangle.on.rectangle") { app.pickApp() }
-                .uiTarget("tile-app")
-        }
-        .onChange(of: app.focusLink) { _, _ in withAnimation(Motion.snap) { linkOpen = true }; linkFocused = true }
-        .animation(Motion.settle, value: fileOver)
-    }
-
-    private var linkField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: app.fetching == nil ? "link" : "arrow.down.circle").foregroundStyle(Ink.iris)
-            if let f = app.fetching {
-                Text(f).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(1)
-                Spacer()
-                ProgressView().controlSize(.small)
-            } else {
-                TextField("Paste a video or audio link", text: $link).textFieldStyle(.plain).font(.system(size: 13.5)).focused($linkFocused)
-                    .onSubmit(submit)
-                    .onExitCommand { withAnimation(Motion.snap) { linkOpen = false } }
-                Button { submit() } label: {
-                    Image(systemName: "arrow.right").font(.system(size: 12, weight: .bold)).foregroundStyle(.white).frame(width: 30, height: 30).background(Ink.iris, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }
-                .buttonStyle(.plain).pressable().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).opacity(link.isEmpty ? 0.5 : 1)
-            }
-        }
-        .padding(.horizontal, 16).frame(height: 72)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.iris.opacity(0.5)))
-        .transition(.scale(scale: 0.97).combined(with: .opacity))
-    }
-
-    private func submit() {
-        let l = link.trimmingCharacters(in: .whitespaces)
-        guard !l.isEmpty else { return }
-        app.transcribeLink(l); link = ""
-        withAnimation(Motion.snap) { linkOpen = false }
-    }
-
-    private func openFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.audio, .movie, .mpeg4Movie, .mp3, .wav, .aiff, .quickTimeMovie, UTType("public.mpeg-4-audio") ?? .audio]
-        panel.allowsMultipleSelection = true
-        if panel.runModal() == .OK { panel.urls.forEach { app.importFile($0) } }
-    }
-}
-
-struct BringRow: View {
-    var title: String, hint: String, tint: Color, fg: Color, icon: String
-    var highlighted = false
-    var action: () -> Void
-    var body: some View {
-        CardButton(tilt: 2, lift: 1, radius: 16, action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(fg)
-                    .frame(width: 44, height: 44).background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(hint).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
-                }
-                .layoutPriority(1)
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-            }
-            .padding(.horizontal, 16).frame(height: 72)
-            .background(highlighted ? Color(hex: 0xE4F3C4) : .white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(highlighted ? Color(hex: 0x5F8C28) : Color.black.opacity(0.06), lineWidth: highlighted ? 1.5 : 1))
-        }
-    }
-}
-
 // MARK: - Shared pieces
 
 struct RecordButton: View {
@@ -397,31 +505,42 @@ struct RecordButton: View {
 struct RecordPanel: View {
     @EnvironmentObject var app: AppState
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack { Circle().fill(Ink.coral).frame(width: 12, height: 12); Circle().stroke(Ink.coral.opacity(0.4), lineWidth: 3).frame(width: 20, height: 20) }
-            Text(app.recorder.isPaused ? "Paused" : "Recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).frame(width: 72, alignment: .leading)
+        HStack(spacing: 16) {
+            ZStack { Circle().fill(Ink.coral).frame(width: 12, height: 12); Circle().stroke(Ink.coral.opacity(0.35), lineWidth: 3).frame(width: 22, height: 22) }
+                .padding(.leading, 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(app.recorder.isPaused ? "Paused" : "Recording").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
+                MicSourceMenu(status: "Microphone").environment(\.colorScheme, .light)
+            }
+            .frame(width: 170, alignment: .leading)
             LiveReadout(live: app.recorder.live, frozen: app.recorder.isPaused)
-            Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.bordered)
-            Button("Stop") { app.stopRecording() }.buttonStyle(.borderedProminent).tint(Ink.ink).keyboardShortcut(".", modifiers: [.option, .shift])
+            Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.bordered).controlSize(.large)
+            Button("Stop") { app.stopRecording() }.buttonStyle(.borderedProminent).tint(Ink.coral).controlSize(.large).keyboardShortcut(".", modifiers: [.option, .shift])
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .frame(maxWidth: 520)
+        .padding(.horizontal, 16)
+        .frame(height: 82)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.coral.opacity(0.35)))
+        .shadow(color: Ink.ink.opacity(0.06), radius: 12, y: 4)
+        .transition(.opacity.combined(with: .scale(scale: 0.98)))
     }
 }
 
 struct CapturePanel: View {
     @EnvironmentObject var app: AppState
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "waveform").foregroundStyle(Ink.iris)
-            Text("Capturing \(app.capture.appName)").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+        HStack(spacing: 16) {
+            Image(systemName: "speaker.wave.2").font(.system(size: 18)).foregroundStyle(Ink.iris).padding(.leading, 8)
+            Text("Capturing \(app.capture.appName)").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1).frame(width: 170, alignment: .leading)
             LiveReadout(live: app.capture.live, color: NSColor(red: 0x6F/255, green: 0x5A/255, blue: 0xF0/255, alpha: 1))
-            Button("Stop") { app.stopCapture() }.buttonStyle(.borderedProminent).tint(Ink.ink)
+            Button("Stop") { app.stopCapture() }.buttonStyle(.borderedProminent).tint(Ink.ink).controlSize(.large)
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .frame(maxWidth: 520)
+        .padding(.horizontal, 16)
+        .frame(height: 82)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.iris.opacity(0.3)))
+        .transition(.opacity.combined(with: .scale(scale: 0.98)))
     }
 }
 

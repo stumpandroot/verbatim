@@ -2,10 +2,21 @@ import Foundation
 import AVFoundation
 import Combine
 
+/// The playhead, ticking 20× a second while playing. Its own object so only the dock, the wave track, and
+/// the reading lines re-render during playback, never the whole window.
+@MainActor
+final class PlayerClock: ObservableObject {
+    @Published var time: TimeInterval = 0
+}
+
 @MainActor
 final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     @Published private(set) var isPlaying = false
-    @Published private(set) var time: TimeInterval = 0
+    let clock = PlayerClock()
+    var time: TimeInterval {
+        get { clock.time }
+        set { if clock.time != newValue { clock.time = newValue } }
+    }
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var loadedURL: URL?
     @Published private(set) var rate: Float = 1

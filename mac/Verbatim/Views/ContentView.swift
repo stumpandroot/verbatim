@@ -111,65 +111,70 @@ struct Sidebar: View {
     @Namespace private var pill
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 10) {
-                    BrandMark().frame(width: 28, height: 28)
-                    Text("Verbatim").font(.system(size: 18, weight: .bold))
-                }
-                .padding(.horizontal, 9).padding(.top, 8).padding(.bottom, 18)
-
-                SideItem(label: "Home", symbol: "house", selected: app.screen == .home, pill: pill) { app.go(.home) }
-                    .uiTarget("side-home")
-                SideItem(label: "Library", symbol: "square.text.square", selected: app.screen == .library && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.library) }
-                    .uiTarget("side-library")
-                SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
-                    .uiTarget("side-dict")
-
-                Divider().padding(.vertical, 12).padding(.horizontal, 6)
-                HStack {
-                    Text("Projects").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
-                    Spacer()
-                    Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 22).tapArea { newProject = true }
-                }
-                .padding(.horizontal, 9).padding(.bottom, 4)
-                ForEach(app.store.projects) { p in
-                    SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.coral, Color(hex: 0x9CCB44), Ink.iris][p.colorIndex % 3],
-                             selected: app.screen == .library && app.projectFilter == p.id, pill: pill) { app.projectFilter = p.id; app.go(.library) }
-                        .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
-                }
-                if app.store.projects.isEmpty && !newProject {
-                    Text("Group transcripts by client or job.").font(.system(size: 11.5)).foregroundStyle(Ink.mute).padding(.horizontal, 9).padding(.top, 2)
-                }
-                if newProject {
-                    TextField("Project name", text: $projectName, onCommit: {
-                        let n = projectName.trimmingCharacters(in: .whitespaces)
-                        if !n.isEmpty { app.projectFilter = app.store.addProject(n).id; app.go(.library) }
-                        projectName = ""; newProject = false
-                    })
-                    .textFieldStyle(.roundedBorder).font(.system(size: 12.5)).padding(.horizontal, 6)
-                    .onExitCommand { newProject = false; projectName = "" }
-                }
-                Spacer()
-                SettingsLink {
-                    HStack { Image(systemName: "gearshape").frame(width: 17); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
-                        .padding(.horizontal, 9).padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 10) {
+                BrandBars().frame(width: 20, height: 24)
+                Text("Verbatim").font(Ink.serif(23))
             }
-            .padding(12)
+            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 20)
+
+            SideItem(label: "Home", symbol: "house", selected: app.screen == .home, pill: pill) { app.go(.home) }
+                .uiTarget("side-home")
+            SideItem(label: "Library", symbol: "doc.text", selected: app.screen == .library && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.library) }
+                .uiTarget("side-library")
+            SideItem(label: "Dictionary", symbol: "book", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
+                .uiTarget("side-dict")
+
+            HStack {
+                Text("Projects").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
+                Spacer()
+                Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 22).hoverChip().tapArea { newProject = true }
+                    .help("New project")
+            }
+            .padding(.leading, 12).padding(.trailing, 6).padding(.top, 18).padding(.bottom, 4)
+            ForEach(app.store.projects) { p in
+                SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.coral, Color(hex: 0x9CCB44), Ink.iris][p.colorIndex % 3],
+                         selected: app.screen == .library && app.projectFilter == p.id, pill: pill) { app.projectFilter = p.id; app.go(.library) }
+                    .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
+            }
+            if app.store.projects.isEmpty && !newProject {
+                Text("Group transcripts by client or job.").font(.system(size: 11.5)).foregroundStyle(Ink.mute).padding(.horizontal, 12).padding(.top, 2)
+            }
+            if newProject {
+                TextField("Project name", text: $projectName, onCommit: {
+                    let n = projectName.trimmingCharacters(in: .whitespaces)
+                    if !n.isEmpty { app.projectFilter = app.store.addProject(n).id; app.go(.library) }
+                    projectName = ""; newProject = false
+                })
+                .textFieldStyle(.roundedBorder).font(.system(size: 12.5)).padding(.horizontal, 6)
+                .onExitCommand { newProject = false; projectName = "" }
+            }
+            Spacer()
+            Rectangle().fill(Ink.hairline).frame(height: 1).padding(.horizontal, 8).padding(.bottom, 8)
+            HStack(spacing: 12) {
+                Image(systemName: "laptopcomputer").frame(width: 19)
+                Text("On this Mac")
+            }
+            .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .help("Recordings, transcripts, and models stay in ~/Library/Application Support/Verbatim. Nothing is uploaded.")
+            SettingsLink {
+                HStack(spacing: 12) { Image(systemName: "gearshape").frame(width: 19); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
+                    .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                    .padding(.horizontal, 12).padding(.vertical, 7).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).hoverChip(radius: 10)
         }
-        .font(.system(size: 14))
+        .padding(.horizontal, 12).padding(.top, 40).padding(.bottom, 12)
+        .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
-        // The scribble is decoration only: a background layer so it can't widen the sidebar.
-        .background(alignment: .bottomLeading) {
-            Scribble().stroke(Ink.iris.opacity(0.10), style: StrokeStyle(lineWidth: 26, lineCap: .round, lineJoin: .round))
-                .frame(width: 300, height: 110).rotationEffect(.degrees(-12)).offset(x: -60, y: -120).allowsHitTesting(false)
-        }
-        .background(Color(hex: 0xF1EDFA))
-        .clipped()
-        .overlay(alignment: .trailing) { Ink.hairline.frame(width: 1) }
+        // Glass belongs to navigation: the system sidebar material (blends with the desktop behind the
+        // window), a faint lavender tint, and a fine trailing separator. Labels sit on it at full contrast.
+        .background(Color(hex: 0xF1EDFA).opacity(0.55))
+        .background(VisualEffect(material: .sidebar, blending: .behindWindow))
+        .overlay(alignment: .trailing) { Ink.iris.opacity(0.14).frame(width: 1) }
+        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -184,26 +189,33 @@ struct SideItem: View {
     @State private var hover = false
 
     var body: some View {
-        HStack(spacing: 9) {
-            if let s = symbol { Image(systemName: s).frame(width: 18).foregroundStyle(symbolColor ?? (selected ? Color(hex: 0x3B2FB0) : Ink.ink)) }
+        HStack(spacing: 12) {
+            if let s = symbol { Image(systemName: s).font(.system(size: 15, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? (selected ? Ink.iris : Ink.ink)) }
             Text(label).lineLimit(1)
             Spacer(minLength: 0)
             if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
         }
-        .padding(.horizontal, 9).padding(.vertical, 6)
+        .padding(.horizontal, 12).padding(.vertical, 8)
         .background {
             ZStack {
-                if hover && !selected { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.black.opacity(0.05)) }
+                // Hover previews (light iris tint); selection says where you are (lifted white glass + iris marker).
+                if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.07)) }
                 if selected {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(hex: 0xE4DDFB))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.66))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.white.opacity(0.9), lineWidth: 0.5))
+                        .shadow(color: Ink.ink.opacity(0.06), radius: 1.5, y: 1)
                         .matchedGeometryEffect(id: "pill", in: pill)
                 }
             }
         }
-        .foregroundStyle(selected ? Color(hex: 0x3B2FB0) : Ink.ink)
-        .fontWeight(selected ? .medium : .regular)
+        .overlay(alignment: .leading) {
+            if selected { Capsule().fill(Ink.iris).frame(width: 3, height: 20).offset(x: -12).matchedGeometryEffect(id: "marker", in: pill) }
+        }
+        .foregroundStyle(Ink.ink)
+        .fontWeight(selected ? .semibold : .regular)
         .tapArea(action)
         .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
         .animation(Motion.snap, value: selected)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -211,6 +223,18 @@ struct SideItem: View {
     }
 }
 
+/// The three-bar brand mark: iris, coral, lime.
+struct BrandBars: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 3) {
+            Capsule().fill(Ink.iris).frame(width: 4, height: 16)
+            Capsule().fill(Ink.coral).frame(width: 4, height: 24)
+            Capsule().fill(Color(hex: 0x9CCB44)).frame(width: 4, height: 13)
+        }
+    }
+}
+
+/// The old square app mark (menu bar panel).
 struct BrandMark: View {
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -224,6 +248,16 @@ struct BrandMark: View {
             .padding(.bottom, 5)
         }
     }
+}
+
+/// A native AppKit material (sidebar, popover, HUD) for SwiftUI.
+struct VisualEffect: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blending: NSVisualEffectView.BlendingMode = .withinWindow
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView(); v.material = material; v.blendingMode = blending; v.state = .followsWindowActiveState; return v
+    }
+    func updateNSView(_ v: NSVisualEffectView, context: Context) { v.material = material; v.blendingMode = blending }
 }
 
 // MARK: - Toast

@@ -35,13 +35,13 @@ struct TranscriptView: View {
                             .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, t.audioFileName != nil && view != .document ? 124 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .onChange(of: app.player.time) { _, now in
+                        .onReceive(app.player.clock.$time) { now in
                             if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }) {
                                 withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                             }
                         }
                     }
-                    if t.audioFileName != nil, t.status == .ready, view != .document { PlayerDock(transcript: t).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
+                    if t.audioFileName != nil, t.status == .ready, view != .document { PlayerDock(transcript: t, clock: app.player.clock).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
                 }
                 .frame(maxWidth: .infinity)
                 if notesOpen && !narrow {
@@ -96,7 +96,7 @@ struct TranscriptView: View {
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.update(t.id) { $0.title = v } }))
-                .textFieldStyle(.plain).font(.system(size: 30, weight: .bold)).foregroundStyle(Ink.ink).lineLimit(2)
+                .textFieldStyle(.plain).font(Ink.serif(32)).foregroundStyle(Ink.ink).lineLimit(2)
             HStack(spacing: 8) {
                 Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
                 if !t.speakers.isEmpty { Text("·"); Text("\(t.speakers.count) speakers") }
@@ -146,16 +146,7 @@ struct TranscriptView: View {
     }
 
     private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
-                let showSpeaker = s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
-                SegmentLine(transcript: t, segment: s, showSpeaker: showSpeaker, current: isCurrent(s), selected: selectedSegment == s.id, editable: editable, size: textSize) {
-                    selectedSegment = selectedSegment == s.id ? nil : s.id
-                }
-                .id(s.id)
-                .staggerIn(min(i, 12) + 2)
-            }
-        }
+        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, editable: editable, textSize: textSize, selected: $selectedSegment)
     }
 
     private func review(_ t: Transcript) -> some View {
@@ -201,10 +192,6 @@ struct TranscriptView: View {
         .padding(16).background(Color(hex: 0xF3F0FA), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private func isCurrent(_ s: Segment) -> Bool {
-        let now = app.player.time
-        return now >= s.start && now < s.end && (app.player.isPlaying || now > 0)
-    }
 
     private func processing(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -241,19 +228,31 @@ struct SegmentLine: View {
     var segment: Segment
     var showSpeaker: Bool
     var current: Bool
+    var saved: Bool = false
     var selected: Bool
     var editable: Bool
     var size: CGFloat
     var select: () -> Void
+    @State private var hover = false
+    @State private var tsHover = false
     @State private var fixing: String? = nil
     @State private var replacement = ""
     @State private var remember = true
     @State private var renaming = false
     @State private var newName = ""
 
+    private var highlight: Color {
+        if current { return Ink.irisTint }
+        if saved { return Ink.lime.opacity(0.42) }
+        if selected { return Color(hex: 0xF3F0FA) }
+        if hover { return Ink.iris.opacity(0.045) }
+        return .clear
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(Color(hex: 0xA39B8E))
+            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(tsHover ? Ink.iris : Color(hex: 0xA39B8E))
+                .underline(tsHover, color: Ink.iris).onHover { tsHover = $0 }.help("Play from here")
                 .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 6)
                 .tapArea { app.player.seek(to: segment.start) }
             VStack(alignment: .leading, spacing: 2) {
@@ -283,7 +282,10 @@ struct SegmentLine: View {
                     .font(.system(size: size)).lineSpacing(size * 0.3).foregroundStyle(Ink.ink)
                     .textSelection(.enabled)
                     .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(current ? Ink.irisTint : selected ? Color(hex: 0xF3F0FA) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    // Three highlights, never confused: saved (lime, persistent), playing (iris, moves), hover (light, temporary).
+                    .background(highlight, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .onHover { hover = $0 }
+                    .animation(Motion.touch, value: hover)
                     .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
                     .contentShape(Rectangle())
                     .onTapGesture { select() }
@@ -361,6 +363,7 @@ enum Cleanup {
 struct PlayerDock: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
+    @ObservedObject var clock: PlayerClock
 
     var body: some View {
         let total = max(app.player.duration, transcript.duration)
@@ -582,3 +585,31 @@ struct NoteCard: View {
 }
 
 extension Notification.Name { static let verbatimShowMode = Notification.Name("verbatimShowMode") }
+
+/// The reading lines. Observes only the playhead, so the playing-passage tint moves without re-rendering
+/// the rest of the screen.
+struct TranscriptLines: View {
+    @ObservedObject var clock: PlayerClock
+    var isPlaying: Bool
+    var transcript: Transcript
+    var segments: [Segment]
+    var editable: Bool
+    var textSize: CGFloat
+    @Binding var selected: UUID?
+
+    var body: some View {
+        let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
+                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
+                let now = clock.time
+                let current = now >= s.start && now < s.end && (isPlaying || now > 0)
+                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current, saved: saved.contains(s.id), selected: selected == s.id, editable: editable, size: textSize) {
+                    selected = selected == s.id ? nil : s.id
+                }
+                .id(s.id)
+                .staggerIn(min(i, 12) + 2)
+            }
+        }
+    }
+}

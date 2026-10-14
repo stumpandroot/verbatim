@@ -22,6 +22,24 @@ enum Ink {
 }
 
 /// Five named springs (Verbatim Motion System).
+extension Ink {
+    /// New York, Apple's serif: Home headline, section titles, note titles. Regular-to-medium weight only.
+    static func serif(_ size: CGFloat, weight: Font.Weight = .medium) -> Font { .system(size: size, weight: weight, design: .serif) }
+}
+
+/// A quiet rounded hover background for utility icons and small controls.
+struct HoverChip: ViewModifier {
+    var radius: CGFloat = 7
+    @State private var hover = false
+    func body(content: Content) -> some View {
+        content
+            .background(RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Color.black.opacity(hover ? 0.06 : 0)))
+            .onHover { hover = $0 }
+            .animation(Motion.touch, value: hover)
+    }
+}
+extension View { func hoverChip(radius: CGFloat = 7) -> some View { modifier(HoverChip(radius: radius)) } }
+
 enum Motion {
     static let touch = Animation.spring(duration: 0.15, bounce: 0)
     static let settle = Animation.spring(duration: 0.35, bounce: 0.05)

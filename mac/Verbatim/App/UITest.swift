@@ -52,8 +52,9 @@ enum UITest {
             await step("sidebar Dictionary opens dictionary", window, target: "side-dict", check: { app.screen == .dictionary })
             await step("sidebar home again (one click)", window, target: "side-home", check: { app.screen == .home })
             try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
-            await step("mode switch to Dictate", window, target: "mode-dictate", check: { app.captureMode == "dictate" })
-            await step("mode switch back to Voice note", window, target: "mode-voice", check: { app.captureMode == "voice" })
+            await step("Dictate opens its panel", window, target: "mode-dictate", check: { app.captureMode == "dictate" })
+            app.captureMode = "voice"                                   // close the panel before the next click
+            try? await Task.sleep(nanoseconds: 600_000_000)
             await step("record tile asks for the mic or records", window, target: "tile-record", check: { app.showMicSheet || app.recorder.isRecording })
             if app.showMicSheet {
                 await step("mic sheet Not now closes it", window, target: "sheet-notnow", check: { !app.showMicSheet })
@@ -83,6 +84,7 @@ enum UITest {
         app.captureMode = "dictate"
         await show("02-home-dictate")
         app.captureMode = "voice"
+        try? await Task.sleep(nanoseconds: 500_000_000)
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
