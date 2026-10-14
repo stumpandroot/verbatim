@@ -76,8 +76,8 @@ jobs:
         run: |
           set -o pipefail
           if ! VERSION="${VERSION#mac-v}" bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
-            grep -E "error:|rror\b" "$RUNNER_TEMP/build.log" | grep -v "^\s*$" | head -n 30 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
-            tail -n 15 "$RUNNER_TEMP/build.log" | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -n 6 "$RUNNER_TEMP/build.log" | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            grep -E "error(\[E[0-9]+\])?:" "$RUNNER_TEMP/build.log" | grep -v "Compiling\|Downloaded\|thiserror" | head -n 4 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
             exit 1
           fi
 
