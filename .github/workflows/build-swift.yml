@@ -75,10 +75,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -x
+          set -x; set +e
           OUT="$RUNNER_TEMP/shots"; rm -rf "$OUT"; mkdir -p "$OUT" dist/screens
           cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
-          open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app
+          open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$OUT/open-${GITHUB_RUN_NUMBER}.txt" 2>&1; echo "open exit=$?" >> "$OUT/open-${GITHUB_RUN_NUMBER}.txt"
           sleep 16
           PID="$(pgrep -x Verbatim | head -1 || true)"
           # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
@@ -87,6 +87,10 @@ jobs:
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
           cp "$HOME/Library/Logs/Verbatim/native.log" "$OUT/native-${GITHUB_RUN_NUMBER}.log" || true
           pkill -9 -x Verbatim || true
+          sleep 3
+          # A crash on launch leaves a report here; keep it so the failure is readable without artifact storage.
+          ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | while read -r f; do cp "$f" "$OUT/crash-${GITHUB_RUN_NUMBER}.ips"; done
+          log show --last 3m --predicate 'process == "Verbatim"' --style compact > "$OUT/oslog-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
           cp "$OUT"/*.png dist/screens/ || true
           # The ci-screens branch is reachable where artifact storage is not.
           cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
@@ -97,6 +101,8 @@ jobs:
         if: ${{ env.MACOS_CERTIFICATE == '' }}
         run: |
           LOG="$HOME/Library/Logs/Verbatim/native.log"
+          tail -n 60 "$LOG" || echo "no native.log"
+          ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | xargs -I{} sh -c 'echo "::error::crash report {}"; head -c 6000 "{}"'
           grep "UITEST" "$LOG" || { echo "::error::no UITEST lines in the log"; exit 1; }
           grep -q "UITEST DONE" "$LOG" || { echo "::error::self-test did not finish"; exit 1; }
           if grep -q "UITEST FAIL" "$LOG"; then grep "UITEST FAIL" "$LOG" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; fi
