@@ -9,6 +9,24 @@ enum UITest {
     static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1"
     static var frames: [String: CGRect] = [:]     // SwiftUI .global (window content, top-left origin)
     private static var pass = 0, fail = 0
+    /// Scrolls the enclosing scroll view so the target is on screen (a narrow window stacks Home's cards).
+    private static func reveal(_ id: String, in window: NSWindow) async {
+        guard let f = frames[id], let content = window.contentView else { return }
+        let h = content.bounds.height
+        let top = f.minY, bottom = f.maxY
+        guard top < 52 || bottom > h - 8 else { return }
+        let probe = CGPoint(x: f.midX, y: h / 2)
+        var v = content.hitTest(probe)
+        while let x = v, !(x is NSScrollView) { v = x.superview }
+        guard let sv = v as? NSScrollView else { Log.note("UITEST no scroll view to reveal \(id)"); return }
+        let clip = sv.contentView
+        var o = clip.bounds.origin
+        o.y += (f.midY - h / 2)
+        o.y = max(0, min(o.y, (sv.documentView?.frame.height ?? 0) - clip.bounds.height))
+        clip.scroll(to: o); sv.reflectScrolledClipView(clip)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        Log.note("UITEST revealed \(id) scroll=\(Int(o.y)) frame now=\(frames[id].map { "\(Int($0.minY))" } ?? "?")")
+    }
 
     static func run(app: AppState) {
         guard enabled else { return }
@@ -27,25 +45,25 @@ enum UITest {
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
 
-            await step("click row opens transcript", window) { click("row-0", in: window) } check: { if case .transcript = app.screen { return true } else { return false } }
-            await step("sidebar Home goes home", window) { click("side-home", in: window) } check: { app.screen == .home }
-            await step("sidebar Library opens library", window) { click("side-library", in: window) } check: { app.screen == .library }
-            await step("sidebar Dictionary opens dictionary", window) { click("side-dict", in: window) } check: { app.screen == .dictionary }
-            await step("sidebar home again (one click)", window) { click("side-home", in: window) } check: { app.screen == .home }
+            await step("click row opens transcript", window, target: "row-0") check: { if case .transcript = app.screen { return true } else { return false } }
+            await step("sidebar Home goes home", window, target: "side-home") check: { app.screen == .home }
+            await step("sidebar Library opens library", window, target: "side-library") check: { app.screen == .library }
+            await step("sidebar Dictionary opens dictionary", window, target: "side-dict") check: { app.screen == .dictionary }
+            await step("sidebar home again (one click)", window, target: "side-home") check: { app.screen == .home }
             try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
-            await step("mode switch to Dictate", window) { click("mode-dictate", in: window) } check: { app.captureMode == "dictate" }
-            await step("mode switch back to Voice note", window) { click("mode-voice", in: window) } check: { app.captureMode == "voice" }
-            await step("record tile asks for the mic or records", window) { click("tile-record", in: window) } check: { app.showMicSheet || app.recorder.isRecording }
+            await step("mode switch to Dictate", window, target: "mode-dictate") check: { app.captureMode == "dictate" }
+            await step("mode switch back to Voice note", window, target: "mode-voice") check: { app.captureMode == "voice" }
+            await step("record tile asks for the mic or records", window, target: "tile-record") check: { app.showMicSheet || app.recorder.isRecording }
             if app.showMicSheet {
-                await step("mic sheet Not now closes it", window) { click("sheet-notnow", in: window) } check: { !app.showMicSheet }
+                await step("mic sheet Not now closes it", window, target: "sheet-notnow") check: { !app.showMicSheet }
             } else if app.recorder.isRecording {
                 _ = app.recorder.stop()
             }
-            await step("app tile opens the picker", window) { click("tile-app", in: window) } check: { app.showAppPicker }
+            await step("app tile opens the picker", window, target: "tile-app") check: { app.showAppPicker }
             app.showAppPicker = false
             try? await Task.sleep(nanoseconds: 400_000_000)
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
-            await step("row opens transcript again", window) { click("row-0", in: window) } check: { if case .transcript = app.screen { return true } else { return false } }
+            await step("row opens transcript again", window, target: "row-0") check: { if case .transcript = app.screen { return true } else { return false } }
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             // CI screenshots the transcript now, then Home a few seconds later.
@@ -54,8 +72,9 @@ enum UITest {
         }
     }
 
-    private static func step(_ name: String, _ window: NSWindow, act: () -> Void, check: () -> Bool) async {
-        act()
+    private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
+        await reveal(target, in: window)
+        click(target, in: window)
         try? await Task.sleep(nanoseconds: 900_000_000)
         let ok = check()
         if ok { pass += 1 } else { fail += 1 }
