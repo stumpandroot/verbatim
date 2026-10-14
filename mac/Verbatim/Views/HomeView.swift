@@ -15,11 +15,18 @@ struct HomeView: View {
                     Ticks().frame(width: 34, height: 30).offset(y: -8)
                 }
                 .staggerIn(0)
-                HStack(alignment: .top, spacing: 16) {
-                    CaptureCard().frame(maxWidth: .infinity).staggerIn(1)
-                    BringInCard().frame(width: 330).staggerIn(2)
+                // Side by side when there's room; stacked in a narrow window. Never wider than the window.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 16) {
+                        CaptureCard().frame(minWidth: 520, maxWidth: .infinity).staggerIn(1)
+                        BringInCard().frame(width: 330).staggerIn(2)
+                    }
+                    .frame(minHeight: 330)
+                    VStack(spacing: 16) {
+                        CaptureCard().staggerIn(1)
+                        BringInCard().frame(maxWidth: .infinity).staggerIn(2)
+                    }
                 }
-                .frame(minHeight: 330)
                 recent
                 HStack(spacing: 8) {
                     Circle().fill(Color(hex: 0x4FB056)).frame(width: 8, height: 8)

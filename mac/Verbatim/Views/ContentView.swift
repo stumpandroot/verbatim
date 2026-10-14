@@ -12,7 +12,11 @@ struct ContentView: View {
             }
             ZStack {
                 Ink.paper
-                screenView.id(screenKey).transition(transition)
+                // Pin each screen to the space it has. Without this a wide screen pushes the whole row
+                // outward and the sidebar slides off the left edge.
+                GeometryReader { g in
+                    screenView.frame(width: g.size.width, height: g.size.height).id(screenKey).transition(transition)
+                }
             }
             .clipped()
             .overlay(alignment: .bottom) { ToastView() }

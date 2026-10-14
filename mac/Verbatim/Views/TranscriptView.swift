@@ -101,7 +101,7 @@ struct TranscriptView: View {
             .padding(3).background(Color(hex: 0xECE8F3), in: Capsule()).fixedSize()
             Divider().frame(height: 18)
             HStack(spacing: 5) {
-                Text("Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Text("Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).layoutPriority(-1)
                 Image(systemName: "info.circle").font(.system(size: 12)).foregroundStyle(Ink.mute)
                     .help("The engine's output is stored untouched. Corrections and Cleaned are separate layers you can always compare against it.")
             }
