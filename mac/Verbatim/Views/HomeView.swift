@@ -460,7 +460,7 @@ struct MicSourceMenu: View {
                 Text(current?.name ?? status).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }
-            .font(.system(size: 13)).foregroundStyle(Ink.limeDeep.opacity(0.85))
+            .font(.system(size: 13)).foregroundStyle(Ink.dim)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help("Which microphone Verbatim records from")
