@@ -27,8 +27,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it.
     func loadAsync(_ url: URL) {
         if loadedURL == url, player != nil { return }
-        stop()
-        loadedURL = url
+        if player != nil || isPlaying { stop() }   // no redundant publishes when nothing is loaded
+        if loadedURL != url { loadedURL = url }
         let r = rate
         Task.detached(priority: .userInitiated) {
             let p = try? AVAudioPlayer(contentsOf: url)
@@ -39,7 +39,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
                 guard self.loadedURL == url, let p else { return }
                 p.delegate = self
                 self.player = p
-                self.duration = p.duration
+                if self.duration != p.duration { self.duration = p.duration }
                 self.time = 0
             }
         }
@@ -80,7 +80,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     func stop() {
         player?.stop(); player = nil
         timer?.invalidate(); timer = nil
-        isPlaying = false; time = 0
+        if isPlaying { isPlaying = false }
+        time = 0
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {

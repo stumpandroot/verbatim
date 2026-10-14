@@ -6,7 +6,9 @@ struct TranscriptView: View {
     @EnvironmentObject var app: AppState
     var id: UUID
     @State private var view: Mode = .original
-    @State private var notesOpen = true
+    /// nil = automatic (open when the window is wide). Set once the person toggles it.
+    @State private var notesPref: Bool? = nil
+    @State private var isNarrow = false   // toolbar display only; layout reads the geometry directly
     @State private var detailsOpen = false
     @State private var selectedSegment: UUID? = nil
     @State private var textSize: CGFloat = 16
@@ -15,13 +17,17 @@ struct TranscriptView: View {
     enum Mode: String, CaseIterable { case original = "Transcript", document = "Document", cleaned = "Cleaned", summary = "Summary", review = "Review" }
     /// Cleaned lives inside Document now; Summary ships with a later build.
     static let visibleModes: [Mode] = [.original, .document, .review]
-    @State private var narrow = false
+
 
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
         if let t = transcript {
             GeometryReader { g in
+            // Decided from the geometry in the same pass, so the screen lays out once (no open-then-close).
+            let narrow = g.size.width < 900
+            let notesOpen = notesPref ?? !narrow
+            let _ = isNarrow == narrow ? () : DispatchQueue.main.async { isNarrow = narrow }
             HStack(spacing: 0) {
                 ZStack(alignment: .bottom) {
                     ScrollViewReader { proxy in
@@ -45,7 +51,7 @@ struct TranscriptView: View {
                 }
                 .frame(maxWidth: .infinity)
                 if notesOpen && !narrow {
-                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.settle) { notesOpen = false } })
+                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } })
                         .frame(width: 300)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
@@ -53,20 +59,18 @@ struct TranscriptView: View {
             .overlay(alignment: .trailing) {
                 // Narrow window: Notes becomes a drawer over the text instead of squeezing it.
                 if notesOpen && narrow {
-                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.settle) { notesOpen = false } })
+                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } })
                         .frame(width: 300)
                         .shadow(color: .black.opacity(0.12), radius: 24, x: -6)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
             }
-            .animation(Motion.settle, value: narrow)
-            .onAppear { narrow = g.size.width < 900; if narrow { notesOpen = false } }
-            .onChange(of: g.size.width) { _, w in let n = w < 900; if n != narrow { narrow = n; if n { notesOpen = false } } }
+
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 8) {
-                        Toggle(isOn: $notesOpen.animation(Motion.settle)) { Label("Notes", systemImage: "note.text") }.toggleStyle(.button)
+                        Toggle(isOn: Binding(get: { notesPref ?? !isNarrow }, set: { v in withAnimation(Motion.nav) { notesPref = v } })) { Label("Notes", systemImage: "note.text") }.toggleStyle(.button)
                         Menu { Button("Smaller text") { textSize = max(13, textSize - 1) }; Button("Larger text") { textSize = min(22, textSize + 1) } } label: { Image(systemName: "textformat.size") }
                     }
                 }
