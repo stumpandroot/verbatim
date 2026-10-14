@@ -78,7 +78,10 @@ enum UITest {
         var chain: [String] = []
         var v = content.hitTest(p)
         while let x = v, chain.count < 7 { chain.append("\(type(of: x))[\(Int(x.frame.minX)),\(Int(x.frame.minY)) \(Int(x.frame.width))x\(Int(x.frame.height))]"); v = x.superview }
-        let under = chain.joined(separator: " < ")
+        var under = chain.joined(separator: " < ")
+        if let clip = content.hitTest(p) as? NSClipView {
+            under += " | clip.bounds=\(Int(clip.bounds.minX)),\(Int(clip.bounds.minY)) doc=\(clip.documentView.map { "\(type(of: $0))[\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))x\(Int($0.frame.height))] flipped=\($0.isFlipped)" } ?? "nil")"
+        }
         Log.note("UITEST click \(id) frame=\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)) point=\(Int(p.x)),\(Int(p.y)) content=\(Int(content.bounds.width))x\(Int(content.bounds.height)) under=\(under)")
         let t = ProcessInfo.processInfo.systemUptime
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
