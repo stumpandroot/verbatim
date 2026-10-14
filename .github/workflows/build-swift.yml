@@ -78,8 +78,8 @@ jobs:
           set -x
           OUT="$RUNNER_TEMP/shots"; rm -rf "$OUT"; mkdir -p "$OUT" dist/screens
           cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
-          open build/Build/Products/Release/Verbatim.app
-          sleep 10
+          open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app
+          sleep 16
           PID="$(pgrep -x Verbatim | head -1 || true)"
           # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
           { echo "pid=$PID"; for i in 1 2 3; do ps -o %cpu=,rss= -p "$PID" || echo "gone"; sleep 2; done; } > "$OUT/cpu-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
@@ -92,6 +92,14 @@ jobs:
           cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
           git add . && git commit -q -m "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
+
+      - name: UI self-test gate (macOS 26)
+        if: ${{ env.MACOS_CERTIFICATE == '' }}
+        run: |
+          LOG="$HOME/Library/Logs/Verbatim/native.log"
+          grep "UITEST" "$LOG" || { echo "::error::no UITEST lines in the log"; exit 1; }
+          grep -q "UITEST DONE" "$LOG" || { echo "::error::self-test did not finish"; exit 1; }
+          if grep -q "UITEST FAIL" "$LOG"; then grep "UITEST FAIL" "$LOG" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; fi
 
       - name: Upload screenshot
         if: ${{ env.MACOS_CERTIFICATE == '' }}

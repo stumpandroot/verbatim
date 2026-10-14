@@ -37,6 +37,7 @@ struct ContentView: View {
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
+        .onAppear { UITest.run(app: app) }
     }
 
     private var title: String {
@@ -91,7 +92,9 @@ struct Sidebar: View {
             .padding(.horizontal, 9).padding(.top, 10).padding(.bottom, 10)
 
             SideItem(label: "All transcripts", symbol: "house", selected: app.screen == .home && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.home) }
+                .uiTarget("side-home")
             SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
+                .uiTarget("side-dict")
 
             HStack {
                 Text("Projects").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.mute)
@@ -145,30 +148,30 @@ struct SideItem: View {
     @State private var hover = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 9) {
-                if let s = symbol { Image(systemName: s).frame(width: 17) }
-                Text(label).lineLimit(1)
-                Spacer(minLength: 0)
-                if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
-            }
-            .padding(.horizontal, 9).padding(.vertical, 6)
-            .background {
-                ZStack {
-                    if hover && !selected { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.black.opacity(0.05)) }
-                    if selected {
-                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(hex: 0xE4DDFB))
-                            .matchedGeometryEffect(id: "pill", in: pill)
-                    }
+        HStack(spacing: 9) {
+            if let s = symbol { Image(systemName: s).frame(width: 17) }
+            Text(label).lineLimit(1)
+            Spacer(minLength: 0)
+            if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
+        }
+        .padding(.horizontal, 9).padding(.vertical, 6)
+        .background {
+            ZStack {
+                if hover && !selected { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.black.opacity(0.05)) }
+                if selected {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(hex: 0xE4DDFB))
+                        .matchedGeometryEffect(id: "pill", in: pill)
                 }
             }
-            .foregroundStyle(selected ? Color(hex: 0x3B2FB0) : Ink.ink)
-            .fontWeight(selected ? .medium : .regular)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(selected ? Color(hex: 0x3B2FB0) : Ink.ink)
+        .fontWeight(selected ? .medium : .regular)
+        .tapArea(action)
         .onHover { hover = $0 }
         .animation(Motion.snap, value: selected)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(label)
     }
 }
 
@@ -225,7 +228,7 @@ struct MicSheet: View {
             Text("Voice memos are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
-                Button("Not now") { app.showMicSheet = false; app.verbiePose = .ready }.buttonStyle(.bordered)
+                Button("Not now") { app.showMicSheet = false; app.verbiePose = .ready }.buttonStyle(.bordered).uiTarget("sheet-notnow")
                 Button("Allow") { app.allowMic() }.buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction)
             }.padding(.top, 8)
         }

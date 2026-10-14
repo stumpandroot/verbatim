@@ -42,6 +42,7 @@ struct HomeView: View {
                     .frame(width: 26, height: 26).background(.white.opacity(0.4), in: Circle())
             }
             .buttonStyle(.plain).pressable().padding(10)
+            .uiTarget("hero-x")
 
             VerbieView(pose: app.verbiePose)
                 .frame(width: 96, height: 132)
@@ -93,10 +94,12 @@ struct HomeView: View {
                     SourceTile(title: "Record voice", hint: "Use your microphone", tint: Ink.coralTint, border: Ink.coral.opacity(0.25)) {
                         RecordButton(size: 40)
                     } action: { app.requestRecord() }
+                    .uiTarget("tile-record")
 
                     SourceTile(title: "Capture app", hint: "Zoom, Safari, FaceTime…", tint: Ink.irisTint, border: Ink.iris.opacity(0.2)) {
                         Image(systemName: "rectangle.on.rectangle").font(.system(size: 20)).foregroundStyle(Color(hex: 0x5A46D6))
                     } action: { app.pickApp() }
+                    .uiTarget("tile-app")
                 }
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
@@ -138,6 +141,7 @@ struct HomeView: View {
                     .staggerIn(2 + gi * 3)
                 ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
                     HistoryRow(transcript: t, open: { app.go(.transcript(t.id)) })
+                        .uiTarget(gi == 0 && ii == 0 ? "row-0" : "row-\(gi)-\(ii)")
                         .staggerIn(3 + gi * 3 + ii)
                         .contextMenu {
                             Button("Open") { app.go(.transcript(t.id)) }
@@ -189,7 +193,7 @@ struct SourceTile<Icon: View>: View {
     @State private var hover = false
 
     var body: some View {
-        Button(action: action) {
+        CardButton(tilt: 9, lift: 3, radius: 12, action: action) {
             HStack(spacing: 12) {
                 icon().frame(width: 40, height: 40)
                     .rotationEffect(.degrees(hover ? -6 : 0))
@@ -205,12 +209,8 @@ struct SourceTile<Icon: View>: View {
             .background(highlighted ? Color(hex: 0xE4F3C4) : tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(border, style: StrokeStyle(lineWidth: 1.5, dash: dashed && !highlighted ? [4, 3] : [])))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .pressable()
         .onHover { hover = $0 }
-        .tiltCard(tilt: 9, lift: 3, radius: 12)
         .scaleEffect(highlighted ? 1.04 : 1)
         .animation(Motion.bounce, value: highlighted)
     }
@@ -269,7 +269,7 @@ struct HistoryRow: View {
     @State private var hover = false
 
     var body: some View {
-        Button(action: open) {
+        CardButton(tilt: 3.5, lift: 1, radius: 10, action: open) {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous).fill(badgeColor)
@@ -289,7 +289,7 @@ struct HistoryRow: View {
                         if !transcript.speakers.isEmpty { Text("\(transcript.speakers.count) speakers") }
                         if !transcript.corrections.isEmpty { Text("\(transcript.corrections.count) fixes") }
                         if transcript.status == .processing { ProgressView().controlSize(.mini) }
-                        if transcript.status == .failed { Button("Retry") { app.retry(transcript) }.buttonStyle(.link).font(.system(size: 12)) }
+                        if transcript.status == .failed { Text("Failed · right-click to retry") }
                     }
                     .font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.top, 3)
                 }
@@ -298,12 +298,8 @@ struct HistoryRow: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
             .background(hover ? Color(hex: 0xF1ECE3) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .pressable()
         .onHover { hover = $0 }
-        .tiltCard(tilt: 3.5, lift: 1, radius: 10)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 

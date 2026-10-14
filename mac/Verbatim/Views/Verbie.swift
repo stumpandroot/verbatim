@@ -184,6 +184,7 @@ final class VerbieLayerHost: NSView {
             gaze.addSublayer(eye)
             happy.path = quad(CGPoint(x: cx - 7, y: 83), CGPoint(x: cx, y: 74), CGPoint(x: cx + 7, y: 83)); happy.strokeColor = NSColor.white.cgColor; happy.lineWidth = 4; happy.fillColor = nil; happy.lineCap = .round; happy.opacity = 0
             shut.path = line(CGPoint(x: cx - 7, y: 81), CGPoint(x: cx + 7, y: 81)); shut.strokeColor = NSColor.white.cgColor; shut.lineWidth = 4; shut.fillColor = nil; shut.lineCap = .round; shut.opacity = 0
+            brow.bounds = CGRect(x: cx - 12, y: 56, width: 24, height: 16); brow.position = CGPoint(x: cx, y: 64)
             brow.path = quad(CGPoint(x: cx - 8, y: 66), CGPoint(x: cx, y: 61), CGPoint(x: cx + 8, y: 66)); brow.strokeColor = NSColor.white.cgColor; brow.lineWidth = 4; brow.fillColor = nil; brow.lineCap = .round; brow.opacity = 0
             gaze.addSublayer(happy); gaze.addSublayer(shut); gaze.addSublayer(brow)
         }
