@@ -15,15 +15,19 @@ enum SlideDirection: Equatable { case push, pop, up, down }
 
 @MainActor
 final class AppState: ObservableObject {
-    @Changed var screen: Screen = .home
-    @Changed var direction: SlideDirection = .up
+    /// Where we are, how we got here, and how many times we've moved: one value, one publish per navigation.
+    /// On macOS 26 a view flushed by `withAnimation` with half-updated state keeps showing the old screen
+    /// (the publish that follows is dropped), so navigation never changes two properties in a row.
+    struct Nav: Equatable { var screen: Screen; var direction: SlideDirection; var count: Int }
+    @Changed var nav = Nav(screen: .home, direction: .up, count: 0)
+    var screen: Screen { nav.screen }
+    var direction: SlideDirection { nav.direction }
+    var navCount: Int { nav.count }
     @Changed var search = ""
     @Changed var projectFilter: UUID? = nil
     @Changed var focusLink = false
     @Changed var focusSearch = false
     @Changed var showMicSheet = false
-    /// Counts navigations so the newest screen always stacks on top of one that is still leaving.
-    @Changed var navCount = 0
     @Changed var showAppPicker = false
     @Changed var toast: Toast? = nil
     @Changed var verbiePose: VerbiePose = .ready
@@ -71,6 +75,7 @@ final class AppState: ObservableObject {
 
     func go(_ next: Screen) {
         guard next != screen else { return }
+        let direction: SlideDirection
         switch (screen, next) {
         case (_, .transcript): direction = .push
         case (.transcript, _): direction = .pop
@@ -78,9 +83,10 @@ final class AppState: ObservableObject {
             let a = Self.order[key(screen)] ?? 0, b = Self.order[key(next)] ?? 0
             direction = b > a ? .up : .down
         }
-        navCount += 1
-        if UITest.enabled { Log.note("UITEST go \(key(next)) nav=\(navCount)") }
-        withAnimation(Motion.settle) { screen = next }
+        if UITest.enabled { Log.note("UITEST go \(key(next)) nav=\(nav.count + 1)") }
+        // No withAnimation here: the container animates on `navCount`, so a publish made just before this
+        // (a project filter, a search) can't trigger a flush that strands the screen change.
+        nav = Nav(screen: next, direction: direction, count: nav.count + 1)
     }
 
     func goHome() { go(.home) }

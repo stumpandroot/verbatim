@@ -20,6 +20,7 @@ struct ContentView: View {
                 }
             }
             .clipped()
+            .animation(Motion.settle, value: app.navCount)
             .overlay(alignment: .bottom) { ToastView() }
         }
         .background(Ink.paper)
