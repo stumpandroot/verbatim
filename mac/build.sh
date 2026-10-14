@@ -43,7 +43,7 @@ if [ ! -f Vendor/harper/libharper_ffi.a ] || [ "${HARPER_REBUILD:-0}" = "1" ]; t
 fi
 
 # 2. Build
-rm -rf build dist && mkdir -p dist
+rm -rf build dist && mkdir -p dist build
 SIGN=()
 if [ -n "$IDENTITY" ]; then
   TEAM="$(echo "$IDENTITY" | grep -o '([A-Z0-9]*)' | tr -d '()')"
@@ -55,7 +55,7 @@ xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -configuration Release \
   -derivedDataPath build -destination 'generic/platform=macOS' \
   -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
-  "${SIGN[@]}" build | tail -n 40
+  "${SIGN[@]}" build 2>&1 | tee build/xcodebuild.log | grep -E "error:|warning: unre|BUILD|Compiling|Linking" | tail -n 40
 
 APP="build/Build/Products/Release/Verbatim.app"
 test -d "$APP"

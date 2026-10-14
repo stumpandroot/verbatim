@@ -77,7 +77,7 @@ jobs:
           set -o pipefail
           if ! VERSION="${VERSION#mac-v}" bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
             tail -n 6 "$RUNNER_TEMP/build.log" | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
-            grep -E "error(\[E[0-9]+\])?:" "$RUNNER_TEMP/build.log" | grep -v "Compiling\|Downloaded\|thiserror" | head -n 4 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
+            cat "$RUNNER_TEMP/build.log" build/xcodebuild.log 2>/dev/null | grep -E "error(\[E[0-9]+\])?:" | grep -v "Compiling\|Downloaded\|thiserror" | sort -u | head -n 4 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
             exit 1
           fi
 
