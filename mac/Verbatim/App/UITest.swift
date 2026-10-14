@@ -193,6 +193,18 @@ enum UITest {
         var v = content.hitTest(p)
         while let x = v, chain.count < 7 { chain.append("\(type(of: x))[\(Int(x.frame.minX)),\(Int(x.frame.minY)) \(Int(x.frame.width))x\(Int(x.frame.height))]"); v = x.superview }
         var under = chain.joined(separator: " < ")
+        if content.hitTest(p) is NSClipView {
+            var all: [String] = []
+            func walk(_ v: NSView, _ depth: Int) {
+                if let sv = v as? NSScrollView {
+                    let d = sv.documentView
+                    all.append("\(type(of: sv))@\(depth)[\(Int(sv.frame.minX)),\(Int(sv.frame.minY)) \(Int(sv.frame.width))x\(Int(sv.frame.height))] doc=\(Int(d?.frame.height ?? -1)) hidden=\(sv.isHiddenOrHasHiddenAncestor) alpha=\(sv.alphaValue) subviews=\(d?.subviews.count ?? -1)")
+                }
+                v.subviews.forEach { walk($0, depth + 1) }
+            }
+            walk(content, 0)
+            Log.note("UITEST scrollviews: " + all.joined(separator: " || "))
+        }
         if let clip = content.hitTest(p) as? NSClipView {
             under += " | clip.bounds=\(Int(clip.bounds.minX)),\(Int(clip.bounds.minY)) doc=\(clip.documentView.map { "\(type(of: $0))[\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))x\(Int($0.frame.height))] flipped=\($0.isFlipped)" } ?? "nil")"
         }
