@@ -44,14 +44,14 @@ struct DocumentView: View {
                 ForEach(Polish.Level.allCases) { l in
                     Button { run(level: l, tone: tone) } label: { HStack { Text(l.rawValue); Text("· " + l.note).foregroundStyle(.secondary) } }
                 }
-            } label: { toolLabel("Clean up", value: level.rawValue) }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            } label: { Text(level == .none ? "Clean up" : "Clean up · \(level.rawValue)") }
+            .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
             .help("Rewrite with Apple's on-device model")
 
             Menu {
                 ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
-            } label: { toolLabel("Tone", value: tone.rawValue) }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            } label: { Text(tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)") }
+            .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
 
             if let w = working {
                 ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small)
@@ -69,8 +69,8 @@ struct DocumentView: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
         .frame(maxWidth: 720)
     }
@@ -249,15 +249,22 @@ struct DocumentEditor: NSViewRepresentable {
             guard !editing, (text != lastText || key != lastLintKey) else { return }
             lastText = text; lastLintKey = key
             let sel = tv.selectedRanges
-            let para = NSMutableParagraphStyle(); para.lineSpacing = 6; para.paragraphSpacing = 12
+            let para = NSMutableParagraphStyle(); para.lineSpacing = 6; para.paragraphSpacing = 0
             let attr = NSMutableAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 16), .foregroundColor: NSColor(Ink.ink), .paragraphStyle: para])
-            // Speaker labels at paragraph starts
             let ns = text as NSString
+            // Blank lines between paragraphs render as a short gap, not a full line.
+            let small = NSFont.systemFont(ofSize: 7)
+            var k = 1
+            while k < ns.length {
+                if ns.character(at: k) == 10, ns.character(at: k - 1) == 10 { attr.addAttribute(.font, value: small, range: NSRange(location: k, length: 1)) }
+                k += 1
+            }
+            // Speaker labels at paragraph starts
             var loc = 0
             for p in text.components(separatedBy: "\n\n") {
                 if let colon = p.range(of: ": "), p.distance(from: p.startIndex, to: colon.lowerBound) <= 28 {
                     let len = p.distance(from: p.startIndex, to: colon.lowerBound)
-                    attr.addAttributes([.font: NSFont.systemFont(ofSize: 14.5, weight: .semibold), .foregroundColor: NSColor(Ink.iris)], range: NSRange(location: loc, length: (p as NSString).length >= len ? len : 0))
+                    attr.addAttributes([.font: NSFont.systemFont(ofSize: 14.5, weight: .semibold), .foregroundColor: NSColor(Ink.iris)], range: NSRange(location: loc, length: min((p as NSString).length, len + 1)))
                 }
                 loc += (p as NSString).length + 2
             }
