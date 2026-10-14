@@ -121,6 +121,11 @@ struct DictationForm: View {
     }
 }
 
+struct ElapsedText: View {
+    @ObservedObject var live: LiveMeter
+    var body: some View { Text(live.elapsed.timecode).font(.system(size: 13, design: .monospaced)) }
+}
+
 /// The menu bar panel: record from anywhere, jump back to the app.
 struct MenuBarPanel: View {
     @EnvironmentObject var app: AppState
@@ -136,7 +141,7 @@ struct MenuBarPanel: View {
             if app.recorder.isRecording {
                 HStack(spacing: 10) {
                     RecordButton(size: 22)
-                    Text(app.recorder.elapsed.timecode).font(.system(size: 13, design: .monospaced))
+                    ElapsedText(live: app.recorder.live)
                     Spacer()
                     Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }
                     Button("Stop") { app.stopRecording() }.buttonStyle(.borderedProminent).tint(Ink.ink)
@@ -145,7 +150,7 @@ struct MenuBarPanel: View {
             } else if app.capture.isCapturing {
                 HStack(spacing: 10) {
                     Image(systemName: "rectangle.on.rectangle").foregroundStyle(Ink.iris)
-                    Text("Capturing \(app.capture.appName) · \(app.capture.elapsed.timecode)").font(.system(size: 12.5))
+                    HStack(spacing: 4) { Text("Capturing \(app.capture.appName) ·").font(.system(size: 12.5)); ElapsedText(live: app.capture.live) }
                     Spacer()
                     Button("Stop") { app.stopCapture() }.buttonStyle(.borderedProminent).tint(Ink.ink)
                 }

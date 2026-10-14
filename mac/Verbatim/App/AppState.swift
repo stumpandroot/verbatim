@@ -242,8 +242,13 @@ final class AppState: ObservableObject {
         let project = t.projectId
         let needWave = t.waveform.isEmpty
         Log.note("transcribe start engine=\(engineId) model=\(model) file=\(url.lastPathComponent)")
+        // Progress can arrive many times a second while a model downloads. Publish at most ~4×/s, only when
+        // the label changed, and without touching the disk: `stage` is display-only.
+        let gate = ProgressGate()
         let progress: @Sendable (EngineProgress) -> Void = { p in
-            Task { @MainActor in self.store.update(id) { $0.stage = p.label } }
+            let label = p.label
+            guard gate.shouldPublish(label) else { return }
+            Task { @MainActor in self.store.setStage(id, label) }
         }
         Task.detached(priority: .userInitiated) {
             do {
@@ -356,4 +361,18 @@ struct Toast: Identifiable, Equatable {
         self.message = message; self.action = action; self.onAction = onAction
     }
     static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
+}
+
+/// Rate-limits progress labels from engine threads.
+final class ProgressGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last = ""
+    private var at = Date.distantPast
+    func shouldPublish(_ label: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        let now = Date()
+        guard label != last, now.timeIntervalSince(at) > 0.25 || !label.hasPrefix(last.prefix(12)) else { return false }
+        last = label; at = now
+        return true
+    }
 }

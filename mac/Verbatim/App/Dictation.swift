@@ -193,6 +193,11 @@ final class DictationController: ObservableObject {
     }
 }
 
+struct PillMeter: View {
+    @ObservedObject var live: LiveMeter
+    var body: some View { Meter(levels: live.levels, color: .white) }
+}
+
 /// The hold-to-talk pill: Verbie listening, live bars, and where the words will go.
 struct DictationPill: View {
     @ObservedObject var controller: DictationController
@@ -205,7 +210,7 @@ struct DictationPill: View {
                 Spacer()
                 ProgressView().controlSize(.small).tint(.white)
             } else {
-                Meter(levels: recorder.levels, color: .white).frame(width: 140, height: 22)
+                PillMeter(live: recorder.live).frame(width: 140, height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Listening").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
                     Text("Release to paste into \(controller.targetAppName)").font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)

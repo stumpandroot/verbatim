@@ -243,6 +243,7 @@ final class VerbieLayerHost: NSView {
 
     func setPose(_ p: VerbiePose, animated: Bool) {
         let changed = p != pose
+        guard changed || !animated else { return }   // SwiftUI re-renders must not restart the pose animation
         pose = p
         let dur: CFTimeInterval = animated ? 0.45 : 0
         CATransaction.begin()

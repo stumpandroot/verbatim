@@ -16,18 +16,15 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
     }
 
     @Published private(set) var isCapturing = false
-    @Published private(set) var elapsed: TimeInterval = 0
-    @Published private(set) var levels: [Float] = Array(repeating: 0, count: 28)
     @Published private(set) var appName = ""
+    let live = LiveMeter()
+    var elapsed: TimeInterval { live.elapsed }
 
     private var stream: SCStream?
     private var file: AVAudioFile?
     private var url: URL?
     private var startedAt: Date?
-    private var timer: Timer?
     private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.capture")
-    private var pendingPeak: Float = 0
-    private var lastMeter = Date.distantPast
 
     static func runningApps() async throws -> [RunningApp] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
@@ -68,11 +65,8 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
         stream = s
         appName = app.name
         startedAt = Date()
-        elapsed = 0
+        live.reset()
         isCapturing = true
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in guard let self, let t = self.startedAt else { return }; self.elapsed = Date().timeIntervalSince(t) }
-        }
         Log.note("app capture started: \(app.name)")
     }
 
@@ -82,10 +76,9 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
         try? await s.stopCapture()
         stream = nil
         file = nil
-        timer?.invalidate(); timer = nil
         let d = elapsed
         isCapturing = false
-        levels = Array(repeating: 0, count: 28)
+        live.reset()
         self.url = nil
         return (url, d)
     }
@@ -109,16 +102,11 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
         if let ch = pcm.floatChannelData?[0] {
             for i in 0..<Int(frames) { peak = max(peak, abs(ch[i])) }
         }
+        let v = min(1, pow(peak, 0.6) * 1.4)
         Task { @MainActor [weak self] in
             guard let self else { return }
             try? self.file?.write(from: pcm)
-            // Publish the meter at most ~7 times a second; every SwiftUI update is expensive on macOS 26.
-            self.pendingPeak = max(self.pendingPeak, peak)
-            if Date().timeIntervalSince(self.lastMeter) > 0.15 {
-                let v = min(1, pow(self.pendingPeak, 0.6) * 1.4)
-                self.levels.removeFirst(); self.levels.append(v)
-                self.pendingPeak = 0; self.lastMeter = Date()
-            }
+            self.live.push(v, seconds: self.startedAt.map { Date().timeIntervalSince($0) } ?? 0, paused: false)
         }
     }
 

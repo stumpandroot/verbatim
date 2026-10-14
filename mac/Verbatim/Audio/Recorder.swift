@@ -30,7 +30,8 @@ final class RecordingWriter: @unchecked Sendable {
             for i in 0..<n { sum += ch[i] * ch[i] }
             rms = sqrt(sum / Float(n))
         }
-        let v = min(1, pow(rms * 4, 0.6))
+        // Speech RMS sits around 0.02–0.15 on a Mac mic; map that onto most of the bar height.
+        let v = min(1, pow(max(0, rms - 0.004) * 6, 0.5))
         lock.lock(); defer { lock.unlock() }
         guard !paused, let file, let converter else { return 0 }
         let ratio = Recorder.targetFormat.sampleRate / buffer.format.sampleRate
@@ -59,15 +60,12 @@ final class RecordingWriter: @unchecked Sendable {
 final class Recorder: ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var isPaused = false
-    @Published private(set) var elapsed: TimeInterval = 0
-    @Published private(set) var levels: [Float] = Array(repeating: 0, count: 28)
-    @Published private(set) var level: Float = 0
+    let live = LiveMeter()
+    var elapsed: TimeInterval { live.elapsed }
 
     private let engine = AVAudioEngine()
     private var writer: RecordingWriter?
     private var url: URL?
-    private var lastMeter = Date.distantPast
-    private var pendingPeak: Float = 0
 
     static let targetFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
 
@@ -80,8 +78,7 @@ final class Recorder: ObservableObject {
         let w = try RecordingWriter(url: url, inputFormat: inFormat)
         writer = w
         self.url = url
-        elapsed = 0
-        levels = Array(repeating: 0, count: 28)
+        live.reset()
         input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { [weak self] buffer, _ in
             let v = w.write(buffer)
             let secs = w.seconds
@@ -95,20 +92,13 @@ final class Recorder: ObservableObject {
 
     private func meter(_ v: Float, seconds: TimeInterval) {
         guard isRecording else { return }
-        elapsed = seconds
-        guard !isPaused else { return }
-        pendingPeak = max(pendingPeak, v)
-        if Date().timeIntervalSince(lastMeter) > 0.07 {
-            level = pendingPeak
-            levels.removeFirst(); levels.append(pendingPeak)
-            pendingPeak = 0; lastMeter = Date()
-        }
+        live.push(v, seconds: seconds, paused: isPaused)
     }
 
     func togglePause() {
         isPaused.toggle()
         writer?.paused = isPaused
-        if isPaused { levels = Array(repeating: 0, count: 28); level = 0 }
+        if isPaused { live.reset(); live.setElapsed(writer?.seconds ?? 0) }
     }
 
     /// Returns the file URL, its duration, and the waveform envelope.
@@ -120,7 +110,7 @@ final class Recorder: ObservableObject {
         let env = Waveform.resample(w.close(), to: 120)
         writer = nil
         isRecording = false; isPaused = false
-        levels = Array(repeating: 0, count: 28); level = 0
+        live.reset()
         self.url = nil
         return (url, d, env)
     }

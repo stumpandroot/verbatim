@@ -339,8 +339,7 @@ struct RecordPanel: View {
         HStack(spacing: 14) {
             ZStack { Circle().fill(Ink.coral).frame(width: 12, height: 12); Circle().stroke(Ink.coral.opacity(0.4), lineWidth: 3).frame(width: 20, height: 20) }
             Text(app.recorder.isPaused ? "Paused" : "Recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).frame(width: 72, alignment: .leading)
-            Text(app.recorder.elapsed.timecode).font(.system(size: 14, design: .monospaced)).foregroundStyle(Ink.ink).frame(minWidth: 56, alignment: .leading)
-            Meter(levels: app.recorder.levels, frozen: app.recorder.isPaused).frame(height: 26).frame(maxWidth: .infinity, alignment: .leading)
+            LiveReadout(live: app.recorder.live, frozen: app.recorder.isPaused)
             Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.bordered)
             Button("Stop") { app.stopRecording() }.buttonStyle(.borderedProminent).tint(Ink.ink).keyboardShortcut(".", modifiers: [.option, .shift])
         }
@@ -356,8 +355,7 @@ struct CapturePanel: View {
         HStack(spacing: 14) {
             Image(systemName: "waveform").foregroundStyle(Ink.iris)
             Text("Capturing \(app.capture.appName)").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-            Text(app.capture.elapsed.timecode).font(.system(size: 14, design: .monospaced)).foregroundStyle(Ink.ink).frame(minWidth: 56, alignment: .leading)
-            Meter(levels: app.capture.levels, color: NSColor(red: 0x6F/255, green: 0x5A/255, blue: 0xF0/255, alpha: 1)).frame(height: 26).frame(maxWidth: .infinity, alignment: .leading)
+            LiveReadout(live: app.capture.live, color: NSColor(red: 0x6F/255, green: 0x5A/255, blue: 0xF0/255, alpha: 1))
             Button("Stop") { app.stopCapture() }.buttonStyle(.borderedProminent).tint(Ink.ink)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)

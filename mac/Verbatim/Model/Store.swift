@@ -93,6 +93,12 @@ final class Store: ObservableObject {
 
     func transcript(_ id: UUID) -> Transcript? { transcripts.first { $0.id == id } }
 
+    /// Display-only progress text; not written to disk.
+    func setStage(_ id: UUID, _ stage: String) {
+        guard let i = transcripts.firstIndex(where: { $0.id == id }), transcripts[i].stage != stage else { return }
+        transcripts[i].stage = stage
+    }
+
     func audioURL(for t: Transcript) -> URL? {
         guard let name = t.audioFileName else { return nil }
         return Paths.audio.appendingPathComponent(name)
