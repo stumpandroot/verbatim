@@ -25,6 +25,7 @@ final class Store: ObservableObject {
     private static let enc: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.prettyPrinted, .sortedKeys]; return e }()
     private static let dec: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
     private var loading = true
+    private var pendingSaves: [UUID: DispatchWorkItem] = [:]
 
     init() {
         for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads] {
@@ -77,6 +78,16 @@ final class Store: ObservableObject {
         guard let i = transcripts.firstIndex(where: { $0.id == id }) else { return }
         change(&transcripts[i])
         save(transcripts[i])
+    }
+
+    /// Like `update`, but writes to disk a second after the last change: for typing.
+    func updateDeferred(_ id: UUID, _ change: (inout Transcript) -> Void) {
+        guard let i = transcripts.firstIndex(where: { $0.id == id }) else { return }
+        change(&transcripts[i])
+        pendingSaves[id]?.cancel()
+        let w = DispatchWorkItem { [weak self] in if let t = self?.transcript(id) { self?.save(t) } }
+        pendingSaves[id] = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: w)
     }
 
     func delete(_ t: Transcript) {

@@ -31,6 +31,17 @@ if [ ! -x Helpers/yt-dlp ] || ! grep -q "$YTDLP_VERSION" Helpers/yt-dlp.version 
   echo "$YTDLP_VERSION" > Helpers/yt-dlp.version
 fi
 
+# 1c. Harper grammar engine (Rust staticlib, universal). Skipped if cargo is missing and a prebuilt lib exists.
+if [ ! -f Vendor/harper/libharper_ffi.a ] || [ "${HARPER_REBUILD:-0}" = "1" ]; then
+  if command -v cargo >/dev/null 2>&1; then
+    rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true
+    bash Vendor/harper/build.sh
+  else
+    echo "cargo not found and no prebuilt Vendor/harper/libharper_ffi.a; install Rust (https://rustup.rs) or set HARPER_REBUILD=0 with a prebuilt lib." >&2
+    exit 1
+  fi
+fi
+
 # 2. Build
 rm -rf build dist && mkdir -p dist
 SIGN=()

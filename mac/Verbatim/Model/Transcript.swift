@@ -92,6 +92,51 @@ struct Transcript: Codable, Identifiable, Equatable {
     var status: Status = .ready
     var stage: String? = nil      // "Downloading model 42%", "Transcribing", "Finding speakers"
     var error: String?
+    /// The Document view's text once someone has edited or polished it; nil means "build it from segments".
+    var document: String? = nil
+    /// Previous document versions, newest last, for Undo (capped at 30).
+    var documentHistory: [String] = []
+    var documentLevel: String = "None"
+    var documentTone: String = "As spoken"
+
+    init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
+        self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
+    }
+
+    /// Tolerant of files written by earlier builds: every field added later decodes with its default.
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Untitled"
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        source = try c.decodeIfPresent(SourceKind.self, forKey: .source) ?? .voiceMemo
+        sourceLabel = try c.decodeIfPresent(String.self, forKey: .sourceLabel) ?? ""
+        sourceURL = try c.decodeIfPresent(String.self, forKey: .sourceURL)
+        duration = try c.decodeIfPresent(Double.self, forKey: .duration) ?? 0
+        audioFileName = try c.decodeIfPresent(String.self, forKey: .audioFileName)
+        original = try c.decodeIfPresent([Segment].self, forKey: .original) ?? []
+        segments = try c.decodeIfPresent([Segment].self, forKey: .segments) ?? []
+        speakers = try c.decodeIfPresent([Speaker].self, forKey: .speakers) ?? []
+        corrections = try c.decodeIfPresent([Correction].self, forKey: .corrections) ?? []
+        projectId = try c.decodeIfPresent(UUID.self, forKey: .projectId)
+        tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        notes = try c.decodeIfPresent([Note].self, forKey: .notes) ?? []
+        waveform = try c.decodeIfPresent([Float].self, forKey: .waveform) ?? []
+        model = try c.decodeIfPresent(String.self, forKey: .model) ?? ""
+        engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? ""
+        language = try c.decodeIfPresent(String.self, forKey: .language)
+        status = try c.decodeIfPresent(Status.self, forKey: .status) ?? .ready
+        stage = try c.decodeIfPresent(String.self, forKey: .stage)
+        error = try c.decodeIfPresent(String.self, forKey: .error)
+        document = try c.decodeIfPresent(String.self, forKey: .document)
+        documentHistory = try c.decodeIfPresent([String].self, forKey: .documentHistory) ?? []
+        documentLevel = try c.decodeIfPresent(String.self, forKey: .documentLevel) ?? "None"
+        documentTone = try c.decodeIfPresent(String.self, forKey: .documentTone) ?? "As spoken"
+    }
+
+    /// The document text: edited version if there is one, else built from the segments.
+    var documentText: String { document ?? DocumentText.build(from: self) }
 
     var text: String { segments.map(\.text).joined(separator: " ") }
 

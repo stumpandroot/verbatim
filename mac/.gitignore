@@ -1,0 +1,6 @@
+Vendor/harper/libharper_ffi.a
+build/
+dist/
+Helpers/
+harper-ffi/target/
+Verbatim.xcodeproj/

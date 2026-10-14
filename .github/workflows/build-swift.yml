@@ -33,6 +33,18 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version; sw_vers
 
+      - name: Install Rust (Harper grammar engine)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mac/harper-ffi/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
       - name: Install XcodeGen
         run: brew install xcodegen
 

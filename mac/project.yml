@@ -20,7 +20,7 @@ targets:
     platform: macOS
     sources:
       - path: Verbatim
-        excludes: ["Info.plist", "Verbatim.entitlements"]
+        excludes: ["Info.plist", "Verbatim.entitlements", "Bridging.h"]
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
@@ -48,6 +48,10 @@ targets:
         com.apple.security.cs.disable-library-validation: true
     settings:
       base:
+        SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h
+        LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper"
+        OTHER_LDFLAGS: "$(inherited) -lharper_ffi"
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper"
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim
         PRODUCT_NAME: Verbatim
         MARKETING_VERSION: "1.0.0"

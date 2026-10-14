@@ -12,9 +12,9 @@ struct TranscriptView: View {
     @State private var textSize: CGFloat = 16
     @Namespace private var segNS
 
-    enum Mode: String, CaseIterable { case original = "Original", cleaned = "Cleaned", summary = "Summary", review = "Review" }
-    /// Summary ships with the local language model build; until then it stays out of the capsule.
-    static let visibleModes: [Mode] = [.original, .cleaned, .review]
+    enum Mode: String, CaseIterable { case original = "Transcript", document = "Document", cleaned = "Cleaned", summary = "Summary", review = "Review" }
+    /// Cleaned lives inside Document now; Summary ships with a later build.
+    static let visibleModes: [Mode] = [.original, .document, .review]
     @State private var narrow = false
 
     private var transcript: Transcript? { app.store.transcript(id) }
@@ -32,7 +32,7 @@ struct TranscriptView: View {
                                 content(t)
                             }
                             .frame(maxWidth: 720, alignment: .leading)
-                            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, t.audioFileName != nil ? 124 : 40)
+                            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, t.audioFileName != nil && view != .document ? 124 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .onChange(of: app.player.time) { _, now in
@@ -41,7 +41,7 @@ struct TranscriptView: View {
                             }
                         }
                     }
-                    if t.audioFileName != nil, t.status == .ready { PlayerDock(transcript: t).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
+                    if t.audioFileName != nil, t.status == .ready, view != .document { PlayerDock(transcript: t).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
                 }
                 .frame(maxWidth: .infinity)
                 if notesOpen && !narrow {
@@ -118,9 +118,9 @@ struct TranscriptView: View {
             .padding(3).background(Color(hex: 0xEEEBF4), in: Capsule()).fixedSize()
             Divider().frame(height: 18)
             HStack(spacing: 5) {
-                Text("Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).layoutPriority(-1)
+                Text(view == .document ? "Original kept" : "Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).layoutPriority(-1)
                 Image(systemName: "info.circle").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                    .help("The engine's output is stored untouched. Corrections and Cleaned are separate layers you can always compare against it.")
+                    .help("The engine's output is stored untouched. The Document, corrections, and polish are separate layers you can always compare against it.")
             }
             Spacer()
         }
@@ -134,6 +134,7 @@ struct TranscriptView: View {
         else {
             switch view {
             case .original: lines(t, segments: t.segments, editable: true)
+            case .document: DocumentView(transcript: t)
             case .cleaned: lines(t, segments: Cleanup.light(t.segments), editable: false)
             case .summary: placeholder("Summary", "Key points, decisions, and quotes, each linked to the passage it came from. Arrives with the local language model build.")
             case .review: review(t)

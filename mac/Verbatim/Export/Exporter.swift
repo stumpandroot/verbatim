@@ -3,12 +3,108 @@ import AppKit
 import UniformTypeIdentifiers
 
 enum ExportFormat: String, CaseIterable, Identifiable {
-    case txt = "TXT", srt = "SRT", vtt = "VTT", md = "Markdown", json = "JSON"
+    case txt = "Plain text", md = "Markdown", docx = "Word", srt = "SRT", vtt = "VTT", json = "JSON"
     var id: String { rawValue }
-    var ext: String { switch self { case .md: return "md"; default: return rawValue.lowercased() } }
+    var ext: String { switch self { case .txt: return "txt"; case .md: return "md"; case .docx: return "docx"; case .srt: return "srt"; case .vtt: return "vtt"; case .json: return "json" } }
+    var note: String {
+        switch self {
+        case .txt: return "Anywhere"; case .md: return "Notes, Obsidian, Notion"; case .docx: return "Word, Pages, Google Docs"
+        case .srt: return "Subtitles"; case .vtt: return "Web subtitles"; case .json: return "Everything, for tools"
+        }
+    }
+    var timed: Bool { self == .srt || self == .vtt }
+}
+
+/// What goes into a text export or the clipboard. Mirrors what people expect from Otter and Wispr: pick the
+/// text (document or transcript), whether speaker names and timecodes come along, and whether it's one paragraph.
+struct ExportOptions: Equatable {
+    enum Source: String, CaseIterable, Identifiable { case document = "Document", transcript = "Transcript"; var id: String { rawValue } }
+    var source: Source = .document
+    var speakers = true
+    var timecodes = false
+    var singleParagraph = false
+    var provenance = false
+
+    static var saved: ExportOptions {
+        let d = UserDefaults.standard
+        var o = ExportOptions()
+        if let s = d.string(forKey: "export.source"), let v = Source(rawValue: s) { o.source = v }
+        if d.object(forKey: "export.speakers") != nil { o.speakers = d.bool(forKey: "export.speakers") }
+        o.timecodes = d.bool(forKey: "export.timecodes"); o.singleParagraph = d.bool(forKey: "export.single"); o.provenance = d.bool(forKey: "export.prov")
+        return o
+    }
+    func save() {
+        let d = UserDefaults.standard
+        d.set(source.rawValue, forKey: "export.source"); d.set(speakers, forKey: "export.speakers"); d.set(timecodes, forKey: "export.timecodes")
+        d.set(singleParagraph, forKey: "export.single"); d.set(provenance, forKey: "export.prov")
+    }
 }
 
 enum Exporter {
+    /// The text people copy or export, shaped by the options.
+    static func text(_ t: Transcript, _ o: ExportOptions) -> String {
+        var body: String
+        if o.source == .document && !o.timecodes {
+            body = t.documentText
+            if !o.speakers {
+                let names = t.speakers.map(\.label)
+                body = DocumentText.paragraphs(body).map { DocumentText.split($0, speakers: names).text }.joined(separator: "\n\n")
+            }
+        } else {
+            var lines: [String] = []
+            var lastSpeaker: String? = "\u{0}"
+            for s in t.segments {
+                var line = ""
+                if o.timecodes { line += "[\(s.start.timecode)] " }
+                if o.speakers, s.speaker != lastSpeaker, let n = t.speakerName(s.speaker) { line += "\(n): " }
+                lastSpeaker = s.speaker
+                lines.append(line + s.text)
+            }
+            body = lines.joined(separator: o.timecodes ? "\n" : "\n\n")
+        }
+        if o.singleParagraph { body = body.replacingOccurrences(of: "\n+", with: " ", options: .regularExpression) }
+        return body + (o.provenance ? provenance(t) : "")
+    }
+
+    static func render(_ t: Transcript, as f: ExportFormat, options o: ExportOptions) -> String {
+        switch f {
+        case .txt: return text(t, o)
+        case .md:
+            var out = "# \(t.title)\n\n_\(t.sourceLabel) · \(t.duration.timecode)_\n\n"
+            out += text(t, o).replacingOccurrences(of: "(?m)^([^:\\n]{1,28}): ", with: "**$1:** ", options: .regularExpression)
+            return out
+        default: return render(t, as: f)
+        }
+    }
+
+    /// A minimal .docx: one paragraph per blank-line-separated block, speaker labels bold. Zipped with /usr/bin/zip.
+    static func writeDocx(_ t: Transcript, options o: ExportOptions, to url: URL) throws {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("verbatim-docx-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("_rels"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("word"), withIntermediateDirectories: true)
+        func esc(_ s: String) -> String { s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;") }
+        var paras = "<w:p><w:pPr><w:pStyle w:val=\"Title\"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val=\"40\"/></w:rPr><w:t xml:space=\"preserve\">\(esc(t.title))</w:t></w:r></w:p>"
+        let names = t.speakers.map(\.label)
+        for p in DocumentText.paragraphs(text(t, o)) {
+            let (sp, body) = DocumentText.split(p, speakers: names)
+            paras += "<w:p><w:pPr><w:spacing w:after=\"200\"/></w:pPr>"
+            if let sp { paras += "<w:r><w:rPr><w:b/></w:rPr><w:t xml:space=\"preserve\">\(esc(sp)): </w:t></w:r>" }
+            paras += "<w:r><w:t xml:space=\"preserve\">\(esc(body))</w:t></w:r></w:p>"
+        }
+        let doc = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(paras)<w:sectPr/></w:body></w:document>"
+        let types = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>"
+        let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"
+        try types.write(to: tmp.appendingPathComponent("[Content_Types].xml"), atomically: true, encoding: .utf8)
+        try rels.write(to: tmp.appendingPathComponent("_rels/.rels"), atomically: true, encoding: .utf8)
+        try doc.write(to: tmp.appendingPathComponent("word/document.xml"), atomically: true, encoding: .utf8)
+        try? FileManager.default.removeItem(at: url)
+        let zip = Process(); zip.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        zip.currentDirectoryURL = tmp
+        zip.arguments = ["-q", "-r", "-X", url.path, "[Content_Types].xml", "_rels", "word"]
+        try zip.run(); zip.waitUntilExit()
+        try? FileManager.default.removeItem(at: tmp)
+    }
+
     static func render(_ t: Transcript, as f: ExportFormat) -> String {
         switch f {
         case .txt:
@@ -55,18 +151,19 @@ enum Exporter {
     }
 
     @MainActor
-    static func save(_ t: Transcript, as f: ExportFormat) {
+    static func save(_ t: Transcript, as f: ExportFormat, options o: ExportOptions = .saved) {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = t.title + "." + f.ext
         panel.allowedContentTypes = [UTType(filenameExtension: f.ext) ?? .plainText]
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? render(t, as: f).write(to: url, atomically: true, encoding: .utf8)
+        if f == .docx { try? writeDocx(t, options: o, to: url) }
+        else { try? render(t, as: f, options: o).write(to: url, atomically: true, encoding: .utf8) }
     }
 
     @MainActor
-    static func copy(_ t: Transcript) {
+    static func copy(_ t: Transcript, options o: ExportOptions = .saved) {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(t.segments.map { speakerPrefix(t, $0) + $0.text }.joined(separator: "\n"), forType: .string)
+        NSPasteboard.general.setString(text(t, o), forType: .string)
     }
 }

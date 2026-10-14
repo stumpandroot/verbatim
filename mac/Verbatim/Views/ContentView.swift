@@ -314,14 +314,58 @@ struct AppPickerSheet: View {
     }
 }
 
+/// Copy and Export with the options people expect: which text, speaker names, timecodes, one paragraph.
 struct ExportMenu: View {
+    @EnvironmentObject var app: AppState
     var transcript: Transcript
+    @State private var open = false
+    @State private var options = ExportOptions.saved
     var body: some View {
-        Menu {
-            ForEach(ExportFormat.allCases) { f in Button("Export \(f.rawValue)…") { Exporter.save(transcript, as: f) } }
-            Divider()
-            Button("Copy Text") { Exporter.copy(transcript) }
-        } label: { Label("Export", systemImage: "square.and.arrow.up") }
+        HStack(spacing: 6) {
+            Button {
+                Exporter.copy(transcript, options: options)
+                app.toast = Toast("Copied " + (options.source == .document ? "document" : "transcript"))
+                Sounds.done()
+            } label: { Label("Copy", systemImage: "doc.on.doc") }
+                .help("Copy the text to the clipboard (⌘⇧C)").keyboardShortcut("c", modifiers: [.command, .shift])
+            Button { open.toggle() } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                .popover(isPresented: $open, arrowEdge: .bottom) { ExportPanel(transcript: transcript, options: $options, done: { open = false }) }
+        }
         .disabled(transcript.status != .ready)
+        .onChange(of: options) { _, o in o.save() }
+    }
+}
+
+struct ExportPanel: View {
+    var transcript: Transcript
+    @Binding var options: ExportOptions
+    var done: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Export").font(.system(size: 14, weight: .bold))
+            Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.rawValue).tag($0) } }
+                .pickerStyle(.segmented).labelsHidden()
+            Text(options.source == .document ? "Paragraphs with your edits and polish." : "Line by line, as transcribed.").font(.system(size: 11.5)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Speaker names", isOn: $options.speakers).disabled(transcript.speakers.count < 2)
+                Toggle("Timecodes", isOn: $options.timecodes)
+                Toggle("One paragraph", isOn: $options.singleParagraph)
+                Toggle("Add a “transcribed with” footer", isOn: $options.provenance)
+            }
+            .toggleStyle(.checkbox).font(.system(size: 12.5))
+            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(ExportFormat.allCases) { f in
+                    Button { done(); Exporter.save(transcript, as: f, options: options) } label: {
+                        HStack { Text(f.rawValue).fontWeight(.medium); Spacer(); Text(f.timed ? "with timecodes" : f.note).foregroundStyle(.secondary) }
+                            .font(.system(size: 12.5)).padding(.vertical, 5).padding(.horizontal, 8).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button { done(); Exporter.copy(transcript, options: options) } label: { Label("Copy to clipboard", systemImage: "doc.on.doc") }
+                .buttonStyle(.borderedProminent).tint(Ink.iris).frame(maxWidth: .infinity)
+        }
+        .padding(16).frame(width: 300)
     }
 }
