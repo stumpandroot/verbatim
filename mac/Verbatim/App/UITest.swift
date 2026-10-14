@@ -15,6 +15,7 @@ enum UITest {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) else { Log.note("UITEST FAIL no window"); return }
+            if let screen = window.screen ?? NSScreen.main { window.setFrame(screen.visibleFrame, display: true) }   // runner screens are small
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
 
@@ -48,6 +49,9 @@ enum UITest {
             await step("row opens transcript again", window) { click("row-0", in: window) } check: { if case .transcript = app.screen { return true } else { return false } }
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
+            // CI screenshots the transcript now, then Home a few seconds later.
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            app.go(.home)
         }
     }
 

@@ -24,7 +24,7 @@ struct TranscriptView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t).staggerIn(0)
-                                modeBar(t).staggerIn(1).padding(.bottom, 18)
+                                modeBar(t).staggerIn(1).padding(.bottom, 8)
                                 content(t)
                             }
                             .frame(maxWidth: 680, alignment: .leading)
@@ -84,7 +84,7 @@ struct TranscriptView: View {
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
         }
-        .padding(.bottom, 16)
+        .padding(.bottom, 12)
     }
 
     private func modeBar(_ t: Transcript) -> some View {
@@ -231,9 +231,9 @@ struct SegmentLine: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Text(segment.start.timecode).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color(hex: 0x948C80))
-                .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 26 : 6)
+                .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 5)
                 .tapArea { app.player.seek(to: segment.start) }
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 if showSpeaker, let sp = segment.speaker, let name = transcript.speakerName(sp) {
                     HStack(spacing: 7) {
                         Circle().fill(speakerColor(sp)).frame(width: 8, height: 8)
@@ -245,12 +245,12 @@ struct SegmentLine: View {
                         } label: { Text(name).font(.system(size: 13, weight: .semibold)).foregroundStyle(speakerColor(sp)) }
                         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 8)
                 }
                 Text(segment.text)
-                    .font(.system(size: size)).lineSpacing(size * 0.4).foregroundStyle(Ink.ink)
+                    .font(.system(size: size)).lineSpacing(size * 0.3).foregroundStyle(Ink.ink)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(current ? Ink.irisTint : selected ? Color(hex: 0xF3F0FA) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
                     .contentShape(Rectangle())

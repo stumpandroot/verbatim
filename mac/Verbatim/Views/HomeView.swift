@@ -136,7 +136,7 @@ struct CaptureCard: View {
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                 }
             }
-            .padding(24)
+            .padding(24).padding(.trailing, 186)   // keep the text column clear of Verbie
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VerbieView(pose: verbiePose)

@@ -80,6 +80,7 @@ jobs:
           cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
           open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$OUT/open-${GITHUB_RUN_NUMBER}.txt" 2>&1; echo "open exit=$?" >> "$OUT/open-${GITHUB_RUN_NUMBER}.txt"
           sleep 16
+          perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/transcript-${GITHUB_RUN_NUMBER}.png" || true
           PID="$(pgrep -x Verbatim | head -1 || true)"
           # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
           { echo "pid=$PID"; for i in 1 2 3; do ps -o %cpu=,rss= -p "$PID" || echo "gone"; sleep 2; done; } > "$OUT/cpu-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true

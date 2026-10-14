@@ -23,7 +23,6 @@ struct ContentView: View {
                 Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
                     .help("Hide or show the sidebar")
             }
-            ToolbarItem(placement: .principal) { Text(title).font(.system(size: 13, weight: .semibold)) }
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 8) {
                     if case .transcript(let id) = app.screen, let t = app.store.transcript(id) { ExportMenu(transcript: t) }
