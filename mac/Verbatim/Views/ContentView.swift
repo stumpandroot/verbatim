@@ -66,13 +66,32 @@ struct ContentView: View {
     }
 
     /// Slides by direction: push from the right, pop to the right, sidebar order up or down.
+    /// Both ends of every transition go through `ScreenSlide`, which turns hit-testing off while a screen is
+    /// entering or leaving. An outgoing screen can linger when springs are interrupted, and a lingering screen
+    /// that still takes clicks is exactly the "have to click twice" bug.
     private var transition: AnyTransition {
         switch app.direction {
-        case .push: return .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity))
-        case .pop: return .asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity))
-        case .up: return .asymmetric(insertion: .offset(y: 40).combined(with: .opacity), removal: .offset(y: -24).combined(with: .opacity))
-        case .down: return .asymmetric(insertion: .offset(y: -40).combined(with: .opacity), removal: .offset(y: 24).combined(with: .opacity))
+        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 60), removal: ScreenSlide.transition(x: -60))
+        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -60), removal: ScreenSlide.transition(x: 60))
+        case .up: return .asymmetric(insertion: ScreenSlide.transition(y: 40), removal: ScreenSlide.transition(y: -24))
+        case .down: return .asymmetric(insertion: ScreenSlide.transition(y: -40), removal: ScreenSlide.transition(y: 24))
         }
+    }
+}
+
+/// A slide-and-fade whose off-screen state cannot be clicked.
+struct ScreenSlide: ViewModifier {
+    var active: Bool
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    func body(content: Content) -> some View {
+        content
+            .offset(x: active ? x : 0, y: active ? y : 0)
+            .opacity(active ? 0 : 1)
+            .allowsHitTesting(!active)
+    }
+    static func transition(x: CGFloat = 0, y: CGFloat = 0) -> AnyTransition {
+        .modifier(active: ScreenSlide(active: true, x: x, y: y), identity: ScreenSlide(active: false, x: x, y: y))
     }
 }
 

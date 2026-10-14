@@ -33,7 +33,6 @@ enum UITest {
             await step("sidebar Dictionary opens dictionary", window) { click("side-dict", in: window) } check: { app.screen == .dictionary }
             await step("sidebar home again (one click)", window) { click("side-home", in: window) } check: { app.screen == .home }
             try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
-            snapshot(window, name: "uitest-home")
             await step("mode switch to Dictate", window) { click("mode-dictate", in: window) } check: { app.captureMode == "dictate" }
             await step("mode switch back to Voice note", window) { click("mode-voice", in: window) } check: { app.captureMode == "voice" }
             await step("record tile asks for the mic or records", window) { click("tile-record", in: window) } check: { app.showMicSheet || app.recorder.isRecording }
@@ -50,16 +49,6 @@ enum UITest {
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
         }
-    }
-
-    /// Renders the window's own view tree to a PNG beside native.log (no screen-recording permission needed).
-    static func snapshot(_ window: NSWindow, name: String) {
-        guard let v = window.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
-        v.cacheDisplay(in: v.bounds, to: rep)
-        guard let png = rep.representation(using: NSBitmapImageRep.FileType.png, properties: [:]) else { return }
-        let url = Log.file.deletingLastPathComponent().appendingPathComponent("\(name).png")
-        try? png.write(to: url)
-        Log.note("UITEST snapshot \(url.lastPathComponent)")
     }
 
     private static func step(_ name: String, _ window: NSWindow, act: () -> Void, check: () -> Bool) async {
