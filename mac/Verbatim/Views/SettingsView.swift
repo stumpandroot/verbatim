@@ -23,6 +23,11 @@ struct SettingsView: View {
             Text("A short chime when recording starts and a tick when a transcript is ready. Off automatically with Reduce Motion.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)
             Toggle("Show the welcome card on Home", isOn: Binding(get: { !app.heroDismissed }, set: { app.heroDismissed = !$0 }))
+            Section("Microphone") {
+                LabeledContent("Record from") { MicSourceMenu(status: "No microphone found") }
+                Text("Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
         }
         .formStyle(.grouped)
     }

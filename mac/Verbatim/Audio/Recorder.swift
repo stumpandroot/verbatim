@@ -7,6 +7,9 @@ import Combine
 /// reading), and a waveform envelope kept for the transcript.
 /// Audio-thread side: converts and writes each tap buffer immediately (the engine reuses the buffer after
 /// the callback returns), and keeps the envelope. Guarded by a lock; the main actor only reads snapshots.
+/// 16 kHz mono 16-bit: what the engines want and a quarter of the disk of 48 kHz float.
+let recordingFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
+
 final class RecordingWriter: @unchecked Sendable {
     private let lock = NSLock()
     private var file: AVAudioFile?
@@ -17,8 +20,8 @@ final class RecordingWriter: @unchecked Sendable {
     var paused = false
 
     init(url: URL, inputFormat: AVAudioFormat) throws {
-        file = try AVAudioFile(forWriting: url, settings: Recorder.targetFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
-        converter = AVAudioConverter(from: inputFormat, to: Recorder.targetFormat)
+        file = try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
+        converter = AVAudioConverter(from: inputFormat, to: recordingFormat)
     }
 
     /// Returns the perceptual level (0…1) of this buffer.
@@ -34,9 +37,9 @@ final class RecordingWriter: @unchecked Sendable {
         let v = min(1, pow(max(0, rms - 0.004) * 6, 0.5))
         lock.lock(); defer { lock.unlock() }
         guard !paused, let file, let converter else { return 0 }
-        let ratio = Recorder.targetFormat.sampleRate / buffer.format.sampleRate
+        let ratio = recordingFormat.sampleRate / buffer.format.sampleRate
         let cap = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
-        guard let out = AVAudioPCMBuffer(pcmFormat: Recorder.targetFormat, frameCapacity: cap) else { return v }
+        guard let out = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: cap) else { return v }
         var fed = false
         var err: NSError?
         _ = converter.convert(to: out, error: &err) { _, status in
@@ -52,7 +55,7 @@ final class RecordingWriter: @unchecked Sendable {
         return v
     }
 
-    var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames) / Recorder.targetFormat.sampleRate }
+    var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames) / recordingFormat.sampleRate }
     func close() -> [Float] { lock.lock(); defer { lock.unlock() }; file = nil; converter = nil; return envelope }
 }
 
@@ -63,14 +66,19 @@ final class Recorder: ObservableObject {
     let live = LiveMeter()
     var elapsed: TimeInterval { live.elapsed }
 
-    private let engine = AVAudioEngine()
+    /// A fresh engine per recording, released on Stop. A kept engine holds the input device open after the
+    /// recording ends, and on Bluetooth headphones that leaves them in the low-quality call profile.
+    private var engine: AVAudioEngine?
     private var writer: RecordingWriter?
     private var url: URL?
 
-    static let targetFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
+    static var targetFormat: AVAudioFormat { recordingFormat }
 
     func start(to url: URL) throws {
+        let engine = AVAudioEngine()
+        self.engine = engine
         let input = engine.inputNode
+        if let id = AudioDevices.selectedInputID { AudioDevices.setInput(id, on: input) }
         let inFormat = input.outputFormat(forBus: 0)
         guard inFormat.sampleRate > 0, inFormat.channelCount > 0 else {
             throw NSError(domain: "Verbatim", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available."])
@@ -104,8 +112,10 @@ final class Recorder: ObservableObject {
     /// Returns the file URL, its duration, and the waveform envelope.
     func stop() -> (URL, TimeInterval, [Float])? {
         guard isRecording, let url, let w = writer else { return nil }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine?.reset()
+        engine = nil
         let d = w.seconds
         let env = Waveform.resample(w.close(), to: 120)
         writer = nil

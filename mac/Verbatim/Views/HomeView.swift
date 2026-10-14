@@ -122,9 +122,9 @@ struct CaptureCard: View {
                     HStack(spacing: 18) {
                         CardButton(tilt: 0, lift: 2, radius: 40, action: { app.requestRecord() }) { RecordButton(size: 72) }
                             .uiTarget("tile-record")
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("Start recording").font(.system(size: 17, weight: .bold)).foregroundStyle(Ink.ink)
-                            Text(micStatus).font(.system(size: 13)).foregroundStyle(Ink.limeDeep.opacity(0.8))
+                            MicSourceMenu(status: micStatus)
                         }
                     }
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
@@ -161,6 +161,41 @@ struct CaptureCard: View {
         if app.recorder.isRecording || app.capture.isCapturing || app.dictation.isListening { return app.recorder.isPaused ? .paused : .listening }
         return app.verbiePose
     }
+}
+
+/// Which microphone: an icon for the transport, the device name, and a menu to switch. Lives on the capture card
+/// and in Settings so you always know where the audio comes from.
+struct MicSourceMenu: View {
+    var status: String = ""
+    @State private var devices: [AudioDevices.Device] = []
+    @State private var current: AudioDevices.Device? = nil
+    @State private var selectedUID: String? = AudioDevices.selectedUID
+
+    var body: some View {
+        Menu {
+            Button { choose(nil) } label: { Label("System default" + (AudioDevices.defaultInput().map { " (\($0.name))" } ?? ""), systemImage: selectedUID == nil ? "checkmark" : "") }
+            Divider()
+            ForEach(devices) { d in
+                Button { choose(AudioDevices.deviceUID(d.id)) } label: {
+                    Label(d.name, systemImage: selectedUID == AudioDevices.deviceUID(d.id) ? "checkmark" : d.symbol)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: current?.symbol ?? "mic.slash").font(.system(size: 11.5, weight: .semibold))
+                Text(current?.name ?? status).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            }
+            .font(.system(size: 13)).foregroundStyle(Ink.limeDeep.opacity(0.85))
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help("Which microphone Verbatim records from")
+        .onAppear(perform: refresh)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
+    }
+
+    private func refresh() { devices = AudioDevices.inputs(); current = AudioDevices.current() }
+    private func choose(_ uid: String?) { AudioDevices.selectedUID = uid; selectedUID = uid; refresh() }
 }
 
 /// Decorative sound bars (a Shape, drawn once).
