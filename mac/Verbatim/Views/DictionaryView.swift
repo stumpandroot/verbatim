@@ -96,7 +96,13 @@ struct DictionaryRow: View {
         HStack {
             Pill(text: entry.preferred).frame(width: 180, alignment: .leading)
             Text(entry.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(Ink.dim).frame(maxWidth: .infinity, alignment: .leading)
-            Text(entry.learnedFrom).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).frame(width: 200, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.learnedFrom).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                if let pid = entry.projectId, let p = app.store.projects.first(where: { $0.id == pid }) {
+                    Text("Only in \(p.name)").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.iris)
+                }
+            }
+            .frame(width: 200, alignment: .leading)
             Toggle("", isOn: Binding(get: { entry.enabled }, set: { v in
                 if let i = app.store.dictionary.firstIndex(where: { $0.id == entry.id }) { app.store.dictionary[i].enabled = v }
             })).toggleStyle(.switch).controlSize(.small).labelsHidden().tint(Color(hex: 0x7FB83A)).frame(width: 40)

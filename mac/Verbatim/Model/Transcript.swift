@@ -51,6 +51,17 @@ struct Project: Codable, Identifiable, Equatable, Hashable {
     var id = UUID()
     var name: String
     var createdAt = Date()
+    var colorIndex: Int = 0     // coral, lime, iris, …
+}
+
+/// A note attached to a transcript, optionally pinned to a moment (passage-linked) or marked as a bookmark.
+struct Note: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var text: String
+    var at: Double? = nil            // seconds into the recording
+    var segmentId: UUID? = nil       // the passage it was written against
+    var isBookmark = false
+    var createdAt = Date()
 }
 
 struct Transcript: Codable, Identifiable, Equatable {
@@ -72,6 +83,8 @@ struct Transcript: Codable, Identifiable, Equatable {
     var projectId: UUID? = nil
     var tags: [String] = []
     var pinned = false
+    var notes: [Note] = []
+    var waveform: [Float] = []       // 120 RMS buckets in 0…1
     var model: String
     var engine: String = ""
     var language: String? = nil

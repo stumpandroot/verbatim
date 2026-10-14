@@ -7,15 +7,16 @@ struct DictionaryEntry: Codable, Identifiable, Equatable {
     var heardAs: [String]
     var enabled = true
     var learnedFrom: String      // transcript title or "Added by you"
+    var projectId: UUID? = nil   // nil = every transcript; otherwise only that project's
     var createdAt = Date()
 }
 
 enum DictionaryApplier {
     /// Applies enabled entries as whole-word, case-insensitive replacements and records each change,
     /// so every fix is visible and reversible. Nothing is replaced unless it matches a listed "heard as" form.
-    static func apply(_ entries: [DictionaryEntry], to segments: inout [Segment]) -> [Correction] {
+    static func apply(_ entries: [DictionaryEntry], to segments: inout [Segment], project: UUID? = nil) -> [Correction] {
         var out: [Correction] = []
-        let active = entries.filter { $0.enabled && !$0.preferred.isEmpty }
+        let active = entries.filter { $0.enabled && !$0.preferred.isEmpty && ($0.projectId == nil || $0.projectId == project) }
         guard !active.isEmpty else { return [] }
         for i in segments.indices {
             for e in active {

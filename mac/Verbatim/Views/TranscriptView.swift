@@ -1,33 +1,35 @@
 import SwiftUI
 
+/// Transcript workspace (Listening Desk composition, Soft Instrument playback dock).
+/// Calm reading surface; the player and the notes carry the interaction.
 struct TranscriptView: View {
     @EnvironmentObject var app: AppState
     var id: UUID
-    @State private var speakerFilter: String? = nil
-    @State private var showOriginal = false
+    @State private var view: Mode = .original
+    @State private var notesOpen = true
+    @State private var detailsOpen = false
+    @State private var selectedSegment: UUID? = nil
+    @State private var textSize: CGFloat = 16
+    @Namespace private var segNS
+
+    enum Mode: String, CaseIterable { case original = "Original", cleaned = "Cleaned", summary = "Summary", review = "Review" }
 
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
         if let t = transcript {
-            HStack(alignment: .top, spacing: 28) {
-                VStack(alignment: .leading, spacing: 0) {
-                    header(t)
-                    if !t.speakers.isEmpty { speakerChips(t) }
+            HStack(spacing: 0) {
+                ZStack(alignment: .bottom) {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
-                                if t.status == .processing { processing(t) }
-                                else if t.status == .failed { failed(t) }
-                                else {
-                                    let list = showOriginal ? t.original : t.segments
-                                    ForEach(list.filter { speakerFilter == nil || $0.speaker == speakerFilter }) { s in
-                                        SegmentLine(transcript: t, segment: s, current: isCurrent(s), editable: !showOriginal).id(s.id)
-                                    }
-                                }
+                                header(t).staggerIn(0)
+                                modeBar(t).staggerIn(1).padding(.bottom, 18)
+                                content(t)
                             }
-                            .frame(maxWidth: 600, alignment: .leading)
-                            .padding(.bottom, 24)
+                            .frame(maxWidth: 680, alignment: .leading)
+                            .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, 130)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .onChange(of: app.player.time) { _, now in
                             if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }) {
@@ -35,50 +37,147 @@ struct TranscriptView: View {
                             }
                         }
                     }
-                    if t.audioFileName != nil { playbar(t) }
+                    if t.audioFileName != nil, t.status == .ready { PlayerDock(transcript: t).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                inspector(t).frame(width: 280)
+                .frame(maxWidth: .infinity)
+                if notesOpen {
+                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen)
+                        .frame(width: 300)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
-            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 16)
-            .frame(maxWidth: 1080)
-            .frame(maxWidth: .infinity)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 8) {
+                        Toggle(isOn: $notesOpen.animation(Motion.settle)) { Label("Notes", systemImage: "note.text") }.toggleStyle(.button)
+                        Menu { Button("Smaller text") { textSize = max(13, textSize - 1) }; Button("Larger text") { textSize = min(22, textSize + 1) } } label: { Image(systemName: "textformat.size") }
+                    }
+                }
+            }
             .onAppear { if let u = app.store.audioURL(for: t) { app.player.load(u) } }
             .onDisappear { app.player.stop() }
+            .onKeyPress(.space) { app.player.toggle(); return .handled }
+            .onKeyPress(.leftArrow) { app.player.seek(to: app.player.time - 5); return .handled }
+            .onKeyPress(.rightArrow) { app.player.seek(to: app.player.time + 5); return .handled }
+            .onKeyPress("b") { bookmark(t); return .handled }
         } else {
             Text("This transcript was deleted.").foregroundStyle(Ink.mute)
         }
     }
 
+    private func bookmark(_ t: Transcript) {
+        let at = app.player.time
+        let seg = t.segments.first(where: { at >= $0.start && at < $0.end })
+        app.addNote(transcript: t.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
+    }
+
+    // MARK: Header and mode bar
+
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.update(t.id) { $0.title = v } }))
-                .textFieldStyle(.plain).font(.system(size: 26, weight: .semibold)).foregroundStyle(Ink.ink)
-            HStack(spacing: 12) {
-                Text(t.sourceLabel); Text(t.duration.timecode); Text(t.createdAt, style: .date)
-                if let u = t.sourceURL, let url = URL(string: u) { Link("Open source", destination: url).font(.system(size: 12.5)) }
-                if !t.corrections.isEmpty {
-                    Picker("", selection: $showOriginal) { Text("Corrected").tag(false); Text("Original").tag(true) }
-                        .pickerStyle(.segmented).controlSize(.small).frame(width: 160).labelsHidden()
-                }
+                .textFieldStyle(.plain).font(.system(size: 30, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink).lineLimit(2)
+            HStack(spacing: 8) {
+                Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
+                if !t.speakers.isEmpty { Text("·"); Text("\(t.speakers.count) speakers") }
+                if let u = t.sourceURL, let url = URL(string: u) { Text("·"); Link("Open source", destination: url) }
             }
-            .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+            .font(.system(size: 14)).foregroundStyle(Ink.mute)
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, 16)
     }
 
-    private func speakerChips(_ t: Transcript) -> some View {
-        HStack(spacing: 6) {
-            ForEach(Array(t.speakers.enumerated()), id: \.element.id) { i, sp in
-                SpeakerChip(speaker: sp, selected: speakerFilter == sp.id) {
-                    speakerFilter = speakerFilter == sp.id ? nil : sp.id
-                } rename: { name in app.renameSpeaker(transcript: t.id, speaker: sp.id, to: name) }
-                .staggerIn(i)
+    private func modeBar(_ t: Transcript) -> some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 2) {
+                ForEach(Mode.allCases, id: \.self) { m in
+                    Text(m.rawValue).font(.system(size: 13.5, weight: .semibold))
+                        .padding(.horizontal, 16).padding(.vertical, 7)
+                        .background { if view == m { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "mode", in: segNS) } }
+                        .foregroundStyle(view == m ? .white : Ink.ink)
+                        .tapArea { withAnimation(Motion.snap) { view = m } }
+                }
             }
-            Text("Click a name to rename, click the chip to filter.").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+            .padding(3).background(Color(hex: 0xECE8F3), in: Capsule())
+            Divider().frame(height: 18)
+            HStack(spacing: 5) {
+                Text("Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Image(systemName: "info.circle").font(.system(size: 12)).foregroundStyle(Ink.mute)
+                    .help("The engine's output is stored untouched. Corrections and Cleaned are separate layers you can always compare against it.")
+            }
+            Spacer()
         }
-        .padding(.bottom, 12)
+    }
+
+    // MARK: Content per mode
+
+    @ViewBuilder private func content(_ t: Transcript) -> some View {
+        if t.status == .processing { processing(t) }
+        else if t.status == .failed { failed(t) }
+        else {
+            switch view {
+            case .original: lines(t, segments: t.segments, editable: true)
+            case .cleaned: lines(t, segments: Cleanup.light(t.segments), editable: false)
+            case .summary: placeholder("Summary", "Key points, decisions, and quotes, each linked to the passage it came from. Arrives with the local language model build.")
+            case .review: review(t)
+            }
+        }
+    }
+
+    private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
+                let showSpeaker = s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
+                SegmentLine(transcript: t, segment: s, showSpeaker: showSpeaker, current: isCurrent(s), selected: selectedSegment == s.id, editable: editable, size: textSize) {
+                    selectedSegment = selectedSegment == s.id ? nil : s.id
+                }
+                .id(s.id)
+                .staggerIn(min(i, 12) + 2)
+            }
+        }
+    }
+
+    private func review(_ t: Transcript) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if t.corrections.isEmpty {
+                placeholder("Nothing changed yet", "Corrections you make, and Dictionary fixes, show here side by side with the original so you can accept or undo them.")
+            } else {
+                ForEach(t.corrections) { c in
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: c.byDictionary ? "book.closed.fill" : "pencil").foregroundStyle(Ink.iris).frame(width: 18)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) { Text(c.from).strikethrough().foregroundStyle(Ink.mute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
+                            if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
+                                Text(seg.text).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(2)
+                                Button(seg.start.timecode) { app.player.seek(to: seg.start) }.buttonStyle(.link).font(.system(size: 11, design: .monospaced))
+                            }
+                        }
+                        Spacer()
+                        Button("Undo") { undo(t, c) }.buttonStyle(.bordered).controlSize(.small)
+                    }
+                    .padding(12).background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.06)))
+                }
+            }
+        }
+    }
+
+    private func undo(_ t: Transcript, _ c: Correction) {
+        app.store.update(t.id) { x in
+            if let i = x.segments.firstIndex(where: { $0.id == c.segmentId }) { x.segments[i].text = x.segments[i].text.replacingOccurrences(of: c.to, with: c.from) }
+            x.corrections.removeAll { $0.id == c.id }
+        }
+    }
+
+    private func placeholder(_ title: String, _ body: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VerbieView(pose: .working, tracksPointer: false).frame(width: 46, height: 64)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.system(size: 15, weight: .semibold))
+                Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
+            }
+        }
+        .padding(16).background(Color(hex: 0xF3F0FA), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func isCurrent(_ s: Segment) -> Bool {
@@ -88,19 +187,17 @@ struct TranscriptView: View {
 
     private func processing(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                VerbieView(pose: .working, tracksPointer: false).frame(width: 40, height: 56)
+            HStack(spacing: 12) {
+                VerbieView(pose: .working, tracksPointer: false).frame(width: 46, height: 64)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t.stage ?? "Transcribing").font(.system(size: 14, weight: .semibold))
-                    Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.")
-                        .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    Text(t.stage ?? "Transcribing").font(.system(size: 15, weight: .semibold))
+                    Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 }
             }
             ForEach(0..<4, id: \.self) { i in
                 RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
             }
         }
-        .padding(.top, 8)
     }
 
     private func failed(_ t: Transcript) -> some View {
@@ -112,134 +209,84 @@ struct TranscriptView: View {
                 Button("Retry") { app.retry(t) }.buttonStyle(.borderedProminent).tint(Ink.iris)
             }
         }
-        .padding(.top, 8)
-    }
-
-    private func playbar(_ t: Transcript) -> some View {
-        HStack(spacing: 12) {
-            Button { app.player.toggle() } label: {
-                Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white).frame(width: 30, height: 30).background(Ink.ink, in: Circle())
-            }
-            .buttonStyle(.plain).pressable().keyboardShortcut(.space, modifiers: [])
-            Text("\(app.player.time.timecode) / \(max(app.player.duration, t.duration).timecode)")
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.dim).frame(minWidth: 92, alignment: .leading)
-            Scrubber(progress: app.player.duration > 0 ? app.player.time / app.player.duration : 0) { p in app.player.seek(to: p * app.player.duration) }
-            Menu("\(String(format: "%g", app.player.rate))×") {
-                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } }
-            }
-            .menuStyle(.borderlessButton).frame(width: 56).font(.system(size: 12))
-        }
-        .padding(.top, 12).padding(.bottom, 4)
-        .frame(maxWidth: 600)
-        .background(Ink.paper.opacity(0.92))
-    }
-
-    private func inspector(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Details").font(.system(size: 12, weight: .semibold)).padding(.bottom, 10)
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
-                row("Source", t.sourceLabel)
-                row("Engine", t.model.isEmpty ? "—" : t.model)
-                if let l = t.language { row("Language", l.uppercased()) }
-                row("Speakers", t.speakers.isEmpty ? "Not identified" : "\(t.speakers.count)")
-                row("Words", "\(t.text.split(separator: " ").count)")
-                row("Dictionary", t.corrections.filter(\.byDictionary).isEmpty ? "No fixes" : "\(t.corrections.filter(\.byDictionary).count) fixes")
-                row("Kept", "On this Mac")
-            }
-            .font(.system(size: 12.5))
-
-            Divider().padding(.vertical, 16)
-            Text("Project").font(.system(size: 12, weight: .semibold)).padding(.bottom, 6)
-            Picker("", selection: Binding(get: { t.projectId }, set: { v in app.store.update(t.id) { $0.projectId = v } })) {
-                Text("None").tag(UUID?.none)
-                ForEach(app.store.projects) { p in Text(p.name).tag(UUID?.some(p.id)) }
-            }
-            .labelsHidden().controlSize(.small)
-
-            if !t.corrections.isEmpty {
-                Divider().padding(.vertical, 16)
-                Text("Corrections").font(.system(size: 12, weight: .semibold)).padding(.bottom, 6)
-                ForEach(t.corrections.suffix(8)) { c in
-                    HStack(spacing: 6) {
-                        Text(c.from).strikethrough().foregroundStyle(Ink.mute)
-                        Image(systemName: "arrow.right").font(.system(size: 9))
-                        Text(c.to).fontWeight(.medium)
-                        if c.byDictionary { Image(systemName: "book.closed").font(.system(size: 9)).foregroundStyle(Ink.iris) }
-                    }
-                    .font(.system(size: 12)).padding(.vertical, 2)
-                }
-            }
-
-            Divider().padding(.vertical, 16)
-            Text("Notes").font(.system(size: 12, weight: .semibold)).padding(.bottom, 6)
-            Text("Notes with photos and links arrive in a later build.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-            Spacer()
-            Button(role: .destructive) {
-                app.go(.home)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation(Motion.settle) { app.store.delete(t) } }
-            } label: { Label("Delete transcript", systemImage: "trash") }
-            .buttonStyle(.plain).foregroundStyle(Ink.mute).font(.system(size: 12.5))
-        }
-        .padding(.leading, 22)
-        .overlay(alignment: .leading) { Ink.hairline.frame(width: 1) }
-        .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private func row(_ k: String, _ v: String) -> some View {
-        GridRow {
-            Text(k).foregroundStyle(Ink.mute)
-            Text(v).foregroundStyle(Ink.ink).frame(maxWidth: .infinity, alignment: .trailing)
-        }
     }
 }
 
-/// One transcript line: timecode, optional speaker, text. Double-click a word to correct it.
+/// One line: timecode, speaker only when it changes, text. Click to select (for a passage-linked note),
+/// right-click to correct a word. The current line during playback carries the iris tint.
 struct SegmentLine: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     var segment: Segment
+    var showSpeaker: Bool
     var current: Bool
+    var selected: Bool
     var editable: Bool
+    var size: CGFloat
+    var select: () -> Void
     @State private var fixing: String? = nil
     @State private var replacement = ""
     @State private var remember = true
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Button(segment.start.timecode) { app.player.seek(to: segment.start) }
-                .buttonStyle(.plain).font(.system(size: 11, design: .monospaced)).foregroundStyle(Color(hex: 0x948C80))
-                .frame(width: 52, alignment: .leading).padding(.top, 6)
-            VStack(alignment: .leading, spacing: 2) {
-                if let sp = segment.speaker, let name = transcript.speakerName(sp) {
-                    Menu {
-                        ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
-                        Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
-                    } label: { Text(name).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute) }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                }
-                WrappedWords(text: segment.text) { word in
-                    guard editable else { return }
-                    fixing = word; replacement = word
-                }
-                .font(.system(size: 16)).lineSpacing(6).foregroundStyle(Ink.ink)
-                .padding(.horizontal, 6).padding(.vertical, 1)
-                .background(current ? Ink.irisTint : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Heard as").font(.system(size: 11)).foregroundStyle(Ink.mute) + Text("  \(fixing ?? "")").font(.system(size: 13, weight: .semibold))
-                        TextField("Correct spelling", text: $replacement).textFieldStyle(.roundedBorder).onSubmit { commit() }
-                        Toggle("Remember in Dictionary for future transcripts", isOn: $remember).font(.system(size: 12))
-                        HStack { Spacer(); Button("Cancel") { fixing = nil }; Button("Fix") { commit() }.buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction) }
+        HStack(alignment: .top, spacing: 14) {
+            Text(segment.start.timecode).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color(hex: 0x948C80))
+                .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 26 : 6)
+                .tapArea { app.player.seek(to: segment.start) }
+            VStack(alignment: .leading, spacing: 4) {
+                if showSpeaker, let sp = segment.speaker, let name = transcript.speakerName(sp) {
+                    HStack(spacing: 7) {
+                        Circle().fill(speakerColor(sp)).frame(width: 8, height: 8)
+                        Menu {
+                            ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
+                            Divider()
+                            Button("Rename \(name)…") { }
+                            Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
+                        } label: { Text(name).font(.system(size: 13, weight: .semibold)).foregroundStyle(speakerColor(sp)) }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     }
-                    .padding(14).frame(width: 300)
+                    .padding(.top, 10)
                 }
+                Text(segment.text)
+                    .font(.system(size: size)).lineSpacing(size * 0.4).foregroundStyle(Ink.ink)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(current ? Ink.irisTint : selected ? Color(hex: 0xF3F0FA) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
+                    .contentShape(Rectangle())
+                    .onTapGesture { select() }
+                    .contextMenu {
+                        ForEach(candidates, id: \.self) { w in Button("Correct “\(w)”…") { fixing = w; replacement = w } }
+                        Divider()
+                        Button("Note on this passage") { select(); NotificationCenter.default.post(name: .verbatimFocusNote, object: nil) }
+                        Button("Play from here") { app.player.seek(to: segment.start); if !app.player.isPlaying { app.player.toggle() } }
+                    }
+                    .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack { Text("Heard as").font(.system(size: 11)).foregroundStyle(Ink.mute); Text(fixing ?? "").font(.system(size: 13, weight: .semibold)) }
+                            TextField("Correct spelling", text: $replacement).textFieldStyle(.roundedBorder).onSubmit { commit() }
+                            Toggle("Remember in Dictionary", isOn: $remember).font(.system(size: 12))
+                            HStack { Spacer(); Button("Cancel") { fixing = nil }; Button("Fix") { commit() }.buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction) }
+                        }
+                        .padding(14).frame(width: 300)
+                    }
             }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 3)
         .animation(Motion.settle, value: current)
+        .animation(Motion.snap, value: selected)
     }
 
+    private func speakerColor(_ id: String) -> Color {
+        let palette = [Ink.iris, Ink.coral, Color(hex: 0x4F9A2E), Color(hex: 0x2F7FA0), Color(hex: 0xC08A00)]
+        return palette[max(0, (Int(id.dropFirst()) ?? 1) - 1) % palette.count]
+    }
+    private var candidates: [String] {
+        guard editable else { return [] }
+        let words = segment.text.split { $0 == " " }.map { String($0).trimmingCharacters(in: .punctuationCharacters) }.filter { $0.count > 2 }
+        var seen = Set<String>()
+        return words.filter { seen.insert($0.lowercased()).inserted }.sorted { $0.count > $1.count }.prefix(8).map { $0 }
+    }
     private func commit() {
         guard let from = fixing else { return }
         let to = replacement.trimmingCharacters(in: .whitespaces)
@@ -248,76 +295,231 @@ struct SegmentLine: View {
     }
 }
 
-/// Text that reports which word was double-clicked, without breaking selection or flow.
-struct WrappedWords: View {
-    var text: String
-    var onWord: (String) -> Void
-    var body: some View {
-        Text(text)
-            .textSelection(.enabled)
-            .contextMenu {
-                ForEach(candidates, id: \.self) { w in Button("Correct “\(w)”…") { onWord(w) } }
+extension Notification.Name { static let verbatimFocusNote = Notification.Name("verbatimFocusNote") }
+
+/// Light, deterministic cleanup: fillers out, sentence case, double spaces gone. Never touches names or numbers.
+enum Cleanup {
+    static let fillers = ["um", "uh", "er", "ah", "hmm", "you know,", "i mean,", "like,", "sort of", "kind of"]
+    static func light(_ segs: [Segment]) -> [Segment] {
+        segs.map { s in
+            var t = s.text
+            for f in fillers {
+                t = t.replacingOccurrences(of: "(?i)(^|\\s)" + NSRegularExpression.escapedPattern(for: f) + "(,?)(?=\\s|$)", with: "$1", options: .regularExpression)
             }
-            .help("Right-click a line to correct a word")
-    }
-    /// The first eight distinct words that look like names or unusual spellings, longest first.
-    private var candidates: [String] {
-        let words = text.split { $0 == " " }.map { String($0).trimmingCharacters(in: .punctuationCharacters) }.filter { $0.count > 2 }
-        var seen = Set<String>()
-        return words.filter { seen.insert($0.lowercased()).inserted }.sorted { $0.count > $1.count }.prefix(8).map { $0 }
+            t = t.replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            t = t.replacingOccurrences(of: "\\s,", with: ",", options: .regularExpression)
+            if let f = t.first { t = f.uppercased() + t.dropFirst() }
+            var c = s; c.text = t; return c
+        }.filter { !$0.text.isEmpty }
     }
 }
 
-struct SpeakerChip: View {
-    var speaker: Speaker
-    var selected: Bool
-    var toggle: () -> Void
-    var rename: (String) -> Void
-    @State private var editing = false
-    @State private var draft = ""
+// MARK: - Player dock (Soft Instrument)
+
+struct PlayerDock: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+
     var body: some View {
-        HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            if editing {
-                TextField("Name", text: $draft, onCommit: { rename(draft); editing = false }).textFieldStyle(.plain).frame(width: 90)
-                    .onExitCommand { editing = false }
-            } else {
-                Text(speaker.label).onTapGesture(count: 2) { draft = speaker.name; editing = true }
+        HStack(spacing: 14) {
+            Button { app.player.toggle() } label: {
+                ZStack {
+                    Circle().fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Ink.irisDeep], startPoint: .top, endPoint: .bottom))
+                        .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 3))
+                        .shadow(color: Ink.irisDeep.opacity(0.35), radius: 8, y: 4)
+                    Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 20, weight: .bold)).foregroundStyle(.white).offset(x: app.player.isPlaying ? 0 : 2)
+                }
+                .frame(width: 56, height: 56)
             }
+            .buttonStyle(.plain).pressable().help("Play or pause (Space)")
+
+            HStack(spacing: 4) {
+                Text(app.player.time.timecode).font(.system(size: 14, weight: .medium, design: .monospaced)).foregroundStyle(Ink.ink)
+                Text("/").foregroundStyle(Ink.mute)
+                Text(max(app.player.duration, transcript.duration).timecode).font(.system(size: 14, design: .monospaced)).foregroundStyle(Ink.mute)
+            }
+            .frame(width: 128, alignment: .leading)
+
+            WaveTrack(values: transcript.waveform, progress: app.player.duration > 0 ? app.player.time / app.player.duration : 0,
+                      marks: transcript.notes.filter(\.isBookmark).compactMap { $0.at }.map { $0 / max(transcript.duration, 1) }) { p in
+                app.player.seek(to: p * max(app.player.duration, transcript.duration))
+            }
+            .frame(height: 44)
+
+            Menu { ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } } } label: {
+                Text("\(String(format: "%g", app.player.rate))×").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 8).background(Color(hex: 0xF3F0FA), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+
+            Button {
+                let at = app.player.time
+                let seg = transcript.segments.first(where: { at >= $0.start && at < $0.end })
+                app.addNote(transcript: transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
+            } label: {
+                Image(systemName: "bookmark.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0x4F7D12))
+                    .frame(width: 40, height: 40).background(Ink.limeTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain).pressable().help("Bookmark this moment (B)")
         }
-        .font(.system(size: 12.5, weight: .medium))
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(selected ? Ink.irisTint : Color(hex: 0xEBE5DB), in: Capsule())
-        .foregroundStyle(selected ? Color(hex: 0x3B2FB0) : Ink.ink)
-        .onTapGesture { toggle() }
-        .help("Double-click to rename")
-    }
-    private var color: Color {
-        let palette = [Ink.iris, Ink.coral, Color(hex: 0x7FB83A), Color(hex: 0x2F9E5B), Color(hex: 0xE0A000)]
-        let n = Int(speaker.id.dropFirst()) ?? 1
-        return palette[(n - 1) % palette.count]
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+        .shadow(color: Color(hex: 0x3C328C).opacity(0.16), radius: 18, y: 8)
+        .frame(maxWidth: 760)
     }
 }
 
-/// The playback track: iris fill, white thumb, click or drag to seek.
-struct Scrubber: View {
+/// The waveform track: played portion iris, the rest muted, bookmark ticks in lime, click or drag to seek.
+struct WaveTrack: View {
+    var values: [Float]
     var progress: Double
+    var marks: [Double] = []
     var onSeek: (Double) -> Void
+    @State private var hoverX: CGFloat? = nil
+
     var body: some View {
         GeometryReader { g in
             let w = g.size.width
+            let vals = values.isEmpty ? Array(repeating: Float(0.15), count: 96) : Waveform.resample(values, to: 96)
             ZStack(alignment: .leading) {
-                Capsule().fill(Color(hex: 0xE8E2D8)).frame(height: 6)
-                Capsule().fill(Ink.iris).frame(width: max(6, w * progress), height: 6)
-                Circle().fill(.white).frame(width: 12, height: 12)
-                    .overlay(Circle().strokeBorder(Color.black.opacity(0.1)))
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                    .offset(x: max(0, min(w - 12, w * progress - 6)))
+                WaveformThumb(values: vals).fill(Color(hex: 0xD9D4E6))
+                WaveformThumb(values: vals).fill(Ink.iris)
+                    .mask(alignment: .leading) { Rectangle().frame(width: max(0, w * progress)) }
+                ForEach(Array(marks.enumerated()), id: \.offset) { _, m in
+                    Capsule().fill(Color(hex: 0x7FB83A)).frame(width: 3, height: g.size.height).offset(x: w * m - 1.5)
+                }
+                Rectangle().fill(Ink.ink).frame(width: 2, height: g.size.height + 6).offset(x: max(0, min(w - 2, w * progress - 1)), y: -3)
+                if let hx = hoverX { Rectangle().fill(Ink.iris.opacity(0.25)).frame(width: 1).offset(x: hx) }
             }
-            .frame(height: 28)
             .contentShape(Rectangle())
+            .onContinuousHover { ph in if case .active(let p) = ph { hoverX = p.x } else { hoverX = nil } }
             .gesture(DragGesture(minimumDistance: 0).onChanged { v in onSeek(max(0, min(1, v.location.x / w))) })
         }
-        .frame(height: 28)
+    }
+}
+
+// MARK: - Notes panel
+
+struct NotesPanel: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var selectedSegment: UUID?
+    @Binding var detailsOpen: Bool
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    private var linked: Segment? { selectedSegment.flatMap { id in transcript.segments.first { $0.id == id } } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Notes").font(.system(size: 20, weight: .bold, design: .rounded))
+                Spacer()
+                Text("\(transcript.notes.count)").font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                if let s = linked {
+                    HStack(spacing: 6) {
+                        Image(systemName: "link").font(.system(size: 10, weight: .bold))
+                        Text("On the passage at \(s.start.timecode)").font(.system(size: 11.5, weight: .medium))
+                    }
+                    .foregroundStyle(Ink.iris)
+                }
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle").foregroundStyle(Ink.mute)
+                    TextField(linked == nil ? "Add note… (click a line to link it)" : "Add note on this passage…", text: $draft).textFieldStyle(.plain).font(.system(size: 13.5)).focused($focused).onSubmit(save)
+                }
+                .padding(.horizontal, 12).frame(height: 44)
+                .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Color.black.opacity(0.08)))
+            }
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(Array(transcript.notes.enumerated()), id: \.element.id) { i, n in
+                        NoteCard(note: n, onSeek: { if let at = n.at { app.player.seek(to: at) } }, onDelete: { app.deleteNote(transcript: transcript.id, note: n.id) })
+                            .staggerIn(i)
+                            .transition(.scale(scale: 0.95).combined(with: .opacity))
+                    }
+                    if transcript.notes.isEmpty {
+                        Text("Thoughts, quotes to use, things to check. Press B while listening to bookmark a moment.")
+                            .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.top, 8)
+                    }
+                }
+            }
+            .animation(Motion.bounce, value: transcript.notes.map(\.id))
+            Spacer(minLength: 0)
+            DisclosureGroup(isExpanded: $detailsOpen) {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                    row("Source", transcript.sourceLabel)
+                    row("Engine", transcript.model.isEmpty ? "—" : transcript.model)
+                    if let l = transcript.language { row("Language", l.uppercased()) }
+                    row("Words", "\(transcript.text.split(separator: " ").count)")
+                    row("Dictionary", "\(transcript.corrections.filter(\.byDictionary).count) fixes")
+                    row("Kept", "On this Mac")
+                }
+                .font(.system(size: 12.5)).padding(.top, 6)
+                Picker("Project", selection: Binding(get: { transcript.projectId }, set: { v in app.store.update(transcript.id) { $0.projectId = v } })) {
+                    Text("None").tag(UUID?.none)
+                    ForEach(app.store.projects) { p in Text(p.name).tag(UUID?.some(p.id)) }
+                }
+                .controlSize(.small).padding(.top, 6)
+                Button(role: .destructive) {
+                    app.go(.library)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation(Motion.settle) { app.store.delete(transcript) } }
+                } label: { Label("Delete transcript", systemImage: "trash") }
+                .buttonStyle(.plain).foregroundStyle(Ink.mute).font(.system(size: 12.5)).padding(.top, 8)
+            } label: {
+                HStack(spacing: 8) { Image(systemName: "info.circle"); Text("Details") }.font(.system(size: 13.5, weight: .medium)).foregroundStyle(Ink.ink)
+            }
+        }
+        .padding(18)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: 0xF6F3FB))
+        .overlay(alignment: .leading) { Ink.hairline.frame(width: 1) }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimFocusNote)) { _ in focused = true }
+    }
+
+    private func save() {
+        let t = draft.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        app.addNote(transcript: transcript.id, text: t, at: linked?.start ?? (app.player.time > 0 ? app.player.time : nil), segment: linked?.id)
+        draft = ""
+    }
+
+    private func row(_ k: String, _ v: String) -> some View {
+        GridRow { Text(k).foregroundStyle(Ink.mute); Text(v).foregroundStyle(Ink.ink) }
+    }
+}
+
+struct NoteCard: View {
+    var note: Note
+    var onSeek: () -> Void
+    var onDelete: () -> Void
+    @State private var hover = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                if let at = note.at {
+                    HStack(spacing: 5) {
+                        if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
+                        Text(at.timecode).font(.system(size: 11.5, design: .monospaced))
+                    }
+                    .foregroundStyle(note.isBookmark ? Color(hex: 0x4F7D12) : Ink.iris)
+                    .tapArea(onSeek)
+                }
+                Spacer()
+                Menu { Button("Delete", role: .destructive) { onDelete() } } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 18)
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            }
+            Text(note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).textSelection(.enabled)
+        }
+        .padding(12)
+        .background(note.isBookmark ? Color(hex: 0xF4FAE4) : note.segmentId != nil ? Ink.irisTint : Color(hex: 0xFFF8C8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(hover ? 0.1 : 0.04)))
+        .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
     }
 }

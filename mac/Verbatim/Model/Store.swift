@@ -47,6 +47,26 @@ final class Store: ObservableObject {
             .sorted { $0.createdAt > $1.createdAt }
         projects = (try? Self.dec.decode([Project].self, from: Data(contentsOf: Paths.projectsFile))) ?? []
         dictionary = (try? Self.dec.decode([DictionaryEntry].self, from: Data(contentsOf: Paths.dictionaryFile))) ?? []
+        recoverOrphans()
+    }
+
+    /// A recording whose app died before the transcript was saved still has its WAV on disk. Surface it.
+    private func recoverOrphans() {
+        let fm = FileManager.default
+        let known = Set(transcripts.compactMap(\.audioFileName))
+        let files = (try? fm.contentsOfDirectory(at: Paths.audio, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        for f in files where !known.contains(f.lastPathComponent) && ["wav", "m4a", "mp3", "mp4", "mov", "aiff"].contains(f.pathExtension.lowercased()) {
+            let dur = Player.duration(of: f)
+            guard dur > 1 else { continue }
+            let when = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date()
+            var t = Transcript(title: "Recovered recording", source: .voiceMemo, sourceLabel: "Recovered", duration: dur, audioFileName: f.lastPathComponent, model: "")
+            t.createdAt = when
+            t.status = .failed
+            t.error = "This recording was saved but never transcribed. Right-click to retry."
+            transcripts.append(t)
+            save(t)
+        }
+        transcripts.sort { $0.createdAt > $1.createdAt }
     }
 
     // MARK: Transcripts
@@ -96,17 +116,21 @@ final class Store: ObservableObject {
     }
 
     func addProject(_ name: String) -> Project {
-        let p = Project(name: name); projects.append(p); return p
+        let p = Project(name: name, colorIndex: projects.count % 3); projects.append(p); return p
+    }
+
+    func addNote(_ note: Note, to id: UUID) {
+        update(id) { $0.notes.insert(note, at: 0) }
     }
 
     /// Adds a dictionary entry or extends an existing one with a new "heard as" form.
-    func remember(preferred: String, heardAs: String, from source: String) {
-        if let i = dictionary.firstIndex(where: { $0.preferred.caseInsensitiveCompare(preferred) == .orderedSame }) {
+    func remember(preferred: String, heardAs: String, from source: String, project: UUID? = nil) {
+        if let i = dictionary.firstIndex(where: { $0.preferred.caseInsensitiveCompare(preferred) == .orderedSame && $0.projectId == project }) {
             if !dictionary[i].heardAs.contains(where: { $0.caseInsensitiveCompare(heardAs) == .orderedSame }) {
                 dictionary[i].heardAs.append(heardAs)
             }
         } else {
-            dictionary.append(DictionaryEntry(preferred: preferred, heardAs: [heardAs], learnedFrom: source))
+            dictionary.append(DictionaryEntry(preferred: preferred, heardAs: [heardAs], learnedFrom: source, projectId: project))
         }
     }
 

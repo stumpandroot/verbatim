@@ -28,9 +28,12 @@ enum UITest {
             }
 
             await step("click row opens transcript", window) { click("row-0", in: window) } check: { if case .transcript = app.screen { return true } else { return false } }
-            await step("sidebar All transcripts goes home", window) { click("side-home", in: window) } check: { app.screen == .home }
+            await step("sidebar Home goes home", window) { click("side-home", in: window) } check: { app.screen == .home }
+            await step("sidebar Library opens library", window) { click("side-library", in: window) } check: { app.screen == .library }
             await step("sidebar Dictionary opens dictionary", window) { click("side-dict", in: window) } check: { app.screen == .dictionary }
             await step("sidebar home again (one click)", window) { click("side-home", in: window) } check: { app.screen == .home }
+            await step("mode switch to Dictate", window) { click("mode-dictate", in: window) } check: { app.captureMode == "dictate" }
+            await step("mode switch back to Voice note", window) { click("mode-voice", in: window) } check: { app.captureMode == "voice" }
             await step("record tile asks for the mic or records", window) { click("tile-record", in: window) } check: { app.showMicSheet || app.recorder.isRecording }
             if app.showMicSheet {
                 await step("mic sheet Not now closes it", window) { click("sheet-notnow", in: window) } check: { !app.showMicSheet }
@@ -40,8 +43,6 @@ enum UITest {
             await step("app tile opens the picker", window) { click("tile-app", in: window) } check: { app.showAppPicker }
             app.showAppPicker = false
             try? await Task.sleep(nanoseconds: 400_000_000)
-            await step("welcome card dismisses", window) { click("hero-x", in: window) } check: { app.heroDismissed }
-            app.heroDismissed = false
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
             await step("row opens transcript again", window) { click("row-0", in: window) } check: { if case .transcript = app.screen { return true } else { return false } }
 

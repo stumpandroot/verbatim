@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 enum Screen: Equatable {
     case home
+    case library
     case transcript(UUID)
     case dictionary
 }
@@ -34,12 +35,15 @@ final class AppState: ObservableObject {
     @Changed("identifySpeakers") var identifySpeakers = true
     @Changed("applyDictionary") var applyDictionary = true
     @Changed("heroDismissed") var heroDismissed = false
+    @Changed("projectVocab") var projectScopedVocabulary = false
+    @Changed("captureMode") var captureMode = "voice"      // "voice" | "dictate"
     @Changed("sounds") var sounds = true { didSet { Sounds.enabled = sounds } }
 
     let store = Store()
     let recorder = Recorder()
     let player = Player()
     let capture = AppAudioCapture()
+    let dictation = DictationController()
 
     private var bag = Set<AnyCancellable>()
 
@@ -47,9 +51,11 @@ final class AppState: ObservableObject {
         Sounds.enabled = sounds
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
         for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
-                  player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher()] {
+                  player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher(),
+                  dictation.objectWillChange.eraseToAnyPublisher()] {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
+        dictation.attach(self)
     }
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
@@ -59,7 +65,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "dictionary": 1]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "dictionary": 2]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -76,7 +82,7 @@ final class AppState: ObservableObject {
     func goHome() { go(.home) }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
+        switch s { case .home: return "home"; case .library: return "library"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
     }
 
     // MARK: Recording (microphone)
@@ -119,9 +125,12 @@ final class AppState: ObservableObject {
     }
 
     func stopRecording() {
-        guard let (url, duration) = recorder.stop() else { return }
-        let t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
+        guard let stopped = recorder.stop() else { return }
+        let (url, duration, env) = stopped
+        guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); verbiePose = .ready; return }
+        var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
                            duration: duration, audioFileName: url.lastPathComponent, model: "")
+        t.waveform = env
         enqueue(t)
     }
 
@@ -227,6 +236,8 @@ final class AppState: ObservableObject {
         let (engineId, model) = engineChoice
         let wantSpeakers = identifySpeakers
         let dict = applyDictionary ? store.dictionary : []
+        let project = t.projectId
+        let needWave = t.waveform.isEmpty
         Log.note("transcribe start engine=\(engineId) model=\(model) file=\(url.lastPathComponent)")
         let progress: @Sendable (EngineProgress) -> Void = { p in
             Task { @MainActor in self.store.update(id) { $0.stage = p.label } }
@@ -251,8 +262,9 @@ final class AppState: ObservableObject {
                 var corrections: [Correction] = []
                 if !dict.isEmpty {
                     progress(.applyingDictionary)
-                    corrections = DictionaryApplier.apply(dict, to: &fixed)
+                    corrections = DictionaryApplier.apply(dict, to: &fixed, project: project)
                 }
+                let wave = needWave ? Waveform.envelope(of: url) : []
                 let r = result
                 await MainActor.run {
                     self.store.update(id) { x in
@@ -265,6 +277,7 @@ final class AppState: ObservableObject {
                         x.engine = r.engine
                         x.model = r.model
                         x.language = r.language
+                        if !wave.isEmpty { x.waveform = wave }
                         if x.source == .voiceMemo || x.source == .app, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                     }
                     self.verbiePose = .saved
@@ -294,9 +307,18 @@ final class AppState: ObservableObject {
             t.corrections.append(Correction(segmentId: sid, from: from, to: to, byDictionary: false))
         }
         if remember, let t = store.transcript(id) {
-            store.remember(preferred: to, heardAs: from, from: t.title)
-            toast = Toast("\(to) added to Dictionary")
+            store.remember(preferred: to, heardAs: from, from: t.title, project: projectScopedVocabulary ? t.projectId : nil)
+            toast = Toast("\(to) added to Dictionary" + (projectScopedVocabulary && t.projectId != nil ? " for this project" : ""))
         }
+    }
+
+    func addNote(transcript id: UUID, text: String, at: Double?, segment: UUID?, bookmark: Bool = false) {
+        store.addNote(Note(text: text, at: at, segmentId: segment, isBookmark: bookmark), to: id)
+        toast = Toast(bookmark ? "Bookmarked \((at ?? 0).timecode)" : "Note added")
+    }
+
+    func deleteNote(transcript id: UUID, note nid: UUID) {
+        store.update(id) { $0.notes.removeAll { $0.id == nid } }
     }
 
     func renameSpeaker(transcript id: UUID, speaker sid: String, to name: String) {

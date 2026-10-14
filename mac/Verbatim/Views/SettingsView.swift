@@ -7,6 +7,7 @@ struct SettingsView: View {
         TabView {
             general.tabItem { Label("General", systemImage: "gearshape") }
             transcription.tabItem { Label("Transcription", systemImage: "text.alignleft") }
+            DictationSettings().tabItem { Label("Dictate", systemImage: "keyboard") }
             storage.tabItem { Label("Storage", systemImage: "externaldrive") }
         }
         .frame(width: 560)
@@ -67,6 +68,56 @@ struct SettingsView: View {
             Text(Paths.root.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.mute)
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Dictate: the hold-to-talk hotkey, Accessibility status, and project vocabulary.
+struct DictationSettings: View {
+    @EnvironmentObject var app: AppState
+    var body: some View { DictationForm(dictation: app.dictation) }
+}
+
+struct DictationForm: View {
+    @EnvironmentObject var app: AppState
+    @ObservedObject var dictation: DictationController
+    @State private var trusted = false
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Dictate anywhere", isOn: $dictation.enabled)
+                Picker("Hold to talk", selection: $dictation.hotkey) {
+                    ForEach(DictationController.Hotkey.allCases) { Text($0.title).tag($0) }
+                }
+                Text("Hold the key in any app, speak, let go. The words are transcribed on this Mac and pasted where your cursor is. Recordings shorter than half a second are dropped.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section {
+                LabeledContent("Accessibility access") {
+                    HStack(spacing: 8) {
+                        Circle().fill(trusted ? Ink.lime : Ink.coral).frame(width: 8, height: 8)
+                        Text(trusted ? "Allowed" : "Needed")
+                        if !trusted {
+                            Button("Allow…") { dictation.requestAccessibility() }
+                            Button("Open System Settings") { dictation.openAccessibilitySettings() }
+                        }
+                    }
+                }
+                Text("macOS requires this so Verbatim can notice the hold key and press ⌘V in the other app. Nothing is read from other apps.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section {
+                Toggle("Project vocabulary", isOn: $app.projectScopedVocabulary)
+                Text("Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { trusted = dictation.accessibilityTrusted }
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+            let now = dictation.accessibilityTrusted
+            if now != trusted { trusted = now; dictation.refreshMonitors() }
+        }
     }
 }
 

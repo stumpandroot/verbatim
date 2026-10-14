@@ -8,7 +8,7 @@ struct ContentView: View {
     var body: some View {
         HStack(spacing: 0) {
             if sidebarOpen {
-                Sidebar().frame(width: 212).transition(.move(edge: .leading).combined(with: .opacity))
+                Sidebar().frame(width: 236).transition(.move(edge: .leading).combined(with: .opacity))
             }
             ZStack {
                 Ink.paper
@@ -27,13 +27,11 @@ struct ContentView: View {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 8) {
                     if case .transcript(let id) = app.screen, let t = app.store.transcript(id) { ExportMenu(transcript: t) }
-                    Button { app.go(.home); app.focusLink.toggle() } label: { Label("New", systemImage: "plus") }
-                        .buttonStyle(.borderedProminent).tint(Ink.ink)
                 }
             }
         }
         .searchable(text: $app.search, placement: .toolbar, prompt: "Search transcripts")
-        .onChange(of: app.search) { _, v in if !v.isEmpty, case .transcript = app.screen { app.go(.home) } }
+        .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
@@ -42,7 +40,8 @@ struct ContentView: View {
 
     private var title: String {
         switch app.screen {
-        case .home: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Verbatim"
+        case .home: return "Verbatim"
+        case .library: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library"
         case .dictionary: return "Dictionary"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
         }
@@ -51,6 +50,7 @@ struct ContentView: View {
     private var screenKey: String {
         switch app.screen {
         case .home: return "home"
+        case .library: return "library"
         case .dictionary: return "dict"
         case .transcript(let id): return "t-\(id)"
         }
@@ -59,6 +59,7 @@ struct ContentView: View {
     @ViewBuilder private var screenView: some View {
         switch app.screen {
         case .home: HomeView()
+        case .library: LibraryView()
         case .dictionary: DictionaryView()
         case .transcript(let id): TranscriptView(id: id)
         }
@@ -84,56 +85,60 @@ struct Sidebar: View {
     @Namespace private var pill
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                BrandMark().frame(width: 24, height: 24)
-                Text("Verbatim").font(.system(size: 14, weight: .bold, design: .rounded))
-            }
-            .padding(.horizontal, 9).padding(.top, 10).padding(.bottom, 10)
-
-            SideItem(label: "All transcripts", symbol: "house", selected: app.screen == .home && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.home) }
-                .uiTarget("side-home")
-            SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
-                .uiTarget("side-dict")
-
-            HStack {
-                Text("Projects").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.mute)
-                Spacer()
-                Button { newProject = true } label: { Image(systemName: "plus").font(.system(size: 10, weight: .bold)) }.buttonStyle(.plain).foregroundStyle(Ink.mute)
-            }
-            .padding(.horizontal, 9).padding(.top, 16).padding(.bottom, 6)
-            ForEach(app.store.projects) { p in
-                SideItem(label: p.name, symbol: "folder", selected: app.screen == .home && app.projectFilter == p.id,
-                         badge: { let n = app.store.transcripts.filter { $0.projectId == p.id }.count; return n > 0 ? "\(n)" : nil }(), pill: pill) {
-                    app.projectFilter = p.id; app.go(.home)
+        ZStack(alignment: .bottomLeading) {
+            Scribble().stroke(Ink.iris.opacity(0.10), style: StrokeStyle(lineWidth: 26, lineCap: .round, lineJoin: .round))
+                .frame(width: 300, height: 110).rotationEffect(.degrees(-12)).offset(x: -60, y: -120).allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 10) {
+                    BrandMark().frame(width: 28, height: 28)
+                    Text("Verbatim").font(.system(size: 18, weight: .bold, design: .rounded))
                 }
-                .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
-            }
-            if app.store.projects.isEmpty && !newProject {
-                Text("Group transcripts by client or job.").font(.system(size: 11.5)).foregroundStyle(Ink.mute).padding(.horizontal, 9)
-            }
-            if newProject {
-                TextField("Project name", text: $projectName, onCommit: {
-                    let n = projectName.trimmingCharacters(in: .whitespaces)
-                    if !n.isEmpty { app.projectFilter = app.store.addProject(n).id; app.go(.home) }
-                    projectName = ""; newProject = false
-                })
-                .textFieldStyle(.roundedBorder).font(.system(size: 12.5)).padding(.horizontal, 6)
-                .onExitCommand { newProject = false; projectName = "" }
-            }
+                .padding(.horizontal, 9).padding(.top, 8).padding(.bottom, 18)
 
-            Spacer()
-            SettingsLink {
-                HStack { Image(systemName: "gearshape"); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
-                    .padding(.horizontal, 9).padding(.vertical, 6)
+                SideItem(label: "Home", symbol: "house", selected: app.screen == .home, pill: pill) { app.go(.home) }
+                    .uiTarget("side-home")
+                SideItem(label: "Library", symbol: "square.text.square", selected: app.screen == .library && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.library) }
+                    .uiTarget("side-library")
+                SideItem(label: "Dictionary", symbol: "book.closed", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
+                    .uiTarget("side-dict")
+
+                Divider().padding(.vertical, 12).padding(.horizontal, 6)
+                HStack {
+                    Text("Projects").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
+                    Spacer()
+                    Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 22).tapArea { newProject = true }
+                }
+                .padding(.horizontal, 9).padding(.bottom, 4)
+                ForEach(app.store.projects) { p in
+                    SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.coral, Color(hex: 0x9CCB44), Ink.iris][p.colorIndex % 3],
+                             selected: app.screen == .library && app.projectFilter == p.id, pill: pill) { app.projectFilter = p.id; app.go(.library) }
+                        .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
+                }
+                if app.store.projects.isEmpty && !newProject {
+                    Text("Group transcripts by client or job.").font(.system(size: 11.5)).foregroundStyle(Ink.mute).padding(.horizontal, 9).padding(.top, 2)
+                }
+                if newProject {
+                    TextField("Project name", text: $projectName, onCommit: {
+                        let n = projectName.trimmingCharacters(in: .whitespaces)
+                        if !n.isEmpty { app.projectFilter = app.store.addProject(n).id; app.go(.library) }
+                        projectName = ""; newProject = false
+                    })
+                    .textFieldStyle(.roundedBorder).font(.system(size: 12.5)).padding(.horizontal, 6)
+                    .onExitCommand { newProject = false; projectName = "" }
+                }
+                Spacer()
+                SettingsLink {
+                    HStack { Image(systemName: "gearshape").frame(width: 17); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
+                        .padding(.horizontal, 9).padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(12)
         }
-        .padding(10)
-        .font(.system(size: 13))
+        .font(.system(size: 14))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Ink.side)
+        .background(Color(hex: 0xF1EDFA))
         .overlay(alignment: .trailing) { Ink.hairline.frame(width: 1) }
     }
 }
@@ -141,6 +146,7 @@ struct Sidebar: View {
 struct SideItem: View {
     var label: String
     var symbol: String?
+    var symbolColor: Color? = nil
     var selected: Bool
     var badge: String? = nil
     var pill: Namespace.ID
@@ -149,7 +155,7 @@ struct SideItem: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            if let s = symbol { Image(systemName: s).frame(width: 17) }
+            if let s = symbol { Image(systemName: s).frame(width: 18).foregroundStyle(symbolColor ?? (selected ? Color(hex: 0x3B2FB0) : Ink.ink)) }
             Text(label).lineLimit(1)
             Spacer(minLength: 0)
             if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
@@ -181,9 +187,9 @@ struct BrandMark: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Color(hex: 0x5D48D8)], startPoint: .topLeading, endPoint: .bottomTrailing))
             HStack(alignment: .bottom, spacing: 2) {
-                Capsule().fill(.white).frame(width: 3, height: 13)
-                Capsule().fill(Color(hex: 0xFF8A6A)).frame(width: 3, height: 9)
-                Capsule().fill(Color(hex: 0xC4EA7E)).frame(width: 3, height: 6)
+                Capsule().fill(.white).frame(width: 3.5, height: 14)
+                Capsule().fill(Color(hex: 0xFF8A6A)).frame(width: 3.5, height: 10)
+                Capsule().fill(Color(hex: 0xC4EA7E)).frame(width: 3.5, height: 7)
             }
             .padding(.bottom, 5)
         }
