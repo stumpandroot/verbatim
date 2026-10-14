@@ -9,7 +9,7 @@ struct ContentView: View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
         return HStack(spacing: 0) {
             if sidebarOpen {
-                Sidebar().frame(width: 236).transition(.move(edge: .leading).combined(with: .opacity))
+                Sidebar().frame(width: 236).transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .identity))
             }
             ZStack {
                 Ink.paper
@@ -278,7 +278,7 @@ struct ToastView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: 520)
             .padding(.bottom, 24)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))
             .task(id: t.id) {
                 try? await Task.sleep(nanoseconds: 4_500_000_000)
                 if app.toast == t { withAnimation(Motion.settle) { app.toast = nil } }

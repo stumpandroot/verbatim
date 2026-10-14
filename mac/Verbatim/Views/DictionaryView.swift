@@ -45,7 +45,7 @@ struct DictionaryView: View {
                     .padding(12).background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
                     .padding(.bottom, 12)
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+                    .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
                 }
 
                 if entries.isEmpty {

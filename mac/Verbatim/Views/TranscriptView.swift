@@ -47,7 +47,7 @@ struct TranscriptView: View {
                 if notesOpen && !narrow {
                     NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.settle) { notesOpen = false } })
                         .frame(width: 300)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
             }
             .overlay(alignment: .trailing) {
@@ -56,7 +56,7 @@ struct TranscriptView: View {
                     NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.settle) { notesOpen = false } })
                         .frame(width: 300)
                         .shadow(color: .black.opacity(0.12), radius: 24, x: -6)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
             }
             .animation(Motion.settle, value: narrow)
@@ -497,7 +497,7 @@ struct NotesPanel: View {
                     ForEach(Array(transcript.notes.enumerated()), id: \.element.id) { i, n in
                         NoteCard(note: n, onSeek: { if let at = n.at { app.player.seek(to: at) } }, onDelete: { app.deleteNote(transcript: transcript.id, note: n.id) })
                             .staggerIn(i)
-                            .transition(.scale(scale: 0.95).combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .identity))
                     }
                     if transcript.notes.isEmpty {
                         Text("Thoughts, quotes to use, things to check. Press B while listening to bookmark a moment.")

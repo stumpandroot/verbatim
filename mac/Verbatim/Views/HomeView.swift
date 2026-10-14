@@ -43,7 +43,7 @@ struct HomeView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.iris.opacity(0.18)))
                     .padding(.top, 10)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .identity))
                 }
 
                 Rectangle().fill(Ink.hairline).frame(height: 1).padding(.top, 24)
@@ -544,7 +544,7 @@ struct RecordPanel: View {
         .background(Color.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.coral.opacity(0.35)))
         .shadow(color: Ink.ink.opacity(0.06), radius: 12, y: 4)
-        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
     }
 }
 
@@ -561,7 +561,7 @@ struct CapturePanel: View {
         .frame(height: 82)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.iris.opacity(0.3)))
-        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
     }
 }
 
@@ -623,7 +623,7 @@ struct HistoryRow: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.black.opacity(0.06)))
         }
         .onHover { hover = $0 }
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .identity))
     }
 
     private var placeholder: [Float] { (0..<48).map { _ in Float.random(in: 0.08...0.25) } }
