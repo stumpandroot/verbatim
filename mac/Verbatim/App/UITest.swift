@@ -45,25 +45,25 @@ enum UITest {
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
 
-            await step("click row opens transcript", window, target: "row-0") check: { if case .transcript = app.screen { return true } else { return false } }
-            await step("sidebar Home goes home", window, target: "side-home") check: { app.screen == .home }
-            await step("sidebar Library opens library", window, target: "side-library") check: { app.screen == .library }
-            await step("sidebar Dictionary opens dictionary", window, target: "side-dict") check: { app.screen == .dictionary }
-            await step("sidebar home again (one click)", window, target: "side-home") check: { app.screen == .home }
+            await step("click row opens transcript", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
+            await step("sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
+            await step("sidebar Library opens library", window, target: "side-library", check: { app.screen == .library })
+            await step("sidebar Dictionary opens dictionary", window, target: "side-dict", check: { app.screen == .dictionary })
+            await step("sidebar home again (one click)", window, target: "side-home", check: { app.screen == .home })
             try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
-            await step("mode switch to Dictate", window, target: "mode-dictate") check: { app.captureMode == "dictate" }
-            await step("mode switch back to Voice note", window, target: "mode-voice") check: { app.captureMode == "voice" }
-            await step("record tile asks for the mic or records", window, target: "tile-record") check: { app.showMicSheet || app.recorder.isRecording }
+            await step("mode switch to Dictate", window, target: "mode-dictate", check: { app.captureMode == "dictate" })
+            await step("mode switch back to Voice note", window, target: "mode-voice", check: { app.captureMode == "voice" })
+            await step("record tile asks for the mic or records", window, target: "tile-record", check: { app.showMicSheet || app.recorder.isRecording })
             if app.showMicSheet {
-                await step("mic sheet Not now closes it", window, target: "sheet-notnow") check: { !app.showMicSheet }
+                await step("mic sheet Not now closes it", window, target: "sheet-notnow", check: { !app.showMicSheet })
             } else if app.recorder.isRecording {
                 _ = app.recorder.stop()
             }
-            await step("app tile opens the picker", window, target: "tile-app") check: { app.showAppPicker }
+            await step("app tile opens the picker", window, target: "tile-app", check: { app.showAppPicker })
             app.showAppPicker = false
             try? await Task.sleep(nanoseconds: 400_000_000)
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
-            await step("row opens transcript again", window, target: "row-0") check: { if case .transcript = app.screen { return true } else { return false } }
+            await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             // CI screenshots the transcript now, then Home a few seconds later.
