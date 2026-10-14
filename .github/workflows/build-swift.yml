@@ -86,6 +86,7 @@ jobs:
           perl -e 'alarm 25; exec @ARGV' sample "$PID" 3 -file "$OUT/sample-${GITHUB_RUN_NUMBER}.txt" || echo "sample timed out" > "$OUT/sample-${GITHUB_RUN_NUMBER}.txt"
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
           cp "$HOME/Library/Logs/Verbatim/native.log" "$OUT/native-${GITHUB_RUN_NUMBER}.log" || true
+          for f in "$HOME/Library/Logs/Verbatim"/uitest-*.png; do [ -f "$f" ] && cp "$f" "$OUT/$(basename "${f%.png}")-${GITHUB_RUN_NUMBER}.png"; done
           pkill -9 -x Verbatim || true
           sleep 3
           # A crash on launch leaves a report here; keep it so the failure is readable without artifact storage.

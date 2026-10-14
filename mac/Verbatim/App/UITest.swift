@@ -33,6 +33,7 @@ enum UITest {
             await step("sidebar Dictionary opens dictionary", window) { click("side-dict", in: window) } check: { app.screen == .dictionary }
             await step("sidebar home again (one click)", window) { click("side-home", in: window) } check: { app.screen == .home }
             try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
+            snapshot(window, name: "uitest-home")
             await step("mode switch to Dictate", window) { click("mode-dictate", in: window) } check: { app.captureMode == "dictate" }
             await step("mode switch back to Voice note", window) { click("mode-voice", in: window) } check: { app.captureMode == "voice" }
             await step("record tile asks for the mic or records", window) { click("tile-record", in: window) } check: { app.showMicSheet || app.recorder.isRecording }
@@ -51,6 +52,16 @@ enum UITest {
         }
     }
 
+    /// Renders the window's own view tree to a PNG beside native.log (no screen-recording permission needed).
+    static func snapshot(_ window: NSWindow, name: String) {
+        guard let v = window.contentView, let rep = v.bitmapImageRepForCachingDisplay(v.bounds) else { return }
+        v.cacheDisplay(in: v.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else { return }
+        let url = Log.file.deletingLastPathComponent().appendingPathComponent("\(name).png")
+        try? png.write(to: url)
+        Log.note("UITEST snapshot \(url.lastPathComponent)")
+    }
+
     private static func step(_ name: String, _ window: NSWindow, act: () -> Void, check: () -> Bool) async {
         act()
         try? await Task.sleep(nanoseconds: 900_000_000)
@@ -64,7 +75,10 @@ enum UITest {
         let window = id.hasPrefix("sheet-") ? (main.attachedSheet ?? main) : main
         guard let f = frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
         let p = CGPoint(x: f.midX, y: content.bounds.height - f.midY)   // SwiftUI global (top-left) -> NSWindow (bottom-left)
-        let under = content.hitTest(p).map { String(describing: type(of: $0)) } ?? "nil"
+        var chain: [String] = []
+        var v = content.hitTest(p)
+        while let x = v, chain.count < 7 { chain.append("\(type(of: x))[\(Int(x.frame.minX)),\(Int(x.frame.minY)) \(Int(x.frame.width))x\(Int(x.frame.height))]"); v = x.superview }
+        let under = chain.joined(separator: " < ")
         Log.note("UITEST click \(id) frame=\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)) point=\(Int(p.x)),\(Int(p.y)) content=\(Int(content.bounds.width))x\(Int(content.bounds.height)) under=\(under)")
         let t = ProcessInfo.processInfo.systemUptime
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
