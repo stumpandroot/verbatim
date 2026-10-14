@@ -107,6 +107,8 @@ enum Exporter {
 
     static func render(_ t: Transcript, as f: ExportFormat) -> String {
         switch f {
+        case .docx:
+            return text(t, ExportOptions())
         case .txt:
             return t.segments.map { "[\($0.start.timecode)] " + speakerPrefix(t, $0) + $0.text }.joined(separator: "\n") + provenance(t)
         case .srt:
