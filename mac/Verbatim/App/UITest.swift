@@ -54,6 +54,7 @@ enum UITest {
             try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
             await step("Dictate opens its panel", window, target: "mode-dictate", check: { app.captureMode == "dictate" })
             app.captureMode = "voice"                                   // close the panel before the next click
+            Log.note("UITEST after dictate step captureMode=\(app.captureMode)")
             try? await Task.sleep(nanoseconds: 600_000_000)
             await step("record tile asks for the mic or records", window, target: "tile-record", check: { app.showMicSheet || app.recorder.isRecording })
             if app.showMicSheet {
@@ -76,6 +77,7 @@ enum UITest {
 
     /// Walks every screen with richer seeded data. CI watches `show.txt` and captures each name.
     private static func tour(app: AppState, window: NSWindow) async {
+        appRef = app
         seedRich(app)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
@@ -115,10 +117,11 @@ enum UITest {
         write(show: "done")
     }
 
+    static weak var appRef: AppState?
     private static func show(_ name: String) async {
         try? await Task.sleep(nanoseconds: 1_200_000_000)   // let transitions settle
         write(show: name)
-        Log.note("UITEST show \(name)")
+        Log.note("UITEST show \(name) captureMode=\(appRef?.captureMode ?? "?") screen=\(String(describing: appRef?.screen))")
         try? await Task.sleep(nanoseconds: 2_500_000_000)   // CI captures in this window
     }
 
