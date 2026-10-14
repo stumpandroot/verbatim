@@ -6,7 +6,8 @@ struct ContentView: View {
     @State private var sidebarOpen = true
 
     var body: some View {
-        HStack(spacing: 0) {
+        if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
+        return HStack(spacing: 0) {
             if sidebarOpen {
                 Sidebar().frame(width: 236).transition(.move(edge: .leading).combined(with: .opacity))
             }

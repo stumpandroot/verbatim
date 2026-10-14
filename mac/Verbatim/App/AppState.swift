@@ -79,6 +79,7 @@ final class AppState: ObservableObject {
             direction = b > a ? .up : .down
         }
         navCount += 1
+        if UITest.enabled { Log.note("UITEST go \(key(next)) nav=\(navCount)") }
         withAnimation(Motion.settle) { screen = next }
     }
 
