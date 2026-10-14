@@ -103,6 +103,16 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
         await show("06b-document")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
+        // Performance probe: open a long transcript from Home and log how long the screen takes.
+        let long = seedLong(app)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        app.go(.transcript(long))
+        await show("06c-long-transcript")
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        app.go(.transcript(long))
+        try? await Task.sleep(nanoseconds: 800_000_000)
         app.go(.dictionary)
         await show("07-dictionary")
         app.dictation.previewPill(seconds: 4)
@@ -163,6 +173,22 @@ enum UITest {
         app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: t.segments[2].id, isBookmark: false), to: t.id)
         app.store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: t.segments[5].id, isBookmark: true), to: t.id)
         app.store.addNote(Note(text: "Quote for the one-page sheet: separate line item.", at: nil, segmentId: nil, isBookmark: false), to: t.id)
+    }
+
+    /// A one-hour-style transcript: 600 segments, two speakers, no audio.
+    private static func seedLong(_ app: AppState) -> UUID {
+        if let t = app.store.transcripts.first(where: { $0.title == "Long interview (perf)" }) { return t.id }
+        var t = Transcript(title: "Long interview (perf)", source: .file, sourceLabel: "MP3 file", duration: 3600, audioFileName: nil, model: "Parakeet TDT v3")
+        let lines = ["So the first thing we talked about was the catalog and how the wheels should lead it.",
+                     "Right, and the folding wagon needs its own spread because that's what people ask about.",
+                     "We can shoot the wheels on white and the wagons out in the field by the shop.",
+                     "The dealer in Lititz wants a one-page sheet with the same photos and trimmed copy."]
+        t.segments = (0..<600).map { i in Segment(start: Double(i) * 6, end: Double(i) * 6 + 5.5, text: lines[i % 4], speaker: i % 3 == 0 ? "S2" : "S1") }
+        t.original = t.segments
+        t.speakers = [Speaker(id: "S1", name: "Tim"), Speaker(id: "S2", name: "Guest")]
+        t.createdAt = Date().addingTimeInterval(-86_400 * 3)
+        app.store.add(t)
+        return t.id
     }
 
     /// Writes a 16 kHz mono WAV with a speech-like amplitude envelope.

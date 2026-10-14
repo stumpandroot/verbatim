@@ -43,6 +43,8 @@ extension View { func hoverChip(radius: CGFloat = 7) -> some View { modifier(Hov
 enum Motion {
     static let touch = Animation.spring(duration: 0.15, bounce: 0)
     static let settle = Animation.spring(duration: 0.35, bounce: 0.05)
+    /// Screen changes: short and flat, per the brief (120–180 ms, minimal movement).
+    static let nav = Animation.spring(duration: 0.18, bounce: 0)
     static let snap = Animation.spring(duration: 0.3, bounce: 0.25)
     static let bounce = Animation.spring(duration: 0.5, bounce: 0.4)
     static let hero = Animation.spring(duration: 0.7, bounce: 0.35)
@@ -230,14 +232,14 @@ struct Pill: View {
 
 /// Entrance stagger: each element rises 6 pt and fades in, 35 ms after the previous one (first at 0).
 struct StaggerIn: ViewModifier {
-    var index: Int
+    var index: Int          // negative = no entrance animation
     @State private var shown = false
     @Environment(\.accessibilityReduceMotion) private var reduce
     func body(content: Content) -> some View {
         content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown || reduce ? 0 : 6)
-            .onAppear { withAnimation(Motion.bounce.delay(Double(index) * 0.035)) { shown = true } }
+            .opacity(shown || index < 0 ? 1 : 0)
+            .offset(y: shown || reduce || index < 0 ? 0 : 6)
+            .onAppear { if index >= 0 { withAnimation(Motion.bounce.delay(Double(index) * 0.03)) { shown = true } } }
     }
 }
 extension View { func staggerIn(_ index: Int) -> some View { modifier(StaggerIn(index: index)) } }

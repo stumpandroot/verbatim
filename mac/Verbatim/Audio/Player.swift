@@ -24,6 +24,27 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var player: AVAudioPlayer?
     private var timer: Timer?
 
+    /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it.
+    func loadAsync(_ url: URL) {
+        if loadedURL == url, player != nil { return }
+        stop()
+        loadedURL = url
+        let r = rate
+        Task.detached(priority: .userInitiated) {
+            let p = try? AVAudioPlayer(contentsOf: url)
+            p?.enableRate = true
+            p?.rate = r
+            p?.prepareToPlay()
+            await MainActor.run {
+                guard self.loadedURL == url, let p else { return }
+                p.delegate = self
+                self.player = p
+                self.duration = p.duration
+                self.time = 0
+            }
+        }
+    }
+
     func load(_ url: URL) {
         if loadedURL == url, player != nil { return }
         stop()

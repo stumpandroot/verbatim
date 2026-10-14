@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
     var screen: Screen { nav.screen }
     var direction: SlideDirection { nav.direction }
     var navCount: Int { nav.count }
+    var navStartedAt = Date()
     @Changed var search = ""
     @Changed var projectFilter: UUID? = nil
     @Changed var focusLink = false
@@ -95,6 +96,7 @@ final class AppState: ObservableObject {
         if UITest.enabled { Log.note("UITEST go \(key(next)) nav=\(nav.count + 1)") }
         // No withAnimation here: the container animates on `navCount`, so a publish made just before this
         // (a project filter, a search) can't trigger a flush that strands the screen change.
+        navStartedAt = Date()
         nav = Nav(screen: next, direction: direction, count: nav.count + 1)
     }
 

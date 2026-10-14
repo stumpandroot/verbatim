@@ -20,7 +20,7 @@ struct ContentView: View {
                 }
             }
             .clipped()
-            .animation(Motion.settle, value: app.navCount)
+            .animation(Motion.nav, value: app.navCount)
             .overlay(alignment: .bottom) { ToastView() }
         }
         .background(Ink.paper)
@@ -81,10 +81,10 @@ struct ContentView: View {
         // Removal is instant on purpose: an outgoing screen that animates can get stuck on top, fully drawn,
         // until the next navigation (seen on macOS 26). The incoming screen still slides and fades in.
         switch app.direction {
-        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 60), removal: .identity)
-        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -60), removal: .identity)
-        case .up: return .asymmetric(insertion: ScreenSlide.transition(y: 40), removal: .identity)
-        case .down: return .asymmetric(insertion: ScreenSlide.transition(y: -40), removal: .identity)
+        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 24), removal: .identity)
+        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -24), removal: .identity)
+        case .up: return .asymmetric(insertion: ScreenSlide.transition(y: 14), removal: .identity)
+        case .down: return .asymmetric(insertion: ScreenSlide.transition(y: -14), removal: .identity)
         }
     }
 }

@@ -71,7 +71,11 @@ struct TranscriptView: View {
                     }
                 }
             }
-            .onAppear { if let u = app.store.audioURL(for: t) { app.player.load(u) } }
+            .onAppear {
+                if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
+                if let u = app.store.audioURL(for: t) { app.player.loadAsync(u) }
+                if UITest.enabled { DispatchQueue.main.async { Log.note("UITEST nav settled ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000))") } }
+            }
             .onDisappear { app.player.stop() }
             .onKeyPress(.space) { app.player.toggle(); return .handled }
             .onKeyPress(.leftArrow) { app.player.seek(to: app.player.time - 5); return .handled }
@@ -599,7 +603,8 @@ struct TranscriptLines: View {
 
     var body: some View {
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
-        VStack(alignment: .leading, spacing: 0) {
+        // Lazy: a long recording has hundreds of lines, each with menus and a popover. Build only what's on screen.
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
                 let now = clock.time
@@ -608,7 +613,7 @@ struct TranscriptLines: View {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)
-                .staggerIn(min(i, 12) + 2)
+                .staggerIn(i < 10 ? i + 2 : -1)
             }
         }
     }
