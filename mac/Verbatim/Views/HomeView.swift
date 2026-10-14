@@ -58,7 +58,7 @@ struct CaptureBar: View {
             CaptureSegment(action: { app.requestRecord() }) {
                 RecordDot(size: 46)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Voice note").font(.system(size: 16, weight: .medium))
+                    Text("Voice note").font(.system(size: 16, weight: .medium)).fixedSize()
                     HStack(spacing: 4) {
                         Image(systemName: mic?.symbol ?? "mic").font(.system(size: 10.5))
                         Text(mic?.name ?? "Microphone").lineLimit(1)
@@ -72,7 +72,7 @@ struct CaptureBar: View {
             CaptureSegment(action: { app.captureMode = "dictate" }) {
                 Image(systemName: "keyboard").font(.system(size: 24, weight: .regular)).foregroundStyle(Ink.irisDeep).frame(width: 36)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Dictate").font(.system(size: 16, weight: .medium))
+                    Text("Dictate").font(.system(size: 16, weight: .medium)).fixedSize()
                     Text(app.dictation.accessibilityTrusted ? app.dictation.hotkey.title.replacingOccurrences(of: "Hold ", with: "Hold ") : "Needs Accessibility").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
             }
@@ -84,7 +84,7 @@ struct CaptureBar: View {
             CaptureSegment(highlighted: fileOver, action: { importOpen = true }) {
                 Image(systemName: "doc.badge.plus").font(.system(size: 22, weight: .regular)).foregroundStyle(Ink.ink).frame(width: 36)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Import").font(.system(size: 16, weight: .medium))
+                    Text("Import").font(.system(size: 16, weight: .medium)).fixedSize()
                     Text(fileOver ? "Drop to transcribe" : "File or link").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                 }
             }
@@ -92,7 +92,7 @@ struct CaptureBar: View {
             divider
             CaptureSegment(action: { app.pickApp() }) {
                 Image(systemName: "speaker.wave.2").font(.system(size: 21, weight: .regular)).foregroundStyle(Ink.ink).frame(width: 36)
-                Text("App audio").font(.system(size: 16, weight: .medium))
+                Text("App audio").font(.system(size: 16, weight: .medium)).fixedSize()
             }
             .uiTarget("tile-app")
         }
@@ -120,9 +120,9 @@ struct CaptureSegment<Content: View>: View {
     @GestureState private var pressed = false
 
     var body: some View {
-        HStack(spacing: 14) { content() }
+        HStack(spacing: 12) { content() }
             .foregroundStyle(Ink.ink)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Ink.iris.opacity(highlighted ? 0.12 : pressed ? 0.10 : hover ? 0.055 : 0)))
             .scaleEffect(pressed ? 0.985 : 1)
@@ -206,21 +206,29 @@ struct RecentNotes: View {
             if items.isEmpty {
                 empty
             } else {
-                HStack(alignment: .top, spacing: 18) {
-                    FeaturedNote(transcript: items[0]).uiTarget("row-0")
-                        .frame(maxWidth: .infinity)
-                        .layoutPriority(1.6)
-                    if items.count > 1 {
-                        VStack(alignment: .leading, spacing: 16) {
-                            ForEach(items.dropFirst()) { t in NoteTile(transcript: t) }
-                            Text("Say it. Keep it.").font(Ink.serif(17, weight: .regular)).foregroundStyle(Ink.mute).padding(.leading, 4).padding(.top, 2)
+                // Side by side when there's room; one column in a narrow window.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 18) {
+                        FeaturedNote(transcript: items[0]).uiTarget("row-0").frame(minWidth: 460, maxWidth: .infinity)
+                        if items.count > 1 { sideColumn(items).frame(width: 320) }
+                    }
+                    VStack(alignment: .leading, spacing: 16) {
+                        FeaturedNote(transcript: items[0]).uiTarget("row-0")
+                        if items.count > 1 {
+                            HStack(alignment: .top, spacing: 16) { ForEach(items.dropFirst()) { t in NoteTile(transcript: t).frame(maxWidth: .infinity) } }
                         }
-                        .frame(maxWidth: .infinity)
                     }
                 }
             }
         }
         .animation(Motion.settle, value: items.map(\.id))
+    }
+
+    private func sideColumn(_ items: [Transcript]) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(items.dropFirst()) { t in NoteTile(transcript: t) }
+            Text("Say it. Keep it.").font(Ink.serif(17, weight: .regular)).foregroundStyle(Ink.mute).padding(.leading, 4).padding(.top, 2)
+        }
     }
 
     private var empty: some View {
