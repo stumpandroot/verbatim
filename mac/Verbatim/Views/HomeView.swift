@@ -27,6 +27,22 @@ struct HomeView: View {
                     else { CaptureBar() }
                 }
                 .padding(.top, 22).staggerIn(1)
+                if app.captureMode == "dictate" && !app.recorder.isRecording && !app.capture.isCapturing {
+                    // Dictate's details drop down under the toolbar; click Dictate again (or ×) to close.
+                    HStack(alignment: .top) {
+                        DictateControls()
+                        Spacer()
+                        Button { withAnimation(Motion.settle) { app.captureMode = "voice" } } label: {
+                            Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 26, height: 26)
+                        }
+                        .buttonStyle(.plain).hoverChip(radius: 13).help("Close")
+                    }
+                    .padding(14)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.iris.opacity(0.18)))
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 .animation(Motion.settle, value: app.recorder.isRecording)
                 .animation(Motion.settle, value: app.capture.isCapturing)
 
@@ -69,7 +85,7 @@ struct CaptureBar: View {
             }
             .uiTarget("tile-record")
             divider
-            CaptureSegment(action: { app.captureMode = "dictate" }) {
+            CaptureSegment(highlighted: app.captureMode == "dictate", action: { withAnimation(Motion.settle) { app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate" } }) {
                 Image(systemName: "keyboard").font(.system(size: 24, weight: .regular)).foregroundStyle(Ink.irisDeep).frame(width: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Dictate").font(.system(size: 16, weight: .medium)).fixedSize()
@@ -77,9 +93,6 @@ struct CaptureBar: View {
                 }
             }
             .uiTarget("mode-dictate")
-            .popover(isPresented: Binding(get: { app.captureMode == "dictate" }, set: { if !$0 { app.captureMode = "voice" } }), arrowEdge: .bottom) {
-                DictateControls().padding(16).frame(width: 380)
-            }
             divider
             CaptureSegment(highlighted: fileOver, action: { importOpen = true }) {
                 Image(systemName: "doc.badge.plus").font(.system(size: 22, weight: .regular)).foregroundStyle(Ink.ink).frame(width: 36)
@@ -468,25 +481,25 @@ struct DictateControls: View {
                     Image(systemName: "keyboard").font(.system(size: 18)).foregroundStyle(Ink.iris)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(app.dictation.hotkey.title).font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text(app.dictation.enabled ? "Ready in every app. Change the key in Settings › Dictation." : "Dictation is off. Turn it on in Settings › Dictation.").font(.system(size: 12.5)).foregroundStyle(Ink.limeDeep.opacity(0.8))
+                        Text(app.dictation.enabled ? "Ready in every app. Change the key in Settings › Dictate." : "Dictation is off. Turn it on in Settings › Dictate.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                 }
-                .padding(14).background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                
             } else {
                 HStack(spacing: 10) {
                     Image(systemName: "hand.raised").font(.system(size: 18)).foregroundStyle(Ink.coral)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Needs Accessibility access").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text("To hear the key and paste into other apps. Verbatim reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.limeDeep.opacity(0.8))
+                        Text("To hear the key and paste into other apps. Verbatim reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                     Spacer()
                     Button("Allow") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }.buttonStyle(.borderedProminent).tint(Ink.iris)
                 }
-                .padding(14).background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 HStack(spacing: 8) {
-                    Text("Last: “\(last.prefix(70))\(last.count > 70 ? "…" : "")”").font(.system(size: 12)).foregroundStyle(Ink.limeDeep.opacity(0.7)).lineLimit(1)
+                    Text("Last: “\(last.prefix(70))\(last.count > 70 ? "…" : "")”").font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
                     Button("Copy") { app.dictation.copyLast() }.buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.iris)
                 }
             }
