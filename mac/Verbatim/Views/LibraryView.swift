@@ -10,7 +10,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library")
-                        .font(.system(size: 30, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink)
+                        .font(.system(size: 30, weight: .bold)).foregroundStyle(Ink.ink)
                     Spacer()
                     Text("\(app.filtered.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 }

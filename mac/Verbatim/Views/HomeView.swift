@@ -1,32 +1,19 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AVFoundation
 
 /// Home, "Color Pop": headline, the lime capture card with Verbie, Bring something in, recent transcripts.
 struct HomeView: View {
     @EnvironmentObject var app: AppState
-    @State private var filter = "all"
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text("Make room for your thoughts.")
-                        .font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.7)
-                    Ticks().frame(width: 34, height: 30).offset(y: -8)
-                }
-                .staggerIn(0)
-                // Side by side when there's room; stacked in a narrow window. Never wider than the window.
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 16) {
-                        CaptureCard().frame(minWidth: 520, maxWidth: .infinity).staggerIn(1)
-                        BringInCard().frame(width: 330).staggerIn(2)
-                    }
-                    .frame(minHeight: 330)
-                    VStack(spacing: 16) {
-                        CaptureCard().staggerIn(1)
-                        BringInCard().frame(maxWidth: .infinity).staggerIn(2)
-                    }
-                }
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Make room for your thoughts.")
+                    .font(.system(size: 30, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.7)
+                    .staggerIn(0)
+                CaptureCard().staggerIn(1)
+                CaptureTiles().staggerIn(2)
                 recent
                 HStack(spacing: 8) {
                     Circle().fill(Color(hex: 0x4FB056)).frame(width: 8, height: 8)
@@ -36,22 +23,17 @@ struct HomeView: View {
                 }
                 .padding(.top, 4)
             }
-            .frame(maxWidth: 1040)
+            .frame(maxWidth: 1100)
             .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, 36)
             .frame(maxWidth: .infinity)
         }
     }
 
     private var recent: some View {
-        let items = Array(app.filtered.filter { filter == "all" || (filter == "rec" ? ($0.source == .voiceMemo || $0.source == .app) : ($0.source == .file || $0.source == .link)) }.prefix(6))
+        let items = Array(app.filtered.prefix(5))
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Text("Recent transcripts").font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink)
-                HStack(spacing: 6) {
-                    Chip(label: "All", selected: filter == "all") { filter = "all" }
-                    Chip(label: "Recordings", selected: filter == "rec") { filter = "rec" }
-                    Chip(label: "Imports", selected: filter == "imp") { filter = "imp" }
-                }
+                Text("Recent transcripts").font(.system(size: 20, weight: .bold)).foregroundStyle(Ink.ink)
                 Spacer()
                 HStack(spacing: 4) { Text("View all"); Image(systemName: "arrow.right") }
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.iris)
@@ -119,14 +101,17 @@ struct CaptureCard: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Scribble().stroke(Ink.limeDeep.opacity(0.12), style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round))
-                .frame(width: 420, height: 90).offset(x: 260, y: 150).allowsHitTesting(false)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Say it. Keep it.").font(.system(size: 36, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink)
+            // Faint sound bars behind Verbie: decoration, never a meter.
+            StillBars().fill(Color.white.opacity(0.4))
+                .frame(width: 520, height: 150)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .padding(.trailing, 44).allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 8) {
                 ModeSwitch()
-                Text(app.captureMode == "dictate" ? "Hold a key anywhere, speak, release. The words land in the app in front." : "Record a thought. Verbatim keeps the words on this Mac.")
-                    .font(.system(size: 13.5)).foregroundStyle(Ink.limeDeep.opacity(0.8)).frame(maxWidth: 330, alignment: .leading)
-                Spacer(minLength: 0)
+                Text("Say it. Keep it.").font(.system(size: 28, weight: .bold)).foregroundStyle(Ink.ink).padding(.top, 2)
+                Text(app.captureMode == "dictate" ? "Hold a key anywhere, speak, release. The words land in the app in front." : "Record a thought. Keep every word on your Mac.")
+                    .font(.system(size: 14)).foregroundStyle(Ink.limeDeep.opacity(0.8)).lineLimit(1)
+                Spacer(minLength: 6)
                 if app.recorder.isRecording {
                     RecordPanel().transition(.scale(scale: 0.96).combined(with: .opacity))
                 } else if app.capture.isCapturing {
@@ -134,36 +119,62 @@ struct CaptureCard: View {
                 } else if app.captureMode == "dictate" {
                     DictateControls().transition(.scale(scale: 0.96).combined(with: .opacity))
                 } else {
-                    VStack(spacing: 8) {
-                        CardButton(tilt: 0, lift: 2, radius: 60, action: { app.requestRecord() }) { RecordButton(size: 112) }
+                    HStack(spacing: 18) {
+                        CardButton(tilt: 0, lift: 2, radius: 40, action: { app.requestRecord() }) { RecordButton(size: 72) }
                             .uiTarget("tile-record")
-                        Text("Start recording").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Start recording").font(.system(size: 17, weight: .bold)).foregroundStyle(Ink.ink)
+                            Text(micStatus).font(.system(size: 13)).foregroundStyle(Ink.limeDeep.opacity(0.8))
+                        }
                     }
-                    .frame(width: 160)
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                 }
             }
-            .padding(24).padding(.trailing, 186)   // keep the text column clear of Verbie
+            .padding(.horizontal, 26).padding(.vertical, 22).padding(.trailing, 230)   // keep the text column clear of Verbie
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VerbieView(pose: verbiePose)
-                .frame(width: 150, height: 230)
+                .frame(width: 122, height: 190)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 36).padding(.bottom, 14)
+                .padding(.trailing, 110).padding(.bottom, 10)
                 .allowsHitTesting(false)
         }
-        .frame(maxWidth: .infinity, minHeight: 330)
-        .background(Ink.lime, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .tiltCard(tilt: 1.5, lift: 0, radius: 26, rotates: false)
+        .frame(maxWidth: .infinity)
+        .frame(height: 228)
+        .background(Ink.lime, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .tiltCard(tilt: 1, lift: 0, radius: 24, rotates: false)
         .animation(Motion.settle, value: app.recorder.isRecording)
         .animation(Motion.settle, value: app.capture.isCapturing)
         .animation(Motion.settle, value: app.captureMode)
     }
 
+    private var micStatus: String {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: return "Microphone ready."
+        case .notDetermined: return "Verbatim will ask for the microphone."
+        default: return "Microphone access is off in System Settings."
+        }
+    }
+
     private var verbiePose: VerbiePose {
         if app.recorder.isRecording || app.capture.isCapturing || app.dictation.isListening { return app.recorder.isPaused ? .paused : .listening }
         return app.verbiePose
+    }
+}
+
+/// Decorative sound bars (a Shape, drawn once).
+struct StillBars: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        let n = 56, step = r.width / CGFloat(n), w: CGFloat = 5
+        for i in 0..<n {
+            let t = Double(i)
+            let v = 0.12 + abs(sin(t * 0.55) * 0.55 + sin(t * 1.9) * 0.2)
+            let h = max(8, CGFloat(min(1, v)) * r.height)
+            p.addRoundedRect(in: CGRect(x: r.minX + CGFloat(i) * step, y: r.midY - h / 2, width: w, height: h), cornerSize: CGSize(width: 2.5, height: 2.5))
+        }
+        return p
     }
 }
 
@@ -217,7 +228,10 @@ struct DictateControls: View {
                 .padding(14).background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
-                Text("Last: “\(last.prefix(80))\(last.count > 80 ? "…" : "")”").font(.system(size: 12)).foregroundStyle(Ink.limeDeep.opacity(0.7)).lineLimit(1)
+                HStack(spacing: 8) {
+                    Text("Last: “\(last.prefix(70))\(last.count > 70 ? "…" : "")”").font(.system(size: 12)).foregroundStyle(Ink.limeDeep.opacity(0.7)).lineLimit(1)
+                    Button("Copy") { app.dictation.copyLast() }.buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.iris)
+                }
             }
         }
         .frame(maxWidth: 360, alignment: .leading)
@@ -240,51 +254,62 @@ struct Scribble: Shape {
 
 // MARK: - Bring something in
 
-struct BringInCard: View {
+/// Import file · Paste a link · Record app audio, in one compact row. The link tile opens a field in place.
+struct CaptureTiles: View {
     @EnvironmentObject var app: AppState
     @State private var link = ""
+    @State private var linkOpen = false
     @State private var fileOver = false
     @FocusState private var linkFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Bring something in").font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink)
-            HStack(spacing: 8) {
-                Image(systemName: app.fetching == nil ? "link" : "arrow.down.circle").foregroundStyle(Ink.mute)
-                if let f = app.fetching {
-                    Text(f).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(1)
-                    Spacer()
-                    ProgressView().controlSize(.small)
-                } else {
-                    TextField("Paste a video or audio link", text: $link).textFieldStyle(.plain).font(.system(size: 13.5)).focused($linkFocused).onSubmit(submit)
-                    Button { submit() } label: {
-                        Image(systemName: "arrow.right").font(.system(size: 13, weight: .bold)).foregroundStyle(.white).frame(width: 34, height: 34).background(Ink.iris, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .buttonStyle(.plain).pressable().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).opacity(link.isEmpty ? 0.5 : 1)
-                }
-            }
-            .padding(.leading, 12).padding(.trailing, 6).frame(height: 48)
-            .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.1)))
-            .onChange(of: app.focusLink) { _, _ in linkFocused = true }
-
+        HStack(spacing: 16) {
             BringRow(title: "Import file", hint: fileOver ? "Drop to transcribe" : "Audio or video", tint: Ink.irisTint, fg: Ink.iris, icon: "doc.text", highlighted: fileOver) { openFile() }
                 .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
-            BringRow(title: "Capture app audio", hint: "Choose an app", tint: Ink.limeTint, fg: Color(hex: 0x4F7D12), icon: "waveform") { app.pickApp() }
+            if linkOpen || app.fetching != nil {
+                linkField
+            } else {
+                BringRow(title: "Paste a link", hint: "Video or audio URL", tint: Ink.irisTint, fg: Ink.iris, icon: "link") {
+                    if let s = NSPasteboard.general.string(forType: .string), s.hasPrefix("http") { link = s }
+                    withAnimation(Motion.snap) { linkOpen = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { linkFocused = true }
+                }
+            }
+            BringRow(title: "Record app audio", hint: "Capture sound from an app", tint: Ink.coralTint, fg: Ink.coral, icon: "rectangle.on.rectangle") { app.pickApp() }
                 .uiTarget("tile-app")
-            Spacer(minLength: 0)
         }
-        .padding(18)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color(hex: 0xF3F0FA), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.black.opacity(0.05)))
+        .onChange(of: app.focusLink) { _, _ in withAnimation(Motion.snap) { linkOpen = true }; linkFocused = true }
         .animation(Motion.settle, value: fileOver)
+    }
+
+    private var linkField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: app.fetching == nil ? "link" : "arrow.down.circle").foregroundStyle(Ink.iris)
+            if let f = app.fetching {
+                Text(f).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(1)
+                Spacer()
+                ProgressView().controlSize(.small)
+            } else {
+                TextField("Paste a video or audio link", text: $link).textFieldStyle(.plain).font(.system(size: 13.5)).focused($linkFocused)
+                    .onSubmit(submit)
+                    .onExitCommand { withAnimation(Motion.snap) { linkOpen = false } }
+                Button { submit() } label: {
+                    Image(systemName: "arrow.right").font(.system(size: 12, weight: .bold)).foregroundStyle(.white).frame(width: 30, height: 30).background(Ink.iris, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(.plain).pressable().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).opacity(link.isEmpty ? 0.5 : 1)
+            }
+        }
+        .padding(.horizontal, 16).frame(height: 72)
+        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.iris.opacity(0.5)))
+        .transition(.scale(scale: 0.97).combined(with: .opacity))
     }
 
     private func submit() {
         let l = link.trimmingCharacters(in: .whitespaces)
         guard !l.isEmpty else { return }
         app.transcribeLink(l); link = ""
+        withAnimation(Motion.snap) { linkOpen = false }
     }
 
     private func openFile() {
@@ -300,8 +325,8 @@ struct BringRow: View {
     var highlighted = false
     var action: () -> Void
     var body: some View {
-        CardButton(tilt: 4, lift: 2, radius: 14, action: action) {
-            HStack(spacing: 12) {
+        CardButton(tilt: 2, lift: 1, radius: 16, action: action) {
+            HStack(spacing: 14) {
                 Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(fg)
                     .frame(width: 44, height: 44).background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
@@ -311,9 +336,9 @@ struct BringRow: View {
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             }
-            .padding(12)
-            .background(highlighted ? Color(hex: 0xE4F3C4) : .white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(highlighted ? Color(hex: 0x5F8C28) : Color.black.opacity(0.06), lineWidth: highlighted ? 1.5 : 1))
+            .padding(.horizontal, 16).frame(height: 72)
+            .background(highlighted ? Color(hex: 0xE4F3C4) : .white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(highlighted ? Color(hex: 0x5F8C28) : Color.black.opacity(0.06), lineWidth: highlighted ? 1.5 : 1))
         }
     }
 }
@@ -389,14 +414,14 @@ struct HistoryRow: View {
     @State private var hover = false
 
     var body: some View {
-        CardButton(tilt: 2, lift: 1, radius: 14, action: open) {
+        CardButton(tilt: 1, lift: 1, radius: 14, action: open) {
             HStack(spacing: 14) {
                 Image(systemName: transcript.source.symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(tileFg)
                     .frame(width: 48, height: 48).background(tileBg, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         if transcript.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Ink.mute) }
-                        Text(transcript.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+                        Text(transcript.title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1).layoutPriority(1)
                     }
                     HStack(spacing: 6) {
                         Text(transcript.sourceLabel)
@@ -405,12 +430,13 @@ struct HistoryRow: View {
                         if transcript.status == .processing { Text("·"); Text(transcript.stage ?? "Transcribing").foregroundStyle(Ink.iris); ProgressView().controlSize(.mini) }
                         if transcript.status == .failed { Text("·"); Text("Needs retry").foregroundStyle(Ink.coral) }
                     }
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
+                .layoutPriority(1)
                 Spacer(minLength: 10)
-                WaveformThumb(values: transcript.waveform.isEmpty ? placeholder : Waveform.resample(transcript.waveform, to: 48))
-                    .fill(waveColor).frame(width: 190, height: 26)
-                Text(dateLine).font(.system(size: 13)).foregroundStyle(Ink.mute).frame(width: 130, alignment: .trailing)
+                WaveformThumb(values: transcript.waveform.isEmpty ? placeholder : Waveform.resample(transcript.waveform, to: 32))
+                    .fill(waveColor).frame(width: 120, height: 24)
+                Text(dateLine).font(.system(size: 13)).foregroundStyle(Ink.mute).frame(width: 96, alignment: .trailing).lineLimit(1)
                 Menu { RowMenu(transcript: transcript) } label: {
                     Image(systemName: "ellipsis").font(.system(size: 14, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 28, height: 28)
                 }
@@ -425,13 +451,14 @@ struct HistoryRow: View {
     }
 
     private var placeholder: [Float] { (0..<48).map { _ in Float.random(in: 0.08...0.25) } }
-    private var tileBg: Color { switch transcript.source { case .voiceMemo: return Ink.coralTint; case .app: return Ink.limeTint; default: return Ink.irisTint } }
-    private var tileFg: Color { switch transcript.source { case .voiceMemo: return Ink.coral; case .app: return Color(hex: 0x4F7D12); default: return Ink.iris } }
-    private var waveColor: Color { transcript.source == .voiceMemo ? Ink.coral.opacity(0.85) : Ink.iris.opacity(0.75) }
+    private var tileBg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coralTint; case .app: return Ink.limeTint; default: return Ink.irisTint } }
+    private var tileFg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coral; case .app: return Color(hex: 0x4F7D12); default: return Ink.iris } }
+    private var waveColor: Color { transcript.source == .voiceMemo || transcript.source == .dictation ? Ink.coral.opacity(0.85) : Ink.iris.opacity(0.75) }
     private var dateLine: String {
         let f = DateFormatter(); let cal = Calendar.current
-        if cal.isDateInToday(transcript.createdAt) { f.dateFormat = "'Today,' h:mm a" }
-        else if cal.isDateInYesterday(transcript.createdAt) { f.dateFormat = "'Yesterday,' h:mm a" }
+        if cal.isDateInToday(transcript.createdAt) { return "Today" }
+        else if cal.isDateInYesterday(transcript.createdAt) { return "Yesterday" }
+        else if cal.isDate(transcript.createdAt, equalTo: Date(), toGranularity: .year) { f.dateFormat = "MMM d" }
         else { f.dateFormat = "MMM d, yyyy" }
         return f.string(from: transcript.createdAt)
     }

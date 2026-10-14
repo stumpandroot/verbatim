@@ -44,8 +44,8 @@ extension Color {
 /// The visuals tilt underneath; an untransformed layer on top takes the pointer, so hit-testing is never
 /// subject to the 3D transform or to a competing Button gesture (both lost clicks on macOS 26).
 struct CardButton<Content: View>: View {
-    var tilt: Double = 4
-    var lift: Double = 2
+    var tilt: Double = 1.5
+    var lift: Double = 1
     var radius: Double = 12
     var action: () -> Void
     @ViewBuilder var content: () -> Content
@@ -63,10 +63,10 @@ struct CardButton<Content: View>: View {
         content()
             .overlay {
                 if let h = hover, !reduceMotion {
-                    RadialGradient(colors: [Color.white.opacity(0.32), .clear], center: UnitPoint(x: h.x / max(size.width, 1), y: h.y / max(size.height, 1)), startRadius: 0, endRadius: 220)
+                    RadialGradient(colors: [Color.white.opacity(0.18), .clear], center: UnitPoint(x: h.x / max(size.width, 1), y: h.y / max(size.height, 1)), startRadius: 0, endRadius: 220)
                         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(RadialGradient(colors: [Ink.iris.opacity(0.28), .clear], center: UnitPoint(x: h.x / max(size.width, 1), y: h.y / max(size.height, 1)), startRadius: 0, endRadius: 200), lineWidth: 1.5)
+                        .strokeBorder(RadialGradient(colors: [Ink.iris.opacity(0.16), .clear], center: UnitPoint(x: h.x / max(size.width, 1), y: h.y / max(size.height, 1)), startRadius: 0, endRadius: 200), lineWidth: 1.5)
                 }
             }
             .rotation3DEffect(.degrees(on ? -ny * tilt : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
@@ -161,9 +161,10 @@ extension View {
 }
 
 struct PressStyle: ButtonStyle {
+    var scale: CGFloat = 0.96
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .scaleEffect(configuration.isPressed ? scale : 1)
             .animation(configuration.isPressed ? .easeOut(duration: 0.08) : Motion.bounce, value: configuration.isPressed)
     }
 }

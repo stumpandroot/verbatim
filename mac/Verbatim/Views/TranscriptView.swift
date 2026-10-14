@@ -13,11 +13,15 @@ struct TranscriptView: View {
     @Namespace private var segNS
 
     enum Mode: String, CaseIterable { case original = "Original", cleaned = "Cleaned", summary = "Summary", review = "Review" }
+    /// Summary ships with the local language model build; until then it stays out of the capsule.
+    static let visibleModes: [Mode] = [.original, .cleaned, .review]
+    @State private var narrow = false
 
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
         if let t = transcript {
+            GeometryReader { g in
             HStack(spacing: 0) {
                 ZStack(alignment: .bottom) {
                     ScrollViewReader { proxy in
@@ -27,8 +31,8 @@ struct TranscriptView: View {
                                 modeBar(t).staggerIn(1).padding(.bottom, 8)
                                 content(t)
                             }
-                            .frame(maxWidth: 680, alignment: .leading)
-                            .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, 130)
+                            .frame(maxWidth: 720, alignment: .leading)
+                            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, t.audioFileName != nil ? 124 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .onChange(of: app.player.time) { _, now in
@@ -40,11 +44,24 @@ struct TranscriptView: View {
                     if t.audioFileName != nil, t.status == .ready { PlayerDock(transcript: t).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
                 }
                 .frame(maxWidth: .infinity)
-                if notesOpen {
-                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen)
+                if notesOpen && !narrow {
+                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.settle) { notesOpen = false } })
                         .frame(width: 300)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
+            }
+            .overlay(alignment: .trailing) {
+                // Narrow window: Notes becomes a drawer over the text instead of squeezing it.
+                if notesOpen && narrow {
+                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.settle) { notesOpen = false } })
+                        .frame(width: 300)
+                        .shadow(color: .black.opacity(0.12), radius: 24, x: -6)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .animation(Motion.settle, value: narrow)
+            .onAppear { narrow = g.size.width < 900 }
+            .onChange(of: g.size.width) { _, w in narrow = w < 900 }
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -76,7 +93,7 @@ struct TranscriptView: View {
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.update(t.id) { $0.title = v } }))
-                .textFieldStyle(.plain).font(.system(size: 30, weight: .bold, design: .rounded)).foregroundStyle(Ink.ink).lineLimit(2)
+                .textFieldStyle(.plain).font(.system(size: 30, weight: .bold)).foregroundStyle(Ink.ink).lineLimit(2)
             HStack(spacing: 8) {
                 Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
                 if !t.speakers.isEmpty { Text("·"); Text("\(t.speakers.count) speakers") }
@@ -84,21 +101,21 @@ struct TranscriptView: View {
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, 14)
     }
 
     private func modeBar(_ t: Transcript) -> some View {
         HStack(spacing: 12) {
             HStack(spacing: 2) {
-                ForEach(Mode.allCases, id: \.self) { m in
-                    Text(m.rawValue).font(.system(size: 13.5, weight: .semibold)).lineLimit(1).fixedSize()
-                        .padding(.horizontal, 16).padding(.vertical, 7)
+                ForEach(Self.visibleModes, id: \.self) { m in
+                    Text(m.rawValue).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
+                        .padding(.horizontal, 13).padding(.vertical, 5)
                         .background { if view == m { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "mode", in: segNS) } }
                         .foregroundStyle(view == m ? .white : Ink.ink)
                         .tapArea { withAnimation(Motion.snap) { view = m } }
                 }
             }
-            .padding(3).background(Color(hex: 0xECE8F3), in: Capsule()).fixedSize()
+            .padding(3).background(Color(hex: 0xEEEBF4), in: Capsule()).fixedSize()
             Divider().frame(height: 18)
             HStack(spacing: 5) {
                 Text("Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).layoutPriority(-1)
@@ -227,11 +244,13 @@ struct SegmentLine: View {
     @State private var fixing: String? = nil
     @State private var replacement = ""
     @State private var remember = true
+    @State private var renaming = false
+    @State private var newName = ""
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Text(segment.start.timecode).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color(hex: 0x948C80))
-                .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 5)
+            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(Color(hex: 0xA39B8E))
+                .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 6)
                 .tapArea { app.player.seek(to: segment.start) }
             VStack(alignment: .leading, spacing: 2) {
                 if showSpeaker, let sp = segment.speaker, let name = transcript.speakerName(sp) {
@@ -240,17 +259,26 @@ struct SegmentLine: View {
                         Menu {
                             ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
                             Divider()
-                            Button("Rename \(name)…") { }
+                            Button("Rename \(name)…") { renaming = true; newName = name }
                             Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
                         } label: { Text(name).font(.system(size: 13, weight: .semibold)).foregroundStyle(speakerColor(sp)) }
                         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                        .popover(isPresented: $renaming, arrowEdge: .bottom) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Name this speaker").font(.system(size: 12.5, weight: .semibold))
+                                TextField("Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 200)
+                                    .onSubmit { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }
+                                HStack { Spacer(); Button("Cancel") { renaming = false }; Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }.buttonStyle(.borderedProminent).tint(Ink.iris) }
+                            }
+                            .padding(14)
+                        }
                     }
                     .padding(.top, 8)
                 }
                 Text(segment.text)
                     .font(.system(size: size)).lineSpacing(size * 0.3).foregroundStyle(Ink.ink)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(current ? Ink.irisTint : selected ? Color(hex: 0xF3F0FA) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
                     .contentShape(Rectangle())
@@ -298,14 +326,24 @@ struct SegmentLine: View {
 extension Notification.Name { static let verbatimFocusNote = Notification.Name("verbatimFocusNote") }
 
 /// Light, deterministic cleanup: fillers out, sentence case, double spaces gone. Never touches names or numbers.
+/// Conservative on purpose: only sounds that are never words ("um", "uh"), and phrase fillers only when
+/// they're set off by a comma ("you know," / ", like,"). "I like this" and "the kind of wagon" stay intact.
 enum Cleanup {
-    static let fillers = ["um", "uh", "er", "ah", "hmm", "you know,", "i mean,", "like,", "sort of", "kind of"]
+    static let sounds = ["um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm", "mm"]
+    static let asides = ["you know", "i mean", "like", "sort of", "kind of", "basically", "actually", "literally"]
     static func light(_ segs: [Segment]) -> [Segment] {
         segs.map { s in
             var t = s.text
-            for f in fillers {
-                t = t.replacingOccurrences(of: "(?i)(^|\\s)" + NSRegularExpression.escapedPattern(for: f) + "(,?)(?=\\s|$)", with: "$1", options: .regularExpression)
+            for f in sounds {
+                t = t.replacingOccurrences(of: "(?i)(^|\\s)" + f + ",?(?=\\s|$|[.!?])", with: "$1", options: .regularExpression)
             }
+            for f in asides {
+                // Only as an aside: ", like," in the middle, or "You know," at the start of a sentence.
+                t = t.replacingOccurrences(of: "(?i),\\s*" + f + ",", with: ",", options: .regularExpression)
+                t = t.replacingOccurrences(of: "(?i)(^|[.!?]\\s+)" + f + ",\\s*", with: "$1", options: .regularExpression)
+            }
+            // "the the" → "the"
+            t = t.replacingOccurrences(of: "(?i)\\b(\\w+)\\s+\\1\\b", with: "$1", options: .regularExpression)
             t = t.replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
             t = t.replacingOccurrences(of: "\\s,", with: ",", options: .regularExpression)
             if let f = t.first { t = f.uppercased() + t.dropFirst() }
@@ -321,56 +359,66 @@ struct PlayerDock: View {
     var transcript: Transcript
 
     var body: some View {
-        HStack(spacing: 14) {
+        let total = max(app.player.duration, transcript.duration)
+        HStack(spacing: 12) {
             Button { app.player.toggle() } label: {
                 ZStack {
                     Circle().fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Ink.irisDeep], startPoint: .top, endPoint: .bottom))
-                        .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 3))
-                        .shadow(color: Ink.irisDeep.opacity(0.35), radius: 8, y: 4)
-                    Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 20, weight: .bold)).foregroundStyle(.white).offset(x: app.player.isPlaying ? 0 : 2)
+                        .overlay(Circle().strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.1)], startPoint: .top, endPoint: .bottom), lineWidth: 1.5))
+                        .shadow(color: Ink.irisDeep.opacity(0.3), radius: 8, y: 4)
+                    Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(.white).offset(x: app.player.isPlaying ? 0 : 1.5)
                 }
-                .frame(width: 56, height: 56)
+                .frame(width: 50, height: 50)
             }
-            .buttonStyle(.plain).pressable().help("Play or pause (Space)")
+            .buttonStyle(PressStyle(scale: 0.94)).help("Play or pause (Space)")
 
+            skip("gobackward.5", -5, "Back 5 seconds (←)")
             HStack(spacing: 4) {
-                Text(app.player.time.timecode).font(.system(size: 14, weight: .medium, design: .monospaced)).foregroundStyle(Ink.ink)
+                Text(app.player.time.timecode).font(.system(size: 13.5, weight: .semibold, design: .monospaced)).foregroundStyle(Ink.ink)
                 Text("/").foregroundStyle(Ink.mute)
-                Text(max(app.player.duration, transcript.duration).timecode).font(.system(size: 14, design: .monospaced)).foregroundStyle(Ink.mute)
+                Text(total.timecode).font(.system(size: 13.5, design: .monospaced)).foregroundStyle(Ink.mute)
             }
-            .frame(width: 128, alignment: .leading)
+            .fixedSize()
 
-            WaveTrack(values: transcript.waveform, progress: app.player.duration > 0 ? app.player.time / app.player.duration : 0,
-                      marks: transcript.notes.filter(\.isBookmark).compactMap { $0.at }.map { $0 / max(transcript.duration, 1) }) { p in
-                app.player.seek(to: p * max(app.player.duration, transcript.duration))
+            WaveTrack(values: transcript.waveform, progress: total > 0 ? app.player.time / total : 0,
+                      marks: transcript.notes.filter(\.isBookmark).compactMap { $0.at }.map { $0 / max(total, 1) }) { p in
+                app.player.seek(to: p * total)
             }
-            .frame(height: 44)
+            .frame(height: 36)
+            skip("goforward.5", 5, "Forward 5 seconds (→)")
 
             Menu { ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } } } label: {
-                Text("\(String(format: "%g", app.player.rate))×").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
-                    .padding(.horizontal, 12).padding(.vertical, 8).background(Color(hex: 0xF3F0FA), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Text("\(String(format: "%g", app.player.rate))×").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .menuStyle(.borderlessButton).fixedSize()
 
             Button {
                 let at = app.player.time
                 let seg = transcript.segments.first(where: { at >= $0.start && at < $0.end })
                 app.addNote(transcript: transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
             } label: {
-                Image(systemName: "bookmark.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0x4F7D12))
-                    .frame(width: 40, height: 40).background(Ink.limeTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Image(systemName: "bookmark.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0x4F7D12))
+                    .frame(width: 38, height: 38).background(Ink.limeTint, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
             }
-            .buttonStyle(.plain).pressable().help("Bookmark this moment (B)")
+            .buttonStyle(PressStyle(scale: 0.94)).help("Bookmark this moment (B)")
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
-        .shadow(color: Color(hex: 0x3C328C).opacity(0.16), radius: 18, y: 8)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+        .shadow(color: Color(hex: 0x3C328C).opacity(0.14), radius: 16, y: 6)
         .frame(maxWidth: 760)
+    }
+
+    private func skip(_ symbol: String, _ by: Double, _ help: String) -> some View {
+        Button { app.player.seek(to: app.player.time + by) } label: {
+            Image(systemName: symbol).font(.system(size: 17, weight: .medium)).foregroundStyle(Ink.ink).frame(width: 32, height: 32)
+        }
+        .buttonStyle(PressStyle(scale: 0.92)).help(help)
     }
 }
 
-/// The waveform track: played portion iris, the rest muted, bookmark ticks in lime, click or drag to seek.
 struct WaveTrack: View {
     var values: [Float]
     var progress: Double
@@ -406,6 +454,7 @@ struct NotesPanel: View {
     var transcript: Transcript
     var selectedSegment: UUID?
     @Binding var detailsOpen: Bool
+    var onClose: () -> Void = {}
     @State private var draft = ""
     @FocusState private var focused: Bool
 
@@ -413,10 +462,12 @@ struct NotesPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Notes").font(.system(size: 20, weight: .bold, design: .rounded))
+            HStack(spacing: 10) {
+                Text("Notes").font(.system(size: 19, weight: .bold))
                 Spacer()
-                Text("\(transcript.notes.count)").font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Text("\(transcript.notes.count)").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Button { onClose() } label: { Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 26, height: 26).background(Color.black.opacity(0.05), in: Circle()) }
+                    .buttonStyle(.plain).help("Hide notes")
             }
             VStack(alignment: .leading, spacing: 6) {
                 if let s = linked {
@@ -475,7 +526,7 @@ struct NotesPanel: View {
         }
         .padding(18)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color(hex: 0xF6F3FB))
+        .background(Color(hex: 0xF8F6FB))
         .overlay(alignment: .leading) { Ink.hairline.frame(width: 1) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimFocusNote)) { _ in focused = true }
     }
@@ -516,9 +567,10 @@ struct NoteCard: View {
             }
             Text(note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).textSelection(.enabled)
         }
-        .padding(12)
-        .background(note.isBookmark ? Color(hex: 0xF4FAE4) : note.segmentId != nil ? Ink.irisTint : Color(hex: 0xFFF8C8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(hover ? 0.1 : 0.04)))
+        .padding(.vertical, 12).padding(.horizontal, 14)
+        // Solid tinted blocks by kind: coral for a loose note, lime for a bookmark, iris for a passage note.
+        .background(note.isBookmark ? Color(hex: 0xF1F8E0) : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(hover ? 0.1 : 0.05)))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
     }

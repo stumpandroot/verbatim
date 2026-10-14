@@ -115,7 +115,7 @@ struct Sidebar: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 10) {
                     BrandMark().frame(width: 28, height: 28)
-                    Text("Verbatim").font(.system(size: 18, weight: .bold, design: .rounded))
+                    Text("Verbatim").font(.system(size: 18, weight: .bold))
                 }
                 .padding(.horizontal, 9).padding(.top, 8).padding(.bottom, 18)
 

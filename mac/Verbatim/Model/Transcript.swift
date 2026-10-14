@@ -35,11 +35,12 @@ struct Correction: Codable, Identifiable, Equatable {
 }
 
 enum SourceKind: String, Codable {
-    case voiceMemo, file, link, app
+    case voiceMemo, file, link, app, dictation
 
     var symbol: String {
         switch self {
         case .voiceMemo: return "mic.fill"
+        case .dictation: return "keyboard"
         case .file: return "doc.fill"
         case .link: return "link"
         case .app: return "rectangle.on.rectangle"

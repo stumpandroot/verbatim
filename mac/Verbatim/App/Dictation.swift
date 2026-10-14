@@ -91,7 +91,7 @@ final class DictationController: ObservableObject {
         target = NSWorkspace.shared.frontmostApplication
         targetAppName = target?.localizedName ?? "the front app"
         do {
-            try recorder.start(to: Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
+            try recorder.start(to: app?.store.newAudioURL(ext: "wav") ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
             Log.note("dictation start failed: \(error)"); return
         }
@@ -104,7 +104,7 @@ final class DictationController: ObservableObject {
 
     private func end() {
         guard isListening, let stopped = recorder.stop() else { return }
-        let (url, duration, _) = stopped
+        let (url, duration, env) = stopped
         isListening = false
         guard duration >= 0.5 else {                      // too short: discard, like Wispr Flow
             try? FileManager.default.removeItem(at: url); hidePanel(); return
@@ -112,19 +112,50 @@ final class DictationController: ObservableObject {
         isWorking = true
         let (engineId, model) = app?.engineChoice ?? ("fluid", "v3")
         let dict = app?.store.dictionary ?? []
+        let targetName = targetAppName
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let r = try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
+                let original = r.segments
                 var segs = r.segments
-                _ = DictionaryApplier.apply(dict, to: &segs)
+                let fixes = DictionaryApplier.apply(dict, to: &segs)
                 let text = segs.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-                try? FileManager.default.removeItem(at: url)
-                await MainActor.run { self?.deliver(text) }
+                await MainActor.run {
+                    // Every dictation is kept, so a missed paste is never a lost thought.
+                    self?.keep(url: url, duration: duration, env: env, original: original, segments: segs, fixes: fixes, result: r, target: targetName)
+                    self?.deliver(text)
+                }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
-                await MainActor.run { self?.isWorking = false; self?.hidePanel(); self?.app?.toast = Toast("Dictation failed: \(error.localizedDescription)") }
+                await MainActor.run {
+                    self?.isWorking = false; self?.hidePanel()
+                    self?.keepFailed(url: url, duration: duration, env: env, error: error.localizedDescription)
+                    self?.app?.toast = Toast("Dictation failed: \(error.localizedDescription). The recording is in Library; choose Retry.")
+                }
             }
         }
+    }
+
+    private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, target: String) {
+        guard let app else { return }
+        var t = Transcript(title: Transcript.titleFrom(segments) ?? "Dictation", source: .dictation, sourceLabel: "Dictation · \(target)", duration: duration, audioFileName: url.lastPathComponent, model: Engines.displayName(engine: result.engine, model: result.model))
+        t.engine = result.engine; t.language = result.language
+        t.original = original; t.segments = segments; t.corrections = fixes; t.waveform = env
+        app.store.add(t)
+    }
+
+    private func keepFailed(url: URL, duration: Double, env: [Float], error: String) {
+        guard let app else { return }
+        var t = Transcript(title: "Dictation", source: .dictation, sourceLabel: "Dictation", duration: duration, audioFileName: url.lastPathComponent, model: "")
+        t.waveform = env; t.status = .failed; t.error = error
+        app.store.add(t)
+    }
+
+    /// Puts the last dictation back on the clipboard (for a paste that went to the wrong place).
+    func copyLast() {
+        guard let last = lastResult, !last.isEmpty else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(last, forType: .string)
+        app?.toast = Toast("Last dictation copied")
     }
 
     private func deliver(_ text: String) {

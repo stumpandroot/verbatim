@@ -185,6 +185,13 @@ struct MenuBarPanel: View {
                 }
                 .buttonStyle(.plain)
             }
+            if let last = app.dictation.lastResult, !last.isEmpty {
+                Button { app.dictation.copyLast() } label: {
+                    HStack(spacing: 8) { Image(systemName: "doc.on.clipboard").foregroundStyle(Ink.iris).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
+                        .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
             HStack {
                 Button("Open Verbatim") { NSApp.activate(ignoringOtherApps: true); app.go(.home) }.buttonStyle(.plain).foregroundStyle(Ink.iris).fontWeight(.medium)
                 Spacer()

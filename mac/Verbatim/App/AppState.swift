@@ -293,7 +293,7 @@ final class AppState: ObservableObject {
                         x.model = r.model
                         x.language = r.language
                         if !wave.isEmpty { x.waveform = wave }
-                        if x.source == .voiceMemo || x.source == .app, let auto = Transcript.titleFrom(fixed) { x.title = auto }
+                        if x.source == .voiceMemo || x.source == .app || x.source == .dictation, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                     }
                     self.verbiePose = .saved
                     Sounds.done()
