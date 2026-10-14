@@ -156,6 +156,14 @@ final class DictationController: ObservableObject {
         down?.post(tap: .cghidEventTap); up?.post(tap: .cghidEventTap)
     }
 
+    /// Shows the pill without recording, for screenshots.
+    func previewPill(seconds: Double) {
+        targetAppName = "Mail"
+        isListening = true
+        showPanel()
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.isListening = false; self?.hidePanel() }
+    }
+
     // MARK: Floating pill
 
     private func showPanel() {

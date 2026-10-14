@@ -81,6 +81,17 @@ jobs:
           open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$OUT/open-${GITHUB_RUN_NUMBER}.txt" 2>&1; echo "open exit=$?" >> "$OUT/open-${GITHUB_RUN_NUMBER}.txt"
           sleep 20
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/transcript-${GITHUB_RUN_NUMBER}.png" || true
+          # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
+          SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$OUT/screens-${GITHUB_RUN_NUMBER}"; mkdir -p "$TOUR"; last=""
+          for i in $(seq 1 90); do
+            cur="$(cat "$SHOW" 2>/dev/null || true)"
+            if [ -n "$cur" ] && [ "$cur" != "$last" ]; then
+              last="$cur"; [ "$cur" = "done" ] && break
+              sleep 1.0; perl -e 'alarm 10; exec @ARGV' screencapture -x "$TOUR/$cur.png" || true
+            fi
+            sleep 0.5
+          done
+          (cd "$OUT" && zip -qr "screens-${GITHUB_RUN_NUMBER}.zip" "screens-${GITHUB_RUN_NUMBER}" && rm -rf "screens-${GITHUB_RUN_NUMBER}") || true
           PID="$(pgrep -x Verbatim | head -1 || true)"
           # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
           { echo "pid=$PID"; for i in 1 2 3; do ps -o %cpu=,rss= -p "$PID" || echo "gone"; sleep 2; done; } > "$OUT/cpu-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true

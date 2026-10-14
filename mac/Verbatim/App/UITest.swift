@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 /// In-app UI self-test. With VERBATIM_UITEST=1 in the environment, the app seeds a transcript, synthesizes
 /// real mouse events at the recorded positions of key controls, and logs PASS/FAIL per step to native.log.
@@ -66,10 +67,108 @@ enum UITest {
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
-            // CI screenshots the transcript now, then Home a few seconds later.
-            try? await Task.sleep(nanoseconds: 7_000_000_000)
-            app.go(.home)
+            await tour(app: app, window: window)
         }
+    }
+
+    // MARK: Screenshot tour
+
+    /// Walks every screen with richer seeded data. CI watches `show.txt` and captures each name.
+    private static func tour(app: AppState, window: NSWindow) async {
+        seedRich(app)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
+        app.go(.home); app.captureMode = "voice"
+        await show("01-home")
+        app.captureMode = "dictate"
+        await show("02-home-dictate")
+        app.captureMode = "voice"
+        app.requestRecord()                       // no mic on the runner: the permission sheet
+        await show("03-mic-sheet")
+        app.showMicSheet = false
+        app.showAppPicker = true
+        await show("04-app-picker")
+        app.showAppPicker = false
+        app.projectFilter = nil; app.go(.library)
+        await show("05-library")
+        if let m = memo { app.go(.transcript(m.id)) }
+        await show("06-transcript")
+        app.go(.dictionary)
+        await show("07-dictionary")
+        app.dictation.previewPill(seconds: 4)
+        await show("08-dictate-pill")
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        await show("09-settings")
+        NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
+        app.go(.home)
+        await show("10-home-again")
+        write(show: "done")
+    }
+
+    private static func show(_ name: String) async {
+        try? await Task.sleep(nanoseconds: 1_200_000_000)   // let transitions settle
+        write(show: name)
+        Log.note("UITEST show \(name)")
+        try? await Task.sleep(nanoseconds: 2_500_000_000)   // CI captures in this window
+    }
+
+    private static func write(show name: String) {
+        let url = Log.file.deletingLastPathComponent().appendingPathComponent("show.txt")
+        try? (name + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// A transcript with real audio (so the player dock shows), notes, a bookmark, a project, and dictionary words.
+    private static func seedRich(_ app: AppState) {
+        let project = app.store.projects.first { $0.name == "Lapp Wagons" } ?? app.store.addProject("Lapp Wagons")
+        if !app.store.dictionary.contains(where: { $0.preferred == "Lititz" }) {
+            app.store.dictionary.append(DictionaryEntry(preferred: "Lititz", heardAs: ["Lit it's", "Lititz's"], learnedFrom: "Added by you"))
+            app.store.dictionary.append(DictionaryEntry(preferred: "Lapp Wagons", heardAs: ["Lap wagons", "lab wagons"], learnedFrom: "Lapp Wagons catalog call", projectId: project.id))
+        }
+        guard !app.store.transcripts.contains(where: { $0.title == "Lapp Wagons catalog call" }) else { return }
+        let url = app.store.newAudioURL(ext: "wav")
+        writeToneFile(url, seconds: 42)
+        var t = Transcript(title: "Lapp Wagons catalog call", source: .voiceMemo, sourceLabel: "Voice memo", duration: 42, audioFileName: url.lastPathComponent, model: "Parakeet TDT v3")
+        t.engine = "fluid"
+        let lines: [(Double, Double, String, String)] = [
+            (0, 6, "Okay, so the catalog needs to work for the folding wagon and the full wheel line.", "S1"),
+            (6, 11, "Right. Jonathan wants the wheels first, then the wagons as a second section.", "S2"),
+            (11, 18, "Then we shoot the wheels on white, and the wagons out in the field by the shop in Ephrata.", "S1"),
+            (18, 24, "Chris mentioned the Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", "S2"),
+            (24, 31, "Fine. One hero per product, three details, and a spec table. Keep the copy plain.", "S1"),
+            (31, 37, "And the folding wagon gets its own spread, because that's the one people ask about.", "S2"),
+            (37, 42, "Agreed. I'll send the shot list Thursday.", "S1"),
+        ]
+        t.segments = lines.map { Segment(start: $0.0, end: $0.1, text: $0.2, speaker: $0.3) }
+        t.original = t.segments
+        t.speakers = [Speaker(id: "S1", name: "Tim"), Speaker(id: "S2", name: "Jonathan")]
+        t.projectId = project.id
+        t.waveform = Waveform.envelope(of: url)
+        t.pinned = true
+        app.store.add(t)
+        app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: t.segments[2].id, isBookmark: false), to: t.id)
+        app.store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: t.segments[5].id, isBookmark: true), to: t.id)
+        app.store.addNote(Note(text: "Quote for the one-page sheet: separate line item.", at: nil, segmentId: nil, isBookmark: false), to: t.id)
+    }
+
+    /// Writes a 16 kHz mono WAV with a speech-like amplitude envelope.
+    private static func writeToneFile(_ url: URL, seconds: Double) {
+        let sr = 16_000.0
+        guard let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: sr, channels: 1, interleaved: true),
+              let file = try? AVAudioFile(forWriting: url, settings: fmt.settings, commonFormat: .pcmFormatInt16, interleaved: true) else { return }
+        let n = AVAudioFrameCount(sr * seconds)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) else { return }
+        buf.frameLength = n
+        var seed: UInt32 = 12345
+        for i in 0..<Int(n) {
+            let t = Double(i) / sr
+            seed = seed &* 1664525 &+ 1013904223
+            let noise = Double(Int32(bitPattern: seed)) / Double(Int32.max)
+            let syllable = max(0, sin(t * 2 * .pi * 4.2)) * (0.5 + 0.5 * sin(t * 0.7))
+            let pause = (Int(t) % 9 == 8) ? 0.05 : 1.0
+            let v = (sin(t * 2 * .pi * 180) * 0.6 + noise * 0.4) * syllable * pause * 0.5
+            buf.int16ChannelData![0][i] = Int16(max(-1, min(1, v)) * 32000)
+        }
+        try? file.write(from: buf)
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
