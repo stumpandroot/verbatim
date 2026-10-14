@@ -97,7 +97,11 @@ enum UITest {
         await show("07-dictionary")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
+            NSApp.sendAction(action, to: item.target, from: item)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
         await show("09-settings")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)

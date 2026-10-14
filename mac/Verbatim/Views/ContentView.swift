@@ -73,11 +73,13 @@ struct ContentView: View {
     /// entering or leaving. An outgoing screen can linger when springs are interrupted, and a lingering screen
     /// that still takes clicks is exactly the "have to click twice" bug.
     private var transition: AnyTransition {
+        // Removal is instant on purpose: an outgoing screen that animates can get stuck on top, fully drawn,
+        // until the next navigation (seen on macOS 26). The incoming screen still slides and fades in.
         switch app.direction {
-        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 60), removal: ScreenSlide.transition(x: -60))
-        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -60), removal: ScreenSlide.transition(x: 60))
-        case .up: return .asymmetric(insertion: ScreenSlide.transition(y: 40), removal: ScreenSlide.transition(y: -24))
-        case .down: return .asymmetric(insertion: ScreenSlide.transition(y: -40), removal: ScreenSlide.transition(y: 24))
+        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 60), removal: .identity)
+        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -60), removal: .identity)
+        case .up: return .asymmetric(insertion: ScreenSlide.transition(y: 40), removal: .identity)
+        case .down: return .asymmetric(insertion: ScreenSlide.transition(y: -40), removal: .identity)
         }
     }
 }
