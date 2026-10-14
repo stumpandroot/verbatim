@@ -22,6 +22,8 @@ final class AppState: ObservableObject {
     @Changed var focusLink = false
     @Changed var focusSearch = false
     @Changed var showMicSheet = false
+    /// Counts navigations so the newest screen always stacks on top of one that is still leaving.
+    @Changed var navCount = 0
     @Changed var showAppPicker = false
     @Changed var toast: Toast? = nil
     @Changed var verbiePose: VerbiePose = .ready
@@ -76,6 +78,7 @@ final class AppState: ObservableObject {
             let a = Self.order[key(screen)] ?? 0, b = Self.order[key(next)] ?? 0
             direction = b > a ? .up : .down
         }
+        navCount += 1
         withAnimation(Motion.settle) { screen = next }
     }
 
