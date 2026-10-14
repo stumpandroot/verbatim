@@ -54,9 +54,9 @@ enum UITest {
 
     /// Renders the window's own view tree to a PNG beside native.log (no screen-recording permission needed).
     static func snapshot(_ window: NSWindow, name: String) {
-        guard let v = window.contentView, let rep = v.bitmapImageRepForCachingDisplay(v.bounds) else { return }
+        guard let v = window.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
         v.cacheDisplay(in: v.bounds, to: rep)
-        guard let png = rep.representation(using: .png, properties: [:]) else { return }
+        guard let png = rep.representation(using: NSBitmapImageRep.FileType.png, properties: [:]) else { return }
         let url = Log.file.deletingLastPathComponent().appendingPathComponent("\(name).png")
         try? png.write(to: url)
         Log.note("UITEST snapshot \(url.lastPathComponent)")
