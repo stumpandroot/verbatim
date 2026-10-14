@@ -330,9 +330,10 @@ struct BringRow: View {
                 Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(fg)
                     .frame(width: 44, height: 44).background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
-                    Text(hint).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+                    Text(hint).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
+                .layoutPriority(1)
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             }

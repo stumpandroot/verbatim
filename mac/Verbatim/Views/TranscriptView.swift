@@ -60,8 +60,8 @@ struct TranscriptView: View {
                 }
             }
             .animation(Motion.settle, value: narrow)
-            .onAppear { narrow = g.size.width < 900 }
-            .onChange(of: g.size.width) { _, w in narrow = w < 900 }
+            .onAppear { narrow = g.size.width < 900; if narrow { notesOpen = false } }
+            .onChange(of: g.size.width) { _, w in let n = w < 900; if n != narrow { narrow = n; if n { notesOpen = false } } }
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -549,23 +549,24 @@ struct NoteCard: View {
     var onDelete: () -> Void
     @State private var hover = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                if let at = note.at {
-                    HStack(spacing: 5) {
-                        if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
-                        Text(at.timecode).font(.system(size: 11.5, design: .monospaced))
-                    }
-                    .foregroundStyle(note.isBookmark ? Color(hex: 0x4F7D12) : Ink.iris)
-                    .tapArea(onSeek)
+        VStack(alignment: .leading, spacing: 5) {
+            if let at = note.at {
+                HStack(spacing: 5) {
+                    if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
+                    Text(at.timecode).font(.system(size: 11.5, design: .monospaced))
                 }
-                Spacer()
-                Menu { Button("Delete", role: .destructive) { onDelete() } } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 18)
-                }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .foregroundStyle(note.isBookmark ? Color(hex: 0x4F7D12) : Ink.iris)
+                .tapArea(onSeek)
             }
             Text(note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .overlay(alignment: .topTrailing) {
+            Menu { Button("Delete", role: .destructive) { onDelete() } } label: {
+                Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 18)
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .opacity(hover ? 1 : 0)
         }
         .padding(.vertical, 12).padding(.horizontal, 14)
         // Solid tinted blocks by kind: coral for a loose note, lime for a bookmark, iris for a passage note.
