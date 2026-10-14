@@ -32,6 +32,7 @@ enum UITest {
             await step("sidebar Library opens library", window) { click("side-library", in: window) } check: { app.screen == .library }
             await step("sidebar Dictionary opens dictionary", window) { click("side-dict", in: window) } check: { app.screen == .dictionary }
             await step("sidebar home again (one click)", window) { click("side-home", in: window) } check: { app.screen == .home }
+            try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
             await step("mode switch to Dictate", window) { click("mode-dictate", in: window) } check: { app.captureMode == "dictate" }
             await step("mode switch back to Voice note", window) { click("mode-voice", in: window) } check: { app.captureMode == "voice" }
             await step("record tile asks for the mic or records", window) { click("tile-record", in: window) } check: { app.showMicSheet || app.recorder.isRecording }
@@ -52,7 +53,7 @@ enum UITest {
 
     private static func step(_ name: String, _ window: NSWindow, act: () -> Void, check: () -> Bool) async {
         act()
-        try? await Task.sleep(nanoseconds: 700_000_000)
+        try? await Task.sleep(nanoseconds: 900_000_000)
         let ok = check()
         if ok { pass += 1 } else { fail += 1 }
         Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
