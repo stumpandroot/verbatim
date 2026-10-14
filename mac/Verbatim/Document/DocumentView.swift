@@ -12,13 +12,16 @@ struct DocumentView: View {
     @State private var lintTask: Task<Void, Never>? = nil
 
     private var text: String { transcript.documentText }
+    /// Lints computed for exactly this text. After Clean up, Accept all, Undo, or typing, the old lints are
+    /// dropped until Harper re-runs, so the editor never applies stale positions.
+    private var currentLints: [Harper.Lint] { let t = text; return lints.filter { $0.source == t } }
     private var level: Polish.Level { Polish.Level(rawValue: transcript.documentLevel) ?? .none }
     private var tone: Polish.Tone { Polish.Tone(rawValue: transcript.documentTone) ?? .spoken }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             toolbar
-            DocumentEditor(text: text, lints: proofread ? lints : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
+            DocumentEditor(text: text, lints: proofread ? currentLints : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
                 .frame(maxWidth: 720)
         }
         .onAppear(perform: relint)
@@ -34,7 +37,7 @@ struct DocumentView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
                     Text("Proofread")
-                    if proofread && !lints.isEmpty { Text("\(lints.count)").foregroundStyle(Ink.mute) }
+                    if proofread && !currentLints.isEmpty { Text("\(currentLints.count)").foregroundStyle(Ink.mute) }
                 }
             }
             .toggleStyle(ToolChip())
@@ -57,7 +60,7 @@ struct DocumentView: View {
                 ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small)
             }
             Spacer(minLength: 8)
-            if proofread, !lints.isEmpty {
+            if proofread, !currentLints.isEmpty {
                 Button("Accept all") { acceptAll() }.buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.iris)
             }
             Button("Undo") { undo() }.buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold))
@@ -111,10 +114,10 @@ struct DocumentView: View {
     }
 
     private func accept(_ lint: Harper.Lint) {
-        guard let fix = lint.fix else { return }
-        var s = text
-        s.replaceSubrange(lint.range, with: fix)
-        commit(s, history: true)
+        guard let fix = lint.fix, lint.source == text else { return }
+        let ns = text as NSString
+        guard NSMaxRange(lint.nsRange) <= ns.length else { return }
+        commit(ns.replacingCharacters(in: lint.nsRange, with: fix), history: true)
     }
 
     private func ignore(_ lint: Harper.Lint) {
@@ -123,11 +126,17 @@ struct DocumentView: View {
     }
 
     private func acceptAll() {
-        var s = text
-        for l in lints.sorted(by: { $0.range.lowerBound > $1.range.lowerBound }) where l.fix != nil {
-            s.replaceSubrange(l.range, with: l.fix!)
+        let base = text
+        var ns = base as NSString
+        var lastStart = Int.max
+        // Back to front so earlier ranges stay valid; skip overlaps.
+        for l in currentLints.sorted(by: { $0.nsRange.location > $1.nsRange.location }) {
+            guard let fix = l.fix, NSMaxRange(l.nsRange) <= lastStart, NSMaxRange(l.nsRange) <= ns.length else { continue }
+            ns = ns.replacingCharacters(in: l.nsRange, with: fix) as NSString
+            lastStart = l.nsRange.location
         }
-        commit(s, history: true)
+        commit(ns as String, history: true)
+        lints = []
         Sounds.done()
     }
 
@@ -146,6 +155,7 @@ struct DocumentView: View {
     }
 
     private func run(level: Polish.Level, tone: Polish.Tone) {
+        guard working == nil else { return }   // one polish at a time
         switch Polish.status {
         case .ready: break
         case .needsMacOS26: app.toast = Toast("Clean up and Tone use Apple's on-device model, which needs macOS 26."); return
@@ -245,7 +255,9 @@ struct DocumentEditor: NSViewRepresentable {
         func apply(text: String, lints: [Harper.Lint]) {
             guard let tv = textView else { return }
             self.lints = lints
-            let key = lints.map { "\($0.id):\($0.range.lowerBound.utf16Offset(in: text))" }.joined(separator: ",")
+            let lints = lints.filter { $0.source == text }
+            self.lints = lints
+            let key = lints.map { "\($0.id):\($0.nsRange.location)" }.joined(separator: ",")
             guard !editing, (text != lastText || key != lastLintKey) else { return }
             lastText = text; lastLintKey = key
             let sel = tv.selectedRanges
@@ -269,8 +281,8 @@ struct DocumentEditor: NSViewRepresentable {
                 loc += (p as NSString).length + 2
             }
             for l in lints {
-                let r = NSRange(l.range, in: text)
-                guard r.location + r.length <= ns.length else { continue }
+                let r = l.nsRange
+                guard r.location >= 0, NSMaxRange(r) <= ns.length else { continue }
                 let color = l.isSpelling ? NSColor(Ink.coral) : NSColor(Ink.iris)
                 attr.addAttributes([.underlineStyle: NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue, .underlineColor: color,
                                     .link: URL(string: "verbatim-lint://\(l.id)")!, .cursor: NSCursor.pointingHand], range: r)
@@ -296,8 +308,8 @@ struct DocumentEditor: NSViewRepresentable {
 
         private func show(_ l: Harper.Lint, in tv: NSTextView, at index: Int) {
             popover?.close()
-            let r = NSRange(l.range, in: tv.string)
-            guard let lm = tv.layoutManager, let tc = tv.textContainer else { return }
+            let r = l.nsRange
+            guard l.source == tv.string, NSMaxRange(r) <= (tv.string as NSString).length, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
             var rect = lm.boundingRect(forGlyphRange: lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil), in: tc)
             rect.origin.x += tv.textContainerOrigin.x; rect.origin.y += tv.textContainerOrigin.y
             let p = NSPopover()

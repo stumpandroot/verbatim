@@ -65,6 +65,9 @@ struct CardButton<Content: View>: View {
     var tilt: Double = 1.5
     var lift: Double = 1
     var radius: Double = 12
+    /// When set, the card can be dragged (to a project, to Finder as text). Click uses a tap gesture then,
+    /// because a zero-distance drag gesture would swallow the system drag.
+    var dragPayload: (() -> String)? = nil
     var action: () -> Void
     @ViewBuilder var content: () -> Content
 
@@ -105,14 +108,39 @@ struct CardButton<Content: View>: View {
                         case .ended: hover = nil; down = false
                         }
                     }
-                    .gesture(DragGesture(minimumDistance: 0)
-                        .onChanged { _ in if !down { down = true } }
-                        .onEnded { v in
-                            down = false
-                            let inside = CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location)
-                            if inside { action() }
-                        })
+                    .modifier(CardHit(dragPayload: dragPayload, size: size, down: $down, action: action))
             }
+    }
+}
+
+private struct CardHit: ViewModifier {
+    var dragPayload: (() -> String)?
+    var size: CGSize
+    @Binding var down: Bool
+    var action: () -> Void
+    func body(content: Content) -> some View {
+        if let payload = dragPayload {
+            content
+                .onTapGesture { action() }
+                .onDrag { NSItemProvider(object: payload() as NSString) }
+        } else {
+            content.gesture(DragGesture(minimumDistance: 0)
+                .onChanged { _ in if !down { down = true } }
+                .onEnded { v in
+                    down = false
+                    if CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
+                })
+        }
+    }
+}
+
+/// What a dragged transcript (or a selection of them) carries: a prefixed list of IDs.
+enum TranscriptDrag {
+    static let prefix = "verbatim-transcripts:"
+    static func payload(_ ids: [UUID]) -> String { prefix + ids.map(\.uuidString).joined(separator: ",") }
+    static func ids(from s: String) -> [UUID] {
+        guard s.hasPrefix(prefix) else { return [] }
+        return s.dropFirst(prefix.count).split(separator: ",").compactMap { UUID(uuidString: String($0)) }
     }
 }
 

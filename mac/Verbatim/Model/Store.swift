@@ -42,7 +42,7 @@ final class Store: ObservableObject {
             .compactMap { try? Self.dec.decode(Transcript.self, from: Data(contentsOf: $0)) }
             .map { t in
                 var t = t
-                if t.status == .processing { t.status = .failed; t.error = "Interrupted before it finished. Choose Retry to run it again." }
+                if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
                 return t
             }
             .sorted { $0.createdAt > $1.createdAt }

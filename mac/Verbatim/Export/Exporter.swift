@@ -163,6 +163,34 @@ enum Exporter {
         else { try? render(t, as: f, options: o).write(to: url, atomically: true, encoding: .utf8) }
     }
 
+    /// Exports many transcripts at once into a folder the person picks: one file each, named by title.
+    /// Returns how many were written.
+    @MainActor @discardableResult
+    static func saveMany(_ ts: [Transcript], as f: ExportFormat, options o: ExportOptions = .saved) -> Int {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
+        panel.prompt = "Export Here"
+        panel.message = "Export \(ts.count) transcript\(ts.count == 1 ? "" : "s") as \(f.rawValue)."
+        guard panel.runModal() == .OK, let dir = panel.url else { return 0 }
+        var used = Set<String>()
+        var written = 0
+        for t in ts where t.status == .ready {
+            var base = t.title.replacingOccurrences(of: "[/:\\\\?%*|\"<>]", with: "-", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            if base.isEmpty { base = "Transcript" }
+            var name = base, n = 2
+            while used.contains(name.lowercased()) || FileManager.default.fileExists(atPath: dir.appendingPathComponent(name + "." + f.ext).path) { name = "\(base) \(n)"; n += 1 }
+            used.insert(name.lowercased())
+            let url = dir.appendingPathComponent(name + "." + f.ext)
+            do {
+                if f == .docx { try writeDocx(t, options: o, to: url) }
+                else { try render(t, as: f, options: o).write(to: url, atomically: true, encoding: .utf8) }
+                written += 1
+            } catch { Log.note("bulk export failed for \(t.title): \(error)") }
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([dir])
+        return written
+    }
+
     @MainActor
     static func copy(_ t: Transcript, options o: ExportOptions = .saved) {
         NSPasteboard.general.clearContents()

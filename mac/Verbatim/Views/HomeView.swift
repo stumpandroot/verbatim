@@ -171,7 +171,7 @@ struct ImportPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Import").font(.system(size: 14, weight: .bold))
-            Button { done(); openFile() } label: { Label("Choose an audio or video file…", systemImage: "doc") }
+            Button { done(); openFile() } label: { Label("Choose files or a folder…", systemImage: "doc.on.doc") }
                 .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
             Text("Or paste a link").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
@@ -190,12 +190,7 @@ struct ImportPanel: View {
         let l = link.trimmingCharacters(in: .whitespaces); guard !l.isEmpty else { return }
         app.transcribeLink(l); done()
     }
-    private func openFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.audio, .movie, .mpeg4Movie, .mp3, .wav, .aiff, .quickTimeMovie, UTType("public.mpeg-4-audio") ?? .audio]
-        panel.allowsMultipleSelection = true
-        if panel.runModal() == .OK { panel.urls.forEach { app.importFile($0) } }
-    }
+    private func openFile() { app.chooseFiles() }
 }
 
 // MARK: - Recent notes
@@ -315,7 +310,8 @@ struct FeaturedNote: View {
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
-        .tapArea { app.go(.transcript(transcript.id)) }
+        .onTapGesture { app.go(.transcript(transcript.id)) }
+        .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
         .contextMenu { RowMenu(transcript: transcript) }
     }
 
@@ -397,7 +393,8 @@ struct NoteTile: View {
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
-        .tapArea { app.go(.transcript(transcript.id)) }
+        .onTapGesture { app.go(.transcript(transcript.id)) }
+        .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
         .contextMenu { RowMenu(transcript: transcript) }
     }
 }
@@ -586,12 +583,19 @@ struct WaveformThumb: Shape {
 struct HistoryRow: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
+    /// nil = not selecting; true/false = selection mode with this row's state.
+    var selected: Bool? = nil
+    /// The IDs a drag of this row carries (the whole selection when this row is part of it).
+    var dragIDs: (() -> [UUID])? = nil
     var open: () -> Void
     @State private var hover = false
 
     var body: some View {
-        CardButton(tilt: 1, lift: 1, radius: 14, action: open) {
+        CardButton(tilt: 1, lift: 1, radius: 14, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) {
             HStack(spacing: 14) {
+                if let sel = selected {
+                    Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.iris : Ink.mute)
+                }
                 Image(systemName: transcript.source.symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(tileFg)
                     .frame(width: 48, height: 48).background(tileBg, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
@@ -613,14 +617,14 @@ struct HistoryRow: View {
                 WaveformThumb(values: transcript.waveform.isEmpty ? placeholder : Waveform.resample(transcript.waveform, to: 32))
                     .fill(waveColor).frame(width: 120, height: 24)
                 Text(dateLine).font(.system(size: 13)).foregroundStyle(Ink.mute).frame(width: 96, alignment: .trailing).lineLimit(1)
-                Menu { RowMenu(transcript: transcript) } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 14, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 28, height: 28)
-                }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                Color.clear.frame(width: 30, height: 28)   // room for the ⋯ menu, which sits above the click layer
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(hover ? Color(hex: 0xFBF9FF) : .white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.black.opacity(0.06)))
+            .background(selected == true ? Ink.irisTint.opacity(0.6) : hover ? Color(hex: 0xFFFBF4) : Color(hex: 0xFFFDF9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(selected == true ? Ink.iris.opacity(0.5) : Ink.ink.opacity(hover ? 0.14 : 0.07)))
+        }
+        .overlay(alignment: .trailing) {
+            if selected == nil { RowMenuButton(transcript: transcript).padding(.trailing, 12) }
         }
         .onHover { hover = $0 }
         .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .identity))
@@ -653,7 +657,8 @@ struct RowMenu: View {
             }
         }
         if transcript.status == .failed { Button("Retry transcription") { app.retry(transcript) } }
+        if transcript.status == .processing { Button("Cancel transcription") { app.cancel(transcript.id) } }
         Divider()
-        Button("Delete", role: .destructive) { withAnimation(Motion.settle) { app.store.delete(transcript) } }
+        Button("Delete", role: .destructive) { app.delete([transcript.id]) }
     }
 }

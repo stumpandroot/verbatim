@@ -15,7 +15,9 @@ enum Harper {
     }
     struct Lint: Identifiable, Hashable {
         let id: Int
-        let range: Range<String.Index>
+        /// UTF-16 range in `source`. Plain integers, so a lint can never index into a different string.
+        let nsRange: NSRange
+        let source: String
         let original: String
         let kind: String          // Spelling, Grammar, Capitalization, Punctuation, Redundancy, …
         let message: String
@@ -50,7 +52,7 @@ enum Harper {
             let b = scalars.index(scalars.startIndex, offsetBy: r.end)
             let original = String(text[a..<b])
             if r.kind == "Spelling", lower.contains(original.lowercased().trimmingCharacters(in: .punctuationCharacters)) { continue }
-            out.append(Lint(id: i, range: a..<b, original: original, kind: r.kind, message: r.message, priority: r.priority, suggestions: r.suggestions))
+            out.append(Lint(id: i, nsRange: NSRange(a..<b, in: text), source: text, original: original, kind: r.kind, message: r.message, priority: r.priority, suggestions: r.suggestions))
         }
         return out
     }

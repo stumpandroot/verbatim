@@ -95,6 +95,8 @@ enum UITest {
         app.showAppPicker = false
         app.projectFilter = nil; app.go(.library)
         await show("05-library")
+        app.go(.queue)
+        await show("05b-queue")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")

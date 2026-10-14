@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 enum Screen: Equatable {
     case home
     case library
+    case queue
     case transcript(UUID)
     case dictionary
 }
@@ -51,6 +52,11 @@ final class AppState: ObservableObject {
     let capture = AppAudioCapture()
     let dictation = DictationController()
 
+    /// Transcripts waiting to run, oldest first. One runs at a time.
+    @Changed var queue: [UUID] = []
+    @Changed var runningID: UUID? = nil
+    private var runningTask: Task<Void, Never>? = nil
+
     private var bag = Set<AnyCancellable>()
 
     init() {
@@ -62,6 +68,9 @@ final class AppState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         dictation.attach(self)
+        // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
+        queue = store.transcripts.filter { $0.status == .processing && $0.audioFileName != nil }.sorted { $0.createdAt < $1.createdAt }.map(\.id)
+        if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
     }
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
@@ -71,7 +80,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "library": 1, "dictionary": 2]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "queue": 2, "dictionary": 3]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -92,7 +101,7 @@ final class AppState: ObservableObject {
     func goHome() { go(.home) }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .library: return "library"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
+        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
     }
 
     // MARK: Recording (microphone)
@@ -172,28 +181,60 @@ final class AppState: ObservableObject {
 
     // MARK: Files and links
 
-    func importFile(_ src: URL) {
-        let ext = src.pathExtension.isEmpty ? "m4a" : src.pathExtension
-        let dest = store.newAudioURL(ext: ext)
-        do { try FileManager.default.copyItem(at: src, to: dest) } catch {
-            toast = Toast("Could not copy the file: \(error.localizedDescription)"); return
-        }
-        let duration = Player.duration(of: dest)
-        guard duration > 0 else {
-            try? FileManager.default.removeItem(at: dest)
-            toast = Toast("That file has no audio Verbatim can read (\(ext.uppercased()))."); return
-        }
-        let t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file,
-                           sourceLabel: ext.uppercased() + " file", duration: duration, audioFileName: dest.lastPathComponent, model: "")
-        enqueue(t)
+    func importFile(_ src: URL) { importFiles([src]) }
+
+    /// The open panel: any number of audio or video files, or whole folders.
+    func chooseFiles() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio, .movie, .audiovisualContent, .mpeg4Movie, .mp3, .wav, .aiff, .quickTimeMovie, UTType("public.mpeg-4-audio") ?? .audio]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.prompt = "Transcribe"
+        panel.message = "Choose audio or video files, or folders. They're transcribed one at a time, in order."
+        if panel.runModal() == .OK { importFiles(panel.urls) }
     }
 
-    /// Accepts a dropped file from Finder.
+    /// Imports any number of files or folders. Each gets a Library entry right away; files are copied (and video
+    /// reduced to its audio) one after another in the background, and each joins the queue as soon as it's ready.
+    func importFiles(_ urls: [URL]) {
+        let files = MediaImport.expand(urls)
+        guard !files.isEmpty else { toast = Toast("No audio or video files found there."); return }
+        var pending: [(UUID, URL)] = []
+        for src in files {
+            var t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file,
+                               sourceLabel: src.pathExtension.uppercased() + " file", duration: 0, audioFileName: nil, model: "")
+            t.status = .processing; t.stage = "Importing"
+            if let p = projectFilter { t.projectId = p }
+            store.add(t)
+            pending.append((t.id, src))
+        }
+        if files.count > 1 { toast = Toast("Added \(files.count) files to the queue", action: "View") { [weak self] in self?.go(.queue) } }
+        verbiePose = .receiving
+        Task {
+            for (id, src) in pending {
+                guard store.transcript(id)?.status == .processing else { continue }   // cancelled while waiting
+                do {
+                    let dest = store.newAudioURL(ext: "m4a")
+                    let prepared = try await MediaImport.prepare(src, into: dest)
+                    store.update(id) { $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued" }
+                    queue.append(id)
+                    pump()
+                } catch {
+                    store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
+                }
+            }
+        }
+    }
+
+    /// Accepts files and folders dropped from Finder, any number at once.
     func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else { return false }
-        p.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
-            guard let data, let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
-            Task { @MainActor in self.importFile(url) }
+        let ps = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !ps.isEmpty else { return false }
+        let collector = URLCollector(expected: ps.count) { [weak self] urls in Task { @MainActor in self?.importFiles(urls) } }
+        for p in ps {
+            p.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+                collector.add(data.flatMap { URL(dataRepresentation: $0, relativeTo: nil) })
+            }
         }
         return true
     }
@@ -226,8 +267,10 @@ final class AppState: ObservableObject {
     // MARK: Pipeline
 
     func retry(_ t: Transcript) {
+        guard t.audioFileName != nil else { toast = Toast("That recording's audio is missing."); return }
         store.update(t.id) { $0.status = .processing; $0.error = nil; $0.stage = "Queued" }
-        run(t.id)
+        if !queue.contains(t.id) && runningID != t.id { queue.append(t.id) }
+        pump()
     }
 
     private func enqueue(_ t: Transcript) {
@@ -238,11 +281,51 @@ final class AppState: ObservableObject {
         store.add(t)
         verbiePose = .saved
         Task { try? await Task.sleep(nanoseconds: 700_000_000); if verbiePose == .saved { verbiePose = .working } }
-        run(t.id)
+        queue.append(t.id)
+        pump()
+    }
+
+    /// Starts the next queued transcript if nothing is running.
+    func pump() {
+        guard runningID == nil else { return }
+        while let next = queue.first {
+            queue.removeFirst()
+            guard store.transcript(next)?.status == .processing else { continue }
+            runningID = next
+            run(next)
+            return
+        }
+    }
+
+    /// Stops a queued or running transcript. It stays in Library as "Cancelled" with Retry.
+    func cancel(_ id: UUID) {
+        queue.removeAll { $0 == id }
+        store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
+        if runningID == id {
+            runningTask?.cancel(); runningTask = nil
+            runningID = nil
+            pump()
+        }
+    }
+
+    func cancelAll() {
+        for id in queue { store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." } }
+        queue = []
+        if let r = runningID { cancel(r) }
+    }
+
+    /// Called when a run ends for any reason.
+    private func finished(_ id: UUID) {
+        guard runningID == id else { return }
+        runningID = nil; runningTask = nil
+        pump()
     }
 
     private func run(_ id: UUID) {
-        guard let t = store.transcript(id), let url = store.audioURL(for: t) else { return }
+        guard let t = store.transcript(id), let url = store.audioURL(for: t) else {
+            store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "The audio file is missing." }
+            runningID = nil; pump(); return
+        }
         let (engineId, model) = engineChoice
         let wantSpeakers = identifySpeakers
         let dict = applyDictionary ? store.dictionary : []
@@ -257,7 +340,7 @@ final class AppState: ObservableObject {
             guard gate.shouldPublish(label) else { return }
             Task { @MainActor in self.store.setStage(id, label) }
         }
-        Task.detached(priority: .userInitiated) {
+        runningTask = Task.detached(priority: .userInitiated) {
             do {
                 let engine = Engines.engine(for: engineId)
                 var result = try await engine.transcribe(url: url, model: model, progress: progress)
@@ -282,6 +365,9 @@ final class AppState: ObservableObject {
                 let wave = needWave ? Waveform.envelope(of: url) : []
                 let r = result
                 await MainActor.run {
+                    defer { self.finished(id) }
+                    // Cancelled while running: keep the cancellation, drop the late result.
+                    guard self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { x in
                         x.original = original
                         x.segments = fixed
@@ -296,20 +382,38 @@ final class AppState: ObservableObject {
                         if x.source == .voiceMemo || x.source == .app || x.source == .dictation, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                     }
                     self.verbiePose = .saved
-                    Sounds.done()
-                    let n = corrections.count
-                    self.toast = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
+                    // In a batch, stay quiet until the last one; then one chime and one toast.
+                    if self.queue.isEmpty {
+                        Sounds.done()
+                        let n = corrections.count
+                        self.toast = Toast(n > 0 ? "Transcript ready · Dictionary fixed \(n) word\(n == 1 ? "" : "s")" : "Transcript ready", action: "Open") { [weak self] in self?.go(.transcript(id)) }
+                    }
                     Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
                 }
             } catch {
                 Log.note("transcribe failed: \(error)")
                 await MainActor.run {
+                    defer { self.finished(id) }
+                    guard self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.verbiePose = .interrupted
                     self.toast = Toast("Transcription failed: \(error.localizedDescription)")
                 }
             }
         }
+    }
+
+    // MARK: Organizing
+
+    func move(_ ids: [UUID], to project: UUID?) {
+        for id in ids { store.update(id) { $0.projectId = project } }
+        let name = project.flatMap { p in store.projects.first { $0.id == p }?.name }
+        toast = Toast(name.map { "Moved \(ids.count == 1 ? "1 transcript" : "\(ids.count) transcripts") to \($0)" } ?? "Removed from project")
+        Sounds.play("Tink")
+    }
+
+    func delete(_ ids: [UUID]) {
+        for id in ids { if runningID == id || queue.contains(id) { cancel(id) }; if let t = store.transcript(id) { store.delete(t) } }
     }
 
     // MARK: Editing

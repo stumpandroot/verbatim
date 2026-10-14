@@ -58,23 +58,45 @@ enum Polish {
         return rules.joined(separator: " ")
     }
 
+    /// Splits a long paragraph (one speaker for minutes) at sentence ends into chunks the model can take in
+    /// one turn. Nothing is dropped; the chunks are polished separately and joined back.
+    static func chunks(_ p: String, maxWords: Int = 450) -> [String] {
+        guard p.split(separator: " ").count > maxWords else { return [p] }
+        var out: [String] = [], cur = "", count = 0
+        p.enumerateSubstrings(in: p.startIndex..., options: .bySentences) { sub, _, _, _ in
+            guard let sentence = sub else { return }
+            let n = sentence.split(separator: " ").count
+            if count + n > maxWords, !cur.isEmpty { out.append(cur.trimmingCharacters(in: .whitespaces)); cur = ""; count = 0 }
+            cur += sentence; count += n
+        }
+        if !cur.trimmingCharacters(in: .whitespaces).isEmpty { out.append(cur.trimmingCharacters(in: .whitespaces)) }
+        return out.isEmpty ? [p] : out
+    }
+
     /// Rewrites each paragraph. Calls `progress` with the fraction done. Paragraphs the model refuses come back unchanged.
     static func rewrite(_ paragraphs: [String], level: Level, tone: Tone, progress: @escaping @Sendable (Double) -> Void) async throws -> [String] {
         #if canImport(FoundationModels)
         if #available(macOS 26, *) {
-            let session = LanguageModelSession(instructions: instructions(level: level, tone: tone))
-            session.prewarm()
+            let rules = instructions(level: level, tone: tone)
             var out: [String] = []
             for (i, p) in paragraphs.enumerated() {
+                try Task.checkCancellation()
                 if p.split(separator: " ").count < 3 { out.append(p); progress(Double(i + 1) / Double(paragraphs.count)); continue }
-                do {
-                    let r = try await session.respond(to: "Paragraph:\n\(p)")
-                    let text = r.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    out.append(text.isEmpty ? p : text)
-                } catch {
-                    Log.note("polish: paragraph \(i) kept as-is: \(error)")
-                    out.append(p)
+                var parts: [String] = []
+                for chunk in chunks(p) {
+                    do {
+                        // A fresh session per chunk: a shared one keeps every earlier turn and overflows the
+                        // model's 4,096-token window after a few thousand words.
+                        let session = LanguageModelSession(instructions: rules)
+                        let r = try await session.respond(to: "Paragraph:\n\(chunk)")
+                        let text = r.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        parts.append(text.isEmpty ? chunk : text)
+                    } catch {
+                        Log.note("polish: paragraph \(i) chunk kept as-is: \(error)")
+                        parts.append(chunk)
+                    }
                 }
+                out.append(parts.joined(separator: " "))
                 progress(Double(i + 1) / Double(paragraphs.count))
             }
             return out

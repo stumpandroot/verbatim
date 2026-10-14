@@ -47,6 +47,7 @@ struct ContentView: View {
         switch app.screen {
         case .home: return "Verbatim"
         case .library: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library"
+        case .queue: return "Queue"
         case .dictionary: return "Dictionary"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
         }
@@ -56,6 +57,7 @@ struct ContentView: View {
         switch app.screen {
         case .home: return "home"
         case .library: return "library"
+        case .queue: return "queue"
         case .dictionary: return "dict"
         case .transcript(let id): return "t-\(id)"
         }
@@ -65,6 +67,7 @@ struct ContentView: View {
         switch app.screen {
         case .home: HomeView()
         case .library: LibraryView()
+        case .queue: QueueView()
         case .dictionary: DictionaryView()
         case .transcript(let id): TranscriptView(id: id)
         }
@@ -120,8 +123,11 @@ struct Sidebar: View {
 
             SideItem(label: "Home", symbol: "house", selected: app.screen == .home, pill: pill) { app.go(.home) }
                 .uiTarget("side-home")
-            SideItem(label: "Library", symbol: "doc.text", selected: app.screen == .library && app.projectFilter == nil, pill: pill) { app.projectFilter = nil; app.go(.library) }
+            SideItem(label: "Library", symbol: "doc.text", selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
                 .uiTarget("side-library")
+            SideItem(label: "Queue", symbol: "list.bullet", selected: app.screen == .queue,
+                     badge: app.queue.count + (app.runningID == nil ? 0 : 1) == 0 ? nil : "\(app.queue.count + (app.runningID == nil ? 0 : 1))", busy: app.runningID != nil, pill: pill) { app.go(.queue) }
+                .uiTarget("side-queue")
             SideItem(label: "Dictionary", symbol: "book", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
                 .uiTarget("side-dict")
 
@@ -134,7 +140,7 @@ struct Sidebar: View {
             .padding(.leading, 12).padding(.trailing, 6).padding(.top, 18).padding(.bottom, 4)
             ForEach(app.store.projects) { p in
                 SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.coral, Color(hex: 0x9CCB44), Ink.iris][p.colorIndex % 3],
-                         selected: app.screen == .library && app.projectFilter == p.id, pill: pill) { app.projectFilter = p.id; app.go(.library) }
+                         selected: app.screen == .library && app.projectFilter == p.id, pill: pill, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
                     .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
             }
             if app.store.projects.isEmpty && !newProject {
@@ -184,22 +190,28 @@ struct SideItem: View {
     var symbolColor: Color? = nil
     var selected: Bool
     var badge: String? = nil
+    var busy = false
     var pill: Namespace.ID
+    /// Makes the row a drop target for dragged transcripts.
+    var onDropIDs: (([UUID]) -> Void)? = nil
     var action: () -> Void
     @State private var hover = false
+    @State private var dropping = false
 
     var body: some View {
         HStack(spacing: 12) {
             if let s = symbol { Image(systemName: s).font(.system(size: 15, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? (selected ? Ink.iris : Ink.ink)) }
             Text(label).lineLimit(1)
             Spacer(minLength: 0)
+            if busy { ProgressView().controlSize(.mini) }
             if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background {
             ZStack {
                 // Hover previews (light iris tint); selection says where you are (lifted white glass + iris marker).
-                if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.07)) }
+                if dropping { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.16)).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.iris, lineWidth: 1.5)) }
+                else if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.07)) }
                 if selected {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.66))
                         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.white.opacity(0.9), lineWidth: 0.5))
@@ -215,7 +227,9 @@ struct SideItem: View {
         .fontWeight(selected ? .semibold : .regular)
         .tapArea(action)
         .onHover { hover = $0 }
+        .modifier(TranscriptDropTarget(enabled: onDropIDs != nil, dropping: $dropping) { onDropIDs?($0) })
         .animation(Motion.touch, value: hover)
+        .animation(Motion.touch, value: dropping)
         .animation(Motion.snap, value: selected)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -401,5 +415,25 @@ struct ExportPanel: View {
                 .buttonStyle(.borderedProminent).tint(Ink.iris).frame(maxWidth: .infinity)
         }
         .padding(16).frame(width: 300)
+    }
+}
+
+/// Accepts transcripts dragged from Home, Library, or the Queue.
+struct TranscriptDropTarget: ViewModifier {
+    var enabled: Bool
+    @Binding var dropping: Bool
+    var perform: ([UUID]) -> Void
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onDrop(of: [.plainText, .utf8PlainText, .text], isTargeted: $dropping) { providers in
+                guard let p = providers.first else { return false }
+                _ = p.loadObject(ofClass: NSString.self) { obj, _ in
+                    guard let s = obj as? String else { return }
+                    let ids = TranscriptDrag.ids(from: s)
+                    if !ids.isEmpty { DispatchQueue.main.async { perform(ids) } }
+                }
+                return true
+            }
+        } else { content }
     }
 }

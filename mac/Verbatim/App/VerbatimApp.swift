@@ -20,6 +20,8 @@ struct VerbatimApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Transcript") { app.goHome(); app.focusLink.toggle() }
                     .keyboardShortcut("n", modifiers: .command)
+                Button("Import Files…") { app.chooseFiles() }
+                    .keyboardShortcut("o", modifiers: .command)
                 Button("Record Voice Memo") { app.requestRecord() }
                     .keyboardShortcut("r", modifiers: [.option, .shift])
             }
