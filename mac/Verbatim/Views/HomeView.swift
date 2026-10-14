@@ -27,6 +27,8 @@ struct HomeView: View {
                     else { CaptureBar() }
                 }
                 .padding(.top, 22).staggerIn(1)
+                .animation(Motion.settle, value: app.recorder.isRecording)
+                .animation(Motion.settle, value: app.capture.isCapturing)
                 if app.captureMode == "dictate" && !app.recorder.isRecording && !app.capture.isCapturing {
                     // Dictate's details drop down under the toolbar; click Dictate again (or ×) to close.
                     HStack(alignment: .top) {
@@ -43,8 +45,6 @@ struct HomeView: View {
                     .padding(.top, 10)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .animation(Motion.settle, value: app.recorder.isRecording)
-                .animation(Motion.settle, value: app.capture.isCapturing)
 
                 Rectangle().fill(Ink.hairline).frame(height: 1).padding(.top, 24)
                 RecentNotes().padding(.top, 16).staggerIn(2)
