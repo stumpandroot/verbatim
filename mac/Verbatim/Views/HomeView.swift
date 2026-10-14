@@ -148,7 +148,7 @@ struct CaptureCard: View {
         .frame(maxWidth: .infinity, minHeight: 330)
         .background(Ink.lime, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .tiltCard(tilt: 1.5, lift: 0, radius: 26)
+        .tiltCard(tilt: 1.5, lift: 0, radius: 26, rotates: false)
         .animation(Motion.settle, value: app.recorder.isRecording)
         .animation(Motion.settle, value: app.capture.isCapturing)
         .animation(Motion.settle, value: app.captureMode)

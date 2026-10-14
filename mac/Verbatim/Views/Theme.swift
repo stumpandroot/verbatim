@@ -117,6 +117,9 @@ struct TiltCard: ViewModifier {
     var tilt: Double = 4
     var lift: Double = 2
     var radius: Double = 12
+    /// Off for cards that hold their own controls: on macOS 26 a 3D-rotated ancestor loses clicks for its children,
+    /// so those cards keep the spotlight and lift and skip the rotation. CardButton tilts safely on its own.
+    var rotates: Bool = true
     @State private var hover: CGPoint? = nil
     private var hoverKey: String { hover.map { "\(Int($0.x)),\(Int($0.y))" } ?? "" }
     @State private var size: CGSize = .zero
@@ -134,8 +137,8 @@ struct TiltCard: ViewModifier {
                         .allowsHitTesting(false)
                 }
             }
-            .rotation3DEffect(.degrees(on ? -ny * tilt : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-            .rotation3DEffect(.degrees(on ? nx * tilt : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+            .rotation3DEffect(.degrees(on && rotates ? -ny * tilt : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
+            .rotation3DEffect(.degrees(on && rotates ? nx * tilt : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
             .offset(y: on ? -lift : 0)
             .animation(hover == nil ? Motion.bounce : Motion.touch, value: hoverKey)
             .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
@@ -149,8 +152,8 @@ struct TiltCard: ViewModifier {
 }
 
 extension View {
-    func tiltCard(tilt: Double = 4, lift: Double = 2, radius: Double = 12) -> some View {
-        modifier(TiltCard(tilt: tilt, lift: lift, radius: radius))
+    func tiltCard(tilt: Double = 4, lift: Double = 2, radius: Double = 12, rotates: Bool = true) -> some View {
+        modifier(TiltCard(tilt: tilt, lift: lift, radius: radius, rotates: rotates))
     }
     func tapArea(_ action: @escaping () -> Void) -> some View { modifier(TapArea(action: action)) }
     /// Press feedback for real Buttons (scale on isPressed through a button style).

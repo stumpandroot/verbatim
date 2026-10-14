@@ -63,6 +63,8 @@ enum UITest {
         let window = id.hasPrefix("sheet-") ? (main.attachedSheet ?? main) : main
         guard let f = frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
         let p = CGPoint(x: f.midX, y: content.bounds.height - f.midY)   // SwiftUI global (top-left) -> NSWindow (bottom-left)
+        let under = content.hitTest(p).map { String(describing: type(of: $0)) } ?? "nil"
+        Log.note("UITEST click \(id) frame=\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)) point=\(Int(p.x)),\(Int(p.y)) content=\(Int(content.bounds.width))x\(Int(content.bounds.height)) under=\(under)")
         let t = ProcessInfo.processInfo.systemUptime
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
             NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t, windowNumber: window.windowNumber, context: nil, eventNumber: Int(t * 1000) % 100000, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
