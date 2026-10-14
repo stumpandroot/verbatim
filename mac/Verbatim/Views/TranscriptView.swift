@@ -91,14 +91,14 @@ struct TranscriptView: View {
         HStack(spacing: 12) {
             HStack(spacing: 2) {
                 ForEach(Mode.allCases, id: \.self) { m in
-                    Text(m.rawValue).font(.system(size: 13.5, weight: .semibold))
+                    Text(m.rawValue).font(.system(size: 13.5, weight: .semibold)).lineLimit(1).fixedSize()
                         .padding(.horizontal, 16).padding(.vertical, 7)
                         .background { if view == m { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "mode", in: segNS) } }
                         .foregroundStyle(view == m ? .white : Ink.ink)
                         .tapArea { withAnimation(Motion.snap) { view = m } }
                 }
             }
-            .padding(3).background(Color(hex: 0xECE8F3), in: Capsule())
+            .padding(3).background(Color(hex: 0xECE8F3), in: Capsule()).fixedSize()
             Divider().frame(height: 18)
             HStack(spacing: 5) {
                 Text("Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
