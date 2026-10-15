@@ -507,7 +507,7 @@ struct LegRig {
         if let s = step { targetWeight = s.side == 0 ? 1 : -1 }            // stand on the other foot while one moves
         weight += (targetWeight - weight) * CGFloat(min(1, dt * 3))
         let leftX = feet[0].x, rightX = feet[1].x
-        let overX = (leftX + rightX) / 2 - 100 + weight * (rightX - leftX) * 0.12
+        let overX = (leftX + rightX) / 2 - 100 + weight * (rightX - leftX) * 0.25
         dx += (overX - dx) * CGFloat(min(1, dt * 4))
         // The hips dip as weight passes between the feet, and sink a little when he dozes.
         var targetDy: CGFloat = (1 - abs(weight)) * 1.6 + (calm ? 3 : 0)
@@ -531,9 +531,11 @@ struct LegRig {
         if step == nil, hop == nil, !calm, now >= nextStepAt {
             let side = weight > 0 ? 0 : 1                               // move the unweighted foot
             let drift = (dx - ((feet[0].x + feet[1].x) / 2 - 100))
-            var to = Self.homeX[side] + CGFloat(rand() * 8 - 4) + drift * 0.5
-            to = min(max(to, Self.homeX[side] - 8), Self.homeX[side] + 8)
-            step = Step(side: side, fromX: feet[side].x, toX: to, start: now, duration: 0.3 + rand() * 0.12, height: 6 + CGFloat(rand() * 4))
+            // A visible move: 4–9 pt in or out from where the foot is, kept within a comfortable stance.
+            let dir: CGFloat = feet[side].x > Self.homeX[side] ? -1 : feet[side].x < Self.homeX[side] ? 1 : (rand() < 0.5 ? -1 : 1)
+            var to = feet[side].x + dir * CGFloat(4 + rand() * 5) + drift * 0.4
+            to = min(max(to, Self.homeX[side] - 10), Self.homeX[side] + 10)
+            step = Step(side: side, fromX: feet[side].x, toX: to, start: now, duration: 0.3 + rand() * 0.12, height: 8 + CGFloat(rand() * 5))
             // Sometimes the other foot follows: a little shuffle.
             nextStepAt = now + (rand() < 0.3 ? 0.55 : 3.5 + rand() * 5)
         }
