@@ -116,28 +116,29 @@ struct LinkRow: View {
 struct FrameImage: View {
     var file: String
     var body: some View {
-        ZStack {
-            Rectangle().fill(Ink.track)
-            if let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(file)) {
-                Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+        // The rectangle sets the size; the still fills it and is clipped, so it never pushes the layout.
+        Rectangle().fill(Ink.track)
+            .overlay {
+                if let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(file)) {
+                    Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                }
             }
-        }
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
 struct Thumbnail: View {
     var info: LinkInfo
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Ink.track)
-            if let f = info.thumbnailFile, let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(f)) {
-                Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-            } else {
-                Image(systemName: "play.rectangle").font(.system(size: 22)).foregroundStyle(Ink.mute)
+        RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Ink.track)
+            .overlay {
+                if let f = info.thumbnailFile, let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(f)) {
+                    Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: "play.rectangle").font(.system(size: 22)).foregroundStyle(Ink.mute)
+                }
             }
-        }
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Ink.hairline))
     }
