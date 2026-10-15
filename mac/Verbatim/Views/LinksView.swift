@@ -84,9 +84,9 @@ struct LinkRow: View {
             Spacer(minLength: 12)
             HStack(spacing: 8) {
                 Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", systemImage: "play.rectangle") }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.bordered).fixedSize()
                 Button { app.go(.transcript(transcript.id)) } label: { Label("Transcript", systemImage: "text.alignleft") }
-                    .buttonStyle(.borderedProminent).tint(Ink.iris).disabled(transcript.status != .ready)
+                    .buttonStyle(.borderedProminent).tint(Ink.iris).disabled(transcript.status != .ready).fixedSize()
                 Menu {
                     Button("Copy link") { copy(info.url) }
                     Button("Copy title and link") { copy("\(transcript.title)\n\(info.url)") }
