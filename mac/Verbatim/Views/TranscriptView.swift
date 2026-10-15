@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Transcript workspace (Listening Desk composition, Soft Instrument playback dock).
 /// Calm reading surface; the player and the notes carry the interaction.
@@ -11,6 +12,8 @@ struct TranscriptView: View {
     @State private var isNarrow = false   // toolbar display only; layout reads the geometry directly
     @State private var detailsOpen = false
     @State private var selectedSegment: UUID? = nil
+    @State private var followed: UUID? = nil
+    @State private var pendingSeek: Double? = nil
     @State private var textSize: CGFloat = 16
     @Namespace private var segNS
 
@@ -42,8 +45,20 @@ struct TranscriptView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .onReceive(app.player.clock.$time) { now in
-                            if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }) {
+                            // Follow playback, but only when the playing passage changes (not on every tick).
+                            if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
+                                followed = s.id
                                 withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                            }
+                        }
+                        .onAppear {
+                            // Opened from search, a link, or a note: land on that passage.
+                            if let f = app.focusSegment, t.segments.contains(where: { $0.id == f }) {
+                                app.focusSegment = nil
+                                view = .original
+                                selectedSegment = f
+                                DispatchQueue.main.async { proxy.scrollTo(f, anchor: .center) }
+                                if let s = t.segments.first(where: { $0.id == f }) { pendingSeek = s.start }
                             }
                         }
                     }
@@ -77,7 +92,7 @@ struct TranscriptView: View {
             }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
-                if let u = app.store.audioURL(for: t) { app.player.loadAsync(u) }
+                if let u = app.store.audioURL(for: t) { app.player.loadAsync(u, startAt: pendingSeek) }
                 if UITest.enabled { DispatchQueue.main.async { Log.note("UITEST nav settled ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000))") } }
             }
             .onDisappear { app.player.stop() }
@@ -108,9 +123,9 @@ struct TranscriptView: View {
             HStack(spacing: 8) {
                 Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
                 if !t.speakers.isEmpty { Text("·"); Text("\(t.speakers.count) speakers") }
-                if let u = t.sourceURL, let url = URL(string: u) { Text("·"); Link("Open source", destination: url) }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            if let info = t.linkInfo { LinkCard(info: info, title: t.title).padding(.top, 10) }
         }
         .padding(.bottom, 14)
     }
@@ -126,7 +141,7 @@ struct TranscriptView: View {
                         .tapArea { withAnimation(Motion.snap) { view = m } }
                 }
             }
-            .padding(3).background(Color(hex: 0xEEEBF4), in: Capsule()).fixedSize()
+            .padding(3).background(Ink.track, in: Capsule()).fixedSize()
             Divider().frame(height: 18)
             HStack(spacing: 5) {
                 Text(view == .document ? "Original kept" : "Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).layoutPriority(-1)
@@ -175,7 +190,7 @@ struct TranscriptView: View {
                         Spacer()
                         Button("Undo") { undo(t, c) }.buttonStyle(.bordered).controlSize(.small)
                     }
-                    .padding(12).background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .padding(12).background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.06)))
                 }
             }
@@ -197,7 +212,7 @@ struct TranscriptView: View {
                 Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
             }
         }
-        .padding(16).background(Color(hex: 0xF3F0FA), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16).background(Ink.wash, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
 
@@ -249,17 +264,40 @@ struct SegmentLine: View {
     @State private var renaming = false
     @State private var newName = ""
 
+    /// The search term, highlighted where it appears in this line.
+    private func highlighted(_ text: String) -> AttributedString {
+        var a = AttributedString(text)
+        let q = app.search.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else { return a }
+        var searchStart = a.startIndex
+        while searchStart < a.endIndex, let r = a[searchStart...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
+            a[r].backgroundColor = Ink.coral.opacity(0.28)
+            searchStart = r.upperBound
+        }
+        return a
+    }
+
+    /// “Quote” — Speaker, Title (12:34) and, when it came from a link, the video at that second.
+    private func copyQuote(withLink: Bool) {
+        var s = "“\(segment.text)”"
+        if let sp = transcript.speakerName(segment.speaker), transcript.speakers.count >= 2 { s += " — \(sp)" }
+        s += "\n\(transcript.title) (\(segment.start.timecode))"
+        if withLink, let u = transcript.linkInfo?.url(at: segment.start) { s += "\n\(u.absoluteString)" }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
+        app.toast = Toast(withLink ? "Quote and link copied" : "Quote copied")
+    }
+
     private var highlight: Color {
         if current { return Ink.irisTint }
-        if saved { return Ink.lime.opacity(0.42) }
-        if selected { return Color(hex: 0xF3F0FA) }
+        if saved { return Ink.saved }
+        if selected { return Ink.wash }
         if hover { return Ink.iris.opacity(0.045) }
         return .clear
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(tsHover ? Ink.iris : Color(hex: 0xA39B8E))
+            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(tsHover ? Ink.iris : Ink.faint)
                 .underline(tsHover, color: Ink.iris).onHover { tsHover = $0 }.help("Play from here")
                 .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 6)
                 .tapArea { app.player.seek(to: segment.start) }
@@ -286,7 +324,7 @@ struct SegmentLine: View {
                     }
                     .padding(.top, 8)
                 }
-                Text(segment.text)
+                Text(highlighted(segment.text))
                     .font(.system(size: size)).lineSpacing(size * 0.3).foregroundStyle(Ink.ink)
                     .textSelection(.enabled)
                     .padding(.horizontal, 10).padding(.vertical, 6)
@@ -302,6 +340,14 @@ struct SegmentLine: View {
                         Divider()
                         Button("Note on this passage") { select(); NotificationCenter.default.post(name: .verbatimFocusNote, object: nil) }
                         Button("Play from here") { app.player.seek(to: segment.start); if !app.player.isPlaying { app.player.toggle() } }
+                        if let info = transcript.linkInfo {
+                            Button(info.supportsTimestamps ? "Open video at \(segment.start.timecode)" : "Open video") {
+                                if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) }
+                            }
+                        }
+                        Divider()
+                        Button("Copy quote") { copyQuote(withLink: false) }
+                        if transcript.linkInfo != nil { Button("Copy quote with link") { copyQuote(withLink: true) } }
                     }
                     .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
                         VStack(alignment: .leading, spacing: 10) {
@@ -413,14 +459,14 @@ struct PlayerDock: View {
                 let seg = transcript.segments.first(where: { at >= $0.start && at < $0.end })
                 app.addNote(transcript: transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
             } label: {
-                Image(systemName: "bookmark.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0x4F7D12))
+                Image(systemName: "bookmark.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.limeText)
                     .frame(width: 38, height: 38).background(Ink.limeTint, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
             }
             .buttonStyle(PressStyle(scale: 0.94)).help("Bookmark this moment (B)")
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
         .shadow(color: Color(hex: 0x3C328C).opacity(0.14), radius: 16, y: 6)
         .frame(maxWidth: 760)
@@ -446,7 +492,7 @@ struct WaveTrack: View {
             let w = g.size.width
             let vals = values.isEmpty ? Array(repeating: Float(0.15), count: 96) : Waveform.resample(values, to: 96)
             ZStack(alignment: .leading) {
-                WaveformThumb(values: vals).fill(Color(hex: 0xD9D4E6))
+                WaveformThumb(values: vals).fill(Ink.track)
                 WaveformThumb(values: vals).fill(Ink.iris)
                     .mask(alignment: .leading) { Rectangle().frame(width: max(0, w * progress)) }
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, m in
@@ -497,7 +543,7 @@ struct NotesPanel: View {
                     TextField(linked == nil ? "Add note… (click a line to link it)" : "Add note on this passage…", text: $draft).textFieldStyle(.plain).font(.system(size: 13.5)).focused($focused).onSubmit(save)
                 }
                 .padding(.horizontal, 12).frame(height: 44)
-                .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Color.black.opacity(0.08)))
             }
             ScrollView {
@@ -532,7 +578,7 @@ struct NotesPanel: View {
                 .controlSize(.small).padding(.top, 6)
                 Button(role: .destructive) {
                     app.go(.library)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation(Motion.settle) { app.store.delete(transcript) } }
+                    app.delete([transcript.id])
                 } label: { Label("Delete transcript", systemImage: "trash") }
                 .buttonStyle(.plain).foregroundStyle(Ink.mute).font(.system(size: 12.5)).padding(.top, 8)
             } label: {
@@ -541,7 +587,7 @@ struct NotesPanel: View {
         }
         .padding(18)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color(hex: 0xF8F6FB))
+        .background(Ink.notes)
         .overlay(alignment: .leading) { Ink.hairline.frame(width: 1) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimFocusNote)) { _ in focused = true }
     }
@@ -570,7 +616,7 @@ struct NoteCard: View {
                     if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
                     Text(at.timecode).font(.system(size: 11.5, design: .monospaced))
                 }
-                .foregroundStyle(note.isBookmark ? Color(hex: 0x4F7D12) : Ink.iris)
+                .foregroundStyle(note.isBookmark ? Ink.limeText : Ink.iris)
                 .tapArea(onSeek)
             }
             Text(note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).textSelection(.enabled)
@@ -585,7 +631,7 @@ struct NoteCard: View {
         }
         .padding(.vertical, 12).padding(.horizontal, 14)
         // Solid tinted blocks by kind: coral for a loose note, lime for a bookmark, iris for a passage note.
-        .background(note.isBookmark ? Color(hex: 0xF1F8E0) : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(note.isBookmark ? Ink.limeTint : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(hover ? 0.1 : 0.05)))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
@@ -620,5 +666,31 @@ struct TranscriptLines: View {
                 .staggerIn(i < 10 ? i + 2 : -1)
             }
         }
+    }
+}
+
+/// The source page under the title: thumbnail, channel · site · date, and the video one click away.
+struct LinkCard: View {
+    @EnvironmentObject var app: AppState
+    var info: LinkInfo
+    var title: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Thumbnail(info: info).frame(width: 72, height: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text([info.channel, info.site].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.ink).lineLimit(1)
+                Text([info.uploadDisplay, URL(string: info.url)?.host?.replacingOccurrences(of: "www.", with: "")].compactMap { $0 }.joined(separator: " · "))
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", systemImage: "play.rectangle") }
+                .buttonStyle(.bordered).controlSize(.small)
+            Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(info.url, forType: .string); app.toast = Toast("Link copied") } label: { Image(systemName: "link") }
+                .buttonStyle(.bordered).controlSize(.small).help("Copy link")
+        }
+        .padding(8)
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+        .frame(maxWidth: 560, alignment: .leading)
     }
 }

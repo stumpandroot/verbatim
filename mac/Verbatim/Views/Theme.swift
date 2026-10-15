@@ -1,24 +1,62 @@
 import SwiftUI
 import AppKit
 
-/// Warm paper palette from the Listening Desk prototype.
+/// The palette. Every token has a light and a dark value and follows the system (or Settings › Appearance).
+/// Dark is warm, not blue-black: paper becomes a deep umber, ink becomes warm cream.
 enum Ink {
-    static let paper = Color(hex: 0xFAF7F2)
-    static let side = Color(hex: 0xEFEAE1)
-    static let bar = Color(hex: 0xF3EFE8)
-    static let card = Color.white
-    static let ink = Color(hex: 0x2A2622)
-    static let mute = Color(hex: 0x857D70)
-    static let dim = Color(hex: 0x6B6459)
-    static let iris = Color(hex: 0x6F5AF0)
-    static let irisDeep = Color(hex: 0x5742D0)
-    static let irisTint = Color(hex: 0xEEE9FF)
-    static let coral = Color(hex: 0xFF7C5C)
-    static let coralTint = Color(hex: 0xFFF0EA)
-    static let lime = Color(hex: 0xB7E26A)
-    static let limeDeep = Color(hex: 0x1F3A0A)
-    static let limeTint = Color(hex: 0xF1F8E0)
-    static let hairline = Color.black.opacity(0.07)
+    static let paper = dyn(0xFAF7F2, 0x1D1B19)
+    static let side = dyn(0xEFEAE1, 0x24211E)
+    static let bar = dyn(0xF3EFE8, 0x26231F)
+    /// Note cards, rows, fields: the "paper" surfaces that sit on the page.
+    static let card = dyn(0xFFFDF9, 0x272421)
+    static let cardHover = dyn(0xFFFBF4, 0x2D2A26)
+    static let ink = dyn(0x2A2622, 0xF1ECE4)
+    static let mute = dyn(0x857D70, 0x9A9286)
+    static let dim = dyn(0x6B6459, 0xB9B0A3)
+    static let faint = dyn(0xA39B8E, 0x7D766C)
+    static let iris = dyn(0x6F5AF0, 0x9686FF)
+    static let irisDeep = dyn(0x5742D0, 0xB3A8FF)
+    static let irisTint = dyn(0xEEE9FF, 0x2E2950)
+    static let coral = dyn(0xFF7C5C, 0xFF8A6E)
+    static let coralTint = dyn(0xFFF0EA, 0x3A2620)
+    static let lime = dyn(0xB7E26A, 0xA9D65E)
+    static let limeDeep = dyn(0x1F3A0A, 0xD8F0B0)
+    static let limeTint = dyn(0xF1F8E0, 0x26301C)
+    static let limeText = dyn(0x4F7D12, 0xB7E26A)
+    /// Soft lavender washes: selected rows, segmented-control tracks, the notes panel.
+    static let wash = dyn(0xF3F0FA, 0x262236)
+    static let track = dyn(0xEEEBF4, 0x2B2833)
+    static let notes = dyn(0xF8F6FB, 0x211F26)
+    static let sideTint = dyn(0xF1EDFA, 0x2A2640)
+    static let hairline = Color(nsColor: NSColor(name: nil) { a in
+        a.isDark ? NSColor.white.withAlphaComponent(0.09) : NSColor.black.withAlphaComponent(0.07)
+    })
+    /// The white layer over system material on glass bars; near-transparent in dark.
+    static let glassTint = Color(nsColor: NSColor(name: nil) { a in
+        a.isDark ? NSColor.white.withAlphaComponent(0.04) : NSColor.white.withAlphaComponent(0.5)
+    })
+    /// Saved-passage highlight: lime behind text, readable in both modes.
+    static let saved = Color(nsColor: NSColor(name: nil) { a in
+        a.isDark ? NSColor(red: 0.66, green: 0.84, blue: 0.37, alpha: 0.24) : NSColor(red: 0.72, green: 0.89, blue: 0.42, alpha: 0.42)
+    })
+
+    /// The selected sidebar row: lifted white glass in light, a soft raised tint in dark.
+    static let selectedPill = Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor.white.withAlphaComponent(0.09) : NSColor.white.withAlphaComponent(0.66) })
+    static let selectedPillEdge = Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor.white.withAlphaComponent(0.12) : NSColor.white.withAlphaComponent(0.9) })
+
+    static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
+        Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor(hex: dark) : NSColor(hex: light) })
+    }
+}
+
+extension NSAppearance {
+    var isDark: Bool { bestMatch(from: [.darkAqua, .aqua, .vibrantDark, .vibrantLight, .accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua]).map { [.darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua].contains($0) } ?? false }
+}
+
+extension NSColor {
+    convenience init(hex: UInt32) {
+        self.init(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+    }
 }
 
 /// Five named springs (Verbatim Motion System).

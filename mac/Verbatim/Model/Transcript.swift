@@ -48,6 +48,45 @@ enum SourceKind: String, Codable {
     }
 }
 
+/// A transcribed link's page details, kept so the original is one click away, at any moment.
+struct LinkInfo: Codable, Equatable, Hashable {
+    var url: String
+    var site: String? = nil          // "YouTube", "Vimeo", …
+    var channel: String? = nil
+    var uploadDate: String? = nil    // yyyyMMdd from yt-dlp
+    var thumbnailFile: String? = nil // in Paths.thumbs
+
+    /// The page at a given second, where the site supports it.
+    func url(at seconds: Double) -> URL? {
+        guard var c = URLComponents(string: url) else { return URL(string: url) }
+        let s = max(0, Int(seconds))
+        let host = (c.host ?? "").lowercased()
+        if host.contains("youtube.com") || host.contains("youtu.be") {
+            var q = (c.queryItems ?? []).filter { $0.name != "t" }
+            q.append(URLQueryItem(name: "t", value: "\(s)s"))
+            c.queryItems = q
+        } else if host.contains("vimeo.com") {
+            c.fragment = "t=\(s)s"
+        } else if host.contains("twitch.tv") {
+            var q = (c.queryItems ?? []).filter { $0.name != "t" }
+            q.append(URLQueryItem(name: "t", value: "\(s / 3600)h\((s % 3600) / 60)m\(s % 60)s"))
+            c.queryItems = q
+        } else {
+            return URL(string: url)   // no known way to deep-link; open the page
+        }
+        return c.url
+    }
+    var supportsTimestamps: Bool { let u = url.lowercased(); return u.contains("youtube.com") || u.contains("youtu.be") || u.contains("vimeo.com") || u.contains("twitch.tv") }
+
+    var uploadDisplay: String? {
+        guard let d = uploadDate, d.count == 8 else { return nil }
+        let f = DateFormatter(); f.dateFormat = "yyyyMMdd"
+        guard let date = f.date(from: d) else { return nil }
+        let o = DateFormatter(); o.dateStyle = .medium
+        return o.string(from: date)
+    }
+}
+
 struct Project: Codable, Identifiable, Equatable, Hashable {
     var id = UUID()
     var name: String
@@ -98,6 +137,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     var documentHistory: [String] = []
     var documentLevel: String = "None"
     var documentTone: String = "As spoken"
+    /// Set when moved to Recently Deleted; purged 30 days later.
+    var deletedAt: Date? = nil
+    /// What the source page said about itself (link imports only).
+    var link: LinkInfo? = nil
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -133,6 +176,16 @@ struct Transcript: Codable, Identifiable, Equatable {
         documentHistory = try c.decodeIfPresent([String].self, forKey: .documentHistory) ?? []
         documentLevel = try c.decodeIfPresent(String.self, forKey: .documentLevel) ?? "None"
         documentTone = try c.decodeIfPresent(String.self, forKey: .documentTone) ?? "As spoken"
+        deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
+        link = try c.decodeIfPresent(LinkInfo.self, forKey: .link)
+    }
+
+    /// Link details, including for link imports made before Verbatim kept them.
+    var linkInfo: LinkInfo? {
+        if let link { return link }
+        guard let s = sourceURL, let h = URL(string: s)?.host else { return nil }
+        let host = h.replacingOccurrences(of: "www.", with: "")
+        return LinkInfo(url: s, site: host.contains("youtu") ? "YouTube" : host.contains("vimeo") ? "Vimeo" : host)
     }
 
     /// The document text: edited version if there is one, else built from the segments.

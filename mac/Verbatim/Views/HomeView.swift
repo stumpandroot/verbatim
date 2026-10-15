@@ -112,7 +112,7 @@ struct CaptureBar: View {
         .padding(8)
         .frame(height: 82)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .background(Color.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.ink.opacity(0.07)))
         .shadow(color: Ink.ink.opacity(0.06), radius: 12, y: 4)
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
@@ -258,7 +258,7 @@ struct RecentNotes: View {
 struct NoteCardBackground: View {
     var hover: Bool
     var body: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(hover ? Color(hex: 0xFFFBF4) : Color(hex: 0xFFFDF9))
+        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(hover ? Ink.cardHover : Ink.card)
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.ink.opacity(hover ? 0.16 : 0.09)))
     }
 }
@@ -319,7 +319,7 @@ struct FeaturedNote: View {
         let saved = savedSegment?.id == s.id
         return Text(s.text).font(.system(size: 20)).foregroundStyle(Ink.ink).lineSpacing(3).lineLimit(3)
             .padding(.horizontal, saved ? 6 : 0).padding(.vertical, saved ? 2 : 0)
-            .background(saved ? Ink.lime.opacity(0.38) : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(saved ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .help(saved ? "Saved passage" : "")
     }
 }
@@ -340,15 +340,15 @@ struct MiniPlayer: View {
                 app.player.toggle()
             } label: {
                 Image(systemName: loaded && app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14, weight: .bold)).foregroundStyle(Ink.ink)
-                    .frame(width: 38, height: 38).background(Circle().fill(.white)).overlay(Circle().strokeBorder(Ink.hairline))
+                    .frame(width: 38, height: 38).background(Circle().fill(Ink.card)).overlay(Circle().strokeBorder(Ink.hairline))
             }
             .buttonStyle(PressStyle(scale: 0.92)).help("Play")
             GeometryReader { g in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(hex: 0xE7E2EF)).frame(height: 5)
+                    Capsule().fill(Ink.track).frame(height: 5)
                     Capsule().fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Ink.iris], startPoint: .leading, endPoint: .trailing))
                         .frame(width: max(5, g.size.width * t / total), height: 5)
-                    Circle().fill(.white).overlay(Circle().strokeBorder(Ink.iris, lineWidth: 2)).frame(width: 15, height: 15)
+                    Circle().fill(Ink.card).overlay(Circle().strokeBorder(Ink.iris, lineWidth: 2)).frame(width: 15, height: 15)
                         .offset(x: max(0, g.size.width * t / total - 7.5))
                 }
                 .frame(maxHeight: .infinity)
@@ -538,7 +538,7 @@ struct RecordPanel: View {
         .padding(.horizontal, 16)
         .frame(height: 82)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .background(Color.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.coral.opacity(0.35)))
         .shadow(color: Ink.ink.opacity(0.06), radius: 12, y: 4)
         .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
@@ -620,7 +620,7 @@ struct HistoryRow: View {
                 Color.clear.frame(width: 30, height: 28)   // room for the ⋯ menu, which sits above the click layer
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(selected == true ? Ink.irisTint.opacity(0.6) : hover ? Color(hex: 0xFFFBF4) : Color(hex: 0xFFFDF9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(selected == true ? Ink.irisTint.opacity(0.6) : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(selected == true ? Ink.iris.opacity(0.5) : Ink.ink.opacity(hover ? 0.14 : 0.07)))
         }
         .overlay(alignment: .trailing) {
@@ -632,7 +632,7 @@ struct HistoryRow: View {
 
     private var placeholder: [Float] { (0..<48).map { _ in Float.random(in: 0.08...0.25) } }
     private var tileBg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coralTint; case .app: return Ink.limeTint; default: return Ink.irisTint } }
-    private var tileFg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coral; case .app: return Color(hex: 0x4F7D12); default: return Ink.iris } }
+    private var tileFg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coral; case .app: return Ink.limeText; default: return Ink.iris } }
     private var waveColor: Color { transcript.source == .voiceMemo || transcript.source == .dictation ? Ink.coral.opacity(0.85) : Ink.iris.opacity(0.75) }
     private var dateLine: String {
         let f = DateFormatter(); let cal = Calendar.current

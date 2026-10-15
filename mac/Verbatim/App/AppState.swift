@@ -6,7 +6,9 @@ import UniformTypeIdentifiers
 enum Screen: Equatable {
     case home
     case library
+    case links
     case queue
+    case trash
     case transcript(UUID)
     case dictionary
 }
@@ -44,7 +46,9 @@ final class AppState: ObservableObject {
     @Changed("applyDictionary") var applyDictionary = true
     @Changed("heroDismissed") var heroDismissed = false
     @Changed("projectVocab") var projectScopedVocabulary = false
-    @Changed("captureMode") var captureMode = "voice"      // "voice" | "dictate"
+    @Changed("captureMode") var captureMode = "voice"
+    /// "system" | "light" | "dark"
+    @Changed("appearance") var appearance = "system"      // "voice" | "dictate"
     @Changed("sounds") var sounds = true { didSet { Sounds.enabled = sounds } }
 
     let store = Store()
@@ -56,6 +60,8 @@ final class AppState: ObservableObject {
     /// Transcripts waiting to run, oldest first. One runs at a time.
     @Changed var queue: [UUID] = []
     @Changed var runningID: UUID? = nil
+    /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
+    var focusSegment: UUID? = nil
     private var runningTask: Task<Void, Never>? = nil
 
     private var bag = Set<AnyCancellable>()
@@ -69,8 +75,9 @@ final class AppState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         dictation.attach(self)
+        applyAppearance()
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
-        queue = store.transcripts.filter { $0.status == .processing && $0.audioFileName != nil }.sorted { $0.createdAt < $1.createdAt }.map(\.id)
+        queue = store.live.filter { $0.status == .processing && $0.audioFileName != nil }.sorted { $0.createdAt < $1.createdAt }.map(\.id)
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
     }
 
@@ -81,7 +88,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "library": 1, "queue": 2, "dictionary": 3]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "queue": 3, "dictionary": 4, "trash": 5]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -103,7 +110,7 @@ final class AppState: ObservableObject {
     func goHome() { go(.home) }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
+        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
     }
 
     // MARK: Recording (microphone)
@@ -255,9 +262,14 @@ final class AppState: ObservableObject {
                 let duration = Player.duration(of: dest)
                 var t = Transcript(title: f.title, source: .link, sourceLabel: URL(string: link)?.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
                                    duration: duration, audioFileName: dest.lastPathComponent, model: "")
-                t.sourceURL = link
+                t.sourceURL = f.pageURL ?? link
+                t.link = LinkInfo(url: f.pageURL ?? link, site: f.site, channel: f.uploader, uploadDate: f.uploadDate)
                 fetching = nil
                 enqueue(t)
+                if let thumb = f.thumbnail {
+                    let id = t.id
+                    Task { if let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) { self.store.update(id) { $0.link?.thumbnailFile = file } } }
+                }
             } catch {
                 fetching = nil
                 verbiePose = .interrupted
@@ -405,6 +417,14 @@ final class AppState: ObservableObject {
         }
     }
 
+    func applyAppearance() {
+        switch appearance {
+        case "light": NSApplication.shared.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+        default: NSApplication.shared.appearance = nil
+        }
+    }
+
     // MARK: Organizing
 
     func move(_ ids: [UUID], to project: UUID?) {
@@ -415,7 +435,22 @@ final class AppState: ObservableObject {
     }
 
     func delete(_ ids: [UUID]) {
-        for id in ids { if runningID == id || queue.contains(id) { cancel(id) }; if let t = store.transcript(id) { store.delete(t) } }
+        // Moves to Recently Deleted (kept 30 days). Undo puts them straight back.
+        for id in ids { if runningID == id || queue.contains(id) { cancel(id) }; store.moveToTrash(id) }
+        if case .transcript(let open) = screen, ids.contains(open) { go(.library) }
+        toast = Toast(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted", action: "Undo") { [weak self] in
+            ids.forEach { self?.store.restore($0) }
+        }
+    }
+
+    func restore(_ ids: [UUID]) {
+        ids.forEach { store.restore($0) }
+        toast = Toast(ids.count == 1 ? "Restored" : "Restored \(ids.count) transcripts")
+    }
+
+    /// Permanent. Only offered from Recently Deleted.
+    func purge(_ ids: [UUID]) {
+        for id in ids { if let t = store.transcript(id) { store.delete(t) } }
     }
 
     // MARK: Editing
@@ -458,7 +493,7 @@ final class AppState: ObservableObject {
 
     var filtered: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return store.transcripts.filter { t in
+        return store.live.filter { t in
             (projectFilter == nil || t.projectId == projectFilter) &&
             (q.isEmpty || t.title.lowercased().contains(q) || t.text.lowercased().contains(q))
         }

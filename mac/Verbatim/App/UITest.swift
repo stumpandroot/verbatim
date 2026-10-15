@@ -97,6 +97,14 @@ enum UITest {
         await show("05-library")
         app.go(.queue)
         await show("05b-queue")
+        app.go(.links)
+        await show("05c-links")
+        app.search = "folding"
+        await show("05d-search")
+        app.search = ""
+        if let trashMe = app.store.live.first(where: { $0.title == "Self-test memo" }) { app.store.moveToTrash(trashMe.id) }
+        app.go(.trash)
+        await show("05e-recently-deleted")
         if let m = memo { app.go(.transcript(m.id)) }
         await show("06-transcript")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
@@ -126,6 +134,17 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         await show("10-home-again")
+        // Dark appearance pass
+        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+        await show("11-dark-home")
+        if let m = memo { app.go(.transcript(m.id)) }
+        await show("12-dark-transcript")
+        NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        await show("13-dark-document")
+        app.go(.links)
+        await show("14-dark-links")
+        NSApplication.shared.appearance = nil
         write(show: "done")
     }
 
@@ -144,6 +163,7 @@ enum UITest {
 
     /// A transcript with real audio (so the player dock shows), notes, a bookmark, a project, and dictionary words.
     private static func seedRich(_ app: AppState) {
+        seedLink(app)
         let project = app.store.projects.first { $0.name == "Lapp Wagons" } ?? app.store.addProject("Lapp Wagons")
         if !app.store.dictionary.contains(where: { $0.preferred == "Lititz" }) {
             app.store.dictionary.append(DictionaryEntry(preferred: "Lititz", heardAs: ["Lit it's", "Lititz's"], learnedFrom: "Added by you"))
@@ -173,6 +193,18 @@ enum UITest {
         app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: t.segments[2].id, isBookmark: false), to: t.id)
         app.store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: t.segments[5].id, isBookmark: true), to: t.id)
         app.store.addNote(Note(text: "Quote for the one-page sheet: separate line item.", at: nil, segmentId: nil, isBookmark: false), to: t.id)
+    }
+
+    /// A transcript that came from a link, for the Links screen and timestamped-link actions.
+    private static func seedLink(_ app: AppState) {
+        guard !app.store.transcripts.contains(where: { $0.title == "Folding wagon walkthrough" }) else { return }
+        var t = Transcript(title: "Folding wagon walkthrough", source: .link, sourceLabel: "youtube.com", duration: 412, audioFileName: nil, model: "Parakeet TDT v3")
+        t.sourceURL = "https://www.youtube.com/watch?v=ab12cd34ef5"
+        t.link = LinkInfo(url: "https://www.youtube.com/watch?v=ab12cd34ef5", site: "YouTube", channel: "Lapp Wagons", uploadDate: "20260912")
+        t.segments = [Segment(start: 0, end: 6, text: "This is the folding wagon, and here's how it folds flat for the truck."),
+                      Segment(start: 6, end: 13, text: "Two latches on the side, lift the bed, and the wheels tuck under.")]
+        t.original = t.segments
+        app.store.add(t)
     }
 
     /// A one-hour-style transcript: 600 segments, two speakers, no audio.

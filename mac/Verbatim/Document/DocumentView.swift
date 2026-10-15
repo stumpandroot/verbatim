@@ -72,7 +72,7 @@ struct DocumentView: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
         .frame(maxWidth: 720)

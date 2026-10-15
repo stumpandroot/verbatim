@@ -42,7 +42,7 @@ struct DictionaryView: View {
                         .buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction)
                         Button("Cancel") { adding = false }
                     }
-                    .padding(12).background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .padding(12).background(Ink.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
                     .padding(.bottom, 12)
                     .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
@@ -74,7 +74,7 @@ struct DictionaryView: View {
                             Divider().opacity(0.5)
                         }
                     }
-                    .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
                     .tiltCard(tilt: 1.2, lift: 0, radius: 12, rotates: false)
                 }
@@ -108,7 +108,7 @@ struct DictionaryRow: View {
             })).toggleStyle(.switch).controlSize(.small).labelsHidden().tint(Color(hex: 0x7FB83A)).frame(width: 40)
         }
         .padding(.horizontal, 14).padding(.vertical, 9)
-        .background(hover ? Color(hex: 0xF7F3EC) : .clear)
+        .background(hover ? Ink.cardHover : .clear)
         .opacity(entry.enabled ? 1 : 0.55)
         .onHover { hover = $0 }
         .contextMenu {

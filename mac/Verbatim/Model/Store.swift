@@ -11,6 +11,7 @@ enum Paths {
     static let audio = root.appendingPathComponent("audio", isDirectory: true)
     static let models = root.appendingPathComponent("models", isDirectory: true)
     static let downloads = root.appendingPathComponent("downloads", isDirectory: true)
+    static let thumbs = root.appendingPathComponent("thumbs", isDirectory: true)
     static let projectsFile = root.appendingPathComponent("projects.json")
     static let dictionaryFile = root.appendingPathComponent("dictionary.json")
 }
@@ -28,7 +29,7 @@ final class Store: ObservableObject {
     private var pendingSaves: [UUID: DispatchWorkItem] = [:]
 
     init() {
-        for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads] {
+        for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads, Paths.thumbs] {
             try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         }
         load()
@@ -49,6 +50,21 @@ final class Store: ObservableObject {
         projects = (try? Self.dec.decode([Project].self, from: Data(contentsOf: Paths.projectsFile))) ?? []
         dictionary = (try? Self.dec.decode([DictionaryEntry].self, from: Data(contentsOf: Paths.dictionaryFile))) ?? []
         recoverOrphans()
+        purgeExpired()
+    }
+
+    /// Transcripts that aren't in Recently Deleted.
+    var live: [Transcript] { transcripts.filter { $0.deletedAt == nil } }
+    /// Recently Deleted, newest first.
+    var trash: [Transcript] { transcripts.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) } }
+
+    func moveToTrash(_ id: UUID) { update(id) { $0.deletedAt = Date(); $0.pinned = false } }
+    func restore(_ id: UUID) { update(id) { $0.deletedAt = nil } }
+
+    /// Recently Deleted keeps things for 30 days.
+    private func purgeExpired() {
+        let cutoff = Date().addingTimeInterval(-30 * 86_400)
+        for t in transcripts where (t.deletedAt ?? .distantFuture) < cutoff { delete(t) }
     }
 
     /// A recording whose app died before the transcript was saved still has its WAV on disk. Surface it.
@@ -90,10 +106,12 @@ final class Store: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: w)
     }
 
+    /// Permanent: removes the transcript, its audio, and its thumbnail.
     func delete(_ t: Transcript) {
         transcripts.removeAll { $0.id == t.id }
         try? FileManager.default.removeItem(at: Paths.transcripts.appendingPathComponent("\(t.id.uuidString).json"))
         if let a = audioURL(for: t) { try? FileManager.default.removeItem(at: a) }
+        if let th = t.link?.thumbnailFile { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(th)) }
     }
 
     func save(_ t: Transcript) {
@@ -154,6 +172,7 @@ final class Store: ObservableObject {
     // MARK: Grouping
 
     static func group(_ list: [Transcript]) -> [(label: String, items: [Transcript])] {
+        let list = list.filter { $0.deletedAt == nil }
         let cal = Calendar.current
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none
         var out: [(String, [Transcript])] = []

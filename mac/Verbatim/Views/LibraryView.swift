@@ -29,6 +29,9 @@ struct LibraryView: View {
                     if !selecting && !app.store.projects.isEmpty {
                         Text("Drag a transcript onto a project in the sidebar to file it.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                     }
+                    if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
+                        PassageResults(query: app.search).padding(.top, 14)
+                    }
                     if groups.isEmpty {
                         HStack(spacing: 14) {
                             VerbieView(pose: app.search.isEmpty ? .ready : .nothing, tracksPointer: false).frame(width: 54, height: 72)
@@ -105,21 +108,101 @@ struct LibraryView: View {
             } label: { Label("Export", systemImage: "square.and.arrow.up") }
             .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
             Button(role: .destructive) {
-                let ids = Array(selection)
-                let alert = NSAlert()
-                alert.messageText = "Delete \(ids.count) transcript\(ids.count == 1 ? "" : "s")?"
-                alert.informativeText = "Their audio is deleted too. This can't be undone."
-                alert.addButton(withTitle: "Delete"); alert.addButton(withTitle: "Cancel")
-                alert.buttons.first?.hasDestructiveAction = true
-                if alert.runModal() == .alertFirstButtonReturn { app.delete(ids); selection = [] }
+                app.delete(Array(selection)); selection = []
             } label: { Label("Delete", systemImage: "trash") }
+            .help("Moves to Recently Deleted for 30 days")
             .buttonStyle(.plain).foregroundStyle(selection.isEmpty ? Ink.mute : Ink.coral).disabled(selection.isEmpty)
         }
         .font(.system(size: 13))
         .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(Color.white.opacity(0.55), in: Capsule())
+        .background(Ink.glassTint, in: Capsule())
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(Ink.ink.opacity(0.08)))
         .shadow(color: Ink.ink.opacity(0.12), radius: 16, y: 6)
+    }
+}
+
+/// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
+/// transcript. Click a line to open the transcript there.
+struct PassageResults: View {
+    @EnvironmentObject var app: AppState
+    var query: String
+
+    struct Hit: Identifiable { let id: UUID; let transcript: Transcript; let segment: Segment }
+
+    private var hits: [(Transcript, [Segment])] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        var out: [(Transcript, [Segment])] = []
+        var total = 0
+        for t in app.filtered where t.status == .ready {
+            let segs = t.segments.filter { $0.text.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+            guard !segs.isEmpty else { continue }
+            out.append((t, Array(segs.prefix(6))))
+            total += segs.count
+            if total > 300 { break }
+        }
+        return out
+    }
+
+    var body: some View {
+        let results = hits
+        VStack(alignment: .leading, spacing: 10) {
+            Text(results.isEmpty ? "No passages match “\(query)”" : "Passages")
+                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+            ForEach(results, id: \.0.id) { t, segs in
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 8) {
+                        Text(t.title).font(Ink.serif(16, weight: .regular)).foregroundStyle(Ink.ink).lineLimit(1)
+                        if let site = t.linkInfo?.site { Text(site).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
+                        Spacer()
+                        let n = t.segments.filter { $0.text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }.count
+                        Text("\(n) match\(n == 1 ? "" : "es")").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                    }
+                    .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 6)
+                    ForEach(segs) { s in PassageLine(transcript: t, segment: s, query: query) }
+                }
+                .padding(.bottom, 6)
+                .background(NoteCardBackground(hover: false))
+            }
+        }
+    }
+}
+
+struct PassageLine: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var segment: Segment
+    var query: String
+    @State private var hover = false
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(Ink.iris).frame(width: 52, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                if transcript.speakers.count >= 2, let sp = transcript.speakerName(segment.speaker) {
+                    Text(sp).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                }
+                Text(marked).font(.system(size: 14)).foregroundStyle(Ink.ink).lineLimit(3)
+            }
+            Spacer(minLength: 8)
+            if let info = transcript.linkInfo, info.supportsTimestamps, hover {
+                Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { Image(systemName: "play.rectangle") }
+                    .buttonStyle(.plain).foregroundStyle(Ink.iris).help("Open the video at \(segment.start.timecode)")
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 7)
+        .background(hover ? Ink.iris.opacity(0.05) : .clear)
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .onTapGesture { app.focusSegment = segment.id; app.go(.transcript(transcript.id)) }
+    }
+
+    private var marked: AttributedString {
+        var a = AttributedString(segment.text)
+        var start = a.startIndex
+        while start < a.endIndex, let r = a[start...].range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) {
+            a[r].backgroundColor = Ink.coral.opacity(0.28); a[r].font = .system(size: 14, weight: .semibold)
+            start = r.upperBound
+        }
+        return a
     }
 }

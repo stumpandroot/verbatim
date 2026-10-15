@@ -8,10 +8,10 @@ struct QueueView: View {
     private var running: Transcript? { app.runningID.flatMap { app.store.transcript($0) } }
     private var waiting: [Transcript] { app.queue.compactMap { app.store.transcript($0) } }
     private var importing: [Transcript] {
-        app.store.transcripts.filter { $0.status == .processing && $0.audioFileName == nil }.sorted { $0.createdAt < $1.createdAt }
+        app.store.live.filter { $0.status == .processing && $0.audioFileName == nil }.sorted { $0.createdAt < $1.createdAt }
     }
     private var recent: [Transcript] {
-        app.store.transcripts.filter { ($0.status == .ready || $0.status == .failed) && $0.source == .file }.prefix(8).map { $0 }
+        app.store.live.filter { ($0.status == .ready || $0.status == .failed) && $0.source == .file }.prefix(8).map { $0 }
     }
 
     var body: some View {

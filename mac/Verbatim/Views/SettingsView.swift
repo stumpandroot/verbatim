@@ -16,6 +16,9 @@ struct SettingsView: View {
 
     private var general: some View {
         Form {
+            Picker("Appearance", selection: Binding(get: { app.appearance }, set: { app.appearance = $0; app.applyAppearance() })) {
+                Text("Match the system").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
+            }
             Toggle("Show in menu bar", isOn: $app.showMenuBar)
             Text("Record from anywhere with the menu bar item, or press ⌥⇧R while Verbatim is running.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)
@@ -151,7 +154,7 @@ struct MenuBarPanel: View {
                     Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }
                     Button("Stop") { app.stopRecording() }.buttonStyle(.borderedProminent).tint(Ink.ink)
                 }
-                .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             } else if app.capture.isCapturing {
                 HStack(spacing: 10) {
                     Image(systemName: "rectangle.on.rectangle").foregroundStyle(Ink.iris)
@@ -159,11 +162,11 @@ struct MenuBarPanel: View {
                     Spacer()
                     Button("Stop") { app.stopCapture() }.buttonStyle(.borderedProminent).tint(Ink.ink)
                 }
-                .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             } else {
                 Button { NSApp.activate(ignoringOtherApps: true); app.requestRecord() } label: {
                     HStack(spacing: 10) { RecordButton(size: 26); Text("Record voice memo").font(.system(size: 13, weight: .medium)); Spacer() }
-                        .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
                 Button { NSApp.activate(ignoringOtherApps: true); app.pickApp() } label: {
@@ -171,11 +174,11 @@ struct MenuBarPanel: View {
                         Image(systemName: "rectangle.on.rectangle").foregroundStyle(Ink.iris).frame(width: 26)
                         Text("Capture an app's audio").font(.system(size: 13, weight: .medium)); Spacer()
                     }
-                    .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
             }
-            if let last = app.store.transcripts.first {
+            if let last = app.store.live.first {
                 Button { NSApp.activate(ignoringOtherApps: true); app.go(.transcript(last.id)) } label: {
                     HStack(spacing: 10) {
                         Image(systemName: last.source.symbol).foregroundStyle(.white).frame(width: 26, height: 26)
@@ -186,14 +189,14 @@ struct MenuBarPanel: View {
                         }
                         Spacer()
                     }
-                    .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 Button { app.dictation.copyLast() } label: {
                     HStack(spacing: 8) { Image(systemName: "doc.on.clipboard").foregroundStyle(Ink.iris).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
-                        .padding(10).background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

@@ -48,6 +48,8 @@ struct ContentView: View {
         case .home: return "Verbatim"
         case .library: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library"
         case .queue: return "Queue"
+        case .links: return "Links"
+        case .trash: return "Recently Deleted"
         case .dictionary: return "Dictionary"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
         }
@@ -58,6 +60,8 @@ struct ContentView: View {
         case .home: return "home"
         case .library: return "library"
         case .queue: return "queue"
+        case .links: return "links"
+        case .trash: return "trash"
         case .dictionary: return "dict"
         case .transcript(let id): return "t-\(id)"
         }
@@ -68,6 +72,8 @@ struct ContentView: View {
         case .home: HomeView()
         case .library: LibraryView()
         case .queue: QueueView()
+        case .links: LinksView()
+        case .trash: TrashView()
         case .dictionary: DictionaryView()
         case .transcript(let id): TranscriptView(id: id)
         }
@@ -125,6 +131,8 @@ struct Sidebar: View {
                 .uiTarget("side-home")
             SideItem(label: "Library", symbol: "doc.text", selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
                 .uiTarget("side-library")
+            SideItem(label: "Links", symbol: "link", selected: app.screen == .links, badge: nil, pill: pill) { app.go(.links) }
+                .uiTarget("side-links")
             SideItem(label: "Queue", symbol: "list.bullet", selected: app.screen == .queue,
                      badge: app.queue.count + (app.runningID == nil ? 0 : 1) == 0 ? nil : "\(app.queue.count + (app.runningID == nil ? 0 : 1))", busy: app.runningID != nil, pill: pill) { app.go(.queue) }
                 .uiTarget("side-queue")
@@ -156,6 +164,10 @@ struct Sidebar: View {
                 .onExitCommand { newProject = false; projectName = "" }
             }
             Spacer()
+            if !app.store.trash.isEmpty || app.screen == .trash {
+                SideItem(label: "Recently Deleted", symbol: "trash", selected: app.screen == .trash, badge: "\(app.store.trash.count)", pill: pill) { app.go(.trash) }
+                    .padding(.bottom, 6)
+            }
             Rectangle().fill(Ink.hairline).frame(height: 1).padding(.horizontal, 8).padding(.bottom, 8)
             HStack(spacing: 12) {
                 Image(systemName: "laptopcomputer").frame(width: 19)
@@ -177,7 +189,7 @@ struct Sidebar: View {
         .frame(maxHeight: .infinity, alignment: .top)
         // Glass belongs to navigation: the system sidebar material (blends with the desktop behind the
         // window), a faint lavender tint, and a fine trailing separator. Labels sit on it at full contrast.
-        .background(Color(hex: 0xF1EDFA).opacity(0.55))
+        .background(Ink.sideTint.opacity(0.55))
         .background(VisualEffect(material: .sidebar, blending: .behindWindow))
         .overlay(alignment: .trailing) { Ink.iris.opacity(0.14).frame(width: 1) }
         .ignoresSafeArea(edges: .top)
@@ -213,8 +225,8 @@ struct SideItem: View {
                 if dropping { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.16)).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.iris, lineWidth: 1.5)) }
                 else if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.07)) }
                 if selected {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.66))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.white.opacity(0.9), lineWidth: 0.5))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.selectedPill)
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.selectedPillEdge, lineWidth: 0.5))
                         .shadow(color: Ink.ink.opacity(0.06), radius: 1.5, y: 1)
                         .matchedGeometryEffect(id: "pill", in: pill)
                 }

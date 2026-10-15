@@ -42,7 +42,7 @@ struct ExportOptions: Equatable {
 
 enum Exporter {
     /// The text people copy or export, shaped by the options.
-    static func text(_ t: Transcript, _ o: ExportOptions) -> String {
+    static func text(_ t: Transcript, _ o: ExportOptions, markdownLinks: Bool = false) -> String {
         var body: String
         if o.source == .document && !o.timecodes {
             body = t.documentText
@@ -55,7 +55,10 @@ enum Exporter {
             var lastSpeaker: String? = "\u{0}"
             for s in t.segments {
                 var line = ""
-                if o.timecodes { line += "[\(s.start.timecode)] " }
+                if o.timecodes {
+                    if markdownLinks, let info = t.linkInfo, info.supportsTimestamps, let u = info.url(at: s.start) { line += "[\(s.start.timecode)](\(u.absoluteString)) " }
+                    else { line += "[\(s.start.timecode)] " }
+                }
                 if o.speakers, s.speaker != lastSpeaker, let n = t.speakerName(s.speaker) { line += "\(n): " }
                 lastSpeaker = s.speaker
                 lines.append(line + s.text)
@@ -71,7 +74,12 @@ enum Exporter {
         case .txt: return text(t, o)
         case .md:
             var out = "# \(t.title)\n\n_\(t.sourceLabel) · \(t.duration.timecode)_\n\n"
-            out += text(t, o).replacingOccurrences(of: "(?m)^([^:\\n]{1,28}): ", with: "**$1:** ", options: .regularExpression)
+            if let info = t.linkInfo {
+                out += "Source: [\([info.channel, info.site].compactMap { $0 }.joined(separator: " · ").ifEmpty(info.url))](\(info.url))"
+                if let d = info.uploadDisplay { out += " · \(d)" }
+                out += "\n\n"
+            }
+            out += text(t, o, markdownLinks: true).replacingOccurrences(of: "(?m)^([^:\\[\\n][^:\\n]{0,27}): ", with: "**$1:** ", options: .regularExpression)
             return out
         default: return render(t, as: f)
         }
@@ -84,6 +92,9 @@ enum Exporter {
         try FileManager.default.createDirectory(at: tmp.appendingPathComponent("word"), withIntermediateDirectories: true)
         func esc(_ s: String) -> String { s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;") }
         var paras = "<w:p><w:pPr><w:pStyle w:val=\"Title\"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val=\"40\"/></w:rPr><w:t xml:space=\"preserve\">\(esc(t.title))</w:t></w:r></w:p>"
+        if let info = t.linkInfo {
+            paras += "<w:p><w:r><w:rPr><w:color w:val=\"857D70\"/></w:rPr><w:t xml:space=\"preserve\">Source: \(esc(info.url))</w:t></w:r></w:p>"
+        }
         let names = t.speakers.map(\.label)
         for p in DocumentText.paragraphs(text(t, o)) {
             let (sp, body) = DocumentText.split(p, speakers: names)
@@ -196,4 +207,8 @@ enum Exporter {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text(t, o), forType: .string)
     }
+}
+
+extension String {
+    func ifEmpty(_ other: String) -> String { isEmpty ? other : self }
 }

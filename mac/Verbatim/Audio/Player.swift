@@ -25,7 +25,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var timer: Timer?
 
     /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it.
-    func loadAsync(_ url: URL) {
+    func loadAsync(_ url: URL, startAt: Double? = nil) {
         if loadedURL == url, player != nil { return }
         if player != nil || isPlaying { stop() }   // no redundant publishes when nothing is loaded
         if loadedURL != url { loadedURL = url }
@@ -40,7 +40,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
                 p.delegate = self
                 self.player = p
                 if self.duration != p.duration { self.duration = p.duration }
-                self.time = 0
+                if let s = startAt { p.currentTime = min(s, p.duration); self.time = p.currentTime } else { self.time = 0 }
             }
         }
     }
