@@ -85,7 +85,7 @@ final class VerbieLayerHost: NSView {
     private let footL = CAShapeLayer(), footR = CAShapeLayer()
     private let shadowL = CAShapeLayer()
     private var rig = LegRig()
-    private var link: CADisplayLink?
+    private var link: Timer?
     private var lastTick: CFTimeInterval = 0
     private var frames = 0
     private let body = CALayer()           // breathes
@@ -336,17 +336,20 @@ final class VerbieLayerHost: NSView {
 
     private func startLink() {
         guard link == nil, !reduceMotion, bounds.height >= 50 else { return }
-        let l = displayLink(target: self, selector: #selector(tick(_:)))
-        l.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 30, preferred: 30)
-        l.add(to: .main, forMode: .common)
-        link = l; lastTick = 0
+        // A 30 Hz timer rather than a display link: display links don't fire on some virtual displays,
+        // and 30 Hz is plenty for a character this size.
+        let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.tick() }
+        t.tolerance = 0.005
+        RunLoop.main.add(t, forMode: .common)
+        link = t; lastTick = 0
+        if UITest.enabled { Log.note("UITEST verbie rig started (\(Int(bounds.width))×\(Int(bounds.height)) pt)") }
     }
 
     private func stopLink() { link?.invalidate(); link = nil }
 
-    @objc private func tick(_ l: CADisplayLink) {
-        guard let w = window, w.occlusionState.contains(.visible), !isHiddenOrHasHiddenAncestor else { lastTick = 0; return }
-        let now = l.timestamp
+    private func tick() {
+        guard let w = window, w.occlusionState.contains(.visible) || UITest.enabled, !isHiddenOrHasHiddenAncestor else { lastTick = 0; return }
+        let now = CACurrentMediaTime()
         let dt = lastTick == 0 ? 1.0 / 30 : min(0.1, now - lastTick)
         lastTick = now
         rig.advance(now: now, dt: dt, pose: pose)
