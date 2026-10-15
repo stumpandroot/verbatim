@@ -9,12 +9,13 @@ struct TranscriptView: View {
     @State private var view: Mode = .original
     /// nil = automatic (open when the window is wide). Set once the person toggles it.
     @State private var notesPref: Bool? = nil
-    @State private var isNarrow = false   // toolbar display only; layout reads the geometry directly
     @State private var detailsOpen = false
     @State private var selectedSegment: UUID? = nil
     @State private var followed: UUID? = nil
     @State private var pendingSeek: Double? = nil
     @State private var textSize: CGFloat = 16
+    /// True once the mode bar has scrolled under the top edge; a pinned copy shows there instead.
+    @State private var barPinned = false
     @Namespace private var segNS
 
     enum Mode: String, CaseIterable { case original = "Transcript", document = "Document", cleaned = "Cleaned", summary = "Summary", review = "Review" }
@@ -30,19 +31,40 @@ struct TranscriptView: View {
             // Decided from the geometry in the same pass, so the screen lays out once (no open-then-close).
             let narrow = g.size.width < 900
             let notesOpen = notesPref ?? !narrow
-            let _ = isNarrow == narrow ? () : DispatchQueue.main.async { isNarrow = narrow }
             HStack(spacing: 0) {
                 ZStack(alignment: .bottom) {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t).staggerIn(0)
-                                modeBar(t).staggerIn(1).padding(.bottom, 8)
+                                modeBar(t, notesOpen: notesOpen, narrow: narrow)
+                                    .opacity(barPinned ? 0 : 1).allowsHitTesting(!barPinned)
+                                    .background(GeometryReader { b in Color.clear.preference(key: BarOffsetKey.self, value: b.frame(in: .named("tscroll")).minY) })
+                                    .staggerIn(1).padding(.bottom, 8)
                                 content(t)
                             }
                             .frame(maxWidth: 720, alignment: .leading)
                             .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, t.audioFileName != nil && view != .document ? 124 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .coordinateSpace(name: "tscroll")
+                        .onPreferenceChange(BarOffsetKey.self) { y in
+                            let pinned = y < 6
+                            if pinned != barPinned { barPinned = pinned }
+                        }
+                        .overlay(alignment: .top) {
+                            // The mode bar and tools stay reachable while reading: pinned under the top edge.
+                            if barPinned {
+                                VStack(spacing: 0) {
+                                    modeBar(t, notesOpen: notesOpen, narrow: narrow)
+                                        .frame(maxWidth: 720, alignment: .leading)
+                                        .padding(.horizontal, 40).padding(.vertical, 8)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Ink.paper)
+                                    Rectangle().fill(Ink.hairline).frame(height: 1)
+                                }
+                                .transition(.opacity)
+                            }
                         }
                         .onReceive(app.player.clock.$time) { now in
                             // Follow playback, but only when the playing passage changes (not on every tick).
@@ -82,13 +104,14 @@ struct TranscriptView: View {
             }
 
             }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 8) {
-                        Toggle(isOn: Binding(get: { notesPref ?? !isNarrow }, set: { v in withAnimation(Motion.nav) { notesPref = v } })) { Label("Notes", systemImage: "note.text") }.toggleStyle(.button)
-                        Menu { Button("Smaller text") { textSize = max(13, textSize - 1) }; Button("Larger text") { textSize = min(22, textSize + 1) } } label: { Image(systemName: "textformat.size") }
-                    }
+            .background {
+                // Shortcuts live here once, not on the mode bar (which can exist twice while pinned).
+                ZStack {
+                    Button("") { ExportMenu.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
+                    Button("") { textSize = min(22, textSize + 1) }.keyboardShortcut("=", modifiers: .command)
+                    Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
                 }
+                .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
             }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
@@ -122,7 +145,7 @@ struct TranscriptView: View {
                 .textFieldStyle(.plain).font(Ink.serif(32)).foregroundStyle(Ink.ink).lineLimit(2)
             HStack(spacing: 8) {
                 Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
-                if !t.speakers.isEmpty { Text("·"); Text("\(t.speakers.count) speakers") }
+                if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
             if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 10) }
@@ -130,7 +153,7 @@ struct TranscriptView: View {
         .padding(.bottom, 14)
     }
 
-    private func modeBar(_ t: Transcript) -> some View {
+    private func modeBar(_ t: Transcript, notesOpen: Bool, narrow: Bool) -> some View {
         HStack(spacing: 12) {
             HStack(spacing: 2) {
                 ForEach(Self.visibleModes, id: \.self) { m in
@@ -148,8 +171,26 @@ struct TranscriptView: View {
                 Image(systemName: "info.circle").font(.system(size: 12)).foregroundStyle(Ink.mute)
                     .help("The engine's output is stored untouched. The Document, corrections, and polish are separate layers you can always compare against it.")
             }
-            Spacer()
+            .layoutPriority(-1)
+            Spacer(minLength: 8)
+            tools(t, notesOpen: notesOpen, compact: narrow)
         }
+    }
+
+    /// Copy, Export, Notes, and text size, beside the modes they act on.
+    private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
+        HStack(spacing: 2) {
+            ExportMenu(transcript: t, compact: compact)
+            Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", symbol: "note.text", compact: compact, on: notesOpen) }
+                .buttonStyle(.plain).help(notesOpen ? "Hide notes" : "Show notes")
+            Menu {
+                Button("Larger text") { textSize = min(22, textSize + 1) }
+                Button("Smaller text") { textSize = max(13, textSize - 1) }
+                Button("Default size") { textSize = 16 }
+            } label: { ToolLabel(title: "Text", symbol: "textformat.size", compact: true) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Text size (⌘+ and ⌘−)")
+        }
+        .fixedSize()
     }
 
     // MARK: Content per mode
@@ -639,6 +680,11 @@ struct NoteCard: View {
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
     }
+}
+
+struct BarOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
 }
 
 extension Notification.Name { static let verbatimShowMode = Notification.Name("verbatimShowMode") }

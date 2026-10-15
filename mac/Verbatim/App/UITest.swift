@@ -123,6 +123,12 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         app.go(.transcript(long))
         await show("06c-long-transcript")
+        // Scrolled down: the mode bar and tools pin under the top edge.
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        if let seg = app.store.transcript(long)?.segments[120].id { app.focusSegment = seg }
+        app.go(.transcript(long))
+        await show("06d-pinned-tools")
         app.go(.home)
         try? await Task.sleep(nanoseconds: 800_000_000)
         app.go(.transcript(long))

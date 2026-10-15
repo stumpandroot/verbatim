@@ -78,7 +78,15 @@ final class VerbieLayerHost: NSView {
     private(set) var pose: VerbiePose = .ready
 
     private let root = CALayer()           // 200 × 300 design space, scaled to fit
-    private let figure = CALayer()         // squash/stretch + lean
+    private let torso = CALayer()          // everything above the hips; the driver moves it (sway, lean, squash, hops)
+    private let figure = CALayer()         // holds body, face, arms, props
+    private let ground = CALayer()         // shadow, legs, and feet: never transformed, so feet stay planted
+    private let legL = CAShapeLayer(), legR = CAShapeLayer()
+    private let footL = CAShapeLayer(), footR = CAShapeLayer()
+    private let shadowL = CAShapeLayer()
+    private var rig = LegRig()
+    private var link: CADisplayLink?
+    private var lastTick: CFTimeInterval = 0
     private let body = CALayer()           // breathes
     private let gaze = CALayer()           // eyes + mouth, drifts toward the pointer
     private let eyeL = CAShapeLayer(), eyeR = CAShapeLayer()
@@ -113,6 +121,7 @@ final class VerbieLayerHost: NSView {
         root.anchorPoint = CGPoint(x: 0.5, y: 1)
         layer?.addSublayer(root)
         buildLayers()
+        applyRig()
         startIdle()
         layer?.setNeedsLayout()
     }
@@ -124,6 +133,7 @@ final class VerbieLayerHost: NSView {
         root.position = CGPoint(x: bounds.midX, y: bounds.maxY)
         root.transform = CATransform3DMakeScale(s, s, 1)
         CATransaction.commit()
+        if window != nil { startLink() }
     }
 
     // MARK: Build
@@ -141,20 +151,22 @@ final class VerbieLayerHost: NSView {
     }
 
     private func buildLayers() {
-        figure.frame = root.bounds; figure.anchorPoint = CGPoint(x: 0.5, y: 1); figure.position = CGPoint(x: 100, y: 300)
-        root.addSublayer(figure)
-
-        // shadow
-        let shadow = shape(CGPath(ellipseIn: CGRect(x: 52, y: 281, width: 96, height: 12), transform: nil), fill: NSColor(red: 0x3A/255, green: 0x2D/255, blue: 0x1F/255, alpha: 0.14).cgColor)
-        figure.addSublayer(shadow)
-
-        // legs and feet
-        for (x, dx) in [(86.0, -2.0), (114.0, 2.0)] {
-            let p = CGMutablePath(); p.move(to: CGPoint(x: x, y: 230)); p.addQuadCurve(to: CGPoint(x: x + dx, y: 270), control: CGPoint(x: x + dx * 2, y: 250))
-            figure.addSublayer(shape(p, stroke: Self.deep, width: 6))
+        // Ground: shadow, legs, feet. Legs are solved with two-bone IK from the hips to planted feet every frame.
+        ground.frame = root.bounds; root.addSublayer(ground)
+        shadowL.path = CGPath(ellipseIn: CGRect(x: -48, y: -6, width: 96, height: 12), transform: nil)
+        shadowL.fillColor = NSColor(red: 0x3A/255, green: 0x2D/255, blue: 0x1F/255, alpha: 0.14).cgColor
+        shadowL.position = CGPoint(x: 100, y: LegRig.groundY + 6)
+        ground.addSublayer(shadowL)
+        for l in [legL, legR] { l.strokeColor = Self.deep; l.lineWidth = 6; l.fillColor = nil; l.lineCap = .round; l.lineJoin = .round; ground.addSublayer(l) }
+        for f in [footL, footR] {
+            f.path = CGPath(ellipseIn: CGRect(x: -13, y: -6, width: 26, height: 12), transform: nil); f.fillColor = Self.deep
+            f.bounds = CGRect(x: -13, y: -6, width: 26, height: 12)
+            ground.addSublayer(f)
         }
-        figure.addSublayer(shape(CGPath(ellipseIn: CGRect(x: 69, y: 268, width: 26, height: 12), transform: nil), fill: Self.deep))
-        figure.addSublayer(shape(CGPath(ellipseIn: CGRect(x: 105, y: 268, width: 26, height: 12), transform: nil), fill: Self.deep))
+
+        torso.frame = root.bounds; root.addSublayer(torso)
+        figure.frame = root.bounds; figure.anchorPoint = CGPoint(x: 0.5, y: 1); figure.position = CGPoint(x: 100, y: 300)
+        torso.addSublayer(figure)
 
         // body: gradient capsule with a shaded corner and a highlight stroke; breathes about its base
         body.frame = CGRect(x: 55, y: 10, width: 90, height: 225)
@@ -283,21 +295,61 @@ final class VerbieLayerHost: NSView {
         }
 
         // lean and props
-        figure.transform = CATransform3DMakeRotation(p.lean * .pi / 180, 0, 0, 1)
+        rig.leanTarget = p.lean
+        if link == nil { rig.lean = p.lean; applyRig() }
         let show: String? = { switch p { case .listening: return "waves"; case .paused: return "zzz"; case .saved: return "check"; case .interrupted: return "bang"; case .nothing: return "q"; case .working: return "dots"; default: return nil } }()
         for (k, l) in props { l.opacity = k == show ? 1 : 0; l.transform = k == show ? CATransform3DIdentity : CATransform3DMakeScale(0.6, 0.6, 1) }
         CATransaction.commit()
 
-        if changed && animated && !reduceMotion { pop() }
+        if changed && animated && !reduceMotion { rig.react(to: p, at: CACurrentMediaTime()) }
     }
 
-    /// Squash and stretch on every pose change.
-    private func pop() {
-        let a = CAKeyframeAnimation(keyPath: "transform")
-        a.values = [CATransform3DIdentity, CATransform3DMakeScale(1.06, 0.94, 1), CATransform3DMakeScale(0.97, 1.04, 1), CATransform3DIdentity]
-        a.keyTimes = [0, 0.3, 0.6, 1]; a.duration = 0.55
-        a.timingFunctions = [CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeInEaseOut), CAMediaTimingFunction(name: .easeOut)]
-        root.add(a, forKey: "pop")
+    // MARK: Legs and weight (procedural, inverse kinematics)
+
+    /// Places the torso and solves both legs for the current rig state. No implicit animations.
+    private func applyRig() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let pose = rig.torsoTransform()
+        torso.transform = pose.layer
+        for (leg, foot, side) in [(legL, footL, 0), (legR, footR, 1)] {
+            let hip = pose.apply(LegRig.hipRest[side])
+            let f = rig.feet[side]
+            let ankle = CGPoint(x: f.x, y: f.y - 10)
+            let (a, knee) = LegRig.solve(hip: hip, ankle: ankle, bendOut: side == 0 ? -1 : 1)
+            let path = CGMutablePath(); path.move(to: hip)
+            // Rubber hose: one smooth curve that passes through the knee.
+            let ctrl = CGPoint(x: 2 * knee.x - (hip.x + a.x) / 2, y: 2 * knee.y - (hip.y + a.y) / 2)
+            path.addQuadCurve(to: a, control: ctrl)
+            leg.path = path
+            foot.position = CGPoint(x: a.x + (side == 0 ? -3 : 3), y: a.y + 4)
+            foot.transform = CATransform3DMakeRotation(rig.footTilt[side] * (side == 0 ? 1 : -1), 0, 0, 1)
+        }
+        // The shadow tightens and fades when he leaves the ground.
+        let lift = max(0, LegRig.groundY - max(rig.feet[0].y, rig.feet[1].y))
+        let k = max(0.6, 1 - lift / 40)
+        shadowL.position = CGPoint(x: 100 + (rig.feet[0].x + rig.feet[1].x - 200) / 2 + pose.dx * 0.5, y: LegRig.groundY + 6)
+        shadowL.transform = CATransform3DMakeScale(k, k, 1)
+        shadowL.opacity = Float(k)
+        CATransaction.commit()
+    }
+
+    private func startLink() {
+        guard link == nil, !reduceMotion, bounds.height >= 50 else { return }
+        let l = displayLink(target: self, selector: #selector(tick(_:)))
+        l.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 30, preferred: 30)
+        l.add(to: .main, forMode: .common)
+        link = l; lastTick = 0
+    }
+
+    private func stopLink() { link?.invalidate(); link = nil }
+
+    @objc private func tick(_ l: CADisplayLink) {
+        guard let w = window, w.occlusionState.contains(.visible), !isHiddenOrHasHiddenAncestor else { lastTick = 0; return }
+        let now = l.timestamp
+        let dt = lastTick == 0 ? 1.0 / 30 : min(0.1, now - lastTick)
+        lastTick = now
+        rig.advance(now: now, dt: dt, pose: pose)
+        applyRig()
     }
 
     // MARK: Idle (render-server driven; nothing touches SwiftUI)
@@ -327,6 +379,7 @@ final class VerbieLayerHost: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if window == nil { stopLink() } else { DispatchQueue.main.async { [weak self] in self?.startLink() } }
         if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
         guard window != nil, tracksPointer, !reduceMotion else { return }
         window?.acceptsMouseMovedEvents = true
@@ -342,9 +395,157 @@ final class VerbieLayerHost: NSView {
         let dx = max(-1, min(1, (p.x - c.x) / 300)), dy = max(-1, min(1, (p.y - c.y) / 300))
         CATransaction.begin(); CATransaction.setAnimationDuration(0.12)
         gaze.transform = CATransform3DMakeTranslation(dx * 5, dy * 4, 0)
-        if pose == .ready { figure.transform = CATransform3DMakeRotation(dx * 3 * .pi / 180, 0, 0, 1) }
+        if pose == .ready { rig.pointerLean = dx * 3 }
         CATransaction.commit()
     }
 
-    deinit { if let m = monitor { NSEvent.removeMonitor(m) } }
+    deinit { if let m = monitor { NSEvent.removeMonitor(m) }; link?.invalidate() }
+}
+
+// MARK: - Leg rig
+
+/// Verbie's lower body: two feet that stay planted on the ground line, hips that sway and dip with his weight,
+/// and two-bone IK legs between them. Idle: weight shifts side to side, and every few seconds he moves a foot
+/// (lift, arc, plant) toward where his weight has gone. Pose changes add a squash, a hop, or a startle.
+struct LegRig {
+    static let groundY: CGFloat = 280
+    static let hipRest = [CGPoint(x: 86, y: 230), CGPoint(x: 114, y: 230)]
+    static let homeX: [CGFloat] = [82, 118]
+    static let thigh: CGFloat = 20.8, shin: CGFloat = 20.8
+
+    struct Foot { var x: CGFloat; var y: CGFloat }
+    struct Step { var side: Int; var fromX: CGFloat; var toX: CGFloat; var start: Double; var duration: Double; var height: CGFloat }
+
+    var feet = [Foot(x: 82, y: groundY), Foot(x: 118, y: groundY)]
+    var footTilt: [Double] = [0, 0]
+    var lean: Double = 0, leanTarget: Double = 0, pointerLean: Double = 0
+    var dx: CGFloat = 0, dy: CGFloat = 0           // pelvis offset (weight)
+    var squash: CGFloat = 1                         // y scale of the torso about the hips
+    var weight: CGFloat = 0                         // -1 on the left foot … +1 on the right
+    var step: Step?
+    var nextStepAt: Double = 0
+    var hop: (start: Double, height: CGFloat, duration: Double)?
+    var pop: Double = -10
+    var clock: Double = 0
+    var seed: UInt64 = UInt64.random(in: 1...UInt64.max)
+
+    mutating func rand() -> Double { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return Double(seed % 10_000) / 10_000 }
+
+    /// Two-bone IK in the plane: returns the reachable ankle and the knee, bending outward.
+    static func solve(hip: CGPoint, ankle: CGPoint, bendOut: CGFloat) -> (CGPoint, CGPoint) {
+        var vx = ankle.x - hip.x, vy = ankle.y - hip.y
+        var d = max(0.001, hypot(vx, vy))
+        let reach = thigh + shin - 0.5
+        var a = ankle
+        if d > reach { vx *= reach / d; vy *= reach / d; d = reach; a = CGPoint(x: hip.x + vx, y: hip.y + vy) }
+        let along = (thigh * thigh - shin * shin + d * d) / (2 * d)
+        let h = sqrt(max(0, thigh * thigh - along * along))
+        let ux = vx / d, uy = vy / d
+        // perpendicular pointing outward from the body
+        var px = -uy, py = ux
+        if px * bendOut < 0 { px = -px; py = -py }
+        return (a, CGPoint(x: hip.x + ux * along + px * h, y: hip.y + uy * along + py * h))
+    }
+
+    struct TorsoPose {
+        var dx: CGFloat, dy: CGFloat, angle: CGFloat, sy: CGFloat
+        /// Rotate about the hips' midpoint, squash about it, then translate.
+        var layer: CATransform3D {
+            let c = CGPoint(x: 100, y: 230)
+            var t = CATransform3DMakeTranslation(dx, dy, 0)
+            t = CATransform3DTranslate(t, c.x, c.y, 0)
+            t = CATransform3DRotate(t, angle, 0, 0, 1)
+            t = CATransform3DScale(t, 2 - sy, sy, 1)
+            t = CATransform3DTranslate(t, -c.x, -c.y, 0)
+            return t
+        }
+        func apply(_ p: CGPoint) -> CGPoint {
+            let c = CGPoint(x: 100, y: 230)
+            let x = (p.x - c.x) * (2 - sy), y = (p.y - c.y) * sy
+            let ca = cos(angle), sa = sin(angle)
+            return CGPoint(x: c.x + x * ca - y * sa + dx, y: c.y + x * sa + y * ca + dy)
+        }
+    }
+
+    func torsoTransform() -> TorsoPose {
+        TorsoPose(dx: dx, dy: dy, angle: CGFloat((lean + pointerLean) * .pi / 180) + dx * 0.004, sy: squash)
+    }
+
+    mutating func react(to p: VerbiePose, at now: Double) {
+        pop = now
+        switch p {
+        case .saved: hop = (now + 0.08, 22, 0.5)
+        case .interrupted: hop = (now, 9, 0.28); queueStep(now: now + 0.3, side: rand() < 0.5 ? 0 : 1, outward: 4)
+        case .receiving: queueStep(now: now + 0.1, side: 1, outward: 2)
+        case .nothing: queueStep(now: now + 0.15, side: 0, outward: -2)
+        default: break
+        }
+    }
+
+    private mutating func queueStep(now: Double, side: Int, outward: CGFloat) {
+        guard step == nil else { return }
+        let to = Self.homeX[side] + (side == 0 ? -outward : outward)
+        step = Step(side: side, fromX: feet[side].x, toX: to, start: now, duration: 0.32, height: 9)
+    }
+
+    mutating func advance(now: Double, dt: Double, pose: VerbiePose) {
+        clock = now
+        if nextStepAt == 0 { nextStepAt = now + 2 + rand() * 4 }
+        let calm = pose == .paused
+        // Weight drifts side to side on a slow, uneven rhythm.
+        let sway = sin(now * (calm ? 0.5 : 0.9)) * 0.7 + sin(now * 0.37 + 1.3) * 0.3
+        var targetWeight = CGFloat(sway)
+        if let s = step { targetWeight = s.side == 0 ? 1 : -1 }            // stand on the other foot while one moves
+        weight += (targetWeight - weight) * CGFloat(min(1, dt * 3))
+        let leftX = feet[0].x, rightX = feet[1].x
+        let overX = (leftX + rightX) / 2 - 100 + weight * (rightX - leftX) * 0.12
+        dx += (overX - dx) * CGFloat(min(1, dt * 4))
+        // The hips dip as weight passes between the feet, and sink a little when he dozes.
+        var targetDy: CGFloat = (1 - abs(weight)) * 1.6 + (calm ? 3 : 0)
+        if let h = hop {
+            let u = (now - h.start) / h.duration
+            if u >= 1 { hop = nil; pop = now }
+            else if u > 0 {
+                // Crouch, launch, fall: a quick anticipation dip before the arc.
+                targetDy = u < 0.18 ? 6 * CGFloat(u / 0.18) : -h.height * CGFloat(sin(.pi * (u - 0.18) / 0.82))
+                dy = targetDy
+            }
+        }
+        if hop == nil { dy += (targetDy - dy) * CGFloat(min(1, dt * 8)) }
+        lean += (leanTarget - lean) * min(1, dt * 7)
+
+        // Squash and stretch after a pose change or a landing.
+        let pu = now - pop
+        squash = pu < 0.5 ? 1 - CGFloat(0.06 * sin(pu / 0.5 * .pi * 2) * exp(-pu * 5)) : 1
+
+        // Steps: start one when it's time, or when the weight has drifted far from the feet.
+        if step == nil, hop == nil, !calm, now >= nextStepAt {
+            let side = weight > 0 ? 0 : 1                               // move the unweighted foot
+            let drift = (dx - ((feet[0].x + feet[1].x) / 2 - 100))
+            var to = Self.homeX[side] + CGFloat(rand() * 8 - 4) + drift * 0.5
+            to = min(max(to, Self.homeX[side] - 8), Self.homeX[side] + 8)
+            step = Step(side: side, fromX: feet[side].x, toX: to, start: now, duration: 0.3 + rand() * 0.12, height: 6 + CGFloat(rand() * 4))
+            // Sometimes the other foot follows: a little shuffle.
+            nextStepAt = now + (rand() < 0.3 ? 0.55 : 3.5 + rand() * 5)
+        }
+        if let s = step, now >= s.start {
+            let u = min(1, (now - s.start) / s.duration)
+            let e = CGFloat(u < 0.5 ? 2 * u * u : 1 - pow(-2 * u + 2, 2) / 2)
+            feet[s.side].x = s.fromX + (s.toX - s.fromX) * e
+            feet[s.side].y = Self.groundY - s.height * CGFloat(sin(.pi * u))
+            footTilt[s.side] = -0.25 * sin(.pi * u)
+            if u >= 1 { feet[s.side].y = Self.groundY; footTilt[s.side] = 0; step = nil }
+        }
+        // In the air, feet hang from the hips (IK clamps reach); back on the ground they plant again.
+        if hop != nil, dy < -2 {
+            let tp = torsoTransform()
+            for i in 0..<2 where step?.side != i {
+                let hip = tp.apply(Self.hipRest[i])
+                feet[i].y = min(Self.groundY, hip.y + Self.thigh + Self.shin + 8)
+                footTilt[i] = 0.12 * (i == 0 ? 1 : -1)
+            }
+        } else {
+            for i in 0..<2 where step?.side != i { feet[i].y += (Self.groundY - feet[i].y) * CGFloat(min(1, dt * 20)); footTilt[i] *= 0.8 }
+        }
+    }
 }

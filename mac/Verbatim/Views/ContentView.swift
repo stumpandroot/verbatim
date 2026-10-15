@@ -29,11 +29,6 @@ struct ContentView: View {
                 Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
                     .help("Hide or show the sidebar")
             }
-            ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 8) {
-                    if case .transcript(let id) = app.screen, let t = app.store.transcript(id) { ExportMenu(transcript: t) }
-                }
-            }
         }
         .searchable(text: $app.search, placement: .toolbar, prompt: "Search transcripts")
         .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
@@ -385,19 +380,45 @@ struct ExportMenu: View {
     var transcript: Transcript
     @State private var open = false
     @State private var options = ExportOptions.saved
+    var compact = false
     var body: some View {
-        HStack(spacing: 6) {
-            Button {
-                Exporter.copy(transcript, options: options)
-                app.toast = Toast("Copied " + (options.source == .document ? "document" : "transcript"))
-                Sounds.done()
-            } label: { Label("Copy", systemImage: "doc.on.doc") }
-                .help("Copy the text to the clipboard (⌘⇧C)").keyboardShortcut("c", modifiers: [.command, .shift])
-            Button { open.toggle() } label: { Label("Export", systemImage: "square.and.arrow.up") }
+        HStack(spacing: 2) {
+            Button { ExportMenu.copy(transcript, app: app) } label: { ToolLabel(title: "Copy", symbol: "doc.on.doc", compact: compact) }
+                .buttonStyle(.plain).help("Copy the text to the clipboard (⌘⇧C)")
+            Button { open.toggle() } label: { ToolLabel(title: "Export", symbol: "square.and.arrow.up", compact: compact) }
+                .buttonStyle(.plain).help("Export as text, Markdown, Word, subtitles, or JSON")
                 .popover(isPresented: $open, arrowEdge: .bottom) { ExportPanel(transcript: transcript, options: $options, done: { open = false }) }
         }
         .disabled(transcript.status != .ready)
         .onChange(of: options) { _, o in o.save() }
+    }
+
+    /// Copy with the saved export options. Also bound to ⌘⇧C once per transcript screen.
+    static func copy(_ t: Transcript, app: AppState) {
+        guard t.status == .ready else { return }
+        let options = ExportOptions.saved
+        Exporter.copy(t, options: options)
+        app.toast = Toast("Copied " + (options.source == .document ? "document" : "transcript"))
+        Sounds.done()
+    }
+}
+
+/// A quiet text-and-icon tool button for the transcript's mode bar.
+struct ToolLabel: View {
+    var title: String
+    var symbol: String
+    var compact = false
+    var on = false
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 12.5, weight: .medium))
+            if !compact { Text(title).font(.system(size: 12.5, weight: .medium)).lineLimit(1).fixedSize() }
+        }
+        .foregroundStyle(on ? Ink.iris : Ink.dim)
+        .padding(.horizontal, compact ? 7 : 9).frame(height: 28)
+        .background(on ? Ink.iris.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .contentShape(Rectangle())
+        .hoverChip()
     }
 }
 
