@@ -302,7 +302,7 @@ final class VerbieLayerHost: NSView {
         for (k, l) in props { l.opacity = k == show ? 1 : 0; l.transform = k == show ? CATransform3DIdentity : CATransform3DMakeScale(0.6, 0.6, 1) }
         CATransaction.commit()
 
-        if changed && animated && !reduceMotion { rig.react(to: p, at: CACurrentMediaTime()) }
+        if changed && animated && link != nil { rig.react(to: p, at: CACurrentMediaTime()) }
     }
 
     // MARK: Legs and weight (procedural, inverse kinematics)
@@ -335,7 +335,9 @@ final class VerbieLayerHost: NSView {
     }
 
     private func startLink() {
-        guard link == nil, !reduceMotion, bounds.height >= 50 else { return }
+        guard link == nil, bounds.height >= 50 else { return }
+        // The self-test runs the rig even if the runner has Reduce Motion on, so CI exercises it.
+        if reduceMotion && !UITest.enabled { return }
         // A 30 Hz timer rather than a display link: display links don't fire on some virtual displays,
         // and 30 Hz is plenty for a character this size.
         let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.tick() }
@@ -355,6 +357,7 @@ final class VerbieLayerHost: NSView {
         rig.advance(now: now, dt: dt, pose: pose)
         applyRig()
         frames += 1
+        if UITest.enabled, frames % 150 == 0, frames <= 600 { Log.note(String(format: "UITEST verbie feet %.1f/%.1f hips dx %.1f dy %.1f", rig.feet[0].x, rig.feet[1].x, rig.dx, rig.dy)) }
         if frames == 90, UITest.enabled { Log.note("UITEST verbie rig ticking (\(Int(bounds.width))×\(Int(bounds.height)) pt)") }
     }
 
