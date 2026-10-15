@@ -507,7 +507,7 @@ struct LegRig {
         if let s = step { targetWeight = s.side == 0 ? 1 : -1 }            // stand on the other foot while one moves
         weight += (targetWeight - weight) * CGFloat(min(1, dt * 3))
         let leftX = feet[0].x, rightX = feet[1].x
-        let overX = (leftX + rightX) / 2 - 100 + weight * (rightX - leftX) * 0.25
+        let overX = (leftX + rightX) / 2 - 100 + weight * (rightX - leftX) * 0.18
         dx += (overX - dx) * CGFloat(min(1, dt * 4))
         // The hips dip as weight passes between the feet, and sink a little when he dozes.
         var targetDy: CGFloat = (1 - abs(weight)) * 1.6 + (calm ? 3 : 0)
