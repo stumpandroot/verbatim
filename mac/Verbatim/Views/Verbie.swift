@@ -87,6 +87,7 @@ final class VerbieLayerHost: NSView {
     private var rig = LegRig()
     private var link: CADisplayLink?
     private var lastTick: CFTimeInterval = 0
+    private var frames = 0
     private let body = CALayer()           // breathes
     private let gaze = CALayer()           // eyes + mouth, drifts toward the pointer
     private let eyeL = CAShapeLayer(), eyeR = CAShapeLayer()
@@ -350,6 +351,8 @@ final class VerbieLayerHost: NSView {
         lastTick = now
         rig.advance(now: now, dt: dt, pose: pose)
         applyRig()
+        frames += 1
+        if frames == 90, UITest.enabled { Log.note("UITEST verbie rig ticking (\(Int(bounds.width))×\(Int(bounds.height)) pt)") }
     }
 
     // MARK: Idle (render-server driven; nothing touches SwiftUI)
