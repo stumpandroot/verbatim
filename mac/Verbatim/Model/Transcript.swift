@@ -102,6 +102,8 @@ struct Note: Codable, Identifiable, Equatable {
     var segmentId: UUID? = nil       // the passage it was written against
     var isBookmark = false
     var createdAt = Date()
+    /// A still from the video at `at` (Paths.thumbs), when a video file is available.
+    var frameFile: String? = nil
 }
 
 struct Transcript: Codable, Identifiable, Equatable {
@@ -141,6 +143,11 @@ struct Transcript: Codable, Identifiable, Equatable {
     var deletedAt: Date? = nil
     /// What the source page said about itself (link imports only).
     var link: LinkInfo? = nil
+    /// Keep: media saved to your Keep folder (absolute paths), and an imported video's original location,
+    /// used for frame grabs.
+    var keptVideo: String? = nil
+    var keptAudio: String? = nil
+    var originalMedia: String? = nil
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -178,6 +185,18 @@ struct Transcript: Codable, Identifiable, Equatable {
         documentTone = try c.decodeIfPresent(String.self, forKey: .documentTone) ?? "As spoken"
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         link = try c.decodeIfPresent(LinkInfo.self, forKey: .link)
+        keptVideo = try c.decodeIfPresent(String.self, forKey: .keptVideo)
+        keptAudio = try c.decodeIfPresent(String.self, forKey: .keptAudio)
+        originalMedia = try c.decodeIfPresent(String.self, forKey: .originalMedia)
+    }
+
+    /// A video file on this Mac for this transcript (kept from a link, or the original import), if it still exists.
+    var videoFile: URL? {
+        for p in [keptVideo, originalMedia].compactMap({ $0 }) where FileManager.default.fileExists(atPath: p) {
+            let u = URL(fileURLWithPath: p)
+            if MediaImport.videoExts.contains(u.pathExtension.lowercased()) { return u }
+        }
+        return nil
     }
 
     /// Link details, including for link imports made before Verbatim kept them.

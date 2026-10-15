@@ -125,7 +125,7 @@ struct TranscriptView: View {
                 if !t.speakers.isEmpty { Text("·"); Text("\(t.speakers.count) speakers") }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
-            if let info = t.linkInfo { LinkCard(info: info, title: t.title).padding(.top, 10) }
+            if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 10) }
         }
         .padding(.bottom, 14)
     }
@@ -611,6 +611,9 @@ struct NoteCard: View {
     @State private var hover = false
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            if let f = note.frameFile {
+                FrameImage(file: f).frame(height: 120).padding(.bottom, 4).tapArea(onSeek)
+            }
             if let at = note.at {
                 HStack(spacing: 5) {
                     if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
@@ -673,7 +676,7 @@ struct TranscriptLines: View {
 struct LinkCard: View {
     @EnvironmentObject var app: AppState
     var info: LinkInfo
-    var title: String
+    var transcript: Transcript
     var body: some View {
         HStack(spacing: 12) {
             Thumbnail(info: info).frame(width: 72, height: 40)
@@ -684,13 +687,32 @@ struct LinkCard: View {
             }
             Spacer(minLength: 8)
             Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", systemImage: "play.rectangle") }
-                .buttonStyle(.bordered).controlSize(.small)
+                .buttonStyle(.bordered).controlSize(.small).fixedSize()
+            KeepButton(transcript: transcript)
             Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(info.url, forType: .string); app.toast = Toast("Link copied") } label: { Image(systemName: "link") }
                 .buttonStyle(.bordered).controlSize(.small).help("Copy link")
         }
         .padding(8)
         .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
-        .frame(maxWidth: 560, alignment: .leading)
+        .frame(maxWidth: 640, alignment: .leading)
+    }
+}
+
+/// Keep the video, watch it save, then find it.
+struct KeepButton: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var body: some View {
+        if let busy = app.keeping[transcript.id] {
+            HStack(spacing: 6) { ProgressView().controlSize(.mini); Text(busy.replacingOccurrences(of: "Keeping video", with: "Keeping")).monospacedDigit() }
+                .font(.system(size: 12)).foregroundStyle(Ink.iris).fixedSize()
+        } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
+            Button { app.showKept(v) } label: { Label("Kept", systemImage: "checkmark.circle") }
+                .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Show the MP4 in Finder")
+        } else {
+            Button { app.keepVideo(transcript.id) } label: { Label("Keep video", systemImage: "arrow.down.circle") }
+                .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Save the video as an MP4 in your Keep folder")
+        }
     }
 }

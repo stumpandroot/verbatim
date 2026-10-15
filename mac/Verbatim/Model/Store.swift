@@ -112,6 +112,8 @@ final class Store: ObservableObject {
         try? FileManager.default.removeItem(at: Paths.transcripts.appendingPathComponent("\(t.id.uuidString).json"))
         if let a = audioURL(for: t) { try? FileManager.default.removeItem(at: a) }
         if let th = t.link?.thumbnailFile { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(th)) }
+        // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
+        for f in t.notes.compactMap(\.frameFile) { try? FileManager.default.removeItem(at: Paths.thumbs.appendingPathComponent(f)) }
     }
 
     func save(_ t: Transcript) {

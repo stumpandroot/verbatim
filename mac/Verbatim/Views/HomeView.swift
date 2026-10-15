@@ -167,6 +167,7 @@ struct ImportPanel: View {
     @EnvironmentObject var app: AppState
     var done: () -> Void
     @State private var link = ""
+    @State private var keepVideo = false
     @FocusState private var focused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -178,17 +179,20 @@ struct ImportPanel: View {
                 TextField("https://…", text: $link).textFieldStyle(.roundedBorder).focused($focused).onSubmit(submit)
                 Button("Fetch", action: submit).buttonStyle(.borderedProminent).tint(Ink.iris).disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            Text("YouTube, Vimeo, podcasts, and most video pages. Only the audio is downloaded.").font(.system(size: 11.5)).foregroundStyle(.secondary)
+            Toggle("Also keep the video (MP4)", isOn: $keepVideo).toggleStyle(.checkbox).font(.system(size: 12.5))
+            Text(keepVideo ? "Saved to \(Keep.folder.lastPathComponent) in \(Keep.folder.deletingLastPathComponent().lastPathComponent), up to 1080p. Keep only what you have the right to save." : "YouTube, Vimeo, podcasts, and most video pages. Only the audio is downloaded.")
+                .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .padding(16).frame(width: 360)
         .onAppear {
+            keepVideo = app.keepVideoByDefault
             if let s = NSPasteboard.general.string(forType: .string), s.hasPrefix("http") { link = s }
             focused = true
         }
     }
     private func submit() {
         let l = link.trimmingCharacters(in: .whitespaces); guard !l.isEmpty else { return }
-        app.transcribeLink(l); done()
+        app.transcribeLink(l, keepVideo: keepVideo); done()
     }
     private func openFile() { app.chooseFiles() }
 }
@@ -644,6 +648,26 @@ struct HistoryRow: View {
     }
 }
 
+/// Keep video (links) and Keep audio, or Show in Finder once kept.
+struct KeepMenuItems: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var body: some View {
+        if let busy = app.keeping[transcript.id] {
+            Button(busy) {}.disabled(true)
+        } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
+            Button("Show video in Finder") { app.showKept(v) }
+        } else if transcript.linkInfo != nil {
+            Button("Keep video (MP4)") { app.keepVideo(transcript.id) }
+        }
+        if let a = transcript.keptAudio, FileManager.default.fileExists(atPath: a) {
+            Button("Show audio in Finder") { app.showKept(a) }
+        } else if transcript.audioFileName != nil {
+            Button("Keep audio (\((transcript.audioFileName.map { URL(fileURLWithPath: $0).pathExtension.uppercased() }) ?? "M4A"))") { app.keepAudio(transcript.id) }
+        }
+    }
+}
+
 struct RowMenu: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
@@ -658,6 +682,8 @@ struct RowMenu: View {
         }
         if transcript.status == .failed { Button("Retry transcription") { app.retry(transcript) } }
         if transcript.status == .processing { Button("Cancel transcription") { app.cancel(transcript.id) } }
+        Divider()
+        KeepMenuItems(transcript: transcript)
         Divider()
         Button("Delete", role: .destructive) { app.delete([transcript.id]) }
     }

@@ -9,6 +9,7 @@ enum Screen: Equatable {
     case links
     case queue
     case trash
+    case moments
     case transcript(UUID)
     case dictionary
 }
@@ -50,6 +51,10 @@ final class AppState: ObservableObject {
     /// "system" | "light" | "dark"
     @Changed("appearance") var appearance = "system"      // "voice" | "dictate"
     @Changed("sounds") var sounds = true { didSet { Sounds.enabled = sounds } }
+    /// Keep: also save the video (MP4) of every link you transcribe.
+    @Changed("keepVideoByDefault") var keepVideoByDefault = false
+    /// Keep jobs in flight, by transcript, with a short status ("Keeping video 42%").
+    @Changed var keeping: [UUID: String] = [:]
 
     let store = Store()
     let recorder = Recorder()
@@ -79,6 +84,7 @@ final class AppState: ObservableObject {
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         queue = store.live.filter { $0.status == .processing && $0.audioFileName != nil }.sorted { $0.createdAt < $1.createdAt }.map(\.id)
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.backfillFrames() }
     }
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
@@ -88,7 +94,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "queue": 3, "dictionary": 4, "trash": 5]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "moments": 3, "queue": 4, "dictionary": 5, "trash": 6]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -110,7 +116,7 @@ final class AppState: ObservableObject {
     func goHome() { go(.home) }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
+        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .transcript: return "transcript" }
     }
 
     // MARK: Recording (microphone)
@@ -225,7 +231,11 @@ final class AppState: ObservableObject {
                 do {
                     let dest = store.newAudioURL(ext: "m4a")
                     let prepared = try await MediaImport.prepare(src, into: dest)
-                    store.update(id) { $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued" }
+                    let isVideo = MediaImport.videoExts.contains(src.pathExtension.lowercased())
+                    store.update(id) {
+                        $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued"
+                        if isVideo { $0.originalMedia = src.path }
+                    }
                     queue.append(id)
                     pump()
                 } catch {
@@ -248,7 +258,8 @@ final class AppState: ObservableObject {
         return true
     }
 
-    func transcribeLink(_ link: String) {
+    func transcribeLink(_ link: String, keepVideo: Bool? = nil) {
+        let alsoKeep = keepVideo ?? keepVideoByDefault
         let link = link.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LinkFetcher.looksLikeLink(link) else { toast = Toast("That doesn't look like a link."); return }
         guard LinkFetcher.helperURL != nil else { toast = Toast("Links need the yt-dlp helper, which this build is missing."); return }
@@ -266,6 +277,7 @@ final class AppState: ObservableObject {
                 t.link = LinkInfo(url: f.pageURL ?? link, site: f.site, channel: f.uploader, uploadDate: f.uploadDate)
                 fetching = nil
                 enqueue(t)
+                if alsoKeep { self.keepVideo(t.id) }
                 if let thumb = f.thumbnail {
                     let id = t.id
                     Task { if let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) { self.store.update(id) { $0.link?.thumbnailFile = file } } }
@@ -469,8 +481,75 @@ final class AppState: ObservableObject {
     }
 
     func addNote(transcript id: UUID, text: String, at: Double?, segment: UUID?, bookmark: Bool = false) {
-        store.addNote(Note(text: text, at: at, segmentId: segment, isBookmark: bookmark), to: id)
+        let note = Note(text: text, at: at, segmentId: segment, isBookmark: bookmark)
+        store.addNote(note, to: id)
         toast = Toast(bookmark ? "Bookmarked \((at ?? 0).timecode)" : "Note added")
+        if at != nil, let video = store.transcript(id)?.videoFile { grabFrames(id, video: video, only: [note.id]) }
+    }
+
+    // MARK: Keep
+
+    /// Saves the link's video as an MP4 in the Keep folder. Notes with a moment get a still once it lands.
+    func keepVideo(_ id: UUID) {
+        guard let t = store.transcript(id), keeping[id] == nil else { return }
+        guard let url = t.linkInfo?.url ?? t.sourceURL else { toast = Toast("Only link transcripts have a video to keep."); return }
+        guard LinkFetcher.helperURL != nil else { toast = Toast("Keeping video needs the yt-dlp helper, which this build is missing."); return }
+        keeping[id] = "Keeping video"
+        let gate = ProgressGate()
+        let title = t.title
+        Task {
+            do {
+                let out = try await Keep.video(link: url, title: title) { s in
+                    if gate.shouldPublish(s) { Task { @MainActor in if self.keeping[id] != nil { self.keeping[id] = s } } }
+                }
+                keeping[id] = nil
+                store.update(id) { $0.keptVideo = out.path }
+                toast = Toast("Kept “\(out.lastPathComponent)”", action: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([out]) }
+                grabFrames(id, video: out)
+            } catch {
+                keeping[id] = nil
+                toast = Toast("Couldn't keep the video: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Copies the transcript's audio to the Keep folder (M4A for links, recordings, and imports).
+    func keepAudio(_ id: UUID) {
+        guard let t = store.transcript(id), let name = t.audioFileName else { toast = Toast("That transcript's audio is missing."); return }
+        let src = Paths.audio.appendingPathComponent(name)
+        do {
+            let out = try Keep.destination(title: t.title, ext: src.pathExtension.isEmpty ? "m4a" : src.pathExtension)
+            try FileManager.default.copyItem(at: src, to: out)
+            store.update(id) { $0.keptAudio = out.path }
+            toast = Toast("Kept “\(out.lastPathComponent)”", action: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([out]) }
+        } catch {
+            toast = Toast("Couldn't keep the audio: \(error.localizedDescription)")
+        }
+    }
+
+    func showKept(_ path: String?) {
+        guard let path, FileManager.default.fileExists(atPath: path) else { toast = Toast("That file has moved or been deleted."); return }
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    /// Stills for notes pinned to a moment that don't have one yet (or just `only`).
+    func grabFrames(_ id: UUID, video: URL, only: Set<UUID>? = nil) {
+        guard let t = store.transcript(id) else { return }
+        let wanted = t.notes.filter { n in n.at != nil && (only.map { $0.contains(n.id) } ?? (n.frameFile == nil)) }
+        guard !wanted.isEmpty else { return }
+        Task {
+            for n in wanted {
+                guard let at = n.at, let file = await Keep.frame(from: video, at: at, name: n.id.uuidString) else { continue }
+                store.update(id) { t in if let i = t.notes.firstIndex(where: { $0.id == n.id }) { t.notes[i].frameFile = file } }
+            }
+        }
+    }
+
+    /// Fills in missing stills for every transcript with a video on this Mac. Runs once at launch.
+    func backfillFrames() {
+        for t in store.live where t.notes.contains(where: { $0.at != nil && $0.frameFile == nil }) {
+            if let v = t.videoFile { grabFrames(t.id, video: v) }
+        }
     }
 
     func deleteNote(transcript id: UUID, note nid: UUID) {

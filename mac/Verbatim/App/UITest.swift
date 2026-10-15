@@ -99,6 +99,12 @@ enum UITest {
         await show("05b-queue")
         app.go(.links)
         await show("05c-links")
+        app.go(.moments)
+        await show("05f-moments")
+        if let link = app.store.live.first(where: { $0.title == "Folding wagon walkthrough" }) {
+            app.go(.transcript(link.id))
+            await show("05g-link-kept")
+        }
         app.search = "folding"
         await show("05d-search")
         app.search = ""
@@ -205,6 +211,58 @@ enum UITest {
                       Segment(start: 6, end: 13, text: "Two latches on the side, lift the bed, and the wheels tuck under.")]
         t.original = t.segments
         app.store.add(t)
+        // Keep: a short generated MP4 stands in for a kept video, so frame grabs run for real.
+        let video = Paths.downloads.appendingPathComponent("uitest-kept.mp4")
+        let id = t.id
+        Task {
+            try? FileManager.default.createDirectory(at: Paths.downloads, withIntermediateDirectories: true)
+            guard await writeTestVideo(video, seconds: 14) else { Log.note("UITEST keep video FAIL write"); return }
+            app.store.update(id) { $0.keptVideo = video.path }
+            app.store.addNote(Note(text: "Latches on the side; good close-up for the catalog.", at: 7, segmentId: app.store.transcript(id)?.segments.last?.id), to: id)
+            app.store.addNote(Note(text: "", at: 2, segmentId: app.store.transcript(id)?.segments.first?.id, isBookmark: true), to: id)
+            app.grabFrames(id, video: video)
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            let frames = app.store.transcript(id)?.notes.filter { $0.frameFile != nil }.count ?? 0
+            Log.note("UITEST keep frames \(frames == 2 ? "PASS" : "FAIL") (\(frames)/2)")
+        }
+    }
+
+    /// An H.264 MP4 of slowly shifting color bands, for frame-grab tests.
+    nonisolated private static func writeTestVideo(_ url: URL, seconds: Int) async -> Bool {
+        try? FileManager.default.removeItem(at: url)
+        let w = 640, h = 360
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else { return false }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: w, AVVideoHeightKey: h])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey as String: w, kCVPixelBufferHeightKey as String: h])
+        writer.add(input)
+        guard writer.startWriting() else { return false }
+        writer.startSession(atSourceTime: .zero)
+        let fps = 2
+        for f in 0..<(seconds * fps) {
+            while !input.isReadyForMoreMediaData { try? await Task.sleep(nanoseconds: 5_000_000) }
+            guard let pool = adaptor.pixelBufferPool else { return false }
+            var pb: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb)
+            guard let buf = pb else { return false }
+            CVPixelBufferLockBaseAddress(buf, [])
+            let base = CVPixelBufferGetBaseAddress(buf)!.assumingMemoryBound(to: UInt8.self)
+            let row = CVPixelBufferGetBytesPerRow(buf)
+            for y in 0..<h {
+                for x in 0..<w {
+                    let band = (x / 80 + f) % 3
+                    let o = y * row + x * 4
+                    // BGRA: paper, iris, coral bands
+                    let c: (UInt8, UInt8, UInt8) = band == 0 ? (0xEE, 0xF4, 0xF7) : band == 1 ? (0xFF, 0x5B, 0x6B) : (0x5A, 0x7A, 0xFF)
+                    base[o] = c.0; base[o + 1] = c.1; base[o + 2] = c.2; base[o + 3] = 255
+                }
+            }
+            CVPixelBufferUnlockBaseAddress(buf, [])
+            adaptor.append(buf, withPresentationTime: CMTime(value: CMTimeValue(f), timescale: CMTimeScale(fps)))
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        return writer.status == .completed
     }
 
     /// A one-hour-style transcript: 600 segments, two speakers, no audio.

@@ -8,6 +8,7 @@ struct SettingsView: View {
             general.tabItem { Label("General", systemImage: "gearshape") }
             transcription.tabItem { Label("Transcription", systemImage: "text.alignleft") }
             DictationSettings().tabItem { Label("Dictate", systemImage: "keyboard") }
+            KeepSettings().tabItem { Label("Keep", systemImage: "arrow.down.circle") }
             storage.tabItem { Label("Storage", systemImage: "externaldrive") }
         }
         .frame(width: 560)
@@ -76,6 +77,42 @@ struct SettingsView: View {
             Text(Paths.root.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.mute)
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Keep: where kept video and audio go, and whether links keep their video by default.
+struct KeepSettings: View {
+    @EnvironmentObject var app: AppState
+    @State private var folder = Keep.folder
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Keep folder") {
+                    HStack(spacing: 8) {
+                        Text(folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")).lineLimit(1).truncationMode(.middle).foregroundStyle(Ink.dim)
+                        Button("Change…") { choose() }
+                        Button("Show") {
+                            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                            NSWorkspace.shared.activateFileViewerSelecting([folder])
+                        }
+                    }
+                }
+                Toggle("Keep the video of every link I transcribe", isOn: $app.keepVideoByDefault)
+                Text("Video is saved as MP4 (H.264, up to 1080p) with its sound; audio as M4A. Nothing is re-encoded. Notes pinned to a moment get a still from the video.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section {
+                Text("Keep only what you have the right to save: your own uploads, Creative Commons, or with permission. Some sites' terms don't allow downloading.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+        }
+        .formStyle(.grouped)
+    }
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
+        panel.directoryURL = folder; panel.prompt = "Use This Folder"
+        if panel.runModal() == .OK, let u = panel.url { Keep.folder = u; folder = u }
     }
 }
 

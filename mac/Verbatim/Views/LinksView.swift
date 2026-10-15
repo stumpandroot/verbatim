@@ -80,6 +80,12 @@ struct LinkRow: View {
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
                 if transcript.status == .processing { Text(transcript.stage ?? "Queued").font(.system(size: 12)).foregroundStyle(Ink.iris) }
                 if transcript.status == .failed { Text("Transcription failed").font(.system(size: 12)).foregroundStyle(Ink.coral) }
+                if let busy = app.keeping[transcript.id] {
+                    Text(busy).font(.system(size: 12)).foregroundStyle(Ink.iris).monospacedDigit()
+                } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
+                    Label("Video kept", systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(Ink.limeText)
+                        .tapArea { app.showKept(v) }
+                }
             }
             Spacer(minLength: 12)
             HStack(spacing: 8) {
@@ -104,6 +110,21 @@ struct LinkRow: View {
     }
 
     private func copy(_ s: String) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string); app.toast = Toast("Copied") }
+}
+
+/// A video still saved in Paths.thumbs.
+struct FrameImage: View {
+    var file: String
+    var body: some View {
+        ZStack {
+            Rectangle().fill(Ink.track)
+            if let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(file)) {
+                Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
 }
 
 struct Thumbnail: View {

@@ -49,6 +49,7 @@ struct ContentView: View {
         case .library: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library"
         case .queue: return "Queue"
         case .links: return "Links"
+        case .moments: return "Moments"
         case .trash: return "Recently Deleted"
         case .dictionary: return "Dictionary"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
@@ -61,6 +62,7 @@ struct ContentView: View {
         case .library: return "library"
         case .queue: return "queue"
         case .links: return "links"
+        case .moments: return "moments"
         case .trash: return "trash"
         case .dictionary: return "dict"
         case .transcript(let id): return "t-\(id)"
@@ -73,6 +75,7 @@ struct ContentView: View {
         case .library: LibraryView()
         case .queue: QueueView()
         case .links: LinksView()
+        case .moments: MomentsView()
         case .trash: TrashView()
         case .dictionary: DictionaryView()
         case .transcript(let id): TranscriptView(id: id)
@@ -133,6 +136,8 @@ struct Sidebar: View {
                 .uiTarget("side-library")
             SideItem(label: "Links", symbol: "link", selected: app.screen == .links, badge: nil, pill: pill) { app.go(.links) }
                 .uiTarget("side-links")
+            SideItem(label: "Moments", symbol: "bookmark", selected: app.screen == .moments, pill: pill) { app.go(.moments) }
+                .uiTarget("side-moments")
             SideItem(label: "Queue", symbol: "list.bullet", selected: app.screen == .queue,
                      badge: app.queue.count + (app.runningID == nil ? 0 : 1) == 0 ? nil : "\(app.queue.count + (app.runningID == nil ? 0 : 1))", busy: app.runningID != nil, pill: pill) { app.go(.queue) }
                 .uiTarget("side-queue")
