@@ -17,12 +17,13 @@ TEAM="${TEAM:-VK9YQY88Q9}"
 
 echo "Building Verbatim with iCloud sync (a few minutes the first time)…"
 rm -rf build/install
-xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -configuration Release \
-  -destination 'platform=macOS' -derivedDataPath build/install -allowProvisioningUpdates -quiet \
+# Builds the target directly: XcodeGen doesn't write shared schemes, so a fresh checkout has none.
+xcodebuild -project Verbatim.xcodeproj -target Verbatim -configuration Release \
+  -allowProvisioningUpdates -quiet SYMROOT="$PWD/build/install" \
   DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
   CODE_SIGN_ENTITLEMENTS=Verbatim/Verbatim-iCloud.entitlements ONLY_ACTIVE_ARCH=YES
 
-APP="build/install/Build/Products/Release/Verbatim.app"
+APP="build/install/Release/Verbatim.app"
 [ -d "$APP" ] || { echo "The build didn't produce Verbatim.app. Send the output above to Claude."; exit 1; }
 
 echo "Installing in Applications…"
