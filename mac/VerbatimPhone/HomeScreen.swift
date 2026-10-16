@@ -9,7 +9,7 @@ struct HomeScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
-                    Overline(text: "Verbatim / Ideas in order", color: Ink.dim)
+                    Overline(text: "Verbatim", color: Ink.dim)
                     DottedRule().frame(height: 1)
                     SyncBadge()
                 }

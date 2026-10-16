@@ -10,7 +10,7 @@ enum PhoneUITest {
     static func run(_ app: PhoneState) {
         seed(app)
         Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            try? await Task.sleep(nanoseconds: 8_000_000_000)   // CI starts watching after launch
             await show("p01-home")
             app.showRecorder = true
             await show("p02-record")
@@ -58,10 +58,10 @@ enum PhoneUITest {
     }
 
     private static func show(_ name: String) async {
-        try? await Task.sleep(nanoseconds: 1_300_000_000)
+        try? await Task.sleep(nanoseconds: 1_500_000_000)   // let presentations settle
         write(name)
         Log.note("UITEST show \(name)")
-        try? await Task.sleep(nanoseconds: 2_600_000_000)
+        try? await Task.sleep(nanoseconds: 5_000_000_000)   // simulator screenshots take a few seconds
     }
 
     private static func write(_ name: String) {

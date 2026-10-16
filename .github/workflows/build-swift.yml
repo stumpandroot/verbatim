@@ -109,14 +109,15 @@ jobs:
           SIMCTL_CHILD_VERBATIM_UITEST=1 xcrun simctl launch "$UDID" co.stumpandroot.verbatim.ios
           DATA="$(xcrun simctl get_app_container "$UDID" co.stumpandroot.verbatim.ios data)"
           SHOW="$DATA/Documents/show.txt"; last=""
-          for i in $(seq 1 140); do
+          for i in $(seq 1 200); do
             cur="$(cat "$SHOW" 2>/dev/null || true)"
             if [ -n "$cur" ] && [ "$cur" != "$last" ]; then
               last="$cur"; [ "$cur" = "done" ] && break
-              sleep 1.0; xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/$cur.png" > /dev/null 2>&1 || true
+              sleep 0.8; (xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/$cur.png" > /dev/null 2>&1 &)
             fi
             sleep 0.5
           done
+          sleep 6
           cp "$DATA/Library/Logs/Verbatim/native.log" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || true
           (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
           xcrun simctl shutdown "$UDID" || true
