@@ -69,6 +69,10 @@ final class AppState: ObservableObject {
     @Changed var runningID: UUID? = nil
     /// Continue recording: the transcript the current recording will be added to.
     @Changed var continuing: UUID? = nil
+    /// The transcript the next recording start will add to (set by Continue, cleared by any other Record).
+    private var pendingContinue: UUID? = nil
+    /// Identifies the current run, so a cancelled run's late callbacks can't touch the next one.
+    private var runToken = UUID()
     /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
     var focusSegment: UUID? = nil
     private var runningTask: Task<Void, Never>? = nil
@@ -132,7 +136,8 @@ final class AppState: ObservableObject {
 
     // MARK: Recording (microphone)
 
-    func requestRecord() {
+    func requestRecord(appendTo target: UUID? = nil) {
+        pendingContinue = target
         goHome()
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: startRecording()
@@ -148,7 +153,7 @@ final class AppState: ObservableObject {
     func allowMic() {
         showMicSheet = false
         AVCaptureDevice.requestAccess(for: .audio) { ok in
-            Task { @MainActor in if ok { self.startRecording() } else { self.verbiePose = .ready } }
+            Task { @MainActor in if ok { self.startRecording() } else { self.pendingContinue = nil; self.verbiePose = .ready } }
         }
     }
 
@@ -156,9 +161,12 @@ final class AppState: ObservableObject {
         Log.note("startRecording")
         do {
             try recorder.start(to: store.newRecordingURL())
+            continuing = pendingContinue
+            pendingContinue = nil
             verbiePose = .listening
             Sounds.start()
         } catch {
+            pendingContinue = nil
             verbiePose = .interrupted
             toast = Toast("Could not start recording: \(error.localizedDescription)")
         }
@@ -175,12 +183,11 @@ final class AppState: ObservableObject {
             toast = Toast("This transcript can't take more recording right now."); return
         }
         guard !recorder.isRecording, !capture.isCapturing else { toast = Toast("Stop the current recording first."); return }
-        continuing = id
-        requestRecord()
+        requestRecord(appendTo: id)
     }
 
     func stopRecording() {
-        guard let stopped = recorder.stop() else { return }
+        guard let stopped = recorder.stop() else { continuing = nil; return }
         let (url, duration, env) = stopped
         if let target = continuing {
             continuing = nil
@@ -404,11 +411,12 @@ final class AppState: ObservableObject {
         if store.transcript(id)?.pendingAppend != nil {
             // The transcript stays as it was; the new recording is kept, ready to add with Retry.
             store.update(id) { $0.stage = "New recording not added yet"; $0.processingDevice = nil; $0.processingDeviceName = nil }
-            if runningID == id { runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
             return
         }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
         if runningID == id {
+            runToken = UUID()
             runningTask?.cancel(); runningTask = nil
             runningID = nil
             pump()
@@ -416,14 +424,23 @@ final class AppState: ObservableObject {
     }
 
     func cancelAll() {
-        for id in queue { store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." } }
+        for id in queue { cancel(id) }
         queue = []
         if let r = runningID { cancel(r) }
     }
 
+    /// Throws away a continued recording that hasn't been added; the transcript stays as it was.
+    func discardPendingAppend(_ id: UUID) {
+        if runningID == id || queue.contains(id) { cancel(id) }
+        guard let name = store.transcript(id)?.pendingAppend else { return }
+        Cloud.remove(Paths.audio.appendingPathComponent(name))
+        store.update(id) { $0.pendingAppend = nil; $0.stage = nil; $0.processingDevice = nil; $0.processingDeviceName = nil }
+        toast = Toast("New recording discarded")
+    }
+
     /// Called when a run ends for any reason.
-    private func finished(_ id: UUID) {
-        guard runningID == id else { return }
+    private func finished(_ id: UUID, token: UUID? = nil) {
+        guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
         pump()
     }
@@ -439,6 +456,7 @@ final class AppState: ObservableObject {
         let dict = applyDictionary ? store.dictionary : []
         let project = t.projectId
         let needWave = t.waveform.isEmpty
+        let token = UUID(); runToken = token
         Log.note("transcribe start engine=\(engineId) model=\(model) file=\(url.lastPathComponent)")
         // Progress can arrive many times a second while a model downloads. Publish at most ~4×/s, only when
         // the label changed, and without touching the disk: `stage` is display-only.
@@ -454,7 +472,7 @@ final class AppState: ObservableObject {
                                                          dictionary: dict, project: project, needWave: needWave, progress: progress)
                 let original = out.original, fixed = out.fixed, speakers = out.speakers, corrections = out.corrections, wave = out.wave
                 await MainActor.run {
-                    defer { self.finished(id) }
+                    defer { self.finished(id, token: token) }
                     // Cancelled while running: keep the cancellation, drop the late result.
                     guard self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { x in
@@ -483,7 +501,7 @@ final class AppState: ObservableObject {
             } catch {
                 Log.note("transcribe failed: \(error)")
                 await MainActor.run {
-                    defer { self.finished(id) }
+                    defer { self.finished(id, token: token) }
                     guard self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.verbiePose = .interrupted
@@ -497,7 +515,8 @@ final class AppState: ObservableObject {
     private func runAppend(_ id: UUID, _ t: Transcript, _ url: URL) {
         guard let partName = t.pendingAppend else { finished(id); return }
         let part = Paths.audio.appendingPathComponent(partName)
-        let combined = store.newAudioURL(ext: "wav", avoiding: [url, part])
+        let combined = Continuation.scratchURL()
+        let token = UUID(); runToken = token
         let (engineId, model) = engineChoice
         let wantSpeakers = identifySpeakers
         let dict = applyDictionary ? store.dictionary : []
@@ -510,15 +529,19 @@ final class AppState: ObservableObject {
         store.setStage(id, "Adding the new recording")
         runningTask = Task.detached(priority: .userInitiated) {
             do {
-                _ = await Cloud.ensureDownloaded(url); _ = await Cloud.ensureDownloaded(part)
+                guard await Cloud.ensureDownloaded(url), await Cloud.ensureDownloaded(part) else {
+                    throw NSError(domain: "Verbatim", code: 22, userInfo: [NSLocalizedDescriptionKey: "The recordings haven't finished downloading from iCloud."])
+                }
                 let out = try await Continuation.run(existing: t, existingAudio: url, part: part, combined: combined, engineId: engineId, model: model,
                                                      wantSpeakers: wantSpeakers, dictionary: dict, progress: progress)
                 await MainActor.run {
-                    defer { self.finished(id) }
-                    guard self.store.transcript(id)?.pendingAppend == partName, !Task.isCancelled else { try? FileManager.default.removeItem(at: combined); return }
-                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: combined.lastPathComponent) }
-                    try? FileManager.default.removeItem(at: url)
-                    try? FileManager.default.removeItem(at: part)
+                    defer { self.finished(id, token: token) }
+                    guard self.runToken == token, !Task.isCancelled, self.store.transcript(id)?.pendingAppend == partName,
+                          let name = self.store.adoptRecording(combined) else { try? FileManager.default.removeItem(at: combined); return }
+                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: name) }
+                    // Only now, with the joined file safely in place, do the two halves go.
+                    Cloud.remove(url)
+                    Cloud.remove(part)
                     self.verbiePose = .saved
                     if self.queue.isEmpty { Sounds.done(); self.toast = Toast("New recording added") }
                     Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
@@ -526,8 +549,10 @@ final class AppState: ObservableObject {
             } catch {
                 Log.note("continue failed: \(error)")
                 try? FileManager.default.removeItem(at: combined)
+                if Task.isCancelled { return }
                 await MainActor.run {
-                    defer { self.finished(id) }
+                    guard self.runToken == token else { return }
+                    defer { self.finished(id, token: token) }
                     self.store.update(id) { $0.stage = "Couldn't add the new recording. Choose Retry."; $0.processingDevice = nil; $0.processingDeviceName = nil }
                     self.verbiePose = .interrupted
                     self.toast = Toast("Couldn't add the new recording: \(error.localizedDescription)")

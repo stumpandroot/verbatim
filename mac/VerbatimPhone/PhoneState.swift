@@ -27,6 +27,8 @@ final class PhoneState: ObservableObject {
     @Published var runningID: UUID? = nil
     /// Continue recording: the transcript the current recording will be added to.
     @Published var continuing: UUID? = nil
+    private var pendingContinue: UUID? = nil
+    private var runToken = UUID()
     /// A passage to land on when the next transcript opens (from Moments or search).
     var focusSegment: UUID? = nil
 
@@ -73,10 +75,11 @@ final class PhoneState: ObservableObject {
 
     // MARK: Recording
 
-    func requestRecord() {
+    func requestRecord(appendTo target: UUID? = nil) {
+        pendingContinue = target
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.startRecording() } else { self.say("Microphone access is off. Turn it on in Settings › Verbatim.") }
+                if ok { self.startRecording() } else { self.pendingContinue = nil; self.say("Microphone access is off. Turn it on in Settings › Verbatim.") }
             }
         }
     }
@@ -84,6 +87,8 @@ final class PhoneState: ObservableObject {
     func startRecording() {
         do {
             try recorder.start(to: store.newRecordingURL())
+            continuing = pendingContinue
+            pendingContinue = nil
             showRecorder = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             warmModel()
@@ -109,8 +114,7 @@ final class PhoneState: ObservableObject {
         guard let t = store.transcript(id), t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil else {
             say("This transcript can't take more recording right now."); return
         }
-        continuing = id
-        requestRecord()
+        requestRecord(appendTo: id)
     }
 
     func stopRecording() {
@@ -206,11 +210,17 @@ final class PhoneState: ObservableObject {
         if store.transcript(id)?.pendingAppend != nil {
             // The transcript stays as it was; the new recording is kept, ready to add with Retry.
             store.update(id) { $0.stage = "New recording not added yet"; $0.processingDevice = nil; $0.processingDeviceName = nil }
-            if runningID == id { runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+            return
+        }
+        if store.transcript(id)?.status == .ready {
+            // The words are in; only the speaker pass was running. Stop it and keep the transcript.
+            store.update(id) { $0.stage = nil }
+            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
             return
         }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
-        if runningID == id { runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+        if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
     }
 
     func pump() {
@@ -240,6 +250,7 @@ final class PhoneState: ObservableObject {
         let project = t.projectId
         let needWave = t.waveform.isEmpty
         let progress = progressHandler(id)
+        let token = UUID(); runToken = token
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 _ = await Cloud.ensureDownloaded(url)
@@ -248,7 +259,7 @@ final class PhoneState: ObservableObject {
                                                          dictionary: dict, project: project, needWave: needWave, progress: progress)
                 let findSpeakers = wantSpeakers && out.fixed.count > 1
                 let proceed = await MainActor.run { () -> Bool in
-                    guard self.store.transcript(id)?.status == .processing else { self.finished(id); return false }
+                    guard self.store.transcript(id)?.status == .processing else { self.finished(id, token: token); return false }
                     self.store.update(id) { x in
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
@@ -257,14 +268,15 @@ final class PhoneState: ObservableObject {
                         if x.source == .voiceMemo, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                     }
                     if self.queue.isEmpty { self.say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
-                    if !findSpeakers { self.finished(id) }
+                    if !findSpeakers { self.finished(id, token: token) }
                     return true
                 }
                 guard proceed, findSpeakers else { return }
-                guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id) }; return }
+                guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id, token: token) }; return }
                 let turns = try? await FluidDiarizer.shared.diarize(url: url, progress: { _ in })
                 await MainActor.run {
-                    defer { self.finished(id) }
+                    guard self.runToken == token else { return }
+                    defer { self.finished(id, token: token) }
                     self.store.update(id) { x in
                         x.stage = nil
                         // Only when nobody has assigned speakers by hand in the meantime.
@@ -278,7 +290,7 @@ final class PhoneState: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    defer { self.finished(id) }
+                    defer { self.finished(id, token: token) }
                     guard self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.say("Transcription failed: \(error.localizedDescription)")
@@ -301,7 +313,8 @@ final class PhoneState: ObservableObject {
         guard let partName = t.pendingAppend else { finished(id); return }
         beginBackground()
         let part = Paths.audio.appendingPathComponent(partName)
-        let combined = store.newAudioURL(ext: "wav", avoiding: [url, part])
+        let combined = Continuation.scratchURL()
+        let token = UUID(); runToken = token
         let (engineId, model) = engineChoice
         let wantSpeakers = identifySpeakers
         let dict = applyDictionary ? store.dictionary : []
@@ -309,21 +322,26 @@ final class PhoneState: ObservableObject {
         store.setStage(id, "Adding the new recording")
         runningTask = Task.detached(priority: .userInitiated) {
             do {
-                _ = await Cloud.ensureDownloaded(url); _ = await Cloud.ensureDownloaded(part)
+                guard await Cloud.ensureDownloaded(url), await Cloud.ensureDownloaded(part) else {
+                    throw NSError(domain: "Verbatim", code: 22, userInfo: [NSLocalizedDescriptionKey: "The recordings haven't finished downloading from iCloud."])
+                }
                 let out = try await Continuation.run(existing: t, existingAudio: url, part: part, combined: combined, engineId: engineId, model: model,
                                                      wantSpeakers: wantSpeakers, dictionary: dict, progress: progress)
                 await MainActor.run {
-                    defer { self.finished(id) }
-                    guard self.store.transcript(id)?.pendingAppend == partName, !Task.isCancelled else { try? FileManager.default.removeItem(at: combined); return }
-                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: combined.lastPathComponent) }
-                    try? FileManager.default.removeItem(at: url)
-                    try? FileManager.default.removeItem(at: part)
+                    defer { self.finished(id, token: token) }
+                    guard self.runToken == token, !Task.isCancelled, self.store.transcript(id)?.pendingAppend == partName,
+                          let name = self.store.adoptRecording(combined) else { try? FileManager.default.removeItem(at: combined); return }
+                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: name) }
+                    Cloud.remove(url)
+                    Cloud.remove(part)
                     if self.queue.isEmpty { self.say("New recording added"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
                 }
             } catch {
                 try? FileManager.default.removeItem(at: combined)
+                if Task.isCancelled { return }
                 await MainActor.run {
-                    defer { self.finished(id) }
+                    guard self.runToken == token else { return }
+                    defer { self.finished(id, token: token) }
                     self.store.update(id) { $0.stage = "Couldn't add the new recording. Tap Retry."; $0.processingDevice = nil; $0.processingDeviceName = nil }
                     self.say("Couldn't add the new recording: \(error.localizedDescription)")
                 }
@@ -331,8 +349,17 @@ final class PhoneState: ObservableObject {
         }
     }
 
-    private func finished(_ id: UUID) {
-        guard runningID == id else { return }
+    /// Throws away a continued recording that hasn't been added; the transcript stays as it was.
+    func discardPendingAppend(_ id: UUID) {
+        if runningID == id || queue.contains(id) { cancel(id) }
+        guard let name = store.transcript(id)?.pendingAppend else { return }
+        Cloud.remove(Paths.audio.appendingPathComponent(name))
+        store.update(id) { $0.pendingAppend = nil; $0.stage = nil; $0.processingDevice = nil; $0.processingDeviceName = nil }
+        say("New recording discarded")
+    }
+
+    private func finished(_ id: UUID, token: UUID? = nil) {
+        guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
         pump()
     }
@@ -356,6 +383,7 @@ final class PhoneState: ObservableObject {
     private var bgRegistered = false
     private var bgTask: AnyObject? = nil
     private var bgSubmitted = false
+    private var bgTicker: Timer? = nil
 
     private func keepRunningInBackground() {
         guard #available(iOS 26, *), !bgSubmitted else { return }
@@ -378,17 +406,25 @@ final class PhoneState: ObservableObject {
         bgTask = task
         task.progress.totalUnitCount = 100
         task.progress.completedUnitCount = 5
-        task.expirationHandler = { [weak self] in
-            // iOS needs the time back. The job pauses and picks up the next time Verbatim opens.
-            Task { @MainActor in self?.bgTask = nil; self?.bgSubmitted = false }
+        task.expirationHandler = { [weak self, weak task] in
+            // iOS needs the time back. The job stops where it is and starts again the next time Verbatim opens.
+            task?.setTaskCompleted(success: false)
+            Task { @MainActor in self?.bgTask = nil; self?.bgSubmitted = false; self?.bgTicker?.invalidate() }
+        }
+        // The system banner expects steady progress; the engine doesn't report a fraction while transcribing.
+        bgTicker?.invalidate()
+        bgTicker = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let task = self?.bgTask as? BGContinuedProcessingTask else { return }
+                let p = task.progress
+                p.completedUnitCount = min(95, p.completedUnitCount + max(1, (95 - p.completedUnitCount) / 12))
+            }
         }
     }
 
     /// Moves the system's progress banner along with the job's stage.
     private func backgroundTitle(_ label: String) {
         guard #available(iOS 26, *), let task = bgTask as? BGContinuedProcessingTask else { return }
-        let p = task.progress
-        if p.completedUnitCount < 95 { p.completedUnitCount += 5 }
         task.updateTitle("Transcribing", subtitle: label)
     }
 
@@ -399,6 +435,7 @@ final class PhoneState: ObservableObject {
             task.setTaskCompleted(success: true)
         }
         bgTask = nil; bgSubmitted = false
+        bgTicker?.invalidate(); bgTicker = nil
     }
 
     // MARK: Organizing and notes

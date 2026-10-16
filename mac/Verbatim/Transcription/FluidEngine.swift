@@ -19,7 +19,23 @@ actor FluidEngine: TranscriptionEngine {
         }
     }
 
+    /// A load already under way (the iPhone starts loading while you record), so a second caller waits for it
+    /// instead of loading the model twice.
+    private var loading: (model: String, task: Task<AsrManager, Error>)?
+
     private func prepared(_ model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
+        if let m = manager, loaded == model { return m }
+        if let l = loading, l.model == model {
+            progress(.loading(Engines.displayName(engine: "fluid", model: model)))
+            return try await l.task.value
+        }
+        let task = Task { try await self.load(model, progress: progress) }
+        loading = (model, task)
+        defer { if loading?.model == model { loading = nil } }
+        return try await task.value
+    }
+
+    private func load(_ model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
         if let m = manager, loaded == model { return m }
         manager = nil
         let name = Engines.displayName(engine: "fluid", model: model)

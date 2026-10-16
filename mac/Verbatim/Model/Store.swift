@@ -161,6 +161,7 @@ final class Store: ObservableObject {
             .map { t in
                 var t = t
                 if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
+                if t.status == .ready, t.pendingAppend == nil, t.stage != nil { t.stage = nil }   // a speaker pass that didn't finish
                 return t
             }
             .sorted { $0.createdAt > $1.createdAt }
@@ -289,6 +290,7 @@ final class Store: ObservableObject {
         transcripts.removeAll { $0.id == t.id }
         Cloud.remove(Paths.transcripts.appendingPathComponent("\(t.id.uuidString).json"))
         if let a = audioURL(for: t) { Cloud.remove(a) }
+        if let p = t.pendingAppend { Cloud.remove(Paths.audio.appendingPathComponent(p)) }
         if let th = t.link?.thumbnailFile { Cloud.remove(Paths.thumbs.appendingPathComponent(th)) }
         // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
         for f in t.notes.compactMap(\.frameFile) { Cloud.remove(Paths.thumbs.appendingPathComponent(f)) }

@@ -170,7 +170,12 @@ struct TranscriptView: View {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
                     Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim)
-                    if t.processingDevice == nil { Button("Retry") { app.retry(t) }.buttonStyle(.link) }
+                    if t.processingDevice == nil {
+                        Button("Retry") { app.retry(t) }.buttonStyle(.link)
+                        Button("Discard") { app.discardPendingAppend(t.id) }.buttonStyle(.link)
+                    } else {
+                        Button("Cancel") { app.cancel(t.id) }.buttonStyle(.link)
+                    }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))

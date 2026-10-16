@@ -105,7 +105,14 @@ struct TranscriptScreen: View {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
                     Text(t.stageText).font(.system(size: 14)).foregroundStyle(Ink.dim).lineLimit(2)
                     Spacer(minLength: 4)
-                    if t.processingDevice == nil { Button("Retry") { app.retry(t) }.font(.system(size: 14, weight: .semibold)) }
+                    if t.processingDevice == nil {
+                        Menu {
+                            Button { app.retry(t) } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                            Button(role: .destructive) { app.discardPendingAppend(t.id) } label: { Label("Discard new recording", systemImage: "trash") }
+                        } label: { Text("Retry").font(.system(size: 14, weight: .semibold)) }
+                    } else if t.processingDevice == Device.id {
+                        Button("Cancel") { app.cancel(t.id) }.font(.system(size: 14))
+                    }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
                 .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
