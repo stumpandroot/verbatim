@@ -19,6 +19,17 @@ if [ -z "$IDENTITY" ]; then
   IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"' || true)"
 fi
 if [ -n "$IDENTITY" ]; then echo "Signing as: $IDENTITY"; else echo "No Developer ID certificate found: building unsigned."; fi
+# Sign by SHA-1, not by name: a keychain can hold several Developer ID certificates with the same name.
+# With a provisioning profile, use the certificate the profile was made for, so its iCloud entitlement holds.
+SIGN_ID="$IDENTITY"
+if [ -n "$IDENTITY" ]; then
+  if [ -n "${PROVISION_PROFILE:-}" ] && [ -f "$PROVISION_PROFILE" ]; then
+    SIGN_ID="$(security cms -D -i "$PROVISION_PROFILE" | plutil -extract DeveloperCertificates.0 raw -o - - | base64 -D | openssl sha1 | awk '{print toupper($NF)}')"
+  else
+    SIGN_ID="$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')"
+  fi
+  echo "Certificate SHA-1: $SIGN_ID"
+fi
 
 # 1. Project from project.yml (Local.xcconfig holds your team ID for Xcode builds; empty is fine here)
 [ -f Local.xcconfig ] || : > Local.xcconfig
@@ -49,7 +60,7 @@ rm -rf build dist && mkdir -p dist build
 SIGN=()
 if [ -n "$IDENTITY" ]; then
   TEAM="$(echo "$IDENTITY" | grep -o '([A-Z0-9]*)' | tr -d '()')"
-  SIGN=(CODE_SIGN_IDENTITY="$IDENTITY" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Manual OTHER_CODE_SIGN_FLAGS="--timestamp")
+  SIGN=(CODE_SIGN_IDENTITY="$SIGN_ID" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Manual OTHER_CODE_SIGN_FLAGS="--timestamp")
 else
   SIGN=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
 fi
@@ -80,8 +91,8 @@ else
   echo "iCloud sync: off (no provisioning profile)"
 fi
 if [ -n "$IDENTITY" ]; then
-  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP/Contents/Helpers/yt-dlp"
-  codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP"
+  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP/Contents/Helpers/yt-dlp"
+  codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
 
 # 3. Verify the signature (or ad-hoc sign so the unsigned build still launches on a dev Mac)
@@ -97,7 +108,7 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "Verbatim" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
 rm -rf "$STAGE"
-if [ -n "$IDENTITY" ]; then codesign --force --timestamp --sign "$IDENTITY" "$DMG"; fi
+if [ -n "$IDENTITY" ]; then codesign --force --timestamp --sign "$SIGN_ID" "$DMG"; fi
 
 # 5. Notarize and staple
 if [ -n "$IDENTITY" ] && xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
