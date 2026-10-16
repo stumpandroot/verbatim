@@ -55,7 +55,8 @@ final class FlowBarController {
     private var bag: Set<AnyCancellable> = []
     private weak var dictation: DictationController?
     private var screenKey = ""
-    private var lockedScreen: NSScreen?
+    private var lockedKey: String?
+    private var lastDragEnd = Date.distantPast
     private var noticeTimer: Timer?
     private var promptTimer: Timer?
     private var pollTimer: Timer?
@@ -75,7 +76,13 @@ final class FlowBarController {
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in Task { @MainActor in self?.pointerMoved() } }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in Task { @MainActor in self?.pointerMoved() }; return e }) { monitors.append(l) }
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in Task { @MainActor in self?.pointerMoved(); self?.followPointer() } }
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                // "Hide for 1 hour" ends on its own.
+                if let h = FlowSettings.shared.hiddenUntil, h <= Date() { FlowSettings.shared.hiddenUntil = nil }
+                self?.pointerMoved(); self?.followPointer()
+            }
+        }
         refresh()
     }
 
@@ -99,7 +106,7 @@ final class FlowBarController {
         if p != .notice { noticeTimer?.invalidate(); model.noticeAction = nil; model.onNoticeAction = nil }
         if p != .prompt { promptTimer?.invalidate(); model.prompt = nil }
         // While busy the Ribbon stays on the display it started on, even if the pointer wanders.
-        lockedScreen = (p == .idle) ? nil : (lockedScreen ?? currentScreen())
+        lockedKey = (p == .idle) ? nil : (lockedKey ?? currentScreen().map { Self.key(for: $0) })
         model.phase = p
         if p == .idle { model.warning = ""; model.command = false; model.handsFree = false; model.appLabel = "" }
         if p != .idle { menu.close() }
@@ -134,6 +141,13 @@ final class FlowBarController {
         }
     }
 
+    /// The X on a prompt: same as letting it time out (the dictation stays in Dictations).
+    func dismissPrompt() {
+        guard let p = model.prompt else { return }
+        setPhase(.idle)
+        p.onTimeout()
+    }
+
     func answer(primary: Bool) {
         guard let p = model.prompt else { return }
         setPhase(.idle)
@@ -156,6 +170,8 @@ final class FlowBarController {
         p.ignoresMouseEvents = true
         let host = FlowHostingView(rootView: FlowBarView(model: model, controller: self, live: dictation?.liveMeter ?? LiveMeter()))
         host.onRightClick = { [weak self] in self?.openMenu() }
+        host.onMouseMoved = { [weak self] in self?.pointerMoved() }
+        host.sizingOptions = []   // the panel keeps its fixed size, whatever the content asks for
         host.frame = NSRect(origin: .zero, size: Self.sideSize)
         host.autoresizingMask = [.width, .height]
         p.contentView = host
@@ -166,16 +182,22 @@ final class FlowBarController {
         let visible = panel?.isVisible ?? false
         menu.close()
         panel?.orderOut(nil); panel?.close(); panel = nil
-        lockedScreen = nil
+        model.dragging = false
         if visible { refresh() }
     }
 
     // MARK: Position
 
-    private func currentScreen() -> NSScreen {
-        if let s = lockedScreen, NSScreen.screens.contains(s) { return s }
+    /// The display the Ribbon belongs on: the one it's locked to while busy, else the one under the pointer.
+    /// Nil only for a moment while displays are reconfiguring.
+    private func currentScreen() -> NSScreen? {
+        if let k = lockedKey, let s = NSScreen.screens.first(where: { Self.key(for: $0) == k }) { return s }
+        return screenUnderPointer()
+    }
+
+    private func screenUnderPointer() -> NSScreen? {
         let m = NSEvent.mouseLocation
-        return NSScreen.screens.first { NSMouseInRect(m, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
+        return NSScreen.screens.first { NSMouseInRect(m, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first
     }
 
     private static func key(for screen: NSScreen) -> String {
@@ -186,7 +208,8 @@ final class FlowBarController {
 
     private func followPointer() {
         guard panel?.isVisible == true, !model.dragging, model.phase == .idle, !menu.isOpen else { return }
-        if Self.key(for: currentScreen()) != screenKey { place() }
+        guard let screen = currentScreen() else { return }
+        if Self.key(for: screen) != screenKey { place() }
     }
 
     private func position(for screen: NSScreen) -> FlowSettings.BarPosition {
@@ -195,8 +218,7 @@ final class FlowBarController {
 
     /// Puts the fixed-size panel flush against its edge. The Ribbon inside aligns to that edge.
     private func place() {
-        guard let p = panel, !model.dragging else { return }
-        let screen = currentScreen()
+        guard let p = panel, !model.dragging, let screen = currentScreen() else { return }
         screenKey = Self.key(for: screen)
         let pos = position(for: screen)
         if model.edge != pos.edge { model.edge = pos.edge }
@@ -235,7 +257,11 @@ final class FlowBarController {
 
     private func pointerMoved() {
         guard let p = panel else { return }
-        if model.dragging { p.ignoresMouseEvents = false; return }
+        if model.dragging {
+            // A drag whose end never arrived (the view was rebuilt mid-drag) must not leave the panel catching clicks.
+            if NSEvent.pressedMouseButtons & 1 == 0 { dragEnded() } else { p.ignoresMouseEvents = false }
+            return
+        }
         let inside = ribbonRect()?.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation) ?? false
         if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
         let hover = inside || menu.isOpen
@@ -257,7 +283,9 @@ final class FlowBarController {
 
     func dragEnded() {
         guard model.dragging else { return }
-        let screen = currentScreen()
+        lastDragEnd = Date()
+        guard let screen = screenUnderPointer() else { model.dragging = false; return }
+        if lockedKey != nil { lockedKey = Self.key(for: screen) }
         let f = screen.visibleFrame
         let m = NSEvent.mouseLocation
         let dBottom = m.y - f.minY, dLeft = m.x - f.minX, dRight = f.maxX - m.x
@@ -279,6 +307,7 @@ final class FlowBarController {
 
     var liveMeter: LiveMeter? { dictation?.liveMeter }
     func clicked() {
+        guard !model.dragging, Date().timeIntervalSince(lastDragEnd) > 0.3 else { return }
         if menu.isOpen { menu.close(); return }
         if Date().timeIntervalSince(menu.closedAt) < 0.35 { return }
         switch model.phase {
@@ -291,9 +320,10 @@ final class FlowBarController {
     func cancel() { dictation?.cancel() }
 
     func openMenu() {
-        guard model.phase == .idle || model.phase == .notice, let rect = ribbonRect(), let dictation else { return }
+        guard Date().timeIntervalSince(menu.closedAt) > 0.35 else { return }   // the right-click that closed it
+        guard model.phase == .idle || model.phase == .notice, let rect = ribbonRect(), let dictation, let screen = currentScreen() else { return }
         if model.phase == .notice { setPhase(.idle) }
-        menu.open(next: rect, edge: model.edge, screen: currentScreen(), actions: .init(
+        menu.open(next: rect, edge: model.edge, screen: screen, actions: .init(
             hide: { FlowSettings.shared.hiddenUntil = Date().addingTimeInterval(3600) },
             settings: { [weak dictation] in dictation?.openSettings() },
             history: { [weak dictation] in dictation?.openHistory() },
@@ -306,6 +336,18 @@ final class FlowBarController {
 /// Clicks land on the first try even though the panel never becomes key, and right-click opens the menu.
 final class FlowHostingView<Content: View>: NSHostingView<Content> {
     var onRightClick: (() -> Void)?
+    var onMouseMoved: (() -> Void)?
+    private var tracking: NSTrackingArea?
+    // Hover updates as soon as the pointer moves over the panel, not on the next poll.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let t = tracking { removeTrackingArea(t) }
+        let t = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(t); tracking = t
+    }
+    override func mouseMoved(with event: NSEvent) { super.mouseMoved(with: event); onMouseMoved?() }
+    override func mouseEntered(with event: NSEvent) { super.mouseEntered(with: event); onMouseMoved?() }
+    override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); onMouseMoved?() }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func rightMouseDown(with event: NSEvent) { onRightClick?() }
     override func mouseDown(with event: NSEvent) {
@@ -370,11 +412,13 @@ struct FlowBarView: View {
             }
             .background(GeometryReader { g in Color.clear.preference(key: RibbonSizeKey.self, value: g.size) })
             .contentShape(Rectangle())
+            // One gesture: a drag moves the Ribbon, otherwise it's a click. Buttons inside (Stop, Cancel,
+            // Discard, Paste anyway) take their own clicks and don't also trigger the Ribbon's.
             .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
                 .onChanged { _ in controller.dragChanged() }
-                .onEnded { _ in controller.dragEnded() })
-            .simultaneousGesture(TapGesture().onEnded { controller.clicked() })
-            .accessibilityElement(children: .combine)
+                .onEnded { _ in controller.dragEnded() }
+                .exclusively(before: TapGesture().onEnded { controller.clicked() }))
+            .accessibilityElement(children: model.phase == .listening || model.phase == .prompt ? .contain : .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(accessibilityLabel)
             // Slides in from the edge when it first appears (and after sleep or a display change).
@@ -491,7 +535,7 @@ struct FlowBarView: View {
 
     private var accessibilityLabel: String {
         switch model.phase {
-        case .idle: return "Verbatim dictation. Click to dictate, or " + model.hint
+        case .idle: return "Verbatim dictation: " + model.hint
         case .listening: return model.handsFree ? "Listening. Click to stop and paste." : "Listening"
         case .working: return "Writing your words"
         case .notice: return model.notice
@@ -567,7 +611,7 @@ struct PromptCard: View {
                 RibbonBars(edge: .left, levels: [0.8, 0.55, 0.95], thickness: 3.5, length: 12, color: RibbonInk.butter)
                 Text(prompt.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(RibbonInk.paper)
                 Spacer(minLength: 12)
-                Button { controller.answer(primary: false) } label: {
+                Button { controller.dismissPrompt() } label: {
                     ZStack {
                         Circle().stroke(RibbonInk.track, lineWidth: 2)
                         Circle().trim(from: 0, to: progress).stroke(RibbonInk.muted, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
@@ -575,7 +619,7 @@ struct PromptCard: View {
                     }
                     .frame(width: 26, height: 26)
                 }
-                .buttonStyle(.plain).help(prompt.secondary)
+                .buttonStyle(.plain).help("Close (keeps it in Dictations)")
             }
             (Text(prompt.body) + Text(prompt.quote.map { "“\($0)”" } ?? "").foregroundColor(RibbonInk.paper) + Text(prompt.after))
                 .font(.system(size: 13)).foregroundStyle(RibbonInk.muted).fixedSize(horizontal: false, vertical: true)

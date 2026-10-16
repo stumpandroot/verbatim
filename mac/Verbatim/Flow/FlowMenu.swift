@@ -21,7 +21,7 @@ final class FlowMenuController {
     /// When the menu last closed: a click on the Ribbon that closed the menu shouldn't also start dictating.
     private(set) var closedAt = Date.distantPast
 
-    private static let size = CGSize(width: 520, height: 330)
+    private static let size = CGSize(width: 520, height: 420)
 
     func open(next ribbon: NSRect, edge: BarEdge, screen: NSScreen, actions: Actions, onClose: @escaping () -> Void) {
         close()
@@ -31,8 +31,8 @@ final class FlowMenuController {
         // The menu grows away from the edge; its side menu opens further in the same direction.
         var origin: CGPoint
         switch edge {
-        case .left: origin = CGPoint(x: ribbon.maxX + 6, y: ribbon.midY - size.height + 60)
-        case .right: origin = CGPoint(x: ribbon.minX - 6 - size.width, y: ribbon.midY - size.height + 60)
+        case .left: origin = CGPoint(x: ribbon.maxX + 6, y: ribbon.midY - size.height + 150)
+        case .right: origin = CGPoint(x: ribbon.minX - 6 - size.width, y: ribbon.midY - size.height + 150)
         case .bottom: origin = CGPoint(x: ribbon.midX - 120, y: ribbon.maxY + 6)
         }
         origin.x = min(max(origin.x, f.minX + 4), f.maxX - size.width - 4)
@@ -48,17 +48,18 @@ final class FlowMenuController {
         p.isReleasedWhenClosed = false
         let anchorTop = edge == .bottom ? false : true
         let view = FlowMenuView(opensLeft: opensLeft, anchorTop: anchorTop, actions: actions, close: { [weak self] in self?.close() })
-        let host = NSHostingView(rootView: view)
+        let host = FlowHostingView(rootView: view)   // takes the first click without Verbatim being active
         host.frame = NSRect(origin: .zero, size: size)
+        host.sizingOptions = []
         p.contentView = host
         p.orderFrontRegardless()
-        p.makeKey()
         panel = p
         // Close on a click anywhere else, or Esc.
-        if let g = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { [weak self] _ in Task { @MainActor in self?.close() } }) { monitors.append(g) }
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown], handler: { [weak self] _ in Task { @MainActor in self?.close() } }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown], handler: { [weak self] e in
             guard let self, let p = self.panel else { return e }
-            if e.type == .keyDown { if e.keyCode == 53 { self.close(); return nil }; return e }
+            // Esc closes the menu; any other key closes it too and goes on to where you were typing.
+            if e.type == .keyDown { self.close(); return e.keyCode == 53 ? nil : e }
             if e.window !== p { self.close() }
             return e
         }) { monitors.append(l) }
@@ -71,14 +72,15 @@ final class FlowMenuController {
         panel = nil
         closedAt = Date()
         p.orderOut(nil)
-        p.close()
+        // Released on the next turn: close() is often called from inside this panel's own SwiftUI action.
+        DispatchQueue.main.async { p.close() }
         let done = onClose; onClose = nil
         done?()
     }
 }
 
 final class FlowMenuPanel: NSPanel {
-    override var canBecomeKey: Bool { true }   // for Esc; a non-activating panel never activates Verbatim
+    override var canBecomeKey: Bool { false }  // typing keeps going to your app; Esc is watched globally
     override var canBecomeMain: Bool { false }
 }
 

@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.openSettings) private var openSettings
     @State private var sidebarOpen = true
 
     var body: some View {
@@ -36,6 +37,7 @@ struct ContentView: View {
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app) }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
     }
 
     private var title: String {

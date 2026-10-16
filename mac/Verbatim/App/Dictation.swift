@@ -4,6 +4,10 @@ import AVFoundation
 import ApplicationServices
 import Carbon.HIToolbox
 
+extension Notification.Name {
+    static let verbatimOpenSettings = Notification.Name("verbatimOpenSettings")
+}
+
 /// Verbatim Flow: dictate into any app on the Mac.
 ///
 /// Start with the hotkey (hold to talk, tap for hands-free, or both) or by clicking the floating button.
@@ -58,9 +62,11 @@ final class DictationController: ObservableObject {
     private var context: AppContext?
     private var command = false
     private var keyDown = false
-    private var pressedAt: Date?
+    /// When the hotkey went down, from the event itself (handling can lag while the mic starts).
+    private var pressedTS: TimeInterval?
+    private var session = 0
     private var startedAt: Date?
-    private var lastPress = Date.distantPast
+    private var lastPressTS: TimeInterval = 0
 
     var accessibilityTrusted: Bool { AXIsProcessTrusted() }
     var liveMeter: LiveMeter { recorder.live }
@@ -113,33 +119,33 @@ final class DictationController: ObservableObject {
         case .controlOptionSpace:
             if e.keyCode == 49 {                                          // kVK_Space
                 let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                if e.type == .keyDown, mods.contains([.control, .option]), !e.isARepeat { pressed(shift: mods.contains(.shift)) }
-                if e.type == .keyUp, keyDown { released() }
-            } else if e.type == .keyDown { otherKey() }
+                if e.type == .keyDown, mods.contains([.control, .option]), !e.isARepeat { pressed(shift: mods.contains(.shift), at: e.timestamp) }
+                if e.type == .keyUp, keyDown { released(at: e.timestamp) }
+            } else if e.type == .keyDown { otherKey(at: e.timestamp) }
         }
     }
 
     private func modifier(_ e: NSEvent, code: UInt16, flag: NSEvent.ModifierFlags) {
         if e.type == .flagsChanged, e.keyCode == code {
-            if e.modifierFlags.contains(flag) { if !keyDown { pressed(shift: e.modifierFlags.contains(.shift)) } }
-            else if keyDown { released() }
+            if e.modifierFlags.contains(flag) { if !keyDown { pressed(shift: e.modifierFlags.contains(.shift), at: e.timestamp) } }
+            else if keyDown { released(at: e.timestamp) }
         } else if e.type == .keyDown {
-            otherKey()
+            otherKey(at: e.timestamp)
         }
     }
 
     /// A letter pressed right after a modifier-only hotkey means a shortcut (⌥E, ⌘C), not dictation.
-    private func otherKey() {
-        guard keyDown, hotkey.isModifierOnly, isListening, !handsFree, let at = pressedAt, Date().timeIntervalSince(at) < 1.0 else { return }
+    private func otherKey(at ts: TimeInterval) {
+        guard keyDown, hotkey.isModifierOnly, isListening, !handsFree, let at = pressedTS, ts - at < 1.0 else { return }
         Log.note("dictation: chord detected, cancelled")
         cancel(quiet: true)
     }
 
-    private func pressed(shift: Bool) {
+    private func pressed(shift: Bool, at ts: TimeInterval) {
         keyDown = true
-        pressedAt = Date()
-        guard Date().timeIntervalSince(lastPress) > 0.15 else { return }
-        lastPress = Date()
+        pressedTS = ts
+        guard ts - lastPressTS > 0.15 else { return }
+        lastPressTS = ts
         switch FlowSettings.shared.mode {
         case .hold:
             begin(handsFree: false, command: shift)
@@ -150,15 +156,15 @@ final class DictationController: ObservableObject {
         }
     }
 
-    private func released() {
+    private func released(at ts: TimeInterval) {
         keyDown = false
-        guard isListening, let at = pressedAt else { return }
+        guard isListening, let at = pressedTS else { return }
         switch FlowSettings.shared.mode {
         case .hold: finish()
         case .toggle: break
         case .hybrid:
             // A quick tap keeps listening hands-free; a hold of half a second or more ends on release.
-            if Date().timeIntervalSince(at) < 0.5 { handsFree = true; bar?.model.handsFree = true }
+            if ts - at < 0.5 { handsFree = true; bar?.model.handsFree = true }
             else if !handsFree { finish() }
         }
     }
@@ -188,7 +194,8 @@ final class DictationController: ObservableObject {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] ok in
                 Task { @MainActor in
-                    if ok { self?.begin(handsFree: handsFree, command: wantCommand) }
+                    // The key was let go during the permission dialog, so listen hands-free; click or tap to stop.
+                    if ok { self?.begin(handsFree: true, command: wantCommand) }
                     else { self?.bar?.flash("Verbatim can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() } }
                 }
             }
@@ -209,6 +216,7 @@ final class DictationController: ObservableObject {
             return
         }
         startedAt = Date()
+        session += 1
         self.handsFree = handsFree
         isListening = true
         learner.check()   // Learn from any fixes to the last dictation before this one is pasted.
@@ -308,11 +316,10 @@ final class DictationController: ObservableObject {
                 }
                 let info = FlowInfo(app: targetName, bundleID: ctx?.bundleID, category: category, style: style, level: isCommand ? "Command" : level.rawValue,
                                     raw: raw, pasted: final, pastedOK: true, instruction: isCommand ? raw : nil, selection: isCommand ? ctx?.selection : nil)
-                let keepNote = note
-                let wasCleaned = cleaned
+                let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs
                 await MainActor.run {
-                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: segs, fixes: fixes, result: r, info: info, cleaned: wasCleaned)
-                    self?.deliver(final, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw)
+                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned)
+                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw)
                 }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
@@ -347,27 +354,30 @@ final class DictationController: ObservableObject {
     }
 
     private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "") {
-        isWorking = false
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            isWorking = false
             mistake(raw: raw, transcriptID: transcriptID)
             return
         }
         lastResult = text
-        let ctx = context
-        let tgt = target
-        let spaced = (ctx?.selection.isEmpty ?? true) && !(command) && needsLeadingSpace(ctx) ? " " + text : text
+        let ctx = context, tgt = target
+        let wasCommand = command
+        command = false
+        let spaced = (ctx?.selection.isEmpty ?? true) && !wasCommand && needsLeadingSpace(ctx) ? " " + text : text
+        // Stays "working" until the paste and clipboard restore finish (up to a few seconds for slow apps),
+        // so a new dictation can't start mid-paste and have this one's result land on top of it.
         Task { @MainActor in
-            let outcome = await Paster.paste(spaced + (command ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true)
+            let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true)
+            isWorking = false
             Sounds.done()
             switch outcome {
             case .pasted:
                 if let note { bar?.flash(note, seconds: 4) } else { bar?.setPhase(.idle) }
-                if !command { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
+                if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
             case .copiedOnly:
                 bar?.flash("Copied. Click a text field and press ⌘V.", seconds: 5)
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
             }
-            command = false
         }
         Log.note("dictation delivered \(text.count) chars")
     }
@@ -409,6 +419,11 @@ final class DictationController: ObservableObject {
 
     func openSettings() {
         NSApp.activate(ignoringOtherApps: true)
+        // SwiftUI's openSettings is the reliable route on macOS 14+; ContentView listens for this.
+        if NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) {
+            NotificationCenter.default.post(name: .verbatimOpenSettings, object: nil)
+            return
+        }
         if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
             NSApp.sendAction(action, to: item.target, from: item)
         } else {
