@@ -125,16 +125,92 @@ struct DictationSettings: View {
 struct DictationForm: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var dictation: DictationController
+    @ObservedObject private var flow = FlowSettings.shared
     @State private var trusted = false
+    @State private var newTrigger = ""
+    @State private var newExpansion = ""
 
     var body: some View {
         Form {
             Section {
                 Toggle("Dictate anywhere", isOn: $dictation.enabled)
-                Picker("Hold to talk", selection: $dictation.hotkey) {
+                Toggle("Show the floating button", isOn: $flow.showBar)
+                Text("A small button at the edge of your screen. Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section("Starting and stopping") {
+                Picker("Hotkey", selection: $dictation.hotkey) {
                     ForEach(DictationController.Hotkey.allCases) { Text($0.title).tag($0) }
                 }
-                Text("Hold the key in any app, speak, let go. The words are transcribed on this Mac and pasted where your cursor is. Recordings shorter than half a second are dropped.")
+                Picker("Mode", selection: $flow.mode) {
+                    ForEach(FlowMode.allCases) { Text($0.title).tag($0) }
+                }
+                Text(flow.mode.note + " Press Esc to cancel. Hold Shift as you start to edit selected text by voice. ⌘⌃V pastes your last dictation again.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section("Cleanup") {
+                Picker("Cleanup", selection: $flow.cleanup) {
+                    ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text(flow.cleanup.note + " Self-corrections like “at 2, actually 3” keep only the final version, and spoken lists become lists. Say “new line” or “new paragraph” anytime.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                if !Cleanup.available && flow.cleanup != .none {
+                    Text("Cleanup runs on this Mac with Apple Intelligence (macOS 26). Until it's on, your words are pasted as spoken.")
+                        .font(.system(size: 12)).foregroundStyle(Ink.accentText)
+                }
+            }
+            Section("Style for each kind of app") {
+                ForEach(AppCategory.allCases.filter { $0 != .code }) { c in
+                    Picker(selection: Binding(get: { flow.styles[c] ?? .casual }, set: { flow.styles[c] = $0 })) {
+                        ForEach([FlowStyle.formal, .casual, .veryCasual, .verbatim]) { Text($0.title).tag($0) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(c.title)
+                            Text(c.examples).font(.system(size: 11)).foregroundStyle(Ink.mute)
+                        }
+                    }
+                }
+                LabeledContent {
+                    Text("As spoken, always")
+                } label: {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(AppCategory.code.title)
+                        Text(AppCategory.code.examples).font(.system(size: 11)).foregroundStyle(Ink.mute)
+                    }
+                }
+                Toggle("Use the text around your cursor", isOn: $flow.useContext)
+                Text("Verbatim reads the app's name and the text near your cursor so names are spelled right and the tone matches. Password fields are never read, and nothing leaves this Mac.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section("Accuracy") {
+                Toggle("Listen for my Dictionary words", isOn: $flow.boostVocabulary)
+                Text("Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Learn from my fixes", isOn: $flow.autoLearn)
+                Text("When you correct a name or term right after it's pasted, Verbatim adds it to your Dictionary and tells you, with Undo.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section("Snippets") {
+                ForEach(flow.snippets) { s in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(verbatim: "“\(s.trigger)”").fontWeight(.medium).frame(width: 150, alignment: .leading)
+                        Text(s.expansion).foregroundStyle(Ink.dim).lineLimit(2)
+                        Spacer()
+                        Button { flow.snippets.removeAll { $0.id == s.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain).help("Remove")
+                    }
+                }
+                HStack {
+                    TextField("Say…", text: $newTrigger).frame(width: 150)
+                    TextField("…to paste", text: $newExpansion)
+                    Button("Add") {
+                        let t = newTrigger.trimmingCharacters(in: .whitespaces), e = newExpansion.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !t.isEmpty, !e.isEmpty else { return }
+                        flow.snippets.append(Snippet(trigger: t, expansion: e)); newTrigger = ""; newExpansion = ""
+                    }
+                    .disabled(newTrigger.trimmingCharacters(in: .whitespaces).isEmpty || newExpansion.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                Text("Say a trigger like “my calendar link” and Verbatim pastes the saved text: a link, an address, a sign-off.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section {
@@ -148,10 +224,8 @@ struct DictationForm: View {
                         }
                     }
                 }
-                Text("macOS requires this so Verbatim can notice the hold key and press ⌘V in the other app. Nothing is read from other apps.")
+                Text("macOS requires this so Verbatim can notice the hotkey, see which app and text field you're in, and press ⌘V there.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
-            }
-            Section {
                 Toggle("Project vocabulary", isOn: $app.projectScopedVocabulary)
                 Text("Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
@@ -161,7 +235,7 @@ struct DictationForm: View {
         .onAppear { trusted = dictation.accessibilityTrusted }
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
             let now = dictation.accessibilityTrusted
-            if now != trusted { trusted = now; dictation.refreshMonitors() }
+            if now != trusted { trusted = now; dictation.refreshMonitors(); dictation.bar?.refresh() }
         }
     }
 }

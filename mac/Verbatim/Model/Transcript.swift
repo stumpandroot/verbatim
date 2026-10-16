@@ -153,6 +153,8 @@ struct Transcript: Codable, Identifiable, Equatable {
     var processingDeviceName: String? = nil
     /// A link added on iPhone, waiting for a Mac to fetch its audio (iPhone can't run the link helper).
     var pendingLink = false
+    /// Dictations: which app it went to, the words before cleanup, and what was pasted.
+    var flow: FlowInfo? = nil
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -196,6 +198,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         processingDevice = try c.decodeIfPresent(String.self, forKey: .processingDevice)
         processingDeviceName = try c.decodeIfPresent(String.self, forKey: .processingDeviceName)
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
+        flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
     }
 
     /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".

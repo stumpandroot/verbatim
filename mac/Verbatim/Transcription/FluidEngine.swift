@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import FluidAudio
 
 /// Parakeet (NVIDIA, via FluidAudio Core ML) with real word timings. Models cache under Application Support.
@@ -51,6 +52,72 @@ actor FluidEngine: TranscriptionEngine {
             segments = Engines.segments(fromWords: words)
         }
         return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
+    }
+
+    /// Loads the model ahead of time so the first dictation doesn't wait for it.
+    func warm(model: String) async {
+        _ = try? await prepared(model, progress: { _ in })
+    }
+
+    // MARK: Custom vocabulary (dictation)
+
+    private var boosting: VocabularyBoostingSession?
+    private var boostedTerms: [String] = []
+    private var boostUnavailable = false
+
+    /// Transcribes a short dictation and rescores it against your Dictionary words with FluidAudio's CTC
+    /// keyword spotter (a second small model that listens for those exact terms). Best under 100 terms.
+    /// Any failure falls back to the plain transcript: boosting must never break dictation.
+    func transcribeBoosted(url: URL, model: String, terms: [(text: String, aliases: [String])]) async throws -> EngineResult {
+        let m = try await prepared(model, progress: { _ in })
+        var state = TdtDecoderState.make()
+        let r = try await m.transcribe(url, decoderState: &state)
+        var text = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !terms.isEmpty, !boostUnavailable, let session = await boostSession(terms), let timings = r.tokenTimings, !timings.isEmpty,
+           let samples = Self.samples(url) {
+            if session.hasCTCRescoringCandidates(text: r.text, tokenTimings: timings),
+               let out = await session.rescore(text: r.text, tokenTimings: timings, audioSamples: samples), out.wasModified {
+                Log.note("vocabulary boost changed the transcript")
+                text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        let segments = text.isEmpty ? [] : [Segment(start: 0, end: r.duration, text: text)]
+        return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
+    }
+
+    private func boostSession(_ terms: [(text: String, aliases: [String])]) async -> VocabularyBoostingSession? {
+        let key = terms.map { $0.text + "|" + $0.aliases.joined(separator: ",") }.sorted()
+        if let b = boosting, key == boostedTerms { return b }
+        do {
+            let ctc = try await CtcModels.downloadAndLoad()
+            let vocab = CustomVocabularyContext(terms: terms.prefix(100).map { CustomVocabularyTerm(text: $0.text, aliases: $0.aliases.isEmpty ? nil : $0.aliases) })
+            let session = try await VocabularyBoostingSession(vocabulary: vocab, ctcModels: ctc)
+            boosting = session; boostedTerms = key
+            return session
+        } catch {
+            Log.note("vocabulary boost unavailable: \(error)")
+            boostUnavailable = true
+            return nil
+        }
+    }
+
+    /// 16 kHz mono float samples of a recording (dictations are short, so reading it whole is fine).
+    private static func samples(_ url: URL) -> [Float]? {
+        guard let file = try? AVAudioFile(forReading: url),
+              let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: file.processingFormat, to: format) else { return nil }
+        let inCap = AVAudioFrameCount(file.length)
+        guard inCap > 0, let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: inCap), (try? file.read(into: input)) != nil else { return nil }
+        let outCap = AVAudioFrameCount(Double(inCap) * 16_000 / file.processingFormat.sampleRate) + 64
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: outCap) else { return nil }
+        var fed = false
+        var err: NSError?
+        _ = converter.convert(to: output, error: &err) { _, status in
+            if fed { status.pointee = .endOfStream; return nil }
+            fed = true; status.pointee = .haveData; return input
+        }
+        guard err == nil, let ch = output.floatChannelData?[0] else { return nil }
+        return Array(UnsafeBufferPointer(start: ch, count: Int(output.frameLength)))
     }
 }
 

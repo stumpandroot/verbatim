@@ -220,13 +220,22 @@ struct RecordMenu: View {
 struct DictateMenu: View {
     @EnvironmentObject var app: AppState
     var body: some View {
-        Section("Hold to dictate") {
+        Section("Hotkey") {
             ForEach(DictationController.Hotkey.allCases) { k in
                 Button { app.dictation.hotkey = k } label: {
                     Label(k.title.replacingOccurrences(of: "Hold ", with: ""), systemImage: app.dictation.hotkey == k ? "checkmark" : "keyboard")
                 }
             }
         }
+        Divider()
+        Picker("Cleanup", selection: Binding(get: { FlowSettings.shared.cleanup }, set: { FlowSettings.shared.cleanup = $0 })) {
+            ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
+        }
+        Picker("Start and stop", selection: Binding(get: { FlowSettings.shared.mode }, set: { FlowSettings.shared.mode = $0 })) {
+            ForEach(FlowMode.allCases) { Text($0.title).tag($0) }
+        }
+        Toggle("Show the floating button", isOn: Binding(get: { FlowSettings.shared.showBar }, set: { FlowSettings.shared.showBar = $0 }))
+        Button { app.go(.dictations) } label: { Label("Dictation history", systemImage: "waveform") }
         Divider()
         Button { app.dictation.enabled.toggle() } label: {
             Label(app.dictation.enabled ? "Turn off Dictate" : "Turn on Dictate", systemImage: app.dictation.enabled ? "pause.circle" : "play.circle")
@@ -464,7 +473,7 @@ struct DictateControls: View {
                     Image(systemName: "keyboard").font(.system(size: 18, weight: .light)).foregroundStyle(Ink.ink)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(app.dictation.hotkey.title).font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text(app.dictation.enabled ? "Ready in every app. Change the key in Settings › Dictate." : "Dictation is off. Turn it on in Settings › Dictate.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        Text(app.dictation.enabled ? "\(FlowSettings.shared.mode.title) in any app, or click the floating button at the edge of your screen. Settings › Dictate has cleanup, styles, and snippets." : "Dictation is off. Turn it on in Settings › Dictate.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                 }
                 

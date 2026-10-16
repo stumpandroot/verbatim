@@ -47,6 +47,7 @@ struct ContentView: View {
         case .moments: return "Moments"
         case .trash: return "Recently Deleted"
         case .dictionary: return "Dictionary"
+        case .dictations: return "Dictations"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
         }
     }
@@ -60,6 +61,7 @@ struct ContentView: View {
         case .moments: return "moments"
         case .trash: return "trash"
         case .dictionary: return "dict"
+        case .dictations: return "dictations"
         case .transcript(let id): return "t-\(id)"
         }
     }
@@ -73,6 +75,7 @@ struct ContentView: View {
         case .moments: MomentsView()
         case .trash: TrashView()
         case .dictionary: DictionaryView()
+        case .dictations: DictationsView()
         case .transcript(let id): TranscriptView(id: id)
         }
     }
@@ -138,6 +141,8 @@ struct Sidebar: View {
             SideItem(label: "Queue", symbol: "list.bullet", selected: app.screen == .queue,
                      badge: app.queue.count + (app.runningID == nil ? 0 : 1) == 0 ? nil : "\(app.queue.count + (app.runningID == nil ? 0 : 1))", busy: app.runningID != nil, pill: pill) { app.go(.queue) }
                 .uiTarget("side-queue")
+            SideItem(label: "Dictations", symbol: "waveform", selected: app.screen == .dictations, badge: nil, pill: pill) { app.go(.dictations) }
+                .uiTarget("side-dictations")
             SideItem(label: "Dictionary", symbol: "book", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
                 .uiTarget("side-dict")
 
