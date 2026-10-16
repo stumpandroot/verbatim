@@ -221,7 +221,7 @@ struct DictateMenu: View {
     @EnvironmentObject var app: AppState
     var body: some View {
         Section("Hold to dictate") {
-            ForEach(Dictation.Hotkey.allCases) { k in
+            ForEach(DictationController.Hotkey.allCases) { k in
                 Button { app.dictation.hotkey = k } label: {
                     Label(k.title.replacingOccurrences(of: "Hold ", with: ""), systemImage: app.dictation.hotkey == k ? "checkmark" : "keyboard")
                 }
