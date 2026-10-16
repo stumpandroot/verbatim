@@ -9,7 +9,7 @@ struct ContentView: View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
         return HStack(spacing: 0) {
             if sidebarOpen {
-                Sidebar().frame(width: 236).transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .identity))
+                Sidebar().frame(width: 244).transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .identity))
             }
             ZStack {
                 Ink.paper
@@ -189,11 +189,35 @@ struct Sidebar: View {
         .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
-        // The one translucent surface: the native sidebar material, untinted, with an ink hairline.
-        // Reduce Transparency makes it opaque automatically.
-        .background(VisualEffect(material: .sidebar, blending: .behindWindow))
-        .overlay(alignment: .trailing) { Ink.hairline.frame(width: 1) }
+        .modifier(SidebarGlass())
         .ignoresSafeArea(edges: .top)
+    }
+}
+
+/// The sidebar as a floating pane of glass, inset from the window edges (the macOS 26 inset sidebar).
+/// Native Liquid Glass on macOS 26, lightly warmed with paper, with a thin light rim along the top-left edge;
+/// the native sidebar material on earlier versions. Reduce Transparency and Increase Contrast make it opaque
+/// automatically. Text on it is navigation only, at full ink, never body copy.
+struct SidebarGlass: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        let rim = shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(scheme == .dark ? 0.22 : 0.85), Color.white.opacity(0), Color.white.opacity(scheme == .dark ? 0.08 : 0.3)],
+                                                    startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+        return Group {
+            if #available(macOS 26, *) {
+                content
+                    .glassEffect(.regular.tint(Ink.paper.opacity(scheme == .dark ? 0.25 : 0.4)), in: shape)
+                    .overlay(rim.allowsHitTesting(false))
+            } else {
+                content
+                    .background(VisualEffect(material: .sidebar, blending: .withinWindow).clipShape(shape))
+                    .overlay(shape.strokeBorder(Ink.hairline))
+                    .overlay(rim.allowsHitTesting(false))
+            }
+        }
+        .shadow(color: .black.opacity(scheme == .dark ? 0.3 : 0.08), radius: 12, x: 0, y: 4)
+        .padding(.leading, 8).padding(.vertical, 8)
     }
 }
 

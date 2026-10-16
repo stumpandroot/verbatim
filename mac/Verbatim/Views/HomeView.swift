@@ -134,9 +134,10 @@ struct CaptureBar: View {
                         Text(mic?.name ?? "Microphone").lineLimit(1)
                     }
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                    .help("Recording from \(mic?.name ?? "the system default"). Change it in Settings › General.")
+                    .help("Recording from \(mic?.name ?? "the system default"). Right-click Record to change it.")
                 }
             }
+            .contextMenu { RecordMenu(onChange: { mic = AudioDevices.current() }) }
             .uiTarget("tile-record")
             divider
             CaptureSegment(highlighted: app.captureMode == "dictate", action: { withAnimation(Motion.settle) { app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate" } }) {
@@ -146,6 +147,7 @@ struct CaptureBar: View {
                     Text(app.dictation.accessibilityTrusted ? app.dictation.hotkey.title.replacingOccurrences(of: "Hold ", with: "Hold ") : "Needs Accessibility").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
             }
+            .contextMenu { DictateMenu() }
             .uiTarget("mode-dictate")
             divider
             CaptureSegment(highlighted: fileOver, action: { importOpen = true }) {
@@ -156,12 +158,20 @@ struct CaptureBar: View {
                 }
             }
             .popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }) }
+            .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
             divider
             CaptureSegment(action: { app.pickApp() }) {
                 Image(systemName: "speaker.wave.2").font(.system(size: 18, weight: .light)).foregroundStyle(Ink.ink).frame(width: 30)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("App audio").font(.system(size: 15, weight: .medium)).fixedSize()
                     Text("From another app").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                }
+            }
+            .contextMenu {
+                Button { app.pickApp() } label: { Label("Choose an app…", systemImage: "speaker.wave.2") }
+                Divider()
+                Button { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!) } label: {
+                    Label("Screen & System Audio Recording settings…", systemImage: "lock.shield")
                 }
             }
             .uiTarget("tile-app")
@@ -178,6 +188,73 @@ struct CaptureBar: View {
     }
 
     private var divider: some View { Rectangle().fill(Ink.hairline).frame(width: 1, height: 30) }
+}
+
+// MARK: - Capture bar menus (right-click a segment)
+
+/// Record's right-click menu: pick the microphone, start recording, or open Settings.
+struct RecordMenu: View {
+    @EnvironmentObject var app: AppState
+    var onChange: () -> Void = {}
+    var body: some View {
+        let selected = AudioDevices.selectedUID
+        Button { app.requestRecord() } label: { Label("Record", systemImage: "record.circle") }
+        Divider()
+        Section("Microphone") {
+            Button { AudioDevices.selectedUID = nil; onChange() } label: {
+                Label("System default" + (AudioDevices.defaultInput().map { " (\($0.name))" } ?? ""), systemImage: selected == nil ? "checkmark" : "mic")
+            }
+            ForEach(AudioDevices.inputs()) { d in
+                let uid = AudioDevices.deviceUID(d.id)
+                Button { AudioDevices.selectedUID = uid; onChange() } label: {
+                    Label(d.name, systemImage: selected != nil && selected == uid ? "checkmark" : d.symbol)
+                }
+            }
+        }
+        Divider()
+        SettingsLink { Label("Recording settings…", systemImage: "gearshape") }
+    }
+}
+
+/// Dictate's right-click menu: the hold key, on or off, and Accessibility access.
+struct DictateMenu: View {
+    @EnvironmentObject var app: AppState
+    var body: some View {
+        Section("Hold to dictate") {
+            ForEach(Dictation.Hotkey.allCases) { k in
+                Button { app.dictation.hotkey = k } label: {
+                    Label(k.title.replacingOccurrences(of: "Hold ", with: ""), systemImage: app.dictation.hotkey == k ? "checkmark" : "keyboard")
+                }
+            }
+        }
+        Divider()
+        Button { app.dictation.enabled.toggle() } label: {
+            Label(app.dictation.enabled ? "Turn off Dictate" : "Turn on Dictate", systemImage: app.dictation.enabled ? "pause.circle" : "play.circle")
+        }
+        if !app.dictation.accessibilityTrusted {
+            Button { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() } label: { Label("Allow Accessibility access…", systemImage: "hand.raised") }
+        }
+        if let last = app.dictation.lastResult, !last.isEmpty {
+            Button { app.dictation.copyLast() } label: { Label("Copy last dictation", systemImage: "doc.on.doc") }
+        }
+        Divider()
+        SettingsLink { Label("Dictate settings…", systemImage: "gearshape") }
+    }
+}
+
+/// Import's right-click menu: files, a link from the clipboard, and whether to keep link video.
+struct ImportMenu: View {
+    @EnvironmentObject var app: AppState
+    var openPanel: () -> Void
+    var body: some View {
+        Button { app.chooseFiles() } label: { Label("Choose files or a folder…", systemImage: "doc.on.doc") }
+        if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines), s.hasPrefix("http"), !s.contains(" ") {
+            Button { app.transcribeLink(s, keepVideo: nil) } label: { Label("Transcribe the copied link", systemImage: "link") }
+        }
+        Button(action: openPanel) { Label("Paste a link…", systemImage: "link.badge.plus") }
+        Divider()
+        Toggle("Keep the video of links", isOn: $app.keepVideoByDefault)
+    }
 }
 
 /// One section of the capture toolbar: local tint on hover, slight compression on press.
@@ -497,7 +574,7 @@ struct HistoryRow: View {
     @State private var hover = false
 
     var body: some View {
-        CardButton(tilt: 1, lift: 1, radius: 14, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) {
+        CardButton(tilt: 2, lift: 2, radius: 14, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) {
             HStack(spacing: 14) {
                 if let sel = selected {
                     Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.iris : Ink.mute)

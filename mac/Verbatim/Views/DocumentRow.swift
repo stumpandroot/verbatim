@@ -4,12 +4,15 @@ import AppKit
 // MARK: - Document row
 
 /// One transcript as an index entry: source glyph, title, mono metadata, state, date. Hover tint, keyboard
-/// focusable, drag to a project, context menu. No tilt.
+/// focusable, drag to a project, context menu. Card motion: a slight tilt toward the pointer, edge light, and
+/// press. The ⋯ menu sits on an untransformed layer above the moving row, so it never loses clicks.
 struct DocumentRow: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     var open: () -> Void
-    @State private var hover = false
+    @State private var hover: CGPoint? = nil
+    @State private var down = false
+    @State private var size: CGSize = .zero
 
     var body: some View {
         HStack(spacing: 14) {
@@ -32,15 +35,27 @@ struct DocumentRow: View {
             Spacer(minLength: 10)
             state
             Text(dateLine).font(Ink.mono(12)).foregroundStyle(Ink.mute).frame(width: 84, alignment: .trailing).lineLimit(1)
-            RowMenuButton(transcript: transcript)
+            Color.clear.frame(width: 30, height: 26)   // room for the ⋯ menu, drawn flat on top
         }
         .padding(.leading, 12).padding(.trailing, 6).padding(.vertical, 9)
-        .background(hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(hover ? Ink.outlineStrong.opacity(0.7) : Ink.hairline))
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .onHover { hover = $0 }
-        .animation(.easeOut(duration: 0.16), value: hover)
+        .background(hover != nil ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+        .cardMotion(hover: hover, size: size, pressed: down, radius: 12, tilt: 2, lift: 1.5)
+        .allowsHitTesting(false)
+        .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.001))
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let p): hover = p
+                    case .ended: hover = nil; down = false
+                    }
+                }
+        }
+        .overlay(alignment: .trailing) { RowMenuButton(transcript: transcript).padding(.trailing, 6) }
         .onTapGesture(perform: open)
+        .simultaneousGesture(PressTracker.gesture { down = $0 })
         .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
         .contextMenu { RowMenu(transcript: transcript) }
         .accessibilityElement(children: .combine)

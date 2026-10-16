@@ -76,7 +76,7 @@ struct DictionaryView: View {
                     }
                     .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
-                    .tiltCard(tilt: 1.2, lift: 0, radius: 12, rotates: false)
+                    .tiltCard(lift: 1, radius: 12, rotates: false)
                 }
             }
             .frame(maxWidth: 820)

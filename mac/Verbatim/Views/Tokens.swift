@@ -141,13 +141,19 @@ struct Overline: View {
 /// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.
 /// `snap`, `bounce`, and `hero` remain as names but no longer overshoot.
 enum Motion {
-    static let touch = Animation.easeOut(duration: 0.16)
-    static let settle = Animation.easeOut(duration: 0.22)
-    /// Screen changes: short and flat (120–180 ms, minimal movement).
-    static let nav = Animation.easeOut(duration: 0.18)
-    static let snap = Animation.easeOut(duration: 0.2)
-    static let bounce = Animation.easeOut(duration: 0.2)
-    static let hero = Animation.easeOut(duration: 0.3)
+    /// Hover tints on small, frequent controls (chips, sidebar rows): quick, so they never trail the pointer.
+    static let touch = Animation.easeOut(duration: 0.18)
+    /// Cards: tilt, lift, edge light, and release. A 300 ms critically damped spring, so it retargets smoothly
+    /// as the pointer moves and when a press is let go mid-flight.
+    static let card = Animation.smooth(duration: 0.3)
+    /// The press itself lands fast; the release uses `card`.
+    static let press = Animation.easeOut(duration: 0.1)
+    static let settle = Animation.smooth(duration: 0.3)
+    /// Screen changes: 300 ms, minimal movement.
+    static let nav = Animation.smooth(duration: 0.3)
+    static let snap = Animation.smooth(duration: 0.24)
+    static let bounce = Animation.smooth(duration: 0.3)
+    static let hero = Animation.smooth(duration: 0.36)
 }
 
 extension Color {

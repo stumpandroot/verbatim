@@ -299,26 +299,35 @@ struct BrandFeatureCard: View {
 struct FeatureCardStyle: ButtonStyle {
     var fill: Color
     func makeBody(configuration: Configuration) -> some View { FeatureCardBody(configuration: configuration, fill: fill) }
+    /// Tilts toward the pointer with an edge light (`CardMotion`). The moving visuals don't take the pointer;
+    /// a flat layer on top does, so the Button keeps every click while the card is rotated.
     private struct FeatureCardBody: View {
         let configuration: ButtonStyleConfiguration
         var fill: Color
-        @State private var hover = false
-        @Environment(\.accessibilityReduceMotion) private var reduce
+        @State private var hover: CGPoint? = nil
+        @State private var size: CGSize = .zero
         @Environment(\.isFocused) private var focused
         var body: some View {
+            let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
             configuration.label
-                .background(fill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(fill, in: shape)
                 .overlay(alignment: .topTrailing) {
                     CornerTick().stroke(Ink.inkFixed, lineWidth: 1.2).frame(width: 9, height: 9).padding(12)
                 }
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Ink.inkFixed.opacity(hover ? 0.35 : 0), lineWidth: 1))
+                .cardMotion(hover: hover, size: size, pressed: configuration.isPressed, radius: 18, tilt: 4, lift: 2)
+                .allowsHitTesting(false)
                 .overlay(RoundedRectangle(cornerRadius: 21, style: .continuous).strokeBorder(Color.accentColor, lineWidth: 3).padding(-3).opacity(focused ? 1 : 0))
-                .offset(y: hover && !reduce ? -1 : 0)
-                .scaleEffect(configuration.isPressed ? 0.99 : 1)
-                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .onHover { hover = $0 }
-                .animation(.easeOut(duration: 0.16), value: hover)
-                .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+                .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
+                .overlay {
+                    shape.fill(Color.white.opacity(0.001)).contentShape(shape)
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let p): hover = p
+                            case .ended: hover = nil
+                            }
+                        }
+                }
+                .contentShape(shape)
         }
     }
 }

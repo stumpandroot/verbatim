@@ -14,12 +14,85 @@ struct HoverChip: ViewModifier {
 }
 extension View { func hoverChip(radius: CGFloat = 7) -> some View { modifier(HoverChip(radius: radius)) } }
 
-/// A clickable card: pointer spotlight, 3D tilt, press squash, and the click itself.
-/// The visuals tilt underneath; an untransformed layer on top takes the pointer, so hit-testing is never
+/// Pointer-driven card motion, shared by every card in the app family.
+/// - Tilt: the side under the pointer dips away, as if the pointer were resting on it (a few degrees at most).
+/// - Lift: the card rises 2 pt and its shadow deepens, shifted away from the pointer.
+/// - Edge light: a thin rim, brightest at the point nearest the pointer, over a hairline that firms on hover.
+/// - Press: the card presses in (scale 0.98, a little more tilt) fast, and springs back over 300 ms.
+/// Visual only. Callers keep hit-testing on a flat, untransformed layer, because a 3D-rotated view loses
+/// clicks on macOS 26. Reduce Motion keeps the edge light and shadow and drops tilt, lift, and scale.
+struct CardMotion: ViewModifier {
+    var hover: CGPoint?
+    var size: CGSize
+    var pressed: Bool
+    var radius: CGFloat
+    var tilt: Double = 3
+    var lift: Double = 2
+    /// Rows that sit on paper use a quieter shadow than cards that float.
+    var shadow: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        let w = max(size.width, 1), h = max(size.height, 1)
+        let nx = hover.map { min(max($0.x / w, 0), 1) - 0.5 } ?? 0     // -0.5 … 0.5
+        let ny = hover.map { min(max($0.y / h, 0), 1) - 0.5 } ?? 0
+        let on = hover != nil
+        let move = !reduceMotion
+        // Wide rows tilt less: the same angle moves a long edge much farther.
+        let aspect = min(1, 2.2 * h / w + 0.25)
+        let strength = min(1, 2 * (nx * nx + ny * ny).squareRoot())
+        let angle = move && on ? (tilt + (pressed ? 1 : 0)) * strength * aspect : 0
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let light = UnitPoint(x: nx + 0.5, y: ny + 0.5)
+        let rimReach = max(w, h) * 0.55
+
+        return content
+            // Sheen: a soft glow on the surface under the pointer.
+            .overlay {
+                shape.fill(RadialGradient(colors: [Color.white.opacity(scheme == .dark ? 0.07 : 0.16), .clear],
+                                          center: light, startRadius: 0, endRadius: rimReach))
+                    .opacity(on ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            // Edge: the hairline firms up, and a light rim travels with the pointer.
+            .overlay {
+                shape.strokeBorder(Ink.outlineStrong.opacity(on ? 0.45 : 0), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                shape.strokeBorder(RadialGradient(colors: [Color.white.opacity(scheme == .dark ? 0.55 : 0.95), Color.white.opacity(0)],
+                                                  center: light, startRadius: 0, endRadius: rimReach), lineWidth: 1.25)
+                    .opacity(on ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .background {
+                if shadow {
+                    shape.fill(Color.black.opacity(0.001))
+                        .shadow(color: .black.opacity(on ? (scheme == .dark ? 0.35 : 0.13) : 0), radius: on ? 14 : 0,
+                                x: move ? -nx * 6 : 0, y: on ? 8 : 0)
+                }
+            }
+            .rotation3DEffect(.degrees(angle), axis: (x: -ny, y: nx, z: 0), perspective: 0.55)
+            .offset(y: move && on && !pressed ? -lift : 0)
+            .scaleEffect(move && pressed ? 0.98 : 1)
+            .animation(pressed ? Motion.press : Motion.card, value: pressed)
+            .animation(Motion.card, value: hover.map { "\(Int($0.x / 2)),\(Int($0.y / 2))" } ?? "")
+    }
+}
+
+extension View {
+    func cardMotion(hover: CGPoint?, size: CGSize, pressed: Bool, radius: CGFloat, tilt: Double = 3, lift: Double = 2, shadow: Bool = true) -> some View {
+        modifier(CardMotion(hover: hover, size: size, pressed: pressed, radius: radius, tilt: tilt, lift: lift, shadow: shadow))
+    }
+}
+
+/// A clickable card with pointer tilt, edge light, lift, and press (see `CardMotion`).
+/// The visuals move underneath; an untransformed layer on top takes the pointer, so hit-testing is never
 /// subject to the 3D transform or to a competing Button gesture (both lost clicks on macOS 26).
 struct CardButton<Content: View>: View {
-    var tilt: Double = 1.5
-    var lift: Double = 1
+    var tilt: Double = 2
+    var lift: Double = 2
     var radius: Double = 12
     /// When set, the card can be dragged (to a project, to Finder as text). Click uses a tap gesture then,
     /// because a zero-distance drag gesture would swallow the system drag.
@@ -30,20 +103,10 @@ struct CardButton<Content: View>: View {
     @State private var hover: CGPoint? = nil
     @State private var down = false
     @State private var size: CGSize = .zero
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var hoverKey: String { hover.map { "\(Int($0.x)),\(Int($0.y))" } ?? "" }
 
     var body: some View {
-        let nx = hover.map { ($0.x / max(size.width, 1)) - 0.5 } ?? 0
-        let ny = hover.map { ($0.y / max(size.height, 1)) - 0.5 } ?? 0
-        let on = hover != nil && !reduceMotion
-        // Brand: hover is a 1 pt rise at most, press a slight compression. No tilt, no spotlight.
-        let _ = (nx, ny)
         content()
-            .offset(y: on ? -min(lift, 1) : 0)
-            .scaleEffect(down ? 0.99 : 1)
-            .animation(.easeOut(duration: 0.12), value: down)
-            .animation(Motion.touch, value: hover == nil)
+            .cardMotion(hover: hover, size: size, pressed: down, radius: radius, tilt: tilt, lift: lift)
             .allowsHitTesting(false)
             .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
             .overlay {
@@ -70,6 +133,7 @@ private struct CardHit: ViewModifier {
         if let payload = dragPayload {
             content
                 .onTapGesture { action() }
+                .simultaneousGesture(PressTracker.gesture { down = $0 })
                 .onDrag { NSItemProvider(object: payload() as NSString) }
         } else {
             content.gesture(DragGesture(minimumDistance: 0)
@@ -79,6 +143,16 @@ private struct CardHit: ViewModifier {
                     if CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
                 })
         }
+    }
+}
+
+/// Reports press-down and release without competing with a tap or a system drag: a long press that never
+/// completes (10 s) and gives up after 6 pt of movement, run alongside the real gestures.
+enum PressTracker {
+    static func gesture(_ changed: @escaping (Bool) -> Void) -> some Gesture {
+        LongPressGesture(minimumDuration: 10, maximumDistance: 6)
+            .onChanged { _ in changed(true) }
+            .onEnded { _ in changed(false) }
     }
 }
 
@@ -106,28 +180,20 @@ struct TapArea: ViewModifier {
     }
 }
 
-/// Decorative tilt for non-clickable surfaces (the welcome card, the dock frame). Pointer passes through to children.
+/// Card motion for surfaces that hold their own controls (the Dictionary rows, the dock frame).
+/// The pointer passes through to children. With `rotates` off (the default for these), the card keeps the edge
+/// light, lift, and shadow and skips the 3D tilt: on macOS 26 a rotated ancestor loses clicks for its children.
 struct TiltCard: ViewModifier {
-    var tilt: Double = 4
+    var tilt: Double = 3
     var lift: Double = 2
     var radius: Double = 12
-    /// Off for cards that hold their own controls: on macOS 26 a 3D-rotated ancestor loses clicks for its children,
-    /// so those cards keep the spotlight and lift and skip the rotation. CardButton tilts safely on its own.
     var rotates: Bool = true
     @State private var hover: CGPoint? = nil
-    private var hoverKey: String { hover.map { "\(Int($0.x)),\(Int($0.y))" } ?? "" }
     @State private var size: CGSize = .zero
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        let nx = hover.map { ($0.x / max(size.width, 1)) - 0.5 } ?? 0
-        let ny = hover.map { ($0.y / max(size.height, 1)) - 0.5 } ?? 0
-        let on = hover != nil && !reduceMotion
-        // Brand: no tilt or spotlight; at most a 1 pt rise.
-        let _ = (nx, ny)
-        return content
-            .offset(y: on ? -min(lift, 1) : 0)
-            .animation(Motion.touch, value: hover == nil)
+        content
+            .cardMotion(hover: hover, size: size, pressed: false, radius: radius, tilt: rotates ? tilt : 0, lift: lift)
             .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
             .onContinuousHover { phase in
                 switch phase {
