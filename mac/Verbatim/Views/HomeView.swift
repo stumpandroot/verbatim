@@ -513,7 +513,7 @@ struct HistoryRow: View {
                         Text(transcript.sourceLabel)
                         Text("·"); Text(transcript.duration.timecode)
                         if !transcript.speakers.isEmpty { Text("·"); Text("\(transcript.speakers.count) speakers") }
-                        if transcript.status == .processing { Text("·"); Text(transcript.stage ?? "Transcribing").foregroundStyle(Ink.iris); ProgressView().controlSize(.mini) }
+                        if transcript.status == .processing { Text("·"); Text(transcript.stageText).foregroundStyle(Ink.iris); ProgressView().controlSize(.mini) }
                         if transcript.status == .failed { Text("·"); Text("Needs retry").foregroundStyle(Ink.coral) }
                     }
                     .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)

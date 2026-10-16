@@ -74,9 +74,9 @@ struct DocumentRow: View {
         if transcript.status == .processing {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                Text(transcript.stage ?? "Transcribing").font(.system(size: 12)).foregroundStyle(Ink.dim).lineLimit(1)
+                Text(transcript.stageText).font(.system(size: 12)).foregroundStyle(Ink.dim).lineLimit(1)
             }
-            .accessibilityLabel("Processing: \(transcript.stage ?? "Transcribing")")
+            .accessibilityLabel("Processing: \(transcript.stageText)")
         } else if transcript.status == .failed {
             Label("Needs retry", systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(Ink.danger)
         }

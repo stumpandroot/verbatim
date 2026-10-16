@@ -262,7 +262,7 @@ struct TranscriptView: View {
             HStack(spacing: 12) {
                 SignalRings().frame(width: 40, height: 40).padding(6)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t.stage ?? "Transcribing").font(.system(size: 15, weight: .semibold))
+                    Text(t.stageText).font(.system(size: 15, weight: .semibold))
                     Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 }
             }

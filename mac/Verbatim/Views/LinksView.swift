@@ -78,7 +78,7 @@ struct LinkRow: View {
                 Text(transcript.title).font(Ink.serif(18, weight: .regular)).foregroundStyle(Ink.ink).lineLimit(2)
                 Text([info.channel, info.site, info.uploadDisplay, transcript.duration > 0 ? transcript.duration.timecode : nil].compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
-                if transcript.status == .processing { Text(transcript.stage ?? "Queued").font(.system(size: 12)).foregroundStyle(Ink.iris) }
+                if transcript.status == .processing { Text(transcript.stageText).font(.system(size: 12)).foregroundStyle(Ink.iris) }
                 if transcript.status == .failed { Text("Transcription failed").font(.system(size: 12)).foregroundStyle(Ink.coral) }
                 if let busy = app.keeping[transcript.id] {
                     Text(busy).font(.system(size: 12)).foregroundStyle(Ink.iris).monospacedDigit()
