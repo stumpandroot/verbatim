@@ -5,6 +5,8 @@ name: Build Mac app (SwiftUI)
 # Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
 # MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
 # is unsigned and keeps everything on the Mac.
+# TestFlight (iPhone): ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8 (an App Store Connect API key with the Admin role,
+# so Xcode can manage distribution signing). With them, every build of main uploads the iPhone app to TestFlight.
 
 on:
   push:
@@ -35,6 +37,9 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       MACOS_PROVISION_PROFILE: ${{ secrets.MACOS_PROVISION_PROFILE }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -190,6 +195,44 @@ jobs:
           name: Verbatim-universal
           path: mac/dist/Verbatim-universal.dmg
           if-no-files-found: error
+
+      # Last, so a TestFlight problem never holds up the Mac download.
+      - name: Send the iPhone app to TestFlight
+        if: github.ref == 'refs/heads/main' && env.ASC_KEY_ID != '' && env.ASC_KEY_P8 != ''
+        continue-on-error: true
+        working-directory: mac
+        run: |
+          set -o pipefail
+          KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
+          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            "${AUTH[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1 || {
+              echo "::error::iPhone archive failed"
+              grep -E "error:|No profiles|requires a provisioning|Provisioning profile" "$RUNNER_TEMP/phone-archive.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+              tail -n 40 "$RUNNER_TEMP/phone-archive.log"; exit 1; }
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/phone-export" "${AUTH[@]}" > "$RUNNER_TEMP/phone-upload.log" 2>&1 || {
+              echo "::error::TestFlight upload failed"
+              grep -iE "error|No suitable application records|ITMS-" "$RUNNER_TEMP/phone-upload.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+              tail -n 40 "$RUNNER_TEMP/phone-upload.log"; exit 1; }
+          echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
+          rm -f "$KEY"
 
   release:
     name: Publish release
