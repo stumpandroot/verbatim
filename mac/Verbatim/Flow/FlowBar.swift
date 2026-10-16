@@ -341,23 +341,49 @@ struct FlowBarView: View {
         switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom }
     }
 
+    @State private var shown = false
+
+    /// Every state shares one ink shape. Between states the shape morphs to its new size while the contents
+    /// cross-fade, so the Ribbon never jumps. Reduce Motion turns the morph into a quick fade.
+    private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
+
+    private var closed: Bool { model.phase == .idle && !(model.hover || model.dragging) }
+
+    /// Changes to any of these animate the shape.
+    private var stateKey: String {
+        "\(model.phase)-\(closed)-\(model.dragging)-\(model.handsFree)-\(model.warning.isEmpty)-\(model.command)-\(model.edge)-\(model.noticeAction ?? "")-\(model.notice.count)"
+    }
+
+    private var screenEdge: Edge { switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom } }
+
     var body: some View {
         ZStack(alignment: alignment) {
             Color.clear
-            ribbon
-                .background(GeometryReader { g in Color.clear.preference(key: RibbonSizeKey.self, value: g.size) })
-                .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                    .onChanged { _ in controller.dragChanged() }
-                    .onEnded { _ in controller.dragEnded() })
-                .simultaneousGesture(TapGesture().onEnded { controller.clicked() })
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel(accessibilityLabel)
+            Group {
+                if model.phase == .prompt, let p = model.prompt {
+                    PromptCard(prompt: p, controller: controller)
+                        .padding(model.edge == .bottom ? .bottom : (model.edge == .left ? .leading : .trailing), 10)
+                        .transition(.asymmetric(insertion: .move(edge: screenEdge).combined(with: .opacity), removal: .opacity))
+                } else {
+                    tabbed.transition(.opacity)
+                }
+            }
+            .background(GeometryReader { g in Color.clear.preference(key: RibbonSizeKey.self, value: g.size) })
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                .onChanged { _ in controller.dragChanged() }
+                .onEnded { _ in controller.dragEnded() })
+            .simultaneousGesture(TapGesture().onEnded { controller.clicked() })
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(accessibilityLabel)
+            // Slides in from the edge when it first appears (and after sleep or a display change).
+            .offset(x: shown ? 0 : (model.edge == .left ? -14 : model.edge == .right ? 14 : 0), y: shown || model.edge != .bottom ? 0 : 14)
+            .opacity(shown ? 1 : 0)
         }
         .onPreferenceChange(RibbonSizeKey.self) { s in if model.contentSize != s { model.contentSize = s } }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: model.phase)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: model.hover)
+        .animation(morph, value: stateKey)
+        .onAppear { withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .smooth(duration: 0.4)) { shown = true } }
     }
 
     /// The tab's rounded side faces into the screen; the edge side is square, flush with the screen edge.
@@ -369,12 +395,23 @@ struct FlowBarView: View {
         }
     }
 
-    @ViewBuilder private var ribbon: some View {
+    /// The one ink shape, sized by whatever it holds; closed, it's the thin sliver at the edge.
+    private var tabbed: some View {
+        let r: CGFloat = closed ? 4 : 15
+        return inner
+            .padding(.vertical, closed ? 0 : (model.phase == .notice ? 10 : 11))
+            .padding(.horizontal, closed ? 0 : 12)
+            .frame(width: closed ? (model.edge == .bottom ? 50 : 6) : nil, height: closed ? (model.edge == .bottom ? 6 : 50) : nil)
+            .background(tab(r).fill(RibbonInk.ink))
+            .overlay(tab(r).strokeBorder(RibbonInk.persimmon.opacity(model.command && model.phase == .listening ? 0.9 : 0), lineWidth: 1.5))
+            .clipShape(tab(r))
+    }
+
+    /// What's inside the shape for each state. Each fades in and out as the shape morphs.
+    @ViewBuilder private var inner: some View {
         switch model.phase {
-        case .idle where !(model.hover || model.dragging):
-            // Closed: only the pill's sliver; the ribbon is tucked behind it.
-            tab(4).fill(RibbonInk.ink)
-                .frame(width: model.edge == .bottom ? 50 : 6, height: model.edge == .bottom ? 6 : 50)
+        case .idle where closed:
+            Color.clear.frame(width: 0, height: 0)
         case .idle:
             edgeRow(spacing: 9) {
                 RibbonBars(edge: model.edge, levels: [0.8, 0.55, 0.95], thickness: 5, length: 18)
@@ -385,8 +422,7 @@ struct FlowBarView: View {
                 }
                 .fixedSize()
             }
-            .padding(10).padding(model.edge == .bottom ? .top : (model.edge == .left ? .trailing : .leading), 2)
-            .background(tab(14).fill(RibbonInk.ink))
+            .transition(.opacity)
         case .listening:
             VStack(spacing: 4) {
                 edgeRow(spacing: 10) {
@@ -409,9 +445,7 @@ struct FlowBarView: View {
                     Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.butter).lineLimit(1).fixedSize()
                 }
             }
-            .padding(.vertical, 11).padding(.horizontal, 12)
-            .background(tab(16).fill(RibbonInk.ink))
-            .overlay(tab(16).strokeBorder(RibbonInk.persimmon.opacity(model.command ? 0.9 : 0), lineWidth: 1.5))
+            .transition(.opacity)
         case .working:
             edgeRow(spacing: 9) {
                 SweepBar(edge: model.edge, reduceMotion: reduceMotion)
@@ -419,8 +453,7 @@ struct FlowBarView: View {
                 Text(model.appLabel.isEmpty ? (model.command ? "EDITING" : "WRITING") : model.appLabel)
                     .font(.system(size: 11, design: .monospaced)).tracking(0.6).foregroundStyle(RibbonInk.paper).fixedSize()
             }
-            .padding(.vertical, 11).padding(.horizontal, 13)
-            .background(tab(14).fill(RibbonInk.ink))
+            .transition(.opacity)
         case .notice:
             edgeRow(spacing: 10) {
                 RibbonBars(edge: model.edge, levels: [0.7, 0.5, 0.85], thickness: 3.5, length: 12)
@@ -428,10 +461,9 @@ struct FlowBarView: View {
                 Text(model.notice).font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.paper).lineLimit(2).frame(maxWidth: 300, alignment: .leading).fixedSize(horizontal: false, vertical: true)
                 if let a = model.noticeAction { Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(RibbonInk.butter).fixedSize() }
             }
-            .padding(.vertical, 10).padding(.horizontal, 13)
-            .background(tab(14).fill(RibbonInk.ink))
+            .transition(.opacity)
         case .prompt:
-            if let p = model.prompt { PromptCard(prompt: p, controller: controller).padding(model.edge == .bottom ? .bottom : (model.edge == .left ? .leading : .trailing), 10) }
+            EmptyView()
         }
     }
 
