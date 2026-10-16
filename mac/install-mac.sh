@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Builds Verbatim with iCloud sync, signed with your team, and installs it in /Applications.
+# Run it whenever you want the newest version on your Mac:
+#
+#   ~/verbatim/mac/install-mac.sh
+#
+# Needs: ./setup.sh run once, and Xcode signed in to your Apple ID (Xcode › Settings › Accounts).
+set -euo pipefail
+cd "$(dirname "$0")"
+
+echo "Getting the newest code…"
+git pull --ff-only -q
+xcodegen generate --quiet
+
+TEAM="$(sed -n 's/^DEVELOPMENT_TEAM *= *//p' Local.xcconfig 2>/dev/null || true)"
+TEAM="${TEAM:-VK9YQY88Q9}"
+
+echo "Building Verbatim with iCloud sync (a few minutes the first time)…"
+rm -rf build/install
+xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -configuration Release \
+  -destination 'platform=macOS' -derivedDataPath build/install -allowProvisioningUpdates -quiet \
+  DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
+  CODE_SIGN_ENTITLEMENTS=Verbatim/Verbatim-iCloud.entitlements ONLY_ACTIVE_ARCH=YES
+
+APP="build/install/Build/Products/Release/Verbatim.app"
+[ -d "$APP" ] || { echo "The build didn't produce Verbatim.app. Send the output above to Claude."; exit 1; }
+
+echo "Installing in Applications…"
+osascript -e 'tell application "Verbatim" to quit' >/dev/null 2>&1 || true
+sleep 1
+rm -rf /Applications/Verbatim.app
+cp -R "$APP" /Applications/Verbatim.app
+open /Applications/Verbatim.app
+echo "✓ Verbatim is installed. The bottom of the sidebar should say \"Syncing with iCloud\"."
