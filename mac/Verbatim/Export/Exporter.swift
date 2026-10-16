@@ -1,6 +1,8 @@
 import Foundation
-import AppKit
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 enum ExportFormat: String, CaseIterable, Identifiable {
     case txt = "Plain text", md = "Markdown", docx = "Word", srt = "SRT", vtt = "VTT", json = "JSON"
@@ -85,11 +87,8 @@ enum Exporter {
         }
     }
 
-    /// A minimal .docx: one paragraph per blank-line-separated block, speaker labels bold. Zipped with /usr/bin/zip.
+    /// A minimal .docx: one paragraph per blank-line-separated block, speaker labels bold.
     static func writeDocx(_ t: Transcript, options o: ExportOptions, to url: URL) throws {
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("verbatim-docx-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("_rels"), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("word"), withIntermediateDirectories: true)
         func esc(_ s: String) -> String { s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;") }
         var paras = "<w:p><w:pPr><w:pStyle w:val=\"Title\"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val=\"40\"/></w:rPr><w:t xml:space=\"preserve\">\(esc(t.title))</w:t></w:r></w:p>"
         if let info = t.linkInfo {
@@ -105,15 +104,12 @@ enum Exporter {
         let doc = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(paras)<w:sectPr/></w:body></w:document>"
         let types = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>"
         let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"
-        try types.write(to: tmp.appendingPathComponent("[Content_Types].xml"), atomically: true, encoding: .utf8)
-        try rels.write(to: tmp.appendingPathComponent("_rels/.rels"), atomically: true, encoding: .utf8)
-        try doc.write(to: tmp.appendingPathComponent("word/document.xml"), atomically: true, encoding: .utf8)
+        var zip = ZipWriter()
+        zip.add("[Content_Types].xml", Data(types.utf8))
+        zip.add("_rels/.rels", Data(rels.utf8))
+        zip.add("word/document.xml", Data(doc.utf8))
         try? FileManager.default.removeItem(at: url)
-        let zip = Process(); zip.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        zip.currentDirectoryURL = tmp
-        zip.arguments = ["-q", "-r", "-X", url.path, "[Content_Types].xml", "_rels", "word"]
-        try zip.run(); zip.waitUntilExit()
-        try? FileManager.default.removeItem(at: tmp)
+        try zip.finish().write(to: url, options: .atomic)
     }
 
     static func render(_ t: Transcript, as f: ExportFormat) -> String {
@@ -163,6 +159,7 @@ enum Exporter {
         return String(format: "%02d:%02d:%02d%@%03d", s / 3600, (s % 3600) / 60, s % 60, sep, ms)
     }
 
+#if os(macOS)
     @MainActor
     static func save(_ t: Transcript, as f: ExportFormat, options o: ExportOptions = .saved) {
         let panel = NSSavePanel()
@@ -207,6 +204,7 @@ enum Exporter {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text(t, o), forType: .string)
     }
+#endif
 }
 
 extension String {

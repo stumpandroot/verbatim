@@ -148,6 +148,11 @@ struct Transcript: Codable, Identifiable, Equatable {
     var keptVideo: String? = nil
     var keptAudio: String? = nil
     var originalMedia: String? = nil
+    /// Sync: the device running this transcript's job (only that device resumes it), and its name for display.
+    var processingDevice: String? = nil
+    var processingDeviceName: String? = nil
+    /// A link added on iPhone, waiting for a Mac to fetch its audio (iPhone can't run the link helper).
+    var pendingLink = false
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -188,6 +193,16 @@ struct Transcript: Codable, Identifiable, Equatable {
         keptVideo = try c.decodeIfPresent(String.self, forKey: .keptVideo)
         keptAudio = try c.decodeIfPresent(String.self, forKey: .keptAudio)
         originalMedia = try c.decodeIfPresent(String.self, forKey: .originalMedia)
+        processingDevice = try c.decodeIfPresent(String.self, forKey: .processingDevice)
+        processingDeviceName = try c.decodeIfPresent(String.self, forKey: .processingDeviceName)
+        pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
+    }
+
+    /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".
+    var stageText: String {
+        if pendingLink { return "Waiting for your Mac to fetch the audio" }
+        if status == .processing, let d = processingDevice, d != Device.id { return "Transcribing on \(processingDeviceName ?? "your other device")" }
+        return stage ?? (status == .processing ? "Queued" : "")
     }
 
     /// A video file on this Mac for this transcript (kept from a link, or the original import), if it still exists.

@@ -91,7 +91,7 @@ final class DictationController: ObservableObject {
         target = NSWorkspace.shared.frontmostApplication
         targetAppName = target?.localizedName ?? "the front app"
         do {
-            try recorder.start(to: app?.store.newAudioURL(ext: "wav") ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
+            try recorder.start(to: app?.store.newRecordingURL() ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
             Log.note("dictation start failed: \(error)"); return
         }
@@ -138,7 +138,8 @@ final class DictationController: ObservableObject {
 
     private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, target: String) {
         guard let app else { return }
-        var t = Transcript(title: Transcript.titleFrom(segments) ?? "Dictation", source: .dictation, sourceLabel: "Dictation · \(target)", duration: duration, audioFileName: url.lastPathComponent, model: Engines.displayName(engine: result.engine, model: result.model))
+        let name = app.store.adoptRecording(url) ?? url.lastPathComponent
+        var t = Transcript(title: Transcript.titleFrom(segments) ?? "Dictation", source: .dictation, sourceLabel: "Dictation · \(target)", duration: duration, audioFileName: name, model: Engines.displayName(engine: result.engine, model: result.model))
         t.engine = result.engine; t.language = result.language
         t.original = original; t.segments = segments; t.corrections = fixes; t.waveform = env
         app.store.add(t)
@@ -146,7 +147,8 @@ final class DictationController: ObservableObject {
 
     private func keepFailed(url: URL, duration: Double, env: [Float], error: String) {
         guard let app else { return }
-        var t = Transcript(title: "Dictation", source: .dictation, sourceLabel: "Dictation", duration: duration, audioFileName: url.lastPathComponent, model: "")
+        let name = app.store.adoptRecording(url) ?? url.lastPathComponent
+        var t = Transcript(title: "Dictation", source: .dictation, sourceLabel: "Dictation", duration: duration, audioFileName: name, model: "")
         t.waveform = env; t.status = .failed; t.error = error
         app.store.add(t)
     }

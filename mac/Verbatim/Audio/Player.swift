@@ -31,6 +31,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if loadedURL != url { loadedURL = url }
         let r = rate
         Task.detached(priority: .userInitiated) {
+            // Audio recorded on the other device downloads from iCloud on first play.
+            _ = await Cloud.ensureDownloaded(url)
             let p = try? AVAudioPlayer(contentsOf: url)
             p?.enableRate = true
             p?.rate = r

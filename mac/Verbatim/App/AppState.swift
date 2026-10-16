@@ -68,6 +68,7 @@ final class AppState: ObservableObject {
     /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
     var focusSegment: UUID? = nil
     private var runningTask: Task<Void, Never>? = nil
+    private var claiming: Set<UUID> = []
 
     private var bag = Set<AnyCancellable>()
 
@@ -82,7 +83,12 @@ final class AppState: ObservableObject {
         dictation.attach(self)
         applyAppearance()
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
-        queue = store.live.filter { $0.status == .processing && $0.audioFileName != nil }.sorted { $0.createdAt < $1.createdAt }.map(\.id)
+        // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
+        queue = store.live.filter { $0.status == .processing && $0.audioFileName != nil && ($0.processingDevice == nil || $0.processingDevice == Device.id) }
+            .sorted { $0.createdAt < $1.createdAt }.map(\.id)
+        // Links added on the iPhone wait for a Mac: claim them now and whenever more arrive.
+        store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
+        DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.backfillFrames() }
     }
@@ -144,7 +150,7 @@ final class AppState: ObservableObject {
     func startRecording() {
         Log.note("startRecording")
         do {
-            try recorder.start(to: store.newAudioURL(ext: "wav"))
+            try recorder.start(to: store.newRecordingURL())
             verbiePose = .listening
             Sounds.start()
         } catch {
@@ -162,8 +168,9 @@ final class AppState: ObservableObject {
         guard let stopped = recorder.stop() else { return }
         let (url, duration, env) = stopped
         guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); verbiePose = .ready; return }
+        guard let name = store.adoptRecording(url) else { toast = Toast("Couldn't save the recording."); return }
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
-                           duration: duration, audioFileName: url.lastPathComponent, model: "")
+                           duration: duration, audioFileName: name, model: "")
         t.waveform = env
         enqueue(t)
     }
@@ -176,7 +183,7 @@ final class AppState: ObservableObject {
         showAppPicker = false
         Task {
             do {
-                try await capture.start(app: app, to: store.newAudioURL(ext: "wav"))
+                try await capture.start(app: app, to: store.newRecordingURL())
                 verbiePose = .listening
             } catch {
                 verbiePose = .interrupted
@@ -188,8 +195,9 @@ final class AppState: ObservableObject {
     func stopCapture() {
         Task {
             guard let (url, duration) = await capture.stop() else { return }
+            guard let name = store.adoptRecording(url) else { toast = Toast("Couldn't save the capture."); return }
             let t = Transcript(title: capture.appName.isEmpty ? "App audio" : capture.appName, source: .app, sourceLabel: capture.appName,
-                               duration: duration, audioFileName: url.lastPathComponent, model: "")
+                               duration: duration, audioFileName: name, model: "")
             enqueue(t)
         }
     }
@@ -290,11 +298,41 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// A link added on the iPhone: this Mac fetches its audio into the same transcript and transcribes it.
+    func claimIfPendingLink(_ t: Transcript) {
+        guard t.pendingLink, t.deletedAt == nil, t.audioFileName == nil, LinkFetcher.helperURL != nil,
+              let link = t.sourceURL ?? t.link?.url, !claiming.contains(t.id) else { return }
+        claiming.insert(t.id)
+        let id = t.id
+        store.update(id) { $0.pendingLink = false; $0.stage = "Fetching audio"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
+        Log.note("claiming iPhone link \(link)")
+        Task {
+            defer { claiming.remove(id) }
+            do {
+                let f = try await LinkFetcher.fetch(link) { s in Task { @MainActor in self.store.setStage(id, s) } }
+                let dest = store.newAudioURL(ext: f.url.pathExtension.isEmpty ? "m4a" : f.url.pathExtension)
+                try FileManager.default.moveItem(at: f.url, to: dest)
+                let duration = Player.duration(of: dest)
+                store.update(id) { x in
+                    x.audioFileName = dest.lastPathComponent; x.duration = duration
+                    if x.title.isEmpty || x.title == "Link" || x.title.hasPrefix("http") { x.title = f.title }
+                    x.sourceURL = f.pageURL ?? link
+                    x.link = LinkInfo(url: f.pageURL ?? link, site: f.site, channel: f.uploader, uploadDate: f.uploadDate)
+                    x.stage = "Queued"
+                }
+                queue.append(id); pump()
+                if let thumb = f.thumbnail, let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) { store.update(id) { $0.link?.thumbnailFile = file } }
+            } catch {
+                store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Couldn't fetch that link: \(error.localizedDescription)" }
+            }
+        }
+    }
+
     // MARK: Pipeline
 
     func retry(_ t: Transcript) {
         guard t.audioFileName != nil else { toast = Toast("That recording's audio is missing."); return }
-        store.update(t.id) { $0.status = .processing; $0.error = nil; $0.stage = "Queued" }
+        store.update(t.id) { $0.status = .processing; $0.error = nil; $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
         if !queue.contains(t.id) && runningID != t.id { queue.append(t.id) }
         pump()
     }
@@ -303,6 +341,7 @@ final class AppState: ObservableObject {
         var t = t
         t.status = .processing
         t.stage = "Queued"
+        t.processingDevice = Device.id; t.processingDeviceName = Device.name
         if let p = projectFilter { t.projectId = p }
         store.add(t)
         verbiePose = .saved
@@ -368,28 +407,9 @@ final class AppState: ObservableObject {
         }
         runningTask = Task.detached(priority: .userInitiated) {
             do {
-                let engine = Engines.engine(for: engineId)
-                var result = try await engine.transcribe(url: url, model: model, progress: progress)
-                Log.note("transcribe done segments=\(result.segments.count)")
-                var speakers: [Speaker] = []
-                if wantSpeakers, result.segments.count > 1 {
-                    do {
-                        let turns = try await FluidDiarizer.shared.diarize(url: url, progress: progress)
-                        speakers = SpeakerAssigner.assign(turns, to: &result.segments)
-                        Log.note("diarize done speakers=\(speakers.count)")
-                    } catch {
-                        Log.note("diarize failed (kept transcript): \(error)")
-                    }
-                }
-                let original = result.segments
-                var fixed = result.segments
-                var corrections: [Correction] = []
-                if !dict.isEmpty {
-                    progress(.applyingDictionary)
-                    corrections = DictionaryApplier.apply(dict, to: &fixed, project: project)
-                }
-                let wave = needWave ? Waveform.envelope(of: url) : []
-                let r = result
+                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
+                                                         dictionary: dict, project: project, needWave: needWave, progress: progress)
+                let original = out.original, fixed = out.fixed, speakers = out.speakers, corrections = out.corrections, wave = out.wave
                 await MainActor.run {
                     defer { self.finished(id) }
                     // Cancelled while running: keep the cancellation, drop the late result.
@@ -401,9 +421,10 @@ final class AppState: ObservableObject {
                         x.corrections = corrections
                         x.status = .ready
                         x.stage = nil
-                        x.engine = r.engine
-                        x.model = r.model
-                        x.language = r.language
+                        x.engine = out.engine
+                        x.model = out.model
+                        x.language = out.language
+                        x.processingDevice = nil; x.processingDeviceName = nil
                         if !wave.isEmpty { x.waveform = wave }
                         if x.source == .voiceMemo || x.source == .app || x.source == .dictation, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                     }

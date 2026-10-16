@@ -75,10 +75,18 @@ final class Recorder: ObservableObject {
     static var targetFormat: AVAudioFormat { recordingFormat }
 
     func start(to url: URL) throws {
+        #if os(iOS)
+        // iPhone: a record session that keeps going with the screen locked (background audio mode).
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth])
+        try session.setActive(true)
+        #endif
         let engine = AVAudioEngine()
         self.engine = engine
         let input = engine.inputNode
+        #if os(macOS)
         if let id = AudioDevices.selectedInputID { AudioDevices.setInput(id, on: input) }
+        #endif
         let inFormat = input.outputFormat(forBus: 0)
         guard inFormat.sampleRate > 0, inFormat.channelCount > 0 else {
             throw NSError(domain: "Verbatim", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available."])
@@ -122,6 +130,9 @@ final class Recorder: ObservableObject {
         isRecording = false; isPaused = false
         live.reset()
         self.url = nil
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        #endif
         return (url, d, env)
     }
 }
