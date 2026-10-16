@@ -80,6 +80,7 @@ enum UITest {
         appRef = app
         seedRich(app)
         seedDictations(app)
+        seedActivity()
         try? await Task.sleep(nanoseconds: 800_000_000)
         let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
         app.go(.home); app.captureMode = "voice"
@@ -138,6 +139,8 @@ enum UITest {
         await show("07-dictionary")
         app.go(.dictations)
         await show("07b-dictations")
+        app.go(.activity)
+        await show("07c-activity")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
@@ -146,6 +149,9 @@ enum UITest {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
         await show("09-settings")
+        UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
+        await show("09b-settings-actions")
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         await show("10-home-again")
@@ -227,6 +233,25 @@ enum UITest {
             t.document = pasted
             t.flow = FlowInfo(app: appName, bundleID: bundle, category: cat, style: style, level: "light", raw: raw, pasted: pasted, pastedOK: ok)
             app.store.add(t)
+        }
+    }
+
+    /// Six months of dictation numbers, for the Activity screen. Deterministic, so screenshots compare run to run.
+    private static func seedActivity() {
+        guard ActivityLog.shared.events.count < 20 else { return }
+        let apps: [(String, AppCategory)] = [("Claude", .other), ("Mail", .email), ("Slack", .work), ("Messages", .personal), ("Notes", .other), ("Xcode", .code)]
+        let cal = Calendar.current
+        for day in 0..<180 {
+            // Quiet days happen; nothing marks them as missed.
+            if day % 7 == 3 || (day * 13) % 11 == 0 { continue }
+            let date = cal.date(byAdding: .day, value: -day, to: cal.date(bySettingHour: 9 + (day % 6), minute: 15, second: 0, of: Date()) ?? Date()) ?? Date()
+            for k in 0..<(1 + day % 4) {
+                let (name, cat) = apps[(day + k * 3) % apps.count]
+                let words = 30 + (day * 37 + k * 53) % 220
+                ActivityLog.shared.add(ActivityEvent(id: UUID(), date: date.addingTimeInterval(Double(k) * 900), words: words, seconds: Double(words) / 2.3,
+                                                     transcribeSeconds: 0.6 + Double((day + k) % 5) * 0.15, cleanupSeconds: 0.4 + Double(k % 3) * 0.2,
+                                                     app: name, category: cat, fillers: (day + k) % 4, changed: 2 + (day * k) % 9, vocabularyFixes: (day + k) % 6 == 0 ? 1 : 0))
+            }
         }
     }
 

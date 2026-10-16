@@ -13,6 +13,7 @@ enum Screen: Equatable {
     case transcript(UUID)
     case dictionary
     case dictations
+    case activity
 }
 
 /// Which way the next screen slides in. Sidebar order decides up/down; opening a transcript pushes.
@@ -101,7 +102,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "moments": 3, "queue": 4, "dictations": 5, "dictionary": 6, "trash": 7]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "moments": 3, "queue": 4, "dictations": 5, "activity": 6, "dictionary": 7, "trash": 8]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -123,7 +124,7 @@ final class AppState: ObservableObject {
     func goHome() { go(.home) }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .transcript: return "transcript" }
+        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript" }
     }
 
     // MARK: Recording (microphone)

@@ -19,6 +19,7 @@ struct TranscriptView: View {
     @State private var textSize: CGFloat = 16
     /// True once the mode bar has scrolled under the top edge; a pinned copy shows there instead.
     @State private var barPinned = false
+    @State private var runningAction: FlowAction? = nil
     @Namespace private var segNS
 
     enum Mode: String, CaseIterable { case original = "Transcript", document = "Document", cleaned = "Cleaned", summary = "Summary", review = "Review" }
@@ -186,6 +187,16 @@ struct TranscriptView: View {
     private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
         HStack(spacing: 2) {
             ExportMenu(transcript: t, compact: compact)
+            Menu { ActionsMenuItems { runningAction = $0 } } label: { ToolLabel(title: "Actions", symbol: "wand.and.stars", compact: compact) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .disabled(t.status != .ready)
+                .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
+                .sheet(item: $runningAction) { a in
+                    ActionSheet(action: a, source: t.documentText, sourceLabel: "“\(t.title)”") { text in
+                        app.store.addNote(Note(text: "\(a.name):\n\(text)"), to: t.id)
+                    }
+                    .environmentObject(app)
+                }
             Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", symbol: "note.text", compact: compact, on: notesOpen) }
                 .buttonStyle(.plain).help(notesOpen ? "Hide notes" : "Show notes")
             Menu {

@@ -291,14 +291,18 @@ final class DictationController: ObservableObject {
         let boost = s.boostVocabulary
         let vocabulary = dict.filter(\.enabled).map(\.preferred)
         let terms = boost ? dict.filter(\.enabled).map { (text: $0.preferred, aliases: $0.heardAs) } : []
+        let saved = s.actions
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
+                let t0 = Date()
                 let r: EngineResult
                 if engineId == "fluid" && !terms.isEmpty {
                     r = try await FluidEngine.shared.transcribeBoosted(url: url, model: model, terms: terms)
                 } else {
                     r = try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
                 }
+                let transcribeTime = Date().timeIntervalSince(t0)
+                let t1 = Date()
                 let original = r.segments
                 var segs = r.segments
                 let fixes = DictionaryApplier.apply(dict, to: &segs)
@@ -307,8 +311,14 @@ final class DictationController: ObservableObject {
                 var note: String?
                 var cleaned = false
                 if isCommand, let selection = ctx?.selection {
-                    if let edited = await FlowCleanup.transform(selection: selection, instruction: raw) { final = edited; cleaned = true }
-                    else { final = selection; note = "Couldn't apply “\(raw)”. Editing by voice needs Apple Intelligence on macOS 26." }
+                    // Saying a saved action's name ("client email") runs that action.
+                    let n = FlowAction.norm(raw)
+                    let named = saved.first { a in let an = FlowAction.norm(a.name); return n == an || ["run", "use", "do", "apply"].contains { n == "\($0) \(an)" } }
+                    if let edited = await FlowCleanup.apply(instruction: named?.instruction ?? raw, to: selection, kind: named?.kind ?? .rewrite) {
+                        final = edited; cleaned = true
+                        if let named { note = "“\(named.name)” applied. Press ⌘Z to undo." }
+                    }
+                    else { final = selection; note = "Couldn't apply “\(named?.name ?? raw)”. Editing by voice needs Apple Intelligence on macOS 26." }
                 } else {
                     let out = await FlowCleanup.run(.init(raw: raw, level: level, style: style, category: category, context: ctx,
                                                       vocabulary: vocabulary, useContext: useContext, snippets: snippets))
@@ -317,8 +327,12 @@ final class DictationController: ObservableObject {
                 let info = FlowInfo(app: targetName, bundleID: ctx?.bundleID, category: category, style: style, level: isCommand ? "Command" : level.rawValue,
                                     raw: raw, pasted: final, pastedOK: true, instruction: isCommand ? raw : nil, selection: isCommand ? ctx?.selection : nil)
                 let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs
+                let cleanupTime = Date().timeIntervalSince(t1)
                 await MainActor.run {
                     let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned)
+                    if let id, !isCommand, !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: info, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
+                    }
                     self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw)
                 }
             } catch {
@@ -417,7 +431,8 @@ final class DictationController: ObservableObject {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
     }
 
-    func openSettings() {
+    func openSettings(tab: SettingsTab? = nil) {
+        if let tab { UserDefaults.standard.set(tab.rawValue, forKey: "settingsTab") }
         NSApp.activate(ignoringOtherApps: true)
         // SwiftUI's openSettings is the reliable route on macOS 14+; ContentView listens for this.
         if NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) {
@@ -441,6 +456,41 @@ final class DictationController: ObservableObject {
     private func trailingSpace(_ text: String) -> String {
         guard let last = text.last, !text.contains("\n") else { return "" }
         return ".!?:;,".contains(last) ? " " : ""
+    }
+
+    // MARK: Saved actions on a selection
+
+    /// Runs a saved action on the text selected in the app you're using, and puts the result in its place.
+    /// The app's own Undo (⌘Z) brings the original back.
+    func apply(_ action: FlowAction) {
+        guard !isListening, !isWorking else { return }
+        guard accessibilityTrusted else {
+            bar?.flash("Allow Accessibility to use actions", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+            return
+        }
+        let ctx = AppContext.capture(readText: true)
+        let selection = ctx.selection
+        guard !selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            bar?.flash("Select some text first, then pick “\(action.name)”", seconds: 3)
+            return
+        }
+        let tgt = NSWorkspace.shared.frontmostApplication
+        isWorking = true
+        bar?.model.appLabel = Self.label(for: action.name)
+        bar?.setPhase(.working)
+        Task { @MainActor in
+            guard let out = await FlowCleanup.apply(instruction: action.instruction, to: selection, kind: action.kind) else {
+                isWorking = false
+                bar?.flash(FlowCleanup.available ? "Couldn't run “\(action.name)”. Try a shorter selection." : "Actions need Apple Intelligence on macOS 26.", seconds: 4)
+                return
+            }
+            let outcome = await Paster.paste(out, into: tgt, focusedField: ctx.hasFocusedField)
+            isWorking = false
+            lastResult = out
+            Sounds.done()
+            bar?.flash(outcome == .pasted ? "“\(action.name)” applied. Press ⌘Z to undo." : "Copied. Click a text field and press ⌘V.", seconds: 4)
+            Log.note("action \(action.name) applied, \(out.count) chars")
+        }
     }
 
     // MARK: History actions

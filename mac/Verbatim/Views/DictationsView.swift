@@ -86,6 +86,7 @@ struct DictationRow: View {
     @State private var hover = false
     @State private var showRaw = false
     @State private var working = false
+    @State private var running: FlowAction? = nil
 
     private var info: FlowInfo? { transcript.flow }
     private var pasted: String { info?.pasted ?? transcript.text }
@@ -140,6 +141,10 @@ struct DictationRow: View {
                         }
                         Divider()
                     }
+                    if transcript.status != .failed, !pasted.isEmpty {
+                        Menu("Run Action") { ActionsMenuItems { running = $0 } }
+                        Divider()
+                    }
                     Button("Open transcript and audio") { app.go(.transcript(transcript.id)) }
                     Button(transcript.pinned ? "Unpin" : "Pin (kept past the retention limit)") { app.store.update(transcript.id) { $0.pinned.toggle() } }
                     Divider()
@@ -155,7 +160,14 @@ struct DictationRow: View {
         .animation(Motion.touch, value: hover)
         .contextMenu {
             Button("Copy") { Paster.copy(pasted) }
+            if transcript.status != .failed, !pasted.isEmpty { Menu("Run Action") { ActionsMenuItems { running = $0 } } }
             Button("Open transcript and audio") { app.go(.transcript(transcript.id)) }
+        }
+        .sheet(item: $running) { a in
+            ActionSheet(action: a, source: pasted, sourceLabel: "a dictation into \(info?.app ?? "an app")") { text in
+                app.store.addNote(Note(text: "\(a.name):\n\(text)"), to: transcript.id)
+            }
+            .environmentObject(app)
         }
     }
 

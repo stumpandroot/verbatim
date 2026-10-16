@@ -48,6 +48,41 @@ struct Snippet: Codable, Identifiable, Equatable {
     var expansion: String
 }
 
+/// A saved action: a named instruction that rewrites text or pulls something out of it.
+/// Runs on selected text in any app (from the floating button's menu, or by saying its name in edit-by-voice),
+/// on a dictation, or on a whole transcript.
+struct FlowAction: Codable, Identifiable, Equatable {
+    enum Kind: String, Codable, CaseIterable, Identifiable {
+        /// Changes the text itself (tighten, translate, reformat). Long text is done in parts and joined.
+        case rewrite
+        /// Pulls something out (decisions, a brief). Long text is done in parts, then the parts are merged.
+        case extract
+        var id: String { rawValue }
+        var title: String { self == .rewrite ? "Rewrites the text" : "Pulls out a summary" }
+    }
+    var id = UUID()
+    var name: String
+    var instruction: String
+    var symbol: String = "wand.and.stars"
+    var kind: Kind = .rewrite
+
+    static let builtIn: [FlowAction] = [
+        FlowAction(name: "Clean up, keep my wording", instruction: "Fix grammar, punctuation, and capitalization, and remove filler words, stutters, and false starts. Keep the author's wording, voice, and sentence order.", symbol: "sparkles"),
+        FlowAction(name: "Client email", instruction: "Turn this into a clear, warm, professional email to a client. Use short paragraphs. Keep every fact, name, number, and date. Add a greeting and a sign-off only if the recipient is clear from the text.", symbol: "envelope"),
+        FlowAction(name: "Decisions and next steps", instruction: "List the decisions that were made, then the next steps as a checklist. Include the owner and due date of a step only when the text states them; never invent them. If the text has no decisions or next steps, say so in one line.", symbol: "checklist", kind: .extract),
+        FlowAction(name: "Project brief", instruction: "Write a concise project brief with these headings: Goal, Audience, Deliverables, Timeline, Open questions. Use only what the text says, and write \"Not stated\" under a heading the text doesn't cover.", symbol: "doc.text", kind: .extract),
+        FlowAction(name: "Bullet points", instruction: "Turn this into concise bullet points. Keep every point and the order of ideas.", symbol: "list.bullet"),
+        FlowAction(name: "Tighten", instruction: "Make this shorter and clearer. Keep every point, fact, name, and number.", symbol: "arrow.down.right.and.arrow.up.left"),
+        FlowAction(name: "Translate to Spanish", instruction: "Translate this into Spanish. Keep names, brands, and product names exactly as written.", symbol: "globe"),
+        FlowAction(name: "Screenplay dialogue", instruction: "Format this as screenplay dialogue: each CHARACTER NAME in capitals on its own line, followed by the line of dialogue. Put actions in brief present-tense lines of their own. Keep the spoken words.", symbol: "film"),
+    ]
+
+    /// Lowercased letters and digits only, for matching a spoken name ("client email.") to an action.
+    static func norm(_ s: String) -> String {
+        s.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
+    }
+}
+
 /// Where the floating button sits.
 enum BarEdge: String, Codable { case bottom, left, right }
 
@@ -72,6 +107,11 @@ final class FlowSettings: ObservableObject {
     /// Position per display: edge plus where along it (0…1).
     @Published var positions: [String: BarPosition] { didSet { save(positions, "flow.positions") } }
 
+    /// Saved actions, in menu order.
+    @Published var actions: [FlowAction] { didSet { save(actions, "flow.actions") } }
+    /// Your typing speed, for Activity's time-saved estimate.
+    @Published var typingWPM: Int { didSet { d.set(typingWPM, forKey: "flow.typingWPM") } }
+
     struct BarPosition: Codable, Equatable { var edge: BarEdge; var along: Double }
 
     private init() {
@@ -86,6 +126,8 @@ final class FlowSettings: ObservableObject {
         styles = Self.load([AppCategory: FlowStyle].self, "flow.styles") ?? [.email: .formal, .work: .casual, .personal: .casual, .code: .verbatim, .other: .casual]
         snippets = Self.load([Snippet].self, "flow.snippets") ?? []
         positions = Self.load([String: BarPosition].self, "flow.positions") ?? [:]
+        actions = Self.load([FlowAction].self, "flow.actions") ?? FlowAction.builtIn
+        typingWPM = d.object(forKey: "flow.typingWPM") as? Int ?? 40
     }
 
     func style(for c: AppCategory) -> FlowStyle { c == .code ? .verbatim : (styles[c] ?? .casual) }

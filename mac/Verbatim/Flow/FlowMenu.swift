@@ -12,6 +12,8 @@ final class FlowMenuController {
         var history: () -> Void
         var pasteLast: () -> Void
         var editByVoice: () -> Void
+        var run: (FlowAction) -> Void
+        var editActions: () -> Void
     }
 
     private var panel: FlowMenuPanel?
@@ -21,7 +23,7 @@ final class FlowMenuController {
     /// When the menu last closed: a click on the Ribbon that closed the menu shouldn't also start dictating.
     private(set) var closedAt = Date.distantPast
 
-    private static let size = CGSize(width: 520, height: 420)
+    private static let size = CGSize(width: 520, height: 560)
 
     func open(next ribbon: NSRect, edge: BarEdge, screen: NSScreen, actions: Actions, onClose: @escaping () -> Void) {
         close()
@@ -106,7 +108,7 @@ struct FlowMenuView: View {
     @State private var devices: [AudioDevices.Device] = AudioDevices.inputs()
     @State private var selectedUID: String? = AudioDevices.selectedUID
 
-    enum Sub { case mic, cleanup }
+    enum Sub { case mic, cleanup, actions }
 
     var body: some View {
         ZStack(alignment: anchorTop ? (opensLeft ? .topTrailing : .topLeading) : (opensLeft ? .bottomTrailing : .bottomLeading)) {
@@ -130,6 +132,8 @@ struct FlowMenuView: View {
                 .onHover { if $0 { sub = .mic } }
             item("Cleanup", "slider.horizontal.3", trailing: settings.cleanup.title.uppercased(), chevron: true, highlighted: sub == .cleanup) { sub = sub == .cleanup ? nil : .cleanup }
                 .onHover { if $0 { sub = .cleanup } }
+            item("Actions", "wand.and.stars", chevron: true, highlighted: sub == .actions, tint: Paper.persimmon) { sub = sub == .actions ? nil : .actions }
+                .onHover { if $0 { sub = .actions } }
             rule
             item("Edit selection by voice", "pencil.line", trailing: "⇧ + KEY") { actions.editByVoice(); close() }
                 .onHover { if $0 { sub = nil } }
@@ -162,6 +166,21 @@ struct FlowMenuView: View {
                 ForEach(CleanupLevel.allCases) { l in
                     choice(l.title, on: settings.cleanup == l, note: l == .none ? "As spoken" : l == .light ? "Fillers and grammar" : "Also tightens") { settings.cleanup = l; close() }
                 }
+            case .actions:
+                header("ON SELECTED TEXT")
+                ForEach(settings.actions) { a in
+                    MenuRow(highlighted: false, action: { close(); actions.run(a) }) {
+                        Image(systemName: a.symbol).font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)
+                        Text(a.name).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                }
+                Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5)
+                MenuRow(highlighted: false, action: { actions.editActions(); close() }) {
+                    Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)
+                    Text("Edit actions…").font(.system(size: 13)).foregroundStyle(Paper.ink)
+                    Spacer(minLength: 0)
+                }
             case nil:
                 EmptyView()
             }
@@ -170,7 +189,7 @@ struct FlowMenuView: View {
         .frame(width: 236)
         .background(Paper.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Paper.line))
-        .padding(.top, anchorTop ? (sub == .cleanup ? 118 : 82) : 0)
+        .padding(.top, anchorTop ? (sub == .cleanup ? 118 : sub == .mic ? 82 : 0) : 0)
     }
 
     private func pickMic(_ uid: String?) {

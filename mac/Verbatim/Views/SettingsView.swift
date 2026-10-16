@@ -1,15 +1,19 @@
 import SwiftUI
 
+enum SettingsTab: String { case general, transcription, dictate, actions, keep, storage }
+
 struct SettingsView: View {
     @EnvironmentObject var app: AppState
+    @AppStorage("settingsTab") private var tab: SettingsTab = .general
 
     var body: some View {
-        TabView {
-            general.tabItem { Label("General", systemImage: "gearshape") }
-            transcription.tabItem { Label("Transcription", systemImage: "text.alignleft") }
-            DictationSettings().tabItem { Label("Dictate", systemImage: "keyboard") }
-            KeepSettings().tabItem { Label("Keep", systemImage: "arrow.down.circle") }
-            storage.tabItem { Label("Storage", systemImage: "externaldrive") }
+        TabView(selection: $tab) {
+            general.tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsTab.general)
+            transcription.tabItem { Label("Transcription", systemImage: "text.alignleft") }.tag(SettingsTab.transcription)
+            DictationSettings().tabItem { Label("Dictate", systemImage: "keyboard") }.tag(SettingsTab.dictate)
+            ActionSettings().tabItem { Label("Actions", systemImage: "wand.and.stars") }.tag(SettingsTab.actions)
+            KeepSettings().tabItem { Label("Keep", systemImage: "arrow.down.circle") }.tag(SettingsTab.keep)
+            storage.tabItem { Label("Storage", systemImage: "externaldrive") }.tag(SettingsTab.storage)
         }
         .frame(width: 560)
         .padding(.bottom, 10)
