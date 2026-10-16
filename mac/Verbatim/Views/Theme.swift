@@ -34,23 +34,34 @@ struct CardMotion: ViewModifier {
     @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
-        let w = max(size.width, 1), h = max(size.height, 1)
-        let nx = hover.map { min(max($0.x / w, 0), 1) - 0.5 } ?? 0     // -0.5 … 0.5
-        let ny = hover.map { min(max($0.y / h, 0), 1) - 0.5 } ?? 0
-        let on = hover != nil
-        let move = !reduceMotion
+        let w: CGFloat = max(size.width, 1)
+        let h: CGFloat = max(size.height, 1)
+        var nx: CGFloat = 0                                  // -0.5 … 0.5
+        var ny: CGFloat = 0
+        if let p = hover {
+            nx = min(max(p.x / w, 0), 1) - 0.5
+            ny = min(max(p.y / h, 0), 1) - 0.5
+        }
+        let on: Bool = hover != nil
+        let move: Bool = !reduceMotion
         // Wide rows tilt less: the same angle moves a long edge much farther.
-        let aspect = min(1, 2.2 * h / w + 0.25)
-        let strength = min(1, 2 * (nx * nx + ny * ny).squareRoot())
-        let angle = move && on ? (tilt + (pressed ? 1 : 0)) * strength * aspect : 0
+        let aspect: Double = Double(min(1, 2.2 * h / w + 0.25))
+        let strength: Double = Double(min(1, 2 * (nx * nx + ny * ny).squareRoot()))
+        let baseTilt: Double = tilt + (pressed ? 1 : 0)
+        let angle: Double = (move && on) ? baseTilt * strength * aspect : 0
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let light = UnitPoint(x: nx + 0.5, y: ny + 0.5)
-        let rimReach = max(w, h) * 0.55
+        let light = UnitPoint(x: Double(nx) + 0.5, y: Double(ny) + 0.5)
+        let rimReach: CGFloat = max(w, h) * 0.55
+        let dark: Bool = scheme == .dark
+        let shadowOpacity: Double = on ? (dark ? 0.35 : 0.13) : 0
+        let shadowX: CGFloat = move ? -nx * 6 : 0
+        let liftY: CGFloat = (move && on && !pressed) ? -CGFloat(lift) : 0
+        let hoverKey: String = hover.map { "\(Int($0.x / 2)),\(Int($0.y / 2))" } ?? ""
 
         return content
             // Sheen: a soft glow on the surface under the pointer.
             .overlay {
-                shape.fill(RadialGradient(colors: [Color.white.opacity(scheme == .dark ? 0.07 : 0.16), .clear],
+                shape.fill(RadialGradient(colors: [Color.white.opacity(dark ? 0.07 : 0.16), .clear],
                                           center: light, startRadius: 0, endRadius: rimReach))
                     .opacity(on ? 1 : 0)
                     .allowsHitTesting(false)
@@ -61,7 +72,7 @@ struct CardMotion: ViewModifier {
                     .allowsHitTesting(false)
             }
             .overlay {
-                shape.strokeBorder(RadialGradient(colors: [Color.white.opacity(scheme == .dark ? 0.55 : 0.95), Color.white.opacity(0)],
+                shape.strokeBorder(RadialGradient(colors: [Color.white.opacity(dark ? 0.55 : 0.95), Color.white.opacity(0)],
                                                   center: light, startRadius: 0, endRadius: rimReach), lineWidth: 1.25)
                     .opacity(on ? 1 : 0)
                     .allowsHitTesting(false)
@@ -69,15 +80,14 @@ struct CardMotion: ViewModifier {
             .background {
                 if shadow {
                     shape.fill(Color.black.opacity(0.001))
-                        .shadow(color: .black.opacity(on ? (scheme == .dark ? 0.35 : 0.13) : 0), radius: on ? 14 : 0,
-                                x: move ? -nx * 6 : 0, y: on ? 8 : 0)
+                        .shadow(color: .black.opacity(shadowOpacity), radius: on ? 14 : 0, x: shadowX, y: on ? 8 : 0)
                 }
             }
             .rotation3DEffect(.degrees(angle), axis: (x: -ny, y: nx, z: 0), perspective: 0.55)
-            .offset(y: move && on && !pressed ? -lift : 0)
+            .offset(y: liftY)
             .scaleEffect(move && pressed ? 0.98 : 1)
             .animation(pressed ? Motion.press : Motion.card, value: pressed)
-            .animation(Motion.card, value: hover.map { "\(Int($0.x / 2)),\(Int($0.y / 2))" } ?? "")
+            .animation(Motion.card, value: hoverKey)
     }
 }
 
