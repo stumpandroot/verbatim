@@ -223,7 +223,12 @@ final class DictationController: ObservableObject {
         let s = FlowSettings.shared
         let ctx = AppContext.capture(readText: s.useContext || wantCommand || s.autoLearn)
         context = ctx
-        command = wantCommand && !ctx.selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        command = wantCommand && !ctx.selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !ctx.selectionClipped
+        if wantCommand && ctx.selectionClipped {
+            cancel(quiet: true)
+            bar?.flash("That selection is too long to edit here. Select less than about 6,000 characters.", seconds: 4)
+            return
+        }
         if wantCommand && !command {
             cancel(quiet: true)
             bar?.flash("Select some text first, then edit it by voice")
@@ -315,7 +320,7 @@ final class DictationController: ObservableObject {
                     let n = FlowAction.norm(raw)
                     let named = saved.first { a in let an = FlowAction.norm(a.name); return n == an || ["run", "use", "do", "apply"].contains { n == "\($0) \(an)" } }
                     if let edited = await FlowCleanup.apply(instruction: named?.instruction ?? raw, to: selection, kind: named?.kind ?? .rewrite) {
-                        final = edited; cleaned = true
+                        final = Self.keepingEdges(of: selection, edited); cleaned = true
                         if let named { note = "“\(named.name)” applied. Press ⌘Z to undo." }
                     }
                     else { final = selection; note = "Couldn't apply “\(named?.name ?? raw)”. Editing by voice needs Apple Intelligence on macOS 26." }
@@ -474,6 +479,10 @@ final class DictationController: ObservableObject {
             bar?.flash("Select some text first, then pick “\(action.name)”", seconds: 3)
             return
         }
+        guard !ctx.selectionClipped else {
+            bar?.flash("That selection is too long to replace here. Copy it into a transcript, or select less.", seconds: 4)
+            return
+        }
         let tgt = NSWorkspace.shared.frontmostApplication
         isWorking = true
         bar?.model.appLabel = Self.label(for: action.name)
@@ -484,13 +493,29 @@ final class DictationController: ObservableObject {
                 bar?.flash(FlowCleanup.available ? "Couldn't run “\(action.name)”. Try a shorter selection." : "Actions need Apple Intelligence on macOS 26.", seconds: 4)
                 return
             }
-            let outcome = await Paster.paste(out, into: tgt, focusedField: ctx.hasFocusedField)
+            let result = Self.keepingEdges(of: selection, out)
+            // A long action can take a while: if you clicked elsewhere or changed the selection meanwhile,
+            // don't replace whatever is selected now. Copy the result instead.
+            let now = AppContext.capture(readText: true)
+            let same = NSWorkspace.shared.frontmostApplication?.processIdentifier == tgt?.processIdentifier && now.selection == selection
+            let outcome: Paster.Outcome
+            if same { outcome = await Paster.paste(result, into: tgt, focusedField: ctx.hasFocusedField) }
+            else { Paster.copy(result); outcome = .copiedOnly }
             isWorking = false
-            lastResult = out
+            lastResult = result
             Sounds.done()
-            bar?.flash(outcome == .pasted ? "“\(action.name)” applied. Press ⌘Z to undo." : "Copied. Click a text field and press ⌘V.", seconds: 4)
+            bar?.flash(outcome == .pasted ? "“\(action.name)” applied. Press ⌘Z to undo."
+                       : same ? "Copied. Click a text field and press ⌘V." : "The selection changed, so the result is on your clipboard.", seconds: 4)
             Log.note("action \(action.name) applied, \(out.count) chars")
         }
+    }
+
+    /// Puts the selection's leading and trailing spaces and line breaks back around a result, so replacing a
+    /// paragraph doesn't join it to the next one.
+    nonisolated static func keepingEdges(of original: String, _ result: String) -> String {
+        let lead = original.prefix { $0.isWhitespace }, trail = String(original.reversed().prefix { $0.isWhitespace }.reversed())
+        guard lead.count < original.count else { return result }
+        return String(lead) + result.trimmingCharacters(in: .whitespacesAndNewlines) + trail
     }
 
     // MARK: History actions

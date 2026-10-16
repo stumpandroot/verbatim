@@ -241,6 +241,7 @@ enum UITest {
         guard ActivityLog.shared.events.count < 20 else { return }
         let apps: [(String, AppCategory)] = [("Claude", .other), ("Mail", .email), ("Slack", .work), ("Messages", .personal), ("Notes", .other), ("Xcode", .code)]
         let cal = Calendar.current
+        var list: [ActivityEvent] = []
         for day in 0..<180 {
             // Quiet days happen; nothing marks them as missed.
             if day % 7 == 3 || (day * 13) % 11 == 0 { continue }
@@ -248,11 +249,12 @@ enum UITest {
             for k in 0..<(1 + day % 4) {
                 let (name, cat) = apps[(day + k * 3) % apps.count]
                 let words = 30 + (day * 37 + k * 53) % 220
-                ActivityLog.shared.add(ActivityEvent(id: UUID(), date: date.addingTimeInterval(Double(k) * 900), words: words, seconds: Double(words) / 2.3,
+                list.append(ActivityEvent(id: UUID(), date: date.addingTimeInterval(Double(k) * 900), words: words, seconds: Double(words) / 2.3,
                                                      transcribeSeconds: 0.6 + Double((day + k) % 5) * 0.15, cleanupSeconds: 0.4 + Double(k % 3) * 0.2,
                                                      app: name, category: cat, fillers: (day + k) % 4, changed: 2 + (day * k) % 9, vocabularyFixes: (day + k) % 6 == 0 ? 1 : 0))
             }
         }
+        ActivityLog.shared.addAll(list)
     }
 
     /// A transcript that came from a link, for the Links screen and timestamped-link actions.

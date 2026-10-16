@@ -28,6 +28,7 @@ struct ActionSheet: View {
     @State private var state: Phase = .running
     @State private var part = ""
     @State private var runID = 0
+    @State private var job: Task<Void, Never>? = nil
 
     enum Phase { case running, done, failed }
 
@@ -76,7 +77,7 @@ struct ActionSheet: View {
             HStack(spacing: 10) {
                 if state == .done { Text("Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
                 Spacer()
-                Button("Close") { runID += 1; dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Close") { stop(); dismiss() }.keyboardShortcut(.cancelAction)
                 if state != .running { Button("Try Again") { start() } }
                 if state == .done {
                     if let saveNote { Button("Save as Note") { saveNote(result); app.toast = Toast("Saved as a note"); dismiss() } }
@@ -89,14 +90,18 @@ struct ActionSheet: View {
         .frame(width: 640, height: 500)
         .background(Ink.paper)
         .onAppear { start() }
+        .onDisappear { stop() }
     }
 
+    /// Stops a run in progress: the model stops after the part it's on.
+    private func stop() { runID += 1; job?.cancel(); job = nil }
+
     private func start() {
-        runID += 1
+        stop()
         let id = runID
         state = .running; part = ""
         let instruction = action.instruction, kind = action.kind, text = source
-        Task { @MainActor in
+        job = Task { @MainActor in
             let out = await FlowCleanup.apply(instruction: instruction, to: text, kind: kind) { i, n in
                 if id == runID { part = n > 1 ? "Part \(i) of \(n)" : "" }
             }
@@ -135,7 +140,12 @@ struct ActionSettings: View {
                                 Button("Move Up") { move(a.id, by: -1) }.disabled(settings.actions.first?.id == a.id)
                                 Button("Move Down") { move(a.id, by: 1) }.disabled(settings.actions.last?.id == a.id)
                                 Spacer()
-                                Button("Delete", role: .destructive) { settings.actions.removeAll { $0.id == a.id } }
+                                Button("Delete", role: .destructive) {
+                                    // After the row's fields let go of their bindings, or AppKit can read a removed index.
+                                    let id = a.id
+                                    editing = nil
+                                    DispatchQueue.main.async { settings.actions.removeAll { $0.id == id } }
+                                }
                             }
                         }
                         .padding(.vertical, 4)

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 /// One dictation's numbers, kept apart from the dictation itself so you can delete dictations and keep your
 /// totals, or reset the totals and keep your dictations. Stored on this Mac only (never synced).
@@ -20,7 +21,8 @@ struct ActivityEvent: Codable, Identifiable, Equatable {
 final class ActivityLog: ObservableObject {
     static let shared = ActivityLog()
     @Published private(set) var events: [ActivityEvent] = []
-    private let file = Paths.local.appendingPathComponent("activity.json")
+    /// The screenshot tour writes made-up numbers to its own file, never to your real Activity.
+    private let file = Paths.local.appendingPathComponent(ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" ? "activity-uitest.json" : "activity.json")
     private static let seededKey = "activity.seeded"
 
     private init() {
@@ -30,6 +32,14 @@ final class ActivityLog: ObservableObject {
     func add(_ e: ActivityEvent) {
         events.removeAll { $0.id == e.id }
         events.append(e)
+        save()
+    }
+
+    /// Adds many events with one save (the screenshot tour's sample data).
+    func addAll(_ list: [ActivityEvent]) {
+        let ids = Set(list.map(\.id))
+        events.removeAll { ids.contains($0.id) }
+        events.append(contentsOf: list)
         save()
     }
 
@@ -46,7 +56,7 @@ final class ActivityLog: ObservableObject {
         UserDefaults.standard.set(true, forKey: Self.seededKey)
         let known = Set(events.map(\.id))
         for t in transcripts where t.source == .dictation && t.status == .ready && !known.contains(t.id) {
-            guard let info = t.flow, info.instruction == nil else { continue }
+            guard let info = t.flow, info.instruction == nil, !info.pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             events.append(Self.event(id: t.id, date: t.createdAt, info: info, seconds: t.duration, fixes: t.corrections.count, transcribe: nil, cleanup: nil))
         }
         save()
@@ -68,8 +78,8 @@ final class ActivityLog: ObservableObject {
 /// Word counting shared by Activity's numbers and its word stats.
 enum Words {
     static func list(_ s: String) -> [String] {
-        s.lowercased().components(separatedBy: CharacterSet.letters.union(.decimalDigits).union(CharacterSet(charactersIn: "'’")).inverted)
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "'’")) }.filter { !$0.isEmpty }
+        s.replacingOccurrences(of: "’", with: "'").lowercased().components(separatedBy: CharacterSet.letters.union(.decimalDigits).union(CharacterSet(charactersIn: "'")).inverted)
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "'")) }.filter { !$0.isEmpty }
     }
 
     static let fillerWords: Set<String> = ["um", "uh", "umm", "uhh", "er", "erm", "ah", "hmm", "mm"]

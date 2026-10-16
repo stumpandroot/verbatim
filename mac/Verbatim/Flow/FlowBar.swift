@@ -83,7 +83,9 @@ final class FlowBarController {
                 self?.pointerMoved(); self?.followPointer()
             }
         }
-        refresh()
+        // Next turn of the run loop: this runs while SwiftUI is still building the app's state, and sizing a
+        // panel's hosting view inside that update aborts in AttributeGraph ("value_set" during update).
+        DispatchQueue.main.async { [weak self] in self?.refresh() }
     }
 
     /// Shows or hides the Ribbon to match settings and dictation state.

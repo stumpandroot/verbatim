@@ -114,7 +114,7 @@ struct FlowMenuView: View {
         ZStack(alignment: anchorTop ? (opensLeft ? .topTrailing : .topLeading) : (opensLeft ? .bottomTrailing : .bottomLeading)) {
             // Clicking the empty part of the panel closes the menu, like clicking outside it.
             Color.clear.contentShape(Rectangle()).onTapGesture { close() }
-            HStack(alignment: .top, spacing: 6) {
+            HStack(alignment: anchorTop ? .top : .bottom, spacing: 6) {
                 if opensLeft, sub != nil { submenu }
                 main
                 if !opensLeft, sub != nil { submenu }
@@ -168,13 +168,19 @@ struct FlowMenuView: View {
                 }
             case .actions:
                 header("ON SELECTED TEXT")
-                ForEach(settings.actions) { a in
-                    MenuRow(highlighted: false, action: { close(); actions.run(a) }) {
-                        Image(systemName: a.symbol).font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)
-                        Text(a.name).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
-                        Spacer(minLength: 0)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(settings.actions) { a in
+                            MenuRow(highlighted: false, action: { close(); actions.run(a) }) {
+                                Image(systemName: a.symbol).font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)
+                                Text(a.name).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                        }
                     }
                 }
+                .scrollIndicators(.automatic)
+                .frame(maxHeight: min(CGFloat(settings.actions.count) * 31, 340))
                 Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5)
                 MenuRow(highlighted: false, action: { actions.editActions(); close() }) {
                     Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)

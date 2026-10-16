@@ -96,6 +96,7 @@ enum FlowCleanup {
         let parts = chunks(body, limit: 3_500)
         var outs: [String] = []
         for (i, part) in parts.enumerated() {
+            if Task.isCancelled { return nil }
             if let progress { await progress(i + 1, parts.count) }
             guard let out = await once(instruction: instruction, text: part, partOf: parts.count > 1 ? (i + 1, parts.count) : nil) else { return nil }
             outs.append(out)
@@ -109,6 +110,7 @@ enum FlowCleanup {
             if groups.count >= merged.count { return merged.joined(separator: "\n\n") } // can't shrink further
             var next: [String] = []
             for g in groups {
+                if Task.isCancelled { return nil }
                 guard let m = await once(instruction: instruction + "\n\nThe TEXT is several partial results of this same instruction, each from a consecutive part of one long text, separated by =====. Merge them into one result in the same format. Remove duplicates and keep every distinct item.", text: g, partOf: nil) else { return merged.joined(separator: "\n\n") }
                 next.append(m)
             }
@@ -132,8 +134,13 @@ enum FlowCleanup {
         var prompt = "INSTRUCTION: \(instruction)\n\n"
         if let (i, n) = partOf { prompt += "(This is part \(i) of \(n) of a longer text. Work on this part only.)\n\n" }
         prompt += "<<<TEXT\n\(text)\nTEXT"
-        let out = await withTimeout(seconds: 30) { () -> String? in
-            try? await LanguageModelSession(instructions: rules).respond(to: prompt).content
+        let full = prompt
+        // One retry: the model occasionally stalls on a part it handles fine the second time.
+        var out: String? = nil
+        for _ in 0..<2 where out == nil && !Task.isCancelled {
+            out = await withTimeout(seconds: 30) { () -> String? in
+                try? await LanguageModelSession(instructions: rules).respond(to: full).content
+            }
         }
         guard let out else { return nil }
         let t = strip(out)
@@ -152,6 +159,7 @@ enum FlowCleanup {
         }
         for para in text.components(separatedBy: "\n\n") {
             if para.count <= limit { add(para, sep: "\n\n"); continue }
+            flush()   // a long paragraph starts its own part, so the break before it isn't lost
             var sentences: [String] = []
             para.enumerateSubstrings(in: para.startIndex..., options: .bySentences) { s, _, _, _ in if let s { sentences.append(s.trimmingCharacters(in: .whitespaces)) } }
             for sentence in sentences {

@@ -30,6 +30,18 @@ struct TranscriptView: View {
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
+        // One sheet for the screen: the tools row can exist twice (scrolled and pinned).
+        screenBody.sheet(item: $runningAction) { a in
+            if let t = transcript {
+                ActionSheet(action: a, source: t.documentText, sourceLabel: "“\(t.title)”") { text in
+                    app.store.addNote(Note(text: "\(a.name):\n\(text)"), to: t.id)
+                }
+                .environmentObject(app)
+            }
+        }
+    }
+
+    @ViewBuilder private var screenBody: some View {
         if let t = transcript {
             GeometryReader { g in
             // Decided from the geometry in the same pass, so the screen lays out once (no open-then-close).
@@ -191,12 +203,6 @@ struct TranscriptView: View {
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(t.status != .ready)
                 .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
-                .sheet(item: $runningAction) { a in
-                    ActionSheet(action: a, source: t.documentText, sourceLabel: "“\(t.title)”") { text in
-                        app.store.addNote(Note(text: "\(a.name):\n\(text)"), to: t.id)
-                    }
-                    .environmentObject(app)
-                }
             Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", symbol: "note.text", compact: compact, on: notesOpen) }
                 .buttonStyle(.plain).help(notesOpen ? "Hide notes" : "Show notes")
             Menu {

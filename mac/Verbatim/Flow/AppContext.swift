@@ -14,6 +14,8 @@ struct AppContext {
     var secureField = false
     var before = ""
     var selection = ""
+    /// True when the selection was longer than Verbatim reads (6,000 characters) and `selection` holds only its start.
+    var selectionClipped = false
     var after = ""
     /// The focused element and where the cursor was, for auto-learn's look at your edits.
     var element: AXUIElement?
@@ -68,7 +70,7 @@ struct AppContext {
         }
         if c.selection.isEmpty, let sel: String = attr(el, kAXSelectedTextAttribute) { c.selection = sel }
         // Very long documents: the window around the cursor is what matters, and anything long is clipped.
-        if c.selection.count > 6000 { c.selection = String(c.selection.prefix(6000)) }
+        if c.selection.count > 6000 { c.selection = String(c.selection.prefix(6000)); c.selectionClipped = true }
         return c
     }
 
