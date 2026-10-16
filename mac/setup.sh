@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time setup for running Verbatim from Xcode on your Mac and iPhone, with iCloud sync.
 #
-#   cd mac && ./setup.sh YOURTEAMID
+#   cd mac && ./setup.sh            (uses the Stump & Root team, VK9YQY88Q9)
 #
 # Your team ID is the 10-character code at developer.apple.com > Account > Membership details.
 # The script writes it to Local.xcconfig (not committed), gets the Harper grammar libraries and the link
@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-TEAM="${1:-}"
+TEAM="${1:-VK9YQY88Q9}"   # Stump & Root team ID; pass another to override
 if [ -z "$TEAM" ] && [ -f Local.xcconfig ]; then TEAM="$(sed -n 's/^DEVELOPMENT_TEAM *= *//p' Local.xcconfig)"; fi
 if [ -z "$TEAM" ]; then
   read -r -p "Apple Developer team ID (10 characters): " TEAM

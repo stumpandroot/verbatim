@@ -12,7 +12,7 @@ Requires Xcode 16 and macOS 14 or later. Models download once into `~/Library/Ap
 
 ## Run on your iPhone and Mac with iCloud sync
 
-1. In Terminal: `cd mac && ./setup.sh YOURTEAMID`. Your team ID is on developer.apple.com under Account > Membership details. The script installs XcodeGen if needed, gets the Harper libraries and the link helper, writes `Local.xcconfig`, and opens the project.
+1. In Terminal: `cd mac && ./setup.sh`. It uses the Stump & Root team ID (VK9YQY88Q9) by default. The script installs XcodeGen if needed, gets the Harper libraries and the link helper, writes `Local.xcconfig`, and opens the project.
 2. In Xcode, choose the **VerbatimPhone** scheme, plug in your iPhone (or pick it over Wi-Fi), and press Run (⌘R). The first time, Xcode registers the iCloud container `iCloud.co.stumpandroot.verbatim` for your team; accept its prompts.
 3. Choose the **Verbatim** scheme and My Mac, and press Run. Running from Xcode adds the iCloud entitlement to the Mac app; DMG builds from CI don't sync.
 4. On the iPhone, the first time you open the app, enable Developer Mode if iOS asks (Settings > Privacy & Security > Developer Mode).
