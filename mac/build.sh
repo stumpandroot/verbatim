@@ -19,7 +19,8 @@ if [ -z "$IDENTITY" ]; then
 fi
 if [ -n "$IDENTITY" ]; then echo "Signing as: $IDENTITY"; else echo "No Developer ID certificate found: building unsigned."; fi
 
-# 1. Project from project.yml
+# 1. Project from project.yml (Local.xcconfig holds your team ID for Xcode builds; empty is fine here)
+[ -f Local.xcconfig ] || : > Local.xcconfig
 xcodegen generate --quiet
 
 # 1b. Link helper: yt-dlp standalone macOS binary (universal). Pinned release; checksum verified.

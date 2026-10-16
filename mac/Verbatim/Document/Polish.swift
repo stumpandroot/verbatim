@@ -27,7 +27,7 @@ enum Polish {
 
     static var status: Status {
         #if canImport(FoundationModels)
-        if #available(macOS 26, *) {
+        if #available(macOS 26, iOS 26, *) {
             switch SystemLanguageModel.default.availability {
             case .available: return .ready
             case .unavailable(let reason):
@@ -76,7 +76,7 @@ enum Polish {
     /// Rewrites each paragraph. Calls `progress` with the fraction done. Paragraphs the model refuses come back unchanged.
     static func rewrite(_ paragraphs: [String], level: Level, tone: Tone, progress: @escaping @Sendable (Double) -> Void) async throws -> [String] {
         #if canImport(FoundationModels)
-        if #available(macOS 26, *) {
+        if #available(macOS 26, iOS 26, *) {
             let rules = instructions(level: level, tone: tone)
             var out: [String] = []
             for (i, p) in paragraphs.enumerated() {
@@ -102,6 +102,6 @@ enum Polish {
             return out
         }
         #endif
-        throw NSError(domain: "Verbatim", code: 2, userInfo: [NSLocalizedDescriptionKey: "Clean up and Tone need macOS 26 with Apple Intelligence on."])
+        throw NSError(domain: "Verbatim", code: 2, userInfo: [NSLocalizedDescriptionKey: "Clean up and Tone need macOS 26 or iOS 26 with Apple Intelligence on."])
     }
 }
