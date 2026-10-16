@@ -296,6 +296,91 @@ struct BrandFeatureCard: View {
 
 /// Feature cards keep the light-mode ink-on-color pairing in dark mode too (the fills are slightly muted there),
 /// so contrast holds. Hover: 1 pt rise and a firmer edge; press: slight compression; focus: a visible ring.
+// MARK: - Card motion (shared by Mac and iPhone)
+
+/// Pointer-driven card motion, shared by every card in the app family.
+/// - Tilt: the side under the pointer dips away, as if the pointer were resting on it (a few degrees at most).
+/// - Lift: the card rises 2 pt and its shadow deepens, shifted away from the pointer.
+/// - Edge light: a thin rim, brightest at the point nearest the pointer, over a hairline that firms on hover.
+/// - Press: the card presses in (scale 0.98, a little more tilt) fast, and springs back over 300 ms.
+/// Visual only. Callers keep hit-testing on a flat, untransformed layer, because a 3D-rotated view loses
+/// clicks on macOS 26. On iPhone there is no hover, so only the press shows. Reduce Motion keeps the edge light and shadow and drops tilt, lift, and scale.
+struct CardMotion: ViewModifier {
+    var hover: CGPoint?
+    var size: CGSize
+    var pressed: Bool
+    var radius: CGFloat
+    var tilt: Double = 3
+    var lift: Double = 2
+    /// Rows that sit on paper use a quieter shadow than cards that float.
+    var shadow: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        let w: CGFloat = max(size.width, 1)
+        let h: CGFloat = max(size.height, 1)
+        var nx: CGFloat = 0                                  // -0.5 … 0.5
+        var ny: CGFloat = 0
+        if let p = hover {
+            nx = min(max(p.x / w, 0), 1) - 0.5
+            ny = min(max(p.y / h, 0), 1) - 0.5
+        }
+        let on: Bool = hover != nil
+        let move: Bool = !reduceMotion
+        // Wide rows tilt less: the same angle moves a long edge much farther.
+        let aspect: Double = Double(min(1, 2.2 * h / w + 0.25))
+        let strength: Double = Double(min(1, 2 * (nx * nx + ny * ny).squareRoot()))
+        let baseTilt: Double = tilt + (pressed ? 1 : 0)
+        let angle: Double = (move && on) ? baseTilt * strength * aspect : 0
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let light = UnitPoint(x: Double(nx) + 0.5, y: Double(ny) + 0.5)
+        let rimReach: CGFloat = max(w, h) * 0.55
+        let dark: Bool = scheme == .dark
+        let shadowOpacity: Double = on ? (dark ? 0.35 : 0.13) : 0
+        let shadowX: CGFloat = move ? -nx * 6 : 0
+        let liftY: CGFloat = (move && on && !pressed) ? -CGFloat(lift) : 0
+        let hoverKey: String = hover.map { "\(Int($0.x / 2)),\(Int($0.y / 2))" } ?? ""
+
+        return content
+            // Sheen: a soft glow on the surface under the pointer.
+            .overlay {
+                shape.fill(RadialGradient(colors: [Color.white.opacity(dark ? 0.07 : 0.16), .clear],
+                                          center: light, startRadius: 0, endRadius: rimReach))
+                    .opacity(on ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            // Edge: the hairline firms up, and a light rim travels with the pointer.
+            .overlay {
+                shape.strokeBorder(Ink.outlineStrong.opacity(on ? 0.45 : 0), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                shape.strokeBorder(RadialGradient(colors: [Color.white.opacity(dark ? 0.55 : 0.95), Color.white.opacity(0)],
+                                                  center: light, startRadius: 0, endRadius: rimReach), lineWidth: 1.25)
+                    .opacity(on ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .background {
+                if shadow {
+                    shape.fill(Color.black.opacity(0.001))
+                        .shadow(color: .black.opacity(shadowOpacity), radius: on ? 14 : 0, x: shadowX, y: on ? 8 : 0)
+                }
+            }
+            .rotation3DEffect(.degrees(angle), axis: (x: -ny, y: nx, z: 0), perspective: 0.55)
+            .offset(y: liftY)
+            .scaleEffect(move && pressed ? 0.98 : 1)
+            .animation(pressed ? Motion.press : Motion.card, value: pressed)
+            .animation(Motion.card, value: hoverKey)
+    }
+}
+
+extension View {
+    func cardMotion(hover: CGPoint?, size: CGSize, pressed: Bool, radius: CGFloat, tilt: Double = 3, lift: Double = 2, shadow: Bool = true) -> some View {
+        modifier(CardMotion(hover: hover, size: size, pressed: pressed, radius: radius, tilt: tilt, lift: lift, shadow: shadow))
+    }
+}
+
 struct FeatureCardStyle: ButtonStyle {
     var fill: Color
     func makeBody(configuration: Configuration) -> some View { FeatureCardBody(configuration: configuration, fill: fill) }
