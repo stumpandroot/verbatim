@@ -4,6 +4,9 @@ import AppKit
 /// Transcript workspace (Listening Desk composition, Soft Instrument playback dock).
 /// Calm reading surface; the player and the notes carry the interaction.
 struct TranscriptView: View {
+    /// True while any text field or text view in the key window is being edited.
+    static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
+
     @EnvironmentObject var app: AppState
     var id: UUID
     @State private var view: Mode = .original
@@ -119,10 +122,12 @@ struct TranscriptView: View {
                 if UITest.enabled { DispatchQueue.main.async { Log.note("UITEST nav settled ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000))") } }
             }
             .onDisappear { app.player.stop() }
-            .onKeyPress(.space) { app.player.toggle(); return .handled }
-            .onKeyPress(.leftArrow) { app.player.seek(to: app.player.time - 5); return .handled }
-            .onKeyPress(.rightArrow) { app.player.seek(to: app.player.time + 5); return .handled }
-            .onKeyPress("b") { bookmark(t); return .handled }
+            // Playback keys never steal typing: when a text field (renaming a speaker, a note, a correction) has
+            // focus, the key goes to the field.
+            .onKeyPress(.space) { if Self.typing { return .ignored }; app.player.toggle(); return .handled }
+            .onKeyPress(.leftArrow) { if Self.typing { return .ignored }; app.player.seek(to: app.player.time - 5); return .handled }
+            .onKeyPress(.rightArrow) { if Self.typing { return .ignored }; app.player.seek(to: app.player.time + 5); return .handled }
+            .onKeyPress("b") { if Self.typing { return .ignored }; bookmark(t); return .handled }
             .onReceive(NotificationCenter.default.publisher(for: .verbatimShowMode)) { n in
                 if let raw = n.object as? String, let m = Mode(rawValue: raw) { withAnimation(Motion.snap) { view = m } }
             }

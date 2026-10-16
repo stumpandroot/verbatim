@@ -81,7 +81,7 @@ enum Exporter {
                 if let d = info.uploadDisplay { out += " · \(d)" }
                 out += "\n\n"
             }
-            out += text(t, o, markdownLinks: true).replacingOccurrences(of: "(?m)^([^:\\[\\n][^:\\n]{0,27}): ", with: "**$1:** ", options: .regularExpression)
+            out += text(t, o, markdownLinks: true).replacingOccurrences(of: "(?m)^([^:\\[\\n][^:\\n]{0,47}): ", with: "**$1:** ", options: .regularExpression)
             return out
         default: return render(t, as: f)
         }

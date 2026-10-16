@@ -274,7 +274,7 @@ struct DocumentEditor: NSViewRepresentable {
             // Speaker labels at paragraph starts
             var loc = 0
             for p in text.components(separatedBy: "\n\n") {
-                if let colon = p.range(of: ": "), p.distance(from: p.startIndex, to: colon.lowerBound) <= 28 {
+                if let colon = p.range(of: ": "), p.distance(from: p.startIndex, to: colon.lowerBound) <= 48 {
                     let len = p.distance(from: p.startIndex, to: colon.lowerBound)
                     attr.addAttributes([.font: NSFont.systemFont(ofSize: 14.5, weight: .semibold), .foregroundColor: NSColor(Ink.iris)], range: NSRange(location: loc, length: min((p as NSString).length, len + 1)))
                 }

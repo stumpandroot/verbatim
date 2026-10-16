@@ -579,7 +579,9 @@ final class AppState: ObservableObject {
 
     func renameSpeaker(transcript id: UUID, speaker sid: String, to name: String) {
         store.update(id) { t in
-            if let i = t.speakers.firstIndex(where: { $0.id == sid }) { t.speakers[i].name = name }
+            // Any name works: first and last, initials, underscores. Only surrounding spaces are trimmed.
+            let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let i = t.speakers.firstIndex(where: { $0.id == sid }), !clean.isEmpty { t.speakers[i].name = clean }
         }
     }
 
