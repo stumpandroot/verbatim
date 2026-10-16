@@ -22,6 +22,8 @@ configFiles:
 targets:
   Verbatim:
     type: application
+    # Shared schemes, so both apps always appear in Xcode's scheme menu after `xcodegen generate`.
+    scheme: {}
     platform: macOS
     sources:
       - path: Verbatim
@@ -87,6 +89,7 @@ targets:
 
   VerbatimPhone:
     type: application
+    scheme: {}
     platform: iOS
     sources:
       - path: VerbatimPhone
