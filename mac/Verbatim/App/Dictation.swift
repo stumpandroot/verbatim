@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 import ApplicationServices
 import Carbon.HIToolbox
 
@@ -181,6 +182,21 @@ final class DictationController: ObservableObject {
 
     private func begin(handsFree: Bool, command wantCommand: Bool) {
         guard !isListening, !isWorking else { return }
+        // Ask for the microphone once, the first time; if it's off, say where to turn it on.
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: break
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] ok in
+                Task { @MainActor in
+                    if ok { self?.begin(handsFree: handsFree, command: wantCommand) }
+                    else { self?.bar?.flash("Verbatim can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() } }
+                }
+            }
+            return
+        default:
+            bar?.flash("Verbatim can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() }
+            return
+        }
         target = NSWorkspace.shared.frontmostApplication
         targetAppName = target?.localizedName ?? "the front app"
         // The mic starts first: reading the app's text through Accessibility can take a moment, and the
@@ -385,6 +401,10 @@ final class DictationController: ObservableObject {
                 if let id = transcriptID { self?.app?.store.moveToTrash(id) }
             }
         ))
+    }
+
+    static func openMicrophoneSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
     }
 
     func openSettings() {
