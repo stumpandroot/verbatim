@@ -16,6 +16,11 @@ on:
 permissions:
   contents: write
 
+# A newer push cancels an older build still running, so an old build can't overwrite a newer DMG on ci-screens.
+concurrency:
+  group: build-swift-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build (universal)
