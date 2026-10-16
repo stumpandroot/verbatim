@@ -79,6 +79,7 @@ enum UITest {
     private static func tour(app: AppState, window: NSWindow) async {
         appRef = app
         seedRich(app)
+        seedDictations(app)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
         app.go(.home); app.captureMode = "voice"
@@ -135,6 +136,8 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 800_000_000)
         app.go(.dictionary)
         await show("07-dictionary")
+        app.go(.dictations)
+        await show("07b-dictations")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
@@ -205,6 +208,26 @@ enum UITest {
         app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: t.segments[2].id, isBookmark: false), to: t.id)
         app.store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: t.segments[5].id, isBookmark: true), to: t.id)
         app.store.addNote(Note(text: "Quote for the one-page sheet: separate line item.", at: nil, segmentId: nil, isBookmark: false), to: t.id)
+    }
+
+    /// Three dictations into other apps, for the Dictations screen.
+    private static func seedDictations(_ app: AppState) {
+        guard !app.store.transcripts.contains(where: { $0.source == .dictation }) else { return }
+        let items: [(String, String?, AppCategory, FlowStyle, String, String, Double, Bool)] = [
+            ("Mail", "com.apple.mail", .email, .formal, "um hi Jonathan so I think we should uh meet on Thursday actually make that Friday morning to go over the catalog thanks Tim",
+             "Hi Jonathan,\n\nI think we should meet on Friday morning to go over the catalog.\n\nThanks,\nTim", -600, true),
+            ("Slack", "com.tinyspeck.slackmacgap", .work, .casual, "the shot list is in the drive we need three things first the photos second the copy and third the price list",
+             "The shot list is in the drive. We need three things:\n1. The photos\n2. The copy\n3. The price list", -3_600, true),
+            ("Messages", "com.apple.MobileSMS", .personal, .casual, "running like ten minutes late sorry", "Running like 10 minutes late, sorry", -90_000, false),
+        ]
+        for (appName, bundle, cat, style, raw, pasted, ago, ok) in items {
+            var t = Transcript(title: Transcript.titleFrom([Segment(start: 0, end: 4, text: pasted)]) ?? "Dictation", source: .dictation, sourceLabel: "Dictation · \(appName)", duration: 6, audioFileName: nil, model: "Parakeet TDT v3")
+            t.segments = [Segment(start: 0, end: 6, text: raw)]; t.original = t.segments
+            t.createdAt = Date().addingTimeInterval(ago)
+            t.document = pasted
+            t.flow = FlowInfo(app: appName, bundleID: bundle, category: cat, style: style, level: "light", raw: raw, pasted: pasted, pastedOK: ok)
+            app.store.add(t)
+        }
     }
 
     /// A transcript that came from a link, for the Links screen and timestamped-link actions.
