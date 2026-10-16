@@ -18,12 +18,14 @@ TEAM="${TEAM:-VK9YQY88Q9}"
 echo "Building Verbatim with iCloud sync (a few minutes the first time)…"
 rm -rf build/install
 # Builds the target directly: XcodeGen doesn't write shared schemes, so a fresh checkout has none.
-xcodebuild -project Verbatim.xcodeproj -target Verbatim -configuration Release \
+# Uses the Debug configuration, which carries the iCloud entitlements (command-line settings would also hit
+# the Swift packages), with full optimization so it runs as fast as a release build.
+xcodebuild -project Verbatim.xcodeproj -target Verbatim -configuration Debug \
   -allowProvisioningUpdates -quiet SYMROOT="$PWD/build/install" \
-  DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
-  CODE_SIGN_ENTITLEMENTS=Verbatim/Verbatim-iCloud.entitlements ONLY_ACTIVE_ARCH=YES
+  DEVELOPMENT_TEAM="$TEAM" ARCHS="$(uname -m)" ONLY_ACTIVE_ARCH=NO \
+  SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule GCC_OPTIMIZATION_LEVEL=s
 
-APP="build/install/Release/Verbatim.app"
+APP="build/install/Debug/Verbatim.app"
 [ -d "$APP" ] || { echo "The build didn't produce Verbatim.app. Send the output above to Claude."; exit 1; }
 
 echo "Installing in Applications…"
