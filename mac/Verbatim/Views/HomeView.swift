@@ -98,7 +98,7 @@ struct MethodCards: View {
         let moments = live.reduce(0) { $0 + $1.notes.filter { $0.at != nil }.count }
         VStack(alignment: .leading, spacing: 14) {
             EditorialSectionHeader(index: "01", label: "Method")
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 14, alignment: .top)], alignment: .leading, spacing: 14) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12, alignment: .top)], alignment: .leading, spacing: 14) {
                 BrandFeatureCard(feature: .capture, line: "Record, dictate, or import a file or link.",
                                  meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts") { app.requestRecord() }
                     .uiTarget("card-capture")

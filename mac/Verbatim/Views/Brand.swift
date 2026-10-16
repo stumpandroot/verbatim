@@ -267,23 +267,26 @@ struct BrandFeatureCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(feature.index).font(Ink.mono(11, weight: .medium)).foregroundStyle(Ink.inkFixed)
-                    Rectangle().fill(Ink.inkFixed.opacity(0.5)).frame(width: 14, height: 1).padding(.top, 3)
-                    Spacer(minLength: 10)
-                    Text(feature.title).font(Ink.serif(27)).foregroundStyle(Ink.inkFixed).lineLimit(1).minimumScaleFactor(0.8)
-                    Text(line).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
-                        .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
-                    Text(meta.uppercased()).font(Ink.mono(10, weight: .medium)).tracking(0.9).foregroundStyle(Ink.inkFixed.opacity(0.85))
-                        .lineLimit(1).padding(.top, 8)
+            // Index and diagram share the top row, so three cards fit across a typical window.
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(feature.index).font(Ink.mono(11, weight: .medium)).foregroundStyle(Ink.inkFixed)
+                        Rectangle().fill(Ink.inkFixed.opacity(0.5)).frame(width: 14, height: 1)
+                    }
+                    Spacer(minLength: 8)
+                    BrandGlyph(art: feature.art, color: Ink.inkFixed, minLineWidth: 1)
+                        .frame(width: 62, height: 62).padding(.trailing, 14)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                BrandGlyph(art: feature.art, color: Ink.inkFixed, minLineWidth: 1)
-                    .frame(width: 82, height: 92).padding(.top, 10)
+                Text(feature.title).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed).lineLimit(1).minimumScaleFactor(0.8).padding(.top, 2)
+                Text(line).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
+                Spacer(minLength: 8)
+                Text(meta.uppercased()).font(Ink.mono(10, weight: .medium)).tracking(0.9).foregroundStyle(Ink.inkFixed.opacity(0.85))
+                    .lineLimit(1).truncationMode(.tail)
             }
             .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 148, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 172, alignment: .topLeading)
         }
         .buttonStyle(FeatureCardStyle(fill: feature.fill))
         .disabled(!enabled)
