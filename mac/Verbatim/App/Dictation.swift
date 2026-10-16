@@ -206,7 +206,7 @@ final class DictationController: ObservableObject {
             m.warning = Self.bluetoothWarning()
         }
         bar?.setPhase(.listening)
-        Cleanup.prewarm()
+        FlowCleanup.prewarm()
         Log.note("dictation begin -> \(targetAppName) [\(ctx.category.rawValue)] handsFree=\(handsFree) command=\(command)")
     }
 
@@ -270,10 +270,10 @@ final class DictationController: ObservableObject {
                 var note: String?
                 var cleaned = false
                 if isCommand, let selection = ctx?.selection {
-                    if let edited = await Cleanup.transform(selection: selection, instruction: raw) { final = edited; cleaned = true }
+                    if let edited = await FlowCleanup.transform(selection: selection, instruction: raw) { final = edited; cleaned = true }
                     else { final = selection; note = "Couldn't apply “\(raw)”. Editing by voice needs Apple Intelligence on macOS 26." }
                 } else {
-                    let out = await Cleanup.run(.init(raw: raw, level: level, style: style, category: category, context: ctx,
+                    let out = await FlowCleanup.run(.init(raw: raw, level: level, style: style, category: category, context: ctx,
                                                       vocabulary: vocabulary, useContext: useContext, snippets: snippets))
                     final = out.text; note = out.note; cleaned = out.cleaned
                 }
@@ -379,7 +379,7 @@ final class DictationController: ObservableObject {
     func reclean(_ id: UUID, level: CleanupLevel) async -> String? {
         guard let t = app?.store.transcript(id), let info = t.flow else { return nil }
         let raw = info.raw.isEmpty ? t.text : info.raw
-        let out = await Cleanup.run(.init(raw: raw, level: level, style: info.style, category: info.category, context: nil,
+        let out = await FlowCleanup.run(.init(raw: raw, level: level, style: info.style, category: info.category, context: nil,
                                           vocabulary: app?.store.dictionary.filter(\.enabled).map(\.preferred) ?? [], useContext: false, snippets: FlowSettings.shared.snippets))
         app?.store.update(id) { x in
             x.flow?.pasted = out.text; x.flow?.level = level.rawValue

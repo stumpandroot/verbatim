@@ -155,7 +155,7 @@ struct DictationForm: View {
                 .pickerStyle(.segmented)
                 Text(flow.cleanup.note + " Self-corrections like “at 2, actually 3” keep only the final version, and spoken lists become lists. Say “new line” or “new paragraph” anytime.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
-                if !Cleanup.available && flow.cleanup != .none {
+                if !FlowCleanup.available && flow.cleanup != .none {
                     Text("Cleanup runs on this Mac with Apple Intelligence (macOS 26). Until it's on, your words are pasted as spoken.")
                         .font(.system(size: 12)).foregroundStyle(Ink.accentText)
                 }

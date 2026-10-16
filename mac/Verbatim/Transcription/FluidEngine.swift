@@ -75,8 +75,7 @@ actor FluidEngine: TranscriptionEngine {
         var text = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !terms.isEmpty, !boostUnavailable, let session = await boostSession(terms), let timings = r.tokenTimings, !timings.isEmpty,
            let samples = Self.samples(url) {
-            if session.hasCTCRescoringCandidates(text: r.text, tokenTimings: timings),
-               let out = await session.rescore(text: r.text, tokenTimings: timings, audioSamples: samples), out.wasModified {
+            if let out = await session.rescore(text: r.text, tokenTimings: timings, audioSamples: samples), out.wasModified {
                 Log.note("vocabulary boost changed the transcript")
                 text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
             }

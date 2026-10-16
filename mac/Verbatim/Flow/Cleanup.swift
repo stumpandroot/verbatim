@@ -11,7 +11,7 @@ import FoundationModels
 /// - Self-corrections ("2, actually 3"; "scratch that") keep only the final version. Spoken lists become lists.
 /// - Guards: if the result is much shorter or longer than what you said, turns a question into an answer, or
 ///   takes too long, the raw words are pasted instead. Cleanup can never lose what you said.
-enum Cleanup {
+enum FlowCleanup {
     struct Request {
         var raw: String
         var level: CleanupLevel
