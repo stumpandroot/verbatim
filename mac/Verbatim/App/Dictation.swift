@@ -67,6 +67,8 @@ final class DictationController: ObservableObject {
     private var session = 0
     private var startedAt: Date?
     private var lastPressTS: TimeInterval = 0
+    private var lastTrusted = false
+    private var trustTimer: Timer?
 
     var accessibilityTrusted: Bool { AXIsProcessTrusted() }
     var liveMeter: LiveMeter { recorder.live }
@@ -77,6 +79,21 @@ final class DictationController: ObservableObject {
         bar = FlowBarController(dictation: self)
         refreshMonitors()
         purgeOldDictations()
+        // Turning on Accessibility in System Settings doesn't tell the app. Watch for it, and start listening for
+        // the hotkey the moment it's allowed (key monitors added before that never receive anything).
+        lastTrusted = accessibilityTrusted
+        trustTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let now = self.accessibilityTrusted
+                if now != self.lastTrusted {
+                    self.lastTrusted = now
+                    Log.note("accessibility trusted=\(now)")
+                    self.refreshMonitors(); self.bar?.refresh()
+                    if now { self.bar?.flash("Ready. \(self.hotkey.shortTitle.prefix(1).uppercased() + self.hotkey.shortTitle.dropFirst()) to dictate.", seconds: 4) }
+                }
+            }
+        }
         // Load the speech model now, so the first dictation doesn't wait for it.
         let choice = app.engineChoice
         if enabled, choice.engine == "fluid" { Task.detached(priority: .utility) { await FluidEngine.shared.warm(model: choice.model) } }
@@ -89,13 +106,32 @@ final class DictationController: ObservableObject {
     }
 
     func openAccessibilitySettings() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        // Asking first puts Verbatim in the Accessibility list, so you only have to switch it on.
+        if !accessibilityTrusted {
+            let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(opts)
+        }
+        Self.openPrivacy("Privacy_Accessibility")
+    }
+
+    /// Opens System Settings › Privacy & Security at a section. macOS 13 and later use the new address; the old
+    /// one is the fallback.
+    static func openPrivacy(_ anchor: String) {
+        let addresses = ["x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(anchor)",
+                         "x-apple.systempreferences:com.apple.preference.security?\(anchor)"]
+        for a in addresses {
+            if let u = URL(string: a), NSWorkspace.shared.open(u) { Log.note("opened settings \(anchor)"); return }
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
     }
 
     func refreshMonitors() {
         monitors.forEach { NSEvent.removeMonitor($0) }
         monitors = []
-        guard enabled, accessibilityTrusted else { return }
+        guard enabled, accessibilityTrusted else {
+            if enabled { Log.note("dictation hotkey off: Accessibility not allowed") }
+            return
+        }
         // Global (other apps) and local (our own windows) so it works everywhere.
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e) }) { monitors.append(g) }
@@ -432,9 +468,7 @@ final class DictationController: ObservableObject {
         ))
     }
 
-    static func openMicrophoneSettings() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
-    }
+    static func openMicrophoneSettings() { openPrivacy("Privacy_Microphone") }
 
     func openSettings(tab: SettingsTab? = nil) {
         if let tab { UserDefaults.standard.set(tab.rawValue, forKey: "settingsTab") }

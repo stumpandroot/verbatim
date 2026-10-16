@@ -22,6 +22,8 @@ final class FlowBarModel: ObservableObject {
 
     @Published var phase: Phase = .idle
     @Published var hover = false
+    /// False while the panel is off screen; set true just after it's shown, so the Ribbon slides in from the edge.
+    @Published var shown = false
     @Published var handsFree = false
     @Published var command = false
     @Published var dragging = false
@@ -89,6 +91,9 @@ final class FlowBarController {
     }
 
     /// Shows or hides the Ribbon to match settings and dictation state.
+    /// True while the Ribbon is sliding away before its window closes.
+    private var hiding = false
+
     func refresh() {
         let s = FlowSettings.shared
         let busy = model.phase != .idle
@@ -96,12 +101,29 @@ final class FlowBarController {
         if enabled && (busy || !s.barHidden) {
             if panel == nil { build() }
             place()
-            panel?.orderFrontRegardless()
-        } else {
-            panel?.orderOut(nil)
+            if let p = panel, !p.isVisible || hiding {
+                hiding = false
+                // Start tucked into the edge, put the window up, then slide out on the next frame. Without the
+                // wait, the slide happens before the window is on screen and all you see is a fade.
+                var t = Transaction(); t.disablesAnimations = true
+                withTransaction(t) { model.shown = false }
+                p.orderFrontRegardless()
+                DispatchQueue.main.async { [weak self] in
+                    withAnimation(.smooth(duration: 0.4)) { self?.model.shown = true }
+                }
+            }
+        } else if let p = panel, p.isVisible, !hiding {
             menu.close()
+            hiding = true
+            withAnimation(.smooth(duration: 0.25)) { model.shown = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) { [weak self] in
+                guard let self, self.hiding else { return }
+                self.hiding = false
+                self.panel?.orderOut(nil)
+            }
         }
-        model.hint = dictation.map { "\($0.hotkey.shortTitle) or click" } ?? "click to dictate"
+        if let d = dictation, !d.accessibilityTrusted { model.hint = "click to set up" }
+        else { model.hint = dictation.map { "\($0.hotkey.shortTitle) or click" } ?? "click to dictate" }
     }
 
     func setPhase(_ p: FlowBarModel.Phase) {
@@ -170,6 +192,7 @@ final class FlowBarController {
         p.becomesKeyOnlyIfNeeded = true
         p.isReleasedWhenClosed = false
         p.ignoresMouseEvents = true
+        p.animationBehavior = .none   // the Ribbon animates itself; no system fade
         let host = FlowHostingView(rootView: FlowBarView(model: model, controller: self, live: dictation?.liveMeter ?? LiveMeter()))
         host.onRightClick = { [weak self] in self?.openMenu() }
         host.onMouseMoved = { [weak self] in self?.pointerMoved() }
@@ -387,7 +410,6 @@ struct FlowBarView: View {
         switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom }
     }
 
-    @State private var shown = false
 
     /// Every state shares one ink shape. Between states the shape morphs to its new size while the contents
     /// cross-fade, so the Ribbon never jumps. Reduce Motion turns the morph into a quick fade.
@@ -426,12 +448,11 @@ struct FlowBarView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(accessibilityLabel)
             // Slides in from the edge when it first appears (and after sleep or a display change).
-            .offset(x: shown ? 0 : (model.edge == .left ? -14 : model.edge == .right ? 14 : 0), y: shown || model.edge != .bottom ? 0 : 14)
-            .opacity(shown ? 1 : 0)
+            .offset(x: model.shown ? 0 : (model.edge == .left ? -18 : model.edge == .right ? 18 : 0), y: model.shown || model.edge != .bottom ? 0 : 18)
+            .opacity(model.shown ? 1 : 0)
         }
         .onPreferenceChange(RibbonSizeKey.self) { s in if model.contentSize != s { model.contentSize = s } }
         .animation(morph, value: stateKey)
-        .onAppear { withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .smooth(duration: 0.4)) { shown = true } }
     }
 
     /// The tab's rounded side faces into the screen; the edge side is square, flush with the screen edge.
