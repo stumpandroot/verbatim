@@ -52,6 +52,10 @@ struct TranscriptScreen: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil {
+                            Button { app.player.stop(); app.continueRecording(t.id) } label: { Image(systemName: "record.circle") }
+                                .accessibilityLabel("Continue recording")
+                        }
                         Button { showNotes = true } label: { Image(systemName: "note.text") }.accessibilityLabel("Notes")
                         Menu {
                             Button { app.copyText(t) } label: { Label("Copy text", systemImage: "doc.on.doc") }
@@ -96,6 +100,20 @@ struct TranscriptScreen: View {
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            if t.pendingAppend != nil {
+                HStack(spacing: 8) {
+                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
+                    Text(t.stageText).font(.system(size: 14)).foregroundStyle(Ink.dim).lineLimit(2)
+                    Spacer(minLength: 4)
+                    if t.processingDevice == nil { Button("Retry") { app.retry(t) }.font(.system(size: 14, weight: .semibold)) }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.top, 6)
+            } else if t.status == .ready, t.stage == "Finding speakers" {
+                HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
+                    .font(.system(size: 13)).foregroundStyle(Ink.mute)
+            }
             if let info = t.linkInfo { PhoneLinkCard(info: info).padding(.top, 8) }
         }
     }

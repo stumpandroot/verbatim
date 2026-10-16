@@ -145,7 +145,11 @@ struct PhoneMeter: View {
 
 struct ElapsedLabel: View {
     @ObservedObject var live: LiveMeter
-    var body: some View { Text(live.elapsed.timecode).font(Ink.mono(40, weight: .medium)).foregroundStyle(Ink.ink) }
+    var size: CGFloat = 40
+    var body: some View {
+        Text(live.elapsed.timecode).font(Ink.mono(size, weight: .medium)).foregroundStyle(Ink.ink)
+            .contentTransition(.numericText()).accessibilityLabel("Elapsed \(live.elapsed.timecode)")
+    }
 }
 
 // MARK: - Share sheet

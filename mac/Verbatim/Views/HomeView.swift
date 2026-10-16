@@ -520,6 +520,9 @@ struct RecordPanel: View {
             SignalRings(active: !app.recorder.isPaused).frame(width: 30, height: 30).padding(.leading, 6)
             VStack(alignment: .leading, spacing: 2) {
                 Text(app.recorder.isPaused ? "Paused" : "Recording").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
+                if let id = app.continuing, let t = app.store.transcript(id) {
+                    Text("Adding to “\(t.title)”").font(.system(size: 12)).foregroundStyle(Ink.accentText).lineLimit(1)
+                }
                 MicSourceMenu(status: "Microphone").environment(\.colorScheme, .light)
             }
             .frame(width: 170, alignment: .leading)
@@ -528,7 +531,7 @@ struct RecordPanel: View {
             Button("Stop") { app.stopRecording() }.buttonStyle(.brandPrimaryLarge).keyboardShortcut(".", modifiers: [.option, .shift])
         }
         .padding(.horizontal, 16)
-        .frame(height: 70)
+        .frame(minHeight: 70)
         .background(Ink.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.persimmon.opacity(0.6)))
         .accessibilityElement(children: .contain)

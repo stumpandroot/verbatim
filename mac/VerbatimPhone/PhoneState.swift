@@ -3,6 +3,7 @@ import AVFoundation
 import UniformTypeIdentifiers
 import Combine
 import UIKit
+import BackgroundTasks
 
 /// The iPhone app's state: the same Store, recorder, player, and transcription job as the Mac, so every
 /// transcript, note, bookmark, project, and Dictionary word syncs through iCloud both ways.
@@ -24,6 +25,8 @@ final class PhoneState: ObservableObject {
     @Published var showImporter = false
     @Published var queue: [UUID] = []
     @Published var runningID: UUID? = nil
+    /// Continue recording: the transcript the current recording will be added to.
+    @Published var continuing: UUID? = nil
     /// A passage to land on when the next transcript opens (from Moments or search).
     var focusSegment: UUID? = nil
 
@@ -42,7 +45,8 @@ final class PhoneState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
-        queue = store.live.filter { $0.status == .processing && $0.audioFileName != nil && $0.processingDevice == Device.id }
+        queue = store.live.filter { ($0.status == .processing && $0.audioFileName != nil && $0.processingDevice == Device.id)
+                                    || ($0.pendingAppend != nil && $0.processingDevice == Device.id) }
             .sorted { $0.createdAt < $1.createdAt }.map(\.id)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
         if PhoneUITest.enabled { PhoneUITest.run(self) }
@@ -82,14 +86,45 @@ final class PhoneState: ObservableObject {
             try recorder.start(to: store.newRecordingURL())
             showRecorder = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            warmModel()
         } catch {
             say("Couldn't start recording: \(error.localizedDescription)")
         }
     }
 
+    /// Loads the speech model while you talk, so transcription starts the moment you stop. iOS clears it from
+    /// memory when Verbatim is closed, so without this every recording would wait for it to load first.
+    private func warmModel() {
+        let (engineId, model) = engineChoice
+        guard engineId == "fluid" else { return }
+        Task.detached(priority: .utility) { await FluidEngine.shared.warm(model: model) }
+    }
+
+    private var engineChoice: (String, String) {
+        preset == .advanced ? (UserDefaults.standard.string(forKey: "advEngine") ?? "fluid", UserDefaults.standard.string(forKey: "advModel") ?? "v3") : preset.config
+    }
+
+    /// Starts a recording that's added to the end of an existing transcript when you stop.
+    func continueRecording(_ id: UUID) {
+        guard let t = store.transcript(id), t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil else {
+            say("This transcript can't take more recording right now."); return
+        }
+        continuing = id
+        requestRecord()
+    }
+
     func stopRecording() {
         showRecorder = false
-        guard let (url, duration, env) = recorder.stop() else { return }
+        guard let (url, duration, env) = recorder.stop() else { continuing = nil; return }
+        if let target = continuing {
+            continuing = nil
+            guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
+            guard store.transcript(target) != nil, let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
+            store.update(target) { $0.pendingAppend = name; $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
+            queue.append(target); pump()
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            return
+        }
         guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
         guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: duration, audioFileName: name, model: "")
@@ -100,6 +135,7 @@ final class PhoneState: ObservableObject {
 
     func discardRecording() {
         showRecorder = false
+        continuing = nil
         if let (url, _, _) = recorder.stop() { try? FileManager.default.removeItem(at: url) }
     }
 
@@ -155,6 +191,11 @@ final class PhoneState: ObservableObject {
 
     func retry(_ t: Transcript) {
         guard t.audioFileName != nil else { say("That recording's audio is missing."); return }
+        if t.pendingAppend != nil {
+            store.update(t.id) { $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
+            if !queue.contains(t.id) && runningID != t.id { queue.append(t.id) }
+            pump(); return
+        }
         store.update(t.id) { $0.status = .processing; $0.error = nil; $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
         if !queue.contains(t.id) && runningID != t.id { queue.append(t.id) }
         pump()
@@ -162,6 +203,12 @@ final class PhoneState: ObservableObject {
 
     func cancel(_ id: UUID) {
         queue.removeAll { $0 == id }
+        if store.transcript(id)?.pendingAppend != nil {
+            // The transcript stays as it was; the new recording is kept, ready to add with Retry.
+            store.update(id) { $0.stage = "New recording not added yet"; $0.processingDevice = nil; $0.processingDeviceName = nil }
+            if runningID == id { runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+            return
+        }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
         if runningID == id { runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
     }
@@ -170,47 +217,64 @@ final class PhoneState: ObservableObject {
         guard runningID == nil else { return }
         while let next = queue.first {
             queue.removeFirst()
-            guard store.transcript(next)?.status == .processing else { continue }
+            guard let t = store.transcript(next), t.status == .processing || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
             runningID = next
+            keepRunningInBackground()
             run(next)
             return
         }
         endBackground()
+        finishBackgroundWork()
     }
 
     private func run(_ id: UUID) {
+        if let t = store.transcript(id), t.pendingAppend != nil, let url = store.audioURL(for: t) { runAppend(id, t, url); return }
         guard let t = store.transcript(id), let url = store.audioURL(for: t) else {
             store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "The audio file is missing." }
             runningID = nil; pump(); return
         }
         beginBackground()
-        let (engineId, model) = preset == .advanced ? (UserDefaults.standard.string(forKey: "advEngine") ?? "fluid", UserDefaults.standard.string(forKey: "advModel") ?? "v3") : preset.config
+        let (engineId, model) = engineChoice
         let wantSpeakers = identifySpeakers
         let dict = applyDictionary ? store.dictionary : []
         let project = t.projectId
         let needWave = t.waveform.isEmpty
-        let gate = ProgressGate()
-        let progress: @Sendable (EngineProgress) -> Void = { p in
-            let label = p.label
-            guard gate.shouldPublish(label) else { return }
-            Task { @MainActor in self.store.setStage(id, label) }
-        }
+        let progress = progressHandler(id)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 _ = await Cloud.ensureDownloaded(url)
-                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
+                // Words first: the transcript opens as soon as they're ready, and speakers are added after.
+                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false,
                                                          dictionary: dict, project: project, needWave: needWave, progress: progress)
-                await MainActor.run {
-                    defer { self.finished(id) }
-                    guard self.store.transcript(id)?.status == .processing else { return }
+                let findSpeakers = wantSpeakers && out.fixed.count > 1
+                let proceed = await MainActor.run { () -> Bool in
+                    guard self.store.transcript(id)?.status == .processing else { self.finished(id); return false }
                     self.store.update(id) { x in
-                        x.original = out.original; x.segments = out.fixed; x.speakers = out.speakers; x.corrections = out.corrections
-                        x.status = .ready; x.stage = nil; x.engine = out.engine; x.model = out.model; x.language = out.language
+                        x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections
+                        x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if !out.wave.isEmpty { x.waveform = out.wave }
                         if x.source == .voiceMemo, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                     }
                     if self.queue.isEmpty { self.say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
+                    if !findSpeakers { self.finished(id) }
+                    return true
+                }
+                guard proceed, findSpeakers else { return }
+                guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id) }; return }
+                let turns = try? await FluidDiarizer.shared.diarize(url: url, progress: { _ in })
+                await MainActor.run {
+                    defer { self.finished(id) }
+                    self.store.update(id) { x in
+                        x.stage = nil
+                        // Only when nobody has assigned speakers by hand in the meantime.
+                        guard let turns, x.speakers.isEmpty else { return }
+                        var segs = x.segments
+                        let found = SpeakerAssigner.assign(turns, to: &segs)
+                        guard found.count >= 2 else { return }
+                        x.segments = segs; x.speakers = found
+                        for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker }
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -218,6 +282,50 @@ final class PhoneState: ObservableObject {
                     guard self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.say("Transcription failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func progressHandler(_ id: UUID) -> @Sendable (EngineProgress) -> Void {
+        let gate = ProgressGate()
+        return { p in
+            let label = p.label
+            guard gate.shouldPublish(label) else { return }
+            Task { @MainActor in self.store.setStage(id, label); self.backgroundTitle(label) }
+        }
+    }
+
+    /// Transcribes a continued recording and joins it onto the transcript.
+    private func runAppend(_ id: UUID, _ t: Transcript, _ url: URL) {
+        guard let partName = t.pendingAppend else { finished(id); return }
+        beginBackground()
+        let part = Paths.audio.appendingPathComponent(partName)
+        let combined = store.newAudioURL(ext: "wav", avoiding: [url, part])
+        let (engineId, model) = engineChoice
+        let wantSpeakers = identifySpeakers
+        let dict = applyDictionary ? store.dictionary : []
+        let progress = progressHandler(id)
+        store.setStage(id, "Adding the new recording")
+        runningTask = Task.detached(priority: .userInitiated) {
+            do {
+                _ = await Cloud.ensureDownloaded(url); _ = await Cloud.ensureDownloaded(part)
+                let out = try await Continuation.run(existing: t, existingAudio: url, part: part, combined: combined, engineId: engineId, model: model,
+                                                     wantSpeakers: wantSpeakers, dictionary: dict, progress: progress)
+                await MainActor.run {
+                    defer { self.finished(id) }
+                    guard self.store.transcript(id)?.pendingAppend == partName, !Task.isCancelled else { try? FileManager.default.removeItem(at: combined); return }
+                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: combined.lastPathComponent) }
+                    try? FileManager.default.removeItem(at: url)
+                    try? FileManager.default.removeItem(at: part)
+                    if self.queue.isEmpty { self.say("New recording added"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: combined)
+                await MainActor.run {
+                    defer { self.finished(id) }
+                    self.store.update(id) { $0.stage = "Couldn't add the new recording. Tap Retry."; $0.processingDevice = nil; $0.processingDeviceName = nil }
+                    self.say("Couldn't add the new recording: \(error.localizedDescription)")
                 }
             }
         }
@@ -238,6 +346,59 @@ final class PhoneState: ObservableObject {
     private func endBackground() {
         guard background != .invalid else { return }
         UIApplication.shared.endBackgroundTask(background); background = .invalid
+    }
+
+    // MARK: Keep transcribing after you leave the app (iOS 26)
+
+    /// iOS 26 lets work you started keep going after you lock the phone or switch apps, with a progress
+    /// banner from the system. One task covers the whole queue and ends when the queue is empty.
+    private static let bgIdentifier = "co.stumpandroot.verbatim.ios.transcribe"
+    private var bgRegistered = false
+    private var bgTask: AnyObject? = nil
+    private var bgSubmitted = false
+
+    private func keepRunningInBackground() {
+        guard #available(iOS 26, *), !bgSubmitted else { return }
+        if !bgRegistered {
+            bgRegistered = BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.bgIdentifier, using: nil) { [weak self] task in
+                guard let task = task as? BGContinuedProcessingTask else { task.setTaskCompleted(success: false); return }
+                Task { @MainActor in self?.adopt(task) }
+            }
+        }
+        guard bgRegistered else { return }
+        let req = BGContinuedProcessingTaskRequest(identifier: Self.bgIdentifier, title: "Transcribing", subtitle: "Verbatim keeps going while you're away")
+        req.strategy = .fail
+        do { try BGTaskScheduler.shared.submit(req); bgSubmitted = true }
+        catch { Log.note("continued processing not available: \(error)") }
+    }
+
+    @available(iOS 26, *)
+    private func adopt(_ task: BGContinuedProcessingTask) {
+        guard runningID != nil || !queue.isEmpty else { task.setTaskCompleted(success: true); bgSubmitted = false; return }
+        bgTask = task
+        task.progress.totalUnitCount = 100
+        task.progress.completedUnitCount = 5
+        task.expirationHandler = { [weak self] in
+            // iOS needs the time back. The job pauses and picks up the next time Verbatim opens.
+            Task { @MainActor in self?.bgTask = nil; self?.bgSubmitted = false }
+        }
+    }
+
+    /// Moves the system's progress banner along with the job's stage.
+    private func backgroundTitle(_ label: String) {
+        guard #available(iOS 26, *), let task = bgTask as? BGContinuedProcessingTask else { return }
+        let p = task.progress
+        if p.completedUnitCount < 95 { p.completedUnitCount += 5 }
+        task.updateTitle("Transcribing", subtitle: label)
+    }
+
+    private func finishBackgroundWork() {
+        guard #available(iOS 26, *) else { return }
+        if let task = bgTask as? BGContinuedProcessingTask {
+            task.progress.completedUnitCount = task.progress.totalUnitCount
+            task.setTaskCompleted(success: true)
+        }
+        bgTask = nil; bgSubmitted = false
     }
 
     // MARK: Organizing and notes

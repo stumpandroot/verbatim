@@ -67,6 +67,8 @@ final class AppState: ObservableObject {
     /// Transcripts waiting to run, oldest first. One runs at a time.
     @Changed var queue: [UUID] = []
     @Changed var runningID: UUID? = nil
+    /// Continue recording: the transcript the current recording will be added to.
+    @Changed var continuing: UUID? = nil
     /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
     var focusSegment: UUID? = nil
     private var runningTask: Task<Void, Never>? = nil
@@ -86,7 +88,8 @@ final class AppState: ObservableObject {
         applyAppearance()
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
-        queue = store.live.filter { $0.status == .processing && $0.audioFileName != nil && ($0.processingDevice == nil || $0.processingDevice == Device.id) }
+        queue = store.live.filter { ($0.status == .processing && $0.audioFileName != nil && ($0.processingDevice == nil || $0.processingDevice == Device.id))
+                                    || ($0.pendingAppend != nil && $0.processingDevice == Device.id) }
             .sorted { $0.createdAt < $1.createdAt }.map(\.id)
         // Links added on the iPhone wait for a Mac: claim them now and whenever more arrive.
         store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
@@ -166,15 +169,41 @@ final class AppState: ObservableObject {
         verbiePose = recorder.isPaused ? .paused : .listening
     }
 
+    /// Starts a recording that's added to the end of an existing transcript when you stop.
+    func continueRecording(_ id: UUID) {
+        guard let t = store.transcript(id), t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil else {
+            toast = Toast("This transcript can't take more recording right now."); return
+        }
+        guard !recorder.isRecording, !capture.isCapturing else { toast = Toast("Stop the current recording first."); return }
+        continuing = id
+        requestRecord()
+    }
+
     func stopRecording() {
         guard let stopped = recorder.stop() else { return }
         let (url, duration, env) = stopped
+        if let target = continuing {
+            continuing = nil
+            guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); verbiePose = .ready; return }
+            appendRecording(url, to: target)
+            return
+        }
         guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); verbiePose = .ready; return }
         guard let name = store.adoptRecording(url) else { toast = Toast("Couldn't save the recording."); return }
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
                            duration: duration, audioFileName: name, model: "")
         t.waveform = env
         enqueue(t)
+    }
+
+    /// Queues a new recording to be transcribed and joined onto the end of `id`.
+    private func appendRecording(_ url: URL, to id: UUID) {
+        guard store.transcript(id) != nil, let name = store.adoptRecording(url) else { toast = Toast("Couldn't save the recording."); return }
+        store.update(id) { $0.pendingAppend = name; $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
+        verbiePose = .working
+        queue.append(id)
+        pump()
+        go(.transcript(id))
     }
 
     // MARK: App audio
@@ -334,6 +363,11 @@ final class AppState: ObservableObject {
 
     func retry(_ t: Transcript) {
         guard t.audioFileName != nil else { toast = Toast("That recording's audio is missing."); return }
+        if t.pendingAppend != nil {
+            store.update(t.id) { $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
+            if !queue.contains(t.id) && runningID != t.id { queue.append(t.id) }
+            pump(); return
+        }
         store.update(t.id) { $0.status = .processing; $0.error = nil; $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
         if !queue.contains(t.id) && runningID != t.id { queue.append(t.id) }
         pump()
@@ -357,7 +391,7 @@ final class AppState: ObservableObject {
         guard runningID == nil else { return }
         while let next = queue.first {
             queue.removeFirst()
-            guard store.transcript(next)?.status == .processing else { continue }
+            guard let t = store.transcript(next), t.status == .processing || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
             runningID = next
             run(next)
             return
@@ -367,6 +401,12 @@ final class AppState: ObservableObject {
     /// Stops a queued or running transcript. It stays in Library as "Cancelled" with Retry.
     func cancel(_ id: UUID) {
         queue.removeAll { $0 == id }
+        if store.transcript(id)?.pendingAppend != nil {
+            // The transcript stays as it was; the new recording is kept, ready to add with Retry.
+            store.update(id) { $0.stage = "New recording not added yet"; $0.processingDevice = nil; $0.processingDeviceName = nil }
+            if runningID == id { runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+            return
+        }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
         if runningID == id {
             runningTask?.cancel(); runningTask = nil
@@ -389,6 +429,7 @@ final class AppState: ObservableObject {
     }
 
     private func run(_ id: UUID) {
+        if let t = store.transcript(id), t.pendingAppend != nil, let url = store.audioURL(for: t) { runAppend(id, t, url); return }
         guard let t = store.transcript(id), let url = store.audioURL(for: t) else {
             store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "The audio file is missing." }
             runningID = nil; pump(); return
@@ -447,6 +488,49 @@ final class AppState: ObservableObject {
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.verbiePose = .interrupted
                     self.toast = Toast("Transcription failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Transcribes a continued recording and joins it onto the transcript.
+    private func runAppend(_ id: UUID, _ t: Transcript, _ url: URL) {
+        guard let partName = t.pendingAppend else { finished(id); return }
+        let part = Paths.audio.appendingPathComponent(partName)
+        let combined = store.newAudioURL(ext: "wav", avoiding: [url, part])
+        let (engineId, model) = engineChoice
+        let wantSpeakers = identifySpeakers
+        let dict = applyDictionary ? store.dictionary : []
+        let gate = ProgressGate()
+        let progress: @Sendable (EngineProgress) -> Void = { p in
+            let label = p.label
+            guard gate.shouldPublish(label) else { return }
+            Task { @MainActor in self.store.setStage(id, label) }
+        }
+        store.setStage(id, "Adding the new recording")
+        runningTask = Task.detached(priority: .userInitiated) {
+            do {
+                _ = await Cloud.ensureDownloaded(url); _ = await Cloud.ensureDownloaded(part)
+                let out = try await Continuation.run(existing: t, existingAudio: url, part: part, combined: combined, engineId: engineId, model: model,
+                                                     wantSpeakers: wantSpeakers, dictionary: dict, progress: progress)
+                await MainActor.run {
+                    defer { self.finished(id) }
+                    guard self.store.transcript(id)?.pendingAppend == partName, !Task.isCancelled else { try? FileManager.default.removeItem(at: combined); return }
+                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: combined.lastPathComponent) }
+                    try? FileManager.default.removeItem(at: url)
+                    try? FileManager.default.removeItem(at: part)
+                    self.verbiePose = .saved
+                    if self.queue.isEmpty { Sounds.done(); self.toast = Toast("New recording added") }
+                    Task { try? await Task.sleep(nanoseconds: 1_400_000_000); if self.verbiePose == .saved { self.verbiePose = .ready } }
+                }
+            } catch {
+                Log.note("continue failed: \(error)")
+                try? FileManager.default.removeItem(at: combined)
+                await MainActor.run {
+                    defer { self.finished(id) }
+                    self.store.update(id) { $0.stage = "Couldn't add the new recording. Choose Retry."; $0.processingDevice = nil; $0.processingDeviceName = nil }
+                    self.verbiePose = .interrupted
+                    self.toast = Toast("Couldn't add the new recording: \(error.localizedDescription)")
                 }
             }
         }

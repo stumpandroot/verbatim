@@ -166,6 +166,16 @@ struct TranscriptView: View {
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            if t.pendingAppend != nil {
+                HStack(spacing: 8) {
+                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
+                    Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                    if t.processingDevice == nil { Button("Retry") { app.retry(t) }.buttonStyle(.link) }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.top, 8)
+            }
             if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 10) }
         }
         .padding(.bottom, 14)
@@ -199,6 +209,10 @@ struct TranscriptView: View {
     private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
         HStack(spacing: 2) {
             ExportMenu(transcript: t, compact: compact)
+            Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Continue", symbol: "record.circle", compact: compact) }
+                .buttonStyle(.plain)
+                .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
+                .help("Record more and add it to the end of this transcript")
             Menu { ActionsMenuItems { runningAction = $0 } } label: { ToolLabel(title: "Actions", symbol: "wand.and.stars", compact: compact) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(t.status != .ready)

@@ -319,6 +319,17 @@ final class Store: ObservableObject {
         return Paths.audio.appendingPathComponent("\(f.string(from: Date())).\(ext)")
     }
 
+    /// A new audio file name that's not in use and isn't any of `avoiding`.
+    func newAudioURL(ext: String, avoiding: [URL]) -> URL {
+        let base = newAudioURL(ext: ext)
+        var u = base, n = 2
+        let taken = Set(avoiding.map(\.standardizedFileURL))
+        while taken.contains(u.standardizedFileURL) || FileManager.default.fileExists(atPath: u.path) {
+            u = Paths.audio.appendingPathComponent("\(base.deletingPathExtension().lastPathComponent) \(n).\(ext)"); n += 1
+        }
+        return u
+    }
+
     // MARK: Projects and dictionary
 
     private func saveProjects() {

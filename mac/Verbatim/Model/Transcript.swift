@@ -155,6 +155,8 @@ struct Transcript: Codable, Identifiable, Equatable {
     var pendingLink = false
     /// Dictations: which app it went to, the words before cleanup, and what was pasted.
     var flow: FlowInfo? = nil
+    /// Continue recording: an audio file (in Paths.audio) recorded after this one, waiting to be transcribed and joined on.
+    var pendingAppend: String? = nil
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -199,11 +201,16 @@ struct Transcript: Codable, Identifiable, Equatable {
         processingDeviceName = try c.decodeIfPresent(String.self, forKey: .processingDeviceName)
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
+        pendingAppend = try c.decodeIfPresent(String.self, forKey: .pendingAppend)
     }
 
     /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".
     var stageText: String {
         if pendingLink { return "Waiting for your Mac to fetch the audio" }
+        if pendingAppend != nil, status == .ready {
+            if let d = processingDevice, d != Device.id { return "Adding the new recording on \(processingDeviceName ?? "your other device")" }
+            return stage ?? "Adding the new recording"
+        }
         if status == .processing, let d = processingDevice, d != Device.id { return "Transcribing on \(processingDeviceName ?? "your other device")" }
         return stage ?? (status == .processing ? "Queued" : "")
     }

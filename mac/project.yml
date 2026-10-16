@@ -124,6 +124,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UIBackgroundModes: [audio]
+        BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this iPhone."
