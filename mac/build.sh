@@ -3,7 +3,8 @@
 # wraps it in a DMG, and notarizes it when the "verbatim-notary" notarytool profile exists.
 #
 # Needs: Xcode 16+, xcodegen (brew install xcodegen).
-# Env:   VERSION (default 1.0.0), BUILD (default 1), DMG_SUFFIX (e.g. -universal), NOTARY_PROFILE
+# Env:   VERSION (default 1.0.0), BUILD (default 1), DMG_SUFFIX (e.g. -universal), NOTARY_PROFILE,
+#        PROVISION_PROFILE (path to a Developer ID provisioning profile with iCloud; turns on iCloud sync)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -64,9 +65,23 @@ test -d "$APP"
 # 2b. Bundle the helper and sign it like the app
 mkdir -p "$APP/Contents/Helpers"
 cp Helpers/yt-dlp "$APP/Contents/Helpers/yt-dlp"
+ENTITLEMENTS=Verbatim/Verbatim.entitlements
+if [ -n "$IDENTITY" ] && [ -n "${PROVISION_PROFILE:-}" ] && [ -f "$PROVISION_PROFILE" ]; then
+  # iCloud sync in a Developer ID build: embed the provisioning profile and sign with the iCloud entitlements,
+  # plus the identifiers the profile grants and the Production iCloud environment Developer ID requires.
+  cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
+  ENTITLEMENTS="$(mktemp -d)/Verbatim-signed.entitlements"
+  cp Verbatim/Verbatim-iCloud.entitlements "$ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $TEAM.co.stumpandroot.verbatim" "$ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM" "$ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.developer.icloud-container-environment string Production" "$ENTITLEMENTS"
+  echo "iCloud sync: on (provisioning profile embedded)"
+else
+  echo "iCloud sync: off (no provisioning profile)"
+fi
 if [ -n "$IDENTITY" ]; then
   codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP/Contents/Helpers/yt-dlp"
-  codesign --force --options runtime --timestamp --entitlements Verbatim/Verbatim.entitlements --sign "$IDENTITY" "$APP"
+  codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP"
 fi
 
 # 3. Verify the signature (or ad-hoc sign so the unsigned build still launches on a dev Mac)

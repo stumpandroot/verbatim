@@ -2,7 +2,9 @@ name: Build Mac app (SwiftUI)
 
 # Builds, signs, notarizes, and publishes the native Verbatim.app as a universal DMG.
 # Runs on pushes to main that touch mac/, on version tags such as mac-v2.0.0, and on demand.
-# Secrets are the same five as build-mac.yml; without them the build is unsigned.
+# Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
+# MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
+# is unsigned and keeps everything on the Mac.
 
 on:
   push:
@@ -27,6 +29,7 @@ jobs:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      MACOS_PROVISION_PROFILE: ${{ secrets.MACOS_PROVISION_PROFILE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +64,10 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
           security find-identity -v -p codesigning "$KEYCHAIN"
+          if [ -n "$MACOS_PROVISION_PROFILE" ]; then
+            echo "$MACOS_PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/verbatim.provisionprofile"
+            echo "PROVISION_PROFILE=$RUNNER_TEMP/verbatim.provisionprofile" >> "$GITHUB_ENV"
+          fi
 
       - name: Store notarization credentials
         if: ${{ env.APPLE_APP_PASSWORD != '' }}
@@ -116,8 +123,7 @@ jobs:
           (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
           xcrun simctl shutdown "$UDID" || true
 
-      - name: Screenshot the app and publish to the ci-screens branch (unsigned builds only)
-        if: ${{ env.MACOS_CERTIFICATE == '' }}
+      - name: Screenshot the app and publish to the ci-screens branch
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,7 +164,6 @@ jobs:
           git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
 
       - name: UI self-test gate (macOS 26)
-        if: ${{ env.MACOS_CERTIFICATE == '' }}
         run: |
           LOG="$HOME/Library/Logs/Verbatim/native.log"
           tail -n 60 "$LOG" || echo "no native.log"
@@ -168,7 +173,6 @@ jobs:
           if grep -q "UITEST FAIL" "$LOG"; then grep "UITEST FAIL" "$LOG" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; fi
 
       - name: Upload screenshot
-        if: ${{ env.MACOS_CERTIFICATE == '' }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
