@@ -1,0 +1,5 @@
+# harper-core 2.11 only compiles on newer Rust (older compilers reject its `then_kind_any(&[...])` calls).
+# rustup reads this file and installs this exact toolchain, with the Apple targets, the first time cargo runs here.
+[toolchain]
+channel = "1.97.0"
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "aarch64-apple-ios", "aarch64-apple-ios-sim", "x86_64-apple-ios"]
