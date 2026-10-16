@@ -165,6 +165,8 @@ struct PhoneLines: View {
     var transcript: Transcript
     @ObservedObject var clock: PlayerClock
     var onNote: (Segment) -> Void
+    @State private var renaming: Speaker? = nil
+    @State private var newName = ""
 
     var body: some View {
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
@@ -175,7 +177,27 @@ struct PhoneLines: View {
                 let playing = clock.time >= s.start && clock.time < s.end && (app.player.isPlaying || clock.time > 0)
                 VStack(alignment: .leading, spacing: 3) {
                     if showSpeaker, let n = transcript.speakerName(s.speaker) {
-                        Text(n).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).padding(.top, 10)
+                        // Tap the name to rename the speaker or move this line to someone else.
+                        Menu {
+                            if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
+                                Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }
+                            }
+                            Section("This line is") {
+                                ForEach(transcript.speakers) { sp in
+                                    Button { app.assign(transcript.id, segment: s.id, to: sp.id) } label: {
+                                        Label(sp.label, systemImage: sp.id == s.speaker ? "checkmark" : "person")
+                                    }
+                                }
+                                Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(n).font(.system(size: 13, weight: .semibold))
+                                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundStyle(Ink.dim).padding(.top, 10).contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Speaker: \(n). Rename or reassign")
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.mute).frame(width: 44, alignment: .leading)
@@ -200,6 +222,11 @@ struct PhoneLines: View {
                 }
             }
         }
+        .alert("Name this speaker", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("First and last name", text: $newName).textInputAutocapitalization(.words)
+            Button("Cancel", role: .cancel) { renaming = nil }
+            Button("Save") { if let sp = renaming { app.renameSpeaker(transcript.id, speaker: sp.id, to: newName) }; renaming = nil }
+        } message: { Text("Changes every line from this speaker, on this iPhone and your Mac.") }
     }
 }
 

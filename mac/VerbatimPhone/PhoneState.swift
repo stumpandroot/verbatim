@@ -250,6 +250,16 @@ final class PhoneState: ObservableObject {
     func purge(_ id: UUID) { if let t = store.transcript(id) { store.delete(t) } }
     func move(_ id: UUID, to project: UUID?) { store.update(id) { $0.projectId = project } }
     func togglePin(_ id: UUID) { store.update(id) { $0.pinned.toggle() } }
+    /// Renames a speaker everywhere in the transcript. Any name works (first and last, underscores); blank keeps the old one.
+    func renameSpeaker(_ id: UUID, speaker sid: String, to name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        store.update(id) { t in if let i = t.speakers.firstIndex(where: { $0.id == sid }) { t.speakers[i].name = clean } }
+    }
+    /// Moves one line to another speaker, or to no speaker.
+    func assign(_ id: UUID, segment: UUID, to speaker: String?) {
+        store.update(id) { t in if let i = t.segments.firstIndex(where: { $0.id == segment }) { t.segments[i].speaker = speaker } }
+    }
 
     func addNote(_ id: UUID, text: String, at: Double?, segment: UUID?, bookmark: Bool = false) {
         store.addNote(Note(text: text, at: at, segmentId: segment, isBookmark: bookmark), to: id)
