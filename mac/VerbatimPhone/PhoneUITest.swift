@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import UIKit
 
 /// Screenshot tour for CI. With VERBATIM_UITEST=1 the app seeds sample transcripts, walks its screens, and
 /// writes each screen's name to Documents/show.txt; the CI job captures the simulator when the name changes.
@@ -10,7 +11,7 @@ enum PhoneUITest {
     static func run(_ app: PhoneState) {
         seed(app)
         Task {
-            try? await Task.sleep(nanoseconds: 8_000_000_000)   // CI starts watching after launch
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
             await show("p01-home")
             app.showRecorder = true
             await show("p02-record")
@@ -59,9 +60,21 @@ enum PhoneUITest {
 
     private static func show(_ name: String) async {
         try? await Task.sleep(nanoseconds: 1_500_000_000)   // let presentations settle
+        snapshot(name)
         write(name)
         Log.note("UITEST show \(name)")
-        try? await Task.sleep(nanoseconds: 5_000_000_000)   // simulator screenshots take a few seconds
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+    }
+
+    /// Renders the key window (sheets and covers included) into Documents/screens/<name>.png. The app takes
+    /// its own screenshots so they match the screen exactly, with no timing race against the CI runner.
+    private static func snapshot(_ name: String) {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        guard let w = windows.first(where: \.isKeyWindow) ?? windows.first else { return }
+        let img = UIGraphicsImageRenderer(bounds: w.bounds).image { _ in _ = w.drawHierarchy(in: w.bounds, afterScreenUpdates: true) }
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("screens", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? img.pngData()?.write(to: dir.appendingPathComponent(name + ".png"))
     }
 
     private static func write(_ name: String) {
