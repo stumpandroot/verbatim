@@ -172,12 +172,14 @@ struct Sidebar: View {
             }
             Rectangle().fill(Ink.hairline).frame(height: 1).padding(.horizontal, 8).padding(.bottom, 8)
             HStack(spacing: 12) {
-                Image(systemName: "laptopcomputer").frame(width: 19)
-                Text("On this Mac")
+                Image(systemName: Cloud.enabled ? "icloud" : "laptopcomputer").frame(width: 19)
+                Text(Cloud.enabled ? "Syncing with iCloud" : "On this Mac")
             }
             .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
             .padding(.horizontal, 12).padding(.vertical, 7)
-            .help("Recordings, transcripts, and models stay in ~/Library/Application Support/Verbatim. Nothing is uploaded.")
+            .help(Cloud.enabled
+                  ? "Transcripts, notes, projects, and the Dictionary sync with your iPhone through your iCloud Drive. Models and recordings in progress stay on this Mac."
+                  : "iCloud is off for Verbatim, so everything stays in ~/Library/Application Support/Verbatim. Sign in to iCloud with iCloud Drive on, and run a build signed with your team, to sync with your iPhone.")
             SettingsLink {
                 HStack(spacing: 12) { Image(systemName: "gearshape").frame(width: 19); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
                     .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
