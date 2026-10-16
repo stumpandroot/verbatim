@@ -95,6 +95,9 @@ if [ -n "$IDENTITY" ]; then
   codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
 
+# 2c. The link helper must still run after signing (a hardened-runtime signature can stop it loading Python).
+if ! "$APP/Contents/Helpers/yt-dlp" --version; then echo "error: the signed yt-dlp helper doesn't run" >&2; exit 1; fi
+
 # 3. Verify the signature (or ad-hoc sign so the unsigned build still launches on a dev Mac)
 if [ -n "$IDENTITY" ]; then
   codesign --verify --deep --strict --verbose=2 "$APP"
