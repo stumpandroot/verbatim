@@ -34,7 +34,7 @@ struct LibraryView: View {
                     }
                     if groups.isEmpty {
                         HStack(spacing: 14) {
-                            VerbieView(pose: app.search.isEmpty ? .ready : .nothing, tracksPointer: false).frame(width: 54, height: 72)
+                            EmptyStateArt(art: app.search.isEmpty ? .library : .search, tint: Ink.butterTint)
                             Text(app.search.isEmpty ? "Nothing in here yet." : "Nothing found for “\(app.search)”.").font(.system(size: 14)).foregroundStyle(Ink.mute)
                         }
                         .padding(.top, 30).staggerIn(1)

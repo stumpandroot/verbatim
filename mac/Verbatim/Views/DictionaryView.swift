@@ -24,7 +24,7 @@ struct DictionaryView: View {
 
                 HStack(spacing: 8) {
                     TextField("Search \(app.store.dictionary.count) words", text: $filter).textFieldStyle(.roundedBorder)
-                    Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(Ink.ink)
+                    Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.brandPrimary)
                 }
                 .padding(.bottom, 12)
 
@@ -39,7 +39,7 @@ struct DictionaryView: View {
                             app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you"))
                             newPreferred = ""; newHeard = ""; adding = false
                         }
-                        .buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction)
+                        .buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
                         Button("Cancel") { adding = false }
                     }
                     .padding(12).background(Ink.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -50,7 +50,7 @@ struct DictionaryView: View {
 
                 if entries.isEmpty {
                     VStack(spacing: 10) {
-                        VerbieView(pose: filter.isEmpty ? .ready : .nothing).frame(width: 96, height: 130)
+                        EmptyStateArt(art: filter.isEmpty ? .refine : .search, tint: Ink.petalTint)
                         Text(filter.isEmpty ? "No words yet" : "Nothing matches “\(filter)”").font(.system(size: 15, weight: .semibold))
                         if filter.isEmpty {
                             Text("Brand names, people, and places are the usual suspects. Add them before a transcript, or fix them after.")
@@ -105,7 +105,7 @@ struct DictionaryRow: View {
             .frame(width: 200, alignment: .leading)
             Toggle("", isOn: Binding(get: { entry.enabled }, set: { v in
                 if let i = app.store.dictionary.firstIndex(where: { $0.id == entry.id }) { app.store.dictionary[i].enabled = v }
-            })).toggleStyle(.switch).controlSize(.small).labelsHidden().tint(Color(hex: 0x7FB83A)).frame(width: 40)
+            })).toggleStyle(.switch).controlSize(.small).labelsHidden().frame(width: 40)
         }
         .padding(.horizontal, 14).padding(.vertical, 9)
         .background(hover ? Ink.cardHover : .clear)

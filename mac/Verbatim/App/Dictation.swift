@@ -229,13 +229,13 @@ struct PillMeter: View {
     var body: some View { Meter(levels: live.levels, color: .white) }
 }
 
-/// The hold-to-talk pill: Verbie listening, live bars, and where the words will go.
+/// The hold-to-talk pill: signal rings, live bars, and where the words will go. Always ink, both modes.
 struct DictationPill: View {
     @ObservedObject var controller: DictationController
     @ObservedObject var recorder: Recorder
     var body: some View {
         HStack(spacing: 12) {
-            VerbieView(pose: controller.isWorking ? .working : .listening, tracksPointer: false).frame(width: 30, height: 42)
+            SignalRings(color: Ink.persimmon).frame(width: 30, height: 30)
             if controller.isWorking {
                 Text("Writing into \(controller.targetAppName)…").font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
                 Spacer()
@@ -251,7 +251,7 @@ struct DictationPill: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .frame(width: 360, height: 64)
-        .background(Ink.ink.opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Ink.inkFixed.opacity(0.95), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.white.opacity(0.12)))
     }
 }

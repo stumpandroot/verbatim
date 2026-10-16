@@ -160,7 +160,7 @@ struct TranscriptView: View {
                     Text(m.rawValue).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
                         .padding(.horizontal, 13).padding(.vertical, 5)
                         .background { if view == m { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "mode", in: segNS) } }
-                        .foregroundStyle(view == m ? .white : Ink.ink)
+                        .foregroundStyle(view == m ? Ink.onInteractive : Ink.ink)
                         .tapArea { withAnimation(Motion.snap) { view = m } }
                 }
             }
@@ -247,7 +247,7 @@ struct TranscriptView: View {
 
     private func placeholder(_ title: String, _ body: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            VerbieView(pose: .working, tracksPointer: false).frame(width: 46, height: 64)
+            EmptyStateArt(art: .refine, tint: Ink.petalTint)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 15, weight: .semibold))
                 Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
@@ -260,25 +260,25 @@ struct TranscriptView: View {
     private func processing(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                VerbieView(pose: .working, tracksPointer: false).frame(width: 46, height: 64)
+                SignalRings().frame(width: 40, height: 40).padding(6)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(t.stage ?? "Transcribing").font(.system(size: 15, weight: .semibold))
                     Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 }
             }
             ForEach(0..<4, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
+                RoundedRectangle(cornerRadius: 4).fill(Ink.ink.opacity(0.07)).frame(width: CGFloat([480, 420, 500, 300][i]), height: 14).padding(.vertical, 6)
             }
         }
     }
 
     private func failed(_ t: Transcript) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            VerbieView(pose: .interrupted, tracksPointer: false).frame(width: 52, height: 72)
+            Image(systemName: "exclamationmark.triangle").font(.system(size: 22, weight: .light)).foregroundStyle(Ink.danger).frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Transcription did not finish").font(.system(size: 14, weight: .semibold))
                 Text(t.error ?? "").font(.system(size: 13)).foregroundStyle(Ink.mute)
-                Button("Retry") { app.retry(t) }.buttonStyle(.borderedProminent).tint(Ink.iris)
+                Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
             }
         }
     }
@@ -358,7 +358,7 @@ struct SegmentLine: View {
                                 Text("Name this speaker").font(.system(size: 12.5, weight: .semibold))
                                 TextField("Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 200)
                                     .onSubmit { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }
-                                HStack { Spacer(); Button("Cancel") { renaming = false }; Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }.buttonStyle(.borderedProminent).tint(Ink.iris) }
+                                HStack { Spacer(); Button("Cancel") { renaming = false }; Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }.buttonStyle(.brandPrimary) }
                             }
                             .padding(14)
                         }
@@ -395,7 +395,7 @@ struct SegmentLine: View {
                             HStack { Text("Heard as").font(.system(size: 11)).foregroundStyle(Ink.mute); Text(fixing ?? "").font(.system(size: 13, weight: .semibold)) }
                             TextField("Correct spelling", text: $replacement).textFieldStyle(.roundedBorder).onSubmit { commit() }
                             Toggle("Remember in Dictionary", isOn: $remember).font(.system(size: 12))
-                            HStack { Spacer(); Button("Cancel") { fixing = nil }; Button("Fix") { commit() }.buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction) }
+                            HStack { Spacer(); Button("Cancel") { fixing = nil }; Button("Fix") { commit() }.buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction) }
                         }
                         .padding(14).frame(width: 300)
                     }
@@ -407,7 +407,8 @@ struct SegmentLine: View {
     }
 
     private func speakerColor(_ id: String) -> Color {
-        let palette = [Ink.iris, Ink.coral, Color(hex: 0x4F9A2E), Color(hex: 0x2F7FA0), Color(hex: 0xC08A00)]
+        // Speaker markers: brand hues as small markers only; the name is always written out.
+        let palette = [Ink.accentText, Ink.sageText, Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor(hex: 0xE3A3B8) : NSColor(hex: 0xA34D6B) }), Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor(hex: 0xE8C27A) : NSColor(hex: 0x8A6414) }), Ink.dim]
         return palette[max(0, (Int(id.dropFirst()) ?? 1) - 1) % palette.count]
     }
     private var candidates: [String] {
@@ -465,10 +466,9 @@ struct PlayerDock: View {
         HStack(spacing: 12) {
             Button { app.player.toggle() } label: {
                 ZStack {
-                    Circle().fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Ink.irisDeep], startPoint: .top, endPoint: .bottom))
-                        .overlay(Circle().strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.1)], startPoint: .top, endPoint: .bottom), lineWidth: 1.5))
-                        .shadow(color: Ink.irisDeep.opacity(0.3), radius: 8, y: 4)
-                    Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(.white).offset(x: app.player.isPlaying ? 0 : 1.5)
+                    Circle().fill(Ink.interactive)
+                        .shadow(color: Ink.inkFixed.opacity(0.12), radius: 6, y: 2)
+                    Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(Ink.onInteractive).offset(x: app.player.isPlaying ? 0 : 1.5)
                 }
                 .frame(width: 50, height: 50)
             }
@@ -509,7 +509,7 @@ struct PlayerDock: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
-        .shadow(color: Color(hex: 0x3C328C).opacity(0.14), radius: 16, y: 6)
+        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 10, y: 3)
         .frame(maxWidth: 760)
     }
 
@@ -537,7 +537,7 @@ struct WaveTrack: View {
                 WaveformThumb(values: vals).fill(Ink.iris)
                     .mask(alignment: .leading) { Rectangle().frame(width: max(0, w * progress)) }
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, m in
-                    Capsule().fill(Color(hex: 0x7FB83A)).frame(width: 3, height: g.size.height).offset(x: w * m - 1.5)
+                    Capsule().fill(Ink.persimmon).frame(width: 3, height: g.size.height).offset(x: w * m - 1.5)
                 }
                 Rectangle().fill(Ink.ink).frame(width: 2, height: g.size.height + 6).offset(x: max(0, min(w - 2, w * progress - 1)), y: -3)
                 if let hx = hoverX { Rectangle().fill(Ink.iris.opacity(0.25)).frame(width: 1).offset(x: hx) }

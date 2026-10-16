@@ -119,11 +119,13 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 10) {
-                BrandBars().frame(width: 20, height: 24)
-                Text("Verbatim").font(Ink.serif(23))
+            // Compact lockup: the ribbon mark and the tracked uppercase wordmark (logo_lockup, small).
+            HStack(spacing: 9) {
+                RibbonMark(color: Ink.persimmon).frame(width: 20, height: 21)
+                Text("VERBATIM").font(.system(size: 13.5, weight: .bold)).tracking(2.2).foregroundStyle(Ink.ink)
             }
-            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 20)
+            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 22)
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbatim")
 
             SideItem(label: "Home", symbol: "house", selected: app.screen == .home, pill: pill) { app.go(.home) }
                 .uiTarget("side-home")
@@ -140,14 +142,14 @@ struct Sidebar: View {
                 .uiTarget("side-dict")
 
             HStack {
-                Text("Projects").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.mute)
+                Overline(text: "Projects", color: Ink.mute)
                 Spacer()
                 Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 22).hoverChip().tapArea { newProject = true }
                     .help("New project")
             }
             .padding(.leading, 12).padding(.trailing, 6).padding(.top, 18).padding(.bottom, 4)
             ForEach(app.store.projects) { p in
-                SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.coral, Color(hex: 0x9CCB44), Ink.iris][p.colorIndex % 3],
+                SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.persimmon, Ink.sageText, Ink.petal][p.colorIndex % 3],
                          selected: app.screen == .library && app.projectFilter == p.id, pill: pill, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
                     .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
             }
@@ -187,11 +189,10 @@ struct Sidebar: View {
         .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
-        // Glass belongs to navigation: the system sidebar material (blends with the desktop behind the
-        // window), a faint lavender tint, and a fine trailing separator. Labels sit on it at full contrast.
-        .background(Ink.sideTint.opacity(0.55))
+        // The one translucent surface: the native sidebar material, untinted, with an ink hairline.
+        // Reduce Transparency makes it opaque automatically.
         .background(VisualEffect(material: .sidebar, blending: .behindWindow))
-        .overlay(alignment: .trailing) { Ink.iris.opacity(0.14).frame(width: 1) }
+        .overlay(alignment: .trailing) { Ink.hairline.frame(width: 1) }
         .ignoresSafeArea(edges: .top)
     }
 }
@@ -212,7 +213,7 @@ struct SideItem: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let s = symbol { Image(systemName: s).font(.system(size: 15, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? (selected ? Ink.iris : Ink.ink)) }
+            if let s = symbol { Image(systemName: s).font(.system(size: 14.5, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? Ink.ink) }
             Text(label).lineLimit(1)
             Spacer(minLength: 0)
             if busy { ProgressView().controlSize(.mini) }
@@ -222,18 +223,17 @@ struct SideItem: View {
         .background {
             ZStack {
                 // Hover previews (light iris tint); selection says where you are (lifted white glass + iris marker).
-                if dropping { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.16)).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.iris, lineWidth: 1.5)) }
-                else if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.iris.opacity(0.07)) }
+                if dropping { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.accentSubtle).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.persimmon, lineWidth: 1.5)) }
+                else if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.ink.opacity(0.06)) }
                 if selected {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.selectedPill)
                         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.selectedPillEdge, lineWidth: 0.5))
-                        .shadow(color: Ink.ink.opacity(0.06), radius: 1.5, y: 1)
                         .matchedGeometryEffect(id: "pill", in: pill)
                 }
             }
         }
         .overlay(alignment: .leading) {
-            if selected { Capsule().fill(Ink.iris).frame(width: 3, height: 20).offset(x: -12).matchedGeometryEffect(id: "marker", in: pill) }
+            if selected { Capsule().fill(Ink.persimmon).frame(width: 3, height: 18).offset(x: -12).matchedGeometryEffect(id: "marker", in: pill) }
         }
         .foregroundStyle(Ink.ink)
         .fontWeight(selected ? .semibold : .regular)
@@ -249,29 +249,17 @@ struct SideItem: View {
     }
 }
 
-/// The three-bar brand mark: iris, coral, lime.
+/// The ribbon mark in the brand's small spaces.
 struct BrandBars: View {
-    var body: some View {
-        HStack(alignment: .center, spacing: 3) {
-            Capsule().fill(Ink.iris).frame(width: 4, height: 16)
-            Capsule().fill(Ink.coral).frame(width: 4, height: 24)
-            Capsule().fill(Color(hex: 0x9CCB44)).frame(width: 4, height: 13)
-        }
-    }
+    var body: some View { RibbonMark(color: Ink.persimmon) }
 }
 
-/// The old square app mark (menu bar panel).
+/// The app mark for the menu bar panel: the persimmon app icon geometry (app_icon_persimmon).
 struct BrandMark: View {
     var body: some View {
-        ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x8C78FF), Color(hex: 0x5D48D8)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            HStack(alignment: .bottom, spacing: 2) {
-                Capsule().fill(.white).frame(width: 3.5, height: 14)
-                Capsule().fill(Color(hex: 0xFF8A6A)).frame(width: 3.5, height: 10)
-                Capsule().fill(Color(hex: 0xC4EA7E)).frame(width: 3.5, height: 7)
-            }
-            .padding(.bottom, 5)
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Ink.persimmon)
+            RibbonMark(color: Ink.inkFixed).padding(3.5)
         }
     }
 }
@@ -296,12 +284,12 @@ struct ToastView: View {
                 Text(t.message).font(.system(size: 13)).lineLimit(2)
                 if let a = t.action {
                     Button(a) { t.onAction?(); app.toast = nil }
-                        .buttonStyle(.plain).foregroundStyle(Color(hex: 0xC9BFFF)).fontWeight(.semibold)
+                        .buttonStyle(.plain).foregroundStyle(Color(nsColor: NSColor(hex: Ink.butterHex))).fontWeight(.semibold)
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Ink.ink, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .foregroundStyle(.white)
+            .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .foregroundStyle(Ink.readerFixed)
             .frame(maxWidth: 520)
             .padding(.bottom, 24)
             .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))
@@ -319,13 +307,13 @@ struct MicSheet: View {
     @EnvironmentObject var app: AppState
     var body: some View {
         VStack(spacing: 8) {
-            VerbieView(pose: .permission, tracksPointer: false).frame(width: 80, height: 110)
+            EmptyStateArt(art: .capture, tint: Ink.persimmonTint).padding(.bottom, 4)
             Text("Verbatim wants to use the microphone").font(.system(size: 15, weight: .semibold))
             Text("Voice memos are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
                 Button("Not now") { app.showMicSheet = false; app.verbiePose = .ready }.buttonStyle(.bordered).uiTarget("sheet-notnow")
-                Button("Allow") { app.allowMic() }.buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut(.defaultAction)
+                Button("Allow") { app.allowMic() }.buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
             }.padding(.top, 8)
         }
         .padding(24).frame(width: 360).background(Ink.paper)
@@ -450,7 +438,7 @@ struct ExportPanel: View {
                 }
             }
             Button { done(); Exporter.copy(transcript, options: options) } label: { Label("Copy to clipboard", systemImage: "doc.on.doc") }
-                .buttonStyle(.borderedProminent).tint(Ink.iris).frame(maxWidth: .infinity)
+                .buttonStyle(.brandPrimary).frame(maxWidth: .infinity)
         }
         .padding(16).frame(width: 300)
     }

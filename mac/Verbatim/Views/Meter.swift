@@ -36,7 +36,7 @@ import QuartzCore
 /// Elapsed time + bars, observing only the LiveMeter so the rest of the app stays still while recording.
 struct LiveReadout: View {
     @ObservedObject var live: LiveMeter
-    var color: NSColor = NSColor(red: 1, green: 0x7C/255, blue: 0x5C/255, alpha: 1)
+    var color: NSColor = NSColor(hex: Ink.persimmonHex)
     var frozen = false
     var showTime = true
     var body: some View {
@@ -51,7 +51,7 @@ struct LiveReadout: View {
 
 struct Meter: NSViewRepresentable {
     var levels: [Float]
-    var color: NSColor = NSColor(red: 1, green: 0x7C/255, blue: 0x5C/255, alpha: 1)
+    var color: NSColor = NSColor(hex: Ink.persimmonHex)
     var frozen = false
 
     func makeNSView(context: Context) -> MeterHost { let v = MeterHost(); v.color = color; v.apply(levels, frozen: frozen); return v }

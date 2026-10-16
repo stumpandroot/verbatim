@@ -30,7 +30,7 @@ struct LinksView: View {
                 }
                 if shown.isEmpty {
                     HStack(spacing: 16) {
-                        VerbieView(pose: .ready, tracksPointer: false).frame(width: 54, height: 76)
+                        EmptyStateArt(art: .export, tint: Ink.sageTint)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(app.search.isEmpty ? "No links yet" : "No links match “\(app.search)”").font(Ink.serif(20, weight: .regular))
                             Text("Paste a YouTube, Vimeo, or podcast link on Home. Verbatim keeps the page and transcribes the audio.")
@@ -59,7 +59,7 @@ struct SiteChip: View {
         Text(label).font(.system(size: 12.5, weight: .medium))
             .padding(.horizontal, 12).padding(.vertical, 5)
             .background(on ? Ink.iris : Ink.track, in: Capsule())
-            .foregroundStyle(on ? .white : Ink.ink)
+            .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
             .tapArea(action)
     }
 }
@@ -92,7 +92,7 @@ struct LinkRow: View {
                 Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", systemImage: "play.rectangle") }
                     .buttonStyle(.bordered).fixedSize()
                 Button { app.go(.transcript(transcript.id)) } label: { Label("Transcript", systemImage: "text.alignleft") }
-                    .buttonStyle(.borderedProminent).tint(Ink.iris).disabled(transcript.status != .ready).fixedSize()
+                    .buttonStyle(.brandPrimary).disabled(transcript.status != .ready).fixedSize()
                 Menu {
                     Button("Copy link") { copy(info.url) }
                     Button("Copy title and link") { copy("\(transcript.title)\n\(info.url)") }

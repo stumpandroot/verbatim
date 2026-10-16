@@ -24,7 +24,7 @@ struct QueueView: View {
                         Button("Cancel all") { app.cancelAll() }.buttonStyle(.bordered)
                     }
                     Button { app.chooseFiles() } label: { Label("Add files", systemImage: "plus") }
-                        .buttonStyle(.borderedProminent).tint(Ink.iris).keyboardShortcut("o", modifiers: .command)
+                        .buttonStyle(.brandPrimary).keyboardShortcut("o", modifiers: .command)
                 }
                 .padding(.bottom, 6)
                 Text("Files are transcribed one at a time, in order, on this Mac. Drop files or folders anywhere on this page.")
@@ -77,7 +77,7 @@ struct QueueView: View {
 
     private var empty: some View {
         HStack(spacing: 16) {
-            VerbieView(pose: .ready, tracksPointer: false).frame(width: 54, height: 76)
+            EmptyStateArt(art: .document, tint: Ink.butterTint)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Nothing waiting").font(Ink.serif(20, weight: .regular))
                 Text("Add a batch of recordings, interviews, or videos. Verbatim works through them while you do something else.")

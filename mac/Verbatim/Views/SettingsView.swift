@@ -189,7 +189,7 @@ struct MenuBarPanel: View {
                     ElapsedText(live: app.recorder.live)
                     Spacer()
                     Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }
-                    Button("Stop") { app.stopRecording() }.buttonStyle(.borderedProminent).tint(Ink.ink)
+                    Button("Stop") { app.stopRecording() }.buttonStyle(.brandPrimary)
                 }
                 .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             } else if app.capture.isCapturing {
@@ -197,7 +197,7 @@ struct MenuBarPanel: View {
                     Image(systemName: "rectangle.on.rectangle").foregroundStyle(Ink.iris)
                     HStack(spacing: 4) { Text("Capturing \(app.capture.appName) ·").font(.system(size: 12.5)); ElapsedText(live: app.capture.live) }
                     Spacer()
-                    Button("Stop") { app.stopCapture() }.buttonStyle(.borderedProminent).tint(Ink.ink)
+                    Button("Stop") { app.stopCapture() }.buttonStyle(.brandPrimary)
                 }
                 .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             } else {
@@ -218,8 +218,8 @@ struct MenuBarPanel: View {
             if let last = app.store.live.first {
                 Button { NSApp.activate(ignoringOtherApps: true); app.go(.transcript(last.id)) } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: last.source.symbol).foregroundStyle(.white).frame(width: 26, height: 26)
-                            .background(Ink.coral, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        Image(systemName: last.source.symbol).foregroundStyle(Ink.inkFixed).frame(width: 26, height: 26)
+                            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(last.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
                             Text("Last transcript · \(last.duration.timecode)").font(.system(size: 11)).foregroundStyle(Ink.mute)
