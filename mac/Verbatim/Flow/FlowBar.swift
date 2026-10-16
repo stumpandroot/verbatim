@@ -2,10 +2,24 @@ import AppKit
 import SwiftUI
 import Combine
 
-/// What the floating button shows.
+/// What the floating Ribbon shows.
 @MainActor
 final class FlowBarModel: ObservableObject {
-    enum Phase: Equatable { case idle, listening, working, notice }
+    enum Phase: Equatable { case idle, listening, working, notice, prompt }
+
+    struct Prompt {
+        var title: String
+        var body: String
+        var quote: String?
+        var after: String = ""
+        var primary: String?
+        var secondary: String
+        var seconds: Double
+        var onPrimary: () -> Void = {}
+        var onSecondary: () -> Void = {}
+        var onTimeout: () -> Void = {}
+    }
+
     @Published var phase: Phase = .idle
     @Published var hover = false
     @Published var handsFree = false
@@ -14,90 +28,122 @@ final class FlowBarModel: ObservableObject {
     @Published var notice = ""
     @Published var noticeAction: String? = nil
     var onNoticeAction: (() -> Void)?
+    @Published var prompt: Prompt? = nil
     @Published var hint = ""          // "hold ⌥ or click"
     @Published var warning = ""       // "AirPods mic: lower quality"
+    @Published var appLabel = ""      // "MAIL" while writing
     @Published var edge: BarEdge = .bottom
-
-    var size: CGSize {
-        switch phase {
-        case .idle: return hover || dragging ? CGSize(width: 196, height: 30) : CGSize(width: 46, height: 12)
-        case .listening: return CGSize(width: handsFree ? 214 : 176, height: warning.isEmpty ? 34 : 50)
-        case .working: return CGSize(width: 132, height: 34)
-        case .notice: return CGSize(width: min(380, max(150, CGFloat(notice.count) * 6.6 + (noticeAction == nil ? 40 : 100))), height: 34)
-        }
-    }
+    /// The drawn content's real size, measured by SwiftUI; clicks inside it reach the Ribbon, clicks outside pass through.
+    @Published var contentSize: CGSize = .zero
 }
 
-/// The always-on floating button for dictation (like Wispr Flow's Flow Bar), in Verbatim's ink and persimmon.
+/// The always-on floating Ribbon for dictation, in Verbatim's ink, persimmon, and paper.
 ///
-/// A non-activating panel: clicking it never takes focus from the app you're typing in. It sits at the
-/// bottom, left, or right edge of the display under your pointer, remembers where you put it on each
-/// display, and keeps clear of the Dock and menu bar (it uses the screen's visible frame). It's rebuilt after
-/// sleep and display changes, because a long-lived panel can stop drawing while still reporting visible.
+/// - Closed, only a sliver of the ink pill shows at the screen edge. On hover it slides out and the ribbon
+///   (the logo's three bars) appears. Listening, the bars follow your voice. Writing, a bar sweeps and the
+///   app's name shows.
+/// - A non-activating panel of a fixed size: the window never moves or resizes while it animates (resizing
+///   the window on every state change is what made the first version flicker). Only the drawn Ribbon takes
+///   clicks; the rest of the panel lets clicks through to the apps behind it.
+/// - It sits flush with the bottom, left, or right edge of the display under your pointer, remembers its spot
+///   per display, and stays clear of the Dock and menu bar. It's rebuilt after sleep and display changes.
 @MainActor
 final class FlowBarController {
     let model = FlowBarModel()
     private var panel: FlowPanel?
+    private let menu = FlowMenuController()
     private var bag: Set<AnyCancellable> = []
     private weak var dictation: DictationController?
     private var screenKey = ""
+    private var lockedScreen: NSScreen?
     private var noticeTimer: Timer?
-    private var followTimer: Timer?
+    private var promptTimer: Timer?
+    private var pollTimer: Timer?
+    private var monitors: [Any] = []
     private var dragOffset: CGPoint = .zero
+
+    private static let sideSize = CGSize(width: 440, height: 220)
+    private static let bottomSize = CGSize(width: 460, height: 170)
 
     init(dictation: DictationController) {
         self.dictation = dictation
-        model.objectWillChange.sink { [weak self] _ in DispatchQueue.main.async { self?.layout(animated: true) } }.store(in: &bag)
         FlowSettings.shared.objectWillChange.sink { [weak self] _ in DispatchQueue.main.async { self?.refresh() } }.store(in: &bag)
         let nc = NotificationCenter.default, ws = NSWorkspace.shared.notificationCenter
         nc.publisher(for: NSApplication.didChangeScreenParametersNotification).sink { [weak self] _ in self?.rebuild() }.store(in: &bag)
         ws.publisher(for: NSWorkspace.didWakeNotification).sink { [weak self] _ in self?.rebuild() }.store(in: &bag)
-        ws.publisher(for: NSWorkspace.activeSpaceDidChangeNotification).sink { [weak self] _ in self?.layout(animated: false) }.store(in: &bag)
-        // Follow the display under the pointer, like the Dock does.
-        followTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in Task { @MainActor in self?.followPointer() } }
+        // Track the pointer: decides hover, whether clicks reach the Ribbon, and which display it's on.
+        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in Task { @MainActor in self?.pointerMoved() } }) { monitors.append(g) }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in Task { @MainActor in self?.pointerMoved() }; return e }) { monitors.append(l) }
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in Task { @MainActor in self?.pointerMoved(); self?.followPointer() } }
         refresh()
     }
 
-    /// Shows or hides the button to match settings and dictation state.
+    /// Shows or hides the Ribbon to match settings and dictation state.
     func refresh() {
         let s = FlowSettings.shared
         let busy = model.phase != .idle
         let enabled = dictation?.enabled ?? false
-        let wanted = enabled && (busy || !s.barHidden)
-        if wanted {
+        if enabled && (busy || !s.barHidden) {
             if panel == nil { build() }
-            layout(animated: false)
+            place()
             panel?.orderFrontRegardless()
         } else {
             panel?.orderOut(nil)
+            menu.close()
         }
-        model.hint = dictation.map { "Click, or " + $0.hotkey.shortTitle } ?? "Click to dictate"
+        model.hint = dictation.map { "\($0.hotkey.shortTitle) or click" } ?? "click to dictate"
     }
 
     func setPhase(_ p: FlowBarModel.Phase) {
         if p != .notice { noticeTimer?.invalidate(); model.noticeAction = nil; model.onNoticeAction = nil }
+        if p != .prompt { promptTimer?.invalidate(); model.prompt = nil }
+        // While busy the Ribbon stays on the display it started on, even if the pointer wanders.
+        lockedScreen = (p == .idle) ? nil : (lockedScreen ?? currentScreen())
         model.phase = p
-        if p == .idle { model.warning = "" ; model.command = false }
+        if p == .idle { model.warning = ""; model.command = false; model.handsFree = false; model.appLabel = "" }
+        if p != .idle { menu.close() }
         refresh()
+        pointerMoved()
     }
 
-    /// A short message in the button ("Learned “Lititz”", "Didn't catch that"), with an optional action.
+    /// A short message in the Ribbon ("Learned “Lititz”", "Copied. Click a text field…"), with an optional action.
     func flash(_ text: String, action: String? = nil, seconds: Double = 3.5, perform: (() -> Void)? = nil) {
+        setPhase(.notice)
         model.notice = text
         model.noticeAction = action
         model.onNoticeAction = perform
-        model.phase = .notice
-        refresh()
         noticeTimer?.invalidate()
         noticeTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             Task { @MainActor in if self?.model.phase == .notice { self?.setPhase(.idle) } }
         }
     }
 
+    /// A question with two choices ("Started by mistake?"). It answers itself with `onTimeout` after `seconds`.
+    func ask(_ prompt: FlowBarModel.Prompt) {
+        setPhase(.prompt)
+        model.prompt = prompt
+        promptTimer?.invalidate()
+        promptTimer = Timer.scheduledTimer(withTimeInterval: prompt.seconds, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.model.phase == .prompt else { return }
+                let p = self.model.prompt
+                self.setPhase(.idle)
+                p?.onTimeout()
+            }
+        }
+    }
+
+    func answer(primary: Bool) {
+        guard let p = model.prompt else { return }
+        setPhase(.idle)
+        if primary { p.onPrimary() } else { p.onSecondary() }
+    }
+
     // MARK: Panel
 
     private func build() {
-        let p = FlowPanel(contentRect: NSRect(x: 0, y: 0, width: 46, height: 12), styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
+        let p = FlowPanel(contentRect: NSRect(origin: .zero, size: Self.sideSize), styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
         p.level = .statusBar
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         p.isOpaque = false
@@ -106,10 +152,11 @@ final class FlowBarController {
         p.hidesOnDeactivate = false
         p.isFloatingPanel = true
         p.becomesKeyOnlyIfNeeded = true
-        p.acceptsMouseMovedEvents = true
         p.isReleasedWhenClosed = false
-        let host = FirstMouseHostingView(rootView: FlowBarView(model: model, controller: self))
-        host.frame = p.contentLayoutRect
+        p.ignoresMouseEvents = true
+        let host = FlowHostingView(rootView: FlowBarView(model: model, controller: self, live: dictation?.liveMeter ?? LiveMeter()))
+        host.onRightClick = { [weak self] in self?.openMenu() }
+        host.frame = NSRect(origin: .zero, size: Self.sideSize)
         host.autoresizingMask = [.width, .height]
         p.contentView = host
         panel = p
@@ -117,13 +164,16 @@ final class FlowBarController {
 
     private func rebuild() {
         let visible = panel?.isVisible ?? false
+        menu.close()
         panel?.orderOut(nil); panel?.close(); panel = nil
+        lockedScreen = nil
         if visible { refresh() }
     }
 
     // MARK: Position
 
     private func currentScreen() -> NSScreen {
+        if let s = lockedScreen, NSScreen.screens.contains(s) { return s }
         let m = NSEvent.mouseLocation
         return NSScreen.screens.first { NSMouseInRect(m, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
     }
@@ -135,43 +185,61 @@ final class FlowBarController {
     }
 
     private func followPointer() {
-        guard panel?.isVisible == true, !model.dragging else { return }
-        let k = Self.key(for: currentScreen())
-        if k != screenKey { layout(animated: false) }
+        guard panel?.isVisible == true, !model.dragging, model.phase == .idle, !menu.isOpen else { return }
+        if Self.key(for: currentScreen()) != screenKey { place() }
     }
 
-    private func layout(animated: Bool) {
+    private func position(for screen: NSScreen) -> FlowSettings.BarPosition {
+        FlowSettings.shared.positions[Self.key(for: screen)] ?? .init(edge: .bottom, along: 0.5)
+    }
+
+    /// Puts the fixed-size panel flush against its edge. The Ribbon inside aligns to that edge.
+    private func place() {
         guard let p = panel, !model.dragging else { return }
         let screen = currentScreen()
         screenKey = Self.key(for: screen)
-        let pos = FlowSettings.shared.positions[screenKey] ?? .init(edge: .bottom, along: 0.5)
+        let pos = position(for: screen)
         if model.edge != pos.edge { model.edge = pos.edge }
-        let size = model.size
         let f = screen.visibleFrame
-        let inset: CGFloat = 8
+        let size = pos.edge == .bottom ? Self.bottomSize : Self.sideSize
         var origin: CGPoint
         switch pos.edge {
         case .bottom:
             let x = f.minX + f.width * pos.along - size.width / 2
-            origin = CGPoint(x: min(max(x, f.minX + inset), f.maxX - size.width - inset), y: f.minY + inset)
+            origin = CGPoint(x: min(max(x, f.minX), f.maxX - size.width), y: f.minY)
         case .left:
             let y = f.minY + f.height * pos.along - size.height / 2
-            origin = CGPoint(x: f.minX + inset, y: min(max(y, f.minY + inset), f.maxY - size.height - inset))
+            origin = CGPoint(x: f.minX, y: min(max(y, f.minY), f.maxY - size.height))
         case .right:
             let y = f.minY + f.height * pos.along - size.height / 2
-            origin = CGPoint(x: f.maxX - size.width - inset, y: min(max(y, f.minY + inset), f.maxY - size.height - inset))
+            origin = CGPoint(x: f.maxX - size.width, y: min(max(y, f.minY), f.maxY - size.height))
         }
         let frame = NSRect(origin: origin, size: size)
-        if p.frame == frame { return }
-        if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.24
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                p.animator().setFrame(frame, display: true)
-            }
-        } else {
-            p.setFrame(frame, display: true)
+        if p.frame != frame { p.setFrame(frame, display: true) }
+    }
+
+    /// The Ribbon's drawn area on screen, in screen coordinates.
+    private func ribbonRect() -> NSRect? {
+        guard let p = panel, p.isVisible else { return nil }
+        var s = model.contentSize
+        // Closed, the sliver is thin; give the pointer a fair target.
+        s.width = max(s.width, model.edge == .bottom ? 64 : 14)
+        s.height = max(s.height, model.edge == .bottom ? 14 : 64)
+        let f = p.frame
+        switch model.edge {
+        case .left: return NSRect(x: f.minX, y: f.midY - s.height / 2, width: s.width, height: s.height)
+        case .right: return NSRect(x: f.maxX - s.width, y: f.midY - s.height / 2, width: s.width, height: s.height)
+        case .bottom: return NSRect(x: f.midX - s.width / 2, y: f.minY, width: s.width, height: s.height)
         }
+    }
+
+    private func pointerMoved() {
+        guard let p = panel else { return }
+        if model.dragging { p.ignoresMouseEvents = false; return }
+        let inside = ribbonRect()?.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation) ?? false
+        if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
+        let hover = inside || menu.isOpen
+        if model.hover != hover { model.hover = hover }
     }
 
     // MARK: Drag to an edge
@@ -180,6 +248,7 @@ final class FlowBarController {
         guard let p = panel else { return }
         let m = NSEvent.mouseLocation
         if !model.dragging {
+            menu.close()
             model.dragging = true
             dragOffset = CGPoint(x: m.x - p.frame.minX, y: m.y - p.frame.minY)
         }
@@ -187,38 +256,62 @@ final class FlowBarController {
     }
 
     func dragEnded() {
-        guard let p = panel else { model.dragging = false; return }
+        guard model.dragging else { return }
         let screen = currentScreen()
         let f = screen.visibleFrame
-        let c = CGPoint(x: p.frame.midX, y: p.frame.midY)
-        let dBottom = c.y - f.minY, dLeft = c.x - f.minX, dRight = f.maxX - c.x
+        let m = NSEvent.mouseLocation
+        let dBottom = m.y - f.minY, dLeft = m.x - f.minX, dRight = f.maxX - m.x
         let pos: FlowSettings.BarPosition
-        if dBottom <= min(dLeft, dRight) || dBottom < 120 {
-            pos = .init(edge: .bottom, along: Double(min(max((c.x - f.minX) / f.width, 0.05), 0.95)))
-        } else if dLeft < dRight {
-            pos = .init(edge: .left, along: Double(min(max((c.y - f.minY) / f.height, 0.05), 0.95)))
+        if dBottom <= min(dLeft, dRight) {
+            pos = .init(edge: .bottom, along: Double(min(max((m.x - f.minX) / f.width, 0.05), 0.95)))
+        } else if dLeft <= dRight {
+            pos = .init(edge: .left, along: Double(min(max((m.y - f.minY) / f.height, 0.08), 0.92)))
         } else {
-            pos = .init(edge: .right, along: Double(min(max((c.y - f.minY) / f.height, 0.05), 0.95)))
+            pos = .init(edge: .right, along: Double(min(max((m.y - f.minY) / f.height, 0.08), 0.92)))
         }
         FlowSettings.shared.positions[Self.key(for: screen)] = pos
         model.dragging = false
-        layout(animated: true)
+        place()
+        pointerMoved()
     }
 
+    // MARK: Actions
+
     var liveMeter: LiveMeter? { dictation?.liveMeter }
-    func pasteLast() { dictation?.pasteLast() }
-    func openHistory() { dictation?.openHistory() }
-    func clicked() { dictation?.barClicked() }
+    func clicked() {
+        if menu.isOpen { menu.close(); return }
+        if Date().timeIntervalSince(menu.closedAt) < 0.35 { return }
+        switch model.phase {
+        case .notice: model.onNoticeAction?(); setPhase(.idle)
+        case .working, .prompt: break
+        default: dictation?.barClicked()
+        }
+    }
     func stop() { dictation?.barClicked() }
     func cancel() { dictation?.cancel() }
-    func noticeTapped() { model.onNoticeAction?(); setPhase(.idle) }
-    func hideForAnHour() { FlowSettings.shared.hiddenUntil = Date().addingTimeInterval(3600); refresh() }
-    func startCommand() { dictation?.startFromBar(command: true) }
+
+    func openMenu() {
+        guard model.phase == .idle || model.phase == .notice, let rect = ribbonRect(), let dictation else { return }
+        if model.phase == .notice { setPhase(.idle) }
+        menu.open(next: rect, edge: model.edge, screen: currentScreen(), actions: .init(
+            hide: { FlowSettings.shared.hiddenUntil = Date().addingTimeInterval(3600) },
+            settings: { [weak dictation] in dictation?.openSettings() },
+            history: { [weak dictation] in dictation?.openHistory() },
+            pasteLast: { [weak dictation] in dictation?.pasteLast() },
+            editByVoice: { [weak dictation] in dictation?.startFromBar(command: true) }
+        )) { [weak self] in self?.pointerMoved() }
+    }
 }
 
-/// Clicks land on the first try even though the panel never becomes key.
-final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+/// Clicks land on the first try even though the panel never becomes key, and right-click opens the menu.
+final class FlowHostingView<Content: View>: NSHostingView<Content> {
+    var onRightClick: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func rightMouseDown(with event: NSEvent) { onRightClick?() }
+    override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) { onRightClick?(); return }
+        super.mouseDown(with: event)
+    }
 }
 
 final class FlowPanel: NSPanel {
@@ -226,122 +319,258 @@ final class FlowPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-// MARK: - View
+// MARK: - The Ribbon
+
+private enum RibbonInk {
+    static let ink = Color(hex: 0x26352E)
+    static let inkRaised = Color(hex: 0x34453C)
+    static let track = Color(hex: 0x3B4A42)
+    static let persimmon = Color(hex: 0xFA6B47)
+    static let butter = Color(hex: 0xF4C76B)
+    static let paper = Color(hex: 0xF5F0E6)
+    static let muted = Color(hex: 0xC9C2B3)
+}
 
 struct FlowBarView: View {
     @ObservedObject var model: FlowBarModel
     let controller: FlowBarController
+    @ObservedObject var live: LiveMeter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    var body: some View {
-        let shape = Capsule(style: .continuous)
-        content
-            .frame(width: model.size.width, height: model.size.height)
-            .background(Ink.inkFixed.opacity(model.phase == .idle && !model.hover ? 0.78 : 0.96), in: shape)
-            .overlay(shape.strokeBorder(Color.white.opacity(model.phase == .idle && !model.hover ? 0.22 : 0.14), lineWidth: 1))
-            .overlay(shape.strokeBorder(Ink.persimmon.opacity(model.command ? 0.9 : 0), lineWidth: 1.5))
-            .contentShape(shape)
-            .onHover { h in model.hover = h }
-            .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                .onChanged { _ in controller.dragChanged() }
-                .onEnded { _ in controller.dragEnded() })
-            .simultaneousGesture(TapGesture().onEnded {
-                switch model.phase {
-                case .notice: controller.noticeTapped()
-                case .working: break
-                default: controller.clicked()
-                }
-            })
-            .contextMenu { FlowBarMenu(controller: controller) }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: model.phase)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: model.hover)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(accessibilityLabel)
+    private var alignment: Alignment {
+        switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom }
     }
 
-    @ViewBuilder private var content: some View {
+    var body: some View {
+        ZStack(alignment: alignment) {
+            Color.clear
+            ribbon
+                .background(GeometryReader { g in Color.clear.preference(key: RibbonSizeKey.self, value: g.size) })
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                    .onChanged { _ in controller.dragChanged() }
+                    .onEnded { _ in controller.dragEnded() })
+                .simultaneousGesture(TapGesture().onEnded { controller.clicked() })
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(accessibilityLabel)
+        }
+        .onPreferenceChange(RibbonSizeKey.self) { s in if model.contentSize != s { model.contentSize = s } }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: model.phase)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: model.hover)
+    }
+
+    /// The tab's rounded side faces into the screen; the edge side is square, flush with the screen edge.
+    private func tab(_ r: CGFloat) -> UnevenRoundedRectangle {
+        switch model.edge {
+        case .left: return UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: r, topTrailingRadius: r, style: .continuous)
+        case .right: return UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: r, bottomTrailingRadius: 0, topTrailingRadius: 0, style: .continuous)
+        case .bottom: return UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: r, style: .continuous)
+        }
+    }
+
+    @ViewBuilder private var ribbon: some View {
         switch model.phase {
+        case .idle where !(model.hover || model.dragging):
+            // Closed: only the pill's sliver; the ribbon is tucked behind it.
+            tab(4).fill(RibbonInk.ink)
+                .frame(width: model.edge == .bottom ? 50 : 6, height: model.edge == .bottom ? 6 : 50)
         case .idle:
-            if model.hover || model.dragging {
-                HStack(spacing: 7) {
-                    RibbonMark(color: Ink.persimmon).frame(width: 11, height: 12)
-                    Text(model.dragging ? "Drop at an edge" : model.hint).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+            edgeRow(spacing: 9) {
+                RibbonBars(edge: model.edge, levels: [0.8, 0.55, 0.95], thickness: 5, length: 18)
+            } rest: {
+                VStack(alignment: model.edge == .right ? .trailing : .leading, spacing: 1) {
+                    Text(model.dragging ? "Drop at an edge" : "Dictate").font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.paper)
+                    if !model.dragging { Text(model.hint).font(.system(size: 11, design: .monospaced)).foregroundStyle(RibbonInk.muted) }
                 }
-                .padding(.horizontal, 12)
-            } else {
-                HStack(spacing: 3) { ForEach(0..<5, id: \.self) { _ in Capsule().fill(Color.white.opacity(0.55)).frame(width: 3, height: 3) } }
+                .fixedSize()
             }
+            .padding(10).padding(model.edge == .bottom ? .top : (model.edge == .left ? .trailing : .leading), 2)
+            .background(tab(14).fill(RibbonInk.ink))
         case .listening:
-            VStack(spacing: 2) {
-                HStack(spacing: 8) {
-                    Circle().fill(Ink.persimmon).frame(width: 8, height: 8)
-                    if let live = controller.liveMeter { FlowBarMeter(live: live).frame(height: 16) }
+            VStack(spacing: 4) {
+                edgeRow(spacing: 10) {
+                    RibbonBars(edge: model.edge, levels: liveLevels, thickness: 6, length: 46)
+                } rest: {
+                    VStack(spacing: 3) {
+                        Button(action: controller.stop) {
+                            ZStack { Circle().fill(RibbonInk.persimmon); RoundedRectangle(cornerRadius: 1.5).fill(RibbonInk.paper).frame(width: 7, height: 7) }
+                                .frame(width: 20, height: 20)
+                        }
+                        .buttonStyle(.plain).help("Stop and paste")
+                        Text(elapsed).font(.system(size: 11, design: .monospaced)).foregroundStyle(RibbonInk.muted).monospacedDigit()
+                    }
                     if model.handsFree {
-                        Button(action: controller.cancel) { Image(systemName: "xmark").font(.system(size: 9.5, weight: .bold)).foregroundStyle(.white.opacity(0.75)).frame(width: 20, height: 20) }
+                        Button(action: controller.cancel) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(RibbonInk.muted).frame(width: 18, height: 18) }
                             .buttonStyle(.plain).help("Cancel (Esc)")
-                        Button(action: controller.stop) { RoundedRectangle(cornerRadius: 2.5).fill(Color.white).frame(width: 9, height: 9).frame(width: 22, height: 22).background(Ink.persimmon, in: Circle()) }
-                            .buttonStyle(.plain).help("Stop and paste")
                     }
                 }
                 if !model.warning.isEmpty {
-                    Text(model.warning).font(.system(size: 10, weight: .medium)).foregroundStyle(Ink.butter).lineLimit(1)
+                    Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.butter).lineLimit(1).fixedSize()
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.vertical, 11).padding(.horizontal, 12)
+            .background(tab(16).fill(RibbonInk.ink))
+            .overlay(tab(16).strokeBorder(RibbonInk.persimmon.opacity(model.command ? 0.9 : 0), lineWidth: 1.5))
         case .working:
-            HStack(spacing: 7) {
-                ProgressView().controlSize(.mini).tint(.white)
-                Text(model.command ? "Editing…" : "Writing…").font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+            edgeRow(spacing: 9) {
+                SweepBar(edge: model.edge, reduceMotion: reduceMotion)
+            } rest: {
+                Text(model.appLabel.isEmpty ? (model.command ? "EDITING" : "WRITING") : model.appLabel)
+                    .font(.system(size: 11, design: .monospaced)).tracking(0.6).foregroundStyle(RibbonInk.paper).fixedSize()
             }
+            .padding(.vertical, 11).padding(.horizontal, 13)
+            .background(tab(14).fill(RibbonInk.ink))
         case .notice:
-            HStack(spacing: 10) {
-                Text(model.notice).font(.system(size: 12, weight: .medium)).foregroundStyle(.white).lineLimit(1)
-                if let a = model.noticeAction {
-                    Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.butter)
-                }
+            edgeRow(spacing: 10) {
+                RibbonBars(edge: model.edge, levels: [0.7, 0.5, 0.85], thickness: 3.5, length: 12)
+            } rest: {
+                Text(model.notice).font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.paper).lineLimit(2).frame(maxWidth: 300, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                if let a = model.noticeAction { Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(RibbonInk.butter).fixedSize() }
             }
-            .padding(.horizontal, 14)
+            .padding(.vertical, 10).padding(.horizontal, 13)
+            .background(tab(14).fill(RibbonInk.ink))
+        case .prompt:
+            if let p = model.prompt { PromptCard(prompt: p, controller: controller).padding(model.edge == .bottom ? .bottom : (model.edge == .left ? .leading : .trailing), 10) }
         }
+    }
+
+    /// Lays out the bars against the screen edge and the rest beside them, toward the middle of the screen.
+    @ViewBuilder private func edgeRow<A: View, B: View>(spacing: CGFloat, @ViewBuilder bars: () -> A, @ViewBuilder rest: () -> B) -> some View {
+        if model.edge == .right {
+            HStack(spacing: spacing) { rest(); bars() }
+        } else {
+            HStack(spacing: spacing) { bars(); rest() }
+        }
+    }
+
+    /// Three bars from your real mic level: the loudest recent moment, the average, and a beat behind.
+    private var liveLevels: [Double] {
+        let l = live.levels.map(Double.init)
+        guard l.count >= 8 else { return [0.2, 0.2, 0.2] }
+        let last3 = l.suffix(3), last8 = l.suffix(8)
+        return [last3.max() ?? 0, last8.reduce(0, +) / Double(last8.count), l[l.count - 5]].map { min(1, max(0.14, $0)) }
+    }
+
+    private var elapsed: String {
+        let s = Int(live.elapsed)
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 
     private var accessibilityLabel: String {
         switch model.phase {
-        case .idle: return "Verbatim dictation. " + model.hint
+        case .idle: return "Verbatim dictation. Click to dictate, or " + model.hint
         case .listening: return model.handsFree ? "Listening. Click to stop and paste." : "Listening"
         case .working: return "Writing your words"
         case .notice: return model.notice
+        case .prompt: return model.prompt?.title ?? ""
         }
     }
 }
 
-struct FlowBarMeter: View {
-    @ObservedObject var live: LiveMeter
+private struct RibbonSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
+/// The logo's three bars. On the sides they run horizontally from the edge; at the bottom they stand up.
+struct RibbonBars: View {
+    var edge: BarEdge
+    var levels: [Double]
+    var thickness: CGFloat
+    var length: CGFloat
+    var color: Color = Color(hex: 0xFA6B47)
+
     var body: some View {
-        HStack(spacing: 2.5) {
-            ForEach(Array(live.levels.suffix(18).enumerated()), id: \.offset) { _, v in
-                Capsule().fill(Color.white).frame(width: 3, height: max(3, CGFloat(v) * 16))
+        if edge == .bottom {
+            HStack(alignment: .bottom, spacing: thickness * 0.65) {
+                ForEach(0..<3, id: \.self) { i in
+                    Capsule().fill(color).frame(width: thickness, height: max(thickness, length * levels[i]))
+                }
+            }
+            .frame(height: length, alignment: .bottom)
+            .animation(.linear(duration: 0.08), value: levels)
+        } else {
+            VStack(alignment: edge == .right ? .trailing : .leading, spacing: thickness * 0.65) {
+                ForEach(0..<3, id: \.self) { i in
+                    Capsule().fill(color).frame(width: max(thickness, length * levels[i]), height: thickness)
+                }
+            }
+            .frame(width: length, alignment: edge == .right ? .trailing : .leading)
+            .animation(.linear(duration: 0.08), value: levels)
+        }
+    }
+}
+
+/// While writing: a persimmon segment sweeping along a dark track.
+struct SweepBar: View {
+    var edge: BarEdge
+    var reduceMotion: Bool
+    @State private var forward = false
+    var body: some View {
+        let vertical = edge == .bottom
+        ZStack(alignment: vertical ? .top : .leading) {
+            Capsule().fill(Color(hex: 0x3B4A42))
+            Capsule().fill(Color(hex: 0xFA6B47))
+                .frame(width: vertical ? 6 : 14, height: vertical ? 10 : 6)
+                .offset(x: vertical ? 0 : (forward ? 24 : 0), y: vertical ? (forward ? 18 : 0) : 0)
+        }
+        .frame(width: vertical ? 6 : 38, height: vertical ? 28 : 6)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { forward = true }
+        }
+    }
+}
+
+/// "Started by mistake?" and other two-choice questions, with a countdown ring on the close button.
+struct PromptCard: View {
+    let prompt: FlowBarModel.Prompt
+    let controller: FlowBarController
+    @State private var progress: CGFloat = 1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 9) {
+                RibbonBars(edge: .left, levels: [0.8, 0.55, 0.95], thickness: 3.5, length: 12, color: RibbonInk.butter)
+                Text(prompt.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(RibbonInk.paper)
+                Spacer(minLength: 12)
+                Button { controller.answer(primary: false) } label: {
+                    ZStack {
+                        Circle().stroke(RibbonInk.track, lineWidth: 2)
+                        Circle().trim(from: 0, to: progress).stroke(RibbonInk.muted, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
+                        Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(RibbonInk.paper)
+                    }
+                    .frame(width: 26, height: 26)
+                }
+                .buttonStyle(.plain).help(prompt.secondary)
+            }
+            (Text(prompt.body) + Text(prompt.quote.map { "“\($0)”" } ?? "").foregroundColor(RibbonInk.paper) + Text(prompt.after))
+                .font(.system(size: 13)).foregroundStyle(RibbonInk.muted).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Spacer()
+                Button(prompt.secondary) { controller.answer(primary: false) }
+                    .buttonStyle(PromptButton(filled: false))
+                if let p = prompt.primary {
+                    Button(p) { controller.answer(primary: true) }.buttonStyle(PromptButton(filled: true))
+                }
             }
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .frame(width: 360)
+        .background(RibbonInk.ink, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onAppear { withAnimation(.linear(duration: prompt.seconds)) { progress = 0 } }
     }
 }
 
-/// Right-click the floating button.
-struct FlowBarMenu: View {
-    let controller: FlowBarController
-    @ObservedObject private var s = FlowSettings.shared
-    var body: some View {
-        Button("Dictate") { controller.clicked() }
-        Button("Edit selected text by voice") { controller.startCommand() }
-        Divider()
-        Picker("Cleanup", selection: $s.cleanup) { ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) } }
-        Picker("Start and stop", selection: $s.mode) { ForEach(FlowMode.allCases) { Text($0.title).tag($0) } }
-        Divider()
-        Button("Paste last dictation") { controller.pasteLast() }
-        Button("Open dictation history") { controller.openHistory() }
-        Divider()
-        Button("Hide for 1 hour") { controller.hideForAnHour() }
-        Button("Hide floating button") { s.showBar = false }
+private struct PromptButton: ButtonStyle {
+    var filled: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: filled ? .semibold : .regular))
+            .foregroundStyle(filled ? RibbonInk.ink : RibbonInk.paper)
+            .padding(.horizontal, 14).padding(.vertical, 7)
+            .background(filled ? RibbonInk.paper : RibbonInk.inkRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }

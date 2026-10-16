@@ -181,33 +181,46 @@ final class DictationController: ObservableObject {
 
     private func begin(handsFree: Bool, command wantCommand: Bool) {
         guard !isListening, !isWorking else { return }
-        learner.check()   // Learn from any fixes to the last dictation before this one starts.
         target = NSWorkspace.shared.frontmostApplication
-        let s = FlowSettings.shared
-        let ctx = AppContext.capture(readText: s.useContext || wantCommand || s.autoLearn)
-        context = ctx
-        command = wantCommand && !ctx.selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if wantCommand && !command { bar?.flash("Select some text first, then edit it by voice"); return }
         targetAppName = target?.localizedName ?? "the front app"
+        // The mic starts first: reading the app's text through Accessibility can take a moment, and the
+        // first word must not be lost to it.
         do {
             try recorder.start(to: app?.store.newRecordingURL() ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
             Log.note("dictation start failed: \(error)")
-            bar?.flash("Couldn't start the microphone")
+            bar?.flash("Couldn't start the microphone. Check Settings › Dictate.")
             return
         }
         startedAt = Date()
         self.handsFree = handsFree
         isListening = true
+        learner.check()   // Learn from any fixes to the last dictation before this one is pasted.
+        let s = FlowSettings.shared
+        let ctx = AppContext.capture(readText: s.useContext || wantCommand || s.autoLearn)
+        context = ctx
+        command = wantCommand && !ctx.selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if wantCommand && !command {
+            cancel(quiet: true)
+            bar?.flash("Select some text first, then edit it by voice")
+            return
+        }
         Sounds.start()
         if let m = bar?.model {
             m.handsFree = handsFree
             m.command = command
             m.warning = Self.bluetoothWarning()
+            m.appLabel = Self.label(for: targetAppName)
         }
         bar?.setPhase(.listening)
         FlowCleanup.prewarm()
         Log.note("dictation begin -> \(targetAppName) [\(ctx.category.rawValue)] handsFree=\(handsFree) command=\(command)")
+    }
+
+    /// "MAIL", "SLACK": the app's name as the Ribbon shows it while writing.
+    private static func label(for app: String) -> String {
+        let short = app.count > 12 ? String(app.prefix(11)) + "…" : app
+        return short.uppercased()
     }
 
     /// AirPods and other Bluetooth mics record in call quality and wake slowly (the first word gets lost).
@@ -219,7 +232,7 @@ final class DictationController: ObservableObject {
     /// Stops listening without pasting. The recording is discarded.
     func cancel(quiet: Bool = false) {
         guard isListening, let stopped = recorder.stop() else { return }
-        isListening = false; handsFree = false
+        isListening = false; handsFree = false; command = false
         try? FileManager.default.removeItem(at: stopped.0)
         if quiet { bar?.setPhase(.idle) } else { bar?.flash("Cancelled", seconds: 1.5) }
     }
@@ -283,7 +296,7 @@ final class DictationController: ObservableObject {
                 let wasCleaned = cleaned
                 await MainActor.run {
                     let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: segs, fixes: fixes, result: r, info: info, cleaned: wasCleaned)
-                    self?.deliver(final, transcriptID: id, note: isCommand ? keepNote : nil)
+                    self?.deliver(final, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw)
                 }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
@@ -317,10 +330,13 @@ final class DictationController: ObservableObject {
         app.store.add(t)
     }
 
-    private func deliver(_ text: String, transcriptID: UUID?, note: String?) {
+    private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "") {
         isWorking = false
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            mistake(raw: raw, transcriptID: transcriptID)
+            return
+        }
         lastResult = text
-        guard !text.isEmpty else { bar?.setPhase(.idle); return }
         let ctx = context
         let tgt = target
         let spaced = (ctx?.selection.isEmpty ?? true) && !(command) && needsLeadingSpace(ctx) ? " " + text : text
@@ -338,6 +354,46 @@ final class DictationController: ObservableObject {
             command = false
         }
         Log.note("dictation delivered \(text.count) chars")
+    }
+
+    /// "Started by mistake?": nothing usable came out (only filler words, or nothing transcribed).
+    /// Discard removes it from Dictations; Paste anyway pastes what was heard; doing nothing keeps it in
+    /// Dictations, marked as not pasted.
+    private func mistake(raw: String, transcriptID: UUID?) {
+        command = false
+        if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+        let heard = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ctx = context, tgt = target
+        bar?.ask(.init(
+            title: "Started by mistake?",
+            body: heard.isEmpty ? "No words were heard, so nothing was pasted." : "Only ",
+            quote: heard.isEmpty ? nil : String(heard.prefix(60)) + (heard.count > 60 ? "…" : ""),
+            after: heard.isEmpty ? "" : " was heard, so nothing was pasted.",
+            primary: heard.isEmpty ? nil : "Paste anyway",
+            secondary: "Discard",
+            seconds: 7,
+            onPrimary: { [weak self] in
+                guard let self else { return }
+                Task { @MainActor in
+                    let out = await Paster.paste(heard, into: tgt, focusedField: ctx?.hasFocusedField ?? true)
+                    if out == .copiedOnly { self.bar?.flash("Copied. Click a text field and press ⌘V.", seconds: 5) }
+                    if let id = transcriptID { self.app?.store.update(id) { $0.flow?.pasted = heard; $0.flow?.pastedOK = out == .pasted } }
+                    self.lastResult = heard
+                }
+            },
+            onSecondary: { [weak self] in
+                if let id = transcriptID { self?.app?.store.moveToTrash(id) }
+            }
+        ))
+    }
+
+    func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
+            NSApp.sendAction(action, to: item.target, from: item)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 
     /// Adds a space before the text when the cursor sits right after a word.
@@ -394,7 +450,9 @@ final class DictationController: ObservableObject {
         guard days > 0, let app else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
         let old = app.store.live.filter { $0.source == .dictation && $0.createdAt < cutoff && !$0.pinned }.map(\.id)
-        if !old.isEmpty { app.delete(old) ; Log.note("dictation retention: moved \(old.count) to Recently Deleted") }
+        // Straight to Recently Deleted, quietly: this runs at launch, when a toast would only confuse.
+        for id in old { app.store.moveToTrash(id) }
+        if !old.isEmpty { Log.note("dictation retention: moved \(old.count) to Recently Deleted") }
     }
 
     /// Shows the listening button without recording, for screenshots.
