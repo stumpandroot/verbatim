@@ -91,7 +91,7 @@ else
   echo "iCloud sync: off (no provisioning profile)"
 fi
 if [ -n "$IDENTITY" ]; then
-  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP/Contents/Helpers/yt-dlp"
+  codesign --force --options runtime --timestamp --entitlements Verbatim/Helper.entitlements --sign "$SIGN_ID" "$APP/Contents/Helpers/yt-dlp"
   codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
 

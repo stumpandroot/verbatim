@@ -27,7 +27,7 @@ targets:
     platform: macOS
     sources:
       - path: Verbatim
-        excludes: ["Info.plist", "Verbatim.entitlements", "Verbatim-iCloud.entitlements", "Bridging.h"]
+        excludes: ["Info.plist", "Verbatim.entitlements", "Verbatim-iCloud.entitlements", "Helper.entitlements", "Bridging.h"]
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
