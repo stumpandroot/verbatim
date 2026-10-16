@@ -110,18 +110,23 @@ struct ActivityView: View {
             .padding(.bottom, 6)
             ForEach(cats, id: \.0) { c, n in
                 let share = Double(n) / Double(total)
-                HStack(spacing: 10) {
-                    Image(systemName: Self.symbol(c)).font(.system(size: 13)).foregroundStyle(Ink.dim).frame(width: 18)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: Self.symbol(c)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).frame(width: 18)
+                        Text(c.title).font(.system(size: 12.5)).foregroundStyle(Ink.ink).lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text("\(Int((share * 100).rounded()))%").font(Ink.mono(11.5)).foregroundStyle(Ink.dim)
+                    }
                     GeometryReader { g in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Ink.track)
-                            Capsule().fill(Ink.sage).frame(width: max(8, g.size.width * share))
+                            Capsule().fill(Ink.sage).frame(width: max(6, g.size.width * share))
                         }
                     }
-                    .frame(height: 8)
-                    Text("\(Int((share * 100).rounded()))%").font(Ink.mono(11.5)).foregroundStyle(Ink.dim).frame(width: 38, alignment: .trailing)
-                    Text(c.title).font(.system(size: 12.5)).foregroundStyle(Ink.ink).frame(width: 128, alignment: .leading).lineLimit(1)
+                    .frame(height: 6)
+                    .padding(.leading, 26)
                 }
+                .padding(.vertical, 2)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(c.title): \(Int((share * 100).rounded())) percent")
             }
