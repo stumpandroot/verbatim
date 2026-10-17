@@ -17,6 +17,7 @@ struct SettingsView: View {
         }
         .frame(width: 560)
         .padding(.bottom, 10)
+        .tint(Ink.switchOn)   // switches in brand sage instead of the system blue
     }
 
     private var general: some View {

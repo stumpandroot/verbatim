@@ -38,6 +38,7 @@ struct ContentView: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
+        .tint(Ink.switchOn)   // switches and checkboxes in brand sage instead of the system blue
     }
 
     private var title: String {
