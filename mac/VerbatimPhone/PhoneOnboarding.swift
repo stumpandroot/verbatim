@@ -85,7 +85,7 @@ struct PhoneOnboarding: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(p.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
-                                Text(p == .balanced ? "Recommended · most recordings" : p == .fast ? "Quick notes, smallest download" : "Slowest, best for interviews")
+                                Text(p == .balanced ? "Recommended · " + p.pitch : p.pitch)
                                     .font(.system(size: 13)).foregroundStyle(Ink.mute)
                             }
                             Spacer()

@@ -32,7 +32,7 @@ actor WhisperEngine: TranscriptionEngine {
     func transcribe(url: URL, model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
         let p = try await pipeline(for: model, progress: progress)
         progress(.transcribing(nil))
-        let results = try await p.transcribe(audioPath: url.path)
+        let results = try await p.transcribe(audioPath: url.path, decodeOptions: Self.options)
         var out: [Segment] = []
         var lang: String?
         for r in results {
@@ -40,11 +40,17 @@ actor WhisperEngine: TranscriptionEngine {
             for s in r.segments {
                 let text = Self.clean(s.text)
                 guard !text.isEmpty else { continue }
-                let words = s.words?.map { WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: Double($0.start), end: Double($0.end)) }
-                out.append(Segment(start: Double(s.start), end: Double(s.end), text: text, words: words))
+                let words = s.words?.map { WordSpan(text: Self.clean($0.word), start: Double($0.start), end: Double($0.end)) }.filter { !$0.text.isEmpty }
+                out.append(Segment(start: Double(s.start), end: Double(s.end), text: text, words: words?.isEmpty == true ? nil : words))
             }
         }
         return EngineResult(segments: out, language: lang, engine: "whisper", model: Engines.displayName(engine: "whisper", model: model))
+    }
+
+    /// Word timings for each segment, and energy-VAD chunking so long silences are skipped instead of filled
+    /// with invented words. Other thresholds stay at WhisperKit's defaults.
+    private static var options: DecodingOptions {
+        DecodingOptions(skipSpecialTokens: true, wordTimestamps: true, chunkingStrategy: .vad)
     }
 
     /// Whisper emits control tokens such as <|en|> and <|0.00|> inside segment text; strip them.

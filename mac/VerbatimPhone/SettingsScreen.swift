@@ -14,6 +14,7 @@ struct SettingsScreen: View {
                 Picker("Quality", selection: $app.presetRaw) {
                     ForEach(QualityPreset.allCases.filter { $0 != .advanced }) { p in Text(p.title).tag(p.rawValue) }
                 }
+                Text(app.preset.note).font(.system(size: 13)).foregroundStyle(Ink.mute)
                 Toggle("Identify speakers", isOn: $app.identifySpeakers).tint(Ink.switchOn)
                 Toggle("Apply Dictionary", isOn: $app.applyDictionary).tint(Ink.switchOn)
                 Text("Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links are fetched by your Mac.")

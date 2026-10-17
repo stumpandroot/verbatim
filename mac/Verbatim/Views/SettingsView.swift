@@ -61,9 +61,15 @@ struct SettingsView: View {
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section {
-                Toggle("Identify speakers", isOn: $app.identifySpeakers)
-                Text("Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.")
-                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                if FluidDiarizer.isSupported {
+                    Toggle("Identify speakers", isOn: $app.identifySpeakers)
+                    Text("Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.")
+                        .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                } else {
+                    Toggle("Identify speakers", isOn: .constant(false)).disabled(true)
+                    Text("Speaker labels need macOS 15 or later.")
+                        .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                }
                 Toggle("Apply Dictionary to new transcripts", isOn: $app.applyDictionary)
                 Text("Only words listed under “Heard as” are replaced, and every fix shows on the transcript.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
