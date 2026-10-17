@@ -625,6 +625,13 @@ enum RecordingSegments {
         return true
     }
 
+    /// Deletes any segment files left beside `base` (a discarded recording whose join failed).
+    static func removeSegments(of base: URL) {
+        let fm = FileManager.default
+        for f in (try? fm.contentsOfDirectory(at: base.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? []
+        where parse(f)?.base.lastPathComponent == base.lastPathComponent { try? fm.removeItem(at: f) }
+    }
+
     /// At launch, before orphaned recordings are recovered: joins any leftover segments in `folder` onto their
     /// first file (or into a file at that name if the first was already adopted), and removes stale temp files.
     static func joinLeftovers(in folder: URL) {

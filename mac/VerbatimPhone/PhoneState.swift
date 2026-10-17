@@ -177,7 +177,7 @@ final class PhoneState: ObservableObject {
     func discardRecording() {
         showRecorder = false
         continuing = nil
-        if let (url, _, _) = recorder.stop() { try? FileManager.default.removeItem(at: url) }
+        if let (url, _, _) = recorder.stop() { try? FileManager.default.removeItem(at: url); RecordingSegments.removeSegments(of: url) }
     }
 
     // MARK: Import
