@@ -148,7 +148,8 @@ struct OnboardingView: View {
                                     Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
                                     if p == .balanced { Text("Recommended").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.sageText) }
                                 }
-                                Text(p.note).font(.system(size: 12)).foregroundStyle(Ink.mute)
+                                Text(p == .balanced ? "Most recordings, many languages" : p == .fast ? "Quick notes, smallest download" : "Slowest, best for interviews")
+                                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
                             }
                             Spacer()
                             if app.preset == p { Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.sageText) }
