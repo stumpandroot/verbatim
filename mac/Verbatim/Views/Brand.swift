@@ -144,6 +144,149 @@ extension BrandArt {
     /// Evenly spaced diagonal hatch, every 22 units, wide enough to cover the triple intersection wherever the
     /// circles sit (the animated variant moves them). Clipping trims it to the shared region.
     static let understandHatch: [Element] = (0..<21).map { k in .path("M\(200 + 22 * k) 120l-200 290") }
+
+    // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the
+    // process diagrams, on a 100 × 100 grid. Generated from the approved mockup's SVG; arcs are cubic curves.
+    static let glyphBox = CGRect(x: 4, y: 4, width: 92, height: 92)
+    static let kindJournal = BrandArt(box: glyphBox, strokes: [
+        .path("M6 74 L94 74"),
+        .path("M14 74 C14 54.12 30.12 38 50 38 C69.88 38 86 54.12 86 74"),
+        .path("M26 74 C26 60.75 36.75 50 50 50 C63.25 50 74 60.75 74 74"),
+        .path("M38 74 C38 67.37 43.37 62 50 62 C56.63 62 62 67.37 62 74"),
+        .path("M50 12 L50 22"),
+        .path("M19 25 L25 32"),
+        .path("M81 25 L75 32"),
+        .path("M20 86 L80 86"),
+        .path("M34 94 L66 94"),
+    ], strokeWidth: 2.2)
+    static let kindIdea = BrandArt(box: glyphBox, strokes: [
+        .path("M80 50 L94 50"),
+        .path("M62 50 L70 50"),
+        .path("M71.92 71.92 L81.11 81.11"),
+        .path("M58.49 58.49 L64.14 64.14"),
+        .path("M50 80 L50 94"),
+        .path("M50 62 L50 70"),
+        .path("M28.08 71.92 L18.89 81.11"),
+        .path("M41.51 58.49 L35.86 64.14"),
+        .path("M20 50 L6 50"),
+        .path("M38 50 L30 50"),
+        .path("M28.08 28.08 L18.89 18.89"),
+        .path("M41.51 41.51 L35.86 35.86"),
+        .path("M50 20 L50 6"),
+        .path("M50 38 L50 30"),
+        .path("M71.92 28.08 L81.11 18.89"),
+        .path("M58.49 41.51 L64.14 35.86"),
+    ], fills: [.circle(50, 50, 3)], strokeWidth: 2.2)
+    static let kindMeeting = BrandArt(box: glyphBox, strokes: [
+        .path("M28 28 L72 72"),
+        .path("M72 28 L28 72"),
+        .circle(28, 28, 18),
+        .circle(72, 28, 18),
+        .circle(28, 72, 18),
+        .circle(72, 72, 18),
+        .circle(50, 50, 30),
+    ], fills: [.circle(28, 28, 2.6), .circle(72, 28, 2.6), .circle(28, 72, 2.6), .circle(72, 72, 2.6)], strokeWidth: 2.2)
+    static let kindNote = BrandArt(box: glyphBox, strokes: [
+        .path("M50 14 L90 32 L50 50 L10 32 Z"),
+        .path("M10 44 L50 62 L90 44"),
+        .path("M10 56 L50 74 L90 56"),
+        .path("M10 68 L50 86 L90 68"),
+    ], strokeWidth: 2.2)
+    static let kindDictation = BrandArt(box: glyphBox, strokes: [
+        .path("M12 52 C12 26 34 26 34 52 C34 78 50 82 50 52 C50 22 66 26 66 52 C66 78 88 78 88 52"),
+        .path("M12 80 L88 80"),
+        .path("M12 90 L60 90"),
+        .circle(12, 52, 4),
+        .circle(34, 52, 4),
+        .circle(50, 52, 4),
+        .circle(66, 52, 4),
+        .circle(88, 52, 4),
+    ], strokeWidth: 2.2)
+    static let featureBackground = BrandArt(box: glyphBox, strokes: [
+        .circle(50, 50, 38),
+        .circle(50, 50, 18),
+        .circle(78, 22, 6),
+        .circle(16, 70, 4),
+        .circle(74, 84, 3),
+    ], strokeWidth: 2.2)
+    static let featureFiller = BrandArt(box: glyphBox, strokes: [
+        .path("M50 10 C53.85 10 57.67 10.55 61.36 11.65"),
+        .path("M70 15.36 C73.33 17.28 76.37 19.68 79.01 22.47"),
+        .path("M84.64 30 C86.56 33.33 88 36.92 88.89 40.66"),
+        .path("M90 50 C90 53.85 89.45 57.67 88.35 61.36"),
+        .path("M84.64 70 C82.72 73.33 80.32 76.37 77.53 79.01"),
+        .path("M70 84.64 C66.67 86.56 63.08 88 59.34 88.89"),
+        .path("M50 90 C46.15 90 42.33 89.45 38.64 88.35"),
+        .path("M30 84.64 C26.67 82.72 23.63 80.32 20.99 77.53"),
+        .path("M15.36 70 C13.44 66.67 12 63.08 11.11 59.34"),
+        .path("M10 50 C10 46.15 10.55 42.33 11.65 38.64"),
+        .path("M15.36 30 C17.28 26.67 19.68 23.63 22.47 20.99"),
+        .path("M30 15.36 C33.33 13.44 36.92 12 40.66 11.11"),
+        .path("M50 24 C53.03 24 56.04 24.53 58.89 25.57"),
+        .path("M66.71 30.08 C69.04 32.03 71 34.37 72.52 37"),
+        .path("M75.61 45.49 C76.13 48.47 76.13 51.53 75.61 54.51"),
+        .path("M72.52 63 C71 65.63 69.04 67.97 66.71 69.92"),
+        .path("M58.89 74.43 C56.04 75.47 53.03 76 50 76"),
+        .path("M41.11 74.43 C38.26 73.39 35.61 71.87 33.29 69.92"),
+        .path("M27.48 63 C25.97 60.37 24.92 57.5 24.39 54.51"),
+        .path("M24.39 45.49 C24.92 42.5 25.97 39.63 27.48 37"),
+        .path("M33.29 30.08 C35.61 28.13 38.26 26.61 41.11 25.57"),
+        .path("M50 38 C52.28 38 54.51 38.65 56.43 39.87"),
+        .path("M61.41 46.29 C62.12 48.46 62.19 50.78 61.62 52.98"),
+        .path("M57.05 59.71 C55.21 61.05 53.03 61.83 50.75 61.98"),
+        .path("M42.95 59.71 C41.1 58.37 39.68 56.53 38.84 54.42"),
+        .path("M38.59 46.29 C39.29 44.13 40.6 42.21 42.35 40.75"),
+    ], fills: [.circle(50, 50, 2.6)], strokeWidth: 2.2)
+    static let featureLabel = BrandArt(box: glyphBox, strokes: [
+        .path("M50 8 L50 92"),
+        .path("M8 50 L92 50"),
+        .path("M45 22 L55 22"),
+        .path("M22 45 L22 55"),
+        .path("M45 36 L55 36"),
+        .path("M36 45 L36 55"),
+        .path("M45 64 L55 64"),
+        .path("M64 45 L64 55"),
+        .path("M45 78 L55 78"),
+        .path("M78 45 L78 55"),
+        .circle(26, 24, 5),
+        .circle(76, 30, 5),
+        .circle(22, 78, 5),
+        .circle(80, 74, 5),
+    ], strokeWidth: 2.2)
+    static let featureTags = BrandArt(box: glyphBox, strokes: [
+        .path("M20.43 52.58 L29.57 41.42"),
+        .path("M36.96 42.34 L45.04 59.66"),
+        .path("M53.94 62.29 L58.06 59.71"),
+        .path("M67.67 50.04 L76.33 35.96"),
+        .path("M69.2 60.68 L78.8 69.32"),
+        .circle(16, 58, 7),
+        .circle(34, 36, 7),
+        .circle(48, 66, 7),
+        .circle(64, 56, 7),
+        .circle(80, 30, 7),
+        .circle(84, 74, 7),
+    ], strokeWidth: 2.2)
+    static let featureSegments = BrandArt(box: glyphBox, strokes: [
+        .path("M50 10 C64.29 10 77.5 17.62 84.64 30"),
+        .path("M88.04 37.64 C91.55 48.42 90.31 60.18 84.64 70"),
+        .path("M79.73 76.77 C71.16 86.28 58.55 91.12 45.82 89.78"),
+        .path("M37.64 88.04 C24.05 83.63 13.85 72.29 10.87 58.32"),
+        .path("M10 50 C10 33.18 20.52 18.16 36.32 12.41"),
+        .path("M50 26 C60.09 26 69.1 32.31 72.55 41.79"),
+        .path("M73.64 54.17 C71.88 64.1 64.1 71.88 54.17 73.64"),
+        .path("M41.79 72.55 C30.85 68.57 24.34 57.3 26.36 45.83"),
+    ], fills: [.circle(50, 10, 3), .circle(88.04, 37.64, 3), .circle(79.73, 76.77, 3), .circle(37.64, 88.04, 3), .circle(10, 50, 3)], strokeWidth: 2.2)
+    static let featureMain = BrandArt(box: glyphBox, strokes: [
+        .path("M8 8 L32 32"),
+        .path("M92 8 L68 32"),
+        .path("M8 92 L32 68"),
+        .path("M92 92 L68 68"),
+        .rect(8, 8, 84, 84, 0),
+        .rect(20, 20, 60, 60, 0),
+        .rect(32, 32, 36, 36, 0),
+        .circle(50, 50, 8),
+    ], strokeWidth: 2.2)
+
 }
 
 /// Draws a BrandArt scaled to fit, keeping its stroke weight proportional (with a legibility floor).
