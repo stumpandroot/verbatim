@@ -133,6 +133,104 @@ jobs:
           (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
           xcrun simctl shutdown "$UDID" || true
 
+      # Accuracy and latency bench (mac/Bench/README.md). Every step here is continue-on-error: a bench problem
+      # never blocks a build. The report lands on ci-screens as bench-<run>.json and bench-<run>.md.
+      - name: "Bench: find the FluidAudio version (model cache key)"
+        id: fluidver
+        continue-on-error: true
+        run: |
+          V="$(python3 - <<'PY'
+          import glob, json
+          v = ""
+          for p in glob.glob("Verbatim.xcodeproj/**/Package.resolved", recursive=True):
+              try:
+                  d = json.load(open(p))
+              except Exception:
+                  continue
+              for pin in d.get("pins") or d.get("object", {}).get("pins", []):
+                  if (pin.get("identity") or pin.get("package") or "").lower() == "fluidaudio":
+                      st = pin.get("state") or {}
+                      v = st.get("version") or st.get("revision", "")[:12]
+          if not v:
+              try:
+                  d = json.load(open("build/spm/workspace-state.json"))
+                  for dep in d["object"]["dependencies"]:
+                      if dep["packageRef"]["identity"] == "fluidaudio":
+                          st = dep["state"].get("checkoutState", {})
+                          v = st.get("version") or st.get("revision", "")[:12]
+              except Exception:
+                  pass
+          print(v or "unknown")
+          PY
+          )"
+          echo "FluidAudio $V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: "Bench: restore speech models"
+        id: benchcache
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/Library/Application Support/Verbatim/models
+            ~/Library/Application Support/FluidAudio/Models
+          key: bench-models-${{ runner.os }}-fluidaudio-${{ steps.fluidver.outputs.version }}
+          restore-keys: |
+            bench-models-${{ runner.os }}-fluidaudio-${{ steps.fluidver.outputs.version }}-
+
+      - name: "Bench: run the synthetic clips through dictation's pipeline"
+        id: bench
+        continue-on-error: true
+        timeout-minutes: 30
+        env:
+          FLUIDAUDIO_VERSION: ${{ steps.fluidver.outputs.version }}
+        run: |
+          set +e
+          N="${GITHUB_RUN_NUMBER}"
+          B="$RUNNER_TEMP/bench"; rm -rf "$B"; mkdir -p "$B/out" "$B/clips"
+          LOGDIR="$HOME/Library/Logs/Verbatim"; REPORTS="$HOME/Library/Logs/DiagnosticReports"
+          touch "$B/started"
+          # Clips come from the runner's built-in voices, so no private audio is involved.
+          say -v '?' > "$B/out/bench-voices-${N}.txt" 2>&1
+          bash Bench/make-clips.sh "$B/clips" > "$B/out/bench-clips-${N}.log" 2>&1
+          echo "clips: $(ls "$B/clips"/*.wav 2>/dev/null | wc -l | tr -d ' ')"
+          pkill -9 -x Verbatim || true
+          rm -f "$LOGDIR/native.log"
+          # VERBATIM_UITEST=1 gives a clean offline profile (no iCloud, no welcome screens); -bench turns the UI tour off.
+          # Models download from Hugging Face on the first run. The app stops itself at 20 minutes with a partial report.
+          open -W -n --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app --args \
+            -bench "$B/clips" -benchOut "$B/out/bench-${N}.json" -benchModels "v3,ultra,v2" -benchMinutes 20 \
+            -benchLabel "build ${N} (${GITHUB_SHA::7})" > "$B/open.txt" 2>&1 &
+          OPENPID=$!
+          for i in $(seq 1 1380); do kill -0 "$OPENPID" 2>/dev/null || break; sleep 1; done
+          pkill -9 -x Verbatim || true
+          wait "$OPENPID" 2>/dev/null
+          # Keep the bench's log and any crash out of the UI self-test's way.
+          mv "$LOGDIR/native.log" "$B/out/bench-native-${N}.log" 2>/dev/null || true
+          find "$REPORTS" -name 'Verbatim*' -newer "$B/started" 2>/dev/null | head -1 | while read -r f; do mv "$f" "$B/out/bench-crash-${N}.ips"; done
+          if [ ! -s "$B/out/bench-${N}.md" ]; then
+            { echo "# Verbatim bench: build ${N}"; echo; echo "The bench produced no report. Last log lines:"; echo; echo '```'
+              grep BENCH "$B/out/bench-native-${N}.log" 2>/dev/null | tail -n 20; cat "$B/open.txt" 2>/dev/null; echo '```'; } > "$B/out/bench-${N}.md"
+          fi
+          cat "$B/out/bench-${N}.md" >> "$GITHUB_STEP_SUMMARY"
+          # Key the model cache on what's on disk now, so a new model or FluidAudio version saves a fresh cache.
+          M="$HOME/Library/Application Support"
+          if [ -d "$M/Verbatim/models" ] || [ -d "$M/FluidAudio/Models" ]; then
+            H="$(ls -R "$M/Verbatim/models" "$M/FluidAudio/Models" 2>/dev/null | shasum | cut -c1-12)"
+            echo "models_key=bench-models-${RUNNER_OS}-fluidaudio-${FLUIDAUDIO_VERSION}-${H}" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: "Bench: save speech models"
+        if: always() && steps.bench.outputs.models_key != '' && steps.bench.outputs.models_key != steps.benchcache.outputs.cache-matched-key
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/Library/Application Support/Verbatim/models
+            ~/Library/Application Support/FluidAudio/Models
+          key: ${{ steps.bench.outputs.models_key }}
+
       - name: Screenshot the app and publish to the ci-screens branch
         continue-on-error: true
         env:
@@ -168,6 +266,7 @@ jobs:
           log show --last 3m --predicate 'process == "Verbatim"' --style compact > "$OUT/oslog-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
           cp "$OUT"/*.png dist/screens/ || true
           cp -R "$RUNNER_TEMP/phone/out/." "$OUT/" 2>/dev/null || true
+          cp -R "$RUNNER_TEMP/bench/out/." "$OUT/" 2>/dev/null || true
           # The ci-screens branch is reachable where artifact storage is not.
           cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
           git add . && git commit -q -m "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}"
