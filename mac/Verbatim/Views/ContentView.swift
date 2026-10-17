@@ -320,33 +320,6 @@ struct VisualEffect: NSViewRepresentable {
     func updateNSView(_ v: NSVisualEffectView, context: Context) { v.material = material; v.blendingMode = blending }
 }
 
-// MARK: - Toast
-
-struct ToastView: View {
-    @EnvironmentObject var app: AppState
-    var body: some View {
-        if let t = app.toast {
-            HStack(spacing: 14) {
-                Text(t.message).font(.system(size: 13)).lineLimit(2)
-                if let a = t.action {
-                    Button(a) { t.onAction?(); app.toast = nil }
-                        .buttonStyle(.plain).foregroundStyle(Color(nsColor: NSColor(hex: Ink.butterHex))).fontWeight(.semibold)
-                }
-            }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .foregroundStyle(Ink.readerFixed)
-            .frame(maxWidth: 520)
-            .padding(.bottom, 24)
-            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity))
-            .task(id: t.id) {
-                try? await Task.sleep(nanoseconds: 4_500_000_000)
-                if app.toast == t { withAnimation(Motion.settle) { app.toast = nil } }
-            }
-        }
-    }
-}
-
 // MARK: - Sheets
 
 struct MicSheet: View {
