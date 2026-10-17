@@ -283,7 +283,7 @@ final class DictationController: ObservableObject {
     nonisolated private static func isOwnShortcut(_ e: NSEvent) -> Bool {
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch Int(e.keyCode) {
-        case kVK_ANSI_P, kVK_ANSI_C: return mods == [.control, .option]
+        case kVK_ANSI_P: return mods == [.control, .option]
         case kVK_ANSI_V: return mods == [.command, .control]
         default: return false
         }
@@ -295,7 +295,6 @@ final class DictationController: ObservableObject {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { if !e.isARepeat { pasteLast() }; return }
-            if e.keyCode == UInt16(kVK_ANSI_C), mods == [.control, .option] { if !e.isARepeat { copyLast() }; return }
             if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtPadController.shared.toggle(); return }
         }
         switch hotkey {
@@ -485,14 +484,15 @@ final class DictationController: ObservableObject {
         let useContext = s.useContext
         let boost = s.boostVocabulary
         let vocabulary = dict.filter(\.enabled).map(\.preferred)
-        let terms = boost ? dict.filter(\.enabled).map { (text: $0.preferred, aliases: $0.heardAs) } : []
+        let boostDict = dict.filter(\.enabled)
         let saved = s.actions
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let t0 = Date()
                 let r: EngineResult
-                if engineId == "fluid" && !terms.isEmpty {
-                    r = try await FluidEngine.shared.transcribeBoosted(url: url, model: model, terms: terms)
+                if engineId == "fluid" {
+                    // Silence trimming for every dictation; the boost (active project's words first) when on.
+                    r = try await FluidEngine.shared.transcribeDictation(url: url, model: model, dictionary: boost ? boostDict : [], project: project)
                 } else {
                     r = try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
                 }
@@ -859,7 +859,7 @@ final class CarbonHotkeys {
 
     func activate(hotkey: DictationController.Hotkey) {
         guard installHandler() else { return }
-        var want: [CarbonAction] = [.pasteLast, .copyLast, .thoughtPad]
+        var want: [CarbonAction] = [.pasteLast, .thoughtPad]
         if hotkey == .controlOptionSpace { want += [.dictate, .dictateCommand] }
         if refs[.escape] != nil { want.append(.escape) }
         for a in CarbonAction.allCases where !want.contains(a) { unregister(a) }
@@ -931,7 +931,7 @@ struct DictationHotkeyRows: View {
 
     var body: some View {
         LabeledContent("Paste last dictation") { Text("⌃⌘V").font(.system(size: 13, design: .monospaced)) }
-        LabeledContent("Copy last dictation") { Text("⌃⌥C").font(.system(size: 13, design: .monospaced)) }
+        LabeledContent("Copy last dictation") { Text("Floating button menu").font(.system(size: 12)).foregroundStyle(Ink.mute) }
         LabeledContent("Thought pad") { Text("⌃⌥P").font(.system(size: 13, design: .monospaced)) }
         if dictation.secureInputOn {
             Text(dictation.hotkey.isModifierOnly

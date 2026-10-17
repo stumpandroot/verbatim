@@ -148,7 +148,7 @@ struct OnboardingView: View {
                                     Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
                                     if p == .balanced { Text("Recommended").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.sageText) }
                                 }
-                                Text(p == .balanced ? "Most recordings, many languages" : p == .fast ? "Quick notes, smallest download" : "Slowest, best for interviews")
+                                Text(p.pitch)
                                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                             }
                             Spacer()

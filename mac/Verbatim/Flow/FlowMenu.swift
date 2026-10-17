@@ -11,6 +11,7 @@ final class FlowMenuController {
         var settings: () -> Void
         var history: () -> Void
         var pasteLast: () -> Void
+        var copyLast: () -> Void
         var editByVoice: () -> Void
         var run: (FlowAction) -> Void
         var editActions: () -> Void
@@ -147,6 +148,7 @@ struct FlowMenuView: View {
             item("Dictation history", "clock.arrow.circlepath") { actions.history(); close() }
                 .onHover { if $0 { sub = nil } }
             item("Paste last dictation", "doc.on.clipboard", trailing: "⌘⌃V") { actions.pasteLast(); close() }
+            item("Copy last dictation", "doc.on.doc") { actions.copyLast(); close() }
                 .onHover { if $0 { sub = nil } }
         }
         .padding(6)
@@ -171,7 +173,7 @@ struct FlowMenuView: View {
             case .cleanup:
                 header("CLEANUP")
                 ForEach(CleanupLevel.allCases) { l in
-                    choice(l.title, on: settings.cleanup == l, note: l == .none ? "As spoken" : l == .light ? "Fillers and grammar" : "Also tightens") { settings.cleanup = l; close() }
+                    choice(l.title, on: settings.cleanup == l, note: l.shortNote) { settings.cleanup = l; close() }
                 }
             case .project:
                 header("DICTATE INTO")

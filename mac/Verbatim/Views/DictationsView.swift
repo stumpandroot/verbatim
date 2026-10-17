@@ -122,7 +122,7 @@ struct DictationRow: View {
                     if let info {
                         Text(info.app)
                         Text("·")
-                        Text(info.instruction == nil ? "\(info.level.capitalized) cleanup" : "Edited by voice")
+                        Text(info.instruction == nil ? CleanupLevel.title(stored: info.level) : "Edited by voice")
                         if info.pasted != info.raw, info.instruction == nil { Text("·"); Text("cleaned") }
                         if !info.pastedOK { Text("·"); Text("not pasted").foregroundStyle(Ink.accentText) }
                     } else {

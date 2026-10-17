@@ -380,6 +380,7 @@ final class FlowBarController {
             settings: { [weak dictation] in dictation?.openSettings() },
             history: { [weak dictation] in dictation?.openHistory() },
             pasteLast: { [weak dictation] in dictation?.pasteLast() },
+            copyLast: { [weak dictation] in dictation?.copyLast() },
             editByVoice: { [weak dictation] in dictation?.startFromBar(command: true) },
             run: { [weak dictation] a in dictation?.apply(a) },
             editActions: { [weak dictation] in dictation?.openSettings(tab: .actions) },
