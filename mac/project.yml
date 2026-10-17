@@ -108,7 +108,6 @@ targets:
       - Verbatim/Export/Exporter.swift
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
-      - Verbatim/Model/FlowInfo.swift
       - Verbatim/Views/Brand.swift
     dependencies:
       - package: ArgmaxOSS

@@ -38,7 +38,7 @@ struct LibraryScreen: View {
                         ForEach(app.store.projects) { p in
                             chip(p.name, .project(p.id))
                                 .dropDestination(for: String.self) { items, _ in
-                                    let ids = items.compactMap { $0.hasPrefix("verbatim-transcript:") ? UUID(uuidString: String($0.dropFirst(20))) : nil }
+                                    let ids = items.flatMap { TranscriptDrag.ids(from: $0) }
                                     guard !ids.isEmpty else { return false }
                                     for id in ids { app.move(id, to: p.id) }
                                     app.say(ids.count == 1 ? "Moved to \(p.name)" : "Moved \(ids.count) to \(p.name)")
@@ -67,7 +67,7 @@ struct LibraryScreen: View {
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                         .contextMenu { RowActions(transcript: t) }
-                        .draggable("verbatim-transcript:" + t.id.uuidString)   // drop onto a project chip
+                        .draggable(TranscriptDrag.payload([t.id]))   // drop onto a project chip
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
                         }
