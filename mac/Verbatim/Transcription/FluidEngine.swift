@@ -168,8 +168,11 @@ actor FluidEngine: TranscriptionEngine {
            let out = await session.rescore(text: r.text, tokenTimings: timings, audioSamples: samples) {
             if !out.detectedTerms.isEmpty { Log.note("vocabulary boost heard \(out.detectedTerms.count) term(s)") }
             if out.wasModified {
-                Log.note("vocabulary boost changed the transcript")
-                text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Keep only swaps that sound like the Dictionary word they bring in (bench 121–123: the rescorer
+                // turned "it to" into "Lititz" and "at all" / "last year." into "Castwell").
+                let guarded = BoostGuard.filter(original: r.text, boosted: out.text, terms: ranked)
+                if guarded.reverted > 0 { Log.note("vocabulary boost: kept \(guarded.kept), reverted \(guarded.reverted) unlikely swap(s)") }
+                text = guarded.text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
         let segments: [Segment]
