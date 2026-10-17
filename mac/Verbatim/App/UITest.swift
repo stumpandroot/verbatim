@@ -36,7 +36,9 @@ enum UITest {
         guard enabled else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) else { Log.note("UITEST FAIL no window"); return }
+            // The main window, never a floating panel (the dictation bar or thought pad can come first in the list).
+            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && !($0 is NSPanel) })
+                    ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) else { Log.note("UITEST FAIL no window"); return }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
 
