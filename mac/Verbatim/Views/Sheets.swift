@@ -36,6 +36,7 @@ struct AppPickerSheet: View {
                 Label("Many places require everyone's consent to record a conversation. Let people on a call know before you capture it.",
                       systemImage: "person.2.wave.2")
                     .font(.system(size: 12.5)).foregroundStyle(Ink.ink)
+                    .fixedSize(horizontal: false, vertical: true)   // wraps instead of cutting off
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Ink.coral.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
