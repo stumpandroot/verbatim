@@ -328,6 +328,14 @@ final class FlowBarController {
         pointerMoved()
     }
 
+    /// Moves the Ribbon to an edge of the display it's on (the welcome tour's "Where should it live?").
+    func moveTo(edge: BarEdge) {
+        guard let screen = currentScreen() else { return }
+        FlowSettings.shared.positions[Self.key(for: screen)] = .init(edge: edge, along: 0.5)
+        refresh()
+        place()
+    }
+
     // MARK: Actions
 
     var liveMeter: LiveMeter? { dictation?.liveMeter }

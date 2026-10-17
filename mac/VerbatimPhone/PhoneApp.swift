@@ -40,6 +40,7 @@ struct PhoneRoot: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet().presentationDetents([.medium]) }
         .fileImporter(isPresented: $app.showImporter, allowedContentTypes: [.audio, .movie, .audiovisualContent], allowsMultipleSelection: true) { r in
             if case .success(let urls) = r { app.importFiles(urls) }

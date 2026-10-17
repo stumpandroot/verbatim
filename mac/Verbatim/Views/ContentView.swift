@@ -39,6 +39,7 @@ struct ContentView: View {
         .onAppear { UITest.run(app: app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         .tint(Ink.switchOn)   // switches and checkboxes in brand sage instead of the system blue
+        .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app) }
     }
 
     private var title: String {

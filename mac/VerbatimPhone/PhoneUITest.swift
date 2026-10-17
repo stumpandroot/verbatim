@@ -7,6 +7,7 @@ import UIKit
 @MainActor
 enum PhoneUITest {
     static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1"
+    static var onboardingStep = 0
 
     static func run(_ app: PhoneState) {
         seed(app)
@@ -49,6 +50,15 @@ enum PhoneUITest {
                 app.tab = .settings
                 await show("\(prefix)09-settings")
             }
+            app.appearance = "light"
+            for i in 0..<3 {
+                onboardingStep = i
+                app.showOnboarding = true
+                await show("p1\(i)-onboarding")
+                app.showOnboarding = false
+                try? await Task.sleep(nanoseconds: 700_000_000)
+            }
+            onboardingStep = 0
             app.appearance = "system"
             write("done")
             Log.note("UITEST phone tour done")

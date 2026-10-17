@@ -23,6 +23,7 @@ final class PhoneState: ObservableObject {
     @Published var showRecorder = false
     @Published var showLinkSheet = false
     @Published var showImporter = false
+    @Published var showOnboarding = Onboarding.shouldShow
     @Published var queue: [UUID] = []
     @Published var runningID: UUID? = nil
     /// Continue recording: the transcript the current recording will be added to.

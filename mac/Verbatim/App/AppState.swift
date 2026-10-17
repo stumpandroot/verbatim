@@ -69,6 +69,8 @@ final class AppState: ObservableObject {
     @Changed var runningID: UUID? = nil
     /// Continue recording: the transcript the current recording will be added to.
     @Changed var continuing: UUID? = nil
+    /// The welcome tour sheet.
+    @Changed var showOnboarding = false
     /// The transcript the next recording start will add to (set by Continue, cleared by any other Record).
     private var pendingContinue: UUID? = nil
     /// Identifies the current run, so a cancelled run's late callbacks can't touch the next one.
@@ -90,6 +92,7 @@ final class AppState: ObservableObject {
         }
         dictation.attach(self)
         applyAppearance()
+        if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
         queue = store.live.filter { ($0.status == .processing && $0.audioFileName != nil && ($0.processingDevice == nil || $0.processingDevice == Device.id))

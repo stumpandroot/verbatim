@@ -8,6 +8,8 @@ import AVFoundation
 @MainActor
 enum UITest {
     static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1"
+    /// The welcome tour step the next screenshot opens on.
+    static var onboardingStep = 0
     static var frames: [String: CGRect] = [:]     // SwiftUI .global (window content, top-left origin)
     private static var pass = 0, fail = 0
     /// Scrolls the enclosing scroll view so the target is on screen (a narrow window stacks Home's cards).
@@ -155,6 +157,14 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         await show("10-home-again")
+        for (i, name) in ["10a-onboarding-welcome", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
+            onboardingStep = i
+            app.showOnboarding = true
+            await show(name)
+            app.showOnboarding = false
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        onboardingStep = 0
         // Dark appearance pass
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         await show("11-dark-home")

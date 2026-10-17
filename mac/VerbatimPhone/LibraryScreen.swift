@@ -198,6 +198,11 @@ struct SettingsScreen: View {
                     Text("Match the system").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
                 }
             }
+            Section("Welcome tour") {
+                Toggle("Show it when Verbatim opens", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
+                    .tint(Ink.switchOn)
+                Button("Show Tour") { app.showOnboarding = true }
+            }
             Section("Dictionary") {
                 NavigationLink { DictionaryScreen() } label: { LabeledContent("Words", value: "\(app.store.dictionary.count)") }
             }
