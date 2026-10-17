@@ -100,10 +100,8 @@ enum Ink {
     static let coral = persimmon
     static let coralTint = persimmonTint
     static let lime = butter
-    static let limeDeep = ink
     static let limeTint = butterTint
     static let limeText = sageText
-    static let sideTint = Color.clear
 
     static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
         make { isDark, _ in isDark ? PColor(hex: dark) : PColor(hex: light) }
@@ -129,6 +127,15 @@ extension Ink {
     static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight, design: .serif) }
     /// Monospaced data: timestamps, durations, dates, indexes. Tabular digits.
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight, design: .monospaced).monospacedDigit() }
+}
+
+extension View {
+    /// The neutral card surface: a fill (reader white by default) in a continuous rounded rectangle, with an
+    /// ink hairline.
+    func cardSurface(radius: CGFloat, fill: Color = Ink.card) -> some View {
+        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Ink.hairline))
+    }
 }
 
 /// Small uppercase monospaced label with tracking: "01 / RECENT". Sparse use.

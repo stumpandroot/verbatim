@@ -105,7 +105,7 @@ struct LinkRow: View {
         .padding(12)
         .background(NoteCardBackground(hover: hover))
         .onHover { hover = $0 }
-        .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
+        .transcriptDrag([transcript.id])
         .contextMenu { Button("Open video") { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } }; Button("Copy link") { copy(info.url) }; Divider(); RowMenu(transcript: transcript) }
     }
 

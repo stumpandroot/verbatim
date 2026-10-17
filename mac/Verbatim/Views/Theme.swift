@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 /// A quiet rounded hover background for utility icons and small controls.
 struct HoverChip: ViewModifier {
@@ -176,4 +177,31 @@ enum Sounds {
     }
     static func start() { play("Pop") }
     static func done() { play("Tink") }
+}
+
+/// Accepts transcripts dragged from Home, Library, or the Queue.
+struct TranscriptDropTarget: ViewModifier {
+    var enabled: Bool
+    @Binding var dropping: Bool
+    var perform: ([UUID]) -> Void
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onDrop(of: [.plainText, .utf8PlainText, .text], isTargeted: $dropping) { providers in
+                guard let p = providers.first else { return false }
+                _ = p.loadObject(ofClass: NSString.self) { obj, _ in
+                    guard let s = obj as? String else { return }
+                    let ids = TranscriptDrag.ids(from: s)
+                    if !ids.isEmpty { DispatchQueue.main.async { perform(ids) } }
+                }
+                return true
+            }
+        } else { content }
+    }
+}
+
+extension View {
+    /// Makes the view draggable as these transcripts, onto a project in the sidebar (read back by `TranscriptDropTarget`).
+    func transcriptDrag(_ ids: [UUID]) -> some View {
+        onDrag { NSItemProvider(object: TranscriptDrag.payload(ids) as NSString) }
+    }
 }

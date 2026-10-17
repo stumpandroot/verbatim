@@ -56,7 +56,7 @@ struct DocumentRow: View {
         .overlay(alignment: .trailing) { RowMenuButton(transcript: transcript).padding(.trailing, 6) }
         .onTapGesture(perform: open)
         .simultaneousGesture(PressTracker.gesture { down = $0 })
-        .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
+        .transcriptDrag([transcript.id])
         .contextMenu { RowMenu(transcript: transcript) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -98,10 +98,9 @@ struct DocumentRow: View {
     }
 
     private var dateLine: String {
-        let f = DateFormatter(); let cal = Calendar.current
+        let cal = Calendar.current
         if cal.isDateInToday(transcript.createdAt) { return "Today" }
         if cal.isDateInYesterday(transcript.createdAt) { return "Yesterday" }
-        f.dateFormat = cal.isDate(transcript.createdAt, equalTo: Date(), toGranularity: .year) ? "MMM d" : "MMM d, yyyy"
-        return f.string(from: transcript.createdAt)
+        return Formats.pattern(cal.isDate(transcript.createdAt, equalTo: Date(), toGranularity: .year) ? "MMM d" : "MMM d, yyyy").string(from: transcript.createdAt)
     }
 }

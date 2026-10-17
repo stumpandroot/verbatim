@@ -14,14 +14,18 @@ struct DocumentView: View {
     private var text: String { transcript.documentText }
     /// Lints computed for exactly this text. After Clean up, Accept all, Undo, or typing, the old lints are
     /// dropped until Harper re-runs, so the editor never applies stale positions.
-    private var currentLints: [Harper.Lint] { let t = text; return lints.filter { $0.source == t } }
+    private var currentLints: [Harper.Lint] { Self.matching(lints, text: text) }
+    private static func matching(_ all: [Harper.Lint], text: String) -> [Harper.Lint] { all.filter { $0.source == text } }
     private var level: Polish.Level { Polish.Level(rawValue: transcript.documentLevel) ?? .none }
     private var tone: Polish.Tone { Polish.Tone(rawValue: transcript.documentTone) ?? .spoken }
 
     var body: some View {
+        // The document text (built from every segment when there's no edited copy) and its lints, once per render.
+        let text = self.text
+        let current = Self.matching(lints, text: text)
         VStack(alignment: .leading, spacing: 14) {
-            toolbar
-            DocumentEditor(text: text, lints: proofread ? currentLints : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
+            toolbar(current)
+            DocumentEditor(text: text, lints: proofread ? current : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
                 .frame(maxWidth: 720)
         }
         .onAppear(perform: relint)
@@ -31,7 +35,7 @@ struct DocumentView: View {
 
     // MARK: Toolbar
 
-    private var toolbar: some View {
+    private func toolbar(_ currentLints: [Harper.Lint]) -> some View {
         HStack(spacing: 6) {
             Toggle(isOn: $proofread) {
                 HStack(spacing: 5) {
@@ -76,15 +80,6 @@ struct DocumentView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
         .frame(maxWidth: 720)
-    }
-
-    private func toolLabel(_ name: String, value: String) -> some View {
-        HStack(spacing: 5) {
-            Text(name).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
-            Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.mute)
-            Text(value).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
     }
 
     // MARK: Actions

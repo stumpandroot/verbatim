@@ -45,11 +45,15 @@ struct TrashView: View {
         }
     }
 
+    /// One formatter for every row (creating one per row is slow). Follows the current locale as it changes.
+    private static let relative: RelativeDateTimeFormatter = {
+        let r = RelativeDateTimeFormatter(); r.unitsStyle = .full; r.locale = .autoupdatingCurrent; return r
+    }()
+
     private func daysLeft(_ t: Transcript) -> String {
         guard let d = t.deletedAt else { return "" }
         let left = max(0, 30 - (Calendar.current.dateComponents([.day], from: d, to: Date()).day ?? 0))
-        let rel = RelativeDateTimeFormatter(); rel.unitsStyle = .full
-        return "Deleted \(rel.localizedString(for: d, relativeTo: Date())) · \(left) day\(left == 1 ? "" : "s") left"
+        return "Deleted \(Self.relative.localizedString(for: d, relativeTo: Date())) · \(left) day\(left == 1 ? "" : "s") left"
     }
 
     private func confirmEmpty(_ items: [Transcript]) {

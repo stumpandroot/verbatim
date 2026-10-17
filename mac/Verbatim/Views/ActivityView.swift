@@ -8,6 +8,7 @@ struct ActivityView: View {
     @ObservedObject private var settings = FlowSettings.shared
     @State private var period: Period = .month
     @State private var confirmReset = false
+    @State private var wordCache = WordStatsCache()
 
     enum Period: String, CaseIterable, Identifiable {
         case week = "7 days", month = "30 days", year = "This year", all = "All time"
@@ -24,8 +25,9 @@ struct ActivityView: View {
     }
 
     var body: some View {
-        let stats = ActivityStats(log.events, since: period.since)
-        let words = WordStats(app.store.live, since: period.since)
+        let since = period.since
+        let stats = ActivityStats(log.events, since: since)
+        let words = wordCache.stats(app.store.live, since: since)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -42,7 +44,8 @@ struct ActivityView: View {
                     totals(stats).padding(.top, 20)
                     HStack(alignment: .top, spacing: 14) {
                         whereCard(stats).frame(maxWidth: .infinity)
-                        calendarCard.frame(maxWidth: .infinity)
+                        // The calendar always covers all time; reuse the totals when they already do.
+                        calendarCard(since == nil ? stats : ActivityStats(log.events, since: nil)).frame(maxWidth: .infinity)
                     }
                     .padding(.top, 14)
                     wordsRow(stats, words).padding(.top, 14)
@@ -142,16 +145,15 @@ struct ActivityView: View {
         }
     }
 
-    private var calendarCard: some View {
+    private func calendarCard(_ all: ActivityStats) -> some View {
         // Always the last 26 weeks, whatever the period: the calendar is for seeing your rhythm.
-        let all = ActivityStats(log.events, since: nil)
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)) ?? today
         let first = cal.date(byAdding: .weekOfYear, value: -25, to: weekStart) ?? weekStart
         let maxWords = max(1, all.byDay.values.max() ?? 1)
-        let monthFmt = DateFormatter(); monthFmt.dateFormat = "MMM"
-        let dayFmt = DateFormatter(); dayFmt.dateStyle = .medium
+        let monthFmt = Formats.pattern("MMM")
+        let dayFmt = Formats.style(date: .medium, time: .none)
         return card {
             HStack(alignment: .firstTextBaseline) {
                 Text("Your days").font(Ink.serif(21)).foregroundStyle(Ink.ink)
@@ -334,5 +336,29 @@ struct ActivityView: View {
         default: hour = p.hour < 12 ? "\(p.hour) a.m." : "\(p.hour - 12) p.m."
         }
         return "\(day)s around \(hour)"
+    }
+}
+
+/// Remembers the last `WordStats` (it tokenizes every dictation) and works it out again only when what it reads
+/// changes: the period's dictations, their pasted text, voice edits, and Dictionary fixes. A class held in
+/// `@State`, so filling it during a render doesn't trigger another one.
+final class WordStatsCache {
+    private var key: Int?
+    private var value: WordStats?
+
+    func stats(_ transcripts: [Transcript], since: Date?) -> WordStats {
+        // Exactly what `WordStats` reads, in order.
+        var h = Hasher()
+        for t in transcripts where t.source == .dictation && (since.map { t.createdAt >= $0 } ?? true) {
+            h.combine(t.id)
+            h.combine(t.flow?.pasted)
+            h.combine(t.flow?.instruction)
+            for c in t.corrections where c.byDictionary { h.combine(c.to) }
+        }
+        let k = h.finalize()
+        if k == key, let v = value { return v }
+        let v = WordStats(transcripts, since: since)
+        key = k; value = v
+        return v
     }
 }

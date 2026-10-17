@@ -8,16 +8,18 @@ struct LibraryView: View {
     @State private var selection: Set<UUID> = []
 
     var body: some View {
-        let groups = Store.group(app.filtered)
+        // `filtered` searches every transcript's text; work it out once per render.
+        let list = app.filtered
+        let groups = Store.group(list)
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library")
                             .font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
-                        Text("\(app.filtered.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        Text("\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
                         Spacer()
-                        if !app.filtered.isEmpty {
+                        if !list.isEmpty {
                             Button(selecting ? "Done" : "Select") {
                                 withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = [] } }
                             }
@@ -30,7 +32,7 @@ struct LibraryView: View {
                         Text("Drag a transcript onto a project in the sidebar to file it.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                     }
                     if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                        PassageResults(query: app.search).padding(.top, 14)
+                        PassageResults(query: app.search, list: list).padding(.top, 14)
                     }
                     if groups.isEmpty {
                         HStack(spacing: 14) {
@@ -67,7 +69,7 @@ struct LibraryView: View {
                 .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, selecting ? 90 : 40)
                 .frame(maxWidth: .infinity)
             }
-            .animation(Motion.settle, value: app.filtered.map(\.id))
+            .animation(Motion.settle, value: list.map(\.id))
         }
         .overlay(alignment: .bottom) {
             if selecting { actionBar.padding(.bottom, 18).transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity)) }
@@ -125,19 +127,21 @@ struct LibraryView: View {
 /// Search that finds the moment, not just the file: each matching line with its speaker and time, grouped by
 /// transcript. Click a line to open the transcript there.
 struct PassageResults: View {
-    @EnvironmentObject var app: AppState
     var query: String
+    /// The library's filtered transcripts, worked out once by the caller.
+    var list: [Transcript]
 
-    struct Hit: Identifiable { let id: UUID; let transcript: Transcript; let segment: Segment }
-
-    private var hits: [(Transcript, [Segment])] {
+    /// Per transcript: up to six matching lines to show, and how many lines match in all.
+    private var hits: [(Transcript, [Segment], Int)] {
         let q = query.trimmingCharacters(in: .whitespaces)
-        var out: [(Transcript, [Segment])] = []
+        var out: [(Transcript, [Segment], Int)] = []
         var total = 0
-        for t in app.filtered where t.status == .ready {
+        for t in list where t.status == .ready {
             let segs = t.segments.filter { $0.text.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
             guard !segs.isEmpty else { continue }
-            out.append((t, Array(segs.prefix(6))))
+            // The count is matched against the query as typed (untrimmed), as it always was.
+            let matches = q == query ? segs.count : t.segments.filter { $0.text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }.count
+            out.append((t, Array(segs.prefix(6)), matches))
             total += segs.count
             if total > 300 { break }
         }
@@ -149,13 +153,12 @@ struct PassageResults: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(results.isEmpty ? "No passages match “\(query)”" : "Passages")
                 .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
-            ForEach(results, id: \.0.id) { t, segs in
+            ForEach(results, id: \.0.id) { t, segs, n in
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         Text(t.title).font(Ink.serif(16, weight: .regular)).foregroundStyle(Ink.ink).lineLimit(1)
                         if let site = t.linkInfo?.site { Text(site).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
                         Spacer()
-                        let n = t.segments.filter { $0.text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }.count
                         Text("\(n) match\(n == 1 ? "" : "es")").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 6)

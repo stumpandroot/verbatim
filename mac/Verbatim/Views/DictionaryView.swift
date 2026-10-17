@@ -57,8 +57,7 @@ struct DictionaryView: View {
                         .buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
                         Button("Cancel") { adding = false }
                     }
-                    .padding(12).background(Ink.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
+                    .padding(12).cardSurface(radius: 10)
                     .padding(.bottom, 12)
                     .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
                 }
@@ -89,8 +88,7 @@ struct DictionaryView: View {
                             Divider().opacity(0.5)
                         }
                     }
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+                    .cardSurface(radius: 12)
                     .tiltCard(lift: 1, radius: 12, rotates: false)
                 }
             }

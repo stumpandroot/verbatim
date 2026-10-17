@@ -43,8 +43,7 @@ struct HomeScreen: View {
                             }
                         }
                         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                        .cardSurface(radius: 14)
                     } else {
                         ForEach(items) { t in
                             Button { app.open(t.id) } label: { PhoneRow(transcript: t) }.buttonStyle(.plain)
@@ -100,8 +99,7 @@ struct HomeScreen: View {
             }
         }
         .padding(14)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.hairline))
+        .cardSurface(radius: 22)
     }
 
     @ViewBuilder private var cards: some View {

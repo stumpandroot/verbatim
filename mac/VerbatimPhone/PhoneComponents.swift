@@ -74,8 +74,7 @@ struct PhoneRow: View {
             Text(dateLine).font(Ink.mono(12)).foregroundStyle(Ink.mute)
         }
         .padding(12)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+        .cardSurface(radius: 14)
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityElement(children: .combine)
     }
@@ -100,7 +99,7 @@ struct PhoneRow: View {
         let cal = Calendar.current
         if cal.isDateInToday(transcript.createdAt) { return "Today" }
         if cal.isDateInYesterday(transcript.createdAt) { return "Yest." }
-        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: transcript.createdAt)
+        return Formats.pattern("MMM d").string(from: transcript.createdAt)
     }
 }
 
@@ -126,22 +125,6 @@ struct SourceTile: View {
 }
 
 // MARK: - Meter
-
-/// Live level bars from the recorder (observes only the LiveMeter).
-struct PhoneMeter: View {
-    @ObservedObject var live: LiveMeter
-    var color: Color = Ink.persimmon
-    var body: some View {
-        HStack(alignment: .center, spacing: 3) {
-            ForEach(Array(live.levels.enumerated()), id: \.offset) { _, v in
-                Capsule().fill(color).frame(width: 4, height: max(4, CGFloat(v) * 56))
-            }
-        }
-        .frame(height: 60)
-        .animation(.easeOut(duration: 0.12), value: live.levels)
-        .accessibilityHidden(true)
-    }
-}
 
 struct ElapsedLabel: View {
     @ObservedObject var live: LiveMeter

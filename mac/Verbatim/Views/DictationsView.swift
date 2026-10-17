@@ -9,8 +9,8 @@ struct DictationsView: View {
     @ObservedObject private var settings = FlowSettings.shared
     @State private var filter: AppCategory? = nil
 
-    private var all: [Transcript] { app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt } }
-    private var shown: [Transcript] {
+    private var allDictations: [Transcript] { app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt } }
+    private func matching(_ all: [Transcript]) -> [Transcript] {
         let q = app.search.trimmingCharacters(in: .whitespaces).lowercased()
         return all.filter { t in
             if let f = filter, t.flow?.category != f { return false }
@@ -18,9 +18,9 @@ struct DictationsView: View {
             return (t.flow?.pasted ?? t.text).lowercased().contains(q) || (t.flow?.raw ?? "").lowercased().contains(q) || (t.flow?.app ?? "").lowercased().contains(q)
         }
     }
-    private var days: [(String, [Transcript])] {
+    private static func days(_ shown: [Transcript]) -> [(String, [Transcript])] {
         let cal = Calendar.current
-        let f = DateFormatter(); f.dateFormat = "EEEE, MMM d"
+        let f = Formats.pattern("EEEE, MMM d")
         var out: [(String, [Transcript])] = []
         for t in shown {
             let label = cal.isDateInToday(t.createdAt) ? "Today" : cal.isDateInYesterday(t.createdAt) ? "Yesterday" : f.string(from: t.createdAt)
@@ -30,6 +30,9 @@ struct DictationsView: View {
     }
 
     var body: some View {
+        // Filtered and sorted once per render, not once per use.
+        let all = allDictations
+        let shown = matching(all)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -65,7 +68,7 @@ struct DictationsView: View {
                     }
                     .padding(20).background(NoteCardBackground(hover: false)).padding(.top, 20)
                 } else {
-                    ForEach(days, id: \.0) { day, items in
+                    ForEach(Self.days(shown), id: \.0) { day, items in
                         Overline(text: day, color: Ink.mute).padding(.top, 24).padding(.bottom, 8)
                         VStack(spacing: 6) {
                             ForEach(items) { t in DictationRow(transcript: t) }
@@ -91,7 +94,7 @@ struct DictationRow: View {
     private var info: FlowInfo? { transcript.flow }
     private var pasted: String { info?.pasted ?? transcript.text }
     private var raw: String { info?.raw ?? transcript.text }
-    private var time: String { let f = DateFormatter(); f.timeStyle = .short; return f.string(from: transcript.createdAt) }
+    private var time: String { Formats.style(date: .none, time: .short).string(from: transcript.createdAt) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -102,7 +105,7 @@ struct DictationRow: View {
             .frame(width: 64, alignment: .leading)
             .contentShape(Rectangle())
             // Drag by the time column (the text stays selectable) onto a project in the sidebar.
-            .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
+            .transcriptDrag([transcript.id])
             .help("Drag onto a project")
             VStack(alignment: .leading, spacing: 6) {
                 if transcript.status == .failed {

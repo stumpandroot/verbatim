@@ -177,29 +177,42 @@ struct TranscriptScreen: View {
                     .buttonStyle(.brandSecondary)
                 }
                 .padding(12)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+                .cardSurface(radius: 12)
             }
         }
     }
 }
 
-/// The reading lines. Observes only the playhead, so the playing tint moves without re-rendering the screen.
+/// The reading lines. Reads the playhead without observing it: the lines re-render only when the playing
+/// passage changes (`playingIDs`), not on every 20 Hz tick, so the playing tint moves without re-rendering the screen.
 struct PhoneLines: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
-    @ObservedObject var clock: PlayerClock
+    var clock: PlayerClock
     var onNote: (Segment) -> Void
     @State private var renaming: Speaker? = nil
     @State private var newName = ""
+    /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the tint
+    /// itself is worked out from the clock in `body`.
+    @State private var playingIDs: Set<UUID> = []
+
+    /// The playing rule: under the playhead, and either playing or moved off the start.
+    static func playing(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
+        guard isPlaying || now > 0 else { return [] }
+        var out = Set<UUID>()
+        for s in segments where now >= s.start && now < s.end { out.insert(s.id) }
+        return out
+    }
 
     var body: some View {
+        let _ = playingIDs
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
         let segs = transcript.segments
+        let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segs[i - 1].speaker != s.speaker)
-                let playing = clock.time >= s.start && clock.time < s.end && (app.player.isPlaying || clock.time > 0)
+                let playing = current.contains(s.id)
                 VStack(alignment: .leading, spacing: 3) {
                     if showSpeaker, let n = transcript.speakerName(s.speaker) {
                         // Tap the name to rename the speaker or move this line to someone else.
@@ -252,6 +265,14 @@ struct PhoneLines: View {
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Save") { if let sp = renaming { app.renameSpeaker(transcript.id, speaker: sp.id, to: newName) }; renaming = nil }
         } message: { Text("Changes every line from this speaker, on this iPhone and your Mac.") }
+        .onReceive(clock.$time) { now in syncPlaying(at: now) }
+        .onChange(of: app.player.isPlaying) { _, _ in syncPlaying(at: clock.time) }
+        .onChange(of: transcript.segments) { _, _ in syncPlaying(at: clock.time) }
+    }
+
+    @MainActor private func syncPlaying(at now: Double) {
+        let ids = Self.playing(transcript.segments, at: now, isPlaying: app.player.isPlaying)
+        if ids != playingIDs { playingIDs = ids }
     }
 }
 
@@ -316,8 +337,7 @@ struct PhoneLinkCard: View {
             }
         }
         .padding(8)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+        .cardSurface(radius: 12)
     }
 }
 
