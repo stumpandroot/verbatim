@@ -142,7 +142,18 @@ if [ -n "$IDENTITY" ]; then codesign --force --timestamp --sign "$SIGN_ID" "$DMG
 # 5. Notarize and staple
 if [ -n "$IDENTITY" ] && xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
   echo "Notarizing…"
-  xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+  # Apple's notary service sometimes hangs before it accepts the upload. Give each attempt
+  # 20 minutes (perl's alarm kills a stuck notarytool), and try up to 3 times.
+  notarized=0
+  for attempt in 1 2 3; do
+    if perl -e 'alarm shift; exec @ARGV' 1200 \
+         xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait --timeout 18m; then
+      notarized=1; break
+    fi
+    echo "Notarization attempt $attempt did not finish; retrying…"
+    sleep 20
+  done
+  [ "$notarized" = 1 ] || { echo "Notarization failed after 3 attempts."; exit 1; }
   xcrun stapler staple "$DMG"
 else
   echo "Skipping notarization (no certificate or no '$NOTARY_PROFILE' profile)."
