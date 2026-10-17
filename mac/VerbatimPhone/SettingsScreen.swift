@@ -28,6 +28,7 @@ struct SettingsScreen: View {
     @State private var syncWanted = Cloud.wantsSync
     @State private var confirmSyncOff = false
     @State private var copyingDown = false
+    @State private var copyFailed = 0
 
     var body: some View {
         ScrollView {
@@ -189,8 +190,9 @@ struct SettingsScreen: View {
 
     private var syncSubtitle: String {
         if copyingDown { return "Copying your library to this iPhone…" }
+        if copyFailed > 0 { return "\(copyFailed) file\(copyFailed == 1 ? "" : "s") couldn't be downloaded from iCloud, so sync is still on. Check your connection and try again." }
         if syncWanted != Cloud.enabled {
-            return syncWanted ? "Starts the next time you open Verbatim." : "Your library is on this iPhone. Syncing stops the next time you open Verbatim."
+            return syncWanted ? "Starts the next time you open Verbatim." : "Your library is on this iPhone. Syncing stops the next time you open Verbatim (swipe it away to finish now)."
         }
         return syncWanted
             ? "Transcripts, notes, projects, and the Dictionary match your Mac. Audio from the other device downloads when you play it."
@@ -199,13 +201,15 @@ struct SettingsScreen: View {
 
     private func turnSyncOff() {
         guard Cloud.enabled else { syncWanted = false; Cloud.setWantsSync(false); return }
-        copyingDown = true
+        copyingDown = true; copyFailed = 0
         Task {
             app.store.flush()
-            app.store.waitForWrites()
-            _ = await Task.detached(priority: .userInitiated) { Cloud.copyToDevice() }.value
-            Cloud.setWantsSync(false)
-            syncWanted = false
+            let r = await Task.detached(priority: .userInitiated) { () -> (copied: Int, failed: Int) in
+                TranscriptFiles.queue.sync {}   // queued saves land in iCloud before the copy reads it
+                return Cloud.copyToDevice()
+            }.value
+            copyFailed = r.failed
+            if r.failed == 0 { Cloud.setWantsSync(false); syncWanted = false }
             copyingDown = false
         }
     }
@@ -227,7 +231,7 @@ struct SettingsScreen: View {
                         subtitle: "7 days of app events, without links or folder names", bounce: bumps["log", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
-        .simultaneousGesture(TapGesture().onEnded { bump("log") })
+        .simultaneousGesture(TapGesture().onEnded { bump("log"); Log.trimNow() })
         SettingsDivider()
         Button { bump("privacy"); openURL(Links.privacy) } label: {
             SettingsRow(icon: "lock", tint: Ink.petalTint, title: "Privacy policy", bounce: bumps["privacy", default: 0]) { SettingsChevron() }

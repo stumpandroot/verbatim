@@ -43,7 +43,7 @@ struct PhoneRoot: View {
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
-            Button("Not Now", role: .cancel) {}
+            Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
         } message: {
             Text("Many places require everyone's consent to record a conversation. Let people know before you record them.")

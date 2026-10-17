@@ -39,11 +39,21 @@ enum Log {
         return s
     }
 
+    /// When lines were last trimmed; only touched on `queue`. The Mac app can stay open for weeks.
+    private static var lastTrim = Date()
+
+    /// Trims now, before the file is sent (Settings › Send Diagnostic Log). Waits until it's done.
+    static func trimNow() {
+        _ = file
+        queue.sync { try? handle?.close(); handle = nil; trimOldLines(file); lastTrim = Date() }
+    }
+
     static func note(_ message: String) {
         let clean = redact(message)
         logger.info("\(clean, privacy: .private)")
         let line = String(format: "%@ +%.3fs %@\n", stamp.string(from: Date()), Date().timeIntervalSince(t0), clean)
         queue.async {
+            if Date().timeIntervalSince(lastTrim) > 86_400 { try? handle?.close(); handle = nil; trimOldLines(file); lastTrim = Date() }
             // Reopened if the file was removed meanwhile, so lines keep landing in native.log as before.
             if handle != nil, !FileManager.default.fileExists(atPath: file.path) { try? handle?.close(); handle = nil }
             if handle == nil { handle = try? FileHandle(forWritingTo: file) }

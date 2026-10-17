@@ -52,36 +52,72 @@ enum Cloud {
     static var changePending: Bool { available && wantsSync != enabled }
     static func setWantsSync(_ on: Bool) { UserDefaults.standard.set(on, forKey: syncKey) }
 
-    /// Turning sync off: copies everything from iCloud onto this device first (downloading what isn't here yet),
-    /// so the whole library is present when Verbatim next opens without iCloud. A file already here is replaced
-    /// only by a newer one. Returns the number of files copied. Run off the main thread.
-    static func copyToDevice() -> Int {
-        guard let cloud = container else { return 0 }
+    /// Turning sync off, step 1 (in the session): makes this device's local folders an exact copy of iCloud,
+    /// downloading what isn't here yet. Returns how many files couldn't be read; the switch only turns off when
+    /// that's 0. Step 2 (`finishTurnOffIfNeeded`, next launch) copies whatever changed in between. Off the main thread.
+    static func copyToDevice() -> (copied: Int, failed: Int) {
+        let r = mirrorToDevice(download: true)
+        if r.failed == 0 {
+            UserDefaults.standard.set(true, forKey: copyPendingKey)
+            UserDefaults.standard.set(Date(), forKey: offAtKey)
+            // Turning sync back on later merges this device's library up again.
+            UserDefaults.standard.set(false, forKey: "cloud.migrated")
+        }
+        Log.note("iCloud sync turning off; copied \(r.copied) files, \(r.failed) failed")
+        return r
+    }
+
+    private static let copyPendingKey = "cloud.copyPending"
+    private static let offAtKey = "cloud.offAt"
+
+    /// Turning sync off, step 2: at launch, before the library loads, copies what changed in iCloud after step 1
+    /// (edits and recordings made before Verbatim quit). Only files already on this device are read, so it's quick.
+    static func finishTurnOffIfNeeded() {
+        guard !wantsSync, container != nil, UserDefaults.standard.bool(forKey: copyPendingKey) else { return }
+        let r = mirrorToDevice(download: false)
+        UserDefaults.standard.set(Date(), forKey: offAtKey)
+        UserDefaults.standard.removeObject(forKey: copyPendingKey)
+        Log.note("iCloud sync off; final copy \(r.copied) files, \(r.failed) not downloaded")
+    }
+
+    /// Copies iCloud's library into `Paths.local` and removes local files iCloud no longer has, so the local
+    /// folders match. With `download: false`, files not on this device are skipped (and kept locally if present).
+    private static func mirrorToDevice(download: Bool) -> (copied: Int, failed: Int) {
+        guard let cloud = container else { return (0, 0) }
         let fm = FileManager.default
-        var copied = 0
+        var copied = 0, failed = 0
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
+        func same(_ a: URL, _ b: URL) -> Bool {
+            guard let va = try? a.resourceValues(forKeys: keys), let vb = try? b.resourceValues(forKeys: keys) else { return false }
+            return va.fileSize == vb.fileSize && va.contentModificationDate == vb.contentModificationDate
+        }
         func copy(_ src: URL, _ dst: URL) {
-            var err: NSError?
+            if !download, !isDownloadedInCloud(src) { if !fm.fileExists(atPath: dst.path) { failed += 1 }; return }
+            var err: NSError?, ok = false
             NSFileCoordinator().coordinate(readingItemAt: src, options: [], error: &err) { u in
-                let newer = { (a: URL, b: URL) -> Bool in
-                    let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-                    let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-                    return da > db
-                }
                 if fm.fileExists(atPath: dst.path) {
-                    guard newer(u, dst) else { return }
+                    if same(u, dst) { ok = true; return }
                     try? fm.removeItem(at: dst)
                 }
-                if (try? fm.copyItem(at: u, to: dst)) != nil { copied += 1 }
+                if (try? fm.copyItem(at: u, to: dst)) != nil { ok = true; copied += 1 }
             }
+            if !ok { failed += 1 }
         }
         for sub in ["transcripts", "audio", "thumbs"] {
             let src = cloud.appendingPathComponent(sub, isDirectory: true), dst = Paths.local.appendingPathComponent(sub, isDirectory: true)
             try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
+            var names = Set<String>()
             for f in (try? fm.contentsOfDirectory(at: src, includingPropertiesForKeys: nil)) ?? [] {
                 // Files not downloaded yet show up as ".name.icloud" placeholders.
                 var name = f.lastPathComponent
                 if name.hasPrefix("."), name.hasSuffix(".icloud") { name = String(name.dropFirst().dropLast(7)) }
+                if name.hasPrefix(".") { continue }
+                names.insert(name)
                 copy(src.appendingPathComponent(name), dst.appendingPathComponent(name))
+            }
+            // Deleted in iCloud (on any device): gone here too.
+            for f in (try? fm.contentsOfDirectory(at: dst, includingPropertiesForKeys: nil)) ?? [] where !names.contains(f.lastPathComponent) {
+                try? fm.removeItem(at: f)
             }
         }
         for name in ["projects.json", "dictionary.json"] {
@@ -90,11 +126,18 @@ enum Cloud {
                 copy(src, Paths.local.appendingPathComponent(name))
             }
         }
-        // Turning sync back on later merges this device's library up again.
-        UserDefaults.standard.set(false, forKey: "cloud.migrated")
-        Log.note("iCloud sync turned off; copied \(copied) files to this device")
-        return copied
+        return (copied, failed)
     }
+
+    /// True when an iCloud file's bytes are on this device (`isDownloaded` only answers while sync is on).
+    private static func isDownloadedInCloud(_ url: URL) -> Bool {
+        let v = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+        if let s = v?.ubiquitousItemDownloadingStatus { return s == .current || s == .downloaded }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    /// When sync was last turned off on this device (step 2's time), for `migrateIfNeeded`.
+    static var turnedOffAt: Date? { UserDefaults.standard.object(forKey: offAtKey) as? Date }
 
     /// Writes through a file coordinator when syncing, so iCloud never reads a half-written file.
     static func write(_ data: Data, to url: URL) {
@@ -144,17 +187,21 @@ enum Cloud {
         guard let root, !UserDefaults.standard.bool(forKey: "cloud.migrated") else { return }
         let fm = FileManager.default
         let old = Paths.local
+        let offAt = turnedOffAt   // nil on the very first migration: everything local goes up
         var moved = 0
         for sub in ["transcripts", "audio", "thumbs"] {
             let src = old.appendingPathComponent(sub, isDirectory: true), dst = root.appendingPathComponent(sub, isDirectory: true)
             try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
             for f in (try? fm.contentsOfDirectory(at: src, includingPropertiesForKeys: nil)) ?? [] {
                 let to = dst.appendingPathComponent(f.lastPathComponent)
-                if fm.fileExists(atPath: to.path) {
-                    // Edited on this device while sync was off: the newer copy wins.
-                    let mf = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                let mf = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                // Turning sync back on: only what changed here while it was off goes up. A file untouched since
+                // then and missing from iCloud was deleted on the other device, so it stays deleted.
+                if let off = offAt, mf <= off { continue }
+                let cloudHas = fm.fileExists(atPath: to.path) || fm.fileExists(atPath: dst.appendingPathComponent(".\(f.lastPathComponent).icloud").path)
+                if cloudHas {
                     let mt = (try? to.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-                    guard mf > mt, let d = try? Data(contentsOf: f) else { continue }
+                    guard offAt != nil, mf > mt, let d = try? Data(contentsOf: f) else { continue }
                     write(d, to: to); moved += 1
                 } else if (try? fm.copyItem(at: f, to: to)) != nil { moved += 1 }
             }
@@ -163,18 +210,33 @@ enum Cloud {
             let src = old.appendingPathComponent(name), dst = root.appendingPathComponent(name)
             guard let local = try? Store.dec.decode([T].self, from: Data(contentsOf: src)) else { return }
             var all = (try? Store.dec.decode([T].self, from: Data(contentsOf: dst))) ?? []
-            for x in local where !all.contains(where: { $0.id == x.id }) { all.append(x) }
+            if let off = offAt {
+                // Back from sync being off: unchanged since then means iCloud's version stands.
+                let m = (try? src.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                guard m > off else { return }
+                // Changed here: this device's entries win, and ones added here join.
+                for x in local {
+                    if let i = all.firstIndex(where: { $0.id == x.id }) { all[i] = x } else { all.append(x) }
+                }
+            } else {
+                for x in local where !all.contains(where: { $0.id == x.id }) { all.append(x) }
+            }
             if let d = try? Store.enc.encode(all) { write(d, to: dst) }
         }
         merge(Project.self, "projects.json")
         merge(DictionaryEntry.self, "dictionary.json")
-        let backup = old.appendingPathComponent("Before iCloud", isDirectory: true)
+        // A later turn-on gets its own dated folder, since "Before iCloud" already exists.
+        var backup = old.appendingPathComponent("Before iCloud", isDirectory: true)
+        if fm.fileExists(atPath: backup.path) {
+            backup = old.appendingPathComponent("Before iCloud \(Formats.pattern("yyyy-MM-dd HH.mm").string(from: Date()))", isDirectory: true)
+        }
         try? fm.createDirectory(at: backup, withIntermediateDirectories: true)
         for name in ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json"] {
             let src = old.appendingPathComponent(name)
             if fm.fileExists(atPath: src.path) { try? fm.moveItem(at: src, to: backup.appendingPathComponent(name)) }
         }
         UserDefaults.standard.set(true, forKey: "cloud.migrated")
+        UserDefaults.standard.removeObject(forKey: offAtKey)
         Log.note("cloud migration copied \(moved) files; local originals kept in \(backup.path)")
     }
 }
@@ -223,6 +285,19 @@ enum LocalMedia {
             if let d = try? JSONEncoder().encode(snapshot) { try? d.write(to: file, options: .atomic) }
         }
     }
+
+    static func remove(_ id: UUID) {
+        lock.lock()
+        guard cache.removeValue(forKey: id) != nil else { lock.unlock(); return }
+        let snapshot = cache
+        lock.unlock()
+        writeQueue.async { if let d = try? JSONEncoder().encode(snapshot) { try? d.write(to: file, options: .atomic) } }
+    }
+
+    /// Transcripts whose file still had paths from an older build; the Store rewrites them once after loading.
+    private static var legacy = Set<UUID>()
+    static func noteLegacy(_ id: UUID) { lock.lock(); legacy.insert(id); lock.unlock() }
+    static func takeLegacy() -> Set<UUID> { lock.lock(); defer { legacy = []; lock.unlock() }; return legacy }
 
     static func removeAll() {
         lock.lock(); cache = [:]; lock.unlock()
@@ -273,6 +348,7 @@ final class Store: ObservableObject {
     private var sync: CloudSync?
 
     init() {
+        Cloud.finishTurnOffIfNeeded()
         Cloud.migrateIfNeeded()
         for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads, Paths.thumbs, Paths.recordings] {
             try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
@@ -316,6 +392,8 @@ final class Store: ObservableObject {
         searchCache = [:]
         transcripts = list.sorted { $0.createdAt > $1.createdAt }
         loadedDates = dates
+        // Files from older builds that still hold absolute paths: rewritten once without them.
+        for id in LocalMedia.takeLegacy() { if let t = transcript(id) { loadedDates[id] = nil; save(t) } }
         sync?.seed(dates)
         projects = Cloud.read(Paths.projectsFile).flatMap { try? Self.dec.decode([Project].self, from: $0) } ?? []
         dictionary = Cloud.read(Paths.dictionaryFile).flatMap { try? Self.dec.decode([DictionaryEntry].self, from: $0) } ?? []
@@ -472,6 +550,7 @@ final class Store: ObservableObject {
         if let a = audioURL(for: t) { files.append(a) }
         if let p = t.pendingAppend { files.append(Paths.audio.appendingPathComponent(p)) }
         if let th = t.link?.thumbnailFile { files.append(Paths.thumbs.appendingPathComponent(th)) }
+        LocalMedia.remove(t.id)
         // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
         for f in t.notes.compactMap(\.frameFile) { files.append(Paths.thumbs.appendingPathComponent(f)) }
         // Same queue as saves, so a write still queued for this transcript lands before the delete, never after.
@@ -522,7 +601,9 @@ final class Store: ObservableObject {
             (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil, options: [])) ?? []
         }
         removeAfterPendingWrites(synced)
-        var local = [Paths.local.appendingPathComponent("Before iCloud", isDirectory: true), Paths.downloads, Paths.models]
+        let backups = ((try? fm.contentsOfDirectory(at: Paths.local, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("Before iCloud") }
+        var local = backups + [Paths.downloads, Paths.models]
         if Cloud.enabled {
             local += ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json"].map { Paths.local.appendingPathComponent($0) }
         }

@@ -206,7 +206,12 @@ struct Transcript: Codable, Identifiable, Equatable {
         // Paths: this device's local record first; older builds wrote them into the file itself, so those move
         // to the local record (when they point at a file on this device) and drop out of the file on its next save.
         let legacy = try d.container(keyedBy: LegacyKeys.self)
+        let id = self.id
         let local = LocalMedia.paths(id)
+        #if os(macOS)
+        // Only Macs write these paths, so only a Mac rewrites the file (an iPhone would drop a Mac's paths).
+        if legacy.contains(.keptVideo) || legacy.contains(.keptAudio) || legacy.contains(.originalMedia) { LocalMedia.noteLegacy(id) }
+        #endif
         func path(_ k: LegacyKeys, _ kind: LocalMedia.Kind) -> String? {
             if let p = local[kind] { return p }
             guard let p = try? legacy.decodeIfPresent(String.self, forKey: k), FileManager.default.fileExists(atPath: p) else { return nil }

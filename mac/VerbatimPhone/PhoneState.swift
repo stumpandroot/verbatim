@@ -107,6 +107,8 @@ final class PhoneState: ObservableObject {
         askMicAndRecord()
     }
 
+    func dismissConsentNotice() { pendingContinue = nil }
+
     /// The consent notice's OK: remembered, then recording starts as asked.
     func acknowledgeConsentNotice() {
         UserDefaults.standard.set(true, forKey: Self.consentNoticeKey)
@@ -312,6 +314,7 @@ final class PhoneState: ObservableObject {
     /// project, the Dictionary, About me, and the downloaded speech models. Uses the Store's own delete paths, so iCloud removes the files on
     /// every device, then waits until the deletes are on disk.
     func deleteAllData() {
+        if recorder.isRecording { discardRecording() }
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one

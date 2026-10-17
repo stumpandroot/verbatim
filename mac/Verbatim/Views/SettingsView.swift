@@ -124,6 +124,7 @@ struct SettingsView: View {
 
     /// Opens a Mail draft to support with native.log attached; falls back to showing the file.
     private func sendDiagnosticLog() {
+        Log.trimNow()
         if let mail = NSSharingService(named: .composeEmail) {
             mail.recipients = [Links.supportEmail]
             mail.subject = "Verbatim diagnostic log"
@@ -139,6 +140,8 @@ struct CloudSyncSection: View {
     @State private var wanted = Cloud.wantsSync
     @State private var confirmOff = false
     @State private var copying = false
+    @State private var failed = 0
+    @EnvironmentObject private var app: AppState
 
     var body: some View {
         Section("iCloud") {
@@ -163,8 +166,9 @@ struct CloudSyncSection: View {
 
     private var note: String {
         if copying { return "Copying your library to this Mac…" }
+        if failed > 0 { return "\(failed) file\(failed == 1 ? "" : "s") couldn't be downloaded from iCloud, so sync is still on. Check your internet connection and try again." }
         if wanted != Cloud.enabled {
-            return wanted ? "Sync starts the next time you open Verbatim." : "Your library is on this Mac. Syncing stops the next time you open Verbatim."
+            return wanted ? "Sync starts the next time you open Verbatim." : "Your library is on this Mac. Quit and reopen Verbatim to finish turning off sync."
         }
         return wanted ? "Transcripts, notes, projects, and the Dictionary match your iPhone. Audio from the other device downloads when you play it."
                       : "Everything stays on this Mac."
@@ -172,11 +176,15 @@ struct CloudSyncSection: View {
 
     private func turnOff() {
         guard Cloud.enabled else { wanted = false; Cloud.setWantsSync(false); return }
-        copying = true
+        copying = true; failed = 0
         Task { @MainActor in
-            _ = await Task.detached(priority: .userInitiated) { Cloud.copyToDevice() }.value
-            Cloud.setWantsSync(false)
-            wanted = false
+            app.store.flush()
+            let r = await Task.detached(priority: .userInitiated) { () -> (copied: Int, failed: Int) in
+                TranscriptFiles.queue.sync {}   // queued saves land in iCloud before the copy reads it
+                return Cloud.copyToDevice()
+            }.value
+            failed = r.failed
+            if r.failed == 0 { Cloud.setWantsSync(false); wanted = false }
             copying = false
         }
     }
