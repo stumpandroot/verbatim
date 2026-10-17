@@ -1,0 +1,980 @@
+Timestamp               Ty Process[PID:TID]
+2026-10-17 17:40:10.635 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:11.107 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:40:11.107 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:40:11.205 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:11.292 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:11.395 A  Verbatim[56727:261ba] (CoreSpotlight) end-index-batch
+2026-10-17 17:40:11.396 A  Verbatim[56727:261ba] (CoreSpotlight) index-items
+2026-10-17 17:40:11.396 Df Verbatim[56727:261ba] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:40:15.035 Df Verbatim[56727:26193] (ScreenCaptureKit)  [INFO] +[SCShareableContent getShareableContentExcludingDesktopWindows:onScreenWindowsOnly:completionHandler:]:56
+2026-10-17 17:40:15.038 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54c280] activating connection: mach=true listener=false peer=false name=com.apple.replayd
+2026-10-17 17:40:15.038 Df Verbatim[56727:26193] (ReplayKit)  [INFO] -[RPDaemonProxy consumeSandboxExtension:processNewConnection:]:568
+2026-10-17 17:40:15.038 Df Verbatim[56727:26193] (ReplayKit)  [INFO] -[RPDaemonProxy fetchShareableContentWithOption:windowID:currentProcess:transactionID:withCompletionHandler:]:989
+2026-10-17 17:40:15.059 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:15.115 Df Verbatim[56727:2635f] [com.apple.inputAnalytics.client:IASignalAnalytics] channel:<private> signal:<private> sessionID:<private> timestamp:<private> payload:<private>
+2026-10-17 17:40:15.117 Df Verbatim[56727:2635f] [com.apple.xpc:connection] [0xc4f54dcc0] activating connection: mach=true listener=false peer=false name=com.apple.inputanalyticsd
+2026-10-17 17:40:15.137 Df Verbatim[56727:26193] [com.apple.inputmethodkitClient:Client] +[IMKClient subclass]: chose IMKClient_Modern
+2026-10-17 17:40:15.140 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:15.152 Df Verbatim[56727:26193] [com.apple.BoardServices:XPCErrors] [C:3] Alloc com.apple.backboard.hid-services.xpc
+2026-10-17 17:40:15.152 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54fd40] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:15.154 Df Verbatim[56727:2635f] [com.apple.xpc:connection] [0xc4f54d540] activating connection: mach=false listener=false peer=false name=com.apple.TextInputUI.xpc.CursorUIViewService
+2026-10-17 17:40:15.155 E  Verbatim[56727:2626e] [com.apple.BaseBoard:Common] Unable to obtain a task name port right for pid 159: (os/kern) failure (0x5)
+2026-10-17 17:40:15.156 Df Verbatim[56727:2635f] [com.apple.xpc:connection] [0xc4f54d540] invalidated after the last release of the connection object
+2026-10-17 17:40:15.157 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:15.300 Df Verbatim[56727:2626d] [com.apple.xpc:connection] [0xc4f54d7c0] activating connection: mach=false listener=false peer=false name=com.apple.SafariPlatformSupport.Helper
+2026-10-17 17:40:15.308 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54d180] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:15.309 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54cdc0] activating connection: mach=false listener=false peer=false name=com.apple.ViewBridgeAuxiliary
+2026-10-17 17:40:15.311 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54ef80] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:15.312 Df Verbatim[56727:2635f] [com.apple.xpc:connection] [0xc4f54cdc0] invalidated after the last release of the connection object
+2026-10-17 17:40:15.339 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:15.340 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:15.356 E  Verbatim[56727:26193] [com.apple.AppKit:WarnOnce] It's not legal to call -layoutSubtreeIfNeeded on a view which is already being laid out.  If you are implementing the view's -layout method, you can call -[super layout] instead.  Break on void _NSDetectedLayoutRecursion(void) to debug.  This will be logged only once.  This may break in the future.
+2026-10-17 17:40:15.360 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:15.369 Df Verbatim[56727:2626e] [com.apple.xpc:connection] [0xc4f54f340] activating connection: mach=false listener=false peer=false name=com.apple.SafariPlatformSupport.Helper
+2026-10-17 17:40:15.483 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController activate:]_block_invoke: Create CursorUIViewService: TUINSRemoteViewController
+2026-10-17 17:40:15.575 A  Verbatim[56727:2626d] (CoreSpotlight) end-index-batch
+2026-10-17 17:40:15.575 A  Verbatim[56727:2626d] (CoreSpotlight) index-items
+2026-10-17 17:40:15.575 Df Verbatim[56727:2626d] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:40:16.322 Df Verbatim[56727:26361] [com.apple.xpc:connection] [0xc4f54d7c0] invalidated after the last release of the connection object
+2026-10-17 17:40:16.323 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54df40] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:16.323 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54ca00] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:16.323 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54f980] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:16.323 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54cdc0] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:16.324 Df Verbatim[56727:2626e] [com.apple.xpc:connection] [0xc4f54f340] invalidated after the last release of the connection object
+2026-10-17 17:40:16.835 Df Verbatim[56727:26193] [com.apple.BoardServices:XPCErrors] [C:4] Alloc com.apple.backboard.hid-services.xpc
+2026-10-17 17:40:16.835 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54c640] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-10-17 17:40:16.836 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54cdc0] invalidated because the current process cancelled the connection by calling xpc_connection_cancel()
+2026-10-17 17:40:16.836 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54f980] invalidated because the current process cancelled the connection by calling xpc_connection_cancel()
+2026-10-17 17:40:16.843 Df Verbatim[56727:2626e] [com.apple.BackBoard:EventDelivery] BKSHIDEventDeliveryManager - connection activation
+2026-10-17 17:40:18.846 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:18.864 A  Verbatim[56727:2626d] (Metal) Metal Compiling Shader
+2026-10-17 17:40:18.875 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:18.885 Df Verbatim[56727:2626e] [com.apple.inputAnalytics.client:IASignalAnalytics] channel:<private> signal:<private> sessionID:<private> timestamp:<private> payload:<private>
+2026-10-17 17:40:18.885 Df Verbatim[56727:2626e] [com.apple.inputAnalytics.client:IASignalAnalytics] channel:<private> signal:<private> sessionID:<private> timestamp:<private> payload:<private>
+2026-10-17 17:40:18.886 Df Verbatim[56727:2626e] [com.apple.inputAnalytics.client:IASignalAnalytics] channel:<private> signal:<private> sessionID:<private> timestamp:<private> payload:<private>
+2026-10-17 17:40:19.389 A  Verbatim[56727:2626d] (CoreSpotlight) end-index-batch
+2026-10-17 17:40:19.389 A  Verbatim[56727:2626d] (CoreSpotlight) index-items
+2026-10-17 17:40:19.389 Df Verbatim[56727:2626d] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:40:22.588 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:26.358 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:30.055 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:33.924 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:37.601 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:41.375 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:45.327 Df Verbatim[56727:2626d] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0xc4fd316b0, from  1 ch,  16000 Hz, Int16 to  1 ch,  16000 Hz, Float32 (actually:  1 ch,  16000 Hz, Float32)
+2026-10-17 17:40:45.327 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:488   AudioQueueObject: aq@0xc4e569e00: New output; format  1 ch,  16000 Hz, Int16 (passthrough? no)
+2026-10-17 17:40:45.327 Df Verbatim[56727:2626d] [com.apple.coreaudio:aqme]            HeadTracker.mm:110   HeadTrackerSession 0xc4f46bd40 created for movie spatialization.
+2026-10-17 17:40:45.327 Df Verbatim[56727:2626d] [com.apple.coreaudio:aqme]            HeadTracker.mm:110   HeadTrackerSession 0xc4f46b8e0 created for music spatialization.
+2026-10-17 17:40:45.333 Df Verbatim[56727:2626d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2226  [AddSpatialPropertiesListener] objectID=86
+2026-10-17 17:40:45.334 Df Verbatim[56727:2626d] [com.apple.coreaudio:aqme]            AQMEIO_HAL.cpp:2248  aqmeio@0xc4e3a9e18: [AddSpatialPropertiesListener] Installed listener 0xc4e1df300
+2026-10-17 17:40:45.336 Df Verbatim[56727:2626d] [com.apple.coreaudio:aqme]           AQMixEngine.cpp:735   AQMEDevice (0xc50c128d8) has neither a defaultOutStreamClient nor a defaultInStreamClient
+2026-10-17 17:40:45.350 Df Verbatim[56727:2626d] [com.apple.coreaudio:EnhanceDialogueProcessor] EnhanceDialogueProcessor.cpp:244   EnhanceDialogueProcessor() - Product does not support Enhance Dialogue
+2026-10-17 17:40:45.350 Df Verbatim[56727:2626d] [com.apple.coreaudio:EnhanceDialogueProcessor] EnhanceDialogueProcessor.cpp:244   EnhanceDialogueProcessor() - Product does not support Enhance Dialogue
+2026-10-17 17:40:45.350 Df Verbatim[56727:2626d] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0xc4fd316e0, from  2 ch,  48000 Hz, Float32, deinterleaved to  2 ch,  48000 Hz, Float32, interleaved
+2026-10-17 17:40:45.352 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:3258  CheckSpatialization: aq@0xc4e569e00 CheckSpatialization mAutomaticSpatialization=1, mSpatializationEnabled=0 mContentRequiresAUSpatialMixer=0 mHasMetadata=0 mIsOffline=0 STSLabel valid:0 is stereo: 0
+2026-10-17 17:40:45.352 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10040 SetLoudnessFromLM: -> aq@0xc4e569e00:
+2026-10-17 17:40:45.352 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10158 SetLoudnessFromLM: is CoreAudioServices/LoudnessManager enabled? yes
+2026-10-17 17:40:45.352 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10161 SetLoudnessFromLM: is CoreAudioServices/LoudnessManagerV2 enabled? yes
+2026-10-17 17:40:45.352 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10164 SetLoudnessFromLM: is CoreAudioServices/lm-disable-hardware-check on? no
+2026-10-17 17:40:45.358 E  Verbatim[56727:2626d] [com.apple.coreaudio:AQ]        LoudnessManager.mm:1261  GetHardwarePlatformKey: cannot get acoustic ID
+2026-10-17 17:40:45.358 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]        LoudnessManager.mm:1387  GetHardwarePlatformKey: GetHardwarePlatformKey(): hardware platform key is Mac
+2026-10-17 17:40:45.358 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10167 SetLoudnessFromLM: is hardware supported? no
+2026-10-17 17:40:45.358 Df Verbatim[56727:2626d] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:10177 SetLoudnessFromLM: hardware not supported, Loudness Manager disabled
+2026-10-17 17:40:45.358 Df Verbatim[56727:2626d] [com.apple.coreaudio:AudioConverter]        AudioConverter.cpp:1077  Created a new in process converter -> 0xc4fd31740, from  1 ch,  16000 Hz, Int16 to  1 ch,  16000 Hz, Float32 (actually:  1 ch,  16000 Hz, Float32)
+2026-10-17 17:40:45.369 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:45.422 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:49.048 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.048 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.076 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.077 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:49.088 Df Verbatim[56727:26361] [com.apple.coreanimation:Metal] Precompiled pipelines disabled on unsupported hardware.
+2026-10-17 17:40:49.089 A  Verbatim[56727:2626d] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.104 A  Verbatim[56727:2626d] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.108 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.110 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.112 A  Verbatim[56727:2626d] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.112 A  Verbatim[56727:2626e] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.183 A  Verbatim[56727:2778c] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.206 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.211 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.220 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.225 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.226 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.230 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.240 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.245 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.255 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.261 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.272 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.276 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.290 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.293 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:49.295 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.306 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.308 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.323 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.331 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.340 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.344 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.355 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.359 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.372 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.375 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.391 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.394 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.406 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.412 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.423 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.428 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.439 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.444 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.456 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.459 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.473 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.478 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.489 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.493 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.506 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.510 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.523 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.525 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:49.540 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:50.084 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54f700] activating connection: mach=true listener=false peer=false name=com.apple.pbs.fetch_services
+2026-10-17 17:40:50.086 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54f700] invalidated after the last release of the connection object
+2026-10-17 17:40:50.116 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:50.116 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:50.124 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:50.130 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:50.144 A  Verbatim[56727:2626e] (Metal) Metal Compiling Shader
+2026-10-17 17:40:50.146 A  Verbatim[56727:2778c] (Metal) Metal Compiling Shader
+2026-10-17 17:40:50.146 A  Verbatim[56727:2657a] (Metal) Metal Compiling Shader
+2026-10-17 17:40:50.149 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:50.151 A  Verbatim[56727:26361] (Metal) Metal Compiling Shader
+2026-10-17 17:40:54.481 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.482 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:54.510 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.521 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.525 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.527 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.544 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.553 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.558 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.561 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.574 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.579 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.589 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.597 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.606 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.612 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.626 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.633 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.645 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.653 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.661 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.670 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.677 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.683 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.692 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.696 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.707 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.713 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.725 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.731 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.740 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.748 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.758 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.766 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.774 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:54.780 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:40:55.069 Df Verbatim[56727:26193] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:2875  CanScheduleDisposal: aq@0xc4e569e00: can schedule disposal: 0
+2026-10-17 17:40:55.070 Df Verbatim[56727:26193] [com.apple.coreaudio:AQ]      AudioQueueObject.cpp:618   ~AudioQueueObject: aq@0xc4e569e00: Deleting
+2026-10-17 17:40:55.459 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:59.377 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:40:59.947 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:00.200 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54f200] activating connection: mach=true listener=false peer=false name=mul-xpc (Apple)_OpenStep
+2026-10-17 17:41:00.201 Df Verbatim[56727:26193] [com.apple.xpc:connection] [0xc4f54f340] activating connection: mach=true listener=false peer=false name=com.apple.naturallanguaged
+2026-10-17 17:41:03.816 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:04.623 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:04.729 F  Verbatim[56727:26193] [com.apple.SwiftUI:Invalid Configuration] Multiple inserted views in matched geometry group Pair<String, ID>(first: "mode", second: SwiftUI.Namespace.ID(id: 70835)) have `isSource: true`, results are undefined.
+2026-10-17 17:41:04.729 A  Verbatim[56727:26193] (libsystem_trace.dylib) Activity for state dumps
+2026-10-17 17:41:04.744 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:04.757 Sd Verbatim[56727:0] (B6B4BDAD-6428-3E64-8747-275700109B46) com.apple.appkit:StatusBar
+{
+    0 =     {
+        activeState = 1;
+        appearance = NSAppearanceNameAqua;
+        autosaveName = "Item-0";
+        auxiliaryViews =         {
+            NSStatusItemView = "54937DBC-FEB9-409E-8C7B-8530AFEA345D-Aux[1]-NSStatusItemView";
+        };
+        class = NSSceneStatusItem;
+        isVisible = 1;
+        sceneIdentifier = "54937DBC-FEB9-409E-8C7B-8530AFEA345D";
+        windowNumber = 100000000;
+        windowWidth = 33;
+    };
+}
+2026-10-17 17:41:05.495 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:09.298 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:13.274 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:16.844 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:20.671 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:21.053 A  Verbatim[56727:2635f] (CoreSpotlight) end-index-batch
+2026-10-17 17:41:21.054 A  Verbatim[56727:2635f] (CoreSpotlight) index-items
+2026-10-17 17:41:21.054 Df Verbatim[56727:2635f] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:41:24.585 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:25.039 A  Verbatim[56727:2657a] (CoreSpotlight) end-index-batch
+2026-10-17 17:41:25.039 A  Verbatim[56727:2657a] (CoreSpotlight) index-items
+2026-10-17 17:41:25.040 Df Verbatim[56727:2657a] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:41:28.291 A  Verbatim[56727:26193] (AppKit) sendAction:
+2026-10-17 17:41:28.466 Df Verbatim[56727:26193] [com.apple.tokengenerationcore:ModelBundle] ModelBundle: Creating with preverified identifier: com.apple.fm.language.instruct_3b.fm_api_generic
+2026-10-17 17:41:28.472 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] registering darwin observer for name: com.apple.gms.availability.notification
+2026-10-17 17:41:28.472 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] registering darwin observer for name: com.apple.os-eligibility-domain.change.greymatter
+2026-10-17 17:41:28.472 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] registering darwin observer for name: com.apple.language.changed
+2026-10-17 17:41:28.473 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] deregistering darwin observer for name: com.apple.gms.availability.notification
+2026-10-17 17:41:28.473 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] deregistering darwin observer for name: com.apple.os-eligibility-domain.change.greymatter
+2026-10-17 17:41:28.473 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] deregistering darwin observer for name: com.apple.language.changed
+2026-10-17 17:41:28.637 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:28.880 A  Verbatim[56727:2626e] (CoreSpotlight) end-index-batch
+2026-10-17 17:41:28.880 A  Verbatim[56727:2626e] (CoreSpotlight) index-items
+2026-10-17 17:41:28.881 Df Verbatim[56727:2657a] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:41:32.414 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:32.476 A  Verbatim[56727:2635f] (CoreSpotlight) end-index-batch
+2026-10-17 17:41:32.476 A  Verbatim[56727:2635f] (CoreSpotlight) index-items
+2026-10-17 17:41:32.477 Df Verbatim[56727:2635f] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:41:36.332 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:36.561 A  Verbatim[56727:2626d] (CoreSpotlight) end-index-batch
+2026-10-17 17:41:36.561 A  Verbatim[56727:2626d] (CoreSpotlight) index-items
+2026-10-17 17:41:36.562 Df Verbatim[56727:2626d] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:41:39.853 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:39.853 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:39.878 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:39.878 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:39.885 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:40.877 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:40.877 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:41.880 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:41.880 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:42.878 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:42.878 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:43.588 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:44.285 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:44.285 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:44.314 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:44.314 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:44.322 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:45.255 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:45.255 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:45.312 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:45.312 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:46.253 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:46.253 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:46.314 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:46.314 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:47.253 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:47.253 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:47.314 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:47.314 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:48.063 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:48.806 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:48.806 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:48.832 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:48.832 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:48.836 Df Verbatim[56727:2626d] [com.apple.inputAnalytics.client:IASignalAnalytics] channel:<private> signal:<private> sessionID:<private> timestamp:<private> payload:<private>
+2026-10-17 17:41:48.847 Df Verbatim[56727:26193] [com.apple.TextInputUI:CursorUI] -[TUINSCursorUIController scheduleUpdateCursorLocation]
+2026-10-17 17:41:48.847 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:49.774 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:49.774 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:49.775 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:49.775 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:49.846 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:49.846 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:50.773 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:50.773 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:50.775 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:50.775 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:50.845 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:50.845 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:51.773 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:51.773 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:51.776 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:51.776 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:51.846 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:51.847 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:52.524 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:53.242 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:53.242 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:53.270 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:53.270 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:53.281 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:54.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.272 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:54.272 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.228 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.228 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.228 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.228 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.228 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.228 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.268 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:55.268 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.225 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.225 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.226 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.226 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.226 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.226 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.271 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.271 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:56.988 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:57.727 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:57.727 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:57.754 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:57.754 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:57.761 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:41:58.697 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.697 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.699 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.699 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.700 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.700 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.701 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.701 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.753 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:58.753 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.697 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.697 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.700 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.700 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.700 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.700 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.702 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.702 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.762 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:41:59.762 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.698 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.698 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.699 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.699 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.701 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.701 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.701 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.701 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.754 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:00.754 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:01.598 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:02.279 Df Verbatim[56727:26193] [com.apple.AppKit:Appearance] Invalidate NSApp effectiveAppearance
+2026-10-17 17:42:02.280 Df Verbatim[56727:26193] [com.apple.AppKit:Appearance] NSApp cache appearance:
+-NSRequiresAquaSystemAppearance: 0
+-appearance: <NSCompositeAppearance: 0xc4ecee6c0
+ (
+    "<NSDarkAquaAppearance: 0xc4ecee760>",
+    "<NSSystemAppearance: 0xc4ecec820>"
+)>
+-effectiveAppearance: <NSCompositeAppearance: 0xc4ecee6c0
+ (
+    "<NSDarkAquaAppearance: 0xc4ecee760>",
+    "<NSSystemAppearance: 0xc4ecec820>"
+)>
+2026-10-17 17:42:02.548 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.548 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:02.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.548 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.548 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.558 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.558 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.560 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.560 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:03.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.553 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.553 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:04.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.549 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.549 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.556 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.559 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:05.561 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:06.200 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:07.068 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.068 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.075 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.075 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.078 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.078 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:07.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:08.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.075 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.075 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.078 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.078 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:09.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.068 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.068 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.074 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.074 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:10.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.071 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.071 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.074 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.074 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.078 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.078 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:11.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:12.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.069 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.069 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.074 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.074 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:13.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.076 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:14.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.072 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.073 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.077 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.079 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:15.319 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:16.211 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.211 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.220 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.220 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.220 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.220 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:16.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.210 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.210 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.220 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.220 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:17.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.210 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.210 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.223 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:18.224 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:19.146 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:20.025 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.025 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.039 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.039 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.039 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.040 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:20.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.023 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.023 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.037 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.037 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.040 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.040 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.041 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.042 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:21.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.024 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.024 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.039 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.039 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.040 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.040 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.042 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.042 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.043 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:22.918 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:23.798 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.798 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.804 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.804 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.805 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.805 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.807 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.807 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.808 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:23.808 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.798 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.798 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.804 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.804 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.805 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.805 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.806 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.806 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.808 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:24.808 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.798 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.798 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.804 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.804 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.805 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.805 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.806 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.806 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.808 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:25.808 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:26.782 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:27.571 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.571 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.580 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.580 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.582 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.582 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.584 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.584 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.585 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:27.585 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.573 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.573 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.582 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.585 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:28.585 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.572 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.572 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.581 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.581 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.582 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.582 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.583 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.586 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:29.586 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:30.464 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:31.352 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.352 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.362 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.362 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.362 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.362 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.364 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.364 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.366 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:31.366 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.350 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.350 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.360 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.360 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.362 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.362 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.364 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.364 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.366 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:32.366 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.355 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.355 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.361 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.361 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.363 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.363 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.365 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.365 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.366 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:33.366 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:34.285 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:35.212 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.212 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.217 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.217 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.217 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.217 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.219 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.219 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:35.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.209 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.209 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:36.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.211 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.211 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.218 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:37.221 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:38.143 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:39.051 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.051 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:39.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:40.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:41.954 A  Verbatim[56727:26193] (AppKit) sendAction:
+2026-10-17 17:42:41.969 Df Verbatim[56727:26193] [com.apple.tokengenerationcore:ModelBundle] ModelBundle: Creating with preverified identifier: com.apple.fm.language.instruct_3b.fm_api_generic
+2026-10-17 17:42:41.972 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] registering darwin observer for name: com.apple.gms.availability.notification
+2026-10-17 17:42:41.972 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] registering darwin observer for name: com.apple.os-eligibility-domain.change.greymatter
+2026-10-17 17:42:41.972 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] registering darwin observer for name: com.apple.language.changed
+2026-10-17 17:42:41.972 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] deregistering darwin observer for name: com.apple.gms.availability.notification
+2026-10-17 17:42:41.972 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] deregistering darwin observer for name: com.apple.os-eligibility-domain.change.greymatter
+2026-10-17 17:42:41.972 Df Verbatim[56727:2626e] [com.apple.GenerativeModels:availability] deregistering darwin observer for name: com.apple.language.changed
+2026-10-17 17:42:42.307 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:42.344 A  Verbatim[56727:2626e] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.383 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.387 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.392 A  Verbatim[56727:2626e] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.407 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.409 A  Verbatim[56727:2626e] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.430 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.433 A  Verbatim[56727:2626e] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.448 A  Verbatim[56727:2635f] (Metal) Metal Compiling Shader
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.467 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.468 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.468 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:42.471 A  Verbatim[56727:2635f] (CoreSpotlight) end-index-batch
+2026-10-17 17:42:42.471 A  Verbatim[56727:2635f] (CoreSpotlight) index-items
+2026-10-17 17:42:42.472 Df Verbatim[56727:2635f] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:42:43.048 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.048 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:43.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:44.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.058 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.058 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:45.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.050 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.050 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.060 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:46.246 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:46.308 A  Verbatim[56727:2626e] (CoreSpotlight) end-index-batch
+2026-10-17 17:42:46.309 A  Verbatim[56727:2626e] (CoreSpotlight) index-items
+2026-10-17 17:42:46.309 Df Verbatim[56727:2626e] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:42:47.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.049 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:47.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.050 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.050 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.062 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:48.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.051 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.051 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.061 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.063 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.064 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:49.945 Df Verbatim[56727:26193] [com.apple.AppKit:Appearance] Invalidate NSApp effectiveAppearance
+2026-10-17 17:42:49.945 Df Verbatim[56727:26193] [com.apple.AppKit:Appearance] NSApp cache appearance:
+-NSRequiresAquaSystemAppearance: 0
+-appearance: (null)
+-effectiveAppearance: <NSCompositeAppearance: 0xc4ecec5a0
+ (
+    "<NSAquaAppearance: 0xc4ecec8c0>",
+    "<NSSystemAppearance: 0xc4ecec820>"
+)>
+2026-10-17 17:42:50.231 Df Verbatim[56727:26193] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:54937DBC-FEB9-409E-8C7B-8530AFEA345D] Sending action(s) in update: NSSceneFenceAction
+2026-10-17 17:42:50.441 A  Verbatim[56727:2626e] (CoreSpotlight) end-index-batch
+2026-10-17 17:42:50.442 A  Verbatim[56727:2626e] (CoreSpotlight) index-items
+2026-10-17 17:42:50.442 Df Verbatim[56727:2626e] [com.apple.corespotlight:index] CSInlineDonation:<private>: Skipping donation (feature flag disabled)
+2026-10-17 17:42:50.971 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.971 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.976 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.976 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:50.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.972 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.972 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.974 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.974 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:51.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.970 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.970 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.977 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.977 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.983 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.983 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.983 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.983 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.990 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:52.990 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.979 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.979 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.979 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.979 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.981 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.981 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:53.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.968 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.968 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.975 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.975 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.982 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.982 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:54.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.971 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.971 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.976 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.976 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.989 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:55.989 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.973 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.973 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.974 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.974 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.986 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.986 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.986 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.986 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:56.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:57.977 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:57.977 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:57.977 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:57.977 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:58.547 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:58.547 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:58.547 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:58.547 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:58.547 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:58.547 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.012 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.012 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.012 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.012 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.013 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.013 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.013 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.013 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.013 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:42:59.013 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.280 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.280 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.280 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.280 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.281 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.281 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.281 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.281 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.281 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.281 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.969 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.969 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.975 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.975 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.982 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.982 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:00.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.968 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.968 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.975 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.975 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.981 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.981 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.983 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.984 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:01.988 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.969 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.969 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.976 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.976 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.985 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.985 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.985 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.985 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.987 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC
+2026-10-17 17:43:02.987 A  Verbatim[56727:26193] (TCC) TCCAccessRequest() IPC

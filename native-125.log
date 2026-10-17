@@ -1,0 +1,165 @@
+2026-10-17T17:39:44Z +-0.000s launch 0.0.0 (125)
+2026-10-17T17:39:44Z +0.027s updates: off (no SUPublicEDKey)
+2026-10-17T17:39:44Z +0.681s AppState init; transcripts=0
+2026-10-17T17:39:44Z +0.723s dictation hotkey off: Accessibility not allowed
+2026-10-17T17:39:45Z +1.073s dictation prewarm v3 (launch)
+2026-10-17T17:39:45Z +1.146s Fluid load v3
+2026-10-17T17:39:47Z +3.097s UITEST render screen=home nav=0
+2026-10-17T17:39:47Z +3.878s window appeared
+2026-10-17T17:39:50Z +6.800s UITEST render screen=home nav=0
+2026-10-17T17:39:51Z +7.635s UITEST no scroll view to reveal row-0
+2026-10-17T17:39:51Z +7.636s UITEST click row-0 frame=276,610 692x54 point=622,-467 content=460x170 under=
+2026-10-17T17:39:52Z +8.592s UITEST FAIL click row opens transcript
+2026-10-17T17:39:52Z +8.592s UITEST click side-home frame=20,102 212x34 point=126,51 content=460x170 under=FlowHostingView<FlowBarView>[0,0 460x170] < NSNextStepFrame[0,0 460x170]
+2026-10-17T17:39:53Z +9.507s UITEST PASS sidebar Home goes home
+2026-10-17T17:39:53Z +9.507s UITEST no scroll view to reveal side-library
+2026-10-17T17:39:53Z +9.508s UITEST click side-library frame=20,138 212x34 point=126,15 content=460x170 under=FlowHostingView<FlowBarView>[0,0 460x170] < NSNextStepFrame[0,0 460x170]
+2026-10-17T17:39:54Z +10.416s UITEST FAIL sidebar Library opens library
+2026-10-17T17:39:54Z +10.416s UITEST no scroll view to reveal side-dict
+2026-10-17T17:39:54Z +10.416s UITEST click side-dict frame=20,354 212x34 point=126,-201 content=460x170 under=
+2026-10-17T17:39:55Z +11.355s UITEST FAIL sidebar Dictionary opens dictionary
+2026-10-17T17:39:55Z +11.355s UITEST click side-home frame=20,102 212x34 point=126,51 content=460x170 under=FlowHostingView<FlowBarView>[0,0 460x170] < NSNextStepFrame[0,0 460x170]
+2026-10-17T17:39:56Z +12.295s UITEST PASS sidebar home again (one click)
+2026-10-17T17:39:57Z +13.219s UITEST no scroll view to reveal mode-dictate
+2026-10-17T17:39:57Z +13.220s UITEST click mode-dictate frame=452,209 169x58 point=536,-68 content=460x170 under=
+2026-10-17T17:39:58Z +14.175s UITEST FAIL Dictate opens its panel
+2026-10-17T17:39:58Z +14.176s UITEST after dictate step captureMode=voice
+2026-10-17T17:39:58Z +14.781s UITEST no scroll view to reveal tile-record
+2026-10-17T17:39:58Z +14.781s UITEST click tile-record frame=282,209 169x58 point=366,-68 content=460x170 under=
+2026-10-17T17:39:59Z +15.705s UITEST FAIL record tile asks for the mic or records
+2026-10-17T17:39:59Z +15.705s UITEST no scroll view to reveal tile-app
+2026-10-17T17:39:59Z +15.705s UITEST click tile-app frame=792,209 169x58 point=877,-68 content=460x170 under=
+2026-10-17T17:40:00Z +16.621s UITEST FAIL app tile opens the picker
+2026-10-17T17:40:01Z +17.032s UITEST render screen=home nav=0
+2026-10-17T17:40:01Z +17.352s UITEST no scroll view to reveal row-0
+2026-10-17T17:40:01Z +17.352s UITEST click row-0 frame=276,610 692x54 point=622,-467 content=460x170 under=
+2026-10-17T17:40:01Z +17.353s UITEST render screen=home nav=0
+2026-10-17T17:40:02Z +18.269s UITEST FAIL row opens transcript again
+2026-10-17T17:40:02Z +18.269s UITEST DONE pass=2 fail=7
+2026-10-17T17:40:02Z +18.449s UITEST render screen=home nav=0
+2026-10-17T17:40:03Z +19.427s UITEST render screen=home nav=0
+2026-10-17T17:40:03Z +19.630s UITEST render screen=home nav=0
+2026-10-17T17:40:03Z +19.708s UITEST render screen=home nav=0
+2026-10-17T17:40:04Z +20.552s UITEST show 01-home captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:40:05Z +21.441s UITEST keep frames PASS (2/2)
+2026-10-17T17:40:07Z +23.071s UITEST render screen=home nav=0
+2026-10-17T17:40:08Z +24.291s UITEST show 02-home-dictate captureMode=dictate screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:40:08Z +24.395s Fluid prewarm v3 0.73 s
+2026-10-17T17:40:10Z +26.806s UITEST render screen=home nav=0
+2026-10-17T17:40:11Z +27.319s UITEST render screen=home nav=0
+2026-10-17T17:40:12Z +28.543s UITEST show 03-mic-sheet captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:40:15Z +31.173s UITEST render screen=home nav=0
+2026-10-17T17:40:16Z +32.392s UITEST show 04-app-picker captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:40:18Z +34.922s UITEST go library nav=1
+2026-10-17T17:40:18Z +34.923s UITEST render screen=library nav=1
+2026-10-17T17:40:20Z +36.182s UITEST show 05-library captureMode=voice screen=Optional(Verbatim.Screen.library)
+2026-10-17T17:40:22Z +38.744s UITEST go queue nav=2
+2026-10-17T17:40:22Z +38.745s UITEST render screen=queue nav=2
+2026-10-17T17:40:24Z +39.996s UITEST show 05b-queue captureMode=voice screen=Optional(Verbatim.Screen.queue)
+2026-10-17T17:40:26Z +42.497s UITEST go links nav=3
+2026-10-17T17:40:26Z +42.497s UITEST render screen=links nav=3
+2026-10-17T17:40:27Z +43.706s UITEST show 05c-links captureMode=voice screen=Optional(Verbatim.Screen.links)
+2026-10-17T17:40:30Z +46.207s UITEST go moments nav=4
+2026-10-17T17:40:30Z +46.208s UITEST render screen=moments nav=4
+2026-10-17T17:40:31Z +47.432s UITEST show 05f-moments captureMode=voice screen=Optional(Verbatim.Screen.moments)
+2026-10-17T17:40:34Z +49.996s UITEST go transcript nav=5
+2026-10-17T17:40:34Z +49.996s UITEST render screen=t-B26A4E6C-C42E-4B01-8F51-7432CB468ABE nav=5
+2026-10-17T17:40:34Z +50.115s UITEST nav appear ms=119 segments=2
+2026-10-17T17:40:34Z +50.140s UITEST nav settled ms=144
+2026-10-17T17:40:35Z +51.218s UITEST show 05g-link-kept captureMode=voice screen=Optional(Verbatim.Screen.transcript(B26A4E6C-C42E-4B01-8F51-7432CB468ABE))
+2026-10-17T17:40:37Z +53.729s UITEST render screen=t-B26A4E6C-C42E-4B01-8F51-7432CB468ABE nav=5
+2026-10-17T17:40:37Z +53.753s UITEST go library nav=6
+2026-10-17T17:40:37Z +53.754s UITEST render screen=library nav=6
+2026-10-17T17:40:38Z +54.975s UITEST show 05d-search captureMode=voice screen=Optional(Verbatim.Screen.library)
+2026-10-17T17:40:41Z +57.498s UITEST go trash nav=7
+2026-10-17T17:40:41Z +57.499s UITEST render screen=trash nav=7
+2026-10-17T17:40:42Z +58.748s UITEST show 05e-recently-deleted captureMode=voice screen=Optional(Verbatim.Screen.trash)
+2026-10-17T17:40:45Z +61.414s UITEST go transcript nav=8
+2026-10-17T17:40:45Z +61.415s UITEST render screen=t-5E2F76B7-9E66-423B-9F27-734FBCE6B15E nav=8
+2026-10-17T17:40:45Z +61.516s UITEST nav appear ms=102 segments=7
+2026-10-17T17:40:45Z +61.520s UITEST render screen=t-5E2F76B7-9E66-423B-9F27-734FBCE6B15E nav=8
+2026-10-17T17:40:45Z +61.593s UITEST nav settled ms=178
+2026-10-17T17:40:45Z +61.593s UITEST render screen=t-5E2F76B7-9E66-423B-9F27-734FBCE6B15E nav=8
+2026-10-17T17:40:46Z +62.639s UITEST show 06-transcript captureMode=voice screen=Optional(Verbatim.Screen.transcript(5E2F76B7-9E66-423B-9F27-734FBCE6B15E))
+2026-10-17T17:40:51Z +67.928s UITEST show 06b-document captureMode=voice screen=Optional(Verbatim.Screen.transcript(5E2F76B7-9E66-423B-9F27-734FBCE6B15E))
+2026-10-17T17:40:54Z +70.563s UITEST go home nav=9
+2026-10-17T17:40:54Z +70.564s UITEST render screen=home nav=9
+2026-10-17T17:40:55Z +71.580s UITEST go transcript nav=10
+2026-10-17T17:40:55Z +71.581s UITEST render screen=t-BA7631F8-225C-497B-89D4-07E3C84B0A40 nav=10
+2026-10-17T17:40:55Z +71.637s UITEST nav appear ms=56 segments=600
+2026-10-17T17:40:55Z +71.643s UITEST nav settled ms=63
+2026-10-17T17:40:56Z +72.865s UITEST show 06c-long-transcript captureMode=voice screen=Optional(Verbatim.Screen.transcript(BA7631F8-225C-497B-89D4-07E3C84B0A40))
+2026-10-17T17:40:59Z +75.484s UITEST go home nav=11
+2026-10-17T17:40:59Z +75.486s UITEST render screen=home nav=11
+2026-10-17T17:41:00Z +76.102s UITEST go transcript nav=12
+2026-10-17T17:41:00Z +76.104s UITEST render screen=t-BA7631F8-225C-497B-89D4-07E3C84B0A40 nav=12
+2026-10-17T17:41:01Z +77.328s UITEST show 06d-pinned-tools captureMode=voice screen=Optional(Verbatim.Screen.transcript(BA7631F8-225C-497B-89D4-07E3C84B0A40))
+2026-10-17T17:41:03Z +79.898s UITEST go home nav=13
+2026-10-17T17:41:03Z +79.901s UITEST render screen=home nav=13
+2026-10-17T17:41:04Z +80.744s UITEST go transcript nav=14
+2026-10-17T17:41:04Z +80.745s UITEST render screen=t-BA7631F8-225C-497B-89D4-07E3C84B0A40 nav=14
+2026-10-17T17:41:04Z +80.803s UITEST nav appear ms=58 segments=600
+2026-10-17T17:41:04Z +80.864s UITEST nav settled ms=119
+2026-10-17T17:41:05Z +81.569s UITEST go dictionary nav=15
+2026-10-17T17:41:05Z +81.571s UITEST render screen=dict nav=15
+2026-10-17T17:41:06Z +82.815s UITEST show 07-dictionary captureMode=voice screen=Optional(Verbatim.Screen.dictionary)
+2026-10-17T17:41:09Z +85.393s UITEST go dictations nav=16
+2026-10-17T17:41:09Z +85.394s UITEST render screen=dictations nav=16
+2026-10-17T17:41:10Z +86.617s UITEST show 07b-dictations captureMode=voice screen=Optional(Verbatim.Screen.dictations)
+2026-10-17T17:41:13Z +89.223s UITEST go activity nav=17
+2026-10-17T17:41:13Z +89.224s UITEST render screen=activity nav=17
+2026-10-17T17:41:14Z +90.427s UITEST show 07c-activity captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:41:17Z +92.996s UITEST render screen=activity nav=17
+2026-10-17T17:41:18Z +94.198s UITEST show 08-dictate-pill captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:41:22Z +98.091s UITEST show 08b-thought-pad captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:41:26Z +101.996s UITEST show 08c-remember captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:41:30Z +105.995s UITEST show 09-settings captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:41:33Z +109.745s UITEST show 09b-settings-actions captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:41:36Z +112.319s UITEST go home nav=18
+2026-10-17T17:41:36Z +112.378s UITEST render screen=home nav=18
+2026-10-17T17:41:37Z +113.524s UITEST show 10-home-again captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:41:40Z +116.049s UITEST render screen=home nav=18
+2026-10-17T17:41:41Z +117.240s UITEST show 10a-onboarding-welcome captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:41:43Z +119.777s UITEST render screen=home nav=18
+2026-10-17T17:41:44Z +120.481s UITEST render screen=home nav=18
+2026-10-17T17:41:45Z +121.740s UITEST show 10b-onboarding-permissions captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:41:48Z +124.250s UITEST render screen=home nav=18
+2026-10-17T17:41:49Z +124.994s UITEST render screen=home nav=18
+2026-10-17T17:41:50Z +126.184s UITEST show 10c-onboarding-try captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:41:52Z +128.706s UITEST render screen=home nav=18
+2026-10-17T17:41:53Z +129.436s UITEST render screen=home nav=18
+2026-10-17T17:41:54Z +130.646s UITEST show 10d-onboarding-placement captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:41:57Z +133.172s UITEST render screen=home nav=18
+2026-10-17T17:41:57Z +133.918s UITEST render screen=home nav=18
+2026-10-17T17:41:59Z +135.114s UITEST show 10e-onboarding-quality captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:42:01Z +137.786s UITEST render screen=home nav=18
+2026-10-17T17:42:03Z +139.750s UITEST show 11-dark-home captureMode=voice screen=Optional(Verbatim.Screen.home)
+2026-10-17T17:42:06Z +142.267s UITEST go transcript nav=19
+2026-10-17T17:42:06Z +142.298s UITEST render screen=t-5E2F76B7-9E66-423B-9F27-734FBCE6B15E nav=19
+2026-10-17T17:42:07Z +143.474s UITEST show 12-dark-transcript captureMode=voice screen=Optional(Verbatim.Screen.transcript(5E2F76B7-9E66-423B-9F27-734FBCE6B15E))
+2026-10-17T17:42:12Z +148.800s UITEST show 13-dark-document captureMode=voice screen=Optional(Verbatim.Screen.transcript(5E2F76B7-9E66-423B-9F27-734FBCE6B15E))
+2026-10-17T17:42:15Z +151.408s UITEST go links nav=20
+2026-10-17T17:42:15Z +151.449s UITEST render screen=links nav=20
+2026-10-17T17:42:16Z +152.690s UITEST show 14-dark-links captureMode=voice screen=Optional(Verbatim.Screen.links)
+2026-10-17T17:42:19Z +155.221s UITEST go library nav=21
+2026-10-17T17:42:19Z +155.267s UITEST render screen=library nav=21
+2026-10-17T17:42:20Z +156.476s UITEST show 15-dark-library captureMode=voice screen=Optional(Verbatim.Screen.library)
+2026-10-17T17:42:23Z +158.997s UITEST go dictations nav=22
+2026-10-17T17:42:23Z +159.035s UITEST render screen=dictations nav=22
+2026-10-17T17:42:24Z +160.230s UITEST show 16-dark-dictations captureMode=voice screen=Optional(Verbatim.Screen.dictations)
+2026-10-17T17:42:26Z +162.772s UITEST go activity nav=23
+2026-10-17T17:42:26Z +162.809s UITEST render screen=activity nav=23
+2026-10-17T17:42:28Z +164.000s UITEST show 17-dark-activity captureMode=voice screen=Optional(Verbatim.Screen.activity)
+2026-10-17T17:42:30Z +166.551s UITEST go dictionary nav=24
+2026-10-17T17:42:30Z +166.590s UITEST render screen=dict nav=24
+2026-10-17T17:42:31Z +167.832s UITEST show 18-dark-dictionary captureMode=voice screen=Optional(Verbatim.Screen.dictionary)
+2026-10-17T17:42:34Z +170.411s UITEST go moments nav=25
+2026-10-17T17:42:34Z +170.446s UITEST render screen=moments nav=25
+2026-10-17T17:42:35Z +171.644s UITEST show 19-dark-moments captureMode=voice screen=Optional(Verbatim.Screen.moments)
+2026-10-17T17:42:38Z +174.247s UITEST go trash nav=26
+2026-10-17T17:42:38Z +174.289s UITEST render screen=trash nav=26
+2026-10-17T17:42:39Z +175.498s UITEST show 20-dark-trash captureMode=voice screen=Optional(Verbatim.Screen.trash)
+2026-10-17T17:42:43Z +179.729s UITEST show 21-dark-settings-dictate captureMode=voice screen=Optional(Verbatim.Screen.trash)
+2026-10-17T17:42:47Z +183.615s UITEST show 22-dark-settings-actions captureMode=voice screen=Optional(Verbatim.Screen.trash)
+2026-10-17T17:42:50Z +186.152s UITEST go home nav=27
+2026-10-17T17:42:50Z +186.267s UITEST render screen=home nav=27

@@ -1,0 +1,14 @@
++ echo pid=56727
+pid=56727
++ for i in 1 2 3
++ ps -o %cpu=,rss= -p 56727
+ 22.7 1635024
++ sleep 2
++ for i in 1 2 3
++ ps -o %cpu=,rss= -p 56727
+  0.4 1635008
++ sleep 2
++ for i in 1 2 3
++ ps -o %cpu=,rss= -p 56727
+  0.4 1635008
++ sleep 2
