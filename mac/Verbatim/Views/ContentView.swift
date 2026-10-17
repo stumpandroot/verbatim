@@ -131,7 +131,7 @@ struct Sidebar: View {
         VStack(alignment: .leading, spacing: 2) {
             // Compact lockup: the ribbon mark and the tracked uppercase wordmark (logo_lockup, small).
             HStack(spacing: 9) {
-                RibbonMark(color: Ink.persimmon).frame(width: 20, height: 21)
+                RibbonMark(color: Ink.persimmon).frame(width: 26, height: 20)
                 Text("VERBATIM").font(.system(size: 13.5, weight: .bold)).tracking(2.2).foregroundStyle(Ink.ink)
             }
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 22)
