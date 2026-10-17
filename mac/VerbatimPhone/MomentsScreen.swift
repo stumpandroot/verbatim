@@ -3,6 +3,9 @@ import SwiftUI
 /// Every timed note and bookmark across transcripts, with stills from kept video (made on the Mac).
 struct MomentsScreen: View {
     @EnvironmentObject var app: PhoneState
+    /// Cards rise in once; the first screenful staggers when you switch to Moments.
+    @State private var seen = SeenRows()
+    @State private var entrance = 0
     var body: some View {
         let moments = app.store.live.flatMap { t in t.notes.filter { $0.at != nil }.map { Moment(t: t, n: $0) } }.sorted { $0.n.createdAt > $1.n.createdAt }
         ScrollView {
@@ -14,7 +17,7 @@ struct MomentsScreen: View {
                 .padding(40)
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
-                ForEach(moments) { m in
+                ForEach(Array(moments.enumerated()), id: \.element.id) { i, m in
                     let t = m.t, n = m.n
                     Button { app.open(t.id, segment: n.segmentId ?? t.segments.last { $0.start <= (n.at ?? 0) }?.id) } label: {
                         VStack(alignment: .leading, spacing: 6) {
@@ -30,7 +33,8 @@ struct MomentsScreen: View {
                         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
                         .background(n.isBookmark ? Ink.butterTint : n.segmentId != nil ? Ink.petalTint : Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPress())
+                    .riseIn(m.id, index: i, seen: seen, epoch: entrance)
                     .contextMenu {
                         if let info = t.linkInfo, info.supportsTimestamps, let u = info.url(at: n.at ?? 0) { Link(destination: u) { Label("Open video", systemImage: "play.rectangle") } }
                         Button(role: .destructive) { app.deleteNote(t.id, note: n.id) } label: { Label("Delete", systemImage: "trash") }
@@ -39,6 +43,7 @@ struct MomentsScreen: View {
             }
             .padding(.horizontal, 16).padding(.bottom, 24)
         }
+        .tabEntrance(.moments) { seen.entered(); entrance += 1 }
         .background(Ink.paper.ignoresSafeArea())
         .navigationTitle("Moments")
     }

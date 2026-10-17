@@ -15,6 +15,8 @@ struct TranscriptScreen: View {
     @State private var noteText = ""
     @State private var downloading = false
     @State private var didStart = false
+    /// The system push slides the screen in; header, modes, and text stagger in behind it.
+    @State private var seen = SeenRows()
 
     private var t: Transcript? { app.store.transcript(id) }
 
@@ -26,11 +28,14 @@ struct TranscriptScreen: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t)
+                                    .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                 if t.status == .ready {
                                     ModePicker(options: [(Mode.transcript, "Transcript"), (.document, "Document"), (.review, "Review")], selection: $mode)
                                         .padding(.top, 16)
+                                        .riseIn("modes", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                 }
                                 content(t).padding(.top, 14)
+                                    .riseIn("content", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                             }
                             .padding(.horizontal, 20).padding(.top, 4)
                             .padding(.bottom, t.audioFileName != nil && t.status == .ready && mode != .document ? 120 : 32)

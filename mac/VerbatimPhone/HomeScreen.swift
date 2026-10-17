@@ -4,6 +4,12 @@ import SwiftUI
 /// recent work. Whatever you record here shows up on your Mac.
 struct HomeScreen: View {
     @EnvironmentObject var app: PhoneState
+    @Environment(\.limitMotion) private var limitMotion
+    /// Entrances: the first screenful staggers in on launch and on each switch to Home; rows rise once.
+    @State private var seen = SeenRows()
+    @State private var entrance = 0
+    /// Where the headline rests, unscrolled (in the scroll view's space). It eases up and fades as you scroll.
+    @State private var titleRest: CGFloat? = nil
 
     var body: some View {
         ScrollView {
@@ -14,25 +20,29 @@ struct HomeScreen: View {
                     SyncBadge()
                 }
                 .padding(.top, 8)
-                Text("Words worth keeping.").font(Ink.serif(36)).foregroundStyle(Ink.ink)
-                    .fixedSize(horizontal: false, vertical: true).padding(.top, 14)
-                    .accessibilityAddTraits(.isHeader)
+                .riseIn("eyebrow", index: 0, seen: seen, epoch: entrance)
+                headline
+                    .padding(.top, 14)
                 Text("Capture what was said. Make it readable. Find what matters.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim).padding(.top, 6)
+                    .riseIn("lede", index: 2, seen: seen, epoch: entrance)
 
                 capture.padding(.top, 22)
+                    .riseIn("capture", index: 3, seen: seen, epoch: entrance)
 
                 VStack(alignment: .leading, spacing: 12) {
                     EditorialSectionHeader(index: "01", label: "Method")
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) { cards }.padding(.horizontal, 20)
+                        HStack(spacing: 12) { cards }.padding(.horizontal, 20).padding(.vertical, 4)
                     }
                     .padding(.horizontal, -20)
                 }
                 .padding(.top, 28)
+                .riseIn("method", index: 4, seen: seen, epoch: entrance)
 
                 VStack(alignment: .leading, spacing: 12) {
                     EditorialSectionHeader(index: "02", label: "Recent", title: "Pick up where you left off.")
+                        .riseIn("recent", index: 5, seen: seen, epoch: entrance)
                     let items = Array(app.store.live.prefix(6))
                     if items.isEmpty {
                         HStack(spacing: 14) {
@@ -44,21 +54,46 @@ struct HomeScreen: View {
                         }
                         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
                         .cardSurface(radius: 14)
+                        .riseIn("empty", index: 6, seen: seen, epoch: entrance)
                     } else {
-                        ForEach(items) { t in
-                            Button { app.open(t.id) } label: { PhoneRow(transcript: t) }.buttonStyle(.plain)
+                        ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                            Button { app.open(t.id) } label: { PhoneRow(transcript: t) }.buttonStyle(SoftPress())
                                 .contextMenu { RowActions(transcript: t) }
+                                .riseIn(t.id, index: 6 + i, seen: seen, epoch: entrance)
                         }
                         Button { app.tab = .library } label: { HStack { Text("View library"); Image(systemName: "arrow.right") }.font(.system(size: 15, weight: .medium)) }
                             .foregroundStyle(Ink.ink).padding(.top, 4)
+                            .riseIn("more", index: 6 + items.count, seen: seen, epoch: entrance)
                     }
                 }
                 .padding(.top, 28)
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
+        .tabEntrance(.home) { seen.entered(); entrance += 1 }
         .background(Ink.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// The headline eases up (0.18× the scroll) and fades a little (to 60% at 160 pt) as Home scrolls.
+    private var headline: some View {
+        let rest = titleRest
+        let move = !limitMotion
+        return Text("Words worth keeping.").font(Ink.serif(36)).foregroundStyle(Ink.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .visualEffect { content, proxy in
+                let scrolled: CGFloat = {
+                    guard move, let rest else { return 0 }
+                    return min(max(rest - proxy.frame(in: .scrollView).minY, 0), 160)
+                }()
+                return content.offset(y: -0.18 * scrolled).opacity(1 - Double(scrolled) / 400)
+            }
+            .riseIn("title", index: 1, seen: seen, epoch: entrance)
+            // Measured outside the entrance offset, so the resting position is exact.
+            .background(GeometryReader { g in
+                Color.clear.onAppear { if titleRest == nil { titleRest = g.frame(in: .scrollView).minY } }
+            })
     }
 
     private var capture: some View {
@@ -68,13 +103,14 @@ struct HomeScreen: View {
                     Circle().fill(Ink.readerFixed).frame(width: 24, height: 24).frame(width: 84, height: 84)
                 }
                 .buttonStyle(RaisedKeyStyle())
+                .background(RecordHalo().frame(width: 84, height: 84))
                 .accessibilityLabel("Record")
                 Text("Record").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
             }
             VStack(spacing: 10) {
                 Button { app.showImporter = true } label: {
                     HStack(spacing: 10) {
-                        BrandGlyph(art: .document, color: Ink.ink).frame(width: 24, height: 24)
+                        ImportGlyph(color: Ink.ink).frame(width: 24, height: 24)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Import").font(.system(size: 15, weight: .semibold))
                             Text("Audio or video files").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
@@ -86,7 +122,7 @@ struct HomeScreen: View {
                 .buttonStyle(TactileButtonStyle())
                 Button { app.showLinkSheet = true } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "link").font(.system(size: 17, weight: .light)).frame(width: 24)
+                        LinkGlyph().frame(width: 24)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Link").font(.system(size: 15, weight: .semibold))
                             Text("Your Mac fetches it").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
@@ -106,14 +142,35 @@ struct HomeScreen: View {
         let live = app.store.live
         let latest = live.first { $0.status == .ready && !$0.segments.isEmpty }
         let moments = live.reduce(0) { $0 + $1.notes.filter { $0.at != nil }.count }
-        BrandFeatureCard(feature: .capture, line: "Record or import a file.", meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts") { app.requestRecord() }
+        BrandFeatureCard(feature: .capture, line: "Record or import a file.", meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts",
+                         animated: true, parallax: true) { app.requestRecord() }
             .frame(width: 236)
-        BrandFeatureCard(feature: .refine, line: "Clean up a transcript. The original stays.", meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil) {
+            .modifier(CarouselTilt())
+        BrandFeatureCard(feature: .refine, line: "Clean up a transcript. The original stays.", meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet",
+                         enabled: latest != nil, animated: true, parallax: true) {
             if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
         }
         .frame(width: 236)
-        BrandFeatureCard(feature: .understand, line: "Find what matters: moments and search.", meta: moments == 1 ? "1 saved moment" : "\(moments) saved moments") { app.tab = .moments }
+        .modifier(CarouselTilt())
+        BrandFeatureCard(feature: .understand, line: "Find what matters: moments and search.", meta: moments == 1 ? "1 saved moment" : "\(moments) saved moments",
+                         animated: true, parallax: true) { app.tab = .moments }
             .frame(width: 236)
+            .modifier(CarouselTilt())
+    }
+}
+
+/// Method cards tilt with their distance from the middle of the row (up to 14° around the vertical axis) and
+/// shrink a little (to 0.94), following the scroll without re-rendering. Flat when motion is limited.
+struct CarouselTilt: ViewModifier {
+    @Environment(\.limitMotion) private var limitMotion
+    func body(content: Content) -> some View {
+        let move = !limitMotion
+        content.visualEffect { c, proxy in
+            let d = move ? scrollDepth(proxy) : 0
+            return c
+                .rotation3DEffect(.degrees(Double(-d * 14)), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+                .scaleEffect(1 - abs(d) * 0.06)
+        }
     }
 }
 
@@ -160,6 +217,8 @@ struct RecordScreen: View {
     @EnvironmentObject var app: PhoneState
     private var paused: Bool { app.recorder.isPaused }
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
+    /// The system cover slides up; its content staggers in behind it.
+    @State private var seen = SeenRows()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -170,12 +229,14 @@ struct RecordScreen: View {
                 Overline(text: adding == nil ? "Voice note" : "Adds to \(adding!.duration.timecode)", color: Ink.mute)
             }
             .padding(.top, 14)
+            .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             Text(headline)
                 .font(Ink.serif(30)).foregroundStyle(Ink.ink).lineLimit(2).minimumScaleFactor(0.8)
                 .padding(.top, 14)
                 .contentTransition(.opacity)
                 .animation(Motion.settle, value: paused)
+                .riseIn("headline", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top) {
@@ -196,9 +257,11 @@ struct RecordScreen: View {
             .background(Ink.reader, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 20)
+            .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             Overline(text: "Keeps recording with the screen locked", color: Ink.mute)
                 .frame(maxWidth: .infinity).padding(.top, 14)
+                .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             Spacer(minLength: 20)
 
@@ -218,6 +281,7 @@ struct RecordScreen: View {
                 .frame(maxWidth: .infinity)
             }
             .padding(.bottom, 18)
+            .riseIn("controls", index: 4, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
         }
         .padding(.horizontal, 20)
         .background(Ink.paper.ignoresSafeArea())
@@ -259,44 +323,55 @@ struct RoundControl<Icon: View>: View {
     }
 }
 
+/// Press: scale 0.97 over 320 ms (a brief dim when motion is limited).
 struct PressScale: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1)
-            .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
+    func makeBody(configuration: Configuration) -> some View { SoftPress().makeBody(configuration: configuration) }
+}
+
+/// Three voice bands from the recorder's one level, each on its own spring, for the four rings (outer to
+/// inner): the outer ring follows slow voice energy (soft spring, gain .10), the middle rings follow the level
+/// (gains .13, .16), and the inner ring follows onsets, the crisp sounds (stiff spring, gain .22).
+final class LiveBands {
+    let springs = SpringBank([(30, 7, 0.10), (45, 8, 0.13), (60, 9, 0.16), (120, 12, 0.22)])
+    private var slow = 0.0
+
+    func advance(_ now: Date, level: Double) {
+        let dt = springs.tick(now)
+        slow += (level - slow) * min(1, dt * 3)
+        let crisp = max(0, level - slow)
+        springs.step(dt, targets: [min(1, slow * 1.2), min(1, level * 0.9), min(1, level), min(1, level * 0.4 + crisp * 2)])
     }
 }
 
-/// The brand's Capture diagram, listening: the rings swell with your voice; the dot is the recording light.
+/// The brand's Capture diagram, listening: each ring swells on its own band of your voice, scaling from the
+/// shared bottom point; the dot is the recording light. Still when motion is limited.
 struct LiveCaptureMark: View {
     @ObservedObject var live: LiveMeter
     var paused: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var bands = LiveBands()
     var body: some View {
-        let level = paused || reduceMotion ? 0 : CGFloat(live.level)
-        Canvas { ctx, size in
-            // Diagram space: circles touch at the bottom, an axis runs through them (diagram_capture).
-            let box = CGRect(x: 168, y: 88, width: 264, height: 342)
-            let s = min(size.width / box.width, size.height / box.height)
-            let ox = (size.width - box.width * s) / 2 - box.minX * s, oy = (size.height - box.height * s) / 2 - box.minY * s
-            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
-            let base: CGFloat = 383   // where the circles meet
-            let radii: [CGFloat] = [124, 102, 80, 58]
-            for (i, r0) in radii.enumerated() {
-                let grow = 1 + level * (0.10 - CGFloat(i) * 0.02)
-                let r = r0 * grow
-                let c = pt(300, base - r)
-                let rect = CGRect(x: c.x - r * s, y: c.y - r * s, width: 2 * r * s, height: 2 * r * s)
-                ctx.stroke(Path(ellipseIn: rect), with: .color(Ink.ink.opacity([0.22, 0.42, 0.7, 1][i])), lineWidth: 1.6)
+        TimelineView(.animation(paused: limitMotion)) { timeline in
+            Canvas { ctx, size in
+                bands.advance(timeline.date, level: paused || limitMotion ? 0 : Double(live.level))
+                // Diagram space: circles touch at the bottom, an axis runs through them (diagram_capture).
+                let sp = ArtSpace(box: BrandArt.diagramCapture.box, size: size)
+                func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: sp.dx + x * sp.s, y: sp.dy + y * sp.s) }
+                let base: CGFloat = 383   // where the circles meet
+                let radii: [CGFloat] = [124, 102, 80, 58]
+                for (i, r0) in radii.enumerated() {
+                    let r = r0 * (limitMotion ? 1 : bands.springs.scale(i))
+                    ctx.stroke(sp.circle(300, base - r, r), with: .color(Ink.ink.opacity([0.22, 0.42, 0.7, 1][i])), lineWidth: 1.6)
+                }
+                var axis = Path(); axis.move(to: pt(300, 96)); axis.addLine(to: pt(300, 421))
+                axis.move(to: pt(280, 93)); axis.addLine(to: pt(320, 93)); axis.move(to: pt(282, 425)); axis.addLine(to: pt(318, 425))
+                ctx.stroke(axis, with: .color(Ink.ink), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                let pulse = limitMotion ? 0 : CGFloat(min(1, max(0, bands.springs.value(2))))
+                let d = 15 * sp.s * (1 + pulse * 0.4)
+                let dc = pt(300, base)
+                ctx.fill(Path(ellipseIn: CGRect(x: dc.x - d, y: dc.y - d, width: 2 * d, height: 2 * d)), with: .color(paused ? Ink.mute : Ink.persimmon))
             }
-            var axis = Path(); axis.move(to: pt(300, 96)); axis.addLine(to: pt(300, 421))
-            axis.move(to: pt(280, 93)); axis.addLine(to: pt(320, 93)); axis.move(to: pt(282, 425)); axis.addLine(to: pt(318, 425))
-            ctx.stroke(axis, with: .color(Ink.ink), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-            let d = 15 * s * (1 + level * 0.4)
-            let dc = pt(300, base)
-            ctx.fill(Path(ellipseIn: CGRect(x: dc.x - d, y: dc.y - d, width: 2 * d, height: 2 * d)), with: .color(paused ? Ink.mute : Ink.persimmon))
         }
-        .animation(.easeOut(duration: 0.12), value: live.level)
         .accessibilityHidden(true)
     }
 }

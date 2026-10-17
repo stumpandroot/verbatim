@@ -12,7 +12,7 @@ struct OnboardingView: View {
     @State private var practice = ""
     @State private var edge: BarEdge = .bottom
     @FocusState private var practiceFocused: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.limitMotion) private var reduceMotion
     private let total = 5
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }

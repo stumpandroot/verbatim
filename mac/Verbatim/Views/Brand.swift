@@ -80,7 +80,8 @@ struct BrandArt {
     var strokes: [Element] = []
     var fills: [Element] = []
     var strokeWidth: CGFloat = 4.5
-    /// Elements drawn only inside the union of `clip` circles (the hatched Understand intersection).
+    /// Elements drawn only inside the region every `clip` element shares (the hatched Understand intersection:
+    /// the part all three circles overlap, not their union).
     var clipped: [Element] = []
     var clip: [Element] = []
     var clippedWidth: CGFloat = 2.4
@@ -137,8 +138,12 @@ extension BrandArt {
 
     static let diagramUnderstand = BrandArt(box: CGRect(x: 100, y: 75, width: 400, height: 382), strokes: [
         .circle(300, 205, 126), .circle(230, 327, 126), .circle(370, 327, 126),
-    ], strokeWidth: 2.7, clipped: (0..<15).map { k in .path("M\(235 + 17 * k) 180l-180 260") },
+    ], strokeWidth: 2.7, clipped: understandHatch,
        clip: [.circle(300, 205, 126), .circle(230, 327, 126), .circle(370, 327, 126)])
+
+    /// Evenly spaced diagonal hatch, every 22 units, wide enough to cover the triple intersection wherever the
+    /// circles sit (the animated variant moves them). Clipping trims it to the shared region.
+    static let understandHatch: [Element] = (0..<21).map { k in .path("M\(200 + 22 * k) 120l-200 290") }
 }
 
 /// Draws a BrandArt scaled to fit, keeping its stroke weight proportional (with a legibility floor).
@@ -158,8 +163,9 @@ struct BrandGlyph: View {
             let style = StrokeStyle(lineWidth: max(minLineWidth, art.strokeWidth * s), lineCap: .round, lineJoin: .round)
             if !art.strokes.isEmpty { ctx.stroke(Path(BrandArt.cgPath(art.strokes)).applying(t), with: shading, style: style) }
             if !art.clipped.isEmpty {
+                // Clip to each shape in turn: the hatch shows only where all of them overlap.
                 var c = ctx
-                c.clip(to: Path(BrandArt.cgPath(art.clip)).applying(t))
+                for shape in art.clip { c.clip(to: Path(BrandArt.cgPath([shape])).applying(t)) }
                 c.stroke(Path(BrandArt.cgPath(art.clipped)).applying(t), with: shading, style: StrokeStyle(lineWidth: max(minLineWidth * 0.8, art.clippedWidth * s)))
             }
         }
@@ -262,6 +268,9 @@ struct BrandFeatureCard: View {
     var line: String
     var meta: String
     var enabled = true
+    /// iPhone Home: the diagram moves (`AnimatedFeatureArt`) and slides against the card's scroll (parallax).
+    var animated = false
+    var parallax = false
     var action: () -> Void
 
     var body: some View {
@@ -274,8 +283,13 @@ struct BrandFeatureCard: View {
                         Rectangle().fill(Ink.inkFixed.opacity(0.5)).frame(width: 14, height: 1)
                     }
                     Spacer(minLength: 8)
-                    BrandGlyph(art: feature.art, color: Ink.inkFixed, minLineWidth: 1)
-                        .frame(width: 62, height: 62).padding(.trailing, 14)
+                    Group {
+                        if animated { AnimatedFeatureArt(feature: feature, color: Ink.inkFixed, minLineWidth: 1) }
+                        else { BrandGlyph(art: feature.art, color: Ink.inkFixed, minLineWidth: 1) }
+                    }
+                    .frame(width: 62, height: 62)
+                    .modifier(ArtParallax(enabled: parallax, card: cardSpace))
+                    .padding(.trailing, 14)
                 }
                 Text(feature.title).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed).lineLimit(1).minimumScaleFactor(0.8).padding(.top, 2)
                 Text(line).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
@@ -286,11 +300,43 @@ struct BrandFeatureCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, minHeight: 172, alignment: .topLeading)
+            .coordinateSpace(cardSpace)
         }
         .buttonStyle(FeatureCardStyle(fill: feature.fill))
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.6)
         .accessibilityLabel("\(feature.title). \(line). \(meta)")
+    }
+
+    private var cardSpace: NamedCoordinateSpace { .named("featureCard-\(feature.index)") }
+}
+
+/// How far a view sits from the middle of its scroll view, from -1 (a full width left) to 1 (right); 0 outside a
+/// scroll view. `center` is the x to measure in the view's own coordinates (its middle by default). Read inside
+/// `visualEffect`, so it follows scrolling without re-rendering.
+func scrollDepth(_ proxy: GeometryProxy, center: CGFloat? = nil) -> CGFloat {
+    guard let viewport = proxy.bounds(of: .scrollView), viewport.width > 0 else { return 0 }
+    let mid = center ?? proxy.size.width / 2
+    return max(-1, min(1, (mid - viewport.midX) / viewport.width))
+}
+
+/// The diagram slides against the card's position in the row (18 pt at a full width from the middle), so it
+/// seems to sit a little deeper than the card. Nothing moves when motion is limited.
+struct ArtParallax: ViewModifier {
+    var enabled: Bool
+    var card: NamedCoordinateSpace
+    @Environment(\.limitMotion) private var limitMotion
+    func body(content: Content) -> some View {
+        if enabled && !limitMotion {
+            let space = card
+            content.visualEffect { c, proxy in
+                // The card's middle (in the diagram's coordinates) sets the depth, so card and diagram agree.
+                let cardMid = proxy.bounds(of: space)?.midX
+                return c.offset(x: -18 * scrollDepth(proxy, center: cardMid))
+            }
+        } else {
+            content
+        }
     }
 }
 
@@ -314,7 +360,7 @@ struct CardMotion: ViewModifier {
     var lift: Double = 2
     /// Rows that sit on paper use a quieter shadow than cards that float.
     var shadow: Bool = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.limitMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
@@ -482,7 +528,7 @@ extension ButtonStyle where Self == BrandSecondaryButtonStyle {
 struct SignalRings: View {
     var active = true
     var color: Color = Ink.persimmon
-    @Environment(\.accessibilityReduceMotion) private var reduce
+    @Environment(\.limitMotion) private var reduce
     @State private var phase = false
     var body: some View {
         GeometryReader { g in
@@ -514,6 +560,224 @@ struct EmptyStateArt: View {
         }
         .frame(width: 56, height: 56)
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Moving diagrams (iPhone Home)
+
+/// Damped springs stepped once per frame (semi-implicit Euler). Each spring chases its own target, so several
+/// driven by one signal still move independently. A reference type kept in @State: stepping it while drawing
+/// doesn't invalidate the view.
+final class SpringBank {
+    struct Spring { var k: Double; var d: Double; var gain: Double; var x = 0.0; var v = 0.0 }
+    private(set) var springs: [Spring]
+    private var last: Date?
+
+    init(_ specs: [(k: Double, d: Double, gain: Double)]) {
+        springs = specs.map { Spring(k: $0.k, d: $0.d, gain: $0.gain) }
+    }
+
+    /// Seconds since the previous frame, at most 50 ms; a long gap (paused, off screen) counts as one frame.
+    func tick(_ now: Date) -> Double {
+        defer { last = now }
+        guard let prev = last else { return 0 }
+        let dt = now.timeIntervalSince(prev)
+        if dt <= 0 { return 0 }
+        return dt > 0.25 ? 1.0 / 60 : min(0.05, dt)
+    }
+
+    func step(_ dt: Double, targets: [Double]) {
+        guard dt > 0 else { return }
+        for i in springs.indices where i < targets.count {
+            let a = springs[i].k * (targets[i] - springs[i].x) - springs[i].d * springs[i].v
+            springs[i].v += a * dt
+            springs[i].x += springs[i].v * dt
+        }
+    }
+
+    /// 1 + displacement × gain: the scale for spring `i`.
+    func scale(_ i: Int) -> CGFloat { 1 + CGFloat(springs[i].x * springs[i].gain) }
+    func value(_ i: Int) -> Double { springs[i].x }
+}
+
+/// A simulated voice for the Capture card: a slow phrase envelope times a syllable rhythm, split into four
+/// targets, one per ring (outer to inner: gain .12/.18/.24/.30, stiffer and quicker toward the middle).
+final class CaptureVoice {
+    let springs = SpringBank([(22, 5, 0.12), (34, 6, 0.18), (50, 7, 0.24), (70, 8, 0.30)])
+    private var ct = 0.0
+
+    func advance(_ now: Date) {
+        let dt = springs.tick(now)
+        ct += dt * 6
+        let phrase = 0.5 + 0.5 * sin(ct / 6)
+        let syll = 0.5 + 0.5 * sin(ct * 1.3 + sin(ct / 3))
+        let env = 0.15 + 0.85 * phrase * (0.5 + 0.5 * syll)
+        springs.step(dt, targets: [env * 0.9, env * (0.6 + 0.4 * syll), env * syll, env * (0.4 + 0.6 * abs(sin(ct * 2.1)))])
+    }
+}
+
+/// CSS-style cubic-bezier easing, for drawings that animate by the clock.
+enum CubicEase {
+    /// cubic-bezier(x1, y1, x2, y2) at progress t (0…1).
+    static func value(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, _ t: Double) -> Double {
+        let x = min(1, max(0, t))
+        func bez(_ a: Double, _ b: Double, _ s: Double) -> Double { 3 * a * (1 - s) * (1 - s) * s + 3 * b * (1 - s) * s * s + s * s * s }
+        var lo = 0.0, hi = 1.0, s = x
+        for _ in 0..<24 {
+            s = (lo + hi) / 2
+            if bez(x1, x2, s) < x { lo = s } else { hi = s }
+        }
+        return bez(y1, y2, s)
+    }
+    /// The prototype's ease: cubic-bezier(.22, .7, .2, 1).
+    static func gentle(_ t: Double) -> Double { value(0.22, 0.7, 0.2, 1, t) }
+    static func inOut(_ t: Double) -> Double { value(0.42, 0, 0.58, 1, t) }
+}
+
+/// Maps a design-space box onto a canvas, aspect fit and centered (as BrandGlyph does).
+struct ArtSpace {
+    let s: CGFloat, dx: CGFloat, dy: CGFloat
+    init(box: CGRect, size: CGSize) {
+        s = min(size.width / box.width, size.height / box.height)
+        dx = (size.width - box.width * s) / 2 - box.minX * s
+        dy = (size.height - box.height * s) / 2 - box.minY * s
+    }
+    var transform: CGAffineTransform { CGAffineTransform(translationX: dx, y: dy).scaledBy(x: s, y: s) }
+    func circle(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Path {
+        Path(ellipseIn: CGRect(x: dx + (x - r) * s, y: dy + (y - r) * s, width: 2 * r * s, height: 2 * r * s))
+    }
+}
+
+/// The method diagrams, moving (iPhone Home cards):
+/// - Capture: the four rings scale from their shared bottom point, each on its own spring, driven by a
+///   simulated voice. They never rotate.
+/// - Refine: strands flow into the bar as travelling dashes; the clean lines draw in one after another, hold,
+///   and clear (7 s).
+/// - Understand: the circles drift together and apart (7 s); only the region all three share is hatched.
+/// Runs only while on screen. With motion limited it's the still diagram.
+struct AnimatedFeatureArt: View {
+    var feature: BrandFeature
+    var color: Color = Ink.ink
+    var minLineWidth: CGFloat = 1.1
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var onScreen = false
+    @State private var voice = CaptureVoice()
+
+    var body: some View {
+        Group {
+            if limitMotion {
+                BrandGlyph(art: feature.art, color: color, minLineWidth: minLineWidth)
+            } else {
+                TimelineView(.animation(paused: !onScreen)) { timeline in
+                    let now = timeline.date
+                    Canvas { ctx, size in
+                        switch feature {
+                        case .capture: drawCapture(ctx, size, now)
+                        case .refine: drawRefine(ctx, size, now.timeIntervalSinceReferenceDate)
+                        case .understand: drawUnderstand(ctx, size, now.timeIntervalSinceReferenceDate)
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear { onScreen = true }
+        .onDisappear { onScreen = false }
+        .accessibilityHidden(true)
+    }
+
+    private func width(_ art: BrandArt, _ s: CGFloat) -> CGFloat { max(minLineWidth, art.strokeWidth * s) }
+
+    // Capture
+
+    private static let captureAxis = Path(SVGPathData.parse("M300 96 L300 421 M280 93h40 M282 425h36"))
+
+    private func drawCapture(_ ctx: GraphicsContext, _ size: CGSize, _ now: Date) {
+        voice.advance(now)
+        let art = BrandArt.diagramCapture
+        let sp = ArtSpace(box: art.box, size: size)
+        let style = StrokeStyle(lineWidth: width(art, sp.s), lineCap: .round, lineJoin: .round)
+        let shading = GraphicsContext.Shading.color(color)
+        // Each ring keeps touching the shared point (300, 383) as it scales: center = 383 − r.
+        var rings = Path()
+        for (i, r0) in [CGFloat(124), 102, 80, 58].enumerated() {
+            let r = r0 * voice.springs.scale(i)
+            rings.addPath(sp.circle(300, 383 - r, r))
+        }
+        ctx.stroke(rings, with: shading, style: style)
+        ctx.stroke(Self.captureAxis.applying(sp.transform), with: shading, style: style)
+        ctx.fill(sp.circle(300, 383, 6), with: shading)
+    }
+
+    // Refine
+
+    private static let strandPaths: [Path] = [
+        "M75 128 C155 150, 185 100, 246 196 Q258 214 270 247",
+        "M75 168 C155 133, 185 203, 246 213 Q258 225 270 247",
+        "M75 207 C155 229, 185 179, 246 230 Q258 236 270 247",
+        "M75 247 C155 212, 185 282, 246 247 Q258 247 270 247",
+        "M75 287 C155 309, 185 259, 246 264 Q258 258 270 247",
+        "M75 327 C155 292, 185 362, 246 281 Q258 269 270 247",
+        "M75 367 C155 389, 185 339, 246 298 Q258 280 270 247",
+    ].map { Path(SVGPathData.parse($0)) }
+    /// Seconds per dash cycle, varied so the strands don't move in step.
+    private static let strandPeriods: [Double] = [4.2, 5, 3.6, 5, 4.2, 3.6, 4.2]
+    private static let cleanLines: [(y: CGFloat, end: CGFloat)] = [(128, 490), (168, 465), (207, 440), (247, 490), (287, 465), (327, 440), (367, 490)]
+
+    private func drawRefine(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
+        let art = BrandArt.diagramRefine
+        let sp = ArtSpace(box: art.box, size: size)
+        let w = width(art, sp.s)
+        let shading = GraphicsContext.Shading.color(color)
+        // Long dashes (72 on, 14 off) travel along each strand toward the bar.
+        for (i, strand) in Self.strandPaths.enumerated() {
+            let period = Self.strandPeriods[i]
+            let f = t.truncatingRemainder(dividingBy: period) / period
+            let phase = CGFloat(86 * (1 - f)) * sp.s
+            ctx.stroke(strand.applying(sp.transform), with: shading,
+                       style: StrokeStyle(lineWidth: w, lineCap: .round, dash: [72 * sp.s, 14 * sp.s], dashPhase: phase))
+        }
+        let round = StrokeStyle(lineWidth: w, lineCap: .round)
+        var bar = Path()
+        bar.move(to: CGPoint(x: 299, y: 96)); bar.addLine(to: CGPoint(x: 299, y: 402))
+        ctx.stroke(bar.applying(sp.transform), with: shading, style: round)
+        // Clean lines: draw in over the first quarter (0.15 s apart), hold, clear from the left in the last quarter.
+        for (i, line) in Self.cleanLines.enumerated() {
+            let len = line.end - 325
+            var local = (t - Double(i) * 0.15).truncatingRemainder(dividingBy: 7)
+            if local < 0 { local += 7 }
+            let p = local / 7
+            var from: CGFloat = 0, to: CGFloat = 1
+            if p < 0.25 { to = min(1, 170 * CGFloat(CubicEase.gentle(p / 0.25)) / len) }
+            else if p >= 0.75 { from = min(1, 170 * CGFloat(CubicEase.gentle((p - 0.75) / 0.25)) / len) }
+            guard to > from else { continue }
+            var path = Path()
+            path.move(to: CGPoint(x: 325, y: line.y)); path.addLine(to: CGPoint(x: line.end, y: line.y))
+            ctx.stroke(path.trimmedPath(from: from, to: to).applying(sp.transform), with: shading, style: round)
+        }
+    }
+
+    // Understand
+
+    /// A little roomier than the still diagram's box, so the circles have space to drift.
+    private static let understandBox = CGRect(x: 80, y: 55, width: 440, height: 420)
+    private static let hatch = Path(BrandArt.cgPath(BrandArt.understandHatch))
+
+    private func drawUnderstand(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
+        let art = BrandArt.diagramUnderstand
+        let sp = ArtSpace(box: Self.understandBox, size: size)
+        let shading = GraphicsContext.Shading.color(color)
+        // Apart at the start of the cycle, together at the middle, apart again (ease-in-out each way).
+        let p = t.truncatingRemainder(dividingBy: 7) / 3.5
+        let apart = CGFloat(p < 1 ? 1 - CubicEase.inOut(p) : CubicEase.inOut(p - 1))
+        let centers: [(CGFloat, CGFloat)] = [(300, 205 - 22 * apart), (230 - 20 * apart, 327 + 12 * apart), (370 + 20 * apart, 327 + 12 * apart)]
+        let circles = centers.map { sp.circle($0.0, $0.1, 126) }
+        // Only the region all three share is hatched, so it grows as they meet.
+        var clipped = ctx
+        for circle in circles { clipped.clip(to: circle) }
+        clipped.stroke(Self.hatch.applying(sp.transform), with: shading, style: StrokeStyle(lineWidth: max(minLineWidth * 0.8, art.clippedWidth * sp.s)))
+        var outline = Path()
+        for circle in circles { outline.addPath(circle) }
+        ctx.stroke(outline, with: shading, style: StrokeStyle(lineWidth: width(art, sp.s)))
     }
 }
 

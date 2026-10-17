@@ -16,6 +16,7 @@ struct VerbatimApp: App {
         WindowGroup("Verbatim") {
             ContentView()
                 .environmentObject(app)
+                .limitMotionRoot()
                 .frame(minWidth: 980, minHeight: 640)
                 .onAppear { Log.note("window appeared") }
         }
@@ -41,11 +42,11 @@ struct VerbatimApp: App {
         }
 
         Settings {
-            SettingsView().environmentObject(app)
+            SettingsView().environmentObject(app).limitMotionRoot()
         }
 
         MenuBarExtra(isInserted: $app.showMenuBar) {
-            MenuBarPanel().environmentObject(app)
+            MenuBarPanel().environmentObject(app).limitMotionRoot()
         } label: {
             Image(systemName: "waveform")
         }

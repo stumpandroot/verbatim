@@ -5,6 +5,7 @@ enum SettingsTab: String { case general, transcription, dictate, actions, keep, 
 struct SettingsView: View {
     @EnvironmentObject var app: AppState
     @AppStorage("settingsTab") private var tab: SettingsTab = .general
+    @AppStorage(MotionPreference.key) private var motionLimited = false
 
     var body: some View {
         TabView(selection: $tab) {
@@ -25,6 +26,9 @@ struct SettingsView: View {
             Picker("Appearance", selection: Binding(get: { app.appearance }, set: { app.appearance = $0; app.applyAppearance() })) {
                 Text("Match the system").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
             }
+            Toggle("Limit animation", isOn: $motionLimited)
+            Text("Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute)
             Toggle("Show in menu bar", isOn: $app.showMenuBar)
             Text("Record from anywhere with the menu bar item, or press ⌥⇧R while Verbatim is running.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)

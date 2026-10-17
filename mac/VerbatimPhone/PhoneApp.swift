@@ -9,6 +9,7 @@ struct VerbatimPhoneApp: App {
                 .environmentObject(app)
                 .preferredColorScheme(app.colorScheme)
                 .tint(Ink.ink)
+                .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
         }
     }
 }

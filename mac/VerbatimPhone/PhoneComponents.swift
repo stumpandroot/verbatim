@@ -23,16 +23,22 @@ extension View {
     func floatingGlass<S: Shape>(_ shape: S, interactive: Bool = true) -> some View { modifier(FloatingGlass(shape: shape, interactive: interactive)) }
 }
 
-/// A raised key: top highlight, contact shadow, compresses when pressed. One per screen.
+/// A raised key: top highlight, contact shadow, compresses when pressed (0.97 over 320 ms). One per screen.
 struct RaisedKeyStyle: ButtonStyle {
     var fill: Color = Ink.persimmon
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(Circle().fill(fill))
-            .overlay(Circle().strokeBorder(LinearGradient(colors: [.white.opacity(0.4), .clear], startPoint: .top, endPoint: .center), lineWidth: 1.5))
-            .shadow(color: Ink.inkFixed.opacity(configuration.isPressed ? 0.06 : 0.16), radius: configuration.isPressed ? 2 : 8, y: configuration.isPressed ? 1 : 4)
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
+    func makeBody(configuration: Configuration) -> some View { Key(configuration: configuration, fill: fill) }
+    private struct Key: View {
+        let configuration: ButtonStyleConfiguration
+        var fill: Color
+        @Environment(\.limitMotion) private var limitMotion
+        var body: some View {
+            configuration.label
+                .background(Circle().fill(fill))
+                .overlay(Circle().strokeBorder(LinearGradient(colors: [.white.opacity(0.4), .clear], startPoint: .top, endPoint: .center), lineWidth: 1.5))
+                .shadow(color: Ink.inkFixed.opacity(configuration.isPressed ? 0.06 : 0.16), radius: configuration.isPressed ? 2 : 8, y: configuration.isPressed ? 1 : 4)
+                .scaleEffect(configuration.isPressed && !limitMotion ? 0.97 : 1)
+                .animation(limitMotion ? Motion.fade : Motion.pressSoft, value: configuration.isPressed)
+        }
     }
 }
 
@@ -116,8 +122,14 @@ struct SourceTile: View {
         }()
         return ZStack {
             RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint)
-            if let art { BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1.3).padding(8) }
-            else { Image(systemName: source.symbol).font(.system(size: 15)).foregroundStyle(Ink.ink) }
+            // Quiet ambient motion: voice notes breathe their level bars, links pulse their play mark.
+            switch source {
+            case .voiceMemo, .dictation: VoiceTileArt()
+            case .link: PlayTileArt()
+            default:
+                if let art { BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1.3).padding(8) }
+                else { Image(systemName: source.symbol).font(.system(size: 15)).foregroundStyle(Ink.ink) }
+            }
         }
         .frame(width: 40, height: 40)
         .accessibilityHidden(true)

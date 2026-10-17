@@ -8,13 +8,30 @@ import UIKit
 /// transcript, note, bookmark, project, and Dictionary word syncs through iCloud both ways.
 @MainActor
 final class PhoneState: ObservableObject {
-    enum Tab: Hashable { case home, library, moments, settings }
+    enum Tab: Hashable {
+        case home, library, moments, settings
+        /// Left-to-right position in the tab bar, so a new tab's content can enter from the side you moved toward.
+        var order: Int {
+            switch self {
+            case .home: return 0
+            case .library: return 1
+            case .moments: return 2
+            case .settings: return 3
+            }
+        }
+    }
 
     let store = Store()
     let recorder = Recorder()
     let player = Player()
 
-    @Published var tab: Tab = .home
+    @Published var tab: Tab = .home {
+        didSet { if tab != oldValue { tabFrom = oldValue; tabEpoch += 1 } }
+    }
+    /// The tab you came from, and a count of tab changes: each tab's content enters when the count moves on
+    /// and it's the selected tab (`TabEntrance`).
+    private(set) var tabFrom: Tab = .home
+    @Published private(set) var tabEpoch = 0
     @Published var homePath = NavigationPath()
     @Published var libraryPath = NavigationPath()
     @Published var momentsPath = NavigationPath()
@@ -243,6 +260,56 @@ final class PhoneState: ObservableObject {
             else { try Exporter.render(t, as: f, options: .saved).write(to: url, atomically: true, encoding: .utf8) }
             return url
         } catch { say("Couldn't export: \(error.localizedDescription)"); return nil }
+    }
+
+    // MARK: Settings › Sync and data
+
+    /// Every finished transcript as Markdown and as JSON, plus the Dictionary and projects, in one zip for the
+    /// share sheet. Text only: audio stays in iCloud and on the Mac. Nil when there's nothing to export.
+    func exportEverything() async -> URL? {
+        let items = store.live.filter { $0.status == .ready }
+        guard !items.isEmpty else { say("Nothing to export yet."); return nil }
+        let options = ExportOptions.saved
+        let dictionary = (try? Store.enc.encode(store.dictionary)) ?? Data()
+        let projects = (try? Store.enc.encode(store.projects)) ?? Data()
+        let stamp = Formats.pattern("yyyy-MM-dd").string(from: Date())
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Verbatim Export \(stamp).zip")
+        let written: Bool = await Task.detached(priority: .userInitiated) {
+            var zip = ZipWriter()
+            var used = Set<String>()
+            for t in items {
+                var base = t.title.replacingOccurrences(of: "[/:\\\\?%*|\"<>]", with: "-", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+                if base.isEmpty { base = "Transcript" }
+                var name = base, n = 2
+                while used.contains(name.lowercased()) { name = "\(base) \(n)"; n += 1 }
+                used.insert(name.lowercased())
+                zip.add("Markdown/\(name).md", Data(Exporter.render(t, as: .md, options: options).utf8))
+                zip.add("JSON/\(name).json", Data(Exporter.render(t, as: .json, options: options).utf8))
+            }
+            zip.add("dictionary.json", dictionary)
+            zip.add("projects.json", projects)
+            return (try? zip.finish().write(to: url, options: .atomic)) != nil
+        }.value
+        if !written { say("Couldn't export.") }
+        return written ? url : nil
+    }
+
+    /// Settings › Delete all data: every transcript (Recently Deleted too) with its audio and stills, every
+    /// project, the Dictionary, and About me. Uses the Store's own delete paths, so iCloud removes the files on
+    /// every device, then waits until the deletes are on disk.
+    func deleteAllData() {
+        player.stop()
+        homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
+        for t in store.transcripts {
+            coordinator.cancelIfActive(t.id)
+            store.delete(t)
+        }
+        store.projects = []
+        store.dictionary = []
+        UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
+        store.flush()
+        say("Deleted everything")
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 }
 

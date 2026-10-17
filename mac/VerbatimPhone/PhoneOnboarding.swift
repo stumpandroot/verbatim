@@ -6,7 +6,7 @@ struct PhoneOnboarding: View {
     @EnvironmentObject var app: PhoneState
     @State private var step: Int
     @State private var micAllowed = AVAudioApplication.shared.recordPermission == .granted
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.limitMotion) private var reduceMotion
     private let total = 3
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }

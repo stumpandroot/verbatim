@@ -17,7 +17,11 @@ struct FlowBarView: View {
     @ObservedObject var model: FlowBarModel
     let controller: FlowBarController
     @ObservedObject var live: LiveMeter
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    /// Settings › General › Limit animation. The bar lives in its own panel, outside the window that injects
+    /// `limitMotion`, so it reads the preference directly.
+    @AppStorage(MotionPreference.key) private var motionLimited = false
+    private var reduceMotion: Bool { systemReduceMotion || motionLimited }
 
     private var alignment: Alignment {
         switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom }

@@ -163,6 +163,58 @@ enum Motion {
     static let snap = Animation.smooth(duration: 0.24)
     static let bounce = Animation.smooth(duration: 0.3)
     static let hero = Animation.smooth(duration: 0.36)
+
+    // Entrances and presses on iPhone (tuned in the web prototype, October 2026). Gentle, never fast.
+    /// The prototype's ease, cubic-bezier(.22, .7, .2, 1): a quick start that settles slowly.
+    static func gentle(_ duration: Double) -> Animation { .timingCurve(0.22, 0.7, 0.2, 1, duration: duration) }
+    /// A screen's first screenful: each element rises 12 pt and fades in, 70 ms after the previous one.
+    static let enter = gentle(0.76)
+    static let enterStep: Double = 0.07
+    /// Tab content arrives from the side you moved toward (26 pt) while it fades in.
+    static let enterTab = gentle(0.62)
+    /// Rows rise 14 pt as they first scroll into view.
+    static let rise = gentle(0.9)
+    /// Press: scale 0.97 in and out.
+    static let pressSoft = gentle(0.32)
+    /// Switches settle with a small overshoot.
+    static let toggle = Animation.spring(duration: 0.52, bounce: 0.3)
+    /// What replaces movement when motion is limited: a short crossfade.
+    static let fade = Animation.easeOut(duration: 0.2)
+}
+
+// MARK: - Limit animation
+
+/// The "Limit animation" preference (Settings on both apps). Off by default.
+enum MotionPreference {
+    static let key = "motion.limited"
+}
+
+private struct LimitMotionKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True when the system's Reduce Motion is on or the person turned on Limit animation. Views read this
+    /// instead of `accessibilityReduceMotion`, so both switches behave identically: fades instead of movement,
+    /// illustrations still, no symbol effects or press scaling. Injected at each window root by `limitMotionRoot()`.
+    var limitMotion: Bool {
+        get { self[LimitMotionKey.self] }
+        set { self[LimitMotionKey.self] = newValue }
+    }
+}
+
+/// Works out `limitMotion` from the system setting and the preference, and hands it to everything below.
+struct LimitMotionRoot: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage(MotionPreference.key) private var limited = false
+    func body(content: Content) -> some View {
+        content.environment(\.limitMotion, systemReduceMotion || limited)
+    }
+}
+
+extension View {
+    /// Apply once at each window root (and in panels hosted outside a window group).
+    func limitMotionRoot() -> some View { modifier(LimitMotionRoot()) }
 }
 
 extension Color {

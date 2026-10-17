@@ -7,6 +7,9 @@ struct LibraryScreen: View {
     @State private var filter: Filter = .all
     @State private var newProject = false
     @State private var projectName = ""
+    /// Rows rise in once; the first screenful staggers when you switch to Library.
+    @State private var seen = SeenRows()
+    @State private var entrance = 0
 
     enum Filter: Hashable { case all, pinned, links, working, project(UUID) }
 
@@ -63,9 +66,10 @@ struct LibraryScreen: View {
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
-                ForEach(items) { t in
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                     Button { app.open(t.id) } label: { PhoneRow(transcript: t) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SoftPress())
+                        .riseIn(t.id, index: i, seen: seen, epoch: entrance, scrollRise: search.isEmpty)   // typing never animates rows
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                         .contextMenu { RowActions(transcript: t) }
@@ -80,6 +84,7 @@ struct LibraryScreen: View {
             }
         }
         .listStyle(.plain)
+        .tabEntrance(.library) { seen.entered(); entrance += 1 }
         .scrollContentBackground(.hidden)
         .background(Ink.paper.ignoresSafeArea())
         .navigationTitle("Library")

@@ -158,7 +158,7 @@ struct Pill: View {
 struct StaggerIn: ViewModifier {
     var index: Int          // negative = no entrance animation
     @State private var shown = false
-    @Environment(\.accessibilityReduceMotion) private var reduce
+    @Environment(\.limitMotion) private var reduce
     func body(content: Content) -> some View {
         content
             .opacity(shown || index < 0 ? 1 : 0)
