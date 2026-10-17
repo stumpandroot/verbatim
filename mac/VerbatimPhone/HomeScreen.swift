@@ -140,12 +140,14 @@ struct RowActions: View {
     var transcript: Transcript
     var body: some View {
         Button { app.togglePin(transcript.id) } label: { Label(transcript.pinned ? "Unpin" : "Pin", systemImage: transcript.pinned ? "pin.slash" : "pin") }
-        if !app.store.projects.isEmpty {
-            Menu {
+        Menu {
+            if !app.store.projects.isEmpty {
                 Button("No project") { app.move(transcript.id, to: nil) }
                 ForEach(app.store.projects) { p in Button(p.name) { app.move(transcript.id, to: p.id) } }
-            } label: { Label("Move to project", systemImage: "folder") }
-        }
+                Divider()
+            }
+            Button { app.newProjectFor = transcript.id } label: { Label("New project…", systemImage: "folder.badge.plus") }
+        } label: { Label("Move to project", systemImage: "folder") }
         if transcript.status == .ready { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }
         if transcript.status == .failed { Button { app.retry(transcript) } label: { Label("Retry", systemImage: "arrow.clockwise") } }
         if transcript.status == .processing, transcript.processingDevice == Device.id { Button { app.cancel(transcript.id) } label: { Label("Cancel transcription", systemImage: "xmark") } }

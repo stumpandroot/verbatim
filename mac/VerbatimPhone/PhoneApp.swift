@@ -16,6 +16,7 @@ struct VerbatimPhoneApp: App {
 /// Four tabs in the system tab bar (Liquid Glass on iOS 26). Paper underneath; the recorder covers the screen.
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
+    @State private var newProjectName = ""
 
     var body: some View {
         TabView(selection: $app.tab) {
@@ -40,6 +41,15 @@ struct PhoneRoot: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        .alert("New project", isPresented: Binding(get: { app.newProjectFor != nil }, set: { if !$0 { app.newProjectFor = nil } })) {
+            TextField("Name", text: $newProjectName)
+            Button("Cancel", role: .cancel) { newProjectName = "" }
+            Button("Create") {
+                let n = newProjectName.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty, let id = app.newProjectFor { app.move(id, to: app.store.addProject(n).id); app.say("Moved to \(n)") }
+                newProjectName = ""
+            }
+        } message: { Text("The transcript moves into it.") }
         .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet().presentationDetents([.medium]) }
         .fileImporter(isPresented: $app.showImporter, allowedContentTypes: [.audio, .movie, .audiovisualContent], allowsMultipleSelection: true) { r in

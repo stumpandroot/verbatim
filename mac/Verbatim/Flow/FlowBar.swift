@@ -363,7 +363,9 @@ final class FlowBarController {
             pasteLast: { [weak dictation] in dictation?.pasteLast() },
             editByVoice: { [weak dictation] in dictation?.startFromBar(command: true) },
             run: { [weak dictation] a in dictation?.apply(a) },
-            editActions: { [weak dictation] in dictation?.openSettings(tab: .actions) }
+            editActions: { [weak dictation] in dictation?.openSettings(tab: .actions) },
+            projects: dictation.projects,
+            thoughtPad: { ThoughtPadController.shared.toggle() }
         )) { [weak self] in self?.pointerMoved() }
     }
 }

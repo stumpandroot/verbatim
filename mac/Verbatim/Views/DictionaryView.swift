@@ -7,11 +7,14 @@ struct DictionaryView: View {
     @State private var adding = false
     @State private var newPreferred = ""
     @State private var newHeard = ""
+    /// nil = all words; .some(nil) = words for every transcript; .some(id) = one project's words.
+    @State private var scope: UUID?? = nil
 
     private var entries: [DictionaryEntry] {
         let q = filter.trimmingCharacters(in: .whitespaces).lowercased()
         return app.store.dictionary
             .filter { q.isEmpty || $0.preferred.lowercased().contains(q) || $0.heardAs.joined(separator: " ").lowercased().contains(q) }
+            .filter { e in scope.map { e.projectId == $0 } ?? true }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -26,7 +29,16 @@ struct DictionaryView: View {
                     TextField("Search \(app.store.dictionary.count) words", text: $filter).textFieldStyle(.roundedBorder)
                     Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.brandPrimary)
                 }
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
+
+                if !app.store.projects.isEmpty {
+                    HStack(spacing: 6) {
+                        SiteChip(label: "All", on: scope == nil) { scope = nil }
+                        SiteChip(label: "Everywhere", on: scope == .some(nil)) { scope = .some(nil) }
+                        ForEach(app.store.projects) { p in SiteChip(label: p.name, on: scope == .some(p.id)) { scope = .some(p.id) } }
+                    }
+                    .padding(.bottom, 12)
+                }
 
                 if adding {
                     HStack(spacing: 8) {
@@ -36,7 +48,8 @@ struct DictionaryView: View {
                             let heard = newHeard.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                             let p = newPreferred.trimmingCharacters(in: .whitespaces)
                             guard !p.isEmpty, !heard.isEmpty else { return }
-                            app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you"))
+                            // Added while a project is picked: the word belongs to that project.
+                            app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you", projectId: scope ?? nil))
                             newPreferred = ""; newHeard = ""; adding = false
                         }
                         .buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
@@ -92,6 +105,10 @@ struct DictionaryRow: View {
     var entry: DictionaryEntry
     @State private var hover = false
 
+    private func setProject(_ id: UUID?) {
+        if let i = app.store.dictionary.firstIndex(where: { $0.id == entry.id }) { app.store.dictionary[i].projectId = id }
+    }
+
     var body: some View {
         HStack {
             Pill(text: entry.preferred).frame(width: 180, alignment: .leading)
@@ -112,7 +129,16 @@ struct DictionaryRow: View {
         .opacity(entry.enabled ? 1 : 0.55)
         .onHover { hover = $0 }
         .contextMenu {
-            Button("Delete", role: .destructive) { app.store.dictionary.removeAll { $0.id == entry.id } }
+            Menu("Use In") {
+                Button("Every transcript") { setProject(nil) }
+                ForEach(app.store.projects) { p in Button("Only \(p.name)") { setProject(p.id) } }
+            }
+            Divider()
+            Button("Delete", role: .destructive) {
+                let removed = entry
+                app.store.dictionary.removeAll { $0.id == entry.id }
+                app.toast = Toast("Removed “\(removed.preferred)”", action: "Undo") { [weak app] in app?.store.dictionary.append(removed) }
+            }
         }
     }
 }

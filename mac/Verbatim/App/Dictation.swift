@@ -68,6 +68,8 @@ final class DictationController: ObservableObject {
     private var startedAt: Date?
     private var lastPressTS: TimeInterval = 0
     private var lastTrusted = false
+    private var lastDuration: Double = 0
+    var projects: [Project] { app?.store.projects ?? [] }
     private var trustTimer: Timer?
 
     var accessibilityTrusted: Bool { AXIsProcessTrusted() }
@@ -76,6 +78,7 @@ final class DictationController: ObservableObject {
     func attach(_ app: AppState) {
         self.app = app
         learner.app = app
+        ThoughtPadController.shared.dictation = self
         bar = FlowBarController(dictation: self)
         refreshMonitors()
         purgeOldDictations()
@@ -147,6 +150,7 @@ final class DictationController: ObservableObject {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { pasteLast(); return }
+            if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtPadController.shared.toggle(); return }
         }
         switch hotkey {
         case .rightOption: modifier(e, code: 61, flag: .option)          // kVK_RightOption
@@ -317,10 +321,13 @@ final class DictationController: ObservableObject {
             return
         }
         isWorking = true
+        lastDuration = duration
         bar?.setPhase(.working)
         let s = FlowSettings.shared
         let (engineId, model) = app?.engineChoice ?? ("fluid", "v3")
-        let dict = app?.store.dictionary ?? []
+        // Words that apply everywhere, plus the active project's.
+        let project = s.activeProject.flatMap { p in app?.store.projects.contains(where: { $0.id == p }) == true ? p : nil }
+        let dict = (app?.store.dictionary ?? []).filter { $0.projectId == nil || $0.projectId == project }
         let ctx = context
         let isCommand = command
         let targetName = targetAppName
@@ -346,7 +353,7 @@ final class DictationController: ObservableObject {
                 let t1 = Date()
                 let original = r.segments
                 var segs = r.segments
-                let fixes = DictionaryApplier.apply(dict, to: &segs)
+                let fixes = DictionaryApplier.apply(dict, to: &segs, project: project)
                 let raw = segs.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
                 var final: String
                 var note: String?
@@ -370,7 +377,7 @@ final class DictationController: ObservableObject {
                 let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs
                 let cleanupTime = Date().timeIntervalSince(t1)
                 await MainActor.run {
-                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned)
+                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned, project: project)
                     if let id, !isCommand, !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: info, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
                     }
@@ -387,7 +394,7 @@ final class DictationController: ObservableObject {
         }
     }
 
-    private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool) -> UUID? {
+    private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool, project: UUID? = nil) -> UUID? {
         guard let app else { return nil }
         let name = app.store.adoptRecording(url) ?? url.lastPathComponent
         let titleSource = info.pasted.isEmpty ? segments : [Segment(start: 0, end: duration, text: info.pasted)]
@@ -395,6 +402,7 @@ final class DictationController: ObservableObject {
         t.engine = result.engine; t.language = result.language
         t.original = original; t.segments = segments; t.corrections = fixes; t.waveform = env
         t.flow = info
+        t.projectId = project
         if cleaned, info.pasted != info.raw { t.document = info.pasted; t.documentLevel = info.level.capitalized }
         app.store.add(t)
         return t.id
@@ -418,6 +426,15 @@ final class DictationController: ObservableObject {
         let ctx = context, tgt = target
         let wasCommand = command
         command = false
+        // With the thought pad open, a dictation becomes a piece of the pad instead of a paste.
+        if !wasCommand, ThoughtPadController.shared.isOpen {
+            ThoughtPad.shared.add(text, seconds: lastDuration)
+            isWorking = false
+            Sounds.done()
+            bar?.flash("Added to the thought pad", seconds: 1.8)
+            if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+            return
+        }
         let spaced = (ctx?.selection.isEmpty ?? true) && !wasCommand && needsLeadingSpace(ctx) ? " " + text : text
         // Stays "working" until the paste and clipboard restore finish (up to a few seconds for slow apps),
         // so a new dictation can't start mid-paste and have this one's result land on top of it.
@@ -429,8 +446,11 @@ final class DictationController: ObservableObject {
             case .pasted:
                 if let note { bar?.flash(note, seconds: 4) } else { bar?.setPhase(.idle) }
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
+                learner.showPending()
             case .copiedOnly:
-                bar?.flash("Copied. Click a text field and press ⌘V.", seconds: 5)
+                // Nowhere to paste: it's on the clipboard, and kept in the thought pad too.
+                if !wasCommand { ThoughtPad.shared.add(text, seconds: lastDuration, missed: true) }
+                bar?.flash(wasCommand ? "Copied. Click a text field and press ⌘V." : "Copied, and saved to the thought pad.", seconds: 5)
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
             }
         }

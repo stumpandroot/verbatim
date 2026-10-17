@@ -195,7 +195,7 @@ struct DictationForm: View {
                 Text("Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                 Toggle("Learn from my fixes", isOn: $flow.autoLearn)
-                Text("When you correct a name or term right after it's pasted, Verbatim adds it to your Dictionary and tells you, with Undo.")
+                Text("When you correct a name or term right after it's pasted, the floating button asks whether to remember it. Nothing is learned unless you say yes.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section("Snippets") {

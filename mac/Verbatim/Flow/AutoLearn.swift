@@ -6,14 +6,23 @@ import ApplicationServices
 /// After a paste into a field Verbatim can read, it looks at that field again when you start the next
 /// dictation or after 20 seconds, whichever comes first. Where you replaced a dictated word with a different
 /// one that looks like a name or term (the Mac's spell checker doesn't know it, it isn't a number or a link,
-/// and it sounds similar), that pair goes into your Dictionary, and a toast offers Undo.
+/// and it sounds similar), the floating button asks whether to remember it. Nothing is learned without a yes.
 /// Only the pasted span is compared; nothing else in the field is kept.
 @MainActor
 final class AutoLearn {
     private struct Watch { let element: AXUIElement; let pasted: String; let cursor: Int; let app: String; let at: Date }
     private var watch: Watch?
     private var timer: Timer?
+    /// A "Remember?" question waiting for the floating button to be free (it found the fix as a dictation started).
+    private var pending: FlowBarModel.Prompt?
     weak var app: AppState?
+
+    /// Asks a waiting "Remember?" question, once the dictation that interrupted it has pasted.
+    func showPending() {
+        guard let p = pending, let bar = app?.dictation.bar, bar.model.phase == .idle || bar.model.phase == .notice else { return }
+        pending = nil
+        bar.ask(p)
+    }
 
     func watch(element: AXUIElement?, cursor: Int?, pasted: String, appName: String) {
         check()
@@ -36,23 +45,47 @@ final class AutoLearn {
         let a = Self.tokens(w.pasted), b = Self.tokens(String(window))
         let pairs = Self.substitutions(a, b)
         guard !pairs.isEmpty, let app else { return }
-        var added: [DictionaryEntry] = []
+        let settings = FlowSettings.shared
+        var ask: [(heard: String, fixed: String)] = []
         for (heard, fixed) in pairs where Self.looksLearnable(heard: heard, fixed: fixed) {
+            let key = "\(heard.lowercased())→\(fixed.lowercased())"
+            if settings.declinedFixes.contains(key) { continue }
+            // Already known: quietly add the new way it was heard.
             if let i = app.store.dictionary.firstIndex(where: { $0.preferred.caseInsensitiveCompare(fixed) == .orderedSame }) {
                 if !app.store.dictionary[i].heardAs.contains(where: { $0.caseInsensitiveCompare(heard) == .orderedSame }) { app.store.dictionary[i].heardAs.append(heard) }
                 continue
             }
-            let e = DictionaryEntry(preferred: fixed, heardAs: [heard], learnedFrom: "Learned from your edit in \(w.app)")
-            app.store.dictionary.append(e)
-            added.append(e)
+            ask.append((heard, fixed))
         }
-        guard !added.isEmpty else { return }
-        let names = added.map { "“\($0.preferred)”" }.joined(separator: ", ")
-        Log.note("auto-learn: \(added.count) word(s)")
-        app.toast = Toast("Learned \(names) from your edit", action: "Undo") { [weak app] in
-            let ids = Set(added.map(\.id))
-            app?.store.dictionary.removeAll { ids.contains($0.id) }
+        guard !ask.isEmpty, let bar = app.dictation.bar else { return }
+        Log.note("auto-learn: asking about \(ask.count) word(s)")
+        // Ask in the floating button, where you are. Nothing is learned unless you say so.
+        let names = ask.map { "“\($0.fixed)”" }.joined(separator: ", ")
+        let project = settings.activeProject.flatMap { id in app.store.projects.first { $0.id == id } }
+        let source = "Learned from your edit in \(w.app)"
+        func remember(_ projectId: UUID?) {
+            for (heard, fixed) in ask {
+                app.store.dictionary.append(DictionaryEntry(preferred: fixed, heardAs: [heard], learnedFrom: source, projectId: projectId))
+            }
+            bar.flash(projectId == nil ? "Remembered \(names)" : "Remembered \(names) in \(project?.name ?? "the project")", seconds: 2.5)
         }
+        let first = ask[0]
+        let prompt = FlowBarModel.Prompt(
+            title: ask.count == 1 ? "Remember “\(first.fixed)”?" : "Remember \(ask.count) words?",
+            body: ask.count == 1 ? "You changed " : "You changed ",
+            quote: ask.count == 1 ? "\(first.heard) → \(first.fixed)" : ask.map { "\($0.heard) → \($0.fixed)" }.joined(separator: ", "),
+            after: ". Next time it's spelled your way.",
+            primary: "Remember",
+            secondary: project.map { "Only in \($0.name)" } ?? "Not now",
+            seconds: 12,
+            onPrimary: { remember(nil) },
+            onSecondary: {
+                if let project { remember(project.id) }
+                else { settings.declinedFixes += ask.map { "\($0.heard.lowercased())→\($0.fixed.lowercased())" } }
+            },
+            onTimeout: { }   // ignored or closed: not learned, and it may ask again next time
+        )
+        if bar.model.phase == .idle || bar.model.phase == .notice { bar.ask(prompt) } else { pending = prompt }
     }
 
     // MARK: Matching

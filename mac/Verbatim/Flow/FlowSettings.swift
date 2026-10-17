@@ -111,6 +111,10 @@ final class FlowSettings: ObservableObject {
     @Published var actions: [FlowAction] { didSet { save(actions, "flow.actions") } }
     /// Your typing speed, for Activity's time-saved estimate.
     @Published var typingWPM: Int { didSet { d.set(typingWPM, forKey: "flow.typingWPM") } }
+    /// The project dictations go into: its Dictionary words apply, and each dictation is filed there. nil = none.
+    @Published var activeProject: UUID? { didSet { d.set(activeProject?.uuidString, forKey: "flow.activeProject") } }
+    /// Word fixes you said "Not now" to ("heard→fixed"), so Verbatim doesn't ask about them again.
+    @Published var declinedFixes: [String] { didSet { d.set(declinedFixes, forKey: "flow.declinedFixes") } }
 
     struct BarPosition: Codable, Equatable { var edge: BarEdge; var along: Double }
 
@@ -128,6 +132,8 @@ final class FlowSettings: ObservableObject {
         positions = Self.load([String: BarPosition].self, "flow.positions") ?? [:]
         actions = Self.load([FlowAction].self, "flow.actions") ?? FlowAction.builtIn
         typingWPM = d.object(forKey: "flow.typingWPM") as? Int ?? 40
+        activeProject = d.string(forKey: "flow.activeProject").flatMap(UUID.init(uuidString:))
+        declinedFixes = d.stringArray(forKey: "flow.declinedFixes") ?? []
     }
 
     func style(for c: AppCategory) -> FlowStyle { c == .code ? .verbatim : (styles[c] ?? .casual) }

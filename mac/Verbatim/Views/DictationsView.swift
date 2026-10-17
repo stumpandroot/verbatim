@@ -157,6 +157,7 @@ struct DictationRow: View {
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(NoteCardBackground(hover: hover))
         .onHover { hover = $0 }
+        .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }   // onto a project in the sidebar
         .animation(Motion.touch, value: hover)
         .contextMenu {
             Button("Copy") { Paster.copy(pasted) }

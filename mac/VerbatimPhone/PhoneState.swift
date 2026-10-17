@@ -24,6 +24,8 @@ final class PhoneState: ObservableObject {
     @Published var showLinkSheet = false
     @Published var showImporter = false
     @Published var showOnboarding = Onboarding.shouldShow
+    /// "New project…" from a row's menu: name it, then the transcript moves into it.
+    @Published var newProjectFor: UUID? = nil
     @Published var queue: [UUID] = []
     @Published var runningID: UUID? = nil
     /// Continue recording: the transcript the current recording will be added to.

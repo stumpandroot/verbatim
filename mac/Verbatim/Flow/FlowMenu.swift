@@ -14,6 +14,8 @@ final class FlowMenuController {
         var editByVoice: () -> Void
         var run: (FlowAction) -> Void
         var editActions: () -> Void
+        var projects: [Project]
+        var thoughtPad: () -> Void
     }
 
     private var panel: FlowMenuPanel?
@@ -108,7 +110,7 @@ struct FlowMenuView: View {
     @State private var devices: [AudioDevices.Device] = AudioDevices.inputs()
     @State private var selectedUID: String? = AudioDevices.selectedUID
 
-    enum Sub { case mic, cleanup, actions }
+    enum Sub { case mic, cleanup, actions, project }
 
     var body: some View {
         ZStack(alignment: anchorTop ? (opensLeft ? .topTrailing : .topLeading) : (opensLeft ? .bottomTrailing : .bottomLeading)) {
@@ -127,6 +129,11 @@ struct FlowMenuView: View {
         VStack(alignment: .leading, spacing: 0) {
             item("Hide for 1 hour", "eye.slash") { actions.hide(); close() }
             item("Settings", "gearshape") { actions.settings(); close() }
+            rule
+            item("Project", "folder", trailing: (actions.projects.first { $0.id == settings.activeProject }?.name ?? "None").uppercased(), chevron: true, highlighted: sub == .project, tint: Paper.persimmon) { sub = sub == .project ? nil : .project }
+                .onHover { if $0 { sub = .project } }
+            item("Thought pad", "square.and.pencil", trailing: "⌃⌥P") { actions.thoughtPad(); close() }
+                .onHover { if $0 { sub = nil } }
             rule
             item("Microphone", "mic", chevron: true, highlighted: sub == .mic, tint: Paper.persimmon) { sub = sub == .mic ? nil : .mic }
                 .onHover { if $0 { sub = .mic } }
@@ -166,6 +173,15 @@ struct FlowMenuView: View {
                 ForEach(CleanupLevel.allCases) { l in
                     choice(l.title, on: settings.cleanup == l, note: l == .none ? "As spoken" : l == .light ? "Fillers and grammar" : "Also tightens") { settings.cleanup = l; close() }
                 }
+            case .project:
+                header("DICTATE INTO")
+                choice("No project", on: settings.activeProject == nil) { settings.activeProject = nil; close() }
+                ForEach(actions.projects) { p in
+                    choice(p.name, on: settings.activeProject == p.id) { settings.activeProject = p.id; close() }
+                }
+                Text(actions.projects.isEmpty ? "Make a project in Verbatim's sidebar first." : "Uses the project's Dictionary words and files each dictation there.")
+                    .font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.horizontal, 10).padding(.vertical, 6)
+                    .fixedSize(horizontal: false, vertical: true)
             case .actions:
                 header("ON SELECTED TEXT")
                 ScrollView {
@@ -195,7 +211,7 @@ struct FlowMenuView: View {
         .frame(width: 236)
         .background(Paper.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Paper.line))
-        .padding(.top, anchorTop ? (sub == .cleanup ? 118 : sub == .mic ? 82 : 0) : 0)
+        .padding(.top, anchorTop ? (sub == .cleanup ? 190 : sub == .mic ? 154 : sub == .project ? 82 : 0) : 0)
     }
 
     private func pickMic(_ uid: String?) {

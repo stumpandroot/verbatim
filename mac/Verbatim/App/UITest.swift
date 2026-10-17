@@ -145,6 +145,18 @@ enum UITest {
         await show("07c-activity")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
+        let pad = ThoughtPad.shared
+        pad.clear(); pad.title = "Catalog shoot email"
+        pad.add("Shoot the wheels on white first, then the wagons out in the field by the shop.", seconds: 14)
+        pad.add("Ask Jonathan for the wheel spec sheet before Friday.", seconds: 6)
+        pad.add("The Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", seconds: 9, missed: true)
+        ThoughtPadController.shared.open()
+        await show("08b-thought-pad")
+        ThoughtPadController.shared.close()
+        app.dictation.bar?.ask(.init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way.",
+                                     primary: "Remember", secondary: "Only in Lapp Wagons", seconds: 8))
+        await show("08c-remember")
+        app.dictation.bar?.setPhase(.idle)
         if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
             NSApp.sendAction(action, to: item.target, from: item)
         } else {
