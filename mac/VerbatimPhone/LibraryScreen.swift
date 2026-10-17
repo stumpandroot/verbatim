@@ -22,7 +22,7 @@ struct LibraryScreen: View {
                 case .project(let p): return t.projectId == p
                 }
             }()
-            return f && (q.isEmpty || t.title.lowercased().contains(q) || t.text.lowercased().contains(q))
+            return f && (q.isEmpty || t.title.lowercased().contains(q) || app.store.searchText(t).contains(q))
         }
     }
 

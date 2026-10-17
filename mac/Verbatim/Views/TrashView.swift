@@ -52,7 +52,7 @@ struct TrashView: View {
 
     private func daysLeft(_ t: Transcript) -> String {
         guard let d = t.deletedAt else { return "" }
-        let left = max(0, 30 - (Calendar.current.dateComponents([.day], from: d, to: Date()).day ?? 0))
+        let left = app.store.trashDaysLeft(t)
         return "Deleted \(Self.relative.localizedString(for: d, relativeTo: Date())) · \(left) day\(left == 1 ? "" : "s") left"
     }
 

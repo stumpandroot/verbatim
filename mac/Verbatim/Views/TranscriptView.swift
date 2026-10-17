@@ -278,10 +278,7 @@ struct TranscriptView: View {
     }
 
     private func undo(_ t: Transcript, _ c: Correction) {
-        app.store.update(t.id) { x in
-            if let i = x.segments.firstIndex(where: { $0.id == c.segmentId }) { x.segments[i].text = x.segments[i].text.replacingOccurrences(of: c.to, with: c.from) }
-            x.corrections.removeAll { $0.id == c.id }
-        }
+        app.store.undoCorrection(c, in: t.id)
     }
 
     private func placeholder(_ title: String, _ body: String) -> some View {
