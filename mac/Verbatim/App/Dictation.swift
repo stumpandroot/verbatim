@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import ApplicationServices
+import Carbon
 import Carbon.HIToolbox
 
 extension Notification.Name {
@@ -41,20 +42,30 @@ final class DictationController: ObservableObject {
         var isModifierOnly: Bool { self != .controlOptionSpace }
     }
 
-    @Published private(set) var isListening = false
+    @Published private(set) var isListening = false {
+        didSet { if isListening != oldValue { carbon.setEscape(secureSince != nil && isListening) } }
+    }
     @Published private(set) var isWorking = false
     @Published private(set) var handsFree = false
     @Published private(set) var targetAppName = ""
+    /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or the thought pad's
+    /// Send) so ⌃⌘V and ⌃⌥C can always bring it back.
     @Published private(set) var lastResult: String? = nil
+    /// Whether the target app confirmed it read `lastResult` (the paste receipt arrived).
+    @Published private(set) var lastPasteConfirmed = true
+    /// Secure Event Input has been on for 3 seconds or more (a password field, Terminal's Secure Keyboard Entry).
+    /// Keyed shortcuts stop reaching the event monitors then; modifier-only hotkeys keep working.
+    @Published private(set) var secureInputOn = false
     @Published var hotkey: Hotkey = Hotkey(rawValue: UserDefaults.standard.string(forKey: "dictateHotkey") ?? "") ?? .rightOption {
-        didSet { UserDefaults.standard.set(hotkey.rawValue, forKey: "dictateHotkey"); bar?.refresh() }
+        didSet { UserDefaults.standard.set(hotkey.rawValue, forKey: "dictateHotkey"); if secureSince != nil { carbon.activate(hotkey: hotkey) }; bar?.refresh() }
     }
     @Published var enabled: Bool = UserDefaults.standard.object(forKey: "dictateEnabled") == nil ? true : UserDefaults.standard.bool(forKey: "dictateEnabled") {
-        didSet { UserDefaults.standard.set(enabled, forKey: "dictateEnabled"); refreshMonitors(); bar?.refresh() }
+        didSet { UserDefaults.standard.set(enabled, forKey: "dictateEnabled"); refreshMonitors(); warmRecorder(); bar?.refresh() }
     }
 
     private weak var app: AppState?
-    private let recorder = Recorder()
+    /// Keeps one audio engine prepared (mic off) between dictations, so key-down only starts it.
+    private let recorder = Recorder(keepWarm: true)
     private var monitors: [Any] = []
     private(set) var bar: FlowBarController?
     private let learner = AutoLearn()
@@ -74,12 +85,19 @@ final class DictationController: ObservableObject {
     func showPendingLearn() { learner.showPending() }
     var projects: [Project] { app?.store.projects ?? [] }
     private var trustTimer: Timer?
+    private var secureTimer: Timer?
+    /// When Secure Event Input was first seen on (nil while off).
+    private var secureSince: TimeInterval?
+    private var secureFlashed = false
+    private let carbon = CarbonHotkeys()
+    private var wakeObserver: NSObjectProtocol?
 
     var accessibilityTrusted: Bool { AXIsProcessTrusted() }
     var liveMeter: LiveMeter { recorder.live }
 
     func attach(_ app: AppState) {
         self.app = app
+        carbon.owner = self
         learner.app = app
         ThoughtPadController.shared.dictation = self
         bar = FlowBarController(dictation: self)
@@ -100,9 +118,40 @@ final class DictationController: ObservableObject {
                 }
             }
         }
-        // Load the speech model now, so the first dictation doesn't wait for it.
-        let choice = app.engineChoice
-        if enabled, choice.engine == "fluid" { Task.detached(priority: .utility) { await FluidEngine.shared.warm(model: choice.model) } }
+        // The mic changing mid-dictation ends it gracefully: what was said so far is transcribed and kept.
+        recorder.onInterrupted = { [weak self] in self?.inputInterrupted() }
+        warmRecorder()
+        // Load the speech model and run a tiny transcription now, so the first dictation doesn't wait for it.
+        prewarmModel(reason: "launch")
+        // Core ML can drop compiled models over sleep; warm again a few seconds after waking.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self?.prewarmModel(reason: "wake")
+            }
+        }
+    }
+
+    /// A real (tiny) inference on the model dictation uses, so loading and first-run compilation happen now.
+    private func prewarmModel(reason: String) {
+        guard enabled, let choice = app?.engineChoice, choice.engine == "fluid" else { return }
+        let model = choice.model
+        Log.note("dictation prewarm \(model) (\(reason))")
+        Task.detached(priority: .utility) { await FluidEngine.shared.prewarm(model: model) }
+    }
+
+    /// Keeps the recorder's engine prepared while dictation is on and the mic is allowed; releases it otherwise.
+    private func warmRecorder() {
+        if enabled && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized { recorder.warmUp() }
+        else { recorder.coolDown() }
+    }
+
+    /// The input device changed or dropped out while listening.
+    private func inputInterrupted() {
+        guard isListening else { return }
+        Log.note("dictation: input device changed mid-dictation, finishing")
+        finish()
+        if isWorking { bar?.model.warning = "Mic changed, so listening stopped" }
     }
 
     func requestAccessibility() {
@@ -134,6 +183,7 @@ final class DictationController: ObservableObject {
     func refreshMonitors() {
         monitors.forEach { NSEvent.removeMonitor($0) }
         monitors = []
+        updateSecureInputWatch()
         guard enabled, accessibilityTrusted else {
             if enabled { Log.note("dictation hotkey off: Accessibility not allowed") }
             return
@@ -142,21 +192,110 @@ final class DictationController: ObservableObject {
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e) }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in
-            // ⌃⌥P is ours; don't also send it to the text field in front (the thought pad's, say).
-            if e.type == .keyDown, e.keyCode == UInt16(kVK_ANSI_P), e.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.control, .option] { self?.handle(e); return nil }
+            // ⌃⌥P, ⌃⌥C, and ⌃⌘V are ours; don't also send them to the text field in front (the thought pad's, say).
+            if e.type == .keyDown, Self.isOwnShortcut(e) { self?.handle(e); return nil }
             self?.handle(e); return e
         }) { monitors.append(l) }
         Log.note("dictation monitors on, hotkey=\(hotkey.rawValue)")
     }
 
+    // MARK: Secure input
+
+    /// Polls Secure Event Input once a second while dictation is on. While it's on, keyDown events stop
+    /// reaching the event monitors (modifier-only hotkeys keep working), so the keyed shortcuts are registered
+    /// with Carbon, which secure input doesn't block, until it goes off. A CGEventTap would replace the
+    /// NSEvent monitors in `refreshMonitors()` (and swallow the hotkey); this fallback stays either way.
+    private func updateSecureInputWatch() {
+        if enabled {
+            guard secureTimer == nil else { return }
+            secureTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkSecureInput() }
+            }
+            secureTimer?.tolerance = 0.2
+            checkSecureInput()
+        } else {
+            secureTimer?.invalidate(); secureTimer = nil
+            endSecureInput()
+        }
+    }
+
+    private func checkSecureInput() {
+        guard Self.secureInputEnabled() else { endSecureInput(); return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if secureSince == nil {
+            secureSince = now
+            carbon.activate(hotkey: hotkey)
+            carbon.setEscape(isListening)
+        }
+        // A password field gaining focus turns it on for a moment; only a sustained stretch is worth a notice.
+        guard !secureInputOn, now - (secureSince ?? now) >= 3 else { return }
+        secureInputOn = true
+        Log.note("secure input on; Carbon fallback has \(carbon.covered), missing \(carbon.uncovered)")
+        bar?.refresh()
+        if !hotkey.isModifierOnly, !carbon.coversDictate, !secureFlashed, !isListening, !isWorking {
+            secureFlashed = true
+            bar?.flash("Secure input is on (a password field or Terminal), so \(hotkey.title) can't be heard. Click here to dictate.", seconds: 6)
+        }
+    }
+
+    private func endSecureInput() {
+        guard secureSince != nil || secureInputOn else { return }
+        secureSince = nil
+        carbon.deactivate()
+        if secureInputOn {
+            secureInputOn = false
+            secureFlashed = false
+            Log.note("secure input off")
+            bar?.refresh()
+        }
+    }
+
+    /// The Ribbon's hint while secure input blocks a keyed shortcut the Carbon fallback couldn't take over.
+    var secureInputHint: String? {
+        guard secureInputOn else { return nil }
+        if !hotkey.isModifierOnly && !carbon.coversDictate { return "secure input on · click to dictate" }
+        if !carbon.uncovered.isEmpty { return "secure input on · some shortcuts paused" }
+        return nil
+    }
+
+    nonisolated private static func secureInputEnabled() -> Bool { truth(IsSecureEventInputEnabled()) }
+    // Carbon's Boolean comes into Swift as Bool or DarwinBoolean depending on the SDK; either compiles.
+    nonisolated private static func truth(_ b: Bool) -> Bool { b }
+    nonisolated private static func truth(_ b: DarwinBoolean) -> Bool { b.boolValue }
+
+    /// A shortcut that arrived through the Carbon fallback (secure input is on).
+    fileprivate func carbonHotkey(_ action: CarbonAction, down: Bool) {
+        let ts = ProcessInfo.processInfo.systemUptime   // the same clock as NSEvent.timestamp
+        switch action {
+        case .dictate, .dictateCommand:
+            guard hotkey == .controlOptionSpace else { return }
+            if down { if !keyDown { pressed(shift: action == .dictateCommand, at: ts) } }
+            else if keyDown { released(at: ts) }
+        case .pasteLast: if down { pasteLast() }
+        case .copyLast: if down { copyLast() }
+        case .thoughtPad: if down { ThoughtPadController.shared.toggle() }
+        case .escape: if down, isListening { cancel() }
+        }
+    }
+
     // MARK: Keys
 
+    nonisolated private static func isOwnShortcut(_ e: NSEvent) -> Bool {
+        let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        switch Int(e.keyCode) {
+        case kVK_ANSI_P, kVK_ANSI_C: return mods == [.control, .option]
+        case kVK_ANSI_V: return mods == [.command, .control]
+        default: return false
+        }
+    }
+
     private func handle(_ e: NSEvent) {
-        // Esc cancels a dictation in progress; ⌘⌃V pastes the last one again.
+        // Esc cancels a dictation in progress; ⌘⌃V pastes the last one again; ⌃⌥C copies it.
         if e.type == .keyDown {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { pasteLast(); return }
+            if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { if !e.isARepeat { pasteLast() }; return }
+            if e.keyCode == UInt16(kVK_ANSI_C), mods == [.control, .option] { if !e.isARepeat { copyLast() }; return }
             if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtPadController.shared.toggle(); return }
         }
         switch hotkey {
@@ -451,12 +590,18 @@ final class DictationController: ObservableObject {
         let spaced = (ctx?.selection.isEmpty ?? true) && !wasCommand && needsLeadingSpace(ctx) ? " " + text : text
         // Stays "working" until the paste and clipboard restore finish (up to a few seconds for slow apps),
         // so a new dictation can't start mid-paste and have this one's result land on top of it.
+        lastPasteConfirmed = false
+        let appName = tgt?.localizedName ?? targetAppName
         Task { @MainActor in
-            let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true)
+            // A failed dictation paste puts your old clipboard back: the words go to the thought pad instead.
+            // An edit by voice has no pad piece, so its result stays on the clipboard.
+            let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true,
+                                             onFailure: wasCommand ? .leaveOnClipboard : .restoreClipboard)
             isWorking = false
             Sounds.done()
             switch outcome {
             case .pasted:
+                lastPasteConfirmed = true
                 if let note { bar?.flash(note, seconds: 4) } else { bar?.setPhase(.idle) }
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
             case .copiedOnly:
@@ -464,6 +609,25 @@ final class DictationController: ObservableObject {
                 if !wasCommand { ThoughtPad.shared.add(text, seconds: lastDuration, missed: true) }
                 bar?.flash(wasCommand ? "Copied. Click a text field and press ⌘V." : "Copied, and saved to the thought pad.", seconds: 5)
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+            case .failed(let why):
+                if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+                if wasCommand {
+                    if why == .notTrusted {
+                        bar?.flash("Allow Accessibility to edit by voice. The result is on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+                    } else {
+                        bar?.flash("Couldn't confirm the edit. The result is on your clipboard.", seconds: 5)
+                    }
+                } else {
+                    ThoughtPad.shared.add(text, seconds: lastDuration, missed: true)
+                    switch why {
+                    case .notTrusted:
+                        bar?.flash("Saved to the thought pad. Allow Accessibility to paste.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+                    case .notRead:
+                        bar?.flash("\(appName) didn't take the paste. Saved to the thought pad; ⌃⌘V tries again.", seconds: 5)
+                    case .typingInterrupted:
+                        bar?.flash("Typing stopped part way. The full text is in the thought pad.", seconds: 5)
+                    }
+                }
             }
         }
         Log.note("dictation delivered \(text.count) chars")
@@ -488,10 +652,12 @@ final class DictationController: ObservableObject {
             onPrimary: { [weak self] in
                 guard let self else { return }
                 Task { @MainActor in
-                    let out = await Paster.paste(heard, into: tgt, focusedField: ctx?.hasFocusedField ?? true)
-                    if out == .copiedOnly { self.bar?.flash("Copied. Click a text field and press ⌘V.", seconds: 5) }
-                    if let id = transcriptID { self.app?.store.update(id) { $0.flow?.pasted = heard; $0.flow?.pastedOK = out == .pasted } }
                     self.lastResult = heard
+                    self.lastPasteConfirmed = false
+                    let out = await Paster.paste(heard, into: tgt, focusedField: ctx?.hasFocusedField ?? true)
+                    self.lastPasteConfirmed = out == .pasted
+                    self.explainUnpasted(out)
+                    if let id = transcriptID { self.app?.store.update(id) { $0.flow?.pasted = heard; $0.flow?.pastedOK = out == .pasted } }
                 }
             },
             onSecondary: { [weak self] in
@@ -598,7 +764,22 @@ final class DictationController: ObservableObject {
     func pasteLast() {
         guard let last = lastResult ?? app?.store.live.first(where: { $0.source == .dictation })?.flow?.pasted, !last.isEmpty else { return }
         let ctx = AppContext.capture(readText: false)
-        Task { @MainActor in _ = await Paster.paste(last, into: NSWorkspace.shared.frontmostApplication, focusedField: ctx.hasFocusedField) }
+        Task { @MainActor in
+            let out = await Paster.paste(last, into: NSWorkspace.shared.frontmostApplication, focusedField: ctx.hasFocusedField)
+            if out == .pasted { lastPasteConfirmed = true }
+            explainUnpasted(out)
+        }
+    }
+
+    /// Says why text wasn't pasted. Each of these leaves it on the clipboard.
+    private func explainUnpasted(_ out: Paster.Outcome) {
+        switch out {
+        case .pasted: break
+        case .failed(.notTrusted):
+            bar?.flash("Allow Accessibility to paste. It's on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+        default:
+            bar?.flash("Copied. Click a text field and press ⌘V.", seconds: 5)
+        }
     }
 
     func openHistory() {
@@ -637,5 +818,126 @@ final class DictationController: ObservableObject {
         bar?.model.handsFree = true
         bar?.setPhase(.listening)
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.bar?.setPhase(.idle) }
+    }
+}
+
+// MARK: - Carbon fallback for keyed shortcuts
+
+fileprivate enum CarbonAction: UInt32, CaseIterable {
+    case dictate = 1, dictateCommand, pasteLast, copyLast, thoughtPad, escape
+}
+
+private let carbonSignature: OSType = 0x5642_5448   // "VBTH"
+
+/// Carbon calls this on the main thread for a registered hotkey's press and release.
+private func carbonHotkeyHandler(_ call: EventHandlerCallRef?, _ event: EventRef?, _ data: UnsafeMutableRawPointer?) -> OSStatus {
+    guard let event, let data else { return OSStatus(eventNotHandledErr) }
+    var id = EventHotKeyID()
+    let err = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+                                MemoryLayout<EventHotKeyID>.size, nil, &id)
+    guard err == noErr, id.signature == carbonSignature, let action = CarbonAction(rawValue: id.id) else { return OSStatus(eventNotHandledErr) }
+    let down = GetEventKind(event) == UInt32(kEventHotKeyPressed)
+    let hotkeys = Unmanaged<CarbonHotkeys>.fromOpaque(data).takeUnretainedValue()
+    MainActor.assumeIsolated { hotkeys.fire(action, down: down) }
+    return noErr
+}
+
+/// Keyed shortcuts registered with `RegisterEventHotKey` while Secure Event Input is on (Handy's approach):
+/// Carbon hotkeys keep arriving when keyDown events stop reaching the event monitors. They're registered only
+/// while secure input is on, because a Carbon hotkey takes the keystroke from every app. Esc is registered
+/// only while listening. The user's chosen hotkey is never changed.
+@MainActor
+final class CarbonHotkeys {
+    weak var owner: DictationController?
+    private var refs: [CarbonAction: EventHotKeyRef] = [:]
+    private var failed: Set<CarbonAction> = []
+    private var handler: EventHandlerRef?
+
+    var covered: [String] { refs.keys.map { "\($0)" }.sorted() }
+    var uncovered: [String] { failed.map { "\($0)" }.sorted() }
+    var coversDictate: Bool { refs[.dictate] != nil }
+
+    func activate(hotkey: DictationController.Hotkey) {
+        guard installHandler() else { return }
+        var want: [CarbonAction] = [.pasteLast, .copyLast, .thoughtPad]
+        if hotkey == .controlOptionSpace { want += [.dictate, .dictateCommand] }
+        if refs[.escape] != nil { want.append(.escape) }
+        for a in CarbonAction.allCases where !want.contains(a) { unregister(a) }
+        for a in want { register(a) }
+    }
+
+    /// Esc cancels a dictation; registered only while listening (and secure input is on).
+    func setEscape(_ on: Bool) {
+        if on { if installHandler() { register(.escape) } } else { unregister(.escape) }
+    }
+
+    func deactivate() {
+        for a in CarbonAction.allCases { unregister(a) }
+        failed = []
+    }
+
+    private func register(_ a: CarbonAction) {
+        guard refs[a] == nil else { return }
+        let binding = Self.binding(a)
+        var ref: EventHotKeyRef?
+        let status = RegisterEventHotKey(UInt32(binding.key), UInt32(binding.mods), EventHotKeyID(signature: carbonSignature, id: a.rawValue),
+                                         GetApplicationEventTarget(), 0, &ref)
+        if status == noErr, let ref {
+            refs[a] = ref
+            failed.remove(a)
+        } else {
+            failed.insert(a)
+            Log.note("carbon hotkey \(a) not registered (\(status))")
+        }
+    }
+
+    private func unregister(_ a: CarbonAction) {
+        failed.remove(a)
+        if let r = refs.removeValue(forKey: a) { UnregisterEventHotKey(r) }
+    }
+
+    private static func binding(_ a: CarbonAction) -> (key: Int, mods: Int) {
+        switch a {
+        case .dictate: return (kVK_Space, controlKey | optionKey)
+        case .dictateCommand: return (kVK_Space, controlKey | optionKey | shiftKey)
+        case .pasteLast: return (kVK_ANSI_V, cmdKey | controlKey)
+        case .copyLast: return (kVK_ANSI_C, controlKey | optionKey)
+        case .thoughtPad: return (kVK_ANSI_P, controlKey | optionKey)
+        case .escape: return (kVK_Escape, 0)
+        }
+    }
+
+    private func installHandler() -> Bool {
+        if handler != nil { return true }
+        var types = [EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+                     EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))]
+        let count = types.count
+        let status = InstallEventHandler(GetApplicationEventTarget(), carbonHotkeyHandler, count, &types,
+                                         Unmanaged.passUnretained(self).toOpaque(), &handler)
+        guard status == noErr else {
+            Log.note("carbon hotkey handler not installed (\(status))")
+            handler = nil
+            return false
+        }
+        return true
+    }
+
+    fileprivate func fire(_ a: CarbonAction, down: Bool) { owner?.carbonHotkey(a, down: down) }
+}
+
+/// Settings › Dictate rows: the shortcuts that work alongside the dictation hotkey, and secure input's state.
+struct DictationHotkeyRows: View {
+    @ObservedObject var dictation: DictationController
+
+    var body: some View {
+        LabeledContent("Paste last dictation") { Text("⌃⌘V").font(.system(size: 13, design: .monospaced)) }
+        LabeledContent("Copy last dictation") { Text("⌃⌥C").font(.system(size: 13, design: .monospaced)) }
+        LabeledContent("Thought pad") { Text("⌃⌥P").font(.system(size: 13, design: .monospaced)) }
+        if dictation.secureInputOn {
+            Text(dictation.hotkey.isModifierOnly
+                 ? "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Your hotkey still works, and Verbatim listens for the other shortcuts another way until it's off."
+                 : "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Verbatim listens for \(dictation.hotkey.title) another way until it's off. If it doesn't respond, click the floating button, or pick a modifier hotkey like right ⌥.")
+                .font(.system(size: 12)).foregroundStyle(Ink.accentText)
+        }
     }
 }
