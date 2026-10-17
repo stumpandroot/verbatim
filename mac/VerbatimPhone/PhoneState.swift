@@ -74,6 +74,7 @@ final class PhoneState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         coordinator.host = self
+        recorder.onAutoPaused = { [weak self] reason in self?.say(reason) }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
@@ -159,6 +160,12 @@ final class PhoneState: ObservableObject {
     func stopRecording() {
         showRecorder = false
         guard let (url, duration, env) = recorder.stop() else { continuing = nil; return }
+        if recorder.lastJoinFailed {
+            // Every part stays in the recordings folder; launch recovery joins it into one recording.
+            continuing = nil
+            say("Couldn't finish saving. Verbatim will recover the recording the next time it opens.")
+            return
+        }
         if let target = continuing {
             continuing = nil
             guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
@@ -177,7 +184,7 @@ final class PhoneState: ObservableObject {
     func discardRecording() {
         showRecorder = false
         continuing = nil
-        if let (url, _, _) = recorder.stop() { try? FileManager.default.removeItem(at: url); RecordingSegments.removeSegments(of: url) }
+        recorder.discard()
     }
 
     // MARK: Import

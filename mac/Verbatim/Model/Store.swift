@@ -418,12 +418,26 @@ final class Store: ObservableObject {
     /// A recording whose app died before it stopped is still in the local recordings folder. Surface it.
     /// (Only local recordings: with iCloud, audio from the other device can arrive before its transcript.)
     private func recoverOrphans() {
+        // A long recording interrupted mid-way left segment files (or a join it didn't finish): one recording
+        // again first. That copies audio, so it runs off the main thread; the orphans are surfaced after it.
+        guard RecordingSegments.hasLeftovers(in: Paths.recordings) else { adoptOrphans(); return }
+        let taken = Set(transcripts.compactMap(\.audioFileName))
+        let folder = Paths.recordings, audio = Paths.audio
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            RecordingSegments.joinLeftovers(in: folder) { name in
+                taken.contains(name) || FileManager.default.fileExists(atPath: audio.appendingPathComponent(name).path)
+            }
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.adoptOrphans() } }
+        }
+    }
+
+    private func adoptOrphans() {
         let fm = FileManager.default
-        // A long recording interrupted mid-way left segment files: one recording again first.
-        RecordingSegments.joinLeftovers(in: Paths.recordings)
         let known = Set(transcripts.compactMap(\.audioFileName))
         let files = (try? fm.contentsOfDirectory(at: Paths.recordings, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        // Not a recording in progress (recovery may finish after a new one started), and not a leftover segment.
         for f in files where !known.contains(f.lastPathComponent) && !f.lastPathComponent.hasPrefix(".") && RecordingSegments.parse(f) == nil
+            && !RecordingSegments.isActive(f)
             && ["wav", "m4a", "mp3", "mp4", "mov", "aiff"].contains(f.pathExtension.lowercased()) {
             WavRepair.fixHeader(f)   // the app quit before the recording was closed
             let dur = Player.duration(of: f)
@@ -511,15 +525,26 @@ final class Store: ObservableObject {
     /// Returns its file name there.
     @discardableResult
     func adoptRecording(_ url: URL) -> String? {
-        let dest = Paths.audio.appendingPathComponent(url.lastPathComponent)
+        var dest = Paths.audio.appendingPathComponent(url.lastPathComponent)
         guard url.standardizedFileURL != dest.standardizedFileURL else { return url.lastPathComponent }
+        // Never two transcripts on one file: a name already in the audio folder (or in use) gets a fresh one.
+        let used = Set(transcripts.compactMap(\.audioFileName))
+        if FileManager.default.fileExists(atPath: url.path) {
+            var n = 2
+            let stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
+            while FileManager.default.fileExists(atPath: dest.path) || used.contains(dest.lastPathComponent) {
+                dest = Paths.audio.appendingPathComponent("\(stem) \(n).\(ext)"); n += 1
+            }
+        }
         do {
             if Cloud.enabled { try FileManager.default.setUbiquitous(true, itemAt: url, destinationURL: dest) }
             else { try FileManager.default.moveItem(at: url, to: dest) }
             return dest.lastPathComponent
         } catch {
             Log.note("adoptRecording failed: \(error)")
-            return FileManager.default.fileExists(atPath: dest.path) ? dest.lastPathComponent : nil
+            // The move didn't happen: the recording is still where it was, so say so rather than pointing at
+            // some other file of the same name.
+            return nil
         }
     }
 
