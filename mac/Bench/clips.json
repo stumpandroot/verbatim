@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "about": "Synthetic bench clips for Verbatim. make-clips.sh speaks each `text` (or `say`, when given) with macOS `say`, so no private audio is needed. `text` is the reference for the transcript; `expected` is the ideal pasted text after cleanup (defaults to `text`). `terms` lists Dictionary words spoken in the clip. `dictionary` is the Dictionary the bench installs for every clip, including two distractor terms that are never spoken.",
+  "dictionary": [
+    { "text": "Lititz", "heardAs": ["Lidditz", "Littitz", "Lit its"] },
+    { "text": "Lapp Wagons", "heardAs": ["Lap Wagons", "Lab Wagons"] },
+    { "text": "Strasburg", "heardAs": ["Strasbourg", "Strassburg"] },
+    { "text": "FluidAudio", "heardAs": ["Fluid Audio"] },
+    { "text": "Parakeet", "heardAs": ["parakeet"] },
+    { "text": "WhisperKit", "heardAs": ["Whisper Kit"] },
+    { "text": "Verbie", "heardAs": ["Verbi", "Verby"] },
+    { "text": "Castwell", "heardAs": ["Cast well", "Castwel"] },
+    { "text": "Stump & Root", "heardAs": ["Stump and Root"] },
+    { "text": "Kubernetes", "heardAs": ["Cooper Netties", "Kubernetties"] },
+    { "text": "Quorvia", "heardAs": ["Corvia"] },
+    { "text": "Ondessa", "heardAs": ["Odessa"] }
+  ],
+  "clips": [
+    { "id": "cmd-01", "category": "command", "text": "Send it." },
+    { "id": "cmd-02", "category": "command", "text": "Delete that." },
+    { "id": "cmd-03", "category": "command", "text": "Sounds good." },
+    { "id": "cmd-04", "category": "command", "text": "Thanks!", "voice": "secondary" },
+    { "id": "cmd-05", "category": "command", "text": "Open the calendar." },
+    { "id": "cmd-06", "category": "command", "text": "Undo." },
+
+    { "id": "email-01", "category": "email", "text": "Hi Maria, thanks for sending the proofs over. I'll review them tonight and get back to you tomorrow morning. Best, Tim." },
+    { "id": "email-02", "category": "email", "text": "Hey team, quick reminder that the client call moved to Thursday at 2 PM. Please bring the updated budget." },
+    { "id": "email-03", "category": "email", "text": "Hello Mr. Patel, I'm following up on the quote we discussed last week. Let me know if you have any questions.", "voice": "secondary" },
+    { "id": "email-04", "category": "email", "text": "Dear Jordan, attached is the signed contract. We're excited to get started on the project." },
+    { "id": "email-05", "category": "email", "text": "Hi Sam, can you send me the raw footage from Tuesday's shoot? I need it before Friday." },
+
+    { "id": "names-01", "category": "names", "text": "We're driving to Lititz on Saturday for the craft fair.", "terms": ["Lititz"] },
+    { "id": "names-02", "category": "names", "text": "Lapp Wagons wants a new catalog shoot before the spring show.", "terms": ["Lapp Wagons"] },
+    { "id": "names-03", "category": "names", "text": "The studio is just outside Strasburg, past the railroad.", "terms": ["Strasburg"] },
+    { "id": "names-04", "category": "names", "text": "FluidAudio runs the Parakeet model on the Neural Engine.", "terms": ["FluidAudio", "Parakeet"] },
+    { "id": "names-05", "category": "names", "text": "Compare Parakeet with WhisperKit on the long recordings.", "terms": ["Parakeet", "WhisperKit"] },
+    { "id": "names-06", "category": "names", "text": "Ask Verbie to clean up the meeting notes from this morning.", "terms": ["Verbie"] },
+    { "id": "names-07", "category": "names", "text": "Castwell is shipping the welcome kits for Stump & Root next week.", "terms": ["Castwell", "Stump & Root"] },
+    { "id": "names-08", "category": "names", "text": "Our deploy scripts still assume Kubernetes, which we don't use anymore.", "terms": ["Kubernetes"], "voice": "secondary" },
+
+    { "id": "num-01", "category": "numbers", "text": "The invoice total is $1,250.75." },
+    { "id": "num-02", "category": "numbers", "text": "Let's meet on March 3rd at 3:30 PM." },
+    { "id": "num-03", "category": "numbers", "text": "Call me back at 717-555-0142." },
+    { "id": "num-04", "category": "numbers", "text": "We sold 48 units, which is 25% more than last year." },
+    { "id": "num-05", "category": "numbers", "text": "The deadline is October 17, 2026." },
+    { "id": "num-06", "category": "numbers", "text": "Set a timer for 15 minutes and remind me at 7 AM.", "voice": "secondary" },
+
+    { "id": "neg-01", "category": "negation", "text": "I don't think we should ship Friday." },
+    { "id": "neg-02", "category": "negation", "text": "Do not send the invoice until I say so." },
+    { "id": "neg-03", "category": "negation", "text": "That's not what I meant at all." },
+    { "id": "neg-04", "category": "negation", "text": "We never agreed to that price." },
+    { "id": "neg-05", "category": "negation", "text": "It isn't ready, and it won't be until Monday.", "voice": "secondary" },
+
+    { "id": "fix-01", "category": "self-correction", "text": "Let's meet Tuesday, no wait, Wednesday.", "expected": "Let's meet Wednesday.", "cleanupMustContain": ["wednesday"], "cleanupMustNotContain": ["tuesday"] },
+    { "id": "fix-02", "category": "self-correction", "text": "Order five boxes, actually make that six.", "expected": "Order 6 boxes.", "cleanupMustContain": ["6"], "cleanupMustNotContain": ["5"] },
+    { "id": "fix-03", "category": "self-correction", "text": "Send it to Dana, I mean Priya.", "expected": "Send it to Priya.", "cleanupMustContain": ["priya"], "cleanupMustNotContain": ["dana"] },
+    { "id": "fix-04", "category": "self-correction", "text": "The budget is ten thousand, scratch that, twelve thousand dollars.", "expected": "The budget is $12,000.", "cleanupMustContain": ["12000"], "cleanupMustNotContain": ["10000"] },
+    { "id": "fix-05", "category": "self-correction", "text": "Book the room for two, sorry, three PM.", "expected": "Book the room for 3 PM.", "cleanupMustContain": ["3"], "cleanupMustNotContain": ["2"], "voice": "secondary" },
+
+    { "id": "punct-01", "category": "punctuation", "text": "Add milk comma eggs comma and bread period", "expected": "Add milk, eggs, and bread.", "cleanupMustNotContain": ["comma", "period"] },
+    { "id": "punct-02", "category": "punctuation", "text": "First line new line second line", "expected": "First line\nsecond line", "cleanupMustNotContain": ["new line"] },
+    { "id": "punct-03", "category": "punctuation", "text": "Is the draft ready question mark", "expected": "Is the draft ready?", "cleanupMustNotContain": ["question mark"] },
+    { "id": "punct-04", "category": "punctuation", "text": "Great news exclamation point new paragraph The launch is on track period", "expected": "Great news!\n\nThe launch is on track.", "cleanupMustNotContain": ["exclamation", "period", "new paragraph"] },
+
+    { "id": "long-01", "category": "long", "text": "So here's where we landed on the spring campaign. The main idea is to show the products being used by real families instead of posing them in the studio. We'll shoot over two days, the first at the farm and the second downtown, and we'll keep the crew small so it feels relaxed. For the photos, we want warm natural light, a few wide shots that show the whole scene, and plenty of close details like hands, textures, and tools. For video, we're planning three short clips for social and one longer piece for the website, around ninety seconds. The budget is roughly where we expected, though rentals came in a little higher than last year. I'd like to lock the schedule by the end of next week, so please send me your availability and any concerns. If the weather turns, we have a backup date the following Tuesday. Overall I think this is the strongest plan we've had, and I'm excited to see it come together." },
+
+    { "id": "silence-01", "category": "silence", "text": "", "gen": { "type": "silence", "seconds": 3 } },
+    { "id": "silence-02", "category": "silence", "text": "Can you hear me now?", "gen": { "type": "lead-silence", "seconds": 1 } },
+
+    { "id": "noise-01", "category": "noise", "text": "Please move the photo shoot to next Wednesday afternoon.", "gen": { "type": "white-noise", "snrDb": 10 } },
+    { "id": "noise-02", "category": "noise", "text": "The Lapp Wagons proofs are ready for review in Lititz.", "terms": ["Lapp Wagons", "Lititz"], "gen": { "type": "babble", "snrDb": 8, "babbleText": "I was telling him about the weekend, and then we went out for lunch near the station and talked for a while." } },
+    { "id": "noise-03", "category": "noise", "text": "I'm speaking quietly so nobody else can hear me.", "gen": { "type": "quiet", "gainDb": -24 } }
+  ]
+}

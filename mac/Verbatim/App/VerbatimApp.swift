@@ -4,7 +4,11 @@ import SwiftUI
 struct VerbatimApp: App {
     @StateObject private var app = AppState()
 
-    init() { Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))") }
+    init() {
+        Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))")
+        // `-bench <clips dir> -benchOut <report.json>`: run the accuracy and latency bench, then quit (Bench.swift).
+        if Bench.isRequested { Bench.start() }
+    }
 
     var body: some Scene {
         WindowGroup("Verbatim") {

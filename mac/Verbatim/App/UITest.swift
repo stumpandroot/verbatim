@@ -7,7 +7,8 @@ import AVFoundation
 /// CI runs it on a macOS 26 runner, so hit-testing regressions are caught before a build ships.
 @MainActor
 enum UITest {
-    static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1"
+    /// Off in bench mode (`-bench`), so CI can set VERBATIM_UITEST=1 for a clean, offline profile without the tour.
+    static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" && !Bench.isRequested
     /// The welcome tour step the next screenshot opens on.
     static var onboardingStep = 0
     static var frames: [String: CGRect] = [:]     // SwiftUI .global (window content, top-left origin)
