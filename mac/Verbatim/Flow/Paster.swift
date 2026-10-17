@@ -136,6 +136,10 @@ enum Paster {
         }
 
         let limit = timeout(for: target)
+        // The pasteboard asks us for the text only on its first read and serves its own copy after that, so a
+        // clipboard manager reading first could make the target's later read look settled. Always hold the text
+        // a minimum time after ⌘V before restoring.
+        let minHold: Double = limit > 2.5 ? 1.0 : 0.7
         var read = false
         while true {
             try? await Task.sleep(nanoseconds: 15_000_000)
@@ -143,7 +147,7 @@ enum Paster {
             if receipt.lost || pb.changeCount != change { break }
             if let last = receipt.lastRead(since: injected) {
                 read = true
-                if now - last >= quiet { break }
+                if now - last >= quiet && now - injected >= minHold { break }
             }
             if now - injected >= limit { break }
         }

@@ -47,7 +47,7 @@ enum Bench {
         for m in value("-benchModels").map(list) ?? [QualityPreset.balanced.config.1, "ultra", "v2"] where !models.contains(m) {
             models.append(m)
         }
-        let levels = value("-benchCleanup").map { list($0).compactMap { CleanupLevel(rawValue: $0) } } ?? CleanupLevel.allCases
+        let levels = value("-benchCleanup").map { list($0).compactMap { CleanupLevel(stored: $0) } } ?? CleanupLevel.allCases
         return Options(
             dir: dir,
             out: value("-benchOut").map(path) ?? dir.appendingPathComponent("bench.json"),

@@ -148,6 +148,7 @@ struct FlowMenuView: View {
             item("Dictation history", "clock.arrow.circlepath") { actions.history(); close() }
                 .onHover { if $0 { sub = nil } }
             item("Paste last dictation", "doc.on.clipboard", trailing: "⌘⌃V") { actions.pasteLast(); close() }
+                .onHover { if $0 { sub = nil } }
             item("Copy last dictation", "doc.on.doc") { actions.copyLast(); close() }
                 .onHover { if $0 { sub = nil } }
         }

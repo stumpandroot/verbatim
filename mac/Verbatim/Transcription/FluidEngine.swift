@@ -154,10 +154,12 @@ actor FluidEngine: TranscriptionEngine {
         // One read and resample (16 kHz mono), shared by VAD, the ASR model, and the rescorer.
         let full = try AudioConverter().resampleAudioFile(url)
         let fullDuration = Double(full.count) / 16_000
-        guard let samples = await trimSilence(full) else {
-            Log.note("VAD: no speech in dictation")
-            return EngineResult(segments: [], language: nil, engine: "fluid", model: name)
-        }
+        // VAD seeing no speech at all still transcribes the full audio (the loudness gate already passed): soft or
+        // whispered speech can score low, and Parakeet rarely invents words in silence. An empty result is still empty.
+        let trimmed = await trimSilence(full)
+        if trimmed == nil { Log.note("VAD: no speech detected; transcribing the full audio anyway") }
+        let samples = trimmed?.samples ?? full
+        let offset = trimmed?.start ?? 0
         var state = TdtDecoderState.make()
         let r = try await m.transcribe(samples, decoderState: &state)
         var text = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -170,7 +172,18 @@ actor FluidEngine: TranscriptionEngine {
                 text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
-        let segments = text.isEmpty ? [] : [Segment(start: 0, end: fullDuration, text: text)]
+        let segments: [Segment]
+        if text.isEmpty {
+            segments = []
+        } else if text == r.text.trimmingCharacters(in: .whitespacesAndNewlines), let timings = r.tokenTimings, !timings.isEmpty {
+            // Unchanged by the boost: keep word timings (shifted back by the trimmed lead-in), as plain transcribe does.
+            let words: [WordSpan] = buildWordTimings(from: timings).map {
+                WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: $0.startTime + offset, end: $0.endTime + offset)
+            }.filter { !$0.text.isEmpty }
+            segments = words.isEmpty ? [Segment(start: 0, end: fullDuration, text: text)] : Engines.segments(fromWords: words)
+        } else {
+            segments = [Segment(start: 0, end: fullDuration, text: text)]
+        }
         return EngineResult(segments: segments, language: nil, engine: "fluid", model: name)
     }
 
@@ -220,32 +233,32 @@ actor FluidEngine: TranscriptionEngine {
 
     /// Trims leading and trailing silence from a dictation, keeping 250 ms around the speech. Returns nil when the
     /// recording holds no speech at all. Fails open: any VAD problem returns the samples unchanged.
-    private func trimSilence(_ samples: [Float]) async -> [Float]? {
-        guard samples.count <= Self.vadMaxSamples else { return samples }
-        guard let v = vad else { startVadLoad(); return samples }
+    private func trimSilence(_ samples: [Float]) async -> (samples: [Float], start: Double)? {
+        guard samples.count <= Self.vadMaxSamples else { return (samples, 0) }
+        guard let v = vad else { startVadLoad(); return (samples, 0) }
         let probs: [Float]
         do {
             probs = try await v.process(samples).map { $0.probability }
         } catch {
             Log.note("VAD failed; using full audio: \(error)")
-            return samples
+            return (samples, 0)
         }
-        guard !probs.isEmpty else { return samples }
+        guard !probs.isEmpty else { return (samples, 0) }
         guard var first = probs.firstIndex(where: { $0 >= Self.vadThreshold }),
               var last = probs.lastIndex(where: { $0 >= Self.vadThreshold }) else {
-            return (probs.max() ?? 0) < Self.vadSilencePeak ? nil : samples
+            return (probs.max() ?? 0) < Self.vadSilencePeak ? nil : (samples, 0)
         }
         while first > 0, probs[first - 1] >= Self.vadEdgeThreshold { first -= 1 }
         while last < probs.count - 1, probs[last + 1] >= Self.vadEdgeThreshold { last += 1 }
         let chunk = VadManager.chunkSize   // one probability per 4096 samples (256 ms)
         let start = max(0, first * chunk - Self.vadPadSamples)
         let end = min(samples.count, (last + 1) * chunk + Self.vadPadSamples)
-        guard end > start else { return samples }
-        if start == 0 && end == samples.count { return samples }
+        guard end > start else { return (samples, 0) }
+        if start == 0 && end == samples.count { return (samples, 0) }
         var out = Array(samples[start..<end])
         // FluidAudio rejects clips under 0.3 s: pad very short speech with trailing silence.
         if out.count < 16_000 { out += [Float](repeating: 0, count: 16_000 - out.count) }
-        return out
+        return (out, Double(start) / 16_000)
     }
 
     // MARK: Custom vocabulary

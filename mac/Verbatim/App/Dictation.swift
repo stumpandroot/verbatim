@@ -49,7 +49,7 @@ final class DictationController: ObservableObject {
     @Published private(set) var handsFree = false
     @Published private(set) var targetAppName = ""
     /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or the thought pad's
-    /// Send) so ⌃⌘V and ⌃⌥C can always bring it back.
+    /// Send) so ⌃⌘V (or Copy last dictation in the floating menu) can always bring it back.
     @Published private(set) var lastResult: String? = nil
     /// Whether the target app confirmed it read `lastResult` (the paste receipt arrived).
     @Published private(set) var lastPasteConfirmed = true
@@ -142,7 +142,9 @@ final class DictationController: ObservableObject {
 
     /// Keeps the recorder's engine prepared while dictation is on and the mic is allowed; releases it otherwise.
     private func warmRecorder() {
-        if enabled && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized { recorder.warmUp() }
+        // Not on a Bluetooth mic: a prepared engine can hold the headset in its low-quality call profile.
+        let bluetooth = AudioDevices.current()?.transport == "Bluetooth"
+        if enabled && !bluetooth && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized { recorder.warmUp() }
         else { recorder.coolDown() }
     }
 
@@ -192,7 +194,7 @@ final class DictationController: ObservableObject {
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e) }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in
-            // ⌃⌥P, ⌃⌥C, and ⌃⌘V are ours; don't also send them to the text field in front (the thought pad's, say).
+            // ⌃⌥P and ⌃⌘V are ours; don't also send them to the text field in front (the thought pad's, say).
             if e.type == .keyDown, Self.isOwnShortcut(e) { self?.handle(e); return nil }
             self?.handle(e); return e
         }) { monitors.append(l) }
@@ -290,7 +292,7 @@ final class DictationController: ObservableObject {
     }
 
     private func handle(_ e: NSEvent) {
-        // Esc cancels a dictation in progress; ⌘⌃V pastes the last one again; ⌃⌥C copies it.
+        // Esc cancels a dictation in progress; ⌘⌃V pastes the last one again.
         if e.type == .keyDown {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
