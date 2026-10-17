@@ -160,11 +160,13 @@ struct DictationForm: View {
                     ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                Text(flow.cleanup.note + " Self-corrections like “at 2, actually 3” keep only the final version, and spoken lists become lists. Say “new line” or “new paragraph” anytime.")
+                Text(flow.cleanup.note)
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
-                if !FlowCleanup.available && flow.cleanup != .none {
-                    Text("Cleanup runs on this Mac with Apple Intelligence (macOS 26). Until it's on, your words are pasted as spoken.")
-                        .font(.system(size: 12)).foregroundStyle(Ink.accentText)
+                Text("Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                if let notice = FlowCleanup.unavailableNotice {
+                    Text(notice)
+                        .font(.system(size: 12)).foregroundStyle(flow.cleanup == .literal ? Ink.mute : Ink.accentText)
                 }
             }
             Section("Style for each kind of app") {

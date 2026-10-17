@@ -62,6 +62,10 @@ struct PhoneDocument: View {
                 }
             Text("The original transcript is kept. Clean up and Tone run on this iPhone with Apple Intelligence (iOS 26).")
                 .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+            if let notice = Polish.status.polishNotice {
+                Text(notice)
+                    .font(.system(size: 12.5)).foregroundStyle(Ink.accentText)
+            }
         }
         .onAppear { text = transcript.documentText; loaded = true; relint() }
         .onChange(of: transcript.document) { _, _ in
@@ -148,12 +152,8 @@ struct PhoneDocument: View {
     }
 
     private func run(level: Polish.Level, tone: Polish.Tone) {
-        switch Polish.status {
-        case .ready: break
-        case .appleIntelligenceOff: app.say("Turn on Apple Intelligence in Settings to use Clean up."); return
-        case .needsMacOS26: app.say("Clean up needs iOS 26 with Apple Intelligence."); return
-        case .unavailable(let r): app.say("Clean up isn't available: \(r)"); return
-        }
+        // Base iPhone 15, Apple Intelligence off, or the model still downloading: say why instead of doing nothing.
+        if let notice = Polish.status.polishNotice { app.say(notice); return }
         let paras = DocumentText.paragraphs(text)
         working = 0
         Task {
