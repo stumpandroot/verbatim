@@ -309,6 +309,16 @@ jobs:
           for i in $(seq 1 1380); do kill -0 "$OPENPID" 2>/dev/null || break; sleep 1; done
           pkill -9 -x Verbatim || true
           wait "$OPENPID" 2>/dev/null
+          # Compare vocabulary-boost profiles on the two fastest models (a few minutes each).
+          for PROF in norescue legacy; do
+            open -W -n --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app --args \
+              -bench "$B/clips" -benchOut "$B/out/bench-${N}-${PROF}.json" -benchModels "v3,v2" -benchMinutes 8 -benchCleanup none \
+              -fluidBoostProfile "$PROF" -benchLabel "build ${N} boost=${PROF}" >> "$B/open.txt" 2>&1 &
+            P2=$!
+            for i in $(seq 1 540); do kill -0 "$P2" 2>/dev/null || break; sleep 1; done
+            pkill -9 -x Verbatim || true
+            wait "$P2" 2>/dev/null
+          done
           # Keep the bench's log and any crash out of the UI self-test's way.
           mv "$LOGDIR/native.log" "$B/out/bench-native-${N}.log" 2>/dev/null || true
           find "$REPORTS" -name 'Verbatim*' -newer "$B/started" 2>/dev/null | head -1 | while read -r f; do mv "$f" "$B/out/bench-crash-${N}.ips"; done

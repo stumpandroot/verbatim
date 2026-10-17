@@ -14,14 +14,24 @@ enum BoostVocabulary {
 
     /// FluidAudio's recommended short-vocabulary opt-in (ContextBiasingConstants, #702): taper the boost for terms
     /// under 5 tokens and require some string similarity before the acoustic-only rescue may swap words in.
-    static let rescorerConfig = VocabularyRescorer.Config(
-        shortTermCbwTaperPivot: 5,
-        shortTermCbwTaperExponent: 2.0,
-        // Raised from FluidAudio's suggested 0.30 / 0.50 after bench build 121: the boost swapped "it to" for
-        // "Lititz" and "at all" for an unspoken term ("Castwell"), making boosted WER worse than the plain engine.
-        spotterRescueMinSimilarity: 0.45,
-        spotterRescueMultiWordMinSimilarity: 0.75
-    )
+    /// The profile can be overridden with the `fluidBoostProfile` default (`strict`, `norescue`, `legacy`) so the
+    /// bench can compare them; the app ships `strict`.
+    static var rescorerConfig: VocabularyRescorer.Config {
+        switch UserDefaults.standard.string(forKey: "fluidBoostProfile") ?? "strict" {
+        case "legacy":
+            return .default
+        case "norescue":
+            // No acoustic-only rescue at all (FluidAudio #724): far fewer over-fires on short vocabularies.
+            return VocabularyRescorer.Config(shortTermCbwTaperPivot: 5, shortTermCbwTaperExponent: 2.0, spotterRescueEnabled: false)
+        default:
+            return VocabularyRescorer.Config(
+                shortTermCbwTaperPivot: 5,
+                shortTermCbwTaperExponent: 2.0,
+                spotterRescueMinSimilarity: 0.45,
+                spotterRescueMultiWordMinSimilarity: 0.75
+            )
+        }
+    }
 
     /// Ranks Dictionary entries for one dictation: the active project's words first, then the newest, then the
     /// rest, capped at `maxTerms`. Disabled entries and other projects' words are left out.
