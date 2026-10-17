@@ -48,6 +48,8 @@ enum Ink {
     static let petalTint = dyn(0xFAE6EC, 0x33282D)
     static let butterTint = dyn(0xFCF0D2, 0x332E20)
     static let sageTint = dyn(0xE9EFE0, 0x26322A)
+    /// A switch that's on: deep sage on paper, a lighter sage on dark, so the white knob always shows.
+    static let switchOn = dyn(0x4F6440, 0x6E8A58)
     static let danger = Color.red
     /// Always-ink and always-reader-white, for surfaces that stay dark or light in both modes (HUD pill, toasts,
     /// text on brand color fills).

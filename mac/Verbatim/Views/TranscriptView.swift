@@ -273,7 +273,7 @@ struct TranscriptView: View {
                         Button("Undo") { undo(t, c) }.buttonStyle(.bordered).controlSize(.small)
                     }
                     .padding(12).background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
                 }
             }
         }
@@ -549,7 +549,7 @@ struct PlayerDock: View {
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Ink.hairline))
         .shadow(color: Ink.inkFixed.opacity(0.08), radius: 10, y: 3)
         .frame(maxWidth: 760)
     }
@@ -609,7 +609,7 @@ struct NotesPanel: View {
                 Text("Notes").font(.system(size: 19, weight: .bold))
                 Spacer()
                 Text("\(transcript.notes.count)").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                Button { onClose() } label: { Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 26, height: 26).background(Color.black.opacity(0.05), in: Circle()) }
+                Button { onClose() } label: { Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 26, height: 26).background(Ink.track, in: Circle()) }
                     .buttonStyle(.plain).help("Hide notes")
             }
             VStack(alignment: .leading, spacing: 6) {
@@ -626,7 +626,7 @@ struct NotesPanel: View {
                 }
                 .padding(.horizontal, 12).frame(height: 44)
                 .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Color.black.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Ink.hairline))
             }
             ScrollView {
                 VStack(spacing: 10) {
@@ -717,7 +717,7 @@ struct NoteCard: View {
         .padding(.vertical, 12).padding(.horizontal, 14)
         // Solid tinted blocks by kind: coral for a loose note, lime for a bookmark, iris for a passage note.
         .background(note.isBookmark ? Ink.limeTint : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(hover ? 0.1 : 0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
     }

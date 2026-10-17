@@ -188,8 +188,8 @@ struct SettingsScreen: View {
                 Picker("Quality", selection: $app.presetRaw) {
                     ForEach(QualityPreset.allCases.filter { $0 != .advanced }) { p in Text(p.title).tag(p.rawValue) }
                 }
-                Toggle("Identify speakers", isOn: $app.identifySpeakers)
-                Toggle("Apply Dictionary", isOn: $app.applyDictionary)
+                Toggle("Identify speakers", isOn: $app.identifySpeakers).tint(Ink.switchOn)
+                Toggle("Apply Dictionary", isOn: $app.applyDictionary).tint(Ink.switchOn)
                 Text("Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links are fetched by your Mac.")
                     .font(.system(size: 13)).foregroundStyle(Ink.mute)
             }
@@ -236,7 +236,7 @@ struct DictionaryScreen: View {
                             Text(e.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(Ink.mute)
                         }
                     }
-                    .tint(Ink.sageText)
+                    .tint(Ink.switchOn)
                 }
                 .onDelete { idx in app.store.dictionary.remove(atOffsets: idx) }
             }

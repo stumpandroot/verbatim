@@ -165,6 +165,28 @@ enum UITest {
         await show("13-dark-document")
         app.go(.links)
         await show("14-dark-links")
+        app.go(.library)
+        await show("15-dark-library")
+        app.go(.dictations)
+        await show("16-dark-dictations")
+        app.go(.activity)
+        await show("17-dark-activity")
+        app.go(.dictionary)
+        await show("18-dark-dictionary")
+        app.go(.moments)
+        await show("19-dark-moments")
+        app.go(.trash)
+        await show("20-dark-trash")
+        UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
+        if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
+            NSApp.sendAction(action, to: item.target, from: item)
+        }
+        await show("21-dark-settings-dictate")
+        UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
+        await show("22-dark-settings-actions")
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
+        app.go(.home)
         NSApplication.shared.appearance = nil
         write(show: "done")
     }

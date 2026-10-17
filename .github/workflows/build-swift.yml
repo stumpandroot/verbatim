@@ -126,7 +126,7 @@ jobs:
           SIMCTL_CHILD_VERBATIM_UITEST=1 xcrun simctl launch "$UDID" co.stumpandroot.verbatim.ios
           DATA="$(xcrun simctl get_app_container "$UDID" co.stumpandroot.verbatim.ios data)"
           # The app renders its own screenshots into Documents/screens and writes "done" when the tour ends.
-          for i in $(seq 1 120); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
+          for i in $(seq 1 200); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
           cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/" 2>/dev/null || true
           xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/z-device-last.png" > /dev/null 2>&1 || true
           cp "$DATA/Library/Logs/Verbatim/native.log" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || true
@@ -146,7 +146,7 @@ jobs:
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/transcript-${GITHUB_RUN_NUMBER}.png" || true
           # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
           SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$OUT/screens-${GITHUB_RUN_NUMBER}"; mkdir -p "$TOUR"; last=""
-          for i in $(seq 1 160); do
+          for i in $(seq 1 300); do
             cur="$(cat "$SHOW" 2>/dev/null || true)"
             if [ -n "$cur" ] && [ "$cur" != "$last" ]; then
               last="$cur"; [ "$cur" = "done" ] && break

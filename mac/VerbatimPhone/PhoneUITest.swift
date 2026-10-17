@@ -12,45 +12,42 @@ enum PhoneUITest {
         seed(app)
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
-            await show("p01-home")
-            app.showRecorder = true
-            await show("p02-record")
-            app.showRecorder = false
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            app.showLinkSheet = true
-            await show("p03-link")
-            app.showLinkSheet = false
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            app.tab = .library
-            await show("p04-library")
-            if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
-                app.libraryPath.append(rich.id)
-                await show("p05-transcript")
-                app.libraryPath = NavigationPath()
-                try? await Task.sleep(nanoseconds: 500_000_000)
+            for (prefix, mode) in [("p", "light"), ("d", "dark")] {
+                app.appearance = mode
                 app.tab = .home
-                app.homePath.append(DocumentRoute(id: rich.id))
-                await show("p06-document")
-                app.homePath = NavigationPath()
-            }
-            if let link = app.store.live.first(where: { $0.title == "Folding wagon walkthrough" }) {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                await show("\(prefix)01-home")
+                app.showRecorder = true
+                await show("\(prefix)02-record")
+                app.showRecorder = false
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                app.showLinkSheet = true
+                await show("\(prefix)03-link")
+                app.showLinkSheet = false
+                try? await Task.sleep(nanoseconds: 600_000_000)
                 app.tab = .library
-                try? await Task.sleep(nanoseconds: 400_000_000)
-                app.libraryPath.append(link.id)
-                await show("p07-link-transcript")
-                app.libraryPath = NavigationPath()
-            }
-            app.tab = .moments
-            await show("p08-moments")
-            app.tab = .settings
-            await show("p09-settings")
-            app.appearance = "dark"
-            app.tab = .home
-            await show("p10-dark-home")
-            if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
-                app.homePath.append(rich.id)
-                await show("p11-dark-transcript")
-                app.homePath = NavigationPath()
+                await show("\(prefix)04-library")
+                if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
+                    app.libraryPath.append(rich.id)
+                    await show("\(prefix)05-transcript")
+                    app.libraryPath = NavigationPath()
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    app.tab = .home
+                    app.homePath.append(DocumentRoute(id: rich.id))
+                    await show("\(prefix)06-document")
+                    app.homePath = NavigationPath()
+                }
+                if let link = app.store.live.first(where: { $0.title == "Folding wagon walkthrough" }) {
+                    app.tab = .library
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    app.libraryPath.append(link.id)
+                    await show("\(prefix)07-link-transcript")
+                    app.libraryPath = NavigationPath()
+                }
+                app.tab = .moments
+                await show("\(prefix)08-moments")
+                app.tab = .settings
+                await show("\(prefix)09-settings")
             }
             app.appearance = "system"
             write("done")

@@ -100,7 +100,7 @@ struct MomentCard: View {
         }
         .padding(12)
         .background(note.isBookmark ? Ink.limeTint : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(hover ? 0.1 : 0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)

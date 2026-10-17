@@ -43,7 +43,7 @@ struct DictionaryView: View {
                         Button("Cancel") { adding = false }
                     }
                     .padding(12).background(Ink.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
                     .padding(.bottom, 12)
                     .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
                 }
@@ -75,7 +75,7 @@ struct DictionaryView: View {
                         }
                     }
                     .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.black.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
                     .tiltCard(lift: 1, radius: 12, rotates: false)
                 }
             }
