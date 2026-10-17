@@ -122,14 +122,9 @@ struct SourceTile: View {
         }()
         return ZStack {
             RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint)
-            // Quiet ambient motion: voice notes breathe their level bars, links pulse their play mark.
-            switch source {
-            case .voiceMemo, .dictation: VoiceTileArt()
-            case .link: PlayTileArt()
-            default:
-                if let art { BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1.3).padding(8) }
-                else { Image(systemName: source.symbol).font(.system(size: 15)).foregroundStyle(Ink.ink) }
-            }
+            // Rows stay still: list rows don't animate (design system rule).
+            if let art { BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1.3).padding(8) }
+            else { Image(systemName: source.symbol).font(.system(size: 15)).foregroundStyle(Ink.ink) }
         }
         .frame(width: 40, height: 40)
         .accessibilityHidden(true)

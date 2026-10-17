@@ -143,17 +143,17 @@ struct HomeScreen: View {
         let latest = live.first { $0.status == .ready && !$0.segments.isEmpty }
         let moments = live.reduce(0) { $0 + $1.notes.filter { $0.at != nil }.count }
         BrandFeatureCard(feature: .capture, line: "Record or import a file.", meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts",
-                         animated: true, parallax: true) { app.requestRecord() }
+                         animated: PhoneMotion.on, parallax: PhoneMotion.on) { app.requestRecord() }
             .frame(width: 236)
             .modifier(CarouselTilt())
         BrandFeatureCard(feature: .refine, line: "Clean up a transcript. The original stays.", meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet",
-                         enabled: latest != nil, animated: true, parallax: true) {
+                         enabled: latest != nil, animated: PhoneMotion.on, parallax: PhoneMotion.on) {
             if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
         }
         .frame(width: 236)
         .modifier(CarouselTilt())
         BrandFeatureCard(feature: .understand, line: "Find what matters: moments and search.", meta: moments == 1 ? "1 saved moment" : "\(moments) saved moments",
-                         animated: true, parallax: true) { app.tab = .moments }
+                         animated: PhoneMotion.on, parallax: PhoneMotion.on) { app.tab = .moments }
             .frame(width: 236)
             .modifier(CarouselTilt())
     }
@@ -351,7 +351,7 @@ struct LiveCaptureMark: View {
     @Environment(\.limitMotion) private var limitMotion
     @State private var bands = LiveBands()
     var body: some View {
-        TimelineView(.animation(paused: limitMotion)) { timeline in
+        TimelineView(.animation(paused: limitMotion || paused)) { timeline in
             Canvas { ctx, size in
                 bands.advance(timeline.date, level: paused || limitMotion ? 0 : Double(live.level))
                 // Diagram space: circles touch at the bottom, an axis runs through them (diagram_capture).

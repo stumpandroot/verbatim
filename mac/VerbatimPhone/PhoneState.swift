@@ -300,14 +300,18 @@ final class PhoneState: ObservableObject {
     func deleteAllData() {
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
-        for t in store.transcripts {
-            coordinator.cancelIfActive(t.id)
-            store.delete(t)
-        }
+        coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
+        for t in store.transcripts { store.delete(t) }
         store.projects = []
         store.dictionary = []
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
-        store.flush()
+        // Also files with no transcript in memory: iCloud placeholders not downloaded yet, audio that arrived before
+        // its transcript, stills, and leftover recordings (which would come back as "Recovered recording").
+        let fm = FileManager.default
+        let leftovers = [Paths.transcripts, Paths.audio, Paths.thumbs, Paths.recordings].flatMap {
+            (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil, options: [])) ?? []
+        }
+        store.removeAfterPendingWrites(leftovers)   // on the save queue, after every queued delete; never blocks the UI
         say("Deleted everything")
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }

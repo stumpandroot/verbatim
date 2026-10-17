@@ -662,13 +662,14 @@ struct AnimatedFeatureArt: View {
     @Environment(\.limitMotion) private var limitMotion
     @State private var onScreen = false
     @State private var voice = CaptureVoice()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
             if limitMotion {
                 BrandGlyph(art: feature.art, color: color, minLineWidth: minLineWidth)
             } else {
-                TimelineView(.animation(paused: !onScreen)) { timeline in
+                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !onScreen || scenePhase != .active)) { timeline in
                     let now = timeline.date
                     Canvas { ctx, size in
                         switch feature {

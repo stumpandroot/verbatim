@@ -398,7 +398,7 @@ struct AboutMeScreen: View {
                     if v.count > Profile.aboutMeLimit { aboutMe = String(v.prefix(Profile.aboutMeLimit)) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Stays on this iPhone. Verbatim uses it on device to word titles and summaries.")
+                    Text("Stays on this iPhone. Verbatim will use it on device to word titles and summaries.")
                         .font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
