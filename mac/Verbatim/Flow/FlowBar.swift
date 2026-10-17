@@ -130,6 +130,8 @@ final class FlowBarController {
         }
         if let d = dictation, !d.accessibilityTrusted { model.hint = "click to set up" }
         else { model.hint = dictation.map { "\($0.hotkey.shortTitle) or click" } ?? "click to dictate" }
+        // Secure input (a password field, Terminal) blocks keyed shortcuts the Carbon fallback couldn't take over.
+        if let secure = dictation?.secureInputHint { model.hint = secure }
     }
 
     func setPhase(_ p: FlowBarModel.Phase) {

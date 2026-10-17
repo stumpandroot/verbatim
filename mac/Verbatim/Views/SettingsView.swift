@@ -152,6 +152,7 @@ struct DictationForm: View {
                 Picker("Mode", selection: $flow.mode) {
                     ForEach(FlowMode.allCases) { Text($0.title).tag($0) }
                 }
+                DictationHotkeyRows(dictation: dictation)
                 Text(flow.mode.note + " Press Esc to cancel. Hold Shift as you start to edit selected text by voice. ⌘⌃V pastes your last dictation again.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
@@ -233,6 +234,7 @@ struct DictationForm: View {
                 }
                 Text("macOS requires this so Verbatim can notice the hotkey, see which app and text field you're in, and press ⌘V there.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                PasteSettingsRows()
                 Toggle("Project vocabulary", isOn: $app.projectScopedVocabulary)
                 Text("Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)

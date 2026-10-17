@@ -47,14 +47,9 @@ struct AppContext {
             return c
         }
         AXUIElementSetMessagingTimeout(el, 0.1)
-        let role: String = attr(el, kAXRoleAttribute) ?? ""
         let subrole: String = attr(el, kAXSubroleAttribute) ?? ""
-        let editable: Bool = attr(el, "AXEditable") ?? false
         c.secureField = subrole == (kAXSecureTextFieldSubrole as String)
-        let textRoles: Set<String> = [kAXTextFieldRole as String, kAXTextAreaRole as String, kAXComboBoxRole as String, "AXSearchField"]
-        // Web views report AXWebArea or AXGroup for rich editors; treat anything editable as a field.
-        c.hasFocusedField = textRoles.contains(role) || editable || role == "AXWebArea"
-        if !c.hasFocusedField, role == "AXGroup" || role == (kAXScrollAreaRole as String) { c.hasFocusedField = true }
+        c.hasFocusedField = isTextInput(el)
         c.element = el
         guard readText, !c.secureField else { return c }
         let value: String = attr(el, kAXValueAttribute) ?? ""
@@ -72,6 +67,28 @@ struct AppContext {
         // Very long documents: the window around the cursor is what matters, and anything long is clipped.
         if c.selection.count > 6000 { c.selection = String(c.selection.prefix(6000)); c.selectionClipped = true }
         return c
+    }
+
+    /// Whether the app with `pid` has a text field focused right now, checked just before ⌘V (you may have
+    /// clicked elsewhere since the dictation started). Nil when it can't be told: Accessibility is off, the app
+    /// isn't in front, or it exposes no focused element (Electron, games), so the caller keeps its earlier answer.
+    static func focusedEditable(pid: pid_t) -> Bool? {
+        guard AXIsProcessTrusted(), NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return nil }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.1)
+        guard let el: AXUIElement = attr(app, kAXFocusedUIElementAttribute) else { return nil }
+        AXUIElementSetMessagingTimeout(el, 0.1)
+        return isTextInput(el)
+    }
+
+    /// Text fields, text areas, and anything editable. Web views report AXWebArea or AXGroup for rich editors,
+    /// and some editors sit in a scroll area, so those count too.
+    private static func isTextInput(_ el: AXUIElement) -> Bool {
+        let role: String = attr(el, kAXRoleAttribute) ?? ""
+        let editable: Bool = attr(el, "AXEditable") ?? false
+        let textRoles: Set<String> = [kAXTextFieldRole as String, kAXTextAreaRole as String, kAXComboBoxRole as String, "AXSearchField"]
+        if textRoles.contains(role) || editable || role == "AXWebArea" { return true }
+        return role == "AXGroup" || role == (kAXScrollAreaRole as String)
     }
 
     /// Re-reads the focused element's whole value (auto-learn compares it with what was pasted).
