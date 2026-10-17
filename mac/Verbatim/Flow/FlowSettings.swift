@@ -21,23 +21,57 @@ enum FlowMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// How much the words are edited before they're pasted.
+/// How much the words are edited before they're pasted: Literal, Clean, or Polished.
+///
+/// The raw values are the ones saved before the levels were renamed (none = Literal, light = Clean,
+/// medium = Polished), so existing settings, History entries (`FlowInfo.level`), and documents keep their level
+/// with no migration. Use `literal`, `clean`, and `polished` in new code.
 enum CleanupLevel: String, CaseIterable, Identifiable {
     case none, light, medium
+
+    static var literal: CleanupLevel { .none }
+    static var clean: CleanupLevel { .light }
+    static var polished: CleanupLevel { .medium }
+
+    /// Reads a saved level: the stored raw values, or the new names ("literal", "clean", "polished").
+    init?(stored: String) {
+        switch stored.lowercased() {
+        case "none", "literal": self = .none
+        case "light", "clean": self = .light
+        case "medium", "polished": self = .medium
+        default: return nil
+        }
+    }
+
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .none: return "None"
-        case .light: return "Light"
-        case .medium: return "Medium"
+        case .none: return "Literal"
+        case .light: return "Clean"
+        case .medium: return "Polished"
         }
     }
     var note: String {
         switch self {
-        case .none: return "Exactly what you said, with punctuation."
-        case .light: return "Removes ums, repeats, and false starts, and fixes grammar. Keeps your wording."
-        case .medium: return "Also tightens rambling sentences. Keeps every point."
+        case .none: return "Your words as spoken, with punctuation and capitals. Never rewritten, and works on every Mac."
+        case .light: return "Removes ums, repeats, and false starts, keeps only the final version of a self-correction, and writes numbers as digits. Keeps your wording."
+        case .medium: return "Rewrites for the app you're in, so an email reads like an email and a chat like a chat. Keeps every point."
         }
+    }
+    /// A few words for menus.
+    var shortNote: String {
+        switch self {
+        case .none: return "As spoken"
+        case .light: return "Fillers and fixes"
+        case .medium: return "Rewritten for the app"
+        }
+    }
+    /// Clean and Polished use Apple's on-device model; Literal never does.
+    var usesModel: Bool { self != .none }
+
+    /// The display name for a saved level string, such as `FlowInfo.level` ("light" → "Clean").
+    static func title(stored: String) -> String {
+        CleanupLevel(stored: stored)?.title ?? stored.capitalized
     }
 }
 
@@ -121,7 +155,7 @@ final class FlowSettings: ObservableObject {
     private init() {
         showBar = d.object(forKey: "flow.showBar") as? Bool ?? true
         mode = FlowMode(rawValue: d.string(forKey: "flow.mode") ?? "") ?? .hybrid
-        cleanup = CleanupLevel(rawValue: d.string(forKey: "flow.cleanup") ?? "") ?? .light
+        cleanup = CleanupLevel(stored: d.string(forKey: "flow.cleanup") ?? "") ?? .clean
         useContext = d.object(forKey: "flow.context") as? Bool ?? true
         autoLearn = d.object(forKey: "flow.autoLearn") as? Bool ?? true
         boostVocabulary = d.object(forKey: "flow.boost") as? Bool ?? true
