@@ -202,7 +202,29 @@ final class TranscriptionCoordinator: ObservableObject {
     private func finished(_ id: UUID, token: UUID? = nil) {
         guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
+        labelIfNeeded(id)
         pump()
+    }
+
+    /// Once a recording is transcribed (speakers included): suggests a kind, a title, and tags on this device
+    /// (AutoLabel). Runs once per transcript (while `kind` is nil) and never overwrites what the person set.
+    private func labelIfNeeded(_ id: UUID) {
+        guard AutoLabel.enabled, let t = store.transcript(id), t.status == .ready, t.source != .dictation,
+              t.kind == nil, t.kindIsAuto, !t.segments.isEmpty else { return }
+        let wantTitle = t.titleIsAuto && config.autoTitleSources.contains(t.source)
+        let segs = t.segments, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
+        Task.detached(priority: .utility) {
+            let r = await AutoLabel.suggest(segments: segs, speakers: speakers, duration: duration)
+            await MainActor.run {
+                self.store.update(id) { x in
+                    guard x.status == .ready else { return }
+                    if x.kindIsAuto, x.kind == nil { x.kind = r.kind }
+                    if wantTitle, x.titleIsAuto, let title = r.title { x.title = title }
+                    if !r.tags.isEmpty { x.tags = AutoLabel.merge(x.tags, r.tags) }
+                }
+                Log.note("autolabel: kind \(r.kind.rawValue), title \(wantTitle && r.title != nil ? "suggested" : "kept"), \(r.tags.count) tags, model \(r.usedModel)")
+            }
+        }
     }
 
     // MARK: Running
@@ -266,7 +288,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if !wave.isEmpty { x.waveform = wave }
-                        if autoTitle.contains(x.source), let auto = Transcript.titleFrom(fixed) { x.title = auto }
+                        if autoTitle.contains(x.source), x.titleIsAuto, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                     }
                     // In a batch, stay quiet until the last one.
                     self.host?.transcriptReady(id, corrections: corrections.count, queueEmpty: self.queue.isEmpty)
@@ -305,7 +327,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if !out.wave.isEmpty { x.waveform = out.wave }
-                        if autoTitle.contains(x.source), let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
+                        if autoTitle.contains(x.source), x.titleIsAuto, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                     }
                     self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
                     if !findSpeakers { self.finished(id, token: token) }

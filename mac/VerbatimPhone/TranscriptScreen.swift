@@ -97,7 +97,7 @@ struct TranscriptScreen: View {
 
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.updateDeferred(t.id) { $0.title = v } }), axis: .vertical)
+            TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false } }), axis: .vertical)
                 .font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1...3)
             HStack(spacing: 6) {
                 Text(t.sourceLabel)
@@ -209,7 +209,7 @@ struct PhoneLines: View {
     var body: some View {
         let _ = playingIDs
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
-        let segs = transcript.segments
+        let segs = transcript.visibleSegments(hideFiller: Transcript.hideFiller)   // filler-only lines hidden, never deleted
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in

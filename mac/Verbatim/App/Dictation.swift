@@ -76,6 +76,8 @@ final class DictationController: ObservableObject {
     /// When the hotkey went down, from the event itself (handling can lag while the mic starts).
     private var pressedTS: TimeInterval?
     private var session = 0
+    /// The current dictation stopped itself at the time limit; said in the Ribbon once it's pasted.
+    private var stoppedAtLimit = false
     private var startedAt: Date?
     private var lastPressTS: TimeInterval = 0
     private var lastTrusted = false
@@ -431,7 +433,33 @@ final class DictationController: ObservableObject {
         }
         bar?.setPhase(.listening)
         FlowCleanup.prewarm()
+        scheduleTimeLimit()
         Log.note("dictation begin -> \(targetAppName) [\(ctx.category.rawValue)] handsFree=\(handsFree) command=\(command)")
+    }
+
+    /// Dictation stops itself after `FlowSettings.maxDictationMinutes` (and pastes what it heard), with a
+    /// warning in the Ribbon a minute before. In-app recording has no limit. The warning uses the Ribbon's
+    /// warning line rather than `flash`, which would replace the listening state.
+    private func scheduleTimeLimit() {
+        stoppedAtLimit = false
+        let minutes = FlowSettings.maxDictationMinutes
+        guard minutes > 0 else { return }   // 0: no limit
+        let mine = session
+        let limit = minutes * 60
+        if limit > 60 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + limit - 60) { [weak self] in
+                guard let self, self.isListening, self.session == mine else { return }
+                self.bar?.model.warning = "1 minute left. Dictation stops at \(Int(minutes)) minutes."
+                Log.note("dictation: 1 minute left")
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + limit) { [weak self] in
+            guard let self, self.isListening, self.session == mine else { return }
+            Log.note("dictation: reached the \(Int(minutes))-minute limit; finishing")
+            // Like letting go of the key: transcribed and pasted, never discarded.
+            self.stoppedAtLimit = true
+            self.finish()
+        }
     }
 
     /// "MAIL", "SLACK": the app's name as the Ribbon shows it while writing.
@@ -604,7 +632,10 @@ final class DictationController: ObservableObject {
             switch outcome {
             case .pasted:
                 lastPasteConfirmed = true
-                if let note { bar?.flash(note, seconds: 4) } else { bar?.setPhase(.idle) }
+                if let note { bar?.flash(note, seconds: 4) }
+                else if stoppedAtLimit { bar?.flash("Stopped at \(Int(FlowSettings.maxDictationMinutes)) minutes", seconds: 2) }
+                else { bar?.setPhase(.idle) }
+                stoppedAtLimit = false
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
             case .copiedOnly:
                 // Nowhere to paste: it's on the clipboard, and kept in the thought pad too.

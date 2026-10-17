@@ -29,10 +29,19 @@ final class RecordingWriter: @unchecked Sendable {
     private static let preRollCap = Int64(recordingFormat.sampleRate * 10)
     private let createdAt = ProcessInfo.processInfo.systemUptime
     private var firstBufferAt: TimeInterval?
+    /// Long recordings: every `segmentFrames` the file is closed (so its header is final) and the recording
+    /// continues in the next segment file beside it. A crash then loses at most the open segment's header,
+    /// not the whole recording. `segments[0]` is the recording's own URL; Recorder joins them at stop.
+    private let segmentLimit: Int64?
+    private var framesInSegment: Int64 = 0
+    private(set) var segments: [URL] = []
 
-    init(url: URL, inputFormat: AVAudioFormat) throws {
+    /// `segmented`: roll to a new file every `RecordingSegments.seconds` (normal recordings, not dictation).
+    init(url: URL, inputFormat: AVAudioFormat, segmented: Bool = false) throws {
         file = try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
         converter = AVAudioConverter(from: inputFormat, to: recordingFormat)
+        segmentLimit = segmented ? Int64(recordingFormat.sampleRate * RecordingSegments.seconds) : nil
+        segments = [url]
     }
 
     /// Converts from the first buffer and holds the audio until `attach(url:)` opens the file.
@@ -42,6 +51,7 @@ final class RecordingWriter: @unchecked Sendable {
         }
         converter = c
         holding = true
+        segmentLimit = nil
     }
 
     /// Opens the file and writes the held pre-roll into it, so nothing heard before now is lost.
@@ -84,6 +94,8 @@ final class RecordingWriter: @unchecked Sendable {
             if let file {
                 try? file.write(from: out)
                 frames += Int64(out.frameLength)
+                framesInSegment += Int64(out.frameLength)
+                if let limit = segmentLimit, framesInSegment >= limit { rollSegment() }
             } else {
                 preRoll.append(out)
                 preRollFrames += Int64(out.frameLength)
@@ -96,6 +108,22 @@ final class RecordingWriter: @unchecked Sendable {
     }
 
     var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames + preRollFrames) / recordingFormat.sampleRate }
+
+    /// Opens the next segment file, then closes the current one (finalizing its header). Called with `lock`
+    /// held, on the audio thread. If the next file can't be opened, keeps writing the current one.
+    private func rollSegment() {
+        framesInSegment = 0
+        guard let first = segments.first else { return }
+        let next = RecordingSegments.url(for: first, index: segments.count + 1)
+        guard let f = try? AVAudioFile(forWriting: next, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true) else {
+            Log.note("recorder: couldn't open segment \(segments.count + 1); continuing in the current file")
+            return
+        }
+        if #available(macOS 15, iOS 18, *) { file?.close() }
+        file = f
+        segments.append(next)
+        Log.note("recorder: segment \(segments.count) started")
+    }
 
     /// Converts from a new input format (the recording moved to a fresh engine). False if it can't be converted.
     func replaceInput(_ format: AVAudioFormat) -> Bool {
@@ -116,6 +144,7 @@ final class RecordingWriter: @unchecked Sendable {
     func close() -> [Float] {
         lock.lock(); defer { lock.unlock() }
         if let converter, let file, !paused { drain(converter, into: file) }
+        if #available(macOS 15, iOS 18, *) { file?.close() }
         file = nil; converter = nil; preRoll = []; preRollFrames = 0; holding = false
         return envelope
     }
@@ -231,7 +260,7 @@ final class Recorder: ObservableObject {
             self.engine = nil
             throw Self.noInput
         }
-        let w = try RecordingWriter(url: url, inputFormat: inFormat)
+        let w = try RecordingWriter(url: url, inputFormat: inFormat, segmented: true)
         writer = w
         self.url = url
         live.reset()
@@ -278,6 +307,14 @@ final class Recorder: ObservableObject {
         let firstDelay = w.firstBufferDelay
         let env = Waveform.resample(w.close(), to: 120)   // close() flushes the converter's last frames first
         let d = w.seconds
+        if w.segments.count > 1 {
+            // Long recording: one file again. On failure the segments stay on disk and are joined at next launch.
+            if RecordingSegments.join(w.segments) {
+                Log.note("recorder: joined \(w.segments.count) segments")
+            } else {
+                Log.note("recorder: couldn't join \(w.segments.count) segments; first segment kept, the rest recovered at next launch")
+            }
+        }
         writer = nil
         isRecording = false; isPaused = false
         live.reset()
@@ -513,6 +550,127 @@ final class Recorder: ObservableObject {
                     self.warmUp()
                 }
             }
+        }
+    }
+}
+
+/// Segment files of a long recording: "<name>.seg002.wav", "<name>.seg003.wav"… beside "<name>.wav" (segment 1).
+enum RecordingSegments {
+    /// A new segment every 5 minutes.
+    static let seconds: Double = 300
+    private static let marker = ".seg"
+
+    static func url(for base: URL, index: Int) -> URL {
+        let stem = base.deletingPathExtension().lastPathComponent
+        return base.deletingLastPathComponent().appendingPathComponent("\(stem)\(marker)\(String(format: "%03d", index)).\(base.pathExtension)")
+    }
+
+    /// For "<name>.seg002.wav": the base URL "<name>.wav" and 2. nil for anything else.
+    static func parse(_ url: URL) -> (base: URL, index: Int)? {
+        let stem = url.deletingPathExtension().lastPathComponent
+        guard let r = stem.range(of: marker, options: .backwards),
+              let n = Int(stem[r.upperBound...]), n >= 2, stem[r.upperBound...].count == 3 else { return nil }
+        let baseName = String(stem[..<r.lowerBound]) + "." + url.pathExtension
+        return (url.deletingLastPathComponent().appendingPathComponent(baseName), n)
+    }
+
+    /// Appends segments 2… onto segment 1 (the recording's URL), in order, then deletes them. Written to a
+    /// temporary file first and swapped in, so a failure leaves every segment as it was. Segment 1 may be
+    /// missing (already adopted elsewhere): the remaining segments then become the file at that URL.
+    @discardableResult
+    static func join(_ urls: [URL]) -> Bool {
+        let fm = FileManager.default
+        guard let base = urls.first, urls.count > 1 else { return true }
+        // Hidden and named ".joining.<ext>" (AVAudioFile picks the file type from the extension); launch recovery
+        // skips hidden files and removes leftovers of this name.
+        let tmp = base.deletingLastPathComponent().appendingPathComponent(".\(base.deletingPathExtension().lastPathComponent).joining.\(base.pathExtension)")
+        try? fm.removeItem(at: tmp)
+        let parts = urls.filter { fm.fileExists(atPath: $0.path) }
+        guard !parts.isEmpty else { return false }
+        var read = Set<URL>()
+        do {
+            let out = try AVAudioFile(forWriting: tmp, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
+            var any = false
+            for part in parts {
+                WavRepair.fixHeader(part)
+                guard let src = try? AVAudioFile(forReading: part, commonFormat: .pcmFormatInt16, interleaved: true) else {
+                    // Left on disk (not deleted below) rather than lost.
+                    Log.note("recorder: segment \(part.lastPathComponent) unreadable; kept, not joined")
+                    continue
+                }
+                read.insert(part)
+                guard let buf = AVAudioPCMBuffer(pcmFormat: src.processingFormat, frameCapacity: 1 << 16) else { continue }
+                while src.framePosition < src.length {
+                    try src.read(into: buf, frameCount: 1 << 16)
+                    if buf.frameLength == 0 { break }
+                    try out.write(from: buf)
+                    any = true
+                }
+            }
+            if #available(macOS 15, iOS 18, *) { out.close() }
+            guard any else { try? fm.removeItem(at: tmp); return false }
+        } catch {
+            Log.note("recorder: join failed: \(error.localizedDescription)")
+            try? fm.removeItem(at: tmp)
+            return false
+        }
+        do {
+            if fm.fileExists(atPath: base.path) { _ = try fm.replaceItemAt(base, withItemAt: tmp) } else { try fm.moveItem(at: tmp, to: base) }
+        } catch {
+            Log.note("recorder: couldn't replace the joined file: \(error.localizedDescription)")
+            try? fm.removeItem(at: tmp)
+            return false
+        }
+        for u in urls.dropFirst() where read.contains(u) { try? fm.removeItem(at: u) }
+        return true
+    }
+
+    /// At launch, before orphaned recordings are recovered: joins any leftover segments in `folder` onto their
+    /// first file (or into a file at that name if the first was already adopted), and removes stale temp files.
+    static func joinLeftovers(in folder: URL) {
+        let fm = FileManager.default
+        let files = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [])) ?? []
+        for f in files where f.lastPathComponent.hasPrefix(".") && f.deletingPathExtension().lastPathComponent.hasSuffix(".joining") { try? fm.removeItem(at: f) }
+        var groups: [URL: [(Int, URL)]] = [:]
+        for f in files { if let p = parse(f) { groups[p.base, default: []].append((p.index, f)) } }
+        for (base, parts) in groups {
+            let ordered = [base] + parts.sorted { $0.0 < $1.0 }.map(\.1)
+            let ok = join(ordered)
+            Log.note("recorder: recovered \(parts.count + 1) segments of an interrupted recording (\(ok ? "joined" : "join failed"))")
+        }
+    }
+}
+
+/// A WAV whose writer never closed it (the app quit mid-recording) has zero sizes in its header, so nothing can
+/// read it. This sets the RIFF and data chunk sizes from the file's length. Only touches WAV files whose
+/// sizes are wrong.
+enum WavRepair {
+    static func fixHeader(_ url: URL) {
+        guard url.pathExtension.lowercased() == "wav",
+              let h = try? FileHandle(forUpdating: url) else { return }
+        defer { try? h.close() }
+        guard let len = try? h.seekToEnd(), len > 44 else { return }
+        try? h.seek(toOffset: 0)
+        guard let head = try? h.read(upToCount: 4096), head.count >= 12,
+              String(data: head[0..<4], encoding: .ascii) == "RIFF", String(data: head[8..<12], encoding: .ascii) == "WAVE" else { return }
+        func u32(_ o: Int) -> UInt32 { head[o..<o + 4].enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << (8 * UInt32($1.offset)) } }
+        func le(_ v: UInt32) -> Data { Data([UInt8(v & 0xff), UInt8(v >> 8 & 0xff), UInt8(v >> 16 & 0xff), UInt8(v >> 24 & 0xff)]) }
+        var o = 12
+        while o + 8 <= head.count {
+            let id = String(data: head[o..<o + 4], encoding: .ascii) ?? ""
+            let size = u32(o + 4)
+            if id == "data" {
+                let dataStart = UInt64(o + 8)
+                guard len > dataStart else { return }
+                let actual = UInt32(clamping: (len - dataStart) & ~1)
+                let riff = UInt32(clamping: len - 8)
+                guard size != actual || u32(4) != riff else { return }
+                try? h.seek(toOffset: 4); h.write(le(riff))
+                try? h.seek(toOffset: UInt64(o + 4)); h.write(le(actual))
+                Log.note("recorder: repaired the header of \(url.lastPathComponent)")
+                return
+            }
+            o += 8 + Int(size) + Int(size & 1)
         }
     }
 }

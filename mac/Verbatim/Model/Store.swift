@@ -419,9 +419,13 @@ final class Store: ObservableObject {
     /// (Only local recordings: with iCloud, audio from the other device can arrive before its transcript.)
     private func recoverOrphans() {
         let fm = FileManager.default
+        // A long recording interrupted mid-way left segment files: one recording again first.
+        RecordingSegments.joinLeftovers(in: Paths.recordings)
         let known = Set(transcripts.compactMap(\.audioFileName))
         let files = (try? fm.contentsOfDirectory(at: Paths.recordings, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        for f in files where !known.contains(f.lastPathComponent) && ["wav", "m4a", "mp3", "mp4", "mov", "aiff"].contains(f.pathExtension.lowercased()) {
+        for f in files where !known.contains(f.lastPathComponent) && !f.lastPathComponent.hasPrefix(".") && RecordingSegments.parse(f) == nil
+            && ["wav", "m4a", "mp3", "mp4", "mov", "aiff"].contains(f.pathExtension.lowercased()) {
+            WavRepair.fixHeader(f)   // the app quit before the recording was closed
             let dur = Player.duration(of: f)
             guard dur > 1 else { continue }
             let when = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date()

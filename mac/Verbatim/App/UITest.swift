@@ -73,6 +73,8 @@ enum UITest {
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
+            logicChecks()
+
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             await tour(app: app, window: window)
         }
@@ -403,6 +405,51 @@ enum UITest {
             buf.int16ChannelData![0][i] = Int16(max(-1, min(1, v)) * 32000)
         }
         try? file.write(from: buf)
+    }
+
+    /// Checks that need no clicks: filler lines, recording kinds, and joining a long recording's segments
+    /// (including one whose header was never finalized, as after a crash).
+    private static func logicChecks() {
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+        }
+        check("filler-only lines", Segment(start: 0, end: 1, text: "Um.").isFillerOnly && Segment(start: 0, end: 1, text: "uh, hmm…").isFillerOnly
+              && !Segment(start: 0, end: 1, text: "Um, I think so.").isFillerOnly && !Segment(start: 0, end: 1, text: "").isFillerOnly)
+        let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
+        check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
+
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("verbatim-seg-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let base = dir.appendingPathComponent("2026-01-01 at 10.00.00.wav")
+        func write(_ url: URL, seconds: Double) {
+            guard let f = try? AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true),
+                  let b = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: AVAudioFrameCount(16_000 * seconds)) else { return }
+            b.frameLength = b.frameCapacity
+            if let ch = b.int16ChannelData?[0] { for i in 0..<Int(b.frameLength) { ch[i] = Int16(truncatingIfNeeded: (i % 64) * 200) } }
+            try? f.write(from: b)
+            if #available(macOS 15, *) { f.close() }
+        }
+        write(base, seconds: 1)
+        write(RecordingSegments.url(for: base, index: 2), seconds: 1)
+        let third = RecordingSegments.url(for: base, index: 3)
+        write(third, seconds: 1)
+        // Zero the third file's sizes, like a recording the app never closed.
+        if let h = try? FileHandle(forUpdating: third) {
+            try? h.seek(toOffset: 4); h.write(Data([0, 0, 0, 0]))
+            try? h.seek(toOffset: 0)
+            if let head = try? h.read(upToCount: 4096), let r = head.range(of: Data("data".utf8)) {
+                try? h.seek(toOffset: UInt64(r.upperBound)); h.write(Data([0, 0, 0, 0]))
+            }
+            try? h.close()
+        }
+        RecordingSegments.joinLeftovers(in: dir)
+        let frames = (try? AVAudioFile(forReading: base))?.length ?? 0
+        let left = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST segments joined frames=\(frames) leftover=\(left)")
+        check("segments join into one recording", abs(Int(frames) - 48_000) <= 400 && left.isEmpty)
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {

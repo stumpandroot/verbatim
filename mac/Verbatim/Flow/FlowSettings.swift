@@ -124,6 +124,13 @@ enum BarEdge: String, Codable { case bottom, left, right }
 @MainActor
 final class FlowSettings: ObservableObject {
     static let shared = FlowSettings()
+    /// Push-to-talk and hands-free dictation stop (and paste) after this many minutes; 0 means no limit.
+    /// In-app recording isn't limited. UserDefaults key `flow.maxDictationMinutes`, default 10 (no picker yet).
+    static let maxDictationMinutesKey = "flow.maxDictationMinutes"
+    static var maxDictationMinutes: Double {
+        let v = UserDefaults.standard.object(forKey: maxDictationMinutesKey) as? Double ?? 10
+        return max(0, v)
+    }
     private let d = UserDefaults.standard
 
     @Published var showBar: Bool { didSet { d.set(showBar, forKey: "flow.showBar") } }
