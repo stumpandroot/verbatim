@@ -199,15 +199,15 @@ struct ThoughtPadView: View {
                 Text("As is").tag(FlowAction.ID?.none)
                 ForEach(flow.actions) { a in Text(a.name).tag(FlowAction.ID?.some(a.id)) }
             }
-            .labelsHidden().pickerStyle(.menu).fixedSize()
+            .labelsHidden().pickerStyle(.menu).frame(maxWidth: 140)   // a long action name truncates; it can't push the buttons
             .help("Run a saved action on the whole pad before sending")
             Spacer(minLength: 4)
             if working { ProgressView().controlSize(.small) }
             Button("Copy") { Task { if let t = await result() { Paster.copy(t); controller.dictation?.bar?.flash("Thought pad copied", seconds: 2) } } }
-                .buttonStyle(.brandSecondary).disabled(pad.pieces.isEmpty || working)
+                .buttonStyle(.brandSecondary).disabled(pad.pieces.isEmpty || working).fixedSize()
             Button(frontApp.isEmpty ? "Send" : "Send to \(frontApp)") { Task { if let t = await result() { controller.send(t) } } }
                 .buttonStyle(.brandPrimary).disabled(pad.pieces.isEmpty || working)
-                .lineLimit(1)
+                .lineLimit(1).fixedSize()
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(Ink.bar)
