@@ -109,7 +109,13 @@ fi
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Verbatim" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
+# hdiutil fails now and then on CI runners ("Resource busy"); retry a few times before giving up.
+for attempt in 1 2 3 4; do
+  if hdiutil create -volname "Verbatim" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"; then break; fi
+  echo "hdiutil failed (attempt $attempt); retrying" >&2
+  if [ "$attempt" = 4 ]; then echo "error: couldn't create the DMG" >&2; exit 1; fi
+  sleep $((attempt * 5))
+done
 rm -rf "$STAGE"
 if [ -n "$IDENTITY" ]; then codesign --force --timestamp --sign "$SIGN_ID" "$DMG"; fi
 
