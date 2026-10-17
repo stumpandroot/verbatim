@@ -42,6 +42,12 @@ struct PhoneRoot: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        .alert("Before you record others", isPresented: $app.showConsentNotice) {
+            Button("Not Now", role: .cancel) {}
+            Button("Record") { app.acknowledgeConsentNotice() }
+        } message: {
+            Text("Many places require everyone's consent to record a conversation. Let people know before you record them.")
+        }
         .alert("New project", isPresented: Binding(get: { app.newProjectFor != nil }, set: { if !$0 { app.newProjectFor = nil } })) {
             TextField("Name", text: $newProjectName)
             Button("Cancel", role: .cancel) { newProjectName = "" }

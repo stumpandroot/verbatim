@@ -33,6 +33,7 @@ struct PhoneDocument: View {
                     .disabled(transcript.documentHistory.isEmpty).foregroundStyle(transcript.documentHistory.isEmpty ? Ink.faint : Ink.ink)
                     .accessibilityLabel("Undo")
             }
+            if transcript.document != nil, level != .none { AIGeneratedNote() }
             if let w = working {
                 HStack(spacing: 10) { ProgressView(value: w).tint(Ink.persimmon); Text("Cleaning up \(Int(w * 100))%").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
             }

@@ -89,12 +89,127 @@ struct SettingsView: View {
 
     private var storage: some View {
         Form {
-            LabeledContent("Transcripts and audio") { Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) } }
-            LabeledContent("Models") { Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) } }
-            LabeledContent("Launch log") { Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) } }
-            Text(Paths.root.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.mute)
+            CloudSyncSection()
+            Section("Files") {
+                LabeledContent("Transcripts and audio") { Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) } }
+                LabeledContent("Models") { Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) } }
+                Text(Paths.root.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.mute)
+            }
+            Section("Diagnostic log") {
+                LabeledContent("Diagnostic log") {
+                    HStack {
+                        Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }
+                        Button("Send…") { sendDiagnosticLog() }
+                    }
+                }
+                Text("A record of what Verbatim did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            DeleteAllDataSection()
+            Section("About") {
+                LabeledContent("Legal") {
+                    HStack {
+                        Link("Privacy", destination: Links.privacy)
+                        Link("Terms", destination: Links.terms)
+                        Link("Refunds", destination: Links.refunds)
+                    }
+                }
+                LabeledContent("Help") {
+                    if let u = Links.mail(subject: "Verbatim support") { Link("Contact Support", destination: u) }
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+
+    /// Opens a Mail draft to support with native.log attached; falls back to showing the file.
+    private func sendDiagnosticLog() {
+        if let mail = NSSharingService(named: .composeEmail) {
+            mail.recipients = [Links.supportEmail]
+            mail.subject = "Verbatim diagnostic log"
+            if mail.canPerform(withItems: [Log.file]) { mail.perform(withItems: [Log.file]); return }
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([Log.file])
+    }
+}
+
+/// Storage › iCloud: the sync switch. Turning it off copies the library onto this Mac first; the change takes
+/// effect the next time Verbatim opens (the library's location is fixed for a session).
+struct CloudSyncSection: View {
+    @State private var wanted = Cloud.wantsSync
+    @State private var confirmOff = false
+    @State private var copying = false
+
+    var body: some View {
+        Section("iCloud") {
+            if Cloud.available {
+                Toggle("Sync with iCloud", isOn: Binding(get: { wanted }, set: { on in
+                    if on { wanted = true; Cloud.setWantsSync(true) } else { confirmOff = true }
+                }))
+                .disabled(copying)
+                Text(note).font(.system(size: 12)).foregroundStyle(Ink.mute)
+            } else {
+                Text("iCloud sync is unavailable. Sign in to iCloud in System Settings to sync with your iPhone; until then, everything stays on this Mac.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+        }
+        .alert("Turn off iCloud sync?", isPresented: $confirmOff) {
+            Button("Cancel", role: .cancel) {}
+            Button("Turn Off") { turnOff() }
+        } message: {
+            Text("Verbatim copies your library onto this Mac, then stops syncing the next time it opens. Your iPhone keeps what's already in iCloud.")
+        }
+    }
+
+    private var note: String {
+        if copying { return "Copying your library to this Mac…" }
+        if wanted != Cloud.enabled {
+            return wanted ? "Sync starts the next time you open Verbatim." : "Your library is on this Mac. Syncing stops the next time you open Verbatim."
+        }
+        return wanted ? "Transcripts, notes, projects, and the Dictionary match your iPhone. Audio from the other device downloads when you play it."
+                      : "Everything stays on this Mac."
+    }
+
+    private func turnOff() {
+        guard Cloud.enabled else { wanted = false; Cloud.setWantsSync(false); return }
+        copying = true
+        Task { @MainActor in
+            _ = await Task.detached(priority: .userInitiated) { Cloud.copyToDevice() }.value
+            Cloud.setWantsSync(false)
+            wanted = false
+            copying = false
+        }
+    }
+}
+
+/// Storage › Delete All Data, asked twice because it reaches iCloud and the iPhone too.
+struct DeleteAllDataSection: View {
+    @EnvironmentObject private var app: AppState
+    @State private var first = false
+    @State private var second = false
+
+    var body: some View {
+        Section("Privacy") {
+            LabeledContent("Delete all data") {
+                Button("Delete All Data…", role: .destructive) { first = true }
+            }
+            Text("Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, the Thought pad, and downloaded models. Settings stay.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute)
+        }
+        .alert("Delete all data?", isPresented: $first) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue", role: .destructive) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { second = true } }
+        } message: {
+            Text(Cloud.enabled
+                 ? "This removes everything from this Mac and from iCloud, so it's gone from your iPhone too. It can't be undone."
+                 : "This removes everything from this Mac. It can't be undone.")
+        }
+        .alert("Delete everything for good?", isPresented: $second) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Everything", role: .destructive) { app.deleteAllData() }
+        } message: {
+            Text("\(app.store.transcripts.count) transcripts and dictations, with their audio.")
+        }
     }
 }
 

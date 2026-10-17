@@ -106,6 +106,15 @@ struct Note: Codable, Identifiable, Equatable {
 
 struct Transcript: Codable, Identifiable, Equatable {
     enum Status: String, Codable { case processing, ready, failed }
+    /// Every stored field except the local-only paths, so those never reach the synced file.
+    enum CodingKeys: String, CodingKey {
+        case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
+             corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
+             document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
+             processingDeviceName, pendingLink, flow, pendingAppend
+    }
+    /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
+    enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
 
     var id = UUID()
     var title: String
@@ -143,9 +152,11 @@ struct Transcript: Codable, Identifiable, Equatable {
     var link: LinkInfo? = nil
     /// Keep: media saved to your Keep folder (absolute paths), and an imported video's original location,
     /// used for frame grabs.
-    var keptVideo: String? = nil
-    var keptAudio: String? = nil
-    var originalMedia: String? = nil
+    /// These hold absolute paths (which contain the macOS user name), so they're never written to the synced
+    /// transcript file: `LocalMedia` keeps them in a file on this device only.
+    var keptVideo: String? = nil { didSet { LocalMedia.set(id, .video, keptVideo) } }
+    var keptAudio: String? = nil { didSet { LocalMedia.set(id, .audio, keptAudio) } }
+    var originalMedia: String? = nil { didSet { LocalMedia.set(id, .original, originalMedia) } }
     /// Sync: the device running this transcript's job (only that device resumes it), and its name for display.
     var processingDevice: String? = nil
     var processingDeviceName: String? = nil
@@ -192,9 +203,19 @@ struct Transcript: Codable, Identifiable, Equatable {
         documentTone = try c.decodeIfPresent(String.self, forKey: .documentTone) ?? "As spoken"
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         link = try c.decodeIfPresent(LinkInfo.self, forKey: .link)
-        keptVideo = try c.decodeIfPresent(String.self, forKey: .keptVideo)
-        keptAudio = try c.decodeIfPresent(String.self, forKey: .keptAudio)
-        originalMedia = try c.decodeIfPresent(String.self, forKey: .originalMedia)
+        // Paths: this device's local record first; older builds wrote them into the file itself, so those move
+        // to the local record (when they point at a file on this device) and drop out of the file on its next save.
+        let legacy = try d.container(keyedBy: LegacyKeys.self)
+        let local = LocalMedia.paths(id)
+        func path(_ k: LegacyKeys, _ kind: LocalMedia.Kind) -> String? {
+            if let p = local[kind] { return p }
+            guard let p = try? legacy.decodeIfPresent(String.self, forKey: k), FileManager.default.fileExists(atPath: p) else { return nil }
+            LocalMedia.set(id, kind, p)
+            return p
+        }
+        keptVideo = path(.keptVideo, .video)
+        keptAudio = path(.keptAudio, .audio)
+        originalMedia = path(.originalMedia, .original)
         processingDevice = try c.decodeIfPresent(String.self, forKey: .processingDevice)
         processingDeviceName = try c.decodeIfPresent(String.self, forKey: .processingDeviceName)
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false

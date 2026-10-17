@@ -33,13 +33,68 @@ enum Paths {
 /// entitlement (CI builds); everything then works locally exactly as before.
 enum Cloud {
     static let containerID = "iCloud.co.stumpandroot.verbatim"
-    static let root: URL? = {
+    /// Verbatim's folder in iCloud whenever this device could sync (signed in, entitled), on or off.
+    static let container: URL? = {
         if ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" { return nil }
         guard FileManager.default.ubiquityIdentityToken != nil,
               let c = FileManager.default.url(forUbiquityContainerIdentifier: containerID) else { return nil }
         return c.appendingPathComponent("Documents", isDirectory: true).appendingPathComponent("Verbatim", isDirectory: true)
     }()
+    /// Settings › iCloud sync. On unless the person turned it off. Read once at launch, like `root`.
+    static let syncKey = "cloud.sync"
+    static var wantsSync: Bool { UserDefaults.standard.object(forKey: syncKey) as? Bool ?? true }
+    /// The synced folder this launch: nil when sync is off, signed out, or unavailable.
+    static let root: URL? = wantsSync ? container : nil
     static var enabled: Bool { root != nil }
+    /// Sync could run on this device (it may still be switched off).
+    static var available: Bool { container != nil }
+    /// The switch was changed this session and takes effect the next time Verbatim opens.
+    static var changePending: Bool { available && wantsSync != enabled }
+    static func setWantsSync(_ on: Bool) { UserDefaults.standard.set(on, forKey: syncKey) }
+
+    /// Turning sync off: copies everything from iCloud onto this device first (downloading what isn't here yet),
+    /// so the whole library is present when Verbatim next opens without iCloud. A file already here is replaced
+    /// only by a newer one. Returns the number of files copied. Run off the main thread.
+    static func copyToDevice() -> Int {
+        guard let cloud = container else { return 0 }
+        let fm = FileManager.default
+        var copied = 0
+        func copy(_ src: URL, _ dst: URL) {
+            var err: NSError?
+            NSFileCoordinator().coordinate(readingItemAt: src, options: [], error: &err) { u in
+                let newer = { (a: URL, b: URL) -> Bool in
+                    let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                    let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                    return da > db
+                }
+                if fm.fileExists(atPath: dst.path) {
+                    guard newer(u, dst) else { return }
+                    try? fm.removeItem(at: dst)
+                }
+                if (try? fm.copyItem(at: u, to: dst)) != nil { copied += 1 }
+            }
+        }
+        for sub in ["transcripts", "audio", "thumbs"] {
+            let src = cloud.appendingPathComponent(sub, isDirectory: true), dst = Paths.local.appendingPathComponent(sub, isDirectory: true)
+            try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
+            for f in (try? fm.contentsOfDirectory(at: src, includingPropertiesForKeys: nil)) ?? [] {
+                // Files not downloaded yet show up as ".name.icloud" placeholders.
+                var name = f.lastPathComponent
+                if name.hasPrefix("."), name.hasSuffix(".icloud") { name = String(name.dropFirst().dropLast(7)) }
+                copy(src.appendingPathComponent(name), dst.appendingPathComponent(name))
+            }
+        }
+        for name in ["projects.json", "dictionary.json"] {
+            let src = cloud.appendingPathComponent(name)
+            if fm.fileExists(atPath: src.path) || fm.fileExists(atPath: cloud.appendingPathComponent(".\(name).icloud").path) {
+                copy(src, Paths.local.appendingPathComponent(name))
+            }
+        }
+        // Turning sync back on later merges this device's library up again.
+        UserDefaults.standard.set(false, forKey: "cloud.migrated")
+        Log.note("iCloud sync turned off; copied \(copied) files to this device")
+        return copied
+    }
 
     /// Writes through a file coordinator when syncing, so iCloud never reads a half-written file.
     static func write(_ data: Data, to url: URL) {
@@ -95,7 +150,13 @@ enum Cloud {
             try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
             for f in (try? fm.contentsOfDirectory(at: src, includingPropertiesForKeys: nil)) ?? [] {
                 let to = dst.appendingPathComponent(f.lastPathComponent)
-                if !fm.fileExists(atPath: to.path), (try? fm.copyItem(at: f, to: to)) != nil { moved += 1 }
+                if fm.fileExists(atPath: to.path) {
+                    // Edited on this device while sync was off: the newer copy wins.
+                    let mf = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                    let mt = (try? to.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+                    guard mf > mt, let d = try? Data(contentsOf: f) else { continue }
+                    write(d, to: to); moved += 1
+                } else if (try? fm.copyItem(at: f, to: to)) != nil { moved += 1 }
             }
         }
         func merge<T: Codable & Identifiable>(_ type: T.Type, _ name: String) {
@@ -124,12 +185,48 @@ enum Device {
         if let s = UserDefaults.standard.string(forKey: "device.id") { return s }
         let s = UUID().uuidString; UserDefaults.standard.set(s, forKey: "device.id"); return s
     }()
+    /// Shown on the other device ("Transcribing on your Mac"). Deliberately generic: the computer's own name
+    /// often includes the owner's name, and this goes into synced files.
     static var name: String {
         #if os(macOS)
-        return Host.current().localizedName ?? "Mac"
+        return "your Mac"
         #else
-        return "iPhone"
+        return "your iPhone"
         #endif
+    }
+}
+
+/// Absolute paths a transcript points at on this device (kept video and audio, an imported video's original),
+/// in Application Support so they never sync. Thread-safe: transcripts decode in parallel at launch.
+enum LocalMedia {
+    enum Kind: String, Codable { case video, audio, original }
+    private static let lock = NSLock()
+    private static let file = Paths.local.appendingPathComponent("local-media.json")
+    private static let writeQueue = DispatchQueue(label: "co.stumpandroot.verbatim.localmedia", qos: .utility)
+    private static var cache: [UUID: [Kind: String]] = {
+        guard let d = try? Data(contentsOf: file), let m = try? JSONDecoder().decode([UUID: [Kind: String]].self, from: d) else { return [:] }
+        return m
+    }()
+
+    static func paths(_ id: UUID) -> [Kind: String] { lock.lock(); defer { lock.unlock() }; return cache[id] ?? [:] }
+
+    static func set(_ id: UUID, _ kind: Kind, _ path: String?) {
+        lock.lock()
+        var m = cache[id] ?? [:]
+        guard m[kind] != path else { lock.unlock(); return }
+        m[kind] = path
+        cache[id] = m.isEmpty ? nil : m
+        let snapshot = cache
+        lock.unlock()
+        writeQueue.async {
+            try? FileManager.default.createDirectory(at: Paths.local, withIntermediateDirectories: true)
+            if let d = try? JSONEncoder().encode(snapshot) { try? d.write(to: file, options: .atomic) }
+        }
+    }
+
+    static func removeAll() {
+        lock.lock(); cache = [:]; lock.unlock()
+        writeQueue.async { try? FileManager.default.removeItem(at: file) }
     }
 }
 
@@ -414,6 +511,27 @@ final class Store: ObservableObject {
     /// Waits until every queued transcript write and delete is on disk. For the moments a crash right after
     /// would otherwise leave a file without the transcript that points at it.
     func waitForWrites() { TranscriptFiles.queue.sync {} }
+
+    /// Delete All Data, after every transcript went through `delete`: removes whatever files are left in the
+    /// library (iCloud placeholders not downloaded yet, audio that arrived before its transcript, stills, leftover
+    /// recordings), plus the local-only folders: the "Before iCloud" backup, downloads, speech models, the copy
+    /// kept on this device while sync is on, and the local paths record. Queued behind pending writes; never blocks.
+    func removeAllFiles() {
+        let fm = FileManager.default
+        let synced = [Paths.transcripts, Paths.audio, Paths.thumbs, Paths.recordings].flatMap {
+            (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil, options: [])) ?? []
+        }
+        removeAfterPendingWrites(synced)
+        var local = [Paths.local.appendingPathComponent("Before iCloud", isDirectory: true), Paths.downloads, Paths.models]
+        if Cloud.enabled {
+            local += ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json"].map { Paths.local.appendingPathComponent($0) }
+        }
+        LocalMedia.removeAll()
+        TranscriptFiles.queue.async {
+            local.forEach { try? fm.removeItem(at: $0) }
+            for d in [Paths.downloads, Paths.models] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+        }
+    }
 
     /// Removes files only after every transcript write queued so far has landed (the transcript stops pointing at
     /// them first), so a crash in between can't leave a transcript pointing at deleted audio.
