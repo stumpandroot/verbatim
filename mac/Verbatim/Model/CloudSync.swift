@@ -8,8 +8,17 @@ final class CloudSync: NSObject {
     private weak var store: Store?
     private let query = NSMetadataQuery()
     private var seen: [String: Date] = [:]
+    /// When this device last wrote (or loaded unchanged) each transcript file. An update carrying the same date is
+    /// this device's own write coming back, so the file isn't decoded again.
+    private var lastWritten: [UUID: Date] = [:]
 
     init(store: Store) { self.store = store }
+
+    /// Dates of the files the Store read at launch, so the first gather doesn't decode every transcript twice.
+    func seed(_ dates: [UUID: Date]) { lastWritten.merge(dates) { _, new in new } }
+
+    /// The Store finished writing a transcript file; `date` is its modification date on disk.
+    func wrote(_ id: UUID, at date: Date) { lastWritten[id] = date }
 
     func start() {
         query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
@@ -25,9 +34,17 @@ final class CloudSync: NSObject {
         query.disableUpdates()
         defer { query.enableUpdates() }
         guard let store else { return }
-        var transcriptsChanged: [URL] = []
+        var transcriptsChanged: [URL] = [], unchanged: [URL] = []
         var projects = false, dictionary = false
-        for case let item as NSMetadataItem in query.results {
+        // Every item once when gathering finishes; after that only what each update says was added or changed.
+        let items: [Any]
+        if n.name == .NSMetadataQueryDidUpdate {
+            items = (n.userInfo?[NSMetadataQueryUpdateAddedItemsKey] as? [NSMetadataItem] ?? [])
+                + (n.userInfo?[NSMetadataQueryUpdateChangedItemsKey] as? [NSMetadataItem] ?? [])
+        } else {
+            items = query.results
+        }
+        for case let item as NSMetadataItem in items {
             guard let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
             let dir = url.deletingLastPathComponent().lastPathComponent
             let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
@@ -41,7 +58,12 @@ final class CloudSync: NSObject {
             if seen[url.path] == mod { continue }
             seen[url.path] = mod
             switch (dir, url.lastPathComponent) {
-            case ("transcripts", _): transcriptsChanged.append(url)
+            case ("transcripts", _):
+                if let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), let w = lastWritten[id], abs(w.timeIntervalSince(mod)) < 1 {
+                    unchanged.append(url)
+                } else {
+                    transcriptsChanged.append(url)
+                }
             case (_, "projects.json"): projects = true
             case (_, "dictionary.json"): dictionary = true
             default: break
@@ -56,7 +78,8 @@ final class CloudSync: NSObject {
                 }
             }
         }
-        for u in transcriptsChanged { store.ingest(u) }
+        for u in unchanged { store.ingestUnchanged(u) }
+        store.ingest(transcriptsChanged)
         if projects { store.ingestProjects() }
         if dictionary { store.ingestDictionary() }
     }

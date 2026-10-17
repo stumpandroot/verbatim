@@ -149,7 +149,7 @@ enum Exporter {
     }
 
     private static func provenance(_ t: Transcript) -> String {
-        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short
+        let f = Formats.style(date: .medium, time: .short)
         return "\n\n—\n\(t.title) · \(t.sourceLabel) · \(t.duration.timecode) · transcribed with \(t.model) on \(f.string(from: t.createdAt)) · Verbatim"
     }
 

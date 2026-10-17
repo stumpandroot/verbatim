@@ -50,16 +50,19 @@ final class AutoLearn {
         guard !pairs.isEmpty, let app else { return }
         let settings = FlowSettings.shared
         var ask: [(heard: String, fixed: String)] = []
+        // Changed on a copy and assigned once: every change to the Dictionary rewrites its whole file.
+        var dictionary = app.store.dictionary, added = false
         for (heard, fixed) in pairs where Self.looksLearnable(heard: heard, fixed: fixed) {
             let key = "\(heard.lowercased())→\(fixed.lowercased())"
             if settings.declinedFixes.contains(key) { continue }
             // Already known: quietly add the new way it was heard.
-            if let i = app.store.dictionary.firstIndex(where: { $0.preferred.caseInsensitiveCompare(fixed) == .orderedSame }) {
-                if !app.store.dictionary[i].heardAs.contains(where: { $0.caseInsensitiveCompare(heard) == .orderedSame }) { app.store.dictionary[i].heardAs.append(heard) }
+            if let i = dictionary.firstIndex(where: { $0.preferred.caseInsensitiveCompare(fixed) == .orderedSame }) {
+                if !dictionary[i].heardAs.contains(where: { $0.caseInsensitiveCompare(heard) == .orderedSame }) { dictionary[i].heardAs.append(heard); added = true }
                 continue
             }
             ask.append((heard, fixed))
         }
+        if added { app.store.dictionary = dictionary }
         guard !ask.isEmpty, let bar = app.dictation.bar else { return }
         Log.note("auto-learn: asking about \(ask.count) word(s)")
         // Ask in the floating button, where you are. Nothing is learned unless you say so.
@@ -69,9 +72,12 @@ final class AutoLearn {
         func remember(_ projectId: UUID?) {
             // Fresh check: the word may have been added meanwhile (another prompt, the Dictionary page).
             let ask = ask.filter { a in !app.store.dictionary.contains { $0.preferred.caseInsensitiveCompare(a.fixed) == .orderedSame } }
+            // One assignment, so one write for all the words.
+            var dictionary = app.store.dictionary
             for (heard, fixed) in ask {
-                app.store.dictionary.append(DictionaryEntry(preferred: fixed, heardAs: [heard], learnedFrom: source, projectId: projectId))
+                dictionary.append(DictionaryEntry(preferred: fixed, heardAs: [heard], learnedFrom: source, projectId: projectId))
             }
+            if !ask.isEmpty { app.store.dictionary = dictionary }
             bar.flash(projectId == nil ? "Remembered \(names)" : "Remembered \(names) in \(project?.name ?? "the project")", seconds: 2.5)
         }
         let first = ask[0]

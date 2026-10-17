@@ -18,19 +18,24 @@ enum DictionaryApplier {
         var out: [Correction] = []
         let active = entries.filter { $0.enabled && !$0.preferred.isEmpty && ($0.projectId == nil || $0.projectId == project) }
         guard !active.isEmpty else { return [] }
+        // Each pattern is compiled once per call, not once per segment, in the same entry × heard-as order.
+        var rules: [(re: NSRegularExpression, heard: String, preferred: String, template: String)] = []
+        for e in active {
+            for heard in e.heardAs where !heard.trimmingCharacters(in: .whitespaces).isEmpty {
+                let pattern = "(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: heard) + "(?![\\p{L}\\p{N}])"
+                guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+                rules.append((re, heard, e.preferred, NSRegularExpression.escapedTemplate(for: e.preferred)))
+            }
+        }
         for i in segments.indices {
-            for e in active {
-                for heard in e.heardAs where !heard.trimmingCharacters(in: .whitespaces).isEmpty {
-                    let pattern = "(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: heard) + "(?![\\p{L}\\p{N}])"
-                    guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
-                    let text = segments[i].text
-                    let range = NSRange(text.startIndex..., in: text)
-                    if re.firstMatch(in: text, range: range) != nil {
-                        let fixed = re.stringByReplacingMatches(in: text, range: range, withTemplate: NSRegularExpression.escapedTemplate(for: e.preferred))
-                        if fixed != text {
-                            segments[i].text = fixed
-                            out.append(Correction(segmentId: segments[i].id, from: heard, to: e.preferred, byDictionary: true))
-                        }
+            for r in rules {
+                let text = segments[i].text
+                let range = NSRange(text.startIndex..., in: text)
+                if r.re.firstMatch(in: text, range: range) != nil {
+                    let fixed = r.re.stringByReplacingMatches(in: text, range: range, withTemplate: r.template)
+                    if fixed != text {
+                        segments[i].text = fixed
+                        out.append(Correction(segmentId: segments[i].id, from: r.heard, to: r.preferred, byDictionary: true))
                     }
                 }
             }

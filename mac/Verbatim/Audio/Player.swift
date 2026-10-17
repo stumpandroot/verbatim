@@ -65,8 +65,9 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if p.isPlaying { p.pause(); isPlaying = false; timer?.invalidate() }
         else {
             p.play(); isPlaying = true
+            // Scheduled on the main run loop (this is main-actor code), so the block is already on main: no Task per tick.
             timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-                Task { @MainActor in self?.time = self?.player?.currentTime ?? 0 }
+                MainActor.assumeIsolated { self?.time = self?.player?.currentTime ?? 0 }
             }
         }
     }

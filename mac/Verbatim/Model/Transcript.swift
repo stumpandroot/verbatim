@@ -80,10 +80,8 @@ struct LinkInfo: Codable, Equatable, Hashable {
 
     var uploadDisplay: String? {
         guard let d = uploadDate, d.count == 8 else { return nil }
-        let f = DateFormatter(); f.dateFormat = "yyyyMMdd"
-        guard let date = f.date(from: d) else { return nil }
-        let o = DateFormatter(); o.dateStyle = .medium
-        return o.string(from: date)
+        guard let date = Formats.pattern("yyyyMMdd").date(from: d) else { return nil }
+        return Formats.style(date: .medium, time: .none).string(from: date)
     }
 }
 

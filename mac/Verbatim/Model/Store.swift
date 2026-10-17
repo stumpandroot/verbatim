@@ -1,5 +1,10 @@
 import Foundation
 import Combine
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// Where things live. Transcripts, audio, stills, projects, and the Dictionary sync through Verbatim's private
 /// iCloud folder when iCloud is available (same files on the Mac and the iPhone); otherwise they stay in
@@ -128,6 +133,23 @@ enum Device {
     }
 }
 
+/// Transcript files: compact JSON (older builds read it fine), written and deleted in order on one background
+/// queue so typing and transcription never wait on the disk, and a delete can't be undone by a save still queued.
+enum TranscriptFiles {
+    static let queue = DispatchQueue(label: "co.stumpandroot.verbatim.store", qos: .utility)
+    static let enc: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; return e }()
+    static let dec: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
+    static func url(_ id: UUID) -> URL { Paths.transcripts.appendingPathComponent("\(id.uuidString).json") }
+}
+
+/// Results of the parallel decode in `Store.load`, one slot per file so the order matches the directory listing.
+private final class LoadSlots: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var items: [(t: Transcript, mod: Date?)?]
+    init(_ n: Int) { items = Array(repeating: nil, count: n) }
+    func set(_ i: Int, _ v: (t: Transcript, mod: Date?)) { lock.lock(); items[i] = v; lock.unlock() }
+}
+
 /// Transcripts live as one JSON file each in /transcripts, with audio beside them in /audio.
 @MainActor
 final class Store: ObservableObject {
@@ -139,6 +161,13 @@ final class Store: ObservableObject {
     static let dec: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
     private var loading = true
     private var pendingSaves: [UUID: DispatchWorkItem] = [:]
+    /// Writes and deletes queued on `TranscriptFiles.queue` and not finished yet. The disk is behind memory for
+    /// these, so a file change seen meanwhile isn't read back over newer edits.
+    private var inFlight: [UUID: Int] = [:]
+    /// Lowercased transcript text for search, by ID. Dropped whenever that transcript's content may change.
+    private var searchCache: [UUID: String] = [:]
+    /// Modification dates of files read unchanged at launch, handed to CloudSync so its first pass skips them.
+    private var loadedDates: [UUID: Date] = [:]
     /// Called after a transcript arrives or changes from the other device (Mac: claim pending links).
     var onRemoteChange: ((Transcript) -> Void)?
     private var sync: CloudSync?
@@ -150,21 +179,44 @@ final class Store: ObservableObject {
         }
         load()
         loading = false
-        if Cloud.enabled { let s = CloudSync(store: self); sync = s; s.start() }
+        if Cloud.enabled { let s = CloudSync(store: self); sync = s; s.seed(loadedDates); s.start() }
+        loadedDates = [:]
+        // Deferred edits are written before the app quits or is suspended, and queued writes finish first.
+        let nc = NotificationCenter.default
+        #if os(macOS)
+        let names = [NSApplication.willTerminateNotification]
+        #else
+        let names = [UIApplication.didEnterBackgroundNotification, UIApplication.willTerminateNotification]
+        #endif
+        for name in names {
+            nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in MainActor.assumeIsolated { self?.flush() } }
+        }
     }
 
     func load() {
         let fm = FileManager.default
-        let files = (try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []
-        transcripts = files.filter { $0.pathExtension == "json" }
-            .compactMap { u in Cloud.read(u).flatMap { try? Self.dec.decode(Transcript.self, from: $0) } }
-            .map { t in
-                var t = t
-                if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
-                if t.status == .ready, t.pendingAppend == nil, t.stage != nil { t.stage = nil }   // a speaker pass that didn't finish
-                return t
-            }
-            .sorted { $0.createdAt > $1.createdAt }
+        let files = ((try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "json" }
+        // Decoded in parallel: launch waits for this, and a big library is hundreds of files.
+        let slots = LoadSlots(files.count)
+        DispatchQueue.concurrentPerform(iterations: files.count) { i in
+            let u = files[i]
+            guard let data = Cloud.read(u), let t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return }
+            let mod = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+            slots.set(i, (t, mod))
+        }
+        var list: [Transcript] = [], dates: [UUID: Date] = [:]
+        for case let slot? in slots.items {
+            var t = slot.t
+            if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
+            if t.status == .ready, t.pendingAppend == nil, t.stage != nil { t.stage = nil }   // a speaker pass that didn't finish
+            // Only files that match memory exactly may be skipped by CloudSync's first pass; the rest are read again.
+            if t == slot.t, let mod = slot.mod { dates[t.id] = mod }
+            list.append(t)
+        }
+        searchCache = [:]
+        transcripts = list.sorted { $0.createdAt > $1.createdAt }
+        loadedDates = dates
+        sync?.seed(dates)
         projects = Cloud.read(Paths.projectsFile).flatMap { try? Self.dec.decode([Project].self, from: $0) } ?? []
         dictionary = Cloud.read(Paths.dictionaryFile).flatMap { try? Self.dec.decode([DictionaryEntry].self, from: $0) } ?? []
         recoverOrphans()
@@ -179,9 +231,9 @@ final class Store: ObservableObject {
     func moveToTrash(_ id: UUID) { update(id) { $0.deletedAt = Date(); $0.pinned = false } }
     func restore(_ id: UUID) { update(id) { $0.deletedAt = nil } }
 
-    /// Recently Deleted keeps things for 30 days.
+    /// Recently Deleted keeps things for `trashDays` (30) days.
     private func purgeExpired() {
-        let cutoff = Date().addingTimeInterval(-30 * 86_400)
+        let cutoff = Date().addingTimeInterval(-Double(Self.trashDays) * 86_400)
         for t in transcripts where (t.deletedAt ?? .distantFuture) < cutoff { delete(t) }
     }
 
@@ -200,6 +252,7 @@ final class Store: ObservableObject {
             t.createdAt = when
             t.status = .failed
             t.error = "This recording was saved but never transcribed. Right-click to retry."
+            searchCache[t.id] = nil
             transcripts.append(t)
             save(t)
         }
@@ -208,32 +261,57 @@ final class Store: ObservableObject {
 
     // MARK: Transcripts
 
-    func add(_ t: Transcript) { transcripts.insert(t, at: 0); save(t) }
+    func add(_ t: Transcript) { searchCache[t.id] = nil; transcripts.insert(t, at: 0); save(t) }
 
     // MARK: Sync (iCloud)
 
     /// A transcript file changed on disk (usually written by the other device). Takes it unless this device
     /// has unsaved edits to the same transcript.
-    func ingest(_ url: URL) {
-        guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return }
-        if pendingSaves[id] != nil { return }
+    func ingest(_ url: URL) { ingest([url]) }
+
+    /// Several changed files at once: new arrivals are sorted in once, not after each one.
+    func ingest(_ urls: [URL]) {
+        var changed: [Transcript] = [], appended = false
+        for url in urls {
+            guard let r = take(url) else { continue }
+            changed.append(r.t)
+            if r.appended { appended = true }
+        }
+        if appended { transcripts.sort { $0.createdAt > $1.createdAt } }
+        for t in changed { onRemoteChange?(t) }
+    }
+
+    /// Reads one changed file into `transcripts`. Nil when nothing changed or this device's edits win.
+    private func take(_ url: URL) -> (t: Transcript, appended: Bool)? {
+        guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return nil }
+        if pendingSaves[id] != nil || inFlight[id] != nil { return nil }
         CloudSync.resolveConflicts(url)
-        guard let data = Cloud.read(url), var t = try? Self.dec.decode(Transcript.self, from: data) else { return }
+        guard let data = Cloud.read(url), var t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return nil }
         if let i = transcripts.firstIndex(where: { $0.id == id }) {
             // Keep this device's live progress label for jobs it's running.
             if t.status == .processing, t.processingDevice == Device.id { t.stage = transcripts[i].stage }
-            guard transcripts[i] != t else { return }
+            guard transcripts[i] != t else { return nil }
+            searchCache[id] = nil
             transcripts[i] = t
-        } else {
-            transcripts.append(t)
-            transcripts.sort { $0.createdAt > $1.createdAt }
+            return (t, false)
         }
-        onRemoteChange?(t)
+        searchCache[t.id] = nil
+        transcripts.append(t)
+        return (t, true)
+    }
+
+    /// A transcript file this device wrote (or loaded) came back unchanged: nothing to decode, but conflicts are
+    /// still resolved as `ingest` would.
+    func ingestUnchanged(_ url: URL) {
+        guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return }
+        if pendingSaves[id] != nil || inFlight[id] != nil { return }
+        CloudSync.resolveConflicts(url)
     }
 
     /// A transcript file disappeared (deleted for good on the other device).
     func ingestRemoval(_ url: URL) {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return }
+        searchCache[id] = nil
         transcripts.removeAll { $0.id == id }
     }
 
@@ -265,12 +343,12 @@ final class Store: ObservableObject {
 
     /// Where a new recording is written while it's being made.
     func newRecordingURL(ext: String = "wav") -> URL {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        return Paths.recordings.appendingPathComponent("\(f.string(from: Date())).\(ext)")
+        Paths.recordings.appendingPathComponent("\(Formats.fileStamp.string(from: Date())).\(ext)")
     }
 
     func update(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = transcripts.firstIndex(where: { $0.id == id }) else { return }
+        searchCache[id] = nil
         change(&transcripts[i])
         save(transcripts[i])
     }
@@ -278,6 +356,7 @@ final class Store: ObservableObject {
     /// Like `update`, but writes to disk a second after the last change: for typing.
     func updateDeferred(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = transcripts.firstIndex(where: { $0.id == id }) else { return }
+        searchCache[id] = nil
         change(&transcripts[i])
         pendingSaves[id]?.cancel()
         let w = DispatchWorkItem { [weak self] in if let t = self?.transcript(id) { self?.save(t) } }
@@ -288,19 +367,60 @@ final class Store: ObservableObject {
     /// Permanent: removes the transcript, its audio, and its thumbnail.
     func delete(_ t: Transcript) {
         transcripts.removeAll { $0.id == t.id }
-        Cloud.remove(Paths.transcripts.appendingPathComponent("\(t.id.uuidString).json"))
-        if let a = audioURL(for: t) { Cloud.remove(a) }
-        if let p = t.pendingAppend { Cloud.remove(Paths.audio.appendingPathComponent(p)) }
-        if let th = t.link?.thumbnailFile { Cloud.remove(Paths.thumbs.appendingPathComponent(th)) }
+        searchCache[t.id] = nil
+        var files = [TranscriptFiles.url(t.id)]
+        if let a = audioURL(for: t) { files.append(a) }
+        if let p = t.pendingAppend { files.append(Paths.audio.appendingPathComponent(p)) }
+        if let th = t.link?.thumbnailFile { files.append(Paths.thumbs.appendingPathComponent(th)) }
         // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
-        for f in t.notes.compactMap(\.frameFile) { Cloud.remove(Paths.thumbs.appendingPathComponent(f)) }
+        for f in t.notes.compactMap(\.frameFile) { files.append(Paths.thumbs.appendingPathComponent(f)) }
+        // Same queue as saves, so a write still queued for this transcript lands before the delete, never after.
+        let id = t.id, gone = files
+        inFlight[id, default: 0] += 1
+        TranscriptFiles.queue.async { [weak self] in
+            for f in gone { Cloud.remove(f) }
+            let store = self
+            DispatchQueue.main.async { MainActor.assumeIsolated { store?.finished(id, modified: nil) } }
+        }
     }
 
+    /// Encodes and writes on `TranscriptFiles.queue` from a copy, so the caller never waits on the disk.
     func save(_ t: Transcript) {
         pendingSaves[t.id] = nil
-        if let data = try? Self.enc.encode(t) {
-            Cloud.write(data, to: Paths.transcripts.appendingPathComponent("\(t.id.uuidString).json"))
+        let id = t.id
+        inFlight[id, default: 0] += 1
+        TranscriptFiles.queue.async { [weak self] in
+            let url = TranscriptFiles.url(id)
+            let data = try? TranscriptFiles.enc.encode(t)
+            if let data { Cloud.write(data, to: url) }
+            let mod: Date? = data == nil ? nil : (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            let store = self
+            DispatchQueue.main.async { MainActor.assumeIsolated { store?.finished(id, modified: mod) } }
         }
+    }
+
+    /// A queued write or delete is done. A write's date tells CloudSync the matching update is this device's own.
+    private func finished(_ id: UUID, modified: Date?) {
+        if let n = inFlight[id], n > 1 { inFlight[id] = n - 1 } else { inFlight[id] = nil }
+        if let modified { sync?.wrote(id, at: modified) }
+    }
+
+    /// Writes every deferred edit now and waits until all queued writes and deletes are on disk.
+    func flush() {
+        for (id, w) in pendingSaves {
+            w.cancel()
+            if let t = transcript(id) { save(t) }
+        }
+        pendingSaves = [:]
+        TranscriptFiles.queue.sync {}
+    }
+
+    /// Lowercased text for search, cached by ID until the transcript changes. Pass a transcript from `transcripts`.
+    func searchText(_ t: Transcript) -> String {
+        if let s = searchCache[t.id] { return s }
+        let s = t.text.lowercased()
+        searchCache[t.id] = s
+        return s
     }
 
     func transcript(_ id: UUID) -> Transcript? { transcripts.first { $0.id == id } }
@@ -317,8 +437,7 @@ final class Store: ObservableObject {
     }
 
     func newAudioURL(ext: String) -> URL {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        return Paths.audio.appendingPathComponent("\(f.string(from: Date())).\(ext)")
+        Paths.audio.appendingPathComponent("\(Formats.fileStamp.string(from: Date())).\(ext)")
     }
 
     /// A new audio file name that's not in use and isn't any of `avoiding`.
@@ -368,7 +487,7 @@ final class Store: ObservableObject {
     static func group(_ list: [Transcript]) -> [(label: String, items: [Transcript])] {
         let list = list.filter { $0.deletedAt == nil }
         let cal = Calendar.current
-        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none
+        let f = Formats.style(date: .medium, time: .none)
         var out: [(String, [Transcript])] = []
         let pinned = list.filter(\.pinned)
         if !pinned.isEmpty { out.append(("Pinned", pinned)) }

@@ -168,8 +168,7 @@ enum Continuation {
 
     /// A place to build the joined file before it moves into the synced folder.
     static func scratchURL() -> URL {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH.mm.ss"
         try? FileManager.default.createDirectory(at: Paths.recordings, withIntermediateDirectories: true)
-        return Paths.recordings.appendingPathComponent("\(f.string(from: Date())) joined \(UUID().uuidString.prefix(4)).wav")
+        return Paths.recordings.appendingPathComponent("\(Formats.fileStamp.string(from: Date())) joined \(UUID().uuidString.prefix(4)).wav")
     }
 }
