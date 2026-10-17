@@ -69,6 +69,9 @@ final class DictationController: ObservableObject {
     private var lastPressTS: TimeInterval = 0
     private var lastTrusted = false
     private var lastDuration: Double = 0
+    /// Whether this dictation goes to the thought pad, decided when it starts (not when the text arrives).
+    private var toPad = false
+    func showPendingLearn() { learner.showPending() }
     var projects: [Project] { app?.store.projects ?? [] }
     private var trustTimer: Timer?
 
@@ -138,7 +141,11 @@ final class DictationController: ObservableObject {
         // Global (other apps) and local (our own windows) so it works everywhere.
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e) }) { monitors.append(g) }
-        if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e); return e }) { monitors.append(l) }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in
+            // ⌃⌥P is ours; don't also send it to the text field in front (the thought pad's, say).
+            if e.type == .keyDown, e.keyCode == UInt16(kVK_ANSI_P), e.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.control, .option] { self?.handle(e); return nil }
+            self?.handle(e); return e
+        }) { monitors.append(l) }
         Log.note("dictation monitors on, hotkey=\(hotkey.rawValue)")
     }
 
@@ -257,6 +264,7 @@ final class DictationController: ObservableObject {
         }
         startedAt = Date()
         session += 1
+        toPad = !wantCommand && ThoughtPadController.shared.isOpen
         self.handsFree = handsFree
         isListening = true
         learner.check()   // Learn from any fixes to the last dictation before this one is pasted.
@@ -427,14 +435,19 @@ final class DictationController: ObservableObject {
         let wasCommand = command
         command = false
         // With the thought pad open, a dictation becomes a piece of the pad instead of a paste.
-        if !wasCommand, ThoughtPadController.shared.isOpen {
+        if !wasCommand, toPad {
+            toPad = false
             ThoughtPad.shared.add(text, seconds: lastDuration)
+            if !ThoughtPadController.shared.isOpen { ThoughtPadController.shared.open() }   // closed meanwhile: show where it went
             isWorking = false
             Sounds.done()
             bar?.flash("Added to the thought pad", seconds: 1.8)
-            if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+            if let id = transcriptID { app?.store.update(id) { $0.flow?.app = "Thought pad" } }
             return
         }
+        toPad = false
+        // The pad may hold keyboard focus; hand it back to the app the text is for, or ⌘V lands in the pad.
+        ThoughtPadController.shared.yieldKeyboard(to: tgt)
         let spaced = (ctx?.selection.isEmpty ?? true) && !wasCommand && needsLeadingSpace(ctx) ? " " + text : text
         // Stays "working" until the paste and clipboard restore finish (up to a few seconds for slow apps),
         // so a new dictation can't start mid-paste and have this one's result land on top of it.
@@ -446,7 +459,6 @@ final class DictationController: ObservableObject {
             case .pasted:
                 if let note { bar?.flash(note, seconds: 4) } else { bar?.setPhase(.idle) }
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
-                learner.showPending()
             case .copiedOnly:
                 // Nowhere to paste: it's on the clipboard, and kept in the thought pad too.
                 if !wasCommand { ThoughtPad.shared.add(text, seconds: lastDuration, missed: true) }

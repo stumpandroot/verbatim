@@ -32,10 +32,12 @@ struct DictionaryView: View {
                 .padding(.bottom, 10)
 
                 if !app.store.projects.isEmpty {
-                    HStack(spacing: 6) {
-                        SiteChip(label: "All", on: scope == nil) { scope = nil }
-                        SiteChip(label: "Everywhere", on: scope == .some(nil)) { scope = .some(nil) }
-                        ForEach(app.store.projects) { p in SiteChip(label: p.name, on: scope == .some(p.id)) { scope = .some(p.id) } }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            SiteChip(label: "All", on: scope == nil) { scope = nil }
+                            SiteChip(label: "Everywhere", on: scope == .some(nil)) { scope = .some(nil) }
+                            ForEach(app.store.projects) { p in SiteChip(label: p.name, on: scope == .some(p.id)) { scope = .some(p.id) }.fixedSize() }
+                        }
                     }
                     .padding(.bottom, 12)
                 }
@@ -97,6 +99,9 @@ struct DictionaryView: View {
             .frame(maxWidth: .infinity)
         }
         .animation(Motion.settle, value: adding)
+        .onChange(of: app.store.projects) { _, ps in
+            if case .some(.some(let id)) = scope, !ps.contains(where: { $0.id == id }) { scope = nil }
+        }
     }
 }
 
@@ -129,11 +134,13 @@ struct DictionaryRow: View {
         .opacity(entry.enabled ? 1 : 0.55)
         .onHover { hover = $0 }
         .contextMenu {
-            Menu("Use In") {
-                Button("Every transcript") { setProject(nil) }
-                ForEach(app.store.projects) { p in Button("Only \(p.name)") { setProject(p.id) } }
+            if !app.store.projects.isEmpty {
+                Menu("Use In") {
+                    Button("Every transcript") { setProject(nil) }
+                    ForEach(app.store.projects) { p in Button("Only \(p.name)") { setProject(p.id) } }
+                }
+                Divider()
             }
-            Divider()
             Button("Delete", role: .destructive) {
                 let removed = entry
                 app.store.dictionary.removeAll { $0.id == entry.id }

@@ -14,14 +14,17 @@ final class AutoLearn {
     private var watch: Watch?
     private var timer: Timer?
     /// A "Remember?" question waiting for the floating button to be free (it found the fix as a dictation started).
-    private var pending: FlowBarModel.Prompt?
+    private var pending: (prompt: FlowBarModel.Prompt, at: Date)?
     weak var app: AppState?
 
-    /// Asks a waiting "Remember?" question, once the dictation that interrupted it has pasted.
+    /// Asks a waiting "Remember?" question once the floating button is free again. A question older than a
+    /// minute is dropped; it would arrive out of context.
     func showPending() {
-        guard let p = pending, let bar = app?.dictation.bar, bar.model.phase == .idle || bar.model.phase == .notice else { return }
+        guard let p = pending, let d = app?.dictation, let bar = d.bar else { return }
+        guard Date().timeIntervalSince(p.at) < 60 else { pending = nil; return }
+        guard !d.isListening, !d.isWorking, bar.model.phase == .idle else { return }
         pending = nil
-        bar.ask(p)
+        bar.ask(p.prompt)
     }
 
     func watch(element: AXUIElement?, cursor: Int?, pasted: String, appName: String) {
@@ -64,6 +67,8 @@ final class AutoLearn {
         let project = settings.activeProject.flatMap { id in app.store.projects.first { $0.id == id } }
         let source = "Learned from your edit in \(w.app)"
         func remember(_ projectId: UUID?) {
+            // Fresh check: the word may have been added meanwhile (another prompt, the Dictionary page).
+            let ask = ask.filter { a in !app.store.dictionary.contains { $0.preferred.caseInsensitiveCompare(a.fixed) == .orderedSame } }
             for (heard, fixed) in ask {
                 app.store.dictionary.append(DictionaryEntry(preferred: fixed, heardAs: [heard], learnedFrom: source, projectId: projectId))
             }
@@ -75,17 +80,17 @@ final class AutoLearn {
             body: ask.count == 1 ? "You changed " : "You changed ",
             quote: ask.count == 1 ? "\(first.heard) → \(first.fixed)" : ask.map { "\($0.heard) → \($0.fixed)" }.joined(separator: ", "),
             after: ". Next time it's spelled your way.",
-            primary: "Remember",
-            secondary: project.map { "Only in \($0.name)" } ?? "Not now",
+            // With a project picked, the word goes into that project (Dictionary › Use In changes it later).
+            primary: project.map { "Remember in \($0.name)" } ?? "Remember",
+            secondary: "Not now",
             seconds: 12,
-            onPrimary: { remember(nil) },
-            onSecondary: {
-                if let project { remember(project.id) }
-                else { settings.declinedFixes += ask.map { "\($0.heard.lowercased())→\($0.fixed.lowercased())" } }
-            },
+            onPrimary: { remember(project?.id) },
+            onSecondary: { settings.declinedFixes += ask.map { "\($0.heard.lowercased())→\($0.fixed.lowercased())" } },
             onTimeout: { }   // ignored or closed: not learned, and it may ask again next time
         )
-        if bar.model.phase == .idle || bar.model.phase == .notice { bar.ask(prompt) } else { pending = prompt }
+        // Usually found as the next dictation starts: then it waits until that one has pasted.
+        if !app.dictation.isListening, !app.dictation.isWorking, bar.model.phase == .idle { bar.ask(prompt) }
+        else { pending = (prompt, Date()) }
     }
 
     // MARK: Matching

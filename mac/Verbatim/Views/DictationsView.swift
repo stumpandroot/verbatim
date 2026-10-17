@@ -100,6 +100,10 @@ struct DictationRow: View {
                 Text(transcript.duration.timecode).font(Ink.mono(11)).foregroundStyle(Ink.mute)
             }
             .frame(width: 64, alignment: .leading)
+            .contentShape(Rectangle())
+            // Drag by the time column (the text stays selectable) onto a project in the sidebar.
+            .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
+            .help("Drag onto a project")
             VStack(alignment: .leading, spacing: 6) {
                 if transcript.status == .failed {
                     Text(transcript.error ?? "Transcription failed").font(.system(size: 14)).foregroundStyle(Ink.accentText)
@@ -157,7 +161,6 @@ struct DictationRow: View {
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(NoteCardBackground(hover: hover))
         .onHover { hover = $0 }
-        .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }   // onto a project in the sidebar
         .animation(Motion.touch, value: hover)
         .contextMenu {
             Button("Copy") { Paster.copy(pasted) }

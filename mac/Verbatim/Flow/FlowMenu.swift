@@ -175,10 +175,15 @@ struct FlowMenuView: View {
                 }
             case .project:
                 header("DICTATE INTO")
-                choice("No project", on: settings.activeProject == nil) { settings.activeProject = nil; close() }
-                ForEach(actions.projects) { p in
-                    choice(p.name, on: settings.activeProject == p.id) { settings.activeProject = p.id; close() }
+                choice("No project", on: !actions.projects.contains { $0.id == settings.activeProject }) { settings.activeProject = nil; close() }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(actions.projects) { p in
+                            choice(p.name, on: settings.activeProject == p.id) { settings.activeProject = p.id; close() }
+                        }
+                    }
                 }
+                .frame(maxHeight: min(CGFloat(actions.projects.count) * 31, 280))
                 Text(actions.projects.isEmpty ? "Make a project in Verbatim's sidebar first." : "Uses the project's Dictionary words and files each dictation there.")
                     .font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.horizontal, 10).padding(.vertical, 6)
                     .fixedSize(horizontal: false, vertical: true)
@@ -211,7 +216,7 @@ struct FlowMenuView: View {
         .frame(width: 236)
         .background(Paper.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Paper.line))
-        .padding(.top, anchorTop ? (sub == .cleanup ? 190 : sub == .mic ? 154 : sub == .project ? 82 : 0) : 0)
+        .padding(.top, anchorTop ? (sub == .cleanup ? 201 : sub == .mic ? 165 : sub == .project ? 82 : 0) : 0)
     }
 
     private func pickMic(_ uid: String?) {

@@ -136,6 +136,7 @@ final class FlowBarController {
         if p != .idle { menu.close() }
         refresh()
         pointerMoved()
+        if p == .idle { DispatchQueue.main.async { [weak self] in self?.dictation?.showPendingLearn() } }
     }
 
     /// A short message in the Ribbon ("Learned “Lititz”", "Copied. Click a text field…"), with an optional action.

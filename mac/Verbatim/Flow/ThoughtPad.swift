@@ -64,6 +64,14 @@ final class ThoughtPadController {
 
     func close() { panel?.orderOut(nil) }
 
+    /// When the pad has keyboard focus, gives it back to `app` (the pad stays on screen), so a paste lands there.
+    func yieldKeyboard(to app: NSRunningApplication?) {
+        guard let p = panel, p.isKeyWindow else { return }
+        p.orderOut(nil)
+        app?.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { p.orderFrontRegardless() }   // back on screen, not key
+    }
+
     private func build() {
         let size = CGSize(width: 380, height: 540)
         let screen = NSScreen.main ?? NSScreen.screens.first
@@ -81,7 +89,8 @@ final class ThoughtPadController {
         p.isReleasedWhenClosed = false
         p.minSize = CGSize(width: 340, height: 420)
         p.setFrameAutosaveName("VerbatimThoughtPad")
-        p.contentView = NSHostingView(rootView: ThoughtPadView(controller: self))
+        guard let dictation else { return }
+        p.contentView = NSHostingView(rootView: ThoughtPadView(controller: self, dictation: dictation))
         panel = p
     }
 
@@ -89,8 +98,9 @@ final class ThoughtPadController {
     func send(_ text: String) {
         let target = NSWorkspace.shared.frontmostApplication
         close()
+        target?.activate()   // the pad may have had keyboard focus; make sure the keystrokes reach this app
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 200_000_000)
             let ctx = AppContext.capture(readText: false)
             let isUs = target?.bundleIdentifier == Bundle.main.bundleIdentifier
             let out: Paster.Outcome
@@ -108,6 +118,7 @@ final class ThoughtPadPanel: NSPanel {
 
 struct ThoughtPadView: View {
     let controller: ThoughtPadController
+    @ObservedObject var dictation: DictationController
     @ObservedObject private var pad = ThoughtPad.shared
     @ObservedObject private var flow = FlowSettings.shared
     @State private var editing: PadPiece.ID? = nil
@@ -129,7 +140,7 @@ struct ThoughtPadView: View {
                     TextField("Untitled", text: $pad.title).textFieldStyle(.plain).font(Ink.serif(22)).foregroundStyle(Ink.ink)
                     if !pad.pieces.isEmpty {
                         Button(confirmClear ? "Clear all?" : "Clear") {
-                            if confirmClear { pad.clear(); confirmClear = false } else {
+                            if confirmClear { editing = nil; DispatchQueue.main.async { pad.clear() }; confirmClear = false } else {
                                 confirmClear = true
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { confirmClear = false }
                             }
@@ -152,7 +163,12 @@ struct ThoughtPadView: View {
             } else {
                 List {
                     ForEach($pad.pieces) { $piece in
-                        PadRow(piece: $piece, editing: $editing) { pad.pieces.removeAll { $0.id == piece.id } }
+                        PadRow(piece: $piece, editing: $editing) {
+                            // Let the editor drop its binding first; removing under a focused field can crash.
+                            let id = piece.id
+                            editing = nil
+                            DispatchQueue.main.async { pad.pieces.removeAll { $0.id == id } }
+                        }
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
@@ -173,8 +189,8 @@ struct ThoughtPadView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 8) {
-            Button { controller.dictation?.barClicked() } label: {
-                Image(systemName: controller.dictation?.isListening == true ? "stop.fill" : "mic.fill")
+            Button { dictation.barClicked() } label: {
+                Image(systemName: dictation.isListening ? "stop.fill" : "mic.fill")
                     .font(.system(size: 15)).foregroundStyle(Ink.inkFixed)
                     .frame(width: 38, height: 38).background(Ink.persimmon, in: Circle())
             }
@@ -211,8 +227,9 @@ struct ThoughtPadView: View {
 
     private func updateFront() {
         let a = NSWorkspace.shared.frontmostApplication
-        let name = a?.bundleIdentifier == Bundle.main.bundleIdentifier ? "" : (a?.localizedName ?? "")
-        if name != frontApp { frontApp = name.count > 14 ? String(name.prefix(13)) + "…" : name }
+        let full = a?.bundleIdentifier == Bundle.main.bundleIdentifier ? "" : (a?.localizedName ?? "")
+        let name = full.count > 14 ? String(full.prefix(13)) + "…" : full
+        if name != frontApp { frontApp = name }
     }
 }
 
@@ -250,7 +267,7 @@ private struct PadRow: View {
             Divider()
             Button("Delete", role: .destructive, action: delete)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: editing == piece.id ? .contain : .combine)
     }
 
     private var meta: String {

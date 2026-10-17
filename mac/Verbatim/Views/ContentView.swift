@@ -165,7 +165,13 @@ struct Sidebar: View {
             ForEach(app.store.projects) { p in
                 SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.persimmon, Ink.sageText, Ink.petal][p.colorIndex % 3],
                          selected: app.screen == .library && app.projectFilter == p.id, pill: pill, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
-                    .contextMenu { Button("Delete project", role: .destructive) { app.store.projects.removeAll { $0.id == p.id }; if app.projectFilter == p.id { app.projectFilter = nil } } }
+                    .contextMenu { Button("Delete project", role: .destructive) {
+                        app.store.projects.removeAll { $0.id == p.id }
+                        if app.projectFilter == p.id { app.projectFilter = nil }
+                        if FlowSettings.shared.activeProject == p.id { FlowSettings.shared.activeProject = nil }
+                        // Its words would never apply again; they go back to working everywhere.
+                        for i in app.store.dictionary.indices where app.store.dictionary[i].projectId == p.id { app.store.dictionary[i].projectId = nil }
+                    } }
             }
             if app.store.projects.isEmpty && !newProject {
                 Text("Group transcripts by client or job.").font(.system(size: 11.5)).foregroundStyle(Ink.mute).padding(.horizontal, 12).padding(.top, 2)
