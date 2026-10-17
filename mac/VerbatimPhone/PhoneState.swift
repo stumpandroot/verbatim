@@ -259,6 +259,7 @@ extension PhoneState: TranscriptionHost {
     func jobStarted(_ id: UUID) { backgroundWork.keepRunning() }
     func runWillBegin(_ id: UUID) { backgroundWork.begin() }
     func queueDrained() {
+        store.flush()   // the last transcript is on disk before iOS may suspend the app
         backgroundWork.end()
         backgroundWork.finish()
     }

@@ -164,6 +164,9 @@ final class Store: ObservableObject {
     /// Writes and deletes queued on `TranscriptFiles.queue` and not finished yet. The disk is behind memory for
     /// these, so a file change seen meanwhile isn't read back over newer edits.
     private var inFlight: [UUID: Int] = [:]
+    /// Changed files skipped while this device's own edit was waiting to be written. Read once the write lands,
+    /// so a remote edit that arrived in that window isn't missed (a re-read that matches memory changes nothing).
+    private var deferredIngest: [UUID: URL] = [:]
     /// Lowercased transcript text for search, by ID. Dropped whenever that transcript's content may change.
     private var searchCache: [UUID: String] = [:]
     /// Modification dates of files read unchanged at launch, handed to CloudSync so its first pass skips them.
@@ -284,7 +287,7 @@ final class Store: ObservableObject {
     /// Reads one changed file into `transcripts`. Nil when nothing changed or this device's edits win.
     private func take(_ url: URL) -> (t: Transcript, appended: Bool)? {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return nil }
-        if pendingSaves[id] != nil || inFlight[id] != nil { return nil }
+        if pendingSaves[id] != nil || inFlight[id] != nil { deferredIngest[id] = url; return nil }
         CloudSync.resolveConflicts(url)
         guard let data = Cloud.read(url), var t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return nil }
         if let i = transcripts.firstIndex(where: { $0.id == id }) {
@@ -304,7 +307,7 @@ final class Store: ObservableObject {
     /// still resolved as `ingest` would.
     func ingestUnchanged(_ url: URL) {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return }
-        if pendingSaves[id] != nil || inFlight[id] != nil { return }
+        if pendingSaves[id] != nil || inFlight[id] != nil { deferredIngest[id] = url; return }
         CloudSync.resolveConflicts(url)
     }
 
@@ -394,16 +397,27 @@ final class Store: ObservableObject {
             let data = try? TranscriptFiles.enc.encode(t)
             if let data { Cloud.write(data, to: url) }
             let mod: Date? = data == nil ? nil : (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            let size = data?.count
             let store = self
-            DispatchQueue.main.async { MainActor.assumeIsolated { store?.finished(id, modified: mod) } }
+            DispatchQueue.main.async { MainActor.assumeIsolated { store?.finished(id, modified: mod, size: size) } }
         }
     }
 
     /// A queued write or delete is done. A write's date tells CloudSync the matching update is this device's own.
-    private func finished(_ id: UUID, modified: Date?) {
+    private func finished(_ id: UUID, modified: Date?, size: Int? = nil) {
         if let n = inFlight[id], n > 1 { inFlight[id] = n - 1 } else { inFlight[id] = nil }
-        if let modified { sync?.wrote(id, at: modified) }
+        if let modified { sync?.wrote(id, at: modified, size: size) }
+        // Caught up: read anything that changed remotely while this device's write was queued.
+        if inFlight[id] == nil, pendingSaves[id] == nil, let u = deferredIngest.removeValue(forKey: id) { ingest(u) }
     }
+
+    /// Waits until every queued transcript write and delete is on disk. For the moments a crash right after
+    /// would otherwise leave a file without the transcript that points at it.
+    func waitForWrites() { TranscriptFiles.queue.sync {} }
+
+    /// Removes files only after every transcript write queued so far has landed (the transcript stops pointing at
+    /// them first), so a crash in between can't leave a transcript pointing at deleted audio.
+    func removeAfterPendingWrites(_ urls: [URL]) { TranscriptFiles.queue.async { urls.forEach(Cloud.remove) } }
 
     /// Writes every deferred edit now and waits until all queued writes and deletes are on disk.
     func flush() {

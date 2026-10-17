@@ -160,7 +160,7 @@ struct TranscriptView: View {
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             // Deferred save: typing a title doesn't re-encode the whole transcript on every keystroke.
-            TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.updateDeferred(t.id) { $0.title = v } }))
+            TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.update(t.id) { $0.title = v } }))
                 .textFieldStyle(.plain).font(Ink.serif(32)).foregroundStyle(Ink.ink).lineLimit(2)
             HStack(spacing: 8) {
                 Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)

@@ -100,6 +100,7 @@ final class TranscriptionCoordinator: ObservableObject {
         t.processingDevice = Device.id; t.processingDeviceName = Device.name
         host?.prepareNew(&t)
         store.add(t)
+        store.waitForWrites()   // its audio was just moved in; the transcript pointing at it lands first (as before)
         host?.didEnqueue(t.id)
         queue.append(t.id)
         pump()
@@ -115,6 +116,7 @@ final class TranscriptionCoordinator: ObservableObject {
     func queueAppend(recording url: URL, to id: UUID) -> Bool {
         guard store.transcript(id) != nil, let name = store.adoptRecording(url) else { return false }
         store.update(id) { $0.pendingAppend = name; $0.stage = "Queued"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
+        store.waitForWrites()
         queue.append(id)
         pump()
         return true
@@ -177,8 +179,8 @@ final class TranscriptionCoordinator: ObservableObject {
     func discardPendingAppend(_ id: UUID) {
         cancelIfActive(id)
         guard let name = store.transcript(id)?.pendingAppend else { return }
-        Cloud.remove(Paths.audio.appendingPathComponent(name))
         store.update(id) { $0.pendingAppend = nil; $0.stage = nil; $0.processingDevice = nil; $0.processingDeviceName = nil }
+        store.removeAfterPendingWrites([Paths.audio.appendingPathComponent(name)])
         host?.notify("New recording discarded")
     }
 
@@ -364,9 +366,8 @@ final class TranscriptionCoordinator: ObservableObject {
                     guard self.runToken == token, !Task.isCancelled, self.store.transcript(id)?.pendingAppend == partName,
                           let name = self.store.adoptRecording(combined) else { try? FileManager.default.removeItem(at: combined); return }
                     self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: name) }
-                    // Only now, with the joined file safely in place, do the two halves go.
-                    Cloud.remove(url)
-                    Cloud.remove(part)
+                    // The two halves go only after the transcript pointing at the joined file is on disk.
+                    self.store.removeAfterPendingWrites([url, part])
                     self.host?.appendReady(id, queueEmpty: self.queue.isEmpty)
                 }
             } catch {

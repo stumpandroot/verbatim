@@ -10,15 +10,15 @@ final class CloudSync: NSObject {
     private var seen: [String: Date] = [:]
     /// When this device last wrote (or loaded unchanged) each transcript file. An update carrying the same date is
     /// this device's own write coming back, so the file isn't decoded again.
-    private var lastWritten: [UUID: Date] = [:]
+    private var lastWritten: [UUID: (date: Date, size: Int?)] = [:]
 
     init(store: Store) { self.store = store }
 
     /// Dates of the files the Store read at launch, so the first gather doesn't decode every transcript twice.
-    func seed(_ dates: [UUID: Date]) { lastWritten.merge(dates) { _, new in new } }
+    func seed(_ dates: [UUID: Date]) { for (id, d) in dates { lastWritten[id] = (d, nil) } }
 
     /// The Store finished writing a transcript file; `date` is its modification date on disk.
-    func wrote(_ id: UUID, at date: Date) { lastWritten[id] = date }
+    func wrote(_ id: UUID, at date: Date, size: Int? = nil) { lastWritten[id] = (date, size) }
 
     func start() {
         query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
@@ -59,7 +59,9 @@ final class CloudSync: NSObject {
             seen[url.path] = mod
             switch (dir, url.lastPathComponent) {
             case ("transcripts", _):
-                if let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), let w = lastWritten[id], abs(w.timeIntervalSince(mod)) < 1 {
+                if let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), let w = lastWritten[id], abs(w.date.timeIntervalSince(mod)) < 1,
+                   w.size == nil || (item.value(forAttribute: NSMetadataItemFSSizeKey) as? NSNumber)?.intValue == w.size {
+                    // Same date and size as this device's own write: it's ours coming back.
                     unchanged.append(url)
                 } else {
                     transcriptsChanged.append(url)
