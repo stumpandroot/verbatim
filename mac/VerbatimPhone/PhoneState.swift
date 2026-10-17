@@ -37,6 +37,8 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
+    /// Set to open Library on a kind's raw value, or "all" (the screenshot tour uses it); the Library screen clears it.
+    @Published var libraryFilterRequest: String? = nil
     /// The one-time recording-consent notice, shown before the first recording on this iPhone.
     @Published var showConsentNotice = false
     static let consentNoticeKey = "consent.noticeShown"

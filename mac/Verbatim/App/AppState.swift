@@ -34,6 +34,8 @@ final class AppState: ObservableObject {
     var navStartedAt = Date()
     @Changed var search = ""
     @Changed var projectFilter: UUID? = nil
+    /// Library › kind chips: nil is All.
+    @Changed var libraryKind: RecordingKind? = nil
     @Changed var focusLink = false
     @Changed var showMicSheet = false
     @Changed var showAppPicker = false

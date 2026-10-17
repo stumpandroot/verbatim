@@ -69,8 +69,12 @@ struct HistoryRow: View {
                 if let sel = selected {
                     Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.iris : Ink.mute)
                 }
-                Image(systemName: transcript.source.symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(tileFg)
-                    .frame(width: 48, height: 48).background(tileBg, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                if let k = transcript.kind, k != .dictation {
+                    KindTile(kind: k, size: 48)
+                } else {
+                    Image(systemName: transcript.source.symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(tileFg)
+                        .frame(width: 48, height: 48).background(tileBg, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         if transcript.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Ink.mute) }
@@ -80,6 +84,7 @@ struct HistoryRow: View {
                         Text(transcript.sourceLabel)
                         Text("·"); Text(transcript.duration.timecode)
                         if !transcript.speakers.isEmpty { Text("·"); Text("\(transcript.speakers.count) speakers") }
+                        if let k = transcript.kind, k != .dictation { Text("·"); Text(k.label) }
                         if transcript.status == .processing { Text("·"); Text(transcript.stageText).foregroundStyle(Ink.iris); ProgressView().controlSize(.mini) }
                         if transcript.status == .failed { Text("·"); Text("Needs retry").foregroundStyle(Ink.coral) }
                     }

@@ -28,6 +28,19 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 app.tab = .library
                 await show("\(prefix)04-library")
+                app.libraryFilterRequest = "journal"
+                await show("\(prefix)04b-library-journal")
+                app.libraryFilterRequest = "idea"
+                await show("\(prefix)04c-library-ideas")
+                if let walk = app.store.live.first(where: { $0.title == "Errands and a long walk" }) {
+                    UserDefaults.standard.set(true, forKey: Transcript.mainSpeakerOnlyKey)
+                    app.libraryPath.append(walk.id)
+                    await show("\(prefix)05b-background-voices")
+                    app.libraryPath = NavigationPath()
+                    UserDefaults.standard.set(false, forKey: Transcript.mainSpeakerOnlyKey)
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+                app.libraryFilterRequest = "all"
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript")
@@ -121,7 +134,9 @@ enum PhoneUITest {
             (0, 6, "Okay, so the catalog needs to work for the folding wagon and the full wheel line.", "S1"),
             (6, 11, "Right. Jonathan wants the wheels first, then the wagons as a second section.", "S2"),
             (11, 18, "Then we shoot the wheels on white, and the wagons out in the field by the shop in Ephrata.", "S1"),
-            (18, 24, "Chris mentioned the Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", "S2"),
+            (18, 18.6, "Um.", "S1"),
+            (18.6, 24, "Chris mentioned the Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", "S2"),
+            (24, 24.6, "Uh, hmm.", "S1"),
             (24, 31, "Fine. One hero per product, three details, and a spec table. Keep the copy plain.", "S1"),
             (31, 37, "And the folding wagon gets its own spread, because thats the one people ask about.", "S2"),
             (37, 42, "Agreed. I'll send the shot list Thursday.", "S1"),
@@ -132,9 +147,47 @@ enum PhoneUITest {
         t.projectId = project.id
         t.waveform = Waveform.envelope(of: url)
         t.pinned = true
+        // Capture and archive: a suggested kind and tags, and two filler lines the transcript hides.
+        t.kind = .meeting; t.kindIsAuto = true; t.tags = ["lapp wagons", "catalog"]
         store.add(t)
-        store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: t.segments[2].id), to: t.id)
-        store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: t.segments[5].id, isBookmark: true), to: t.id)
+        let shoot = t.segments.first { $0.text.hasPrefix("Then we shoot") }!, spread = t.segments.first { $0.text.hasPrefix("And the folding") }!
+        store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: shoot.id), to: t.id)
+        store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: spread.id, isBookmark: true), to: t.id)
+        seedArchive(store)
+    }
+
+    /// Journal entries on three days (one with background voices), an idea, and a note.
+    private static func seedArchive(_ store: Store) {
+        func add(_ title: String, _ kind: RecordingKind, daysAgo: Double, hour: Int, duration: Double, tags: [String] = [], _ lines: [(String, String?)]) {
+            var t = Transcript(title: title, source: .voiceMemo, sourceLabel: "Voice memo", duration: duration, audioFileName: nil, model: "Parakeet TDT v3")
+            var start = 0.0
+            t.segments = lines.map { line in
+                let len = max(1, Double(line.0.split(separator: " ").count) * 0.4)
+                defer { start += len }
+                return Segment(start: start, end: start + len, text: line.0, speaker: line.1)
+            }
+            t.original = t.segments
+            if lines.contains(where: { $0.1 == "S2" }) { t.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")] }
+            let day = Calendar.current.startOfDay(for: Date().addingTimeInterval(-86_400 * daysAgo))
+            t.createdAt = Calendar.current.date(byAdding: .hour, value: hour, to: day) ?? day
+            t.kind = kind; t.kindIsAuto = true; t.tags = tags
+            store.add(t)
+        }
+        add("Slow start, good afternoon", .journal, daysAgo: 0, hour: 7, duration: 372, tags: ["family"], [
+            ("Woke up before the kids. Coffee on the porch, thinking about how to split the week between the catalog and the film.", nil),
+            ("The afternoon was better. Got the shot list done and the dealer sheet roughed out.", nil)])
+        add("Errands and a long walk", .journal, daysAgo: 1, hour: 18, duration: 1531, tags: ["verbatim"], [
+            ("Grocery run, then the long way home. Talked through the speech app the whole way; some of it was actually useful.", "S1"),
+            ("Please place the item in the bagging area.", "S2"),
+            ("The big idea is that the app should sort recordings by itself, so the journal just builds up.", "S1"),
+            ("Do you have a bag for that?", "S2"),
+            ("And the titles should come from what I said, not the first five words.", "S1")])
+        add("Quiet day in the edit", .journal, daysAgo: 3, hour: 21, duration: 260, tags: ["film"], [
+            ("Locked the second act. The score temp works better than expected. Need to send notes tomorrow.", nil)])
+        add("Catalog shoot plan", .idea, daysAgo: 0, hour: 9, duration: 760, tags: ["lapp wagons"], [
+            ("Start with the wheels on white, before anything else, then the wagons in the field late afternoon.", nil)])
+        add("Wheel sizes to confirm", .note, daysAgo: 2, hour: 15, duration: 48, tags: ["lapp wagons"], [
+            ("Confirm the twelve and sixteen inch wheel sizes with Jonathan before the captions.", nil)])
     }
 
     private static func writeToneFile(_ url: URL, seconds: Double) {
