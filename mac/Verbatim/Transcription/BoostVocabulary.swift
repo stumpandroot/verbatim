@@ -17,8 +17,10 @@ enum BoostVocabulary {
     static let rescorerConfig = VocabularyRescorer.Config(
         shortTermCbwTaperPivot: 5,
         shortTermCbwTaperExponent: 2.0,
-        spotterRescueMinSimilarity: 0.30,
-        spotterRescueMultiWordMinSimilarity: 0.50
+        // Raised from FluidAudio's suggested 0.30 / 0.50 after bench build 121: the boost swapped "it to" for
+        // "Lititz" and "at all" for an unspoken term ("Castwell"), making boosted WER worse than the plain engine.
+        spotterRescueMinSimilarity: 0.45,
+        spotterRescueMultiWordMinSimilarity: 0.75
     )
 
     /// Ranks Dictionary entries for one dictation: the active project's words first, then the newest, then the
