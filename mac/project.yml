@@ -14,6 +14,10 @@ packages:
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio.git
     from: 0.17.7
+  # Automatic updates for the Mac app (direct download). Mac target only; see mac/Updates/README.md.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
 
 configFiles:
   Debug: Local.xcconfig
@@ -33,6 +37,8 @@ targets:
         product: WhisperKit
       - package: FluidAudio
         product: FluidAudio
+      - package: Sparkle
+        product: Sparkle
     info:
       path: Verbatim/Info.plist
       properties:
@@ -46,6 +52,15 @@ targets:
         NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this Mac. Nothing is uploaded."
         NSAudioCaptureUsageDescription: "Verbatim records the audio of the app you choose and transcribes it on this Mac. No video is kept."
         NSHighResolutionCapable: true
+        # Sparkle (mac/Updates/README.md). The feed lives on the `updates` branch; CI rewrites it.
+        SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbatim/updates/appcast.xml
+        # PLACEHOLDER: paste the EdDSA public key printed by Sparkle's `generate_keys` here.
+        # While this is empty, the app never starts the updater (no checks, no error dialogs).
+        SUPublicEDKey: ""
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+        # Never send Sparkle's anonymous system profile; a check sends only the IP address and app version.
+        SUEnableSystemProfiling: false
     entitlements:
       path: Verbatim/Verbatim.entitlements
       properties:

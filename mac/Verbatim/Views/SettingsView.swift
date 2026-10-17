@@ -39,6 +39,7 @@ struct SettingsView: View {
                 Text("Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
+            UpdateSettingsSection()
         }
         .formStyle(.grouped)
     }
@@ -90,6 +91,27 @@ struct SettingsView: View {
             Text(Paths.root.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(Ink.mute)
         }
         .formStyle(.grouped)
+    }
+}
+
+/// General › Updates: Sparkle automatic updates (App/Updater.swift).
+struct UpdateSettingsSection: View {
+    @ObservedObject private var updater = Updater.shared
+    var body: some View {
+        Section("Updates") {
+            Toggle("Check for updates automatically", isOn: $updater.automaticallyChecksForUpdates)
+                .disabled(!updater.isRunning)
+            Toggle("Get beta builds", isOn: $updater.betaUpdates)
+                .disabled(!updater.isRunning)
+            LabeledContent("Version \(updater.version) (\(updater.build))") {
+                Button("Check Now") { updater.checkForUpdates() }
+                    .disabled(!updater.isRunning || !updater.canCheckForUpdates)
+            }
+            Text(updater.isRunning
+                 ? "Beta builds arrive with every change to Verbatim; leave this off for tested releases only. A check sends your IP address and Verbatim's version to GitHub, nothing else."
+                 : "Automatic updates are off in this build.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute)
+        }
     }
 }
 

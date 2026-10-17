@@ -7,6 +7,9 @@ name: Build Mac app (SwiftUI)
 # is unsigned and keeps everything on the Mac.
 # TestFlight (iPhone): ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8 (an App Store Connect API key with the Admin role,
 # so Xcode can manage distribution signing). With them, every build of main uploads the iPhone app to TestFlight.
+# Automatic updates (Sparkle, mac/Updates/README.md): SPARKLE_PRIVATE_KEY (EdDSA key from `generate_keys -x`). With it
+# and a Developer ID-signed, notarized DMG, builds of main become beta-<run> prereleases and mac-v* tags become
+# stable releases, and the `updates` branch's appcast.xml points at them.
 
 on:
   push:
@@ -30,7 +33,15 @@ jobs:
     defaults:
       run:
         working-directory: mac
+    # The DMG's Sparkle signature, for the release job's appcast update on mac-v* tags (not secret).
+    outputs:
+      sparkle_signature: ${{ steps.sparkle.outputs.signature }}
+      sparkle_length: ${{ steps.sparkle.outputs.length }}
+      sparkle_short_version: ${{ steps.sparkle.outputs.short_version }}
+      sparkle_bundle_version: ${{ steps.sparkle.outputs.bundle_version }}
     env:
+      # Only whether the key exists; the key itself is passed to the one step that signs.
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -196,6 +207,76 @@ jobs:
           name: Verbatim-universal
           path: mac/dist/Verbatim-universal.dmg
           if-no-files-found: error
+
+      # Automatic updates (mac/Updates/README.md). Builds of main (push or workflow_dispatch) and mac-v* tags only,
+      # and only with the Sparkle key and a Developer ID certificate. Never blocks the build.
+      - name: "Updates: sign the DMG for Sparkle"
+        id: sparkle
+        if: env.HAS_SPARKLE_KEY == 'true' && env.MACOS_CERTIFICATE != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mac-v'))
+        continue-on-error: true
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_VERSION: "2.10.0"
+          SPARKLE_SHA256: c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c
+        run: |
+          set -euo pipefail
+          DMG=dist/Verbatim-universal.dmg
+          if ! codesign -dvv "$DMG" 2>&1 | grep -q "^Authority=Developer ID Application"; then
+            echo "::warning::The DMG isn't signed with a Developer ID certificate; no update is published."; exit 0
+          fi
+          if ! xcrun stapler validate "$DMG" > /dev/null 2>&1; then
+            echo "::warning::The DMG isn't notarized; no update is published."; exit 0
+          fi
+          T="$RUNNER_TEMP/sparkle-tools"; rm -rf "$T"; mkdir -p "$T"
+          curl -fsSL -o "$T/Sparkle.tar.xz" "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          echo "${SPARKLE_SHA256}  $T/Sparkle.tar.xz" | shasum -a 256 -c -
+          tar -xJf "$T/Sparkle.tar.xz" -C "$T"
+          # The key goes in on stdin (--ed-key-file -); it is never echoed or written to disk.
+          OUT="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$T/bin/sign_update" --ed-key-file - "$DMG")"
+          SIG="$(printf '%s' "$OUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')"
+          LEN="$(printf '%s' "$OUT" | sed -n 's/.*length="\([0-9]*\)".*/\1/p')"
+          if [ -z "$SIG" ] || [ -z "$LEN" ]; then echo "::error::sign_update returned no signature"; exit 1; fi
+          echo "Sparkle signature for build ${GITHUB_RUN_NUMBER}: length=$LEN"
+          echo "signature=$SIG" >> "$GITHUB_OUTPUT"
+          echo "length=$LEN" >> "$GITHUB_OUTPUT"
+          PLIST=build/Build/Products/Release/Verbatim.app/Contents/Info.plist
+          echo "short_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" >> "$GITHUB_OUTPUT"
+          echo "bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" >> "$GITHUB_OUTPUT"
+
+      - name: "Updates: publish this build of main as a beta"
+        if: steps.sparkle.outputs.signature != '' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIG: ${{ steps.sparkle.outputs.signature }}
+          LEN: ${{ steps.sparkle.outputs.length }}
+          SHORT: ${{ steps.sparkle.outputs.short_version }}
+          BUNDLE: ${{ steps.sparkle.outputs.bundle_version }}
+        run: |
+          set -euo pipefail
+          N="${GITHUB_RUN_NUMBER}"; TAG="beta-${N}"; R="$GITHUB_REPOSITORY"
+          SUBJECT="$(git log -1 --format=%s)"
+          if gh release view "$TAG" -R "$R" > /dev/null 2>&1; then
+            # A re-run keeps the run number: replace the asset rather than failing.
+            gh release upload "$TAG" dist/Verbatim-universal.dmg -R "$R" --clobber
+          else
+            gh release create "$TAG" dist/Verbatim-universal.dmg -R "$R" --prerelease --target "$GITHUB_SHA" \
+              --title "Beta build ${N}" \
+              --notes "Automatic beta build ${N} of main (${GITHUB_SHA::7}): ${SUBJECT}. For testing; tagged releases are the stable channel."
+          fi
+          URL="https://github.com/${R}/releases/download/${TAG}/Verbatim-universal.dmg"
+          bash Updates/publish-appcast.sh --channel beta --version "$BUNDLE" --short-version "$SHORT" \
+            --url "$URL" --length "$LEN" --signature "$SIG" \
+            --title "Verbatim beta ${N}" --notes "Beta build ${N}: ${SUBJECT}" \
+            --notes-link "https://github.com/${R}/releases/tag/${TAG}"
+          # Keep the newest 5 beta prereleases; delete older ones and their tags.
+          gh release list -R "$R" --limit 200 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease and (.tagName | test("^beta-[0-9]+$"))) | .tagName' \
+            | sort -t- -k2,2 -n -r | tail -n +6 | while IFS= read -r OLD; do
+              echo "Deleting old beta $OLD"
+              gh release delete "$OLD" -R "$R" --yes --cleanup-tag || echo "::warning::couldn't delete $OLD"
+            done
 
       # Last, so a TestFlight problem never holds up the Mac download.
       - name: Send the iPhone app to TestFlight
@@ -370,3 +451,29 @@ jobs:
           files: dmgs/*.dmg
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+      # Automatic updates: point the appcast at this release's DMG, after the asset exists. The build job signed it.
+      # A tag with a suffix (mac-v2.1.0-beta.1) is a prerelease and goes to the beta channel; others are stable.
+      - name: "Updates: check out the appcast scripts"
+        if: needs.build.outputs.sparkle_signature != ''
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          path: src
+          sparse-checkout: mac/Updates
+      - name: "Updates: add this release to the appcast"
+        if: needs.build.outputs.sparkle_signature != ''
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIG: ${{ needs.build.outputs.sparkle_signature }}
+          LEN: ${{ needs.build.outputs.sparkle_length }}
+          SHORT: ${{ needs.build.outputs.sparkle_short_version }}
+          BUNDLE: ${{ needs.build.outputs.sparkle_bundle_version }}
+          CHANNEL: ${{ contains(github.ref_name, '-') && 'beta' || 'stable' }}
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"; R="$GITHUB_REPOSITORY"
+          bash src/mac/Updates/publish-appcast.sh --channel "$CHANNEL" --version "$BUNDLE" --short-version "$SHORT" \
+            --url "https://github.com/${R}/releases/download/${TAG}/Verbatim-universal.dmg" \
+            --length "$LEN" --signature "$SIG" --title "Verbatim ${SHORT}" \
+            --notes-link "https://github.com/${R}/releases/tag/${TAG}"

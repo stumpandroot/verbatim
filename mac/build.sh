@@ -92,6 +92,26 @@ else
 fi
 if [ -n "$IDENTITY" ]; then
   codesign --force --options runtime --timestamp --entitlements Verbatim/Helper.entitlements --sign "$SIGN_ID" "$APP/Contents/Helpers/yt-dlp"
+  # Sparkle (automatic updates) ships nested code: XPC services, the Autoupdate tool, and Updater.app. Sign each
+  # one inside-out with the same identity, hardened runtime, and a timestamp, then the framework, then the app.
+  # Not --deep: it applies one set of options to everything and drops the Downloader service's entitlements.
+  SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+  if [ ! -d "$SPARKLE" ]; then echo "error: Sparkle.framework is missing from $APP/Contents/Frameworks" >&2; exit 1; fi
+  SPARKLE_V="$(cd "$SPARKLE/Versions/Current" && pwd -P)"   # Versions/B
+  SPARKLE_SIGN=(codesign --force --options runtime --timestamp --sign "$SIGN_ID")
+  for XPC in "$SPARKLE_V"/XPCServices/*.xpc; do
+    if [ -d "$XPC" ]; then "${SPARKLE_SIGN[@]}" --preserve-metadata=entitlements "$XPC"; fi
+  done
+  if [ -f "$SPARKLE_V/Autoupdate" ]; then "${SPARKLE_SIGN[@]}" "$SPARKLE_V/Autoupdate"; fi
+  if [ -d "$SPARKLE_V/Updater.app" ]; then "${SPARKLE_SIGN[@]}" "$SPARKLE_V/Updater.app"; fi
+  "${SPARKLE_SIGN[@]}" "$SPARKLE"
+  for PART in "$SPARKLE_V"/XPCServices/*.xpc "$SPARKLE_V/Autoupdate" "$SPARKLE_V/Updater.app" "$SPARKLE"; do
+    if [ -e "$PART" ]; then
+      echo "Sparkle signature: $(basename "$PART")"
+      codesign -dvv "$PART" 2>&1 | grep -E "^(Authority=Developer ID Application|TeamIdentifier|Timestamp|CodeDirectory)" | sed 's/^/  /' || true
+    fi
+  done
+  codesign --verify --strict --verbose=2 "$SPARKLE"
   codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
 

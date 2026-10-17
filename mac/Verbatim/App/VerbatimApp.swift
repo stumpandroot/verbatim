@@ -8,6 +8,8 @@ struct VerbatimApp: App {
         Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))")
         // `-bench <clips dir> -benchOut <report.json>`: run the accuracy and latency bench, then quit (Bench.swift).
         if Bench.isRequested { Bench.start() }
+        // Sparkle automatic updates; stays off without SUPublicEDKey and in UI-test or bench mode (Updater.swift).
+        Updater.shared.start()
     }
 
     var body: some Scene {
@@ -21,6 +23,9 @@ struct VerbatimApp: App {
         .windowToolbarStyle(.unified)
         .defaultSize(width: UITest.enabled ? 1000 : 1200, height: UITest.enabled ? 700 : 800)
         .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesButton()
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Transcript") { app.goHome(); app.focusLink.toggle() }
                     .keyboardShortcut("n", modifiers: .command)
@@ -45,5 +50,14 @@ struct VerbatimApp: App {
             Image(systemName: "waveform")
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// "Check for Updates…" in the app menu, after About. Disabled while the updater is off or a check is running.
+struct CheckForUpdatesButton: View {
+    @ObservedObject private var updater = Updater.shared
+    var body: some View {
+        Button("Check for Updates…") { updater.checkForUpdates() }
+            .disabled(!updater.isRunning || !updater.canCheckForUpdates)
     }
 }

@@ -38,6 +38,7 @@ How sync works:
 - `Verbatim/Views` — `Tokens` (shared palette and type), `Brand` (shared artwork and components), `Theme` (Mac components), `ContentView`, `HomeView`, `TranscriptView`, `SettingsView`
 - `Verbatim/Model/CloudSync.swift` — watches the iCloud folder and feeds changes into the Store
 - `VerbatimPhone` — the iPhone app; shares Model, Transcription, Document, Audio, Export, Tokens, and Brand with the Mac
+- `Updates` — Sparkle automatic updates for the Mac app: appcast scripts, key setup, channels, and releases (see `Updates/README.md`)
 
 ## Next
 
@@ -50,3 +51,4 @@ How sync works:
 
 - yt-dlp standalone macOS binary (Unlicense; bundles Python, PSF license). See the yt-dlp README's licensing note before shipping.
 - FluidAudio (Apache 2.0) and its model weights; Argmax OSS (MIT). Model licenses are per checkpoint; check before release.
+- Sparkle (MIT), Mac app only.
