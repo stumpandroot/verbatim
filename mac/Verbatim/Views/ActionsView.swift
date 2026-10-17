@@ -75,7 +75,7 @@ struct ActionSheet: View {
             .animation(Motion.settle, value: state)
 
             HStack(spacing: 10) {
-                if state == .done { Text("Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
+                if state == .done { Text("Written by Apple Intelligence, which can be wrong. Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
                 Spacer()
                 Button("Close") { stop(); dismiss() }.keyboardShortcut(.cancelAction)
                 if state != .running { Button("Try Again") { start() } }

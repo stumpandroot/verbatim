@@ -37,6 +37,9 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
+    /// The one-time recording-consent notice, shown before the first recording on this iPhone.
+    @Published var showConsentNotice = false
+    static let consentNoticeKey = "consent.noticeShown"
     @Published var showLinkSheet = false
     @Published var showImporter = false
     @Published var showOnboarding = Onboarding.shouldShow
@@ -100,6 +103,19 @@ final class PhoneState: ObservableObject {
 
     func requestRecord(appendTo target: UUID? = nil) {
         pendingContinue = target
+        if !UserDefaults.standard.bool(forKey: Self.consentNoticeKey) { showConsentNotice = true; return }
+        askMicAndRecord()
+    }
+
+    func dismissConsentNotice() { pendingContinue = nil }
+
+    /// The consent notice's OK: remembered, then recording starts as asked.
+    func acknowledgeConsentNotice() {
+        UserDefaults.standard.set(true, forKey: Self.consentNoticeKey)
+        askMicAndRecord()
+    }
+
+    private func askMicAndRecord() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
                 if ok { self.startRecording() } else { self.pendingContinue = nil; self.say("Microphone access is off. Turn it on in Settings › Verbatim.") }
@@ -295,9 +311,10 @@ final class PhoneState: ObservableObject {
     }
 
     /// Settings › Delete all data: every transcript (Recently Deleted too) with its audio and stills, every
-    /// project, the Dictionary, and About me. Uses the Store's own delete paths, so iCloud removes the files on
+    /// project, the Dictionary, About me, and the downloaded speech models. Uses the Store's own delete paths, so iCloud removes the files on
     /// every device, then waits until the deletes are on disk.
     func deleteAllData() {
+        if recorder.isRecording { discardRecording() }
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
@@ -305,13 +322,8 @@ final class PhoneState: ObservableObject {
         store.projects = []
         store.dictionary = []
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
-        // Also files with no transcript in memory: iCloud placeholders not downloaded yet, audio that arrived before
-        // its transcript, stills, and leftover recordings (which would come back as "Recovered recording").
-        let fm = FileManager.default
-        let leftovers = [Paths.transcripts, Paths.audio, Paths.thumbs, Paths.recordings].flatMap {
-            (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil, options: [])) ?? []
-        }
-        store.removeAfterPendingWrites(leftovers)   // on the save queue, after every queued delete; never blocks the UI
+        // Also files with no transcript in memory, speech models, and local-only copies (Store.removeAllFiles).
+        store.removeAllFiles()
         say("Deleted everything")
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }

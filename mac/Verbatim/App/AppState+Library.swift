@@ -135,3 +135,26 @@ extension AppState {
         }
     }
 }
+
+extension AppState {
+    /// Settings › Storage › Delete All Data: every transcript and dictation (Recently Deleted too) with its audio
+    /// and stills, projects, the Dictionary, snippets, Activity, the Thought pad, downloads, speech models, and the
+    /// "Before iCloud" backup. Uses the Store's own delete paths, so iCloud removes the files on every device.
+    func deleteAllData() {
+        // A recording in progress would be deleted while it's still being written.
+        guard !recorder.isRecording, !capture.isCapturing else { toast = Toast("Stop the current recording first."); return }
+        dictation.cancel(quiet: true)
+        player.stop()
+        coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
+        for t in store.transcripts { store.delete(t) }
+        store.projects = []
+        store.dictionary = []
+        FlowSettings.shared.snippets = []
+        ActivityLog.shared.reset()
+        ThoughtPad.shared.clear()
+        store.removeAllFiles()
+        goHome()
+        toast = Toast("Deleted everything")
+        Log.note("delete all data")
+    }
+}

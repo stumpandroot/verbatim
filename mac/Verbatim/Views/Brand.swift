@@ -782,3 +782,18 @@ struct AnimatedFeatureArt: View {
     }
 }
 
+
+/// The AI label (privacy policy and App Store AI disclosure): shown wherever Verbatim shows text a language model
+/// rewrote, so nobody mistakes it for a word-for-word transcript.
+struct AIGeneratedNote: View {
+    var body: some View {
+        Label {
+            Text("Rewritten by Apple Intelligence. It can be wrong, so check names, numbers, and quotes against the transcript.")
+        } icon: {
+            Image(systemName: "sparkles")
+        }
+        .font(.system(size: 12))
+        .foregroundStyle(Ink.mute)
+        .accessibilityElement(children: .combine)
+    }
+}

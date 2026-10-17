@@ -24,6 +24,11 @@ struct SettingsScreen: View {
     @State private var exportURL: URL? = nil
     @State private var confirmDelete = false
     @State private var confirmDeleteFinal = false
+    /// iCloud switch: the preference for next launch, the turn-off question, and the copy that runs first.
+    @State private var syncWanted = Cloud.wantsSync
+    @State private var confirmSyncOff = false
+    @State private var copyingDown = false
+    @State private var copyFailed = 0
 
     var body: some View {
         ScrollView {
@@ -51,6 +56,12 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .sheet(isPresented: Binding(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
             if let exportURL { ShareSheet(items: [exportURL]) }
+        }
+        .alert("Turn off iCloud sync?", isPresented: $confirmSyncOff) {
+            Button("Cancel", role: .cancel) {}
+            Button("Turn Off") { turnSyncOff() }
+        } message: {
+            Text("Verbatim copies your library onto this iPhone, then stops syncing the next time it opens. Your Mac keeps what's already in iCloud.")
         }
         .alert("Delete all data?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
@@ -138,13 +149,23 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var syncAndData: some View {
-        SettingsRow(icon: Cloud.enabled ? "icloud" : "icloud.slash", tint: Ink.sageTint,
-                    title: Cloud.enabled ? "Syncing with iCloud" : "iCloud is off",
-                    subtitle: Cloud.enabled
-                        ? "Transcripts, notes, bookmarks, projects, and the Dictionary match your Mac. Audio from the other device downloads when you play it."
-                        : "Sign in to iCloud in the Settings app to sync with your Mac. Until then, everything stays on this iPhone.",
-                    subtitleLines: nil) { EmptyView() }
-            .accessibilityElement(children: .combine)
+        if Cloud.available {
+            Toggle(isOn: Binding(get: { syncWanted }, set: { on in
+                if on { syncWanted = true; Cloud.setWantsSync(true) } else { confirmSyncOff = true }
+            })) {
+                SettingsLabel(icon: syncWanted ? "icloud" : "icloud.slash", tint: Ink.sageTint, title: "iCloud sync",
+                              subtitle: syncSubtitle, subtitleLines: nil, bounce: syncWanted)
+            }
+            .toggleStyle(SpringSwitchStyle())
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .frame(minHeight: 54)
+            .disabled(copyingDown)
+        } else {
+            SettingsRow(icon: "icloud.slash", tint: Ink.sageTint, title: "iCloud is off",
+                        subtitle: "Sign in to iCloud in the Settings app to sync with your Mac. Until then, everything stays on this iPhone.",
+                        subtitleLines: nil) { EmptyView() }
+                .accessibilityElement(children: .combine)
+        }
         SettingsDivider()
         Button {
             bump("export")
@@ -167,6 +188,32 @@ struct SettingsScreen: View {
         .buttonStyle(SettingsRowPress())
     }
 
+    private var syncSubtitle: String {
+        if copyingDown { return "Copying your library to this iPhone…" }
+        if copyFailed > 0 { return "\(copyFailed) file\(copyFailed == 1 ? "" : "s") couldn't be downloaded from iCloud, so sync is still on. Check your connection and try again." }
+        if syncWanted != Cloud.enabled {
+            return syncWanted ? "Starts the next time you open Verbatim." : "Your library is on this iPhone. Syncing stops the next time you open Verbatim (swipe it away to finish now)."
+        }
+        return syncWanted
+            ? "Transcripts, notes, projects, and the Dictionary match your Mac. Audio from the other device downloads when you play it."
+            : "Everything stays on this iPhone."
+    }
+
+    private func turnSyncOff() {
+        guard Cloud.enabled else { syncWanted = false; Cloud.setWantsSync(false); return }
+        copyingDown = true; copyFailed = 0
+        Task {
+            app.store.flush()
+            let r = await Task.detached(priority: .userInitiated) { () -> (copied: Int, failed: Int) in
+                TranscriptFiles.queue.sync {}   // queued saves land in iCloud before the copy reads it
+                return Cloud.copyToDevice()
+            }.value
+            copyFailed = r.failed
+            if r.failed == 0 { Cloud.setWantsSync(false); syncWanted = false }
+            copyingDown = false
+        }
+    }
+
     @ViewBuilder private var support: some View {
         Button { bump("support"); if let u = Links.mail(subject: "Verbatim support") { openURL(u) } } label: {
             SettingsRow(icon: "bubble.left", tint: Ink.sageTint, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
@@ -177,6 +224,14 @@ struct SettingsScreen: View {
             SettingsRow(icon: "pencil", tint: Ink.persimmonTint, title: "Share feedback", bounce: bumps["feedback", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
+        SettingsDivider()
+        ShareLink(item: Log.file, subject: Text("Verbatim diagnostic log"),
+                  message: Text("Send to \(Links.supportEmail)")) {
+            SettingsRow(icon: "stethoscope", tint: Ink.petalTint, title: "Send diagnostic log",
+                        subtitle: "7 days of app events, without links or folder names", bounce: bumps["log", default: 0]) { SettingsChevron() }
+        }
+        .buttonStyle(SettingsRowPress())
+        .simultaneousGesture(TapGesture().onEnded { bump("log"); Log.trimNow() })
         SettingsDivider()
         Button { bump("privacy"); openURL(Links.privacy) } label: {
             SettingsRow(icon: "lock", tint: Ink.petalTint, title: "Privacy policy", bounce: bumps["privacy", default: 0]) { SettingsChevron() }

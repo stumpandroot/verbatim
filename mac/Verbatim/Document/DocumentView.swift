@@ -25,6 +25,7 @@ struct DocumentView: View {
         let current = Self.matching(lints, text: text)
         VStack(alignment: .leading, spacing: 14) {
             toolbar(current)
+            if transcript.document != nil, level != .none { AIGeneratedNote().frame(maxWidth: 720, alignment: .leading) }
             DocumentEditor(text: text, lints: proofread ? current : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
                 .frame(maxWidth: 720)
         }

@@ -23,12 +23,23 @@ struct AppPickerSheet: View {
     @State private var apps: [AppAudioCapture.RunningApp] = []
     @State private var error: String?
     @State private var filter = ""
+    static let consentKey = "consent.noticeShown"
+    private let consentSeen = UserDefaults.standard.bool(forKey: AppPickerSheet.consentKey)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Capture audio from").font(.system(size: 15, weight: .semibold))
             Text("Pick the app that is playing. macOS asks once for Screen & System Audio Recording; Verbatim keeps only the audio, on this Mac.")
                 .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+            if !consentSeen {
+                // One-time recording-consent notice: shown until the first capture starts.
+                Label("Many places require everyone's consent to record a conversation. Let people on a call know before you capture it.",
+                      systemImage: "person.2.wave.2")
+                    .font(.system(size: 12.5)).foregroundStyle(Ink.ink)
+                    .fixedSize(horizontal: false, vertical: true)   // wraps instead of cutting off
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Ink.coral.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
             TextField("Filter apps", text: $filter).textFieldStyle(.roundedBorder)
             if let e = error {
                 Text(e).font(.system(size: 12.5)).foregroundStyle(Ink.coral)
@@ -36,7 +47,7 @@ struct AppPickerSheet: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     ForEach(apps.filter { filter.isEmpty || $0.name.localizedCaseInsensitiveContains(filter) }) { a in
-                        Button { app.startCapture(a) } label: {
+                        Button { UserDefaults.standard.set(true, forKey: AppPickerSheet.consentKey); app.startCapture(a) } label: {
                             HStack(spacing: 10) {
                                 Image(nsImage: NSWorkspace.shared.icon(forFile: NSWorkspace.shared.urlForApplication(withBundleIdentifier: a.id)?.path ?? ""))
                                     .resizable().frame(width: 22, height: 22)

@@ -47,7 +47,7 @@ struct PhoneOnboarding: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 0) {
             title("Words worth keeping.")
-            para("Record a thought, an interview, or a call. Verbatim writes it down on this iPhone and keeps it in sync with your Mac.")
+            para("Record a thought, an interview, or a call. Verbatim writes it down on this iPhone and keeps it in sync with your Mac. Links you add here are fetched by your Mac the next time it's open.")
             BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)
@@ -57,7 +57,7 @@ struct PhoneOnboarding: View {
     private var microphone: some View {
         VStack(alignment: .leading, spacing: 0) {
             title("Let Verbatim hear you.")
-            para("Only while you record. Audio is transcribed on this iPhone and isn't uploaded anywhere but your own iCloud.")
+            para("Only while you record. Audio is transcribed on this iPhone and isn't uploaded anywhere except your own iCloud, when sync is on.")
             HStack(spacing: 14) {
                 Image(systemName: "mic").font(.system(size: 19)).foregroundStyle(Ink.ink)
                     .frame(width: 44, height: 44).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
