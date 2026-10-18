@@ -1,7 +1,9 @@
 name: Build Mac app (SwiftUI)
 
 # Builds, signs, notarizes, and publishes the native Verbatim.app as a universal DMG.
-# Runs on pushes to main that touch mac/, on version tags such as mac-v2.0.0, and on demand.
+# Runs on pushes to main that touch mac/, on version tags such as mac-v2.0.0, and on demand. The Mac and iPhone parts
+# run on separate runners at the same time; the speech bench runs only when speech or dictation code changed (or with
+# [bench] in the commit message). Branch pushes get the quick compile check instead (check-swift.yml).
 # Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
 # MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
 # is unsigned and keeps everything on the Mac.
@@ -53,6 +55,29 @@ jobs:
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Decide whether the speech bench runs
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          RUN=false
+          case "$GITHUB_REF" in refs/tags/*) RUN=true ;; esac
+          git log -1 --format=%B | grep -qi '\[bench\]' && RUN=true
+          BASE="$BEFORE"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            git fetch -q --depth 50 origin main || true
+            BASE="$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD~1)"
+            [ "$BASE" = "$(git rev-parse HEAD)" ] && BASE="$(git rev-parse HEAD~1)"
+          fi
+          CHANGED="$(git diff --name-only "$BASE" HEAD || true)"
+          echo "$CHANGED" | sed 's/^/changed: /'
+          # Speech recognition, dictation, cleanup, audio, the bench itself, package versions, or this workflow.
+          if echo "$CHANGED" | grep -Eq '^mac/Verbatim/(Transcription|Audio)/|^mac/Verbatim/Flow/(Cleanup|CleanupPrepass|MeaningCheck|Paster|FlowSettings)\.swift|^mac/Verbatim/App/(Dictation|Bench)\.swift|^mac/Bench/|^mac/project\.yml|^\.github/workflows/build-swift\.yml'; then RUN=true; fi
+          echo "bench=$RUN" >> "$GITHUB_OUTPUT"
+          echo "Speech bench: $RUN"
 
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version; sw_vers
@@ -109,41 +134,6 @@ jobs:
             exit 1
           fi
 
-      - name: Build the iPhone app and run its screenshot tour (simulator)
-        continue-on-error: true
-        run: |
-          set +e
-          P="$RUNNER_TEMP/phone"; rm -rf "$P"; mkdir -p "$P/out/phone-screens-${GITHUB_RUN_NUMBER}"
-          bash Vendor/harper/build-ios.sh > "$P/out/phone-harper-${GITHUB_RUN_NUMBER}.log" 2>&1
-          # Prebuilt Harper libraries for Xcode builds on Tim's Mac (setup.sh downloads these when Rust isn't installed).
-          (cd Vendor/harper && zip -qr "$P/harper-libs.zip" libharper_ffi.a ios ios-sim harper_ffi.h) || true
-          if [ -f "$P/harper-libs.zip" ] && [ "$(stat -f%z "$P/harper-libs.zip")" -lt 90000000 ]; then cp "$P/harper-libs.zip" "$P/out/harper-libs.zip"; fi
-          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' -derivedDataPath build-phone \
-            -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build > "$P/xcodebuild.log" 2>&1
-          status=$?
-          grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 40 > "$P/out/phone-errors-${GITHUB_RUN_NUMBER}.txt"
-          tail -n 30 "$P/xcodebuild.log" >> "$P/out/phone-errors-${GITHUB_RUN_NUMBER}.txt"
-          if [ $status -ne 0 ]; then
-            echo "::error::iPhone build failed"; grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 8 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
-            exit 0
-          fi
-          APP="build-phone/Build/Products/Debug-iphonesimulator/Verbatim.app"
-          UDID="$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]; p=[x for x in c if 'Pro' in x['name'] and 'Max' not in x['name']]; print((p or c)[-1]['udid'])")"
-          echo "simulator $UDID"
-          xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
-          xcrun simctl install "$UDID" "$APP"
-          SIMCTL_CHILD_VERBATIM_UITEST=1 xcrun simctl launch "$UDID" co.stumpandroot.verbatim.ios
-          DATA="$(xcrun simctl get_app_container "$UDID" co.stumpandroot.verbatim.ios data)"
-          # The app renders its own screenshots into Documents/screens and writes "done" when the tour ends.
-          for i in $(seq 1 200); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
-          cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/" 2>/dev/null || true
-          xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/z-device-last.png" > /dev/null 2>&1 || true
-          cp "$DATA/Library/Logs/Verbatim/native.log" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || true
-          (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
-          xcrun simctl shutdown "$UDID" || true
-
       - name: Screenshot the app and publish to the ci-screens branch
         continue-on-error: true
         env:
@@ -179,7 +169,6 @@ jobs:
           ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | while read -r f; do cp "$f" "$OUT/crash-${GITHUB_RUN_NUMBER}.ips"; done
           log show --last 3m --predicate 'process == "Verbatim"' --style compact > "$OUT/oslog-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
           cp "$OUT"/*.png dist/screens/ || true
-          cp -R "$RUNNER_TEMP/phone/out/." "$OUT/" 2>/dev/null || true
           # The ci-screens branch is reachable where artifact storage is not.
           cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
           git add . && git commit -q -m "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}"
@@ -278,48 +267,11 @@ jobs:
               gh release delete "$OLD" -R "$R" --yes --cleanup-tag || echo "::warning::couldn't delete $OLD"
             done
 
-      # Last, so a TestFlight problem never holds up the Mac download.
-      - name: Send the iPhone app to TestFlight
-        if: github.ref == 'refs/heads/main' && env.ASC_KEY_ID != '' && env.ASC_KEY_P8 != ''
-        continue-on-error: true
-        working-directory: mac
-        run: |
-          set -o pipefail
-          KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
-          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
-          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
-          ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
-          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            "${AUTH[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1 || {
-              echo "::error::iPhone archive failed"
-              grep -E "error:|No profiles|requires a provisioning|Provisioning profile" "$RUNNER_TEMP/phone-archive.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
-              tail -n 40 "$RUNNER_TEMP/phone-archive.log"; exit 1; }
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
-            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict></plist>
-          PLIST
-          xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -exportPath "$RUNNER_TEMP/phone-export" "${AUTH[@]}" > "$RUNNER_TEMP/phone-upload.log" 2>&1 || {
-              echo "::error::TestFlight upload failed"
-              grep -iE "error|No suitable application records|ITMS-" "$RUNNER_TEMP/phone-upload.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
-              tail -n 40 "$RUNNER_TEMP/phone-upload.log"; exit 1; }
-          echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
-          rm -f "$KEY"
-
       # Accuracy and latency bench (mac/Bench/README.md). Every step here is continue-on-error: a bench problem
       # never blocks a build. It runs last, after the DMG is published, and adds bench-<run>.json and bench-<run>.md to
       # the ci-screens commit for this build.
       - name: "Bench: find the FluidAudio version (model cache key)"
+        if: steps.changes.outputs.bench == 'true'
         id: fluidver
         continue-on-error: true
         run: |
@@ -351,6 +303,7 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
       - name: "Bench: restore speech models"
+        if: steps.changes.outputs.bench == 'true'
         id: benchcache
         continue-on-error: true
         uses: actions/cache/restore@v4
@@ -363,6 +316,7 @@ jobs:
             bench-models-${{ runner.os }}-fluidaudio-${{ steps.fluidver.outputs.version }}-
 
       - name: "Bench: run the synthetic clips through dictation's pipeline"
+        if: steps.changes.outputs.bench == 'true'
         id: bench
         continue-on-error: true
         timeout-minutes: 30
@@ -420,14 +374,15 @@ jobs:
           if git clone -q --depth 1 --branch ci-screens "$REPO" "$P" 2>/dev/null && ls "$P"/Verbatim-universal-${N}.dmg >/dev/null 2>&1; then
             cp "$B/out"/bench-* "$P/" 2>/dev/null
             (cd "$P" && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co" \
-              && git add -A && git commit -q -m "Bench for build ${N}" && git push -q origin HEAD:ci-screens) || echo "bench publish skipped"
+              && git add -A && git commit -q -m "Bench for build ${N}" \
+              && for t in 1 2 3 4 5; do git push -q origin HEAD:ci-screens && break; sleep 5; git pull -q --rebase origin ci-screens; done) || echo "bench publish skipped"
           else
             echo "ci-screens holds a different build; bench report is in the job summary only"
           fi
           exit 0
 
       - name: "Bench: save speech models"
-        if: always() && steps.bench.outputs.models_key != '' && steps.bench.outputs.models_key != steps.benchcache.outputs.cache-matched-key
+        if: always() && steps.changes.outputs.bench == 'true' && steps.bench.outputs.models_key != '' && steps.bench.outputs.models_key != steps.benchcache.outputs.cache-matched-key
         continue-on-error: true
         uses: actions/cache/save@v4
         with:
@@ -435,6 +390,139 @@ jobs:
             ~/Library/Application Support/Verbatim/models
             ~/Library/Application Support/FluidAudio/Models
           key: ${{ steps.bench.outputs.models_key }}
+
+  phone:
+    name: iPhone (simulator tour and TestFlight)
+    runs-on: macos-26
+    # Like before, an iPhone problem never fails the Mac build or blocks its download.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: mac
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
+
+      - name: Install Rust (Harper grammar engine)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mac/harper-ffi/target
+          key: cargo-ios-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
+      - name: Generate the project
+        run: |
+          brew install xcodegen
+          [ -f Local.xcconfig ] || : > Local.xcconfig
+          xcodegen generate --quiet
+
+      - name: Build the iPhone app and run its screenshot tour (simulator)
+        run: |
+          set +e
+          P="$RUNNER_TEMP/phone"; rm -rf "$P"; mkdir -p "$P/out/phone-screens-${GITHUB_RUN_NUMBER}"
+          bash Vendor/harper/build-ios.sh > "$P/out/phone-harper-${GITHUB_RUN_NUMBER}.log" 2>&1
+          # Prebuilt Harper libraries for Xcode builds on Tim's Mac (setup.sh downloads these when Rust isn't installed).
+          (cd Vendor/harper && zip -qr "$P/harper-libs.zip" libharper_ffi.a ios ios-sim harper_ffi.h) || true
+          if [ -f "$P/harper-libs.zip" ] && [ "$(stat -f%z "$P/harper-libs.zip")" -lt 90000000 ]; then cp "$P/harper-libs.zip" "$P/out/harper-libs.zip"; fi
+          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build-phone \
+            -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build > "$P/xcodebuild.log" 2>&1
+          status=$?
+          grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 40 > "$P/out/phone-errors-${GITHUB_RUN_NUMBER}.txt"
+          tail -n 30 "$P/xcodebuild.log" >> "$P/out/phone-errors-${GITHUB_RUN_NUMBER}.txt"
+          if [ $status -ne 0 ]; then
+            echo "::error::iPhone build failed"; grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 8 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 0
+          fi
+          APP="build-phone/Build/Products/Debug-iphonesimulator/Verbatim.app"
+          UDID="$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]; p=[x for x in c if 'Pro' in x['name'] and 'Max' not in x['name']]; print((p or c)[-1]['udid'])")"
+          echo "simulator $UDID"
+          xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          xcrun simctl install "$UDID" "$APP"
+          SIMCTL_CHILD_VERBATIM_UITEST=1 xcrun simctl launch "$UDID" co.stumpandroot.verbatim.ios
+          DATA="$(xcrun simctl get_app_container "$UDID" co.stumpandroot.verbatim.ios data)"
+          # The app renders its own screenshots into Documents/screens and writes "done" when the tour ends.
+          for i in $(seq 1 200); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
+          cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/" 2>/dev/null || true
+          xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/z-device-last.png" > /dev/null 2>&1 || true
+          cp "$DATA/Library/Logs/Verbatim/native.log" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || true
+          (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
+          xcrun simctl shutdown "$UDID" || true
+
+      # Adds the iPhone results to this build's ci-screens commit once the Mac job has published it.
+      - name: Publish the iPhone results to ci-screens
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          N="${GITHUB_RUN_NUMBER}"; SRC="$RUNNER_TEMP/phone/out"
+          [ -d "$SRC" ] || { echo "no iPhone results"; exit 0; }
+          REPO="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for i in $(seq 1 90); do
+            D="$RUNNER_TEMP/ci-screens-$i"; rm -rf "$D"
+            if git clone -q --depth 1 --branch ci-screens "$REPO" "$D" 2>/dev/null; then
+              NEWEST="$(ls "$D" | sed -n 's/^Verbatim-universal-\([0-9]*\)\.dmg$/\1/p' | sort -n | tail -1)"
+              if [ -n "$NEWEST" ] && [ "$NEWEST" -gt "$N" ]; then echo "a newer build owns ci-screens; skipping"; exit 0; fi
+              if [ "$NEWEST" = "$N" ]; then
+                cp -R "$SRC/." "$D/"
+                (cd "$D" && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co" \
+                  && git add -A && git commit -q -m "iPhone results for build ${N}" && git push -q origin HEAD:ci-screens) && { echo "published"; exit 0; }
+              fi
+            fi
+            sleep 20
+          done
+          echo "::warning::Mac results never appeared on ci-screens; iPhone results are in the job log only"
+
+      # Last, so a TestFlight problem never holds up the Mac download.
+      - name: Send the iPhone app to TestFlight
+        if: github.ref == 'refs/heads/main' && env.ASC_KEY_ID != '' && env.ASC_KEY_P8 != ''
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
+          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            "${AUTH[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1 || {
+              echo "::error::iPhone archive failed"
+              grep -E "error:|No profiles|requires a provisioning|Provisioning profile" "$RUNNER_TEMP/phone-archive.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+              tail -n 40 "$RUNNER_TEMP/phone-archive.log"; exit 1; }
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/phone-export" "${AUTH[@]}" > "$RUNNER_TEMP/phone-upload.log" 2>&1 || {
+              echo "::error::TestFlight upload failed"
+              grep -iE "error|No suitable application records|ITMS-" "$RUNNER_TEMP/phone-upload.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+              tail -n 40 "$RUNNER_TEMP/phone-upload.log"; exit 1; }
+          echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
+          rm -f "$KEY"
+
 
   release:
     name: Publish release
