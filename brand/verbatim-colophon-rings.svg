@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Verbatim colophon (R3a): three rings tangent at one point on an axis. Rings span 14 to 106;
+       each crossbar is 6 thick and sits 6 from the outer ring. -->
+  <g fill="none" stroke="#26352E" stroke-width="8">
+    <circle cx="60" cy="60" r="42"/><circle cx="60" cy="72" r="30"/><circle cx="60" cy="84" r="18"/>
+  </g>
+  <g fill="#26352E">
+    <rect x="57" y="2" width="6" height="116"/>
+    <rect x="48" y="2" width="24" height="6"/><rect x="48" y="112" width="24" height="6"/>
+  </g>
+</svg>

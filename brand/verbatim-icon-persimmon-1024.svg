@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Flat preview of the app icon. For Icon Composer, use the background color #FA6B47 and import
+       verbatim-mark-bars.svg as the single foreground layer, filled #F5F0E6. -->
+  <rect width="1024" height="1024" fill="#FA6B47"/>
+  <g transform="translate(232 232) scale(4.6667)" fill="#F5F0E6">
+    <rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/>
+    <rect x="22" y="68" width="76" height="14"/><path d="M22 82 L44 82 L22 98 Z"/>
+  </g>
+</svg>
