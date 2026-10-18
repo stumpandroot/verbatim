@@ -120,7 +120,7 @@ struct MethodCards: View {
 struct RecentWork: View {
     @EnvironmentObject var app: AppState
     var body: some View {
-        let items = Array(app.filtered.prefix(6))
+        let items = Array(app.archive.prefix(6))
         VStack(alignment: .leading, spacing: 14) {
             EditorialSectionHeader(index: "02", label: "Recent", title: "Pick up where you left off.") {
                 InlineLink(title: "View library") { app.go(.library) }
@@ -144,7 +144,7 @@ struct RecentWork: View {
             EmptyStateArt(art: app.search.isEmpty ? .capture : .search, tint: app.search.isEmpty ? Ink.persimmonTint : Ink.butterTint)
             VStack(alignment: .leading, spacing: 4) {
                 Text(app.search.isEmpty ? "Record something new." : "Nothing found for “\(app.search)”").font(Ink.serif(21)).foregroundStyle(Ink.ink)
-                Text(app.search.isEmpty ? "Recordings, dictations, and imports land here, ready to review." : "Search looks at titles and every transcript's text.")
+                Text(app.search.isEmpty ? "Recordings and imports land here, ready to review. Dictations live in Dictations." : "Search looks at titles and every transcript's text.")
                     .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
             }
             Spacer()

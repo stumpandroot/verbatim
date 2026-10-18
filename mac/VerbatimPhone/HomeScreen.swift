@@ -43,7 +43,7 @@ struct HomeScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     EditorialSectionHeader(index: "02", label: "Recent", title: "Pick up where you left off.")
                         .riseIn("recent", index: 5, seen: seen, epoch: entrance)
-                    let items = Array(app.store.live.prefix(6))
+                    let items = Array(app.store.live.filter { !$0.isDictation }.prefix(6))
                     if items.isEmpty {
                         HStack(spacing: 14) {
                             EmptyStateArt(art: .capture, tint: Ink.persimmonTint)

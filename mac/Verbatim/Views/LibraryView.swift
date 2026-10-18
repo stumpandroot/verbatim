@@ -11,7 +11,7 @@ struct LibraryView: View {
 
     var body: some View {
         // `filtered` searches every transcript's text; work it out once per render.
-        let all = app.filtered
+        let all = app.archive   // no dictations unless searching; they live in Dictations
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
         let groups = Store.group(list)
         VStack(spacing: 0) {
@@ -90,7 +90,7 @@ struct LibraryView: View {
 
     /// All, then each kind with its count, in the app's chip form.
     private func kindChips(_ all: [Transcript]) -> some View {
-        let options: [RecordingKind?] = [nil] + RecordingKind.pickable.map { Optional($0) } + [.dictation]
+        let options: [RecordingKind?] = [nil] + RecordingKind.pickable.map { Optional($0) }
         return FlowRow(spacing: 6, lineSpacing: 6) {
             ForEach(options, id: \.self) { k in
                 let on = k == kind

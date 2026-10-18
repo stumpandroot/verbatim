@@ -156,4 +156,11 @@ final class AppState: ObservableObject {
             (q.isEmpty || t.title.lowercased().contains(q) || store.searchText(t).contains(q))
         }
     }
+
+    /// The Library and Home's Recent: `filtered` without dictations, which live in Dictations. While searching,
+    /// dictations are included (each row says "Dictation"), so nothing becomes unfindable.
+    var archive: [Transcript] {
+        let all = filtered
+        return search.trimmingCharacters(in: .whitespaces).isEmpty ? all.filter { !$0.isDictation } : all
+    }
 }

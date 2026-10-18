@@ -28,6 +28,10 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 app.tab = .library
                 await show("\(prefix)04-library")
+                app.libraryPath.append(DictationsRoute())
+                await show("\(prefix)04d-dictations")
+                app.libraryPath = NavigationPath()
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 app.libraryFilterRequest = "journal"
                 await show("\(prefix)04b-library-journal")
                 app.libraryFilterRequest = "idea"
@@ -186,6 +190,17 @@ enum PhoneUITest {
             ("Locked the second act. The score temp works better than expected. Need to send notes tomorrow.", nil)])
         add("Catalog shoot plan", .idea, daysAgo: 0, hour: 9, duration: 760, tags: ["lapp wagons"], [
             ("Start with the wheels on white, before anything else, then the wagons in the field late afternoon.", nil)])
+        func dictate(_ text: String, minutesAgo: Double) {
+            var t = Transcript(title: String(text.prefix(40)), source: .dictation, sourceLabel: "Dictation", duration: Double(text.split(separator: " ").count) * 0.4, audioFileName: nil, model: "Parakeet TDT v3")
+            t.segments = [Segment(start: 0, end: t.duration, text: text)]
+            t.original = t.segments
+            t.kind = .dictation
+            t.createdAt = Date().addingTimeInterval(-60 * minutesAgo)
+            store.add(t)
+        }
+        dictate("Thanks Chris, Thursday works. I'll bring the wheel samples and the shot list.", minutesAgo: 25)
+        dictate("Reminder to order more white seamless before the catalog shoot.", minutesAgo: 190)
+        dictate("Can you send the dealer sheet as a PDF by Friday? Same photos, trimmed copy.", minutesAgo: 60 * 26)
         add("Wheel sizes to confirm", .note, daysAgo: 2, hour: 15, duration: 48, tags: ["lapp wagons"], [
             ("Confirm the twelve and sixteen inch wheel sizes with Jonathan before the captions.", nil)])
     }

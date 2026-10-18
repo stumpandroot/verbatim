@@ -16,6 +16,8 @@ struct LibraryScreen: View {
     private var items: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
         return app.store.live.filter { t in
+            // Dictations live in their own list; search still finds them (rows say "Dictation").
+            if q.isEmpty && t.isDictation { return false }
             let f: Bool = {
                 switch filter {
                 case .all: return true
@@ -30,6 +32,11 @@ struct LibraryScreen: View {
         }
     }
 
+    /// Press-and-hold dictations, newest first. They have their own list, reached from the card at the top.
+    private var dictations: [Transcript] {
+        app.store.live.filter(\.isDictation).sorted { $0.createdAt > $1.createdAt }
+    }
+
     var body: some View {
         // `items` searches every transcript's text; work it out once per render.
         let items = self.items
@@ -39,7 +46,7 @@ struct LibraryScreen: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         chip("All", .all)
-                        ForEach(RecordingKind.allCases) { k in chip(k.plural, .kind(k)) }
+                        ForEach(RecordingKind.pickable) { k in chip(k.plural, .kind(k)) }
                         chip("Pinned", .pinned)
                         chip("Links", .links)
                         chip("In progress", .working)
@@ -60,6 +67,14 @@ struct LibraryScreen: View {
                     .padding(.horizontal, 20)
                 }
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
+            if filter == .all, search.isEmpty, !dictations.isEmpty {
+                Section {
+                    NavigationLink(value: DictationsRoute()) { DictationsCard(dictations: dictations) }
+                        .buttonStyle(SoftPress())
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
             }
             if let k = heroKind {
                 Section {
@@ -116,6 +131,7 @@ struct LibraryScreen: View {
         .scrollContentBackground(.hidden)
         .background(Ink.paper.ignoresSafeArea())
         .navigationTitle("Library")
+        .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
         .searchable(text: $search, prompt: "Find the line you need")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

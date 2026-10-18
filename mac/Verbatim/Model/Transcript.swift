@@ -283,6 +283,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Placeholder titles Verbatim gives a transcript before it has words.
     static let defaultTitles: Set<String> = ["Voice memo", "Recovered recording", "Dictation", "App audio", "Untitled"]
 
+    /// A press-and-hold (or hands-free) dictation. These live only in Dictations: the Library and Home's Recent
+    /// leave them out unless you're searching (Tim, October 18, 2026).
+    var isDictation: Bool { flow != nil || source == .dictation || kind == .dictation }
+
     /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".
     var stageText: String {
         if pendingLink { return "Waiting for your Mac to fetch the audio" }
