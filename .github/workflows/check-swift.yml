@@ -1,0 +1,74 @@
+name: Quick check (compile only)
+
+# Runs on every push to a branch other than main: compiles the Mac and iPhone apps side by side, with no signing,
+# notarization, screenshots, or bench, so a mistake shows up in minutes. The full build (build-swift.yml) still runs
+# on main and on demand.
+
+on:
+  push:
+    branches-ignore: [main, ci-screens, updates]
+    paths: ["mac/**", ".github/workflows/check-swift.yml"]
+
+concurrency:
+  group: check-swift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Compile (${{ matrix.target }})
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [Mac, iPhone]
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
+
+      - name: Install Rust (Harper grammar engine)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target == 'Mac' && 'aarch64-apple-darwin, x86_64-apple-darwin' || 'aarch64-apple-ios-sim, x86_64-apple-ios' }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mac/harper-ffi/target
+          key: cargo-check-${{ matrix.target }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: mac/build/spm
+          key: spm-${{ hashFiles('mac/project.yml') }}
+          restore-keys: spm-
+
+      - name: Generate the project and grammar libraries
+        run: |
+          brew install xcodegen
+          [ -f Local.xcconfig ] || : > Local.xcconfig
+          xcodegen generate --quiet
+          if [ "${{ matrix.target }}" = "Mac" ]; then bash Vendor/harper/build.sh; else bash Vendor/harper/build-ios.sh; fi
+
+      - name: Compile
+        run: |
+          set -o pipefail
+          if [ "${{ matrix.target }}" = "Mac" ]; then
+            ARGS=(-scheme Verbatim -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
+          else
+            ARGS=(-scheme VerbatimPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
+          fi
+          if ! xcodebuild -project Verbatim.xcodeproj "${ARGS[@]}" -configuration Debug -derivedDataPath build/dd \
+              -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+              CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO build > "$RUNNER_TEMP/build.log" 2>&1; then
+            grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -n 20 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+            tail -n 30 "$RUNNER_TEMP/build.log"
+            exit 1
+          fi
+          echo "${{ matrix.target }} compiles."
