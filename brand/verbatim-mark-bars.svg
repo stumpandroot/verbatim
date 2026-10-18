@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="#26352E">
-  <!-- Verbatim app-icon mark (B1): three bars and a straight tail on a 120-unit grid. -->
+  <!-- Verbatim app-icon mark (B1): three bars and a straight tail on a 120-unit grid. The last bar and the tail are one shape, so no seam shows. -->
   <rect x="22" y="18" width="76" height="14"/>
   <rect x="22" y="43" width="58" height="14"/>
-  <rect x="22" y="68" width="76" height="14"/>
-  <path d="M22 82 L44 82 L22 98 Z"/>
+  <path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/>
 </svg>
