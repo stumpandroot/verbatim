@@ -91,6 +91,9 @@ struct HomeView: View {
 /// Capture / Refine / Understand: flat color, the kit's diagrams, and a real action each.
 struct MethodCards: View {
     @EnvironmentObject var app: AppState
+    /// The diagrams move gently, as on iPhone (AnimatedFeatureArt: still with Limit animation or Reduce Motion, paused
+    /// off screen or when Verbatim isn't active, 30 fps). Still during the screenshot tour, so captures are repeatable.
+    private let animated = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] != "1"
     var body: some View {
         let live = app.store.live
         let latest = live.first { $0.status == .ready && !$0.segments.isEmpty }
@@ -99,16 +102,16 @@ struct MethodCards: View {
             EditorialSectionHeader(index: "01", label: "Method")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12, alignment: .top)], alignment: .leading, spacing: 14) {
                 BrandFeatureCard(feature: .capture, line: "Record, dictate, or import a file or link.",
-                                 meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts") { app.requestRecord() }
+                                 meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts", animated: animated) { app.requestRecord() }
                     .uiTarget("card-capture")
                 BrandFeatureCard(feature: .refine, line: "Clean up a transcript. The original stays.",
-                                 meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil) {
+                                 meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil, animated: animated) {
                     guard let t = latest else { return }
                     app.go(.transcript(t.id))
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NotificationCenter.default.post(name: .verbatimShowMode, object: "Document") }
                 }
                 BrandFeatureCard(feature: .understand, line: "Find what matters: moments, links, and search.",
-                                 meta: moments == 1 ? "1 saved moment" : "\(moments) saved moments") { app.go(.moments) }
+                                 meta: moments == 1 ? "1 saved moment" : "\(moments) saved moments", animated: animated) { app.go(.moments) }
             }
         }
     }
