@@ -20,7 +20,7 @@ struct LibraryView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? kind?.plural ?? "Library")
                             .font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
-                        Text("\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        Text(list.count == 1 ? "1 transcript" : "\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
                         Spacer()
                         if !list.isEmpty {
                             Button(selecting ? "Done" : "Select") {
@@ -49,7 +49,7 @@ struct LibraryView: View {
                         .padding(.top, 30).staggerIn(1)
                     }
                     if kind == .journal && !selecting {
-                        journal(list).padding(.top, 8)
+                        journal(list).padding(.top, 20)
                     } else {
                     ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
                         HStack {

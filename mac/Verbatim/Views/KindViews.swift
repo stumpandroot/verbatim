@@ -109,7 +109,9 @@ struct KindChip: View {
             label
         }
         #if os(macOS)
-        .menuStyle(.borderlessButton)
+        // .borderlessButton draws the label as plain text; .button with a plain style keeps the filled chip.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         #endif
         .menuIndicator(.hidden)
         .fixedSize()
