@@ -82,8 +82,8 @@ extension Transcript {
         return s
     }
 
-    /// Filler-only lines, counted for "2 filler lines hidden".
-    var fillerCount: Int { segments.reduce(0) { $0 + ($1.isFillerOnly ? 1 : 0) } }
+    /// Lines the filler rule hides (`hidesAsFiller`), counted for "2 filler lines hidden".
+    var fillerCount: Int { segments.count - visibleSegments(hideFiller: true).count }
 }
 
 // MARK: - Kind chip

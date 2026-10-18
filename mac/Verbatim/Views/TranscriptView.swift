@@ -166,7 +166,7 @@ struct TranscriptView: View {
             // Deferred save: typing a title doesn't re-encode the whole transcript on every keystroke.
             TextField("Title", text: Binding(get: { t.title }, set: { v in
                 guard v != t.title else { return }
-                app.store.update(t.id) { $0.title = v; $0.titleIsAuto = false }
+                app.store.update(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
             }))
                 .textFieldStyle(.plain).font(Ink.serif(32)).foregroundStyle(Ink.ink).lineLimit(2)
             HStack(spacing: 8) {
@@ -175,7 +175,7 @@ struct TranscriptView: View {
                 if let k = t.kind { Text("·"); Text(k.label) }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
-            // TODO(merge): show AITitleNote() while the title came from AutoLabel, once capture-archive adds the model-title flag.
+            if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 2) }
             if t.status == .ready {
                 KindAndTags(transcript: t, compact: true,
                             onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },

@@ -103,7 +103,7 @@ struct TranscriptScreen: View {
         VStack(alignment: .leading, spacing: 6) {
             TextField("Title", text: Binding(get: { t.title }, set: { v in
                 guard v != t.title else { return }
-                app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false }
+                app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
             }), axis: .vertical)
                 .font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1...3)
             HStack(spacing: 6) {
@@ -113,7 +113,7 @@ struct TranscriptScreen: View {
                 if let k = t.kind { Text("·"); Text(k.label) }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
-            // TODO(merge): show AITitleNote() while the title came from AutoLabel, once capture-archive adds the model-title flag.
+            if t.titleIsAuto && t.titleByModel { AITitleNote() }
             if t.status == .ready {
                 KindAndTags(transcript: t,
                             onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },

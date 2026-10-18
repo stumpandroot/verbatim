@@ -37,6 +37,8 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
+    /// Why the recorder paused itself (a call, a microphone it couldn't follow); nil once you resume or stop.
+    @Published var autoPauseReason: String? = nil
     /// Set to open Library on a kind's raw value, or "all" (the screenshot tour uses it); the Library screen clears it.
     @Published var libraryFilterRequest: String? = nil
     /// The one-time recording-consent notice, shown before the first recording on this iPhone.
@@ -76,7 +78,7 @@ final class PhoneState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         coordinator.host = self
-        recorder.onAutoPaused = { [weak self] reason in self?.say(reason) }
+        recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
@@ -159,8 +161,15 @@ final class PhoneState: ObservableObject {
         requestRecord(appendTo: id)
     }
 
+    /// Pause or Resume on the record screen. Resuming clears an automatic pause's reason.
+    func togglePause() {
+        recorder.togglePause()
+        if !recorder.isPaused { autoPauseReason = nil }
+    }
+
     func stopRecording() {
         showRecorder = false
+        autoPauseReason = nil
         guard let (url, duration, env) = recorder.stop() else { continuing = nil; return }
         if recorder.lastJoinFailed {
             // Every part stays in the recordings folder; launch recovery joins it into one recording.
@@ -185,6 +194,7 @@ final class PhoneState: ObservableObject {
 
     func discardRecording() {
         showRecorder = false
+        autoPauseReason = nil
         continuing = nil
         recorder.discard()
     }
