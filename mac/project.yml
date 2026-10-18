@@ -125,6 +125,7 @@ targets:
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
+      - Verbatim/Views/KindViews.swift
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit

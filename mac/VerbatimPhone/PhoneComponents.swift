@@ -62,7 +62,7 @@ struct PhoneRow: View {
     var transcript: Transcript
     var body: some View {
         HStack(spacing: 12) {
-            SourceTile(source: transcript.source)
+            if let k = transcript.kind, k != .dictation { KindTile(kind: k, size: 40) } else { SourceTile(source: transcript.source) }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     if transcript.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Ink.mute).accessibilityLabel("Pinned") }
@@ -72,6 +72,7 @@ struct PhoneRow: View {
                     Text(sourceName)
                     if transcript.duration > 0 { Text("·"); Text(transcript.duration.timecode).font(Ink.mono(12.5)) }
                     if transcript.speakers.count >= 2 { Text("·"); Text("\(transcript.speakers.count) speakers") }
+                    if let k = transcript.kind, k != .dictation { Text("·"); Text(k.label) }
                 }
                 .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)
                 stateLine

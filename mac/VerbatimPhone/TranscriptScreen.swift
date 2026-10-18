@@ -17,6 +17,10 @@ struct TranscriptScreen: View {
     @State private var didStart = false
     /// The system push slides the screen in; header, modes, and text stagger in behind it.
     @State private var seen = SeenRows()
+    /// "2 filler lines hidden · Show": per screen, starting from Settings › Hide filler lines.
+    @State private var showFiller = false
+    @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
+    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
 
     private var t: Transcript? { app.store.transcript(id) }
 
@@ -97,14 +101,25 @@ struct TranscriptScreen: View {
 
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.updateDeferred(t.id) { $0.title = v } }), axis: .vertical)
+            TextField("Title", text: Binding(get: { t.title }, set: { v in
+                guard v != t.title else { return }
+                app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
+            }), axis: .vertical)
                 .font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1...3)
             HStack(spacing: 6) {
                 Text(t.sourceLabel)
                 if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(Ink.mono(13)) }
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
+                if let k = t.kind { Text("·"); Text(k.label) }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            if t.titleIsAuto && t.titleByModel { AITitleNote() }
+            if t.status == .ready {
+                KindAndTags(transcript: t,
+                            onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
+                            onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
+                    .padding(.top, 8)
+            }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
@@ -150,7 +165,21 @@ struct TranscriptScreen: View {
             .padding(.top, 20)
         } else {
             switch mode {
-            case .transcript: PhoneLines(transcript: t, clock: app.player.clock, onNote: { noteFor = $0 })
+            case .transcript:
+                let background = mainSpeakerOnly ? t.backgroundSegments : []
+                VStack(alignment: .leading, spacing: 10) {
+                    PhoneLines(transcript: t, segments: t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly),
+                               clock: app.player.clock, onNote: { noteFor = $0 })
+                    if hideFillerSetting, t.fillerCount > 0 {
+                        FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 62)
+                    }
+                    if !background.isEmpty {
+                        BackgroundVoicesCard(segments: background,
+                                             onPlay: { s in app.player.seek(to: s.start) },
+                                             onMoveBack: { s in if let main = t.mainSpeaker { app.assign(t.id, segment: s.id, to: main) } })
+                            .padding(.top, 8)
+                    }
+                }
             case .document: PhoneDocument(transcript: t)
             case .review: review(t)
             }
@@ -190,6 +219,8 @@ struct TranscriptScreen: View {
 struct PhoneLines: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
+    /// The lines to show (filler and background voices already left out by the screen).
+    var segments: [Segment]
     var clock: PlayerClock
     var onNote: (Segment) -> Void
     @State private var renaming: Speaker? = nil
@@ -209,7 +240,7 @@ struct PhoneLines: View {
     var body: some View {
         let _ = playingIDs
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
-        let segs = transcript.segments
+        let segs = segments
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in

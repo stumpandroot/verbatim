@@ -259,9 +259,24 @@ struct RecordScreen: View {
             .padding(.top, 20)
             .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
-            Overline(text: "Keeps recording with the screen locked", color: Ink.mute)
-                .frame(maxWidth: .infinity).padding(.top, 14)
-                .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+            if paused, let reason = app.autoPauseReason {
+                // Paused by an interruption (a call, a microphone change): say so, and offer Resume right here.
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: "phone.arrow.down.left").font(.system(size: 17, weight: .medium)).foregroundStyle(Ink.accentText)
+                        .accessibilityHidden(true)
+                    Text(reason).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Button("Resume") { app.togglePause() }.buttonStyle(.brandPrimary)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.top, 14)
+                .accessibilityElement(children: .combine)
+            } else {
+                Overline(text: "Keeps recording with the screen locked", color: Ink.mute)
+                    .frame(maxWidth: .infinity).padding(.top, 14)
+                    .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+            }
 
             Spacer(minLength: 20)
 
@@ -277,7 +292,7 @@ struct RecordScreen: View {
                 .frame(maxWidth: .infinity)
                 RoundControl(label: paused ? "Resume" : "Pause", size: 62) {
                     Image(systemName: paused ? "play.fill" : "pause.fill").font(.system(size: 20)).foregroundStyle(Ink.ink)
-                } action: { app.recorder.togglePause() }
+                } action: { app.togglePause() }
                 .frame(maxWidth: .infinity)
             }
             .padding(.bottom, 18)
@@ -291,6 +306,7 @@ struct RecordScreen: View {
     }
 
     private var headline: String {
+        if paused, app.autoPauseReason != nil { return "Paused. What you said is saved." }
         if paused { return "Paused. Pick up when you're ready." }
         if let t = adding { return "Keep going. This adds to “\(t.title)”." }
         return "Go ahead, I'm listening."

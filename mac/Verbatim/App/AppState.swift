@@ -34,6 +34,8 @@ final class AppState: ObservableObject {
     var navStartedAt = Date()
     @Changed var search = ""
     @Changed var projectFilter: UUID? = nil
+    /// Library › kind chips: nil is All.
+    @Changed var libraryKind: RecordingKind? = nil
     @Changed var focusLink = false
     @Changed var showMicSheet = false
     @Changed var showAppPicker = false
@@ -91,6 +93,7 @@ final class AppState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         coordinator.host = self
+        recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
         dictation.attach(self)
         applyAppearance()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }

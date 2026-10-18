@@ -16,6 +16,38 @@ struct Segment: Codable, Identifiable, Equatable {
     var words: [WordSpan]? = nil
     /// Diarization label such as "S1". Resolved to a name through `Transcript.speakers`.
     var speaker: String? = nil
+
+    /// Words that carry nothing on their own ("Um.", "uh, hmm"). Lowercased, punctuation stripped. Not here:
+    /// "uh-huh", "mm-hmm", and "mhm" (they mean yes) and "er" (a word in other languages).
+    static let fillerWords: Set<String> = ["um", "umm", "uh", "uhh", "uhm", "erm", "ah", "ahh", "hmm", "hm", "mm", "mmm"]
+    private static let edgePunctuation = CharacterSet.punctuationCharacters.union(.symbols)
+
+    /// True when the line is only fillers and punctuation, like a standalone "Um." Empty lines aren't filler.
+    var isFillerOnly: Bool {
+        // "Hmm?" is a question, not filler.
+        if text.contains("?") { return false }
+        let words = text.lowercased().split(whereSeparator: { $0.isWhitespace })
+            .map { $0.trimmingCharacters(in: Self.edgePunctuation) }
+            .filter { !$0.isEmpty }
+        return !words.isEmpty && words.allSatisfy { Self.fillerWords.contains($0) }
+    }
+}
+
+/// What a recording is, for filtering the library. Suggested automatically (`Transcript.kindIsAuto`), changeable later.
+enum RecordingKind: String, Codable, CaseIterable, Identifiable {
+    case journal, idea, meeting, note, dictation
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .journal: return "Journal"
+        case .idea: return "Idea"
+        case .meeting: return "Meeting"
+        case .note: return "Note"
+        case .dictation: return "Dictation"
+        }
+    }
+    /// The kinds a person can pick; dictation is set automatically for dictations.
+    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note]
 }
 
 /// A voice found by diarization. `label` is the engine's anonymous ID; `name` is what the person typed.
@@ -111,7 +143,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
-             processingDeviceName, pendingLink, flow, pendingAppend
+             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel
     }
     /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
     enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
@@ -131,6 +163,14 @@ struct Transcript: Codable, Identifiable, Equatable {
     var corrections: [Correction] = []
     var projectId: UUID? = nil
     var tags: [String] = []
+    /// Journal, idea, meeting, note (or dictation). nil until labeled; `kindIsAuto` false once the person picks one.
+    var kind: RecordingKind? = nil
+    var kindIsAuto = true
+    /// False once the person renames the transcript, so automatic titles never overwrite theirs.
+    var titleIsAuto = true
+    /// The title came from Apple Intelligence (AutoLabel), not the first words: re-transcribing keeps it, and the
+    /// transcript says where it came from. Only meaningful while `titleIsAuto`.
+    var titleByModel = false
     var pinned = false
     var notes: [Note] = []
     var waveform: [Float] = []       // 120 RMS buckets in 0…1
@@ -169,6 +209,7 @@ struct Transcript: Codable, Identifiable, Equatable {
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
+        if source == .dictation { kind = .dictation }
     }
 
     /// Tolerant of files written by earlier builds: every field added later decodes with its default.
@@ -226,7 +267,21 @@ struct Transcript: Codable, Identifiable, Equatable {
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
         pendingAppend = try c.decodeIfPresent(String.self, forKey: .pendingAppend)
+        // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
+        kind = (try? c.decodeIfPresent(RecordingKind.self, forKey: .kind)) ?? (source == .dictation ? .dictation : nil)
+        kindIsAuto = try c.decodeIfPresent(Bool.self, forKey: .kindIsAuto) ?? true
+        // Files from before this field: automatic only if the title is still one Verbatim made (the first words or a
+        // placeholder). Anything else was named by the person, so automatic titles leave it alone.
+        if let auto = try c.decodeIfPresent(Bool.self, forKey: .titleIsAuto) {
+            titleIsAuto = auto
+        } else {
+            titleIsAuto = Self.defaultTitles.contains(title) || title == Self.titleFrom(segments)
+        }
+        titleByModel = try c.decodeIfPresent(Bool.self, forKey: .titleByModel) ?? false
     }
+
+    /// Placeholder titles Verbatim gives a transcript before it has words.
+    static let defaultTitles: Set<String> = ["Voice memo", "Recovered recording", "Dictation", "App audio", "Untitled"]
 
     /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".
     var stageText: String {
@@ -273,8 +328,46 @@ struct Transcript: Codable, Identifiable, Equatable {
     }
 
     /// First few words of the first segment, for an untitled recording.
+    /// Segments to show: all of them, or without filler-only lines ("Um.") when `hideFiller`. Nothing is deleted;
+    /// ids are unchanged, so edits and exports still map to the right segment.
+    func visibleSegments(hideFiller: Bool) -> [Segment] {
+        guard hideFiller else { return segments }
+        return segments.indices.filter { !hidesAsFiller($0) }.map { segments[$0] }
+    }
+
+    /// A filler-only line is hidden unless it's someone else's turn on both sides of it: a lone "Um." from the
+    /// other person is a reply (a pause, a hesitation), not noise inside one speaker's paragraph.
+    func hidesAsFiller(_ i: Int) -> Bool {
+        let s = segments[i]
+        guard s.isFillerOnly else { return false }
+        guard let me = s.speaker else { return true }
+        let before = i > 0 ? segments[i - 1].speaker : nil
+        let after = i + 1 < segments.count ? segments[i + 1].speaker : nil
+        let others = [before, after].compactMap { $0 }
+        return !(others.count == 2 && others.allSatisfy { $0 != me })
+    }
+
+    /// Settings key for hiding filler-only lines (default on).
+    static let hideFillerKey = "transcript.hideFiller"
+    static var hideFiller: Bool { UserDefaults.standard.object(forKey: hideFillerKey) as? Bool ?? true }
+
+    /// The speaker with the most talk time, when there are at least two.
+    var mainSpeaker: String? {
+        guard speakers.count >= 2 else { return nil }
+        var time: [String: Double] = [:]
+        for s in segments { if let sp = s.speaker { time[sp, default: 0] += max(0, s.end - s.start) } }
+        guard time.count >= 2 else { return nil }
+        return time.max { $0.value < $1.value }?.key
+    }
+
+    /// Lines spoken by anyone other than the main speaker (background voices). Empty without a main speaker.
+    var backgroundSegments: [Segment] {
+        guard let main = mainSpeaker else { return [] }
+        return segments.filter { $0.speaker != nil && $0.speaker != main }
+    }
+
     static func titleFrom(_ segments: [Segment]) -> String? {
-        guard let first = segments.first(where: { !$0.text.isEmpty }) else { return nil }
+        guard let first = segments.first(where: { !$0.text.isEmpty && !$0.isFillerOnly }) else { return nil }
         let words = first.text.split(separator: " ").prefix(8).joined(separator: " ")
         let t = words.trimmingCharacters(in: .punctuationCharacters)
         return t.isEmpty ? nil : t

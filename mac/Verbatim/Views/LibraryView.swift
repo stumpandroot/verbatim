@@ -6,18 +6,21 @@ struct LibraryView: View {
     @EnvironmentObject var app: AppState
     @State private var selecting = false
     @State private var selection: Set<UUID> = []
+    /// Library › kind chips (nil is All), kept on AppState so the screenshot tour can choose one.
+    private var kind: RecordingKind? { app.libraryKind }
 
     var body: some View {
         // `filtered` searches every transcript's text; work it out once per render.
-        let list = app.filtered
+        let all = app.filtered
+        let list = kind.map { k in all.filter { $0.kind == k } } ?? all
         let groups = Store.group(list)
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library")
+                        Text(app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? kind?.plural ?? "Library")
                             .font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
-                        Text("\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        Text(list.count == 1 ? "1 transcript" : "\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
                         Spacer()
                         if !list.isEmpty {
                             Button(selecting ? "Done" : "Select") {
@@ -31,6 +34,10 @@ struct LibraryView: View {
                     if !selecting && !app.store.projects.isEmpty {
                         Text("Drag a transcript onto a project in the sidebar to file it.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                     }
+                    kindChips(all).padding(.top, 12).staggerIn(1)
+                    if let k = kind {
+                        KindHeroCard(kind: k, meta: heroMeta(k, list), compact: true).frame(maxWidth: 760).padding(.top, 16)
+                    }
                     if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
                         PassageResults(query: app.search, list: list).padding(.top, 14)
                     }
@@ -41,6 +48,9 @@ struct LibraryView: View {
                         }
                         .padding(.top, 30).staggerIn(1)
                     }
+                    if kind == .journal && !selecting {
+                        journal(list).padding(.top, 20)
+                    } else {
                     ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
                         HStack {
                             Text(g.label).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
@@ -64,6 +74,7 @@ struct LibraryView: View {
                             }
                         }
                     }
+                    }
                 }
                 .frame(maxWidth: 1040)
                 .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, selecting ? 90 : 40)
@@ -75,6 +86,73 @@ struct LibraryView: View {
             if selecting { actionBar.padding(.bottom, 18).transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity)) }
         }
         .onChange(of: app.projectFilter) { _, _ in selection = [] }
+    }
+
+    /// All, then each kind with its count, in the app's chip form.
+    private func kindChips(_ all: [Transcript]) -> some View {
+        let options: [RecordingKind?] = [nil] + RecordingKind.pickable.map { Optional($0) } + [.dictation]
+        return FlowRow(spacing: 6, lineSpacing: 6) {
+            ForEach(options, id: \.self) { k in
+                let on = k == kind
+                let n = k.map { kk in all.filter { $0.kind == kk }.count } ?? all.count
+                Button { app.libraryKind = k; selection = [] } label: {
+                    HStack(spacing: 6) {
+                        Text(k?.plural ?? "All")
+                        Text("\(n)").fontWeight(.regular).opacity(0.75)
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
+                    .padding(.horizontal, 12).frame(minHeight: 30)
+                    .background(on ? Ink.interactive : Ink.card, in: Capsule())
+                    .overlay(Capsule().strokeBorder(on ? Color.clear : Ink.hairline))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+                .uiTarget(k.map { "kind-\($0.rawValue)" } ?? "kind-all")
+            }
+        }
+    }
+
+    private func heroMeta(_ k: RecordingKind, _ list: [Transcript]) -> String {
+        if k == .journal {
+            let week = Date().addingTimeInterval(-7 * 86_400)
+            let n = list.filter { $0.createdAt >= week }.count
+            return "\(n) this week"
+        }
+        return list.count == 1 ? "1 saved" : "\(list.count) saved"
+    }
+
+    /// Journal reads by day: "◇ TODAY ···· SAT 17 OCT", then each entry's title, time, and opening lines.
+    private func journal(_ list: [Transcript]) -> some View {
+        VStack(alignment: .leading, spacing: 26) {
+            ForEach(JournalDays.group(list)) { day in
+                VStack(alignment: .leading, spacing: 10) {
+                    EditorialSectionHeader(index: day.date.uppercased(), label: day.label)
+                    ForEach(day.entries) { t in
+                        Button { app.go(.transcript(t.id)) } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text(t.title).font(Ink.serif(22)).foregroundStyle(Ink.ink).lineLimit(1)
+                                    Text("\(Formats.pattern("h:mm a").string(from: t.createdAt)) · \(t.duration.timecode)")
+                                        .font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+                                    Spacer(minLength: 0)
+                                }
+                                Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(3).lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                            .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu { RowMenu(transcript: t) }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: 760, alignment: .leading)
     }
 
     private func toggle(_ id: UUID) { if selection.contains(id) { selection.remove(id) } else { selection.insert(id) } }

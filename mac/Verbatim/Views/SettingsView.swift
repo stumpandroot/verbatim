@@ -6,6 +6,9 @@ struct SettingsView: View {
     @EnvironmentObject var app: AppState
     @AppStorage("settingsTab") private var tab: SettingsTab = .general
     @AppStorage(MotionPreference.key) private var motionLimited = false
+    @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
+    @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
+    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
 
     var body: some View {
         TabView(selection: $tab) {
@@ -77,6 +80,17 @@ struct SettingsView: View {
                 }
                 Toggle("Apply Dictionary to new transcripts", isOn: $app.applyDictionary)
                 Text("Only words listed under “Heard as” are replaced, and every fix shows on the transcript.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section {
+                Toggle("Name and sort recordings", isOn: $autoLabels)
+                Text("Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Hide filler lines", isOn: $hideFiller)
+                Text("Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Main speaker only", isOn: $mainSpeakerOnly)
+                Text("Other voices fold into a Background voices section under the transcript.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section {
@@ -291,6 +305,7 @@ struct DictationForm: View {
     @State private var trusted = false
     @State private var newTrigger = ""
     @State private var newExpansion = ""
+    @AppStorage(FlowSettings.maxDictationMinutesKey) private var maxMinutes: Double = 10
 
     var body: some View {
         Form {
@@ -309,6 +324,11 @@ struct DictationForm: View {
                 }
                 DictationHotkeyRows(dictation: dictation)
                 Text(flow.mode.note + " Press Esc to cancel. Hold Shift as you start to edit selected text by voice. ⌘⌃V pastes your last dictation again.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Picker("Stop dictating after", selection: $maxMinutes) {
+                    Text("5 minutes").tag(5.0); Text("10 minutes").tag(10.0); Text("20 minutes").tag(20.0); Text("No limit").tag(0.0)
+                }
+                Text("A minute before, the button says so. Your words up to the stop are pasted, never thrown away. Recording in the app has no limit.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section("Cleanup") {

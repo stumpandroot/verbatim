@@ -13,6 +13,9 @@ struct SettingsScreen: View {
     @Environment(\.openURL) private var openURL
     @AppStorage(Profile.aboutMeKey) private var aboutMe = ""
     @AppStorage(MotionPreference.key) private var motionLimited = false
+    @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
+    @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
+    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     /// Groups stagger in when you switch to Settings.
     @State private var seen = SeenRows()
     @State private var entrance = 0
@@ -38,7 +41,7 @@ struct SettingsScreen: View {
                     .padding(.top, 8)
                     .riseIn("title", index: 0, seen: seen, epoch: entrance)
                 group(1, "Personalization") { personalization }
-                group(2, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links are fetched by your Mac.") { transcription }
+                group(2, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links are fetched by your Mac. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
                 group(3, "Sync and data") { syncAndData }
                 group(4, "Support") { support }
                 group(5, "Welcome tour") { tour }
@@ -146,6 +149,15 @@ struct SettingsScreen: View {
         SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, title: "Identify speakers", isOn: $app.identifySpeakers)
         SettingsDivider()
         SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, title: "Apply Dictionary", isOn: $app.applyDictionary)
+        SettingsDivider()
+        SettingsToggleRow(icon: "sparkle", tint: Ink.butterTint, title: "Name and sort recordings",
+                          subtitle: "Suggests a title, kind, and tags when a transcript is ready", art: .featureLabel, isOn: $autoLabels)
+        SettingsDivider()
+        SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, title: "Hide filler lines",
+                          subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", art: .featureFiller, isOn: $hideFiller)
+        SettingsDivider()
+        SettingsToggleRow(icon: "person", tint: Ink.sageTint, title: "Main speaker only",
+                          subtitle: "Other voices fold into a Background voices section", art: .featureMain, isOn: $mainSpeakerOnly)
     }
 
     @ViewBuilder private var syncAndData: some View {
@@ -322,16 +334,22 @@ struct SettingsLabel: View {
     var subtitleLines: Int? = 2
     var bounce: AnyHashable = 0
     var danger = false
+    /// A Verbatim diagram in place of the symbol (the capture-and-archive rows).
+    var art: BrandArt? = nil
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint)
-                Image(systemName: icon).font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(danger ? Ink.accentText : Ink.ink)
-                    .symbolEffect(.bounce, value: bounce)
-                    .symbolEffectsRemoved(limitMotion)
+                if let art {
+                    BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1).frame(width: 21, height: 21)
+                } else {
+                    Image(systemName: icon).font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(danger ? Ink.accentText : Ink.ink)
+                        .symbolEffect(.bounce, value: bounce)
+                        .symbolEffectsRemoved(limitMotion)
+                }
             }
             .frame(width: 30, height: 30)
             .accessibilityHidden(true)
@@ -377,11 +395,12 @@ struct SettingsToggleRow: View {
     var tint: Color
     var title: String
     var subtitle: String? = nil
+    var art: BrandArt? = nil
     @Binding var isOn: Bool
 
     var body: some View {
         Toggle(isOn: $isOn) {
-            SettingsLabel(icon: icon, tint: tint, title: title, subtitle: subtitle, bounce: isOn)
+            SettingsLabel(icon: icon, tint: tint, title: title, subtitle: subtitle, subtitleLines: nil, bounce: isOn, art: art)
         }
         .toggleStyle(SpringSwitchStyle())
         .padding(.horizontal, 14).padding(.vertical, 10)

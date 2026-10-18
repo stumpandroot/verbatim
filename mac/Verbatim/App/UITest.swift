@@ -73,6 +73,8 @@ enum UITest {
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
+            logicChecks()
+
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             await tour(app: app, window: window)
         }
@@ -84,6 +86,7 @@ enum UITest {
     private static func tour(app: AppState, window: NSWindow) async {
         appRef = app
         seedRich(app)
+        seedArchive(app)
         seedDictations(app)
         seedActivity()
         try? await Task.sleep(nanoseconds: 800_000_000)
@@ -102,6 +105,11 @@ enum UITest {
         app.showAppPicker = false
         app.projectFilter = nil; app.go(.library)
         await show("05-library")
+        app.libraryKind = .journal
+        await show("05h-library-journal")
+        app.libraryKind = .idea
+        await show("05i-library-ideas")
+        app.libraryKind = nil
         app.go(.queue)
         await show("05b-queue")
         app.go(.links)
@@ -124,6 +132,12 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
         await show("06b-document")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
+        if let walk = app.store.live.first(where: { $0.title == "Errands and a long walk" }) {
+            UserDefaults.standard.set(true, forKey: Transcript.mainSpeakerOnlyKey)
+            app.go(.transcript(walk.id))
+            await show("06e-background-voices")
+            UserDefaults.standard.set(false, forKey: Transcript.mainSpeakerOnlyKey)
+        }
         // Performance probe: open a long transcript from Home and log how long the screen takes.
         let long = seedLong(app)
         app.go(.home)
@@ -166,6 +180,10 @@ enum UITest {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
         await show("09-settings")
+        UserDefaults.standard.set(SettingsTab.transcription.rawValue, forKey: "settingsTab")
+        await show("09c-settings-transcription")
+        UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
+        await show("09d-settings-dictate")
         UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
         await show("09b-settings-actions")
         UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
@@ -190,8 +208,10 @@ enum UITest {
         await show("13-dark-document")
         app.go(.links)
         await show("14-dark-links")
+        app.libraryKind = .journal
         app.go(.library)
         await show("15-dark-library")
+        app.libraryKind = nil
         app.go(.dictations)
         await show("16-dark-dictations")
         app.go(.activity)
@@ -246,9 +266,11 @@ enum UITest {
             (0, 6, "Okay, so the catalog needs to work for the folding wagon and the full wheel line.", "S1"),
             (6, 11, "Right. Jonathan wants the wheels first, then the wagons as a second section.", "S2"),
             (11, 18, "Then we shoot the wheels on white, and the wagons out in the field by the shop in Ephrata.", "S1"),
-            (18, 24, "Chris mentioned the Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", "S2"),
+            (18, 18.6, "Um.", "S1"),
+            (18.6, 24, "Chris mentioned the Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", "S2"),
             (24, 31, "Fine. One hero per product, three details, and a spec table. Keep the copy plain.", "S1"),
-            (31, 37, "And the folding wagon gets its own spread, because thats the one people ask about.", "S2"),
+            (31, 31.8, "Uh, hmm.", "S2"),
+            (31.8, 37, "And the folding wagon gets its own spread, because thats the one people ask about.", "S2"),
             (37, 42, "Agreed. I'll send the shot list Thursday.", "S1"),
         ]
         t.segments = lines.map { Segment(start: $0.0, end: $0.1, text: $0.2, speaker: $0.3) }
@@ -257,10 +279,48 @@ enum UITest {
         t.projectId = project.id
         t.waveform = Waveform.envelope(of: url)
         t.pinned = true
+        // Capture and archive: a suggested kind and tags, and two filler lines the transcript hides.
+        t.kind = .meeting; t.kindIsAuto = true; t.tags = ["lapp wagons", "catalog"]
         app.store.add(t)
-        app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: t.segments[2].id, isBookmark: false), to: t.id)
-        app.store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: t.segments[5].id, isBookmark: true), to: t.id)
+        let shoot = t.segments.first { $0.text.hasPrefix("Then we shoot") }!, spread = t.segments.first { $0.text.hasPrefix("And the folding") }!
+        app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: shoot.id, isBookmark: false), to: t.id)
+        app.store.addNote(Note(text: "Folding wagon spread", at: 31.8, segmentId: spread.id, isBookmark: true), to: t.id)
         app.store.addNote(Note(text: "Quote for the one-page sheet: separate line item.", at: nil, segmentId: nil, isBookmark: false), to: t.id)
+    }
+
+    /// Capture and archive: Journal entries on three days (one with background voices), an idea, and a note.
+    private static func seedArchive(_ app: AppState) {
+        guard !app.store.transcripts.contains(where: { $0.title == "Errands and a long walk" }) else { return }
+        func add(_ title: String, _ kind: RecordingKind, daysAgo: Double, hour: Int, duration: Double, tags: [String] = [], _ lines: [(String, String?)]) {
+            var t = Transcript(title: title, source: .voiceMemo, sourceLabel: "Voice memo", duration: duration, audioFileName: nil, model: "Parakeet TDT v3")
+            var start = 0.0
+            t.segments = lines.map { line in
+                let len = max(1, Double(line.0.split(separator: " ").count) * 0.4)
+                defer { start += len }
+                return Segment(start: start, end: start + len, text: line.0, speaker: line.1)
+            }
+            t.original = t.segments
+            if lines.contains(where: { $0.1 == "S2" }) { t.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")] }
+            let day = Calendar.current.startOfDay(for: Date().addingTimeInterval(-86_400 * daysAgo))
+            t.createdAt = Calendar.current.date(byAdding: .hour, value: hour, to: day) ?? day
+            t.kind = kind; t.kindIsAuto = true; t.tags = tags
+            app.store.add(t)
+        }
+        add("Slow start, good afternoon", .journal, daysAgo: 0, hour: 7, duration: 372, tags: ["family"], [
+            ("Woke up before the kids. Coffee on the porch, thinking about how to split the week between the catalog and the film.", nil),
+            ("The afternoon was better. Got the shot list done and the dealer sheet roughed out.", nil)])
+        add("Errands and a long walk", .journal, daysAgo: 1, hour: 18, duration: 1531, tags: ["verbatim"], [
+            ("Grocery run, then the long way home. Talked through the speech app the whole way; some of it was actually useful.", "S1"),
+            ("Please place the item in the bagging area.", "S2"),
+            ("The big idea is that the app should sort recordings by itself, so the journal just builds up.", "S1"),
+            ("Do you have a bag for that?", "S2"),
+            ("And the titles should come from what I said, not the first five words.", "S1")])
+        add("Quiet day in the edit", .journal, daysAgo: 3, hour: 21, duration: 260, tags: ["film"], [
+            ("Locked the second act. The score temp works better than expected. Need to send notes tomorrow.", nil)])
+        add("Catalog shoot plan", .idea, daysAgo: 0, hour: 9, duration: 760, tags: ["lapp wagons"], [
+            ("Start with the wheels on white, before anything else, then the wagons in the field late afternoon.", nil)])
+        add("Wheel sizes to confirm", .note, daysAgo: 2, hour: 15, duration: 48, tags: ["lapp wagons"], [
+            ("Confirm the twelve and sixteen inch wheel sizes with Jonathan before the captions.", nil)])
     }
 
     /// Three dictations into other apps, for the Dictations screen.
@@ -403,6 +463,98 @@ enum UITest {
             buf.int16ChannelData![0][i] = Int16(max(-1, min(1, v)) * 32000)
         }
         try? file.write(from: buf)
+    }
+
+    /// Checks that need no clicks: filler lines, recording kinds, and joining a long recording's segments
+    /// (including one whose header was never finalized, as after a crash).
+    private static func logicChecks() {
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+        }
+        check("filler-only lines", Segment(start: 0, end: 1, text: "Um.").isFillerOnly && Segment(start: 0, end: 1, text: "uh, hmm…").isFillerOnly
+              && !Segment(start: 0, end: 1, text: "Um, I think so.").isFillerOnly && !Segment(start: 0, end: 1, text: "").isFillerOnly)
+        let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
+        check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
+
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("verbatim-seg-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let base = dir.appendingPathComponent("2026-01-01 at 10.00.00.wav")
+        func write(_ url: URL, seconds: Double) {
+            guard let f = try? AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true),
+                  let b = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: AVAudioFrameCount(16_000 * seconds)) else { return }
+            b.frameLength = b.frameCapacity
+            if let ch = b.int16ChannelData?[0] { for i in 0..<Int(b.frameLength) { ch[i] = Int16(truncatingIfNeeded: (i % 64) * 200) } }
+            try? f.write(from: b)
+            if #available(macOS 15, *) { f.close() }
+        }
+        write(base, seconds: 1)
+        write(RecordingSegments.url(for: base, index: 2), seconds: 1)
+        let third = RecordingSegments.url(for: base, index: 3)
+        write(third, seconds: 1)
+        // Zero the third file's sizes, like a recording the app never closed.
+        if let h = try? FileHandle(forUpdating: third) {
+            try? h.seek(toOffset: 4); h.write(Data([0, 0, 0, 0]))
+            try? h.seek(toOffset: 0)
+            if let head = try? h.read(upToCount: 4096), let r = head.range(of: Data("data".utf8)) {
+                try? h.seek(toOffset: UInt64(r.upperBound)); h.write(Data([0, 0, 0, 0]))
+            }
+            try? h.close()
+        }
+        RecordingSegments.joinLeftovers(in: dir)
+        let frames = (try? AVAudioFile(forReading: base))?.length ?? 0
+        let left = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST segments joined frames=\(frames) leftover=\(left)")
+        check("segments join into one recording", abs(Int(frames) - 48_000) <= 400 && left.isEmpty)
+
+        // A join the app died in the middle of. Bytes per second of 16 kHz 16-bit mono: 32,000.
+        func frameCount(_ u: URL) -> Int { Int((try? AVAudioFile(forReading: u))?.length ?? -1) }
+        func clean() { for f in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] { try? fm.removeItem(at: f) } }
+        // Roll forward: every byte already appended, the segment not yet deleted.
+        clean()
+        write(base, seconds: 2)
+        let seg2 = RecordingSegments.url(for: base, index: 2)
+        write(seg2, seconds: 1)
+        try? RecordingSegments.writeMarker(.init(base: base.lastPathComponent, originalLength: 32_000, expectedLength: 64_000,
+                                                 segments: [seg2.lastPathComponent], renamedFrom: nil), in: dir)
+        RecordingSegments.joinLeftovers(in: dir)
+        var rest = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST join roll-forward frames=\(frameCount(base)) leftover=\(rest)")
+        check("interrupted join rolls forward", abs(frameCount(base) - 32_000) <= 200 && rest.isEmpty)
+        // Roll back: half of the segment appended when the app died. Cut back, then joined again: 2 s, nothing left.
+        clean()
+        write(base, seconds: 1.5)
+        write(seg2, seconds: 1)
+        try? RecordingSegments.writeMarker(.init(base: base.lastPathComponent, originalLength: 32_000, expectedLength: 64_000,
+                                                 segments: [seg2.lastPathComponent], renamedFrom: nil), in: dir)
+        RecordingSegments.joinLeftovers(in: dir)
+        rest = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST join roll-back frames=\(frameCount(base)) leftover=\(rest)")
+        check("interrupted join rolls back and rejoins", abs(frameCount(base) - 32_000) <= 200 && rest.isEmpty)
+        // An unreadable middle segment: nothing is touched.
+        clean()
+        write(base, seconds: 1)
+        try? Data("not a wav file".utf8).write(to: seg2)
+        let seg3 = RecordingSegments.url(for: base, index: 3)
+        write(seg3, seconds: 1)
+        func sizes() -> [Int] { [base, seg2, seg3].map { ((try? fm.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? -1 } }
+        let before = sizes()
+        RecordingSegments.joinLeftovers(in: dir)
+        Log.note("UITEST join abort sizes before=\(before) after=\(sizes())")
+        check("join with an unreadable segment touches nothing", before == sizes() && !before.contains(-1))
+        check("segment numbers past 999 parse", RecordingSegments.parse(RecordingSegments.url(for: base, index: 1000))?.index == 1000)
+
+        // Filler rules: answers and questions stay.
+        check("filler keeps answers and questions",
+              !Segment(start: 0, end: 1, text: "Uh-huh.").isFillerOnly && !Segment(start: 0, end: 1, text: "Hmm?").isFillerOnly
+              && !Segment(start: 0, end: 1, text: "Mm-hmm.").isFillerOnly && Segment(start: 0, end: 1, text: "Um.").isFillerOnly)
+        var turns = Transcript(title: "Turns", source: .voiceMemo, sourceLabel: "Voice memo", duration: 3, audioFileName: nil, model: "")
+        turns.segments = [Segment(start: 0, end: 1, text: "Did you sign it?", speaker: "S1"), Segment(start: 1, end: 2, text: "Um.", speaker: "S2"),
+                          Segment(start: 2, end: 3, text: "Okay, take your time.", speaker: "S1"), Segment(start: 3, end: 4, text: "Uh.", speaker: "S1")]
+        let shown = turns.visibleSegments(hideFiller: true).map(\.text)
+        check("filler hides only within a speaker's turn", shown == ["Did you sign it?", "Um.", "Okay, take your time."])
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {

@@ -20,6 +20,10 @@ struct TranscriptView: View {
     /// True once the mode bar has scrolled under the top edge; a pinned copy shows there instead.
     @State private var barPinned = false
     @State private var runningAction: FlowAction? = nil
+    /// "2 filler lines hidden · Show": per view, starting from Settings › Hide filler lines.
+    @State private var showFiller = false
+    @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
+    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     @Namespace private var segNS
 
     enum Mode: String, CaseIterable { case original = "Transcript", document = "Document", review = "Review" }
@@ -160,13 +164,24 @@ struct TranscriptView: View {
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             // Deferred save: typing a title doesn't re-encode the whole transcript on every keystroke.
-            TextField("Title", text: Binding(get: { t.title }, set: { v in app.store.update(t.id) { $0.title = v } }))
+            TextField("Title", text: Binding(get: { t.title }, set: { v in
+                guard v != t.title else { return }
+                app.store.update(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
+            }))
                 .textFieldStyle(.plain).font(Ink.serif(32)).foregroundStyle(Ink.ink).lineLimit(2)
             HStack(spacing: 8) {
                 Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
+                if let k = t.kind { Text("·"); Text(k.label) }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 2) }
+            if t.status == .ready {
+                KindAndTags(transcript: t, compact: true,
+                            onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
+                            onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
+                    .padding(.top, 10)
+            }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
@@ -242,9 +257,27 @@ struct TranscriptView: View {
         else if t.status == .failed { failed(t) }
         else {
             switch view {
-            case .original: lines(t, segments: t.segments, editable: true)
+            case .original: original(t)
             case .document: DocumentView(transcript: t)
             case .review: review(t)
+            }
+        }
+    }
+
+    /// The reading lines, then the quiet filler toggle and, with Main speaker only on, the Background voices card.
+    private func original(_ t: Transcript) -> some View {
+        let hide = hideFillerSetting && !showFiller
+        let background = mainSpeakerOnly ? t.backgroundSegments : []
+        return VStack(alignment: .leading, spacing: 12) {
+            lines(t, segments: t.displaySegments(hideFiller: hide, mainOnly: mainSpeakerOnly), editable: true)
+            if hideFillerSetting, t.fillerCount > 0 {
+                FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 60)
+            }
+            if !background.isEmpty {
+                BackgroundVoicesCard(segments: background, compact: true,
+                                     onPlay: { s in app.player.seek(to: s.start) },
+                                     onMoveBack: { s in if let main = t.mainSpeaker { app.assign(transcript: t.id, segment: s.id, to: main) } })
+                    .padding(.top, 6)
             }
         }
     }
