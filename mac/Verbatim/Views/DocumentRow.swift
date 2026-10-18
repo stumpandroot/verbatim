@@ -93,7 +93,7 @@ struct DocumentRow: View {
             }
             .accessibilityLabel("Processing: \(transcript.stageText)")
         } else if transcript.status == .failed {
-            Label("Needs retry", systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(Ink.danger)
+            HStack(spacing: 5) { IconGlyph(art: .iconAttention, size: 14, color: Ink.accentText); Text("Needs retry") }.font(.system(size: 12)).foregroundStyle(Ink.accentText)
         }
     }
 

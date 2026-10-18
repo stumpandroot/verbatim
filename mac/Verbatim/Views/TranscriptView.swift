@@ -343,7 +343,7 @@ struct TranscriptView: View {
 
     private func failed(_ t: Transcript) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle").font(.system(size: 22, weight: .light)).foregroundStyle(Ink.danger).frame(width: 40, height: 40)
+            IconGlyph(art: .iconAttention, size: 28, color: Ink.accentText).frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Transcription did not finish").font(.system(size: 14, weight: .semibold))
                 Text(t.error ?? "").font(.system(size: 13)).foregroundStyle(Ink.mute)

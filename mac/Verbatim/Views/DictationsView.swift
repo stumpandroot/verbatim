@@ -58,7 +58,7 @@ struct DictationsView: View {
 
                 if shown.isEmpty {
                     HStack(spacing: 16) {
-                        EmptyStateArt(art: .capture, tint: Ink.persimmonTint)
+                        IconPlate(art: .iconDictations, size: 80)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(all.isEmpty ? "No dictations yet" : "Nothing matches").font(Ink.serif(20, weight: .regular))
                             Text("Click the floating button at the edge of your screen, or \(app.dictation.hotkey.shortTitle), and talk. The words land where your cursor is.")

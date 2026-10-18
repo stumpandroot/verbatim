@@ -158,7 +158,7 @@ struct TranscriptScreen: View {
             .padding(.top, 20)
         } else if t.status == .failed {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Transcription did not finish", systemImage: "exclamationmark.triangle").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.danger)
+                HStack(spacing: 8) { IconGlyph(art: .iconAttention, size: 20, color: Ink.accentText); Text("Transcription did not finish") }.font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.accentText)
                 Text(t.error ?? "").font(.system(size: 14)).foregroundStyle(Ink.mute)
                 Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
             }

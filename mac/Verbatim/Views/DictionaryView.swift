@@ -64,7 +64,7 @@ struct DictionaryView: View {
 
                 if entries.isEmpty {
                     VStack(spacing: 10) {
-                        EmptyStateArt(art: filter.isEmpty ? .refine : .search, tint: Ink.petalTint)
+                        if filter.isEmpty { IconPlate(art: .iconDictionary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.petalTint) }
                         Text(filter.isEmpty ? "No words yet" : "Nothing matches “\(filter)”").font(.system(size: 15, weight: .semibold))
                         if filter.isEmpty {
                             Text("Brand names, people, and places are the usual suspects. Add them before a transcript, or fix them after.")

@@ -42,8 +42,8 @@ struct LibraryView: View {
                         PassageResults(query: app.search, list: list).padding(.top, 14)
                     }
                     if groups.isEmpty {
-                        HStack(spacing: 14) {
-                            EmptyStateArt(art: app.search.isEmpty ? .library : .search, tint: Ink.butterTint)
+                        VStack(alignment: .leading, spacing: 12) {
+                            if app.search.isEmpty { IconPlate(art: .iconLibrary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
                             Text(app.search.isEmpty ? "Nothing in here yet." : "Nothing found for “\(app.search)”.").font(.system(size: 14)).foregroundStyle(Ink.mute)
                         }
                         .padding(.top, 30).staggerIn(1)

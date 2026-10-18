@@ -93,12 +93,12 @@ struct PhoneRow: View {
     @ViewBuilder private var stateLine: some View {
         if transcript.status == .processing {
             HStack(spacing: 6) {
-                if transcript.processingDevice == Device.id { ProgressView().controlSize(.mini) } else { Image(systemName: "laptopcomputer").font(.system(size: 11)) }
+                if transcript.processingDevice == Device.id { ProgressView().controlSize(.mini) } else { IconGlyph(art: .iconWaitingForMac, size: 15, color: Ink.dim) }
                 Text(transcript.stageText).lineLimit(1)
             }
             .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
         } else if transcript.status == .failed {
-            Label("Needs retry", systemImage: "exclamationmark.triangle").font(.system(size: 12.5)).foregroundStyle(Ink.danger)
+            HStack(spacing: 6) { IconGlyph(art: .iconAttention, size: 15, color: Ink.accentText); Text("Needs retry") }.font(.system(size: 12.5)).foregroundStyle(Ink.accentText)
         }
     }
 

@@ -21,22 +21,22 @@ struct Sidebar: View {
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbatim")
 
-            SideItem(label: "Home", symbol: "house", selected: app.screen == .home, pill: pill) { app.go(.home) }
+            SideItem(label: "Home", art: .iconHome, selected: app.screen == .home, pill: pill) { app.go(.home) }
                 .uiTarget("side-home")
-            SideItem(label: "Library", symbol: "doc.text", selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
+            SideItem(label: "Library", art: .iconLibrary, selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
                 .uiTarget("side-library")
-            SideItem(label: "Links", symbol: "link", selected: app.screen == .links, badge: nil, pill: pill) { app.go(.links) }
+            SideItem(label: "Links", art: .iconLinks, selected: app.screen == .links, badge: nil, pill: pill) { app.go(.links) }
                 .uiTarget("side-links")
-            SideItem(label: "Moments", symbol: "bookmark", selected: app.screen == .moments, pill: pill) { app.go(.moments) }
+            SideItem(label: "Moments", art: .iconMoments, selected: app.screen == .moments, pill: pill) { app.go(.moments) }
                 .uiTarget("side-moments")
-            SideItem(label: "Queue", symbol: "list.bullet", selected: app.screen == .queue,
+            SideItem(label: "Queue", art: .iconQueue, selected: app.screen == .queue,
                      badge: app.queue.count + (app.runningID == nil ? 0 : 1) == 0 ? nil : "\(app.queue.count + (app.runningID == nil ? 0 : 1))", busy: app.runningID != nil, pill: pill) { app.go(.queue) }
                 .uiTarget("side-queue")
-            SideItem(label: "Dictations", symbol: "waveform", selected: app.screen == .dictations, badge: nil, pill: pill) { app.go(.dictations) }
+            SideItem(label: "Dictations", art: .iconDictations, selected: app.screen == .dictations, badge: nil, pill: pill) { app.go(.dictations) }
                 .uiTarget("side-dictations")
-            SideItem(label: "Activity", symbol: "chart.bar.xaxis", selected: app.screen == .activity, badge: nil, pill: pill) { app.go(.activity) }
+            SideItem(label: "Activity", art: .iconActivity, selected: app.screen == .activity, badge: nil, pill: pill) { app.go(.activity) }
                 .uiTarget("side-activity")
-            SideItem(label: "Dictionary", symbol: "book", selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
+            SideItem(label: "Dictionary", art: .iconDictionary, selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
                 .uiTarget("side-dict")
 
             HStack {
@@ -71,12 +71,12 @@ struct Sidebar: View {
             }
             Spacer()
             if trashCount > 0 || app.screen == .trash {
-                SideItem(label: "Recently Deleted", symbol: "trash", selected: app.screen == .trash, badge: "\(trashCount)", pill: pill) { app.go(.trash) }
+                SideItem(label: "Recently Deleted", art: .iconDeleted, selected: app.screen == .trash, badge: "\(trashCount)", pill: pill) { app.go(.trash) }
                     .padding(.bottom, 6)
             }
             Rectangle().fill(Ink.hairline).frame(height: 1).padding(.horizontal, 8).padding(.bottom, 8)
             HStack(spacing: 12) {
-                Image(systemName: Cloud.enabled ? "icloud" : "laptopcomputer").frame(width: 19)
+                IconGlyph(art: Cloud.enabled ? .iconSync : .iconSyncOff, size: 19, color: Ink.dim)
                 Text(Cloud.enabled ? "Syncing with iCloud" : "On this Mac")
             }
             .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
@@ -85,7 +85,7 @@ struct Sidebar: View {
                   ? "Transcripts, notes, projects, and the Dictionary sync with your iPhone through your iCloud Drive. Models and recordings in progress stay on this Mac."
                   : "iCloud is off for Verbatim, so everything stays in ~/Library/Application Support/Verbatim. Sign in to iCloud with iCloud Drive on, and run a build signed with your team, to sync with your iPhone.")
             SettingsLink {
-                HStack(spacing: 12) { Image(systemName: "gearshape").frame(width: 19); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
+                HStack(spacing: 12) { IconGlyph(art: .iconSettings, size: 19, color: Ink.dim); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
                     .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
                     .padding(.horizontal, 12).padding(.vertical, 7).contentShape(Rectangle())
             }
@@ -129,7 +129,9 @@ struct SidebarGlass: ViewModifier {
 
 struct SideItem: View {
     var label: String
-    var symbol: String?
+    var symbol: String? = nil
+    /// A fine-line Verbatim icon; used instead of `symbol` when set.
+    var art: BrandArt? = nil
     var symbolColor: Color? = nil
     var selected: Bool
     var badge: String? = nil
@@ -143,7 +145,8 @@ struct SideItem: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let s = symbol { Image(systemName: s).font(.system(size: 14.5, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? Ink.ink) }
+            if let a = art { IconGlyph(art: a, size: 19, color: symbolColor ?? Ink.ink) }
+            else if let s = symbol { Image(systemName: s).font(.system(size: 14.5, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? Ink.ink) }
             Text(label).lineLimit(1)
             Spacer(minLength: 0)
             if busy { ProgressView().controlSize(.mini) }

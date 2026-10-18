@@ -11,7 +11,7 @@ struct MomentsScreen: View {
         ScrollView {
             if moments.isEmpty {
                 VStack(spacing: 12) {
-                    EmptyStateArt(art: .bookmark, tint: Ink.butterTint)
+                    IconPlate(art: .iconMoments, size: 96)
                     Text("Bookmark a moment while a transcript plays, or long-press a line.").font(.system(size: 15)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
                 }
                 .padding(40)

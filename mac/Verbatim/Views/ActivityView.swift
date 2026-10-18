@@ -270,7 +270,7 @@ struct ActivityView: View {
 
     private var empty: some View {
         HStack(spacing: 16) {
-            EmptyStateArt(art: .capture, tint: Ink.sageTint)
+            IconPlate(art: .iconActivity, size: 80)
             VStack(alignment: .leading, spacing: 4) {
                 Text(log.events.isEmpty ? "Nothing counted yet" : "Nothing in this period").font(Ink.serif(20))
                 Text("Dictate into any app with \(app.dictation.hotkey.shortTitle) or the floating button. Your totals show up here.")

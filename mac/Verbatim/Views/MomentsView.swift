@@ -46,7 +46,7 @@ struct MomentsView: View {
                 .padding(.top, 14)
                 if shown.isEmpty {
                     HStack(spacing: 16) {
-                        EmptyStateArt(art: .bookmark, tint: Ink.butterTint)
+                        IconPlate(art: .iconMoments, size: 80)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(all.isEmpty ? "No moments yet" : "Nothing matches").font(Ink.serif(20, weight: .regular))
                             Text("While a transcript plays, press B to bookmark the moment, or click a line and add a note.")

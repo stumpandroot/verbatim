@@ -77,7 +77,7 @@ struct QueueView: View {
 
     private var empty: some View {
         HStack(spacing: 16) {
-            EmptyStateArt(art: .document, tint: Ink.butterTint)
+            IconPlate(art: .iconQueue, size: 80)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Nothing waiting").font(Ink.serif(20, weight: .regular))
                 Text("Add a batch of recordings, interviews, or videos. Verbatim works through them while you do something else.")

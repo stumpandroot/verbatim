@@ -87,8 +87,8 @@ struct LibraryScreen: View {
             } else {
             Section {
                 if items.isEmpty {
-                    HStack(spacing: 14) {
-                        EmptyStateArt(art: search.isEmpty ? .library : .search, tint: Ink.butterTint)
+                    VStack(alignment: .leading, spacing: 12) {
+                        if search.isEmpty { IconPlate(art: .iconLibrary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
                         Text(search.isEmpty ? "Nothing here yet." : "Nothing matches “\(search)”.").font(.system(size: 15)).foregroundStyle(Ink.dim)
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)

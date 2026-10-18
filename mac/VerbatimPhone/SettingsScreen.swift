@@ -88,32 +88,32 @@ struct SettingsScreen: View {
     // MARK: Groups
 
     @ViewBuilder private var personalization: some View {
-        SettingsRow(icon: "globe", tint: Ink.sageTint, title: "Language") {
+        SettingsRow(icon: "globe", tint: Ink.sageTint, art: .iconLanguage, title: "Language") {
             SettingsValue(app.preset == .english ? "English" : "Automatic")
         }
         .accessibilityElement(children: .combine)
         SettingsDivider()
-        SettingsRow(icon: "waveform", tint: Ink.persimmonTint, title: "Your voice", subtitle: "Recognize you in recordings") {
+        SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings") {
             SettingsValue("Soon")
         }
         .accessibilityElement(children: .combine)
         .accessibilityHint("Not available yet")
         SettingsDivider()
         Button { bump("me"); showAboutMe = true } label: {
-            SettingsRow(icon: "person", tint: Ink.petalTint, title: "About me", subtitle: "Context for titles and summaries", bounce: bumps["me", default: 0]) {
+            SettingsRow(icon: "person", tint: Ink.petalTint, art: .iconAboutMe, title: "About me", subtitle: "Context for titles and summaries", bounce: bumps["me", default: 0]) {
                 SettingsValue(aboutMe.isEmpty ? "Add" : "Added"); SettingsChevron()
             }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
         Button { bump("dict"); showDictionary = true } label: {
-            SettingsRow(icon: "book.closed", tint: Ink.sageTint, title: "Dictionary", subtitle: "Names and words to spell your way", bounce: bumps["dict", default: 0]) {
+            SettingsRow(icon: "book.closed", tint: Ink.sageTint, art: .iconDictionary, title: "Dictionary", subtitle: "Names and words to spell your way", bounce: bumps["dict", default: 0]) {
                 SettingsValue("\(app.store.dictionary.count)"); SettingsChevron()
             }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
-        SettingsRow(icon: "text.alignleft", tint: Ink.persimmonTint, title: "Summaries", subtitle: "For recordings over 5 minutes") {
+        SettingsRow(icon: "text.alignleft", tint: Ink.persimmonTint, art: .iconSummaries, title: "Summaries", subtitle: "For recordings over 5 minutes") {
             SettingsValue("Soon")
         }
         .accessibilityElement(children: .combine)
@@ -124,13 +124,13 @@ struct SettingsScreen: View {
                 Text("Match the system").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
             }
         } label: {
-            SettingsRow(icon: "moon", tint: Ink.petalTint, title: "Appearance", bounce: app.appearance) {
+            SettingsRow(icon: "moon", tint: Ink.petalTint, art: .iconAppearance, title: "Appearance", bounce: app.appearance) {
                 SettingsValue(app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"); SettingsMenuMark()
             }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
-        SettingsToggleRow(icon: "tortoise", tint: Ink.sageTint, title: "Limit animation",
+        SettingsToggleRow(icon: "tortoise", tint: Ink.sageTint, art: .iconLimitMotion, title: "Limit animation",
                           subtitle: "Fades instead of movement; illustrations stay still.", isOn: $motionLimited)
     }
 
@@ -140,24 +140,24 @@ struct SettingsScreen: View {
                 ForEach(QualityPreset.allCases.filter { $0 != .advanced }) { p in Text(p.title).tag(p.rawValue) }
             }
         } label: {
-            SettingsRow(icon: "chart.line.uptrend.xyaxis", tint: Ink.sageTint, title: "Quality", subtitle: app.preset.note, bounce: app.presetRaw) {
+            SettingsRow(icon: "chart.line.uptrend.xyaxis", tint: Ink.sageTint, art: .iconQuality, title: "Quality", subtitle: app.preset.note, bounce: app.presetRaw) {
                 SettingsValue(app.preset.title); SettingsMenuMark()
             }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
-        SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, title: "Identify speakers", isOn: $app.identifySpeakers)
+        SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, art: .iconSpeakers, title: "Identify speakers", isOn: $app.identifySpeakers)
         SettingsDivider()
-        SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, title: "Apply Dictionary", isOn: $app.applyDictionary)
+        SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, art: .iconApplyDictionary, title: "Apply Dictionary", isOn: $app.applyDictionary)
         SettingsDivider()
-        SettingsToggleRow(icon: "sparkle", tint: Ink.butterTint, title: "Name and sort recordings",
-                          subtitle: "Suggests a title, kind, and tags when a transcript is ready", art: .featureLabel, isOn: $autoLabels)
+        SettingsToggleRow(icon: "sparkle", tint: Ink.butterTint, art: .iconNameAndSort, title: "Name and sort recordings",
+                          subtitle: "Suggests a title, kind, and tags when a transcript is ready", isOn: $autoLabels)
         SettingsDivider()
-        SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, title: "Hide filler lines",
-                          subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", art: .featureFiller, isOn: $hideFiller)
+        SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, art: .iconFiller, title: "Hide filler lines",
+                          subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", isOn: $hideFiller)
         SettingsDivider()
-        SettingsToggleRow(icon: "person", tint: Ink.sageTint, title: "Main speaker only",
-                          subtitle: "Other voices fold into a Background voices section", art: .featureMain, isOn: $mainSpeakerOnly)
+        SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
+                          subtitle: "Other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
     }
 
     @ViewBuilder private var syncAndData: some View {
@@ -165,7 +165,7 @@ struct SettingsScreen: View {
             Toggle(isOn: Binding(get: { syncWanted }, set: { on in
                 if on { syncWanted = true; Cloud.setWantsSync(true) } else { confirmSyncOff = true }
             })) {
-                SettingsLabel(icon: syncWanted ? "icloud" : "icloud.slash", tint: Ink.sageTint, title: "iCloud sync",
+                SettingsLabel(icon: syncWanted ? "icloud" : "icloud.slash", tint: Ink.sageTint, art: syncWanted ? .iconSync : .iconSyncOff, title: "iCloud sync",
                               subtitle: syncSubtitle, subtitleLines: nil, bounce: syncWanted)
             }
             .toggleStyle(SpringSwitchStyle())
@@ -173,7 +173,7 @@ struct SettingsScreen: View {
             .frame(minHeight: 54)
             .disabled(copyingDown)
         } else {
-            SettingsRow(icon: "icloud.slash", tint: Ink.sageTint, title: "iCloud is off",
+            SettingsRow(icon: "icloud.slash", tint: Ink.sageTint, art: .iconSyncOff, title: "iCloud is off",
                         subtitle: "Sign in to iCloud in the Settings app to sync with your Mac. Until then, everything stays on this iPhone.",
                         subtitleLines: nil) { EmptyView() }
                 .accessibilityElement(children: .combine)
@@ -187,7 +187,7 @@ struct SettingsScreen: View {
                 exporting = false
             }
         } label: {
-            SettingsRow(icon: "square.and.arrow.down", tint: Ink.petalTint, title: "Export everything", subtitle: "Markdown and JSON in one zip", bounce: bumps["export", default: 0]) {
+            SettingsRow(icon: "square.and.arrow.down", tint: Ink.petalTint, art: .iconExport, title: "Export everything", subtitle: "Markdown and JSON in one zip", bounce: bumps["export", default: 0]) {
                 if exporting { ProgressView().controlSize(.small) } else { SettingsChevron() }
             }
         }
@@ -195,7 +195,7 @@ struct SettingsScreen: View {
         .disabled(exporting)
         SettingsDivider()
         Button { bump("delete"); confirmDelete = true } label: {
-            SettingsRow(icon: "trash", tint: Ink.persimmonTint, title: "Delete all data", bounce: bumps["delete", default: 0], danger: true) { EmptyView() }
+            SettingsRow(icon: "trash", tint: Ink.persimmonTint, art: .iconDeleteAll, title: "Delete all data", bounce: bumps["delete", default: 0], danger: true) { EmptyView() }
         }
         .buttonStyle(SettingsRowPress())
     }
@@ -228,46 +228,46 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var support: some View {
         Button { bump("support"); if let u = Links.mail(subject: "Verbatim support") { openURL(u) } } label: {
-            SettingsRow(icon: "bubble.left", tint: Ink.sageTint, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "bubble.left", tint: Ink.sageTint, art: .iconSupport, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
         Button { bump("feedback"); if let u = Links.mail(subject: "Verbatim feedback") { openURL(u) } } label: {
-            SettingsRow(icon: "pencil", tint: Ink.persimmonTint, title: "Share feedback", bounce: bumps["feedback", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "pencil", tint: Ink.persimmonTint, art: .iconFeedback, title: "Share feedback", bounce: bumps["feedback", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
         ShareLink(item: Log.file, subject: Text("Verbatim diagnostic log"),
                   message: Text("Send to \(Links.supportEmail)")) {
-            SettingsRow(icon: "stethoscope", tint: Ink.petalTint, title: "Send diagnostic log",
+            SettingsRow(icon: "stethoscope", tint: Ink.petalTint, art: .iconDiagnosticLog, title: "Send diagnostic log",
                         subtitle: "7 days of app events, without links or folder names", bounce: bumps["log", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("log"); Log.trimNow() })
         SettingsDivider()
         Button { bump("privacy"); openURL(Links.privacy) } label: {
-            SettingsRow(icon: "lock", tint: Ink.petalTint, title: "Privacy policy", bounce: bumps["privacy", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "lock", tint: Ink.petalTint, art: .iconPrivacy, title: "Privacy policy", bounce: bumps["privacy", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
         Button { bump("terms"); openURL(Links.terms) } label: {
-            SettingsRow(icon: "doc.text", tint: Ink.sageTint, title: "Terms of use", bounce: bumps["terms", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "doc.text", tint: Ink.sageTint, art: .iconTerms, title: "Terms of use", bounce: bumps["terms", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
         ShareLink(item: Links.base) {
-            SettingsRow(icon: "square.and.arrow.up", tint: Ink.persimmonTint, title: "Share Verbatim", bounce: bumps["share", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "square.and.arrow.up", tint: Ink.persimmonTint, art: .iconShare, title: "Share Verbatim", bounce: bumps["share", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("share") })
     }
 
     @ViewBuilder private var tour: some View {
-        SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, title: "Show it when Verbatim opens",
+        SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, art: .iconTour, title: "Show it when Verbatim opens",
                           isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
         SettingsDivider()
         Button { bump("tour"); app.showOnboarding = true } label: {
-            SettingsRow(icon: "play.rectangle", tint: Ink.sageTint, title: "Show Tour", bounce: bumps["tour", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "play.rectangle", tint: Ink.sageTint, art: .iconTour, title: "Show Tour", bounce: bumps["tour", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
     }
@@ -329,13 +329,13 @@ struct SettingsScreen: View {
 struct SettingsLabel: View {
     var icon: String
     var tint: Color
+    /// A fine-line Verbatim icon in place of the symbol.
+    var art: BrandArt? = nil
     var title: String
     var subtitle: String? = nil
     var subtitleLines: Int? = 2
     var bounce: AnyHashable = 0
     var danger = false
-    /// A Verbatim diagram in place of the symbol (the capture-and-archive rows).
-    var art: BrandArt? = nil
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
@@ -343,7 +343,7 @@ struct SettingsLabel: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint)
                 if let art {
-                    BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1).frame(width: 21, height: 21)
+                    IconGlyph(art: art, size: 20, color: danger ? Ink.accentText : Ink.ink)
                 } else {
                     Image(systemName: icon).font(.system(size: 14, weight: .medium))
                         .foregroundStyle(danger ? Ink.accentText : Ink.ink)
@@ -370,6 +370,7 @@ struct SettingsLabel: View {
 struct SettingsRow<Trailing: View>: View {
     var icon: String
     var tint: Color
+    var art: BrandArt? = nil
     var title: String
     var subtitle: String? = nil
     var subtitleLines: Int? = 2
@@ -379,7 +380,7 @@ struct SettingsRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            SettingsLabel(icon: icon, tint: tint, title: title, subtitle: subtitle, subtitleLines: subtitleLines, bounce: bounce, danger: danger)
+            SettingsLabel(icon: icon, tint: tint, art: art, title: title, subtitle: subtitle, subtitleLines: subtitleLines, bounce: bounce, danger: danger)
             Spacer(minLength: 8)
             trailing()
         }
@@ -393,14 +394,14 @@ struct SettingsRow<Trailing: View>: View {
 struct SettingsToggleRow: View {
     var icon: String
     var tint: Color
+    var art: BrandArt? = nil
     var title: String
     var subtitle: String? = nil
-    var art: BrandArt? = nil
     @Binding var isOn: Bool
 
     var body: some View {
         Toggle(isOn: $isOn) {
-            SettingsLabel(icon: icon, tint: tint, title: title, subtitle: subtitle, subtitleLines: nil, bounce: isOn, art: art)
+            SettingsLabel(icon: icon, tint: tint, art: art, title: title, subtitle: subtitle, subtitleLines: nil, bounce: isOn)
         }
         .toggleStyle(SpringSwitchStyle())
         .padding(.horizontal, 14).padding(.vertical, 10)

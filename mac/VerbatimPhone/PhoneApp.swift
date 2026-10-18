@@ -26,20 +26,20 @@ struct PhoneRoot: View {
                     .navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
                     .navigationDestination(for: DocumentRoute.self) { TranscriptScreen(id: $0.id, startMode: .document) }
             }
-            .tabItem { Label("Home", systemImage: "house") }.tag(PhoneState.Tab.home)
+            .tabItem { Label { Text("Home") } icon: { Image(uiImage: BrandArt.iconHome.templateImage(size: 26, key: "iconHome")) } }.tag(PhoneState.Tab.home)
 
             NavigationStack(path: $app.libraryPath) {
                 LibraryScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
-            .tabItem { Label("Library", systemImage: "books.vertical") }.tag(PhoneState.Tab.library)
+            .tabItem { Label { Text("Library") } icon: { Image(uiImage: BrandArt.iconLibrary.templateImage(size: 26, key: "iconLibrary")) } }.tag(PhoneState.Tab.library)
 
             NavigationStack(path: $app.momentsPath) {
                 MomentsScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
-            .tabItem { Label("Moments", systemImage: "bookmark") }.tag(PhoneState.Tab.moments)
+            .tabItem { Label { Text("Moments") } icon: { Image(uiImage: BrandArt.iconMoments.templateImage(size: 26, key: "iconMoments")) } }.tag(PhoneState.Tab.moments)
 
             NavigationStack { SettingsScreen() }
-                .tabItem { Label("Settings", systemImage: "gearshape") }.tag(PhoneState.Tab.settings)
+                .tabItem { Label { Text("Settings") } icon: { Image(uiImage: BrandArt.iconSettings.templateImage(size: 26, key: "iconSettings")) } }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
