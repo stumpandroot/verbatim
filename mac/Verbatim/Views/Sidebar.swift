@@ -13,10 +13,10 @@ struct Sidebar: View {
         // `store.trash` filters and sorts every transcript; read it once per render.
         let trashCount = app.store.trash.count
         VStack(alignment: .leading, spacing: 2) {
-            // Compact lockup: the ribbon mark and the tracked uppercase wordmark (logo_lockup, small).
-            HStack(spacing: 9) {
-                RibbonMark(color: Ink.persimmon).frame(width: 26, height: 20)
-                Text("VERBATIM").font(.system(size: 13.5, weight: .bold)).tracking(2.2).foregroundStyle(Ink.ink)
+            // Compact lockup: the bars mark and the serif wordmark.
+            HStack(spacing: 10) {
+                BarsMark(color: Ink.persimmon).frame(width: 19, height: 20)
+                Text("Verbatim").font(Ink.serif(21)).foregroundStyle(Ink.ink)
             }
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbatim")
@@ -95,35 +95,19 @@ struct Sidebar: View {
         .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
-        .modifier(SidebarGlass())
+        .modifier(SidebarPaper())
         .ignoresSafeArea(edges: .top)
     }
 }
 
-/// The sidebar as a floating pane of glass, inset from the window edges (the macOS 26 inset sidebar).
-/// Native Liquid Glass on macOS 26, lightly warmed with paper, with a thin light rim along the top-left edge;
-/// the native sidebar material on earlier versions. Reduce Transparency and Increase Contrast make it opaque
-/// automatically. Text on it is navigation only, at full ink, never body copy.
-struct SidebarGlass: ViewModifier {
-    @Environment(\.colorScheme) private var scheme
+/// The sidebar is part of the page: the same opaque paper as the content, flush to the window edges,
+/// divided from the content by one hairline. No glass, no shadow, no inset; the selected row carries a
+/// persimmon tick at the window edge. Hairline strength follows Increase Contrast through `Ink.hairline`.
+struct SidebarPaper: ViewModifier {
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
-        let rim = shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(scheme == .dark ? 0.22 : 0.85), Color.white.opacity(0), Color.white.opacity(scheme == .dark ? 0.08 : 0.3)],
-                                                    startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-        return Group {
-            if #available(macOS 26, *) {
-                content
-                    .glassEffect(.regular.tint(Ink.paper.opacity(scheme == .dark ? 0.25 : 0.4)), in: shape)
-                    .overlay(rim.allowsHitTesting(false))
-            } else {
-                content
-                    .background(VisualEffect(material: .sidebar, blending: .withinWindow).clipShape(shape))
-                    .overlay(shape.strokeBorder(Ink.hairline))
-                    .overlay(rim.allowsHitTesting(false))
-            }
-        }
-        .shadow(color: .black.opacity(scheme == .dark ? 0.3 : 0.08), radius: 12, x: 0, y: 4)
-        .padding(.leading, 8).padding(.vertical, 8)
+        content
+            .background(Ink.paper.ignoresSafeArea())
+            .overlay(alignment: .trailing) { Rectangle().fill(Ink.hairline).frame(width: 1).ignoresSafeArea() }
     }
 }
 
@@ -155,18 +139,13 @@ struct SideItem: View {
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background {
             ZStack {
-                // Hover previews (light iris tint); selection says where you are (lifted white glass + iris marker).
+                // Hover previews with a light ink tint; selection is the persimmon tick and semibold type, no fill.
                 if dropping { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.accentSubtle).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.persimmon, lineWidth: 1.5)) }
                 else if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.ink.opacity(0.06)) }
-                if selected {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.selectedPill)
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.selectedPillEdge, lineWidth: 0.5))
-                        .matchedGeometryEffect(id: "pill", in: pill)
-                }
             }
         }
         .overlay(alignment: .leading) {
-            if selected { Capsule().fill(Ink.persimmon).frame(width: 3, height: 18).offset(x: -12).matchedGeometryEffect(id: "marker", in: pill) }
+            if selected { UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 1.5, topTrailingRadius: 1.5).fill(Ink.persimmon).frame(width: 3, height: 18).offset(x: -12).matchedGeometryEffect(id: "marker", in: pill) }
         }
         .foregroundStyle(Ink.ink)
         .fontWeight(selected ? .semibold : .regular)
@@ -187,7 +166,7 @@ struct BrandMark: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Ink.persimmon)
-            RibbonMark(color: Ink.inkFixed).padding(3.5)
+            BarsMark(color: Color(hex: Ink.paperHex)).padding(4.5)
         }
     }
 }

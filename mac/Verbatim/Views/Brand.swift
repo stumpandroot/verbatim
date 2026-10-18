@@ -104,6 +104,10 @@ struct BrandArt {
 
 extension BrandArt {
     // The V mark: two pairs of wings meeting in a V (logo SVG, traced and refined by Tim, October 2026).
+    /// The app-icon mark: two bars and a last bar with a speech tail, on the 120-unit grid (brand/verbatim-mark-bars.svg).
+    static let markBars = BrandArt(box: CGRect(x: 22, y: 18, width: 76, height: 80), fills: [
+        .rect(22, 18, 76, 14, 0), .rect(22, 43, 58, 14, 0), .path("M22 68 L98 68 L98 82 L44 82 L22 98 Z")
+    ])
     static let mark = BrandArt(box: CGRect(x: 363.25, y: 407.09, width: 456.83, height: 346.06), fills: [
         .path("M569.72 558.55 C568.75 558.91 568.39 559.59 567.22 559.81 C562.43 560.72 551.77 555.03 549.12 551.09 L540.3 537.97 C528.45 520.34 518.57 503.48 497.48 495.66 C495.24 494.83 492.35 493.44 489.96 493.29 L470.22 492.01 L415.3 492.01 C410.73 492.0 403.7 486.59 401.54 482.73 L390.86 463.71 L364.01 413.92 C363.25 412.51 363.64 411.58 363.42 410.22 C364.11 409.83 364.18 409.26 365.08 409.26 L466.87 409.26 C482.71 410.13 497.11 418.71 505.42 432.22 L514.78 448.56 L549.24 516.88 L558.38 535.5 L569.72 558.55 Z"),
         .path("M819.49 410.1 C819.56 410.81 820.08 411.21 819.67 411.96 L781.79 481.62 C779.92 485.06 771.7 491.97 767.66 492.01 L698.84 492.01 C675.09 492.28 656.97 516.03 645.16 533.76 C637.2 545.72 630.19 560.5 613.45 559.61 C613.42 558.64 612.85 557.77 613.36 556.76 L633.38 516.89 L676.34 434.0 C681.94 423.19 695.41 413.14 707.19 410.49 C722.35 407.09 762.19 409.0 779.87 409.0 C790.81 409.0 809.76 407.28 819.49 410.1 Z"),
@@ -433,10 +437,10 @@ extension BrandArt {
 }
 #endif
 
-/// The V mark, flat, in one color. (Named for the ribbon mark it replaced.)
-struct RibbonMark: View {
+/// The bars mark, flat, in one color. One color per mark; never pink or sage.
+struct BarsMark: View {
     var color: Color = Ink.persimmon
-    var body: some View { BrandGlyph(art: .mark, color: color).aspectRatio(456.83 / 346.06, contentMode: .fit).accessibilityLabel("Verbatim") }
+    var body: some View { BrandGlyph(art: .markBars, color: color).aspectRatio(76.0 / 80.0, contentMode: .fit).accessibilityLabel("Verbatim") }
 }
 
 // MARK: - Editorial structure
