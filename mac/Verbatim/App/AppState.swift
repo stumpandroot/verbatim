@@ -93,6 +93,7 @@ final class AppState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         coordinator.host = self
+        recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
         dictation.attach(self)
         applyAppearance()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }

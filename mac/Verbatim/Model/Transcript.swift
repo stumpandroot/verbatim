@@ -17,12 +17,15 @@ struct Segment: Codable, Identifiable, Equatable {
     /// Diarization label such as "S1". Resolved to a name through `Transcript.speakers`.
     var speaker: String? = nil
 
-    /// Words that carry nothing on their own ("Um.", "uh, hmm"). Lowercased, punctuation stripped.
-    static let fillerWords: Set<String> = ["um", "umm", "uh", "uhh", "uhm", "er", "erm", "ah", "ahh", "hmm", "hm", "mm", "mmm", "mhm", "mm-hmm", "uh-huh"]
+    /// Words that carry nothing on their own ("Um.", "uh, hmm"). Lowercased, punctuation stripped. Not here:
+    /// "uh-huh", "mm-hmm", and "mhm" (they mean yes) and "er" (a word in other languages).
+    static let fillerWords: Set<String> = ["um", "umm", "uh", "uhh", "uhm", "erm", "ah", "ahh", "hmm", "hm", "mm", "mmm"]
     private static let edgePunctuation = CharacterSet.punctuationCharacters.union(.symbols)
 
     /// True when the line is only fillers and punctuation, like a standalone "Um." Empty lines aren't filler.
     var isFillerOnly: Bool {
+        // "Hmm?" is a question, not filler.
+        if text.contains("?") { return false }
         let words = text.lowercased().split(whereSeparator: { $0.isWhitespace })
             .map { $0.trimmingCharacters(in: Self.edgePunctuation) }
             .filter { !$0.isEmpty }
@@ -140,7 +143,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
-             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto
+             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel
     }
     /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
     enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
@@ -165,6 +168,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     var kindIsAuto = true
     /// False once the person renames the transcript, so automatic titles never overwrite theirs.
     var titleIsAuto = true
+    /// The title came from Apple Intelligence (AutoLabel), not the first words: re-transcribing keeps it, and the
+    /// transcript says where it came from. Only meaningful while `titleIsAuto`.
+    var titleByModel = false
     var pinned = false
     var notes: [Note] = []
     var waveform: [Float] = []       // 120 RMS buckets in 0…1
@@ -264,8 +270,18 @@ struct Transcript: Codable, Identifiable, Equatable {
         // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
         kind = (try? c.decodeIfPresent(RecordingKind.self, forKey: .kind)) ?? (source == .dictation ? .dictation : nil)
         kindIsAuto = try c.decodeIfPresent(Bool.self, forKey: .kindIsAuto) ?? true
-        titleIsAuto = try c.decodeIfPresent(Bool.self, forKey: .titleIsAuto) ?? true
+        // Files from before this field: automatic only if the title is still one Verbatim made (the first words or a
+        // placeholder). Anything else was named by the person, so automatic titles leave it alone.
+        if let auto = try c.decodeIfPresent(Bool.self, forKey: .titleIsAuto) {
+            titleIsAuto = auto
+        } else {
+            titleIsAuto = Self.defaultTitles.contains(title) || title == Self.titleFrom(segments)
+        }
+        titleByModel = try c.decodeIfPresent(Bool.self, forKey: .titleByModel) ?? false
     }
+
+    /// Placeholder titles Verbatim gives a transcript before it has words.
+    static let defaultTitles: Set<String> = ["Voice memo", "Recovered recording", "Dictation", "App audio", "Untitled"]
 
     /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".
     var stageText: String {
@@ -315,7 +331,20 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Segments to show: all of them, or without filler-only lines ("Um.") when `hideFiller`. Nothing is deleted;
     /// ids are unchanged, so edits and exports still map to the right segment.
     func visibleSegments(hideFiller: Bool) -> [Segment] {
-        hideFiller ? segments.filter { !$0.isFillerOnly } : segments
+        guard hideFiller else { return segments }
+        return segments.indices.filter { !hidesAsFiller($0) }.map { segments[$0] }
+    }
+
+    /// A filler-only line is hidden unless it's someone else's turn on both sides of it: a lone "Um." from the
+    /// other person is a reply (a pause, a hesitation), not noise inside one speaker's paragraph.
+    func hidesAsFiller(_ i: Int) -> Bool {
+        let s = segments[i]
+        guard s.isFillerOnly else { return false }
+        guard let me = s.speaker else { return true }
+        let before = i > 0 ? segments[i - 1].speaker : nil
+        let after = i + 1 < segments.count ? segments[i + 1].speaker : nil
+        let others = [before, after].compactMap { $0 }
+        return !(others.count == 2 && others.allSatisfy { $0 != me })
     }
 
     /// Settings key for hiding filler-only lines (default on).

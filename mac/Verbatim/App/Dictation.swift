@@ -449,17 +449,24 @@ final class DictationController: ObservableObject {
         if limit > 60 {
             DispatchQueue.main.asyncAfter(deadline: .now() + limit - 60) { [weak self] in
                 guard let self, self.isListening, self.session == mine else { return }
-                self.bar?.model.warning = "1 minute left. Dictation stops at \(Int(minutes)) minutes."
+                self.bar?.model.warning = "1 minute left. Dictation stops at \(Self.limitText(minutes))."
                 Log.note("dictation: 1 minute left")
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + limit) { [weak self] in
             guard let self, self.isListening, self.session == mine else { return }
-            Log.note("dictation: reached the \(Int(minutes))-minute limit; finishing")
+            Log.note("dictation: reached the \(Self.limitText(minutes)) limit; finishing")
             // Like letting go of the key: transcribed and pasted, never discarded.
             self.stoppedAtLimit = true
             self.finish()
         }
+    }
+
+    /// "10 minutes", "1 minute", "30 seconds": the limit as the Ribbon says it.
+    static func limitText(_ minutes: Double) -> String {
+        if minutes < 1 { let s = max(1, Int((minutes * 60).rounded())); return s == 1 ? "1 second" : "\(s) seconds" }
+        let m = Int(minutes.rounded())
+        return m == 1 ? "1 minute" : "\(m) minutes"
     }
 
     /// "MAIL", "SLACK": the app's name as the Ribbon shows it while writing.
@@ -490,8 +497,10 @@ final class DictationController: ObservableObject {
             try? FileManager.default.removeItem(at: url); bar?.setPhase(.idle); return
         }
         // Nothing but silence: don't run the models (Whisper in particular invents words in silence).
+        // Not after the time limit: a long hands-free dictation can be mostly quiet, and what was said still counts
+        // (an empty result is reported, and the audio is kept in Dictations).
         let loud = env.sorted(by: >).prefix(max(1, env.count / 10))
-        if !env.isEmpty, (loud.reduce(0, +) / Float(loud.count)) < 0.05 {
+        if !stoppedAtLimit, !env.isEmpty, (loud.reduce(0, +) / Float(loud.count)) < 0.05 {
             try? FileManager.default.removeItem(at: url)
             bar?.flash("Didn't hear anything. Check your mic in Settings.", seconds: 3)
             return
@@ -633,7 +642,7 @@ final class DictationController: ObservableObject {
             case .pasted:
                 lastPasteConfirmed = true
                 if let note { bar?.flash(note, seconds: 4) }
-                else if stoppedAtLimit { bar?.flash("Stopped at \(Int(FlowSettings.maxDictationMinutes)) minutes", seconds: 2) }
+                else if stoppedAtLimit { bar?.flash("Stopped at \(Self.limitText(FlowSettings.maxDictationMinutes))", seconds: 2) }
                 else { bar?.setPhase(.idle) }
                 stoppedAtLimit = false
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }

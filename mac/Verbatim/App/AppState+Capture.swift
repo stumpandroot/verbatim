@@ -58,6 +58,13 @@ extension AppState {
     func stopRecording() {
         guard let stopped = recorder.stop() else { continuing = nil; return }
         let (url, duration, env) = stopped
+        if recorder.lastJoinFailed {
+            // Every part stays in the recordings folder; launch recovery joins it into one recording.
+            continuing = nil
+            toast = Toast("Couldn't finish saving. Verbatim will recover the recording the next time it opens.")
+            verbiePose = .ready
+            return
+        }
         if let target = continuing {
             continuing = nil
             guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); verbiePose = .ready; return }

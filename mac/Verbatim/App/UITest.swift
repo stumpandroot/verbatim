@@ -508,6 +508,53 @@ enum UITest {
         let left = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
         Log.note("UITEST segments joined frames=\(frames) leftover=\(left)")
         check("segments join into one recording", abs(Int(frames) - 48_000) <= 400 && left.isEmpty)
+
+        // A join the app died in the middle of. Bytes per second of 16 kHz 16-bit mono: 32,000.
+        func frameCount(_ u: URL) -> Int { Int((try? AVAudioFile(forReading: u))?.length ?? -1) }
+        func clean() { for f in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] { try? fm.removeItem(at: f) } }
+        // Roll forward: every byte already appended, the segment not yet deleted.
+        clean()
+        write(base, seconds: 2)
+        let seg2 = RecordingSegments.url(for: base, index: 2)
+        write(seg2, seconds: 1)
+        try? RecordingSegments.writeMarker(.init(base: base.lastPathComponent, originalLength: 32_000, expectedLength: 64_000,
+                                                 segments: [seg2.lastPathComponent], renamedFrom: nil), in: dir)
+        RecordingSegments.joinLeftovers(in: dir)
+        var rest = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST join roll-forward frames=\(frameCount(base)) leftover=\(rest)")
+        check("interrupted join rolls forward", abs(frameCount(base) - 32_000) <= 200 && rest.isEmpty)
+        // Roll back: half of the segment appended when the app died. Cut back, then joined again: 2 s, nothing left.
+        clean()
+        write(base, seconds: 1.5)
+        write(seg2, seconds: 1)
+        try? RecordingSegments.writeMarker(.init(base: base.lastPathComponent, originalLength: 32_000, expectedLength: 64_000,
+                                                 segments: [seg2.lastPathComponent], renamedFrom: nil), in: dir)
+        RecordingSegments.joinLeftovers(in: dir)
+        rest = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST join roll-back frames=\(frameCount(base)) leftover=\(rest)")
+        check("interrupted join rolls back and rejoins", abs(frameCount(base) - 32_000) <= 200 && rest.isEmpty)
+        // An unreadable middle segment: nothing is touched.
+        clean()
+        write(base, seconds: 1)
+        try? Data("not a wav file".utf8).write(to: seg2)
+        let seg3 = RecordingSegments.url(for: base, index: 3)
+        write(seg3, seconds: 1)
+        func sizes() -> [Int] { [base, seg2, seg3].map { ((try? fm.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? -1 } }
+        let before = sizes()
+        RecordingSegments.joinLeftovers(in: dir)
+        Log.note("UITEST join abort sizes before=\(before) after=\(sizes())")
+        check("join with an unreadable segment touches nothing", before == sizes() && !before.contains(-1))
+        check("segment numbers past 999 parse", RecordingSegments.parse(RecordingSegments.url(for: base, index: 1000))?.index == 1000)
+
+        // Filler rules: answers and questions stay.
+        check("filler keeps answers and questions",
+              !Segment(start: 0, end: 1, text: "Uh-huh.").isFillerOnly && !Segment(start: 0, end: 1, text: "Hmm?").isFillerOnly
+              && !Segment(start: 0, end: 1, text: "Mm-hmm.").isFillerOnly && Segment(start: 0, end: 1, text: "Um.").isFillerOnly)
+        var turns = Transcript(title: "Turns", source: .voiceMemo, sourceLabel: "Voice memo", duration: 3, audioFileName: nil, model: "")
+        turns.segments = [Segment(start: 0, end: 1, text: "Did you sign it?", speaker: "S1"), Segment(start: 1, end: 2, text: "Um.", speaker: "S2"),
+                          Segment(start: 2, end: 3, text: "Okay, take your time.", speaker: "S1"), Segment(start: 3, end: 4, text: "Uh.", speaker: "S1")]
+        let shown = turns.visibleSegments(hideFiller: true).map(\.text)
+        check("filler hides only within a speaker's turn", shown == ["Did you sign it?", "Um.", "Okay, take your time."])
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
