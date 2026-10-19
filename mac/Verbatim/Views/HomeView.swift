@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import AVFoundation
 
 /// Home (BRAND_GUIDE §09A): one editorial headline, one capture bar with Record as the primary action,
-/// three compact method cards that do real things, and recent work as document rows.
+/// three compact method cards that do real things, recent work as document rows, and the last few dictations.
 /// The most expressive screen in the app, and still a working surface: recent work is reachable without
 /// scrolling past branding in a typical window.
 struct HomeView: View {
@@ -40,6 +40,7 @@ struct HomeView: View {
 
                 MethodCards().padding(.top, 30).staggerIn(2)
                 RecentWork().padding(.top, 30).staggerIn(3)
+                RecentDictations().staggerIn(4)   // pads itself, so nothing is left when it hides
             }
             .frame(maxWidth: 1040)
             .padding(.horizontal, 32).padding(.bottom, 36)
@@ -157,5 +158,104 @@ struct RecentWork: View {
         }
         .padding(20)
         .background(NoteCardBackground(hover: false))
+    }
+}
+
+// MARK: - Dictations
+
+/// The last five dictations as a compact list: when, where it was pasted, the first line, and Copy.
+/// Lists what the Dictations screen lists (dictation transcripts, newest first); hidden when there are none.
+struct RecentDictations: View {
+    @EnvironmentObject var app: AppState
+    var body: some View {
+        let items = Array(app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt }.prefix(5))
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                EditorialSectionHeader(index: "03", label: "Dictations", title: "What you said lately.") {
+                    InlineLink(title: "See all") { app.go(.dictations) }
+                        .accessibilityLabel("See all dictations")
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                        if i > 0 { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 42) }
+                        HomeDictationRow(transcript: t)
+                    }
+                }
+                .background(Ink.card)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+            }
+            .uiTarget("home-dictations")
+            .padding(.top, 30)
+            .animation(Motion.settle, value: items.map(\.id))
+        }
+    }
+}
+
+/// One dictation on Home: glyph, time, app, the first line, and a Copy button that briefly shows a checkmark.
+struct HomeDictationRow: View {
+    var transcript: Transcript
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var hover = false
+    @State private var copied = false
+
+    private var pasted: String { transcript.flow?.pasted ?? transcript.text }
+    private var failed: Bool { transcript.status == .failed }
+    private var firstLine: String {
+        if failed { return transcript.error ?? "Transcription failed" }
+        let line = pasted.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty }
+        return line ?? "(only filler words)"
+    }
+    private var when: String {
+        let cal = Calendar.current
+        let d = transcript.createdAt
+        if cal.isDateInToday(d) { return Formats.style(date: .none, time: .short).string(from: d) }
+        if cal.isDateInYesterday(d) { return "Yesterday" }
+        return Formats.pattern(cal.isDate(d, equalTo: Date(), toGranularity: .year) ? "MMM d" : "MMM d, yyyy").string(from: d)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            IconGlyph(art: .iconDictations, size: 16, color: Ink.dim)
+                .frame(width: 18)
+                .accessibilityHidden(true)
+            Text(when).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                .frame(width: 72, alignment: .leading).lineLimit(1)
+            if let app = transcript.flow?.app, !app.isEmpty {
+                Text(app).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                    .fixedSize()
+            }
+            Text(firstLine)
+                .font(.system(size: 14))
+                .foregroundStyle(failed ? Ink.accentText : Ink.ink)
+                .lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: copy) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(copied ? Ink.ink : Ink.dim)
+                    .frame(width: 26, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .hoverChip(radius: 6)
+            .help("Copy")
+            .accessibilityLabel(copied ? "Copied" : "Copy dictation")
+            .disabled(failed || pasted.isEmpty)
+            .opacity(failed || pasted.isEmpty ? 0.35 : 1)
+        }
+        .padding(.leading, 12).padding(.trailing, 8).padding(.vertical, 7)
+        .background(hover ? Ink.cardHover : Color.clear)
+        .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func copy() {
+        Paster.copy(pasted)
+        withAnimation(limitMotion ? nil : Motion.snap) { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            withAnimation(limitMotion ? nil : Motion.snap) { copied = false }
+        }
     }
 }
