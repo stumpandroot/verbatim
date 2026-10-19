@@ -97,6 +97,9 @@ enum UITest {
         await show("02-home-dictate")
         app.captureMode = "voice"
         try? await Task.sleep(nanoseconds: 500_000_000)
+        // Home's Dictations section (seeded above), scrolled into view.
+        await reveal("home-dictations", in: window)
+        await show("02b-home-dictations")
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
