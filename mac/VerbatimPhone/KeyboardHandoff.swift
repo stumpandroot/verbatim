@@ -176,9 +176,11 @@ final class KeyboardHandoff: ObservableObject {
         let segments = app.store.transcript(id)?.segments ?? []
         let raw = segments.filter { !$0.isFillerOnly }.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }.joined(separator: " ")
-        // iPhone has no model cleanup (Flow's Cleanup.swift is Mac only); Polished here is the rule-based layout:
-        // spoken lists and paragraphs. Plain bullets, since the destination app is unknown.
-        let text = DictationFormatter.format(raw, DictationFormatter.Options(style: .plain)).trimmingCharacters(in: .whitespacesAndNewlines)
+        // iPhone has no model cleanup (Flow's Cleanup.swift is Mac only), so Polished here is what the Mac falls
+        // back to without Apple's model: the Clean prepass (spoken punctuation and line breaks, repeats), then the
+        // rule-based layout (spoken lists and paragraphs). Plain bullets, since the destination app is unknown.
+        let cleaned = CleanupPrepass.clean(raw)
+        let text = DictationFormatter.format(cleaned, DictationFormatter.Options(style: .plain)).trimmingCharacters(in: .whitespacesAndNewlines)
         app.store.update(id) { t in
             if let title = Transcript.titleFrom(t.segments) { t.title = title }
         }

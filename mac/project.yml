@@ -126,6 +126,7 @@ targets:
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
       - Verbatim/Views/KindViews.swift
+      - Verbatim/Flow/CleanupPrepass.swift
       - Verbatim/Flow/DictationFormatter.swift
       # Shared with the keyboard extension: the App Group channel and the voice bars.
       - VerbatimKeyboard/KeyboardBridge.swift

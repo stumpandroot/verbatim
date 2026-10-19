@@ -40,6 +40,8 @@ final class KeyboardModel: ObservableObject {
     private var timer: Timer?
     private var requestedAt = Date.distantPast
     private var observing = false
+    /// Text goes in only while the keyboard is on screen, so it lands in the field you're looking at.
+    private var visible = false
 
     init(controller: KeyboardViewController) {
         self.controller = controller
@@ -54,6 +56,7 @@ final class KeyboardModel: ObservableObject {
     /// The keyboard appeared. iOS often starts a fresh keyboard process after you come back from the app, so
     /// the session lives in the App Group, not only in memory.
     func resume() {
+        visible = true
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
@@ -73,7 +76,7 @@ final class KeyboardModel: ObservableObject {
         if stage == .waiting || stage == .listening || stage == .writing { startTimer() }
     }
 
-    func pause() { stopTimer() }
+    func pause() { visible = false; stopTimer() }
 
     // MARK: Actions
 
@@ -144,7 +147,7 @@ final class KeyboardModel: ObservableObject {
     private func stopTimer() { timer?.invalidate(); timer = nil }
 
     private func poll() {
-        guard let session, let defaults, KeyboardBridge.currentSession == session, let phase = KeyboardBridge.phase else { return }
+        guard visible, let session, let defaults, KeyboardBridge.currentSession == session, let phase = KeyboardBridge.phase else { return }
         switch phase {
         case .requested:
             // The app never answered (it didn't open, or you came back before it started).
