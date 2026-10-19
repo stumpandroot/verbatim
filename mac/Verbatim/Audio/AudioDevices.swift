@@ -57,6 +57,14 @@ enum AudioDevices {
         }
     }
 
+    /// The device's sample rate as the system has it set, or nil if it can't be read.
+    static func nominalSampleRate(_ id: AudioDeviceID) -> Double? {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyNominalSampleRate, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var rate = Float64(0); var size = UInt32(MemoryLayout<Float64>.size)
+        guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &rate) == noErr, rate > 0 else { return nil }
+        return rate
+    }
+
     static func setInput(_ id: AudioDeviceID, on node: AVAudioInputNode) {
         guard let unit = node.audioUnit else { return }
         var dev = id

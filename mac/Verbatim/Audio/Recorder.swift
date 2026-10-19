@@ -3,6 +3,7 @@ import AVFoundation
 import Combine
 #if os(macOS)
 import AppKit
+import CoreAudio
 #endif
 
 /// Records the microphone with an AVAudioEngine tap: 16 kHz mono 16-bit WAV written as it goes (so a crash
@@ -29,6 +30,9 @@ final class RecordingWriter: @unchecked Sendable {
     private static let preRollCap = Int64(recordingFormat.sampleRate * 10)
     private let createdAt = ProcessInfo.processInfo.systemUptime
     private var firstBufferAt: TimeInterval?
+    /// Any sample that wasn't exact digital silence. A quiet room still has some noise; a mic that's asleep,
+    /// muted in hardware, or switching profiles delivers zeros.
+    private var signal = false
     /// Long recordings: every `segmentFrames` the file is closed (so its header is final) and the recording
     /// continues in the next segment file beside it. A crash then loses at most the open segment's header,
     /// not the whole recording. `segments[0]` is the recording's own URL; Recorder joins them at stop.
@@ -82,6 +86,7 @@ final class RecordingWriter: @unchecked Sendable {
         let v = min(1, pow(max(0, rms - 0.004) * 6, 0.5))
         lock.lock(); defer { lock.unlock() }
         if firstBufferAt == nil { firstBufferAt = ProcessInfo.processInfo.systemUptime }
+        if rms > 0 { signal = true }
         guard !paused, let converter, file != nil || holding else { return 0 }
         let ratio = recordingFormat.sampleRate / buffer.format.sampleRate
         let cap = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
@@ -135,6 +140,9 @@ final class RecordingWriter: @unchecked Sendable {
         converter = c
         return true
     }
+
+    /// Whether anything but digital silence has arrived.
+    var heardSignal: Bool { lock.lock(); defer { lock.unlock() }; return signal }
 
     /// Milliseconds from creating the writer to the first buffer (how long the mic took to wake), if any arrived.
     var firstBufferDelay: Int? {
@@ -202,11 +210,19 @@ final class Recorder: ObservableObject {
     /// the same device if it can.
     var onInterrupted: (() -> Void)?
 
+    /// Dictation: no sound at all (no buffers, or only digital silence) 2 seconds after start. The owner should
+    /// discard the recording and say the mic couldn't be heard. Without a handler, `onInterrupted` is called.
+    var onNoAudio: (() -> Void)?
+
+    /// Whether the last stopped or discarded recording received anything but digital silence.
+    private(set) var lastHeardSignal = true
+
     /// Normal recordings get a fresh engine per recording, released on Stop: a running engine holds the input
     /// device open, and on Bluetooth headphones that leaves them in the low-quality call profile.
-    /// Dictation (`keepWarm`) keeps one engine *prepared but stopped* between recordings, with its tap
-    /// installed, so key-down only calls start(). The mic runs only while recording. The engine is released
-    /// after 10 minutes unused and when the Mac sleeps, and prepared again on wake.
+    /// Dictation (`keepWarm`, Mac only) records through an `InputUnit` bound to the chosen device instead of
+    /// an engine (see `InputUnit` for why). It keeps that unit *initialized but stopped* between recordings,
+    /// so key-down only starts the device. The mic runs only while recording. The unit is released after 10
+    /// minutes unused and when the Mac sleeps, and is never kept prepared on a Bluetooth mic.
     private let keepWarm: Bool
     private var engine: AVAudioEngine?
     private var writer: RecordingWriter?
@@ -216,19 +232,21 @@ final class Recorder: ObservableObject {
     #if os(iOS)
     private var interruptionObserver: NSObjectProtocol?
     #endif
-    private var prepared = false
-    /// The tap's format on the kept engine; a different input format at start means the engine is stale.
+    /// The tap's format on a normal recording's engine.
     private var tapFormat: AVAudioFormat?
-    private var preparedSelection: String?
+    /// The dictation unit must be rebuilt before its next use (a device change, a failed start, a wake).
     private var stale = false
-    /// Dictation wants the engine kept ready (dictation is on).
+    /// Dictation wants the unit kept ready (dictation is on).
     private var armed = false
     private var idleTimer: Timer?
     private var startedAt: TimeInterval = 0
-    private var builtAt: TimeInterval = 0
     private static let idleLimit: TimeInterval = 600
     #if os(macOS)
     private var workspaceObservers: [NSObjectProtocol] = []
+    /// Dictation's input, bound to one device.
+    private var unit: InputUnit?
+    /// Property listeners on the recording device (and the system default, when following it) while dictating.
+    private var deviceWatch: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
     #endif
 
     static var targetFormat: AVAudioFormat { recordingFormat }
@@ -359,6 +377,7 @@ final class Recorder: ObservableObject {
     func stop() -> (URL, TimeInterval, [Float])? {
         lastJoinFailed = false
         guard let (w, url) = endCapture() else { return nil }
+        lastHeardSignal = w.heardSignal
         let firstDelay = w.firstBufferDelay
         let env = Waveform.resample(w.close(), to: 120)   // close() flushes the converter's last frames first
         let d = w.seconds
@@ -381,6 +400,7 @@ final class Recorder: ObservableObject {
     func discard() {
         lastJoinFailed = false
         guard let (w, url) = endCapture() else { return }
+        lastHeardSignal = w.heardSignal
         _ = w.close()
         let fm = FileManager.default
         for u in w.segments { try? fm.removeItem(at: u) }
@@ -395,8 +415,10 @@ final class Recorder: ObservableObject {
         guard isRecording, let url, let w = writer else { return nil }
         if keepWarm {
             sink.set(nil, onLevel: nil)
-            engine?.stop()
-            prepared = false
+            #if os(macOS)
+            unwatchDevice()
+            unit?.stop()   // releases the mic; the unit stays initialized for the next dictation
+            #endif
         } else {
             engine?.inputNode.removeTap(onBus: 0)
             engine?.stop()
@@ -418,25 +440,31 @@ final class Recorder: ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
         if keepWarm {
-            // Ready for the next dictation: prepared again, mic off.
+            // Ready for the next dictation: prepared again (rebuilt if it went stale), mic off.
             if stale || !armed { teardown() }
             if armed { warmUp() }
         }
     }
 
-    // MARK: Kept engine (dictation)
+    // MARK: Kept input (dictation)
 
-    /// Prepares the kept engine (mic off) so the next start is quick. Dictation calls this when it's on.
+    /// Prepares the dictation unit on the device dictation will use (mic off), so the next start is quick.
+    /// Dictation calls this when it's on.
     func warmUp() {
         guard keepWarm else { return }
         armed = true
         guard !isRecording else { return }
-        if engine == nil || stale || selectionChanged() { rebuild() }
-        if let engine, !prepared { engine.prepare(); prepared = true }
+        #if os(macOS)
+        // Not on a Bluetooth mic: an initialized unit can hold a headset in its low-quality call profile.
+        guard let target = AudioDevices.current(), target.transport != "Bluetooth" else { teardown(); return }
+        if stale || !unitFits(target.id) {
+            do { try rebuild(on: target) } catch { Log.note("recorder: couldn't prepare \(target.name): \(error.localizedDescription)") }
+        }
         scheduleIdleRelease()
+        #endif
     }
 
-    /// Releases the kept engine (dictation turned off).
+    /// Releases the dictation unit (dictation turned off).
     func coolDown() {
         guard keepWarm else { return }
         armed = false
@@ -447,34 +475,56 @@ final class Recorder: ObservableObject {
     private func startWarm(to url: URL) throws {
         idleTimer?.invalidate(); idleTimer = nil
         armed = true
-        if engine == nil || stale || selectionChanged() { rebuild() }
+        #if os(macOS)
+        // The chosen device if it's connected, otherwise the system default; never anything else.
+        guard let target = AudioDevices.current() else { teardown(); throw Self.noInput }
         do {
-            try beginCapture(to: url)
+            if stale || !unitFits(target.id) { try rebuild(on: target) }
+            do {
+                try beginCapture(to: url)
+            } catch {
+                // A device that changed while idle can fail to start. One retry on a fresh unit.
+                Log.note("recorder: dictation start failed on \(target.name) (\(error.localizedDescription)); retrying on a fresh unit")
+                try rebuild(on: target)
+                try beginCapture(to: url)
+            }
         } catch {
-            // A Bluetooth route change can leave a kept engine's format stale: starting fails or records
-            // nothing. One retry on a fresh engine.
-            Log.note("recorder: warm start failed (\(error.localizedDescription)); retrying on a fresh engine")
-            rebuild()
-            try beginCapture(to: url)
+            // Release the device so a failed start never leaves a mic (or a headset's call profile) held open.
+            teardown()
+            throw error
         }
+        #else
+        throw Self.noInput
+        #endif
+    }
+
+    #if os(macOS)
+    /// Whether the prepared unit is on this device and still matches its sample rate.
+    private func unitFits(_ device: AudioDeviceID) -> Bool {
+        guard let unit, unit.device == device else { return false }
+        guard let rate = AudioDevices.nominalSampleRate(device) else { return true }
+        return rate == unit.format.sampleRate
+    }
+
+    /// A new unit on `target`, initialized, not started.
+    private func rebuild(on target: AudioDevices.Device) throws {
+        teardown()
+        let u = try InputUnit(device: target.id) { [sink = self.sink] buffer in sink.feed(buffer) }
+        do { try u.prepare() } catch { u.dispose(); throw error }
+        unit = u
+        stale = false
+        Log.note("recorder: dictation input ready on \(target.name) (\(target.transport)), \(Int(u.format.sampleRate)) Hz, \(u.format.channelCount) ch")
     }
 
     private func beginCapture(to url: URL) throws {
-        guard let engine, let tapFormat else { throw Self.noInput }
-        let now = engine.inputNode.outputFormat(forBus: 0)
-        guard now.sampleRate > 0, now.channelCount > 0 else { throw Self.noInput }
-        if now.sampleRate != tapFormat.sampleRate || now.channelCount != tapFormat.channelCount {
-            throw NSError(domain: "Verbatim", code: 3, userInfo: [NSLocalizedDescriptionKey: "The microphone's format changed."])
-        }
-        let w = try RecordingWriter(inputFormat: tapFormat)
+        guard let unit else { throw Self.noInput }
+        let w = try RecordingWriter(inputFormat: unit.format)
         live.reset()
         sink.set(w, onLevel: levelHandler())
         do {
-            if !prepared { engine.prepare(); prepared = true }
-            try engine.start()
+            try unit.start()
         } catch {
             sink.set(nil, onLevel: nil)
-            prepared = false
             _ = w.close()
             throw error
         }
@@ -483,7 +533,7 @@ final class Recorder: ObservableObject {
             try w.attach(url: url)
         } catch {
             sink.set(nil, onLevel: nil)
-            engine.stop(); prepared = false
+            unit.stop()
             _ = w.close()
             throw error
         }
@@ -493,8 +543,10 @@ final class Recorder: ObservableObject {
         startedAt = ProcessInfo.processInfo.systemUptime
         isRecording = true
         isPaused = false
-        watchFirstBuffer(w)
+        watchDevice(unit.device)
+        watchFirstSignal(w)
     }
+    #endif
 
     private func levelHandler() -> @Sendable (Float, TimeInterval) -> Void {
         { [weak self] v, secs in
@@ -502,81 +554,36 @@ final class Recorder: ObservableObject {
         }
     }
 
-    /// A kept engine whose route went stale can start without error and deliver nothing. No audio at all
-    /// 2.5 s after start (longer than a Bluetooth mic takes to wake) means that: move this recording to a
-    /// fresh engine on the same device setting. If that fails, the owner finishes with what it has.
-    private func watchFirstBuffer(_ w: RecordingWriter) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            guard let self, self.isRecording, self.writer === w, w.firstBufferDelay == nil else { return }
-            Log.note("recorder: no audio 2.5 s after start; restarting on a fresh engine")
-            self.rebuild()
-            guard let engine = self.engine, let format = self.tapFormat, w.replaceInput(format) else {
-                Log.note("recorder: couldn't restart capture")
-                self.onInterrupted?()
-                return
-            }
-            self.sink.set(w, onLevel: self.levelHandler())
-            do {
-                try engine.start()
-            } catch {
-                Log.note("recorder: restart failed: \(error.localizedDescription)")
-                self.sink.set(nil, onLevel: nil)
-                self.onInterrupted?()
-            }
+    /// Nothing but digital silence (or nothing at all) 2 s after start means the mic isn't delivering: asleep,
+    /// muted in hardware, gone, or a stale route. A quiet speaker still sends room noise, so this never cancels
+    /// someone who just hasn't spoken yet. The owner stops, releases the mic, and says so.
+    private func watchFirstSignal(_ w: RecordingWriter) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, self.isRecording, self.writer === w, !w.heardSignal else { return }
+            Log.note("recorder: no audio 2 s after start (\(w.firstBufferDelay == nil ? "no buffers" : "only silence"))")
+            self.stale = true
+            if let onNoAudio = self.onNoAudio { onNoAudio() } else { self.onInterrupted?() }
         }
-    }
-
-    /// A new engine on the chosen device, tap installed, prepared, not started.
-    private func rebuild() {
-        teardown()
-        let e = AVAudioEngine()
-        let input = e.inputNode
-        #if os(macOS)
-        if let id = AudioDevices.selectedInputID { AudioDevices.setInput(id, on: input) }
-        preparedSelection = AudioDevices.selectedUID
-        #endif
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else {
-            Log.note("recorder: no input to prepare")
-            return
-        }
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [sink = self.sink] buffer, _ in sink.feed(buffer) }
-        engine = e
-        tapFormat = format
-        observeConfiguration(of: e)
-        e.prepare()
-        prepared = true
-        stale = false
-        builtAt = ProcessInfo.processInfo.systemUptime
     }
 
     private func teardown() {
         idleTimer?.invalidate(); idleTimer = nil
-        removeConfigObserver()
-        if let engine {
-            sink.set(nil, onLevel: nil)
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
-        }
-        engine = nil
-        tapFormat = nil
-        prepared = false
-        stale = false
-    }
-
-    private func selectionChanged() -> Bool {
         #if os(macOS)
-        return preparedSelection != AudioDevices.selectedUID
-        #else
-        return false
+        unwatchDevice()
+        if let unit {
+            sink.set(nil, onLevel: nil)
+            unit.dispose()
+        }
+        unit = nil
         #endif
+        stale = false
     }
 
     private func scheduleIdleRelease() {
         idleTimer?.invalidate()
         idleTimer = Timer.scheduledTimer(withTimeInterval: Self.idleLimit, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self, !self.isRecording, self.engine != nil else { return }
+                guard let self, !self.isRecording else { return }
                 Log.note("recorder: released after \(Int(Self.idleLimit / 60)) minutes unused")
                 self.teardown()
             }
@@ -597,6 +604,41 @@ final class Recorder: ObservableObject {
             self.warmUp()
         }
     }
+
+    // MARK: Dictation device changes
+
+    #if os(macOS)
+    /// Listens, while dictating, for the device going away or changing sample rate, and (when following the
+    /// system default) for the default input changing. Any of these ends the dictation with what it has.
+    private func watchDevice(_ device: AudioDeviceID) {
+        unwatchDevice()
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in self?.dictationInputChanged() }
+        }
+        var targets: [(AudioObjectID, AudioObjectPropertySelector)] = [(device, kAudioDevicePropertyDeviceIsAlive), (device, kAudioDevicePropertyNominalSampleRate)]
+        if AudioDevices.selectedInputID == nil { targets.append((AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice)) }
+        for (object, selector) in targets {
+            var addr = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+            if AudioObjectAddPropertyListenerBlock(object, &addr, DispatchQueue.main, block) == noErr { deviceWatch.append((object, addr, block)) }
+        }
+    }
+
+    private func unwatchDevice() {
+        for (object, addr, block) in deviceWatch {
+            var a = addr
+            AudioObjectRemovePropertyListenerBlock(object, &a, DispatchQueue.main, block)
+        }
+        deviceWatch = []
+    }
+
+    private func dictationInputChanged() {
+        guard keepWarm, isRecording, !deviceWatch.isEmpty else { return }
+        Log.note("recorder: dictation input changed after \(String(format: "%.1f", ProcessInfo.processInfo.systemUptime - startedAt))s")
+        stale = true
+        unwatchDevice()   // one notice per dictation; several properties can change together
+        onInterrupted?()
+    }
+    #endif
 
     // MARK: Interruptions (iPhone)
 
@@ -656,17 +698,6 @@ final class Recorder: ObservableObject {
                 // Normal recordings: follow the new input (a new sample rate is fine, the writer converts). If that
                 // can't start, pause visibly instead of recording nothing.
                 autoPause("The microphone changed. Tap Resume to keep recording.")
-            }
-        } else if keepWarm {
-            // Building an engine can post a change of its own; don't rebuild in a loop.
-            guard ProcessInfo.processInfo.systemUptime - builtAt > 2 else { return }
-            Log.note("recorder: configuration changed while idle; preparing again")
-            teardown()
-            if armed {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                    guard let self, self.armed, !self.isRecording else { return }
-                    self.warmUp()
-                }
             }
         }
     }

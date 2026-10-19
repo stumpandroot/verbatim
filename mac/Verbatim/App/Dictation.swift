@@ -64,7 +64,7 @@ final class DictationController: ObservableObject {
     }
 
     private weak var app: AppState?
-    /// Keeps one audio engine prepared (mic off) between dictations, so key-down only starts it.
+    /// Keeps one input unit prepared (mic off) on the chosen mic between dictations, so key-down only starts it.
     private let recorder = Recorder(keepWarm: true)
     private var monitors: [Any] = []
     private(set) var bar: FlowBarController?
@@ -122,6 +122,8 @@ final class DictationController: ObservableObject {
         }
         // The mic changing mid-dictation ends it gracefully: what was said so far is transcribed and kept.
         recorder.onInterrupted = { [weak self] in self?.inputInterrupted() }
+        // No sound at all from the mic shortly after starting: stop instead of listening to nothing.
+        recorder.onNoAudio = { [weak self] in self?.noAudio() }
         warmRecorder()
         // Load the speech model and run a tiny transcription now, so the first dictation doesn't wait for it.
         prewarmModel(reason: "launch")
@@ -142,9 +144,9 @@ final class DictationController: ObservableObject {
         Task.detached(priority: .utility) { await FluidEngine.shared.prewarm(model: model) }
     }
 
-    /// Keeps the recorder's engine prepared while dictation is on and the mic is allowed; releases it otherwise.
+    /// Keeps the recorder's input prepared while dictation is on and the mic is allowed; releases it otherwise.
     private func warmRecorder() {
-        // Not on a Bluetooth mic: a prepared engine can hold the headset in its low-quality call profile.
+        // Not on a Bluetooth mic: a prepared input can hold the headset in its low-quality call profile.
         let bluetooth = AudioDevices.current()?.transport == "Bluetooth"
         if enabled && !bluetooth && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized { recorder.warmUp() }
         else { recorder.coolDown() }
@@ -156,6 +158,29 @@ final class DictationController: ObservableObject {
         Log.note("dictation: input device changed mid-dictation, finishing")
         finish()
         if isWorking { bar?.model.warning = "Mic changed, so listening stopped" }
+    }
+
+    /// The recorder's watchdog: no sound at all 2 seconds in. Stops, releases the mic, and says which mic.
+    private func noAudio() {
+        guard isListening else { return }
+        Log.note("dictation: no audio from \(AudioDevices.current()?.name ?? "the mic"); stopped")
+        recorder.discard()
+        resetListening()
+        showMicProblem("Couldn't hear")
+    }
+
+    /// Back to idle after listening ended without a recording to transcribe.
+    private func resetListening() {
+        isListening = false; handsFree = false; command = false; toPad = false
+    }
+
+    /// "Couldn't hear the Shure MV7 mic. Check Settings › General › Microphone.", with a button that opens it.
+    private func showMicProblem(_ verb: String) {
+        let name = AudioDevices.current()?.name ?? "the microphone"
+        let mic = name.range(of: "mic", options: .caseInsensitive) != nil ? name : "the \(name) mic"
+        bar?.flash("\(verb) \(mic). Check Settings › General › Microphone.", action: "Open", seconds: 6) { [weak self] in
+            self?.openSettings(tab: .general)
+        }
     }
 
     func requestAccessibility() {
@@ -401,7 +426,7 @@ final class DictationController: ObservableObject {
             try recorder.start(to: app?.store.newRecordingURL() ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
             Log.note("dictation start failed: \(error)")
-            bar?.flash("Couldn't start the microphone. Check Settings › Dictate.")
+            showMicProblem("Couldn't start")
             return
         }
         startedAt = Date()
@@ -483,16 +508,29 @@ final class DictationController: ObservableObject {
 
     /// Stops listening without pasting. The recording is discarded.
     func cancel(quiet: Bool = false) {
-        guard isListening, let stopped = recorder.stop() else { return }
+        guard isListening else { return }
+        // The recorder already stopped on its own: still end listening, so the Ribbon never stays stuck.
+        guard let stopped = recorder.stop() else { resetListening(); bar?.setPhase(.idle); return }
         isListening = false; handsFree = false; command = false
         try? FileManager.default.removeItem(at: stopped.0)
         if quiet { bar?.setPhase(.idle) } else { bar?.flash("Cancelled", seconds: 1.5) }
     }
 
     private func finish() {
-        guard isListening, let stopped = recorder.stop() else { return }
+        guard isListening else { return }
+        guard let stopped = recorder.stop() else {
+            // The recorder already stopped on its own: end listening anyway, so the Ribbon never stays stuck.
+            resetListening(); showMicProblem("Couldn't hear"); return
+        }
         let (url, duration, env) = stopped
         isListening = false; handsFree = false
+        // A second or more without a single non-silent sample: the mic isn't delivering (shorter is a stray tap).
+        if !recorder.lastHeardSignal, Date().timeIntervalSince(startedAt ?? Date()) >= 1 {
+            try? FileManager.default.removeItem(at: url)
+            command = false; toPad = false
+            showMicProblem("Couldn't hear")
+            return
+        }
         guard duration >= 0.4 else {                      // too short: discard, like Wispr Flow
             try? FileManager.default.removeItem(at: url); bar?.setPhase(.idle); return
         }
