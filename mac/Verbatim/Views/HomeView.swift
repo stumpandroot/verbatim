@@ -164,7 +164,8 @@ struct RecentWork: View {
 // MARK: - Dictations
 
 /// The last five dictations as a compact list: when, where it was pasted, the first line, and Copy.
-/// Lists what the Dictations screen lists (dictation transcripts, newest first); hidden when there are none.
+/// Lists what the Dictations screen lists (dictation transcripts, newest first), ignoring its filter chips and
+/// the search field; hidden when there are none.
 struct RecentDictations: View {
     @EnvironmentObject var app: AppState
     var body: some View {
