@@ -245,10 +245,11 @@ struct MicSourceMenu: View {
     @State private var devices: [AudioDevices.Device] = []
     @State private var current: AudioDevices.Device? = nil
     @State private var selectedUID: String? = AudioDevices.selectedUID
+    @State private var defaultName: String? = nil
 
     var body: some View {
         Menu {
-            Button { choose(nil) } label: { Label("System default" + (AudioDevices.defaultInput().map { " (\($0.name))" } ?? ""), systemImage: selectedUID == nil ? "checkmark" : "") }
+            Button { choose(nil) } label: { Label("System default" + (defaultName.map { " (\($0))" } ?? ""), systemImage: selectedUID == nil ? "checkmark" : "") }
             Divider()
             ForEach(devices) { d in
                 Button { choose(AudioDevices.deviceUID(d.id)) } label: {
@@ -269,7 +270,14 @@ struct MicSourceMenu: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
     }
 
-    private func refresh() { devices = AudioDevices.inputs(); current = AudioDevices.current() }
+    /// Reads the devices off the main thread: this menu appears as a recording starts, while the mic is being
+    /// opened, and a Core Audio read can wait on a device that's busy switching.
+    private func refresh() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let all = AudioDevices.inputs(), now = AudioDevices.current(), def = AudioDevices.defaultInput()?.name
+            DispatchQueue.main.async { devices = all; current = now; defaultName = def }
+        }
+    }
     private func choose(_ uid: String?) { AudioDevices.selectedUID = uid; selectedUID = uid; refresh() }
 }
 
@@ -326,9 +334,9 @@ struct RecordPanel: View {
     @EnvironmentObject var app: AppState
     var body: some View {
         HStack(spacing: 16) {
-            SignalRings(active: !app.recorder.isPaused).frame(width: 30, height: 30).padding(.leading, 6)
+            SignalRings(active: !app.recorder.isPaused && !starting).frame(width: 30, height: 30).padding(.leading, 6)
             VStack(alignment: .leading, spacing: 2) {
-                Text(app.recorder.isPaused ? "Paused" : "Recording").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
+                Text(starting ? "Starting…" : app.recorder.isPaused ? "Paused" : "Recording").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
                 if let id = app.continuing, let t = app.store.transcript(id) {
                     Text("Adding to “\(t.title)”").font(.system(size: 12)).foregroundStyle(Ink.accentText).lineLimit(1)
                 }
@@ -336,17 +344,20 @@ struct RecordPanel: View {
             }
             .frame(width: 170, alignment: .leading)
             LiveReadout(live: app.recorder.live, frozen: app.recorder.isPaused)
-            Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.brandSecondaryLarge)
-            Button("Stop") { app.stopRecording() }.buttonStyle(.brandPrimaryLarge).keyboardShortcut(".", modifiers: [.option, .shift])
+            Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.brandSecondaryLarge).disabled(starting)
+            // While the mic is starting, Stop cancels the start.
+            Button(starting ? "Cancel" : "Stop") { app.stopRecording() }.buttonStyle(.brandPrimaryLarge).keyboardShortcut(".", modifiers: [.option, .shift])
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 70)
         .background(Ink.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.persimmon.opacity(0.6)))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(app.recorder.isPaused ? "Recording paused" : "Recording")
+        .accessibilityLabel(starting ? "Starting the microphone" : app.recorder.isPaused ? "Recording paused" : "Recording")
         .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
     }
+
+    private var starting: Bool { app.recorder.isStarting }
 }
 
 struct CapturePanel: View {

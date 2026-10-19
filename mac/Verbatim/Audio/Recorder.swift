@@ -192,10 +192,89 @@ final class TapSink: @unchecked Sendable {
     }
 }
 
+/// What a recording is doing right now ("recording: starting Shure MV7"), so the hang watch can say which step
+/// the main thread was stuck in. Any thread.
+enum CaptureStep {
+    private static let lock = NSLock()
+    private static var step: String?
+    private static var since: TimeInterval = 0
+
+    static func set(_ s: String?) {
+        lock.lock(); step = s; since = ProcessInfo.processInfo.systemUptime; lock.unlock()
+    }
+
+    /// The step in progress and how long it has been running, or nil.
+    static var current: String? {
+        lock.lock(); defer { lock.unlock() }
+        guard let step else { return nil }
+        return "\(step), \(String(format: "%.1f", ProcessInfo.processInfo.systemUptime - since)) s in"
+    }
+}
+
+struct RecorderError: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
+
+#if os(macOS)
+/// A normal recording's open microphone: its own unit, sink, and device listeners. Each start or reopen gets a
+/// new one, so a start that finishes late (after a timeout or Stop) can only release its own. Everything here
+/// runs on the recorder's audio queue, except `sink.set`, which is safe from any thread.
+final class OpenInput: @unchecked Sendable {
+    let unit: InputUnit
+    let sink: TapSink
+    let device: AudioDevices.Device
+    private var listeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
+
+    init(unit: InputUnit, sink: TapSink, device: AudioDevices.Device) {
+        self.unit = unit; self.sink = sink; self.device = device
+    }
+
+    /// Calls `onChange` on the main queue when the device goes away or changes sample rate, and (when following
+    /// the system default) when the default input changes.
+    func watch(onChange: @escaping () -> Void) {
+        let block: AudioObjectPropertyListenerBlock = { _, _ in onChange() }
+        var targets: [(AudioObjectID, AudioObjectPropertySelector)] = [(device.id, kAudioDevicePropertyDeviceIsAlive), (device.id, kAudioDevicePropertyNominalSampleRate)]
+        if AudioDevices.selectedInputID == nil { targets.append((AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice)) }
+        for (object, selector) in targets {
+            var addr = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+            if AudioObjectAddPropertyListenerBlock(object, &addr, DispatchQueue.main, block) == noErr { listeners.append((object, addr, block)) }
+        }
+    }
+
+    /// Stops the device (the mic is free again), removes the listeners, and releases the unit.
+    func release() {
+        sink.set(nil, onLevel: nil)
+        for (object, addr, block) in listeners {
+            var a = addr
+            AudioObjectRemovePropertyListenerBlock(object, &a, DispatchQueue.main, block)
+        }
+        listeners = []
+        unit.dispose()
+    }
+}
+
+/// The name of the device a start is opening, reported from the audio queue for the timeout message.
+final class MicNameProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String?
+    var name: String? {
+        get { lock.lock(); defer { lock.unlock() }; return value }
+        set { lock.lock(); value = newValue; lock.unlock() }
+    }
+}
+#endif
+
 @MainActor
 final class Recorder: ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var isPaused = false
+    /// Mac normal recordings: the mic is being opened. `isRecording` is already true (the panel shows
+    /// "Starting…"); Stop cancels.
+    @Published private(set) var isStarting = false
+    /// Called when Resume finishes reopening a microphone that went away while paused.
+    var onResumed: (() -> Void)?
     let live = LiveMeter()
     /// The last `stop()` couldn't join a long recording's segments. The caller must not adopt the file then:
     /// every part stays in the recordings folder, and launch recovery joins it.
@@ -217,8 +296,10 @@ final class Recorder: ObservableObject {
     /// Whether the last stopped or discarded recording received anything but digital silence.
     private(set) var lastHeardSignal = true
 
-    /// Normal recordings get a fresh engine per recording, released on Stop: a running engine holds the input
-    /// device open, and on Bluetooth headphones that leaves them in the low-quality call profile.
+    /// Normal recordings on the Mac open their own `InputUnit` on the chosen device per recording, off the main
+    /// thread, released on Stop (see `begin(to:done:)`). An AVAudioEngine's input node first opens the system
+    /// default input, which with Bluetooth headphones switches them to the call profile and can block the main
+    /// thread for seconds. On the iPhone, normal recordings get a fresh engine per recording, released on Stop.
     /// Dictation (`keepWarm`, Mac only) records through an `InputUnit` bound to the chosen device instead of
     /// an engine (see `InputUnit` for why). It keeps that unit *initialized but stopped* between recordings,
     /// so key-down only starts the device. The mic runs only while recording. The unit is released after 10
@@ -247,6 +328,18 @@ final class Recorder: ObservableObject {
     private var unit: InputUnit?
     /// Property listeners on the recording device (and the system default, when following it) while dictating.
     private var deviceWatch: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
+    /// Normal recordings (Mac): every Core Audio call (finding, opening, starting, and releasing the mic) runs
+    /// here, never on the main thread. A device that takes seconds to answer can't freeze the app.
+    private let audioQueue = DispatchQueue(label: "co.stumpandroot.verbatim.recorder", qos: .userInitiated)
+    /// The open microphone of a normal recording; nil while starting, after the device went away, and when stopped.
+    private var input: OpenInput?
+    /// Bumped by every start, stop, cancel, and reopen. Work that finishes for an older value is released.
+    private var attempt = 0
+    private var pendingDone: ((Error?) -> Void)?
+    private var reopening = false
+    private var lastAutoReopen: TimeInterval = -100
+    /// How long opening a mic may take before the start is given up and the mic released.
+    private static let startLimit: TimeInterval = 3
     #endif
 
     static var targetFormat: AVAudioFormat { recordingFormat }
@@ -277,13 +370,18 @@ final class Recorder: ObservableObject {
         try session.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth])
         try session.setActive(true)
         #endif
-        if keepWarm { try startWarm(to: url); return }
+        if keepWarm {
+            CaptureStep.set("dictation: starting")
+            defer { CaptureStep.set(nil) }
+            try startWarm(to: url); return
+        }
+        #if os(macOS)
+        // Normal recordings on the Mac start asynchronously; AppState calls `begin(to:done:)` directly.
+        begin(to: url) { _ in }
+        #else
         let engine = AVAudioEngine()
         self.engine = engine
         let input = engine.inputNode
-        #if os(macOS)
-        if let id = AudioDevices.selectedInputID { AudioDevices.setInput(id, on: input) }
-        #endif
         let inFormat = input.outputFormat(forBus: 0)
         guard inFormat.sampleRate > 0, inFormat.channelCount > 0 else {
             self.engine = nil
@@ -307,6 +405,7 @@ final class Recorder: ObservableObject {
         startedAt = ProcessInfo.processInfo.systemUptime
         isRecording = true
         isPaused = false
+        #endif
     }
 
     private func installRecordingTap(on input: AVAudioInputNode, format: AVAudioFormat, writer w: RecordingWriter) {
@@ -323,6 +422,13 @@ final class Recorder: ObservableObject {
     }
 
     func togglePause() {
+        #if os(macOS)
+        if !keepWarm {
+            guard isRecording, !isStarting, !reopening else { return }
+            // Resuming after the microphone went away: reopen it (off the main thread), then resume.
+            if isPaused, input == nil { reopen(resuming: true); return }
+        }
+        #endif
         // Resuming after the recorder paused itself (a call, a device change): the engine stopped, start it again.
         if isPaused, !keepWarm, let engine, !engine.isRunning {
             guard restartCapture() else {
@@ -376,6 +482,9 @@ final class Recorder: ObservableObject {
     /// that file first; if that fails, `lastJoinFailed` is set and the caller must leave the file where it is.
     func stop() -> (URL, TimeInterval, [Float])? {
         lastJoinFailed = false
+        #if os(macOS)
+        if isStarting { cancelStart(); return nil }
+        #endif
         guard let (w, url) = endCapture() else { return nil }
         lastHeardSignal = w.heardSignal
         let firstDelay = w.firstBufferDelay
@@ -399,6 +508,9 @@ final class Recorder: ObservableObject {
     /// Stops and deletes the recording and its segments without joining them.
     func discard() {
         lastJoinFailed = false
+        #if os(macOS)
+        if isStarting { cancelStart(); return }
+        #endif
         guard let (w, url) = endCapture() else { return }
         lastHeardSignal = w.heardSignal
         _ = w.close()
@@ -420,6 +532,17 @@ final class Recorder: ObservableObject {
             unit?.stop()   // releases the mic; the unit stays initialized for the next dictation
             #endif
         } else {
+            #if os(macOS)
+            // A reopen still in flight is released when it finishes. The device is stopped off the main thread.
+            attempt += 1
+            reopening = false
+            if let open = input {
+                open.sink.set(nil, onLevel: nil)
+                audioQueue.async { open.release() }
+            }
+            input = nil
+            CaptureStep.set(nil)
+            #endif
             engine?.inputNode.removeTap(onBus: 0)
             engine?.stop()
             engine?.reset()
@@ -445,6 +568,242 @@ final class Recorder: ObservableObject {
             if armed { warmUp() }
         }
     }
+
+    // MARK: Normal recordings (Mac)
+
+    #if os(macOS)
+    /// Starts a normal recording from the chosen mic (or the system default when none is chosen or it's
+    /// unplugged) through an `InputUnit` bound to that device, so no other device, such as a Bluetooth headset's
+    /// mic, is ever opened. Returns at once: the mic is opened on the audio queue while `isStarting` is true.
+    /// `done(nil)` once it's recording. If opening fails, or the device doesn't answer within 3 seconds, the mic
+    /// is released and `done` gets an error that names it. Stop while starting cancels, and `done` isn't called.
+    func begin(to url: URL, done: @escaping (Error?) -> Void) {
+        if keepWarm {
+            do { try start(to: url); done(nil) } catch { done(error) }
+            return
+        }
+        guard !isRecording else { done(RecorderError("A recording is already running.")); return }
+        attempt += 1
+        let mine = attempt
+        let began = ProcessInfo.processInfo.systemUptime
+        self.url = url
+        lastAutoReopen = -100
+        live.reset()
+        isPaused = false
+        isStarting = true
+        isRecording = true
+        pendingDone = done
+        CaptureStep.set("recording: waiting for the audio queue")
+        Log.note("recorder: starting")
+        let levels = levelHandler()
+        let probe = MicNameProbe()
+        audioQueue.async { [weak self] in
+            let result = Self.openInput(newFileAt: url, continuing: nil, levels: levels, probe: probe)
+            Task { @MainActor in
+                guard let self else {
+                    if case .success(let (open, w)) = result { open.release(); _ = w.close() }
+                    return
+                }
+                self.finishBegin(mine, result, url: url, probe: probe, began: began)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.startLimit) { [weak self] in
+            guard let self, self.attempt == mine, self.isStarting else { return }
+            Log.note("recorder: start gave up after \(Int(Self.startLimit)) s (\(CaptureStep.current ?? "no step"))")
+            let done = self.endStart()
+            done?(RecorderError("Couldn't start \(Self.micPhrase(probe.name)). It didn't respond within \(Int(Self.startLimit)) seconds. Check that it's connected, or choose another mic in Settings › General › Microphone."))
+        }
+    }
+
+    /// "the Shure MV7 mic", "the MacBook Pro Microphone", or "the microphone".
+    static func micPhrase(_ name: String?) -> String {
+        guard let name, !name.isEmpty else { return "the microphone" }
+        return name.lowercased().contains("mic") ? "the \(name)" : "the \(name) mic"
+    }
+
+    /// Audio queue: finds the device, opens it, and starts it. With `continuing`, the existing writer is pointed
+    /// at the new device's format; otherwise a new segmented writer is made at `url`. On failure everything it
+    /// opened is released (and a new file removed).
+    nonisolated private static func openInput(newFileAt url: URL?, continuing existing: RecordingWriter?,
+                                              levels: @escaping @Sendable (Float, TimeInterval) -> Void,
+                                              probe: MicNameProbe) -> Result<(OpenInput, RecordingWriter), Error> {
+        CaptureStep.set("recording: finding the microphone")
+        // The chosen device if it's connected, otherwise the system default; never anything else.
+        guard let target = AudioDevices.current() else { return .failure(RecorderError("No microphone is connected.")) }
+        probe.name = target.name
+        var made: InputUnit?
+        do {
+            CaptureStep.set("recording: preparing \(target.name)")
+            let sink = TapSink()
+            let u = try InputUnit(device: target.id) { buffer in sink.feed(buffer) }
+            made = u
+            try u.prepare()
+            let w: RecordingWriter
+            if let existing {
+                guard existing.replaceInput(u.format) else { throw RecorderError("The microphone's format can't be converted.") }
+                w = existing
+            } else if let url {
+                w = try RecordingWriter(url: url, inputFormat: u.format, segmented: true)
+            } else {
+                throw RecorderError("No file to record into.")
+            }
+            sink.set(w, onLevel: levels)
+            CaptureStep.set("recording: starting \(target.name)")
+            do {
+                try u.start()
+            } catch {
+                sink.set(nil, onLevel: nil)
+                if existing == nil, let url { _ = w.close(); try? FileManager.default.removeItem(at: url) }
+                throw error
+            }
+            return .success((OpenInput(unit: u, sink: sink, device: target), w))
+        } catch {
+            made?.dispose()
+            return .failure(error)
+        }
+    }
+
+    private func finishBegin(_ mine: Int, _ result: Result<(OpenInput, RecordingWriter), Error>, url: URL, probe: MicNameProbe, began: TimeInterval) {
+        let ms = Int((ProcessInfo.processInfo.systemUptime - began) * 1000)
+        guard mine == attempt, isStarting else {
+            // Stopped, cancelled, or given up meanwhile: release what opened, and its file.
+            if case .success(let (open, w)) = result {
+                open.sink.set(nil, onLevel: nil)
+                audioQueue.async {
+                    open.release()
+                    _ = w.close()
+                    for u in w.segments { try? FileManager.default.removeItem(at: u) }
+                }
+                Log.note("recorder: a start that was given up finished after \(ms) ms; mic released")
+            }
+            return
+        }
+        switch result {
+        case .success(let (open, w)):
+            let done = endStart(keepRecording: true)
+            input = open
+            writer = w
+            RecordingSegments.setActive(url, true)
+            startedAt = ProcessInfo.processInfo.systemUptime
+            watch(open)
+            Log.note("recorder: recording from \(open.device.name) (\(open.device.transport)), \(Int(open.unit.format.sampleRate)) Hz, \(open.unit.format.channelCount) ch; started in \(ms) ms")
+            done?(nil)
+        case .failure(let error):
+            Log.note("recorder: couldn't start after \(ms) ms: \(error.localizedDescription)")
+            let done = endStart()
+            done?(RecorderError("Couldn't start \(Self.micPhrase(probe.name)): \(error.localizedDescription)"))
+        }
+    }
+
+    /// Leaves the starting state. Unless `keepRecording`, the recording is over too (failed or cancelled).
+    /// Returns the start's completion, for the caller to call (or drop).
+    @discardableResult
+    private func endStart(keepRecording: Bool = false) -> ((Error?) -> Void)? {
+        let done = pendingDone
+        pendingDone = nil
+        isStarting = false
+        CaptureStep.set(nil)
+        if !keepRecording {
+            attempt += 1
+            isRecording = false
+            url = nil
+            live.reset()
+        }
+        return done
+    }
+
+    /// Stop while the mic is still opening: the start is dropped, and the open releases itself when it finishes.
+    private func cancelStart() {
+        Log.note("recorder: start cancelled")
+        _ = endStart()
+    }
+
+    private func watch(_ open: OpenInput) {
+        let onChange: () -> Void = { [weak self, weak open] in
+            guard let open else { return }
+            Task { @MainActor in self?.inputChanged(open) }
+        }
+        audioQueue.async { open.watch(onChange: onChange) }
+    }
+
+    /// The recording's device went away or changed (or the system default did, when following it). The dead
+    /// input is released; the recording reopens the mic once by itself, then pauses visibly if it changes again.
+    private func inputChanged(_ changed: OpenInput) {
+        guard !keepWarm, isRecording, !isStarting, input === changed else { return }
+        Log.note("recorder: input changed mid-recording after \(String(format: "%.1f", ProcessInfo.processInfo.systemUptime - startedAt))s (\(changed.device.name))")
+        input = nil
+        changed.sink.set(nil, onLevel: nil)
+        audioQueue.async { changed.release() }
+        if let onInterrupted { onInterrupted(); return }
+        if isPaused { Log.note("recorder: input changed while paused; Resume reopens the mic"); return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - lastAutoReopen > 5 {
+            lastAutoReopen = now
+            reopen(resuming: false)
+        } else {
+            autoPause("The microphone changed. Tap Resume to keep recording.")
+        }
+    }
+
+    /// Opens the mic again into the same writer (the writer converts the new format). `resuming`: Resume after the
+    /// mic went away; success resumes. Otherwise a reopen after a device change; failure pauses.
+    private func reopen(resuming: Bool) {
+        guard let w = writer, !reopening else { return }
+        reopening = true
+        attempt += 1
+        let mine = attempt
+        let levels = levelHandler()
+        let probe = MicNameProbe()
+        CaptureStep.set("recording: reopening the microphone")
+        Log.note("recorder: reopening the microphone\(resuming ? " to resume" : "")")
+        audioQueue.async { [weak self] in
+            let result = Self.openInput(newFileAt: nil, continuing: w, levels: levels, probe: probe)
+            Task { @MainActor in
+                guard let self else { if case .success(let (open, _)) = result { open.release() }; return }
+                self.finishReopen(mine, result, resuming: resuming, probe: probe)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.startLimit) { [weak self] in
+            guard let self, self.attempt == mine, self.reopening else { return }
+            Log.note("recorder: reopening gave up after \(Int(Self.startLimit)) s (\(CaptureStep.current ?? "no step"))")
+            self.attempt += 1
+            self.reopening = false
+            CaptureStep.set(nil)
+            self.autoPause("Couldn't restart \(Self.micPhrase(probe.name)). Check that it's connected and tap Resume, or Stop to keep what was recorded.")
+        }
+    }
+
+    private func finishReopen(_ mine: Int, _ result: Result<(OpenInput, RecordingWriter), Error>, resuming: Bool, probe: MicNameProbe) {
+        guard mine == attempt, reopening, isRecording else {
+            if case .success(let (open, _)) = result {
+                open.sink.set(nil, onLevel: nil)
+                audioQueue.async { open.release() }
+                Log.note("recorder: a reopen that was given up finished; mic released")
+            }
+            return
+        }
+        reopening = false
+        CaptureStep.set(nil)
+        switch result {
+        case .success(let (open, _)):
+            input = open
+            watch(open)
+            Log.note("recorder: microphone reopened on \(open.device.name), \(Int(open.unit.format.sampleRate)) Hz")
+            if resuming {
+                isPaused = false
+                writer?.paused = false
+                onResumed?()
+            }
+        case .failure(let error):
+            Log.note("recorder: couldn't reopen: \(error.localizedDescription)")
+            if resuming {
+                onAutoPaused?("Couldn't restart \(Self.micPhrase(probe.name)). Stop to keep what was recorded.")
+            } else {
+                autoPause("The microphone changed. Tap Resume to keep recording.")
+            }
+        }
+    }
+    #endif
 
     // MARK: Kept input (dictation)
 
