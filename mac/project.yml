@@ -126,11 +126,18 @@ targets:
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
       - Verbatim/Views/KindViews.swift
+      - Verbatim/Flow/CleanupPrepass.swift
+      - Verbatim/Flow/DictationFormatter.swift
+      # Shared with the keyboard extension: the App Group channel and the voice bars.
+      - VerbatimKeyboard/KeyboardBridge.swift
+      - VerbatimKeyboard/VoiceBars.swift
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
       - package: FluidAudio
         product: FluidAudio
+      # The Verbatim keyboard, embedded in the app's PlugIns folder.
+      - target: VerbatimKeyboard
     info:
       path: VerbatimPhone/Info.plist
       properties:
@@ -145,12 +152,18 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this iPhone."
         ITSAppUsesNonExemptEncryption: false
+        # verbatim://dictate?session=… opens the app from the Verbatim keyboard to start listening.
+        CFBundleURLTypes:
+          - CFBundleURLName: co.stumpandroot.verbatim.ios
+            CFBundleURLSchemes: [verbatim]
     entitlements:
       path: VerbatimPhone/VerbatimPhone.entitlements
       properties:
         com.apple.developer.icloud-container-identifiers: [iCloud.co.stumpandroot.verbatim]
         com.apple.developer.icloud-services: [CloudDocuments]
         com.apple.developer.ubiquity-container-identifiers: [iCloud.co.stumpandroot.verbatim]
+        # Shared with the keyboard (KeyboardBridge.appGroup). Xcode's automatic signing registers the group.
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h
@@ -168,5 +181,52 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
+
+  # The Verbatim keyboard: voice-first, no letter keys. It hands recording and transcription to the app through
+  # the App Group (VerbatimKeyboard/KeyboardBridge.swift). Kept small for the keyboard memory limit: no speech
+  # engines, no Harper, only the shared palette and brand drawing.
+  VerbatimKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VerbatimKeyboard
+        excludes: ["Info.plist", "VerbatimKeyboard.entitlements"]
+      - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Brand.swift
+    info:
+      path: VerbatimKeyboard/Info.plist
+      properties:
+        CFBundleName: Verbatim
+        CFBundleDisplayName: Verbatim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            # Needed for the App Group (the words come back through it) and for opening the app.
+            RequestsOpenAccess: true
+    entitlements:
+      path: VerbatimKeyboard/VerbatimKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.keyboard
+        PRODUCT_NAME: VerbatimKeyboard
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        TARGETED_DEVICE_FAMILY: "1,2"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        APPLICATION_EXTENSION_API_ONLY: true
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
         ENABLE_USER_SCRIPT_SANDBOXING: false
         DEAD_CODE_STRIPPING: true

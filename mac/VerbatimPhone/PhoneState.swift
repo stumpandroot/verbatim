@@ -37,6 +37,10 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
+    /// The keyboard's hand-off screen: recording for the Verbatim keyboard while you go back to your app.
+    @Published var showHandoff = false
+    /// Dictation for the Verbatim keyboard (KeyboardHandoff.swift).
+    private(set) lazy var handoff = KeyboardHandoff(app: self)
     /// Why the recorder paused itself (a call, a microphone it couldn't follow); nil once you resume or stop.
     @Published var autoPauseReason: String? = nil
     /// Set to open Library on a kind's raw value, or "all" (the screenshot tour uses it); the Library screen clears it.
@@ -143,7 +147,7 @@ final class PhoneState: ObservableObject {
 
     /// Loads the speech model while you talk, so transcription starts the moment you stop. iOS clears it from
     /// memory when Verbatim is closed, so without this every recording would wait for it to load first.
-    private func warmModel() {
+    func warmModel() {
         let (engineId, model) = engineChoice
         guard engineId == "fluid" else { return }
         Task.detached(priority: .utility) { await FluidEngine.shared.warm(model: model) }
@@ -368,10 +372,12 @@ extension PhoneState: TranscriptionHost {
     func progress(_ id: UUID, label: String) { backgroundWork.title(label) }
 
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
+        if handoff.transcriptReady(id) { return }   // a keyboard dictation: its words went to the keyboard
         if queueEmpty { say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
     }
 
     func jobFailed(_ id: UUID, error: Error) {
+        if handoff.jobFailed(id, error: error) { return }
         say("Transcription failed: \(error.localizedDescription)")
     }
 

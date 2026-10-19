@@ -23,6 +23,7 @@ struct SettingsScreen: View {
     @State private var bumps: [String: Int] = [:]
     @State private var showDictionary = false
     @State private var showAboutMe = false
+    @State private var showKeyboard = false
     @State private var exporting = false
     @State private var exportURL: URL? = nil
     @State private var confirmDelete = false
@@ -57,6 +58,7 @@ struct SettingsScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
+        .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
         .sheet(isPresented: Binding(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
             if let exportURL { ShareSheet(items: [exportURL]) }
         }
@@ -109,6 +111,13 @@ struct SettingsScreen: View {
         Button { bump("dict"); showDictionary = true } label: {
             SettingsRow(icon: "book.closed", tint: Ink.sageTint, art: .iconDictionary, title: "Dictionary", subtitle: "Names and words to spell your way", bounce: bumps["dict", default: 0]) {
                 SettingsValue("\(app.store.dictionary.count)"); SettingsChevron()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        SettingsDivider()
+        Button { bump("keyboard"); showKeyboard = true } label: {
+            SettingsRow(icon: "keyboard", tint: Ink.butterTint, art: .iconDictations, title: "Keyboard", subtitle: "Dictate into any app", bounce: bumps["keyboard", default: 0]) {
+                SettingsValue("Set up"); SettingsChevron()
             }
         }
         .buttonStyle(SettingsRowPress())
