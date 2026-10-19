@@ -64,7 +64,8 @@ enum DictationFormatter {
     static func format(_ text: String, _ o: Options) -> String {
         let t = text.replacingOccurrences(of: "\r\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return text }
-        let auto = CleanupPrepass.wordCount(t) >= shortMessageWords
+        // Words with a letter, so list numbers ("1.") added by a first run don't count on the second.
+        let auto = t.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter }) }.count >= shortMessageWords
         var blocks = t.replacingOccurrences(of: "\\n[ \\t]*(?:\\n[ \\t]*)+", with: "\u{0}", options: .regularExpression)
             .components(separatedBy: "\u{0}")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -84,22 +85,16 @@ enum DictationFormatter {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty })
         var out = ""
-        var previous: (isList: Bool, line: String)? = nil
         for line in lines {
-            let piece: String
-            let isList: Bool
-            if let item = listLine(line) {
-                piece = render(item, o); isList = true
-            } else {
-                piece = formatProse(line, o, auto: auto); isList = false
-            }
-            if let p = previous {
+            let piece = listLine(line).map { render($0, o) } ?? formatProse(line, o, auto: auto)
+            if !out.isEmpty {
                 // Lines stay lines, and a list stays under the line before it. A line after a list gets a blank
                 // line, so Markdown doesn't fold it into the last item.
-                out += (p.isList && !isList) ? "\n\n" : "\n"
+                let afterList = listLine(out.components(separatedBy: "\n").last ?? "") != nil
+                let startsList = listLine(piece.components(separatedBy: "\n").first ?? "") != nil
+                out += afterList && !startsList ? "\n\n" : "\n"
             }
             out += piece
-            previous = (isList, piece)
         }
         return out
     }
@@ -130,10 +125,13 @@ enum DictationFormatter {
 
     /// One line of prose: a list when it holds one, then paragraphs.
     private static func formatProse(_ line: String, _ o: Options, auto: Bool) -> String {
-        if let l = enumeration(line) ?? spokenBullets(line) ?? announcedList(line) {
+        if let l = findList(line) {
             var s = ""
             let lead = l.lead.trimmingCharacters(in: .whitespaces)
-            if !lead.isEmpty {
+            if !lead.isEmpty && findList(lead) != nil {
+                // A list inside the lead-in that the whole line hid (rare): format it on its own, as a second run would.
+                s += formatProse(lead, o, auto: auto) + "\n\n"
+            } else if !lead.isEmpty {
                 let (text, colon) = leadIn(lead)
                 s += paragraphs(text, auto: auto) + (colon ? "\n" : "\n\n")
             }
@@ -143,6 +141,11 @@ enum DictationFormatter {
             return s
         }
         return paragraphs(line, auto: auto)
+    }
+
+    /// The list in a line of prose. The one that starts first wins; later ones are in its trailer.
+    private static func findList(_ line: String) -> FoundList? {
+        [enumeration(line), spokenBullets(line), announcedList(line)].compactMap { $0 }.min { $0.lead.count < $1.lead.count }
     }
 
     private struct FoundList {
