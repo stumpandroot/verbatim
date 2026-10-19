@@ -338,7 +338,7 @@ struct DictationForm: View {
                 .pickerStyle(.segmented)
                 Text(flow.cleanup.note)
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
-                Text("Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
+                Text("Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. At Clean and Polished, announce a list (“a few things,” “first… second…,” “step one,” or “bullet”) to get a numbered or bulleted list, and change topic (“also,” “one more thing”) to start a paragraph. Lists and paragraphs work without Apple Intelligence. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                 if let notice = FlowCleanup.unavailableNotice {
                     Text(notice)

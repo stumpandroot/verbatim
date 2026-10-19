@@ -53,20 +53,21 @@ enum CleanupLevel: String, CaseIterable, Identifiable {
     }
     var note: String {
         switch self {
-        case .none: return "Your words as spoken, with punctuation and capitals. Never rewritten, and works on every Mac."
-        case .light: return "Removes ums, repeats, and false starts, keeps only the final version of a self-correction, and writes numbers as digits. Keeps your wording."
-        case .medium: return "Rewrites for the app you're in, so an email reads like an email and a chat like a chat. Keeps every point."
+        case .none: return "Pastes your words as spoken, with punctuation and capitals. Never rewords or reformats them, and works on every Mac."
+        case .light: return "Removes ums, repeats, and false starts, keeps the final version of a self-correction, and writes numbers as digits. Turns spoken lists into lists and adds paragraph breaks. Keeps your wording."
+        case .medium: return "Formats and tightens: everything Clean does, plus fixes grammar and smooths rambling sentences for the app you're in. Keeps your meaning, facts, order, and voice."
         }
     }
     /// A few words for menus.
     var shortNote: String {
         switch self {
         case .none: return "As spoken"
-        case .light: return "Fillers and fixes"
-        case .medium: return "Rewritten for the app"
+        case .light: return "Fillers, lists, paragraphs"
+        case .medium: return "Formatted and tightened"
         }
     }
-    /// Clean and Polished use Apple's on-device model; Literal never does.
+    /// Clean and Polished use Apple's on-device model; Literal never does. Without the model, Clean and Polished
+    /// still remove repeats and format lists and paragraphs by rules (`DictationFormatter`).
     var usesModel: Bool { self != .none }
 
     /// The display name for a saved level string, such as `FlowInfo.level` ("light" → "Clean").
@@ -162,7 +163,9 @@ final class FlowSettings: ObservableObject {
     private init() {
         showBar = d.object(forKey: "flow.showBar") as? Bool ?? true
         mode = FlowMode(rawValue: d.string(forKey: "flow.mode") ?? "") ?? .hybrid
-        cleanup = CleanupLevel(stored: d.string(forKey: "flow.cleanup") ?? "") ?? .clean
+        // Polished ("format and tighten") is the default. The level is saved only when you pick one, so anyone who
+        // never picked gets the new default, and a level you picked stays.
+        cleanup = CleanupLevel(stored: d.string(forKey: "flow.cleanup") ?? "") ?? .polished
         useContext = d.object(forKey: "flow.context") as? Bool ?? true
         autoLearn = d.object(forKey: "flow.autoLearn") as? Bool ?? true
         boostVocabulary = d.object(forKey: "flow.boost") as? Bool ?? true

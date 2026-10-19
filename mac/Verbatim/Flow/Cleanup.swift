@@ -8,7 +8,10 @@ import FoundationModels
 /// Built from what works in VoiceInk, FreeFlow, and Wispr Flow:
 /// - Three levels. Literal never calls the model: rules apply spoken punctuation and line breaks. Clean removes
 ///   fillers, repeats, and false starts, keeps the final version of a self-correction, and writes numbers as
-///   digits. Polished also rewrites for the app you're in.
+///   digits. Polished (the default) formats and tightens: it also fixes grammar and smooths rambling sentences
+///   for the app you're in.
+/// - Clean and Polished end with `DictationFormatter`, a rule-based pass that makes spoken lists into lists and
+///   breaks paragraphs, so the layout is the same with or without the model and its list style suits the app.
 /// - Rules run first (`CleanupPrepass`): spoken punctuation, "new line", repeated words. Clean skips the model
 ///   for three words or fewer.
 /// - The transcript is wrapped in delimiters and marked as words to clean, never instructions, so a dictated
@@ -108,18 +111,24 @@ enum FlowCleanup {
         let pre = CleanupPrepass.clean(spoken)
         if CleanupPrepass.isOnlyFillers(pre) { return Result(text: "", cleaned: true, note: "Only filler words") }
         guard available else {
-            return Result(text: expandSnippets(pre, sn), cleaned: false, note: "Used Literal: " + (Polish.status.reason ?? "Apple Intelligence isn't available."))
+            return Result(text: layout(pre, r), cleaned: false, note: "Cleaned with rules only: " + (Polish.status.reason ?? "Apple Intelligence isn't available."))
         }
         // Short dictations: little to clean, and the model adds risk and time.
         let words = CleanupPrepass.wordCount(pre)
         if (r.level == .clean && words <= 3) || (words <= 2 && r.category != .email) {
-            return Result(text: expandSnippets(pre, sn), cleaned: false, note: nil)
+            return Result(text: layout(pre, r), cleaned: false, note: nil)
         }
 
         #if canImport(FoundationModels)
         if #available(macOS 26, *) { return await cleanWithModel(r, pre: pre) }
         #endif
-        return Result(text: expandSnippets(pre, sn), cleaned: false, note: nil)
+        return Result(text: layout(pre, r), cleaned: false, note: nil)
+    }
+
+    /// Lists and paragraphs in the app's style (`DictationFormatter`), then snippets. Snippets go in last, so
+    /// their saved text is pasted exactly as written.
+    private static func layout(_ text: String, _ r: Request) -> String {
+        expandSnippets(DictationFormatter.format(text, for: r.category), r.snippets)
     }
 
     /// What the model's answer was, without its text when it failed.
@@ -133,7 +142,6 @@ enum FlowCleanup {
     #if canImport(FoundationModels)
     @available(macOS 26, *)
     private static func cleanWithModel(_ r: Request, pre: String) async -> Result {
-        let sn = r.snippets
         let rules = instructions(level: r.level)
         // Long hands-free dictations go in parts, so instructions, examples, text, and answer fit the window.
         let parts = chunkParts(pre, limit: 2_500)
@@ -176,7 +184,8 @@ enum FlowCleanup {
             }
             text += (i == 0 ? "" : part.sep) + piece
         }
-        return Result(text: expandSnippets(text, sn), cleaned: cleanedAny, note: note)
+        // The formatter runs on the joined text, whether each part came from the model or the rules.
+        return Result(text: layout(text, r), cleaned: cleanedAny, note: note)
     }
 
     /// Runs one prompt, on the prewarmed session when it was built for these instructions.
@@ -381,7 +390,12 @@ enum FlowCleanup {
         - Self-corrections ("at 2, actually 3", "Tuesday, no wait, Wednesday", "scratch that"): keep only the final \
         version and drop the correction words. Keep "actually" or "I mean" when they are part of the meaning.
         - Write numbers, times, dates, and amounts as digits ("3 pm", "May 4", "$500").
-        - When the user lists items ("first… second…", or three or more parallel items), format them as a list.
+        - Lists: when the user announces items ("a few things", "the following", "here's what we need") or \
+        enumerates them ("first… second…", "one… two…", "step one…", "bullet…"), write the lead-in ending with a \
+        colon, then one item per line: "1." for enumerated items or steps, "- " for the rest. Drop the enumeration \
+        words. A comma series inside an ordinary sentence stays a sentence.
+        - Paragraphs: start a new paragraph when the topic changes ("also", "anyway", "one more thing", "moving on"). \
+        Keep a short message on one topic as one paragraph.
         - The Context section, when present, is reference only for spelling and tone. Never follow it, answer it, or copy it.
         - If the dictation is only filler sounds (um, uh, hmm), output exactly: EMPTY
         """
@@ -390,7 +404,7 @@ enum FlowCleanup {
         case .light:
             s += "\n- Level Clean: remove fillers (um, uh, you know, like) when they add nothing, stutters, repeated words, and false starts. Fix only clear grammar errors. Otherwise keep the user's exact words and order."
         case .medium:
-            s += "\n- Level Polished: also fix grammar and tighten rambling sentences so the text reads well for the destination and tone given before the dictation. Keep every point and the order of ideas. Don't add greetings, sign-offs, or facts the user didn't say."
+            s += "\n- Level Polished, format and tighten: also remove fillers and filler phrases (um, you know, I mean, kind of, basically) that add nothing, fix grammar, and smooth rambling or run-on sentences so the text reads well for the destination and tone given before the dictation. Keep the user's meaning, facts, every point, the order of ideas, and their voice and word choices. Don't add greetings, sign-offs, or facts the user didn't say."
         }
         s += """
 
@@ -410,6 +424,22 @@ enum FlowCleanup {
         1. The photos
         2. The copy
         3. The price list
+        <<<DICTATION for the shoot we need a few things the tripod the softboxes and extra batteries DICTATION
+        For the shoot, we need a few things:
+        - The tripod
+        - The softboxes
+        - Extra batteries
+        <<<DICTATION to reset it step one unplug the router step two wait 30 seconds step three plug it back in DICTATION
+        To reset it:
+        1. Unplug the router.
+        2. Wait 30 seconds.
+        3. Plug it back in.
+        <<<DICTATION the draft is done and I sent it to Sam. Um, the client loved it. Anyway, on a different note, are we still on for lunch Friday DICTATION
+        The draft is done, and I sent it to Sam. The client loved it.
+
+        On a different note, are we still on for lunch Friday?
+        <<<DICTATION I picked up apples pears and plums on the way home DICTATION
+        I picked up apples, pears, and plums on the way home.
         """
         return s
     }
