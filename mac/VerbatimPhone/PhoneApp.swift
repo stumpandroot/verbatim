@@ -42,6 +42,16 @@ struct PhoneRoot: View {
                 .tabItem { Label { Text("Settings") } icon: { Image(uiImage: BrandArt.iconSettings.templateImage(size: 26, key: "iconSettings")) } }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        .overlay {
+            // The keyboard's hand-off screen. A plain overlay rather than a second full-screen cover, so it shows
+            // even when another sheet is up.
+            if app.showHandoff {
+                HandoffScreen(handoff: app.handoff)
+                    .transition(.opacity)
+                    .zIndex(10)
+            }
+        }
+        .onOpenURL { url in _ = app.handoff.handle(url) }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
