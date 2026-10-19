@@ -26,18 +26,23 @@ extension AppState {
         }
     }
 
+    /// Returns at once: the recorder opens the mic off the main thread and the record panel says "Starting…"
+    /// until it's running. A mic that fails or doesn't answer within 3 seconds is released, with a toast naming it.
     func startRecording() {
         Log.note("startRecording")
-        do {
-            try recorder.start(to: store.newRecordingURL())
-            continuing = pendingContinue
-            pendingContinue = nil
-            verbiePose = .listening
+        guard !recorder.isRecording else { return }
+        recorder.begin(to: store.newRecordingURL()) { [weak self] error in
+            guard let self else { return }
+            if let error {
+                self.pendingContinue = nil
+                self.verbiePose = .interrupted
+                self.toast = Toast(error.localizedDescription)
+                return
+            }
+            self.continuing = self.pendingContinue
+            self.pendingContinue = nil
+            self.verbiePose = .listening
             Sounds.start()
-        } catch {
-            pendingContinue = nil
-            verbiePose = .interrupted
-            toast = Toast("Could not start recording: \(error.localizedDescription)")
         }
     }
 
@@ -56,7 +61,13 @@ extension AppState {
     }
 
     func stopRecording() {
-        guard let stopped = recorder.stop() else { continuing = nil; return }
+        // Stop while the mic is still starting cancels the start: nothing was recorded.
+        let wasStarting = recorder.isStarting
+        guard let stopped = recorder.stop() else {
+            continuing = nil
+            if wasStarting { pendingContinue = nil; verbiePose = .ready }
+            return
+        }
         let (url, duration, env) = stopped
         if recorder.lastJoinFailed {
             // Every part stays in the recordings folder; launch recovery joins it into one recording.

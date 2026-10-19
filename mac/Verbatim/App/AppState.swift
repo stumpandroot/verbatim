@@ -94,6 +94,8 @@ final class AppState: ObservableObject {
         }
         coordinator.host = self
         recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
+        recorder.onResumed = { [weak self] in self?.verbiePose = .listening }
+        HangWatch.start()
         dictation.attach(self)
         applyAppearance()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
