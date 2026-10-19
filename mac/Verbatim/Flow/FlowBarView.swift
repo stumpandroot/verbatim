@@ -3,17 +3,63 @@ import AppKit
 
 // MARK: - The Ribbon
 
+/// How the Ribbon looks, chosen in Settings › Dictation › Floating button look.
+enum RibbonStyle: String { case paper, ink; static let key = "flow.ribbonStyle" }
+/// What moves with your voice: the logo's three bars or the colophon's tangent rings.
+enum RibbonMark: String { case bars, rings; static let key = "flow.ribbonMark" }
+
+/// The Ribbon's colors. Paper (the default) is a light tab with ink type and persimmon marks; Ink is the dark
+/// tab with paper type. Either stays the same in light and dark mode, so it reads as Verbatim on any wallpaper.
+/// Views that use these also read the setting with @AppStorage, so they redraw when it changes.
 private enum RibbonInk {
-    static let ink = Color(hex: 0x26352E)
-    static let inkRaised = Color(hex: 0x34453C)
-    static let track = Color(hex: 0x3B4A42)
+    private static var dark: Bool { UserDefaults.standard.string(forKey: RibbonStyle.key) == RibbonStyle.ink.rawValue }
+    private static let inkHex: UInt32 = 0x26352E, paperHex: UInt32 = 0xF5F0E6
+    static var tab: Color { Color(hex: dark ? inkHex : paperHex) }
+    static var edge: Color { dark ? Color(hex: paperHex).opacity(0.16) : Color(hex: inkHex).opacity(0.18) }
+    static var text: Color { Color(hex: dark ? paperHex : inkHex) }
+    static var raised: Color { (dark ? Color(hex: paperHex) : Color(hex: inkHex)).opacity(dark ? 0.12 : 0.08) }
+    static var track: Color { (dark ? Color(hex: paperHex) : Color(hex: inkHex)).opacity(dark ? 0.16 : 0.12) }
     static let persimmon = Color(hex: 0xFA6B47)
-    static let butter = Color(hex: 0xF4C76B)
-    static let paper = Color(hex: 0xF5F0E6)
-    static let muted = Color(hex: 0xC9C2B3)
+    /// Accent for text: deep persimmon on paper (4.9:1), butter on ink.
+    static var persimmonText: Color { dark ? Color(hex: 0xF4C76B) : Color(hex: 0xB23F24) }
+    static let paper = Color(hex: paperHex)
+    static var muted: Color { dark ? Color(hex: 0xC9C2B3) : Color(hex: 0x5F6A62) }
+}
+
+/// The voice mark at whatever size a state needs.
+private struct RibbonMeter: View {
+    var edge: BarEdge
+    var levels: [Double]
+    var thickness: CGFloat
+    var length: CGFloat
+    @AppStorage(RibbonMark.key) private var mark: String = RibbonMark.bars.rawValue
+    var body: some View {
+        if mark == RibbonMark.rings.rawValue { RibbonRings(levels: levels, size: length) }
+        else { RibbonBars(edge: edge, levels: levels, thickness: thickness, length: length) }
+    }
+}
+
+/// The colophon's three rings, tangent at the bottom point, swelling with your voice.
+struct RibbonRings: View {
+    var levels: [Double]
+    var size: CGFloat
+    var color: Color = Color(hex: 0xFA6B47)
+    var body: some View {
+        let base: [CGFloat] = [0.5, 0.36, 0.22]
+        ZStack(alignment: .bottom) {
+            ForEach(0..<3, id: \.self) { i in
+                let d = size * base[i] * 2 * (0.82 + CGFloat(levels[min(i, levels.count - 1)]) * 0.3)
+                Circle().stroke(color, lineWidth: max(1.2, size / 16)).frame(width: d, height: d)
+            }
+        }
+        .frame(width: size * 1.15, height: size * 1.15, alignment: .bottom)
+        .animation(.linear(duration: 0.08), value: levels)
+    }
 }
 
 struct FlowBarView: View {
+    @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
+    @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
     @ObservedObject var model: FlowBarModel
     let controller: FlowBarController
     @ObservedObject var live: LiveMeter
@@ -28,15 +74,25 @@ struct FlowBarView: View {
     }
 
 
-    /// Every state shares one ink shape. Between states the shape morphs to its new size while the contents
-    /// cross-fade, so the Ribbon never jumps. Reduce Motion turns the morph into a quick fade.
-    private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
+    /// Every state shares one paper tab. Between states the tab springs to its new size (0.38 s, a little bounce,
+    /// tuned in the Ribbon prototype) and keeps its velocity if the state changes mid-move, while the contents
+    /// fade in a beat after the shape starts moving. Reduce Motion turns the morph into a quick fade.
+    private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.38, bounce: 0.22) }
+
+    /// Contents arrive just after the tab starts growing and leave at once, so text never squeezes into a tab
+    /// that's still small.
+    private var contentTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.94)).animation(.easeOut(duration: 0.18).delay(0.07)),
+            removal: .opacity.animation(.easeOut(duration: 0.08)))
+    }
 
     private var closed: Bool { model.phase == .idle && !(model.hover || model.dragging) }
 
     /// Changes to any of these animate the shape.
     private var stateKey: String {
-        "\(model.phase)-\(closed)-\(model.dragging)-\(model.handsFree)-\(model.warning.isEmpty)-\(model.command)-\(model.edge)-\(model.noticeAction ?? "")-\(model.notice.count)"
+        "\(ribbonStyle)-\(model.phase)-\(closed)-\(model.dragging)-\(model.handsFree)-\(model.warning.isEmpty)-\(model.command)-\(model.edge)-\(model.noticeAction ?? "")-\(model.notice.count)"
     }
 
     private var screenEdge: Edge { switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom } }
@@ -65,7 +121,7 @@ struct FlowBarView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(accessibilityLabel)
             // Slides in from the edge when it first appears (and after sleep or a display change).
-            .offset(x: model.shown ? 0 : (model.edge == .left ? -18 : model.edge == .right ? 18 : 0), y: model.shown || model.edge != .bottom ? 0 : 18)
+            .offset(x: model.shown ? 0 : (model.edge == .left ? -12 : model.edge == .right ? 12 : 0), y: model.shown || model.edge != .bottom ? 0 : 12)
             .opacity(model.shown ? 1 : 0)
         }
         .onPreferenceChange(RibbonSizeKey.self) { s in if model.contentSize != s { model.contentSize = s } }
@@ -81,16 +137,17 @@ struct FlowBarView: View {
         }
     }
 
-    /// The one ink shape, sized by whatever it holds; closed, it's the thin sliver at the edge.
+    /// The one paper tab, sized by whatever it holds; closed, it's a thin sliver at the edge.
     private var tabbed: some View {
-        let r: CGFloat = closed ? 4 : 15
+        let r: CGFloat = closed ? 3 : 13
         return inner
-            .padding(.vertical, closed ? 0 : (model.phase == .notice ? 10 : 11))
-            .padding(.horizontal, closed ? 0 : 12)
-            .frame(width: closed ? (model.edge == .bottom ? 50 : 6) : nil, height: closed ? (model.edge == .bottom ? 6 : 50) : nil)
-            .background(tab(r).fill(RibbonInk.ink))
-            .overlay(tab(r).strokeBorder(RibbonInk.persimmon.opacity(model.command && model.phase == .listening ? 0.9 : 0), lineWidth: 1.5))
+            .padding(.vertical, closed ? 0 : 9)
+            .padding(.horizontal, closed ? 0 : 14)
+            .frame(width: closed ? (model.edge == .bottom ? 54 : 6) : nil, height: closed ? (model.edge == .bottom ? 6 : 54) : nil)
+            .background(tab(r).fill(RibbonInk.tab))
+            .overlay(tab(r).strokeBorder(model.command && model.phase == .listening ? RibbonInk.persimmon : RibbonInk.edge, lineWidth: model.command && model.phase == .listening ? 1.5 : 0.75))
             .clipShape(tab(r))
+            .shadow(color: .black.opacity(closed ? 0.12 : 0.16), radius: closed ? 4 : 12, x: 0, y: 0)
     }
 
     /// What's inside the shape for each state. Each fades in and out as the shape morphs.
@@ -100,54 +157,51 @@ struct FlowBarView: View {
             Color.clear.frame(width: 0, height: 0)
         case .idle:
             edgeRow(spacing: 9) {
-                RibbonBars(edge: model.edge, levels: [0.8, 0.55, 0.95], thickness: 5, length: 18)
+                RibbonMeter(edge: model.edge, levels: [0.75, 0.5, 0.95], thickness: 3.5, length: 13)
             } rest: {
-                VStack(alignment: model.edge == .right ? .trailing : .leading, spacing: 1) {
-                    Text(model.dragging ? "Drop at an edge" : "Dictate").font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.paper)
-                    if !model.dragging { Text(model.hint).font(.system(size: 11, design: .monospaced)).foregroundStyle(RibbonInk.muted) }
-                }
-                .fixedSize()
+                Text(model.dragging ? "Drop at an edge" : hintLine)
+                    .font(.system(size: 12.5, weight: .medium)).foregroundStyle(RibbonInk.text).fixedSize()
             }
-            .transition(.opacity)
+            .transition(contentTransition)
         case .listening:
             VStack(spacing: 4) {
                 edgeRow(spacing: 10) {
-                    RibbonBars(edge: model.edge, levels: liveLevels, thickness: 6, length: 46)
+                    RibbonMeter(edge: model.edge, levels: liveLevels, thickness: 5, length: 24)
                 } rest: {
                     VStack(spacing: 3) {
                         Button(action: controller.stop) {
                             ZStack { Circle().fill(RibbonInk.persimmon); RoundedRectangle(cornerRadius: 1.5).fill(RibbonInk.paper).frame(width: 7, height: 7) }
-                                .frame(width: 20, height: 20)
+                                .frame(width: 22, height: 22)
                         }
                         .buttonStyle(.plain).help("Stop and paste")
                         Text(elapsed).font(.system(size: 11, design: .monospaced)).foregroundStyle(RibbonInk.muted).monospacedDigit()
                     }
                     if model.handsFree {
-                        Button(action: controller.cancel) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(RibbonInk.muted).frame(width: 18, height: 18) }
+                        Button(action: controller.cancel) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(RibbonInk.muted).frame(width: 22, height: 22).background(RibbonInk.raised, in: Circle()) }
                             .buttonStyle(.plain).help("Cancel (Esc)")
                     }
                 }
                 if !model.warning.isEmpty {
-                    Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.butter).lineLimit(1).fixedSize()
+                    Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.persimmonText).lineLimit(1).fixedSize()
                 }
             }
-            .transition(.opacity)
+            .transition(contentTransition)
         case .working:
             edgeRow(spacing: 9) {
                 SweepBar(edge: model.edge, reduceMotion: reduceMotion)
             } rest: {
                 Text(model.appLabel.isEmpty ? (model.command ? "EDITING" : "WRITING") : model.appLabel)
-                    .font(.system(size: 11, design: .monospaced)).tracking(0.6).foregroundStyle(RibbonInk.paper).fixedSize()
+                    .font(.system(size: 11, design: .monospaced)).tracking(0.6).foregroundStyle(RibbonInk.text).fixedSize()
             }
-            .transition(.opacity)
+            .transition(contentTransition)
         case .notice:
             edgeRow(spacing: 10) {
-                RibbonBars(edge: model.edge, levels: [0.7, 0.5, 0.85], thickness: 3.5, length: 12)
+                RibbonMeter(edge: model.edge, levels: [0.7, 0.5, 0.85], thickness: 3.5, length: 12)
             } rest: {
-                Text(model.notice).font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.paper).lineLimit(2).frame(maxWidth: 300, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                if let a = model.noticeAction { Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(RibbonInk.butter).fixedSize() }
+                Text(model.notice).font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.text).lineLimit(2).frame(maxWidth: 300, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                if let a = model.noticeAction { Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(RibbonInk.persimmonText).fixedSize() }
             }
-            .transition(.opacity)
+            .transition(contentTransition)
         case .prompt:
             EmptyView()
         }
@@ -168,6 +222,13 @@ struct FlowBarView: View {
         guard l.count >= 8 else { return [0.2, 0.2, 0.2] }
         let last3 = l.suffix(3), last8 = l.suffix(8)
         return [last3.max() ?? 0, last8.reduce(0, +) / Double(last8.count), l[l.count - 5]].map { min(1, max(0.14, $0)) }
+    }
+
+    /// "Click or hold ⌥ to dictate", or the setup or secure-input hint when that's what applies.
+    private var hintLine: String {
+        let h = model.hint
+        if h.hasSuffix(" or click") { return "Click or hold \(h.dropLast(" or click".count)) to dictate" }
+        return h.prefix(1).uppercased() + h.dropFirst()
     }
 
     private var elapsed: String {
@@ -228,7 +289,7 @@ struct SweepBar: View {
     var body: some View {
         let vertical = edge == .bottom
         ZStack(alignment: vertical ? .top : .leading) {
-            Capsule().fill(Color(hex: 0x3B4A42))
+            Capsule().fill(RibbonInk.track)
             Capsule().fill(Color(hex: 0xFA6B47))
                 .frame(width: vertical ? 6 : 14, height: vertical ? 10 : 6)
                 .offset(x: vertical ? 0 : (forward ? 24 : 0), y: vertical ? (forward ? 18 : 0) : 0)
@@ -243,6 +304,7 @@ struct SweepBar: View {
 
 /// "Started by mistake?" and other two-choice questions, with a countdown ring on the close button.
 struct PromptCard: View {
+    @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     let prompt: FlowBarModel.Prompt
     let controller: FlowBarController
     @State private var progress: CGFloat = 1
@@ -250,20 +312,20 @@ struct PromptCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 9) {
-                RibbonBars(edge: .left, levels: [0.8, 0.55, 0.95], thickness: 3.5, length: 12, color: RibbonInk.butter)
-                Text(prompt.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(RibbonInk.paper)
+                RibbonBars(edge: .left, levels: [0.8, 0.55, 0.95], thickness: 3.5, length: 12)
+                Text(prompt.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(RibbonInk.text)
                 Spacer(minLength: 12)
                 Button { controller.dismissPrompt() } label: {
                     ZStack {
                         Circle().stroke(RibbonInk.track, lineWidth: 2)
                         Circle().trim(from: 0, to: progress).stroke(RibbonInk.muted, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
-                        Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(RibbonInk.paper)
+                        Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(RibbonInk.text)
                     }
                     .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain).help("Close (keeps it in Dictations)")
             }
-            (Text(prompt.body) + Text(prompt.quote.map { "“\($0)”" } ?? "").foregroundColor(RibbonInk.paper) + Text(prompt.after))
+            (Text(prompt.body) + Text(prompt.quote.map { "“\($0)”" } ?? "").foregroundColor(RibbonInk.text) + Text(prompt.after))
                 .font(.system(size: 13)).foregroundStyle(RibbonInk.muted).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Spacer()
@@ -276,7 +338,9 @@ struct PromptCard: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .frame(width: 360)
-        .background(RibbonInk.ink, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(RibbonInk.tab, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(RibbonInk.edge, lineWidth: 0.75))
+        .shadow(color: .black.opacity(0.16), radius: 14)
         .onAppear { withAnimation(.linear(duration: prompt.seconds)) { progress = 0 } }
     }
 }
@@ -286,9 +350,9 @@ private struct PromptButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: filled ? .semibold : .regular))
-            .foregroundStyle(filled ? RibbonInk.ink : RibbonInk.paper)
+            .foregroundStyle(filled ? RibbonInk.tab : RibbonInk.text)
             .padding(.horizontal, 14).padding(.vertical, 7)
-            .background(filled ? RibbonInk.paper : RibbonInk.inkRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(filled ? RibbonInk.text : RibbonInk.raised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }

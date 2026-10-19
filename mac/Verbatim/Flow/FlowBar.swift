@@ -115,7 +115,7 @@ final class FlowBarController {
                 withTransaction(t) { model.shown = false }
                 p.orderFrontRegardless()
                 DispatchQueue.main.async { [weak self] in
-                    withAnimation(.smooth(duration: 0.4)) { self?.model.shown = true }
+                    withAnimation(.spring(duration: 0.38, bounce: 0.22)) { self?.model.shown = true }
                 }
             }
         } else if let p = panel, p.isVisible, !hiding {

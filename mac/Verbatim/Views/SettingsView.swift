@@ -306,6 +306,8 @@ struct DictationForm: View {
     @State private var newTrigger = ""
     @State private var newExpansion = ""
     @AppStorage(FlowSettings.maxDictationMinutesKey) private var maxMinutes: Double = 10
+    @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
+    @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
 
     var body: some View {
         Form {
@@ -313,6 +315,18 @@ struct DictationForm: View {
                 Toggle("Dictate anywhere", isOn: $dictation.enabled)
                 Toggle("Show the floating button", isOn: $flow.showBar)
                 Text("A small button at the edge of your screen. Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+            }
+            Section("Floating button look") {
+                Picker("Style", selection: $ribbonStyle) {
+                    Text("Paper").tag(RibbonStyle.paper.rawValue)
+                    Text("Ink").tag(RibbonStyle.ink.rawValue)
+                }
+                Picker("Voice mark", selection: $ribbonMark) {
+                    Text("Three bars").tag(RibbonMark.bars.rawValue)
+                    Text("Rings").tag(RibbonMark.rings.rawValue)
+                }
+                Text("Paper is a light tab with ink type. Ink is a dark tab with paper type. The voice mark moves with your voice while you dictate.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section("Starting and stopping") {
