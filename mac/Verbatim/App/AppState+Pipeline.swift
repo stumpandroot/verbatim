@@ -5,7 +5,15 @@ import SwiftUI
 extension AppState {
     // MARK: Pipeline
 
-    func retry(_ t: Transcript) { coordinator.retry(t) }
+    func retry(_ t: Transcript) {
+        // A link whose audio never arrived (one the iPhone couldn't fetch): this Mac fetches it.
+        if t.source == .link, t.audioFileName == nil, t.sourceURL ?? t.link?.url != nil, LinkFetcher.helperURL != nil {
+            store.update(t.id) { $0.pendingLink = true; $0.status = .processing; $0.error = nil; $0.stage = nil }
+            if let fresh = store.transcript(t.id) { claimIfPendingLink(fresh) }
+            return
+        }
+        coordinator.retry(t)
+    }
 
     /// Adds a new transcript to the Store and queues it.
     func enqueue(_ t: Transcript) { coordinator.enqueue(t) }

@@ -86,6 +86,7 @@ final class PhoneState: ObservableObject {
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
+        if !PhoneUITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         if PhoneUITest.enabled { PhoneUITest.run(self) }
     }
 
@@ -231,25 +232,178 @@ final class PhoneState: ObservableObject {
         }
     }
 
-    /// iPhone can't fetch link audio itself; it hands the link to your Mac, which fetches and transcribes it.
+    /// Adds a link: the transcript appears in Library right away, then this iPhone resolves the link, downloads
+    /// the audio, and transcribes it like any import. Sites the iPhone can't fetch go to the Mac when one syncs.
     func addLink(_ raw: String) {
         let link = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let u = URL(string: link), let host = u.host, ["http", "https"].contains(u.scheme ?? "") else { say("That doesn't look like a link."); return }
+        guard let u = URL(string: link), let host = u.host, host.contains("."), ["http", "https"].contains(u.scheme ?? "") else { say("That doesn't look like a link."); return }
         var t = Transcript(title: link, source: .link, sourceLabel: host.replacingOccurrences(of: "www.", with: ""), duration: 0, audioFileName: nil, model: "")
         t.sourceURL = link
         t.status = .processing
-        t.pendingLink = true
+        t.stage = "Getting the link ready"
+        t.processingDevice = Device.id; t.processingDeviceName = Device.name
         store.add(t)
-        say(Cloud.enabled ? "Sent to your Mac to fetch" : "Saved. Turn on iCloud so your Mac can fetch it.")
+        libraryFilterRequest = "all"
+        tab = .library
+        startLinkFetch(t.id)
+    }
+
+    /// Links being fetched on this iPhone, by transcript. A "link added" view can observe `latestLinkImport`.
+    @Published private(set) var linkImports: [UUID: LinkImport] = [:]
+    @Published private(set) var latestLinkImport: LinkImport? = nil
+    private var linkTasks: [UUID: Task<Void, Never>] = [:]
+
+    /// Resolves, downloads, and prepares a link transcript's audio, then queues it for transcription.
+    private func startLinkFetch(_ id: UUID) {
+        guard let t = store.transcript(id), let link = t.sourceURL ?? t.link?.url, let u = URL(string: link) else { return }
+        linkTasks[id]?.cancel()
+        let imp = LinkImport(id: id, url: link, site: PhoneLinkFetcher.siteName(u))
+        linkImports[id] = imp
+        latestLinkImport = imp
+        // The screenshot tour never touches the network.
+        guard !PhoneUITest.enabled else { return }
+        let bg = UIApplication.shared.beginBackgroundTask(withName: "Download link")
+        linkTasks[id] = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if self.linkImports[id] === imp { self.linkTasks[id] = nil }
+                if bg != .invalid { UIApplication.shared.endBackgroundTask(bg) }
+            }
+            var downloaded: URL?
+            do {
+                imp.phase = .resolving
+                let r = try await PhoneLinkFetcher.resolve(u)
+                guard self.stillWanted(id) else { return }
+                imp.title = r.title; imp.site = r.site; imp.thumbnailURL = r.thumbnail
+                self.store.update(id) { x in
+                    if let title = r.title, !title.isEmpty, x.title == link || x.title.hasPrefix("http") { x.title = title }
+                    x.link = LinkInfo(url: r.pageURL, site: r.site, channel: r.channel)
+                    x.stage = "Downloading"
+                }
+                imp.phase = .downloading
+                // Called at most once per whole percent.
+                let file = try await PhoneLinkFetcher.download(r) { fraction in
+                    Task { @MainActor in
+                        guard imp.phase == .downloading else { return }   // a late report after the download finished
+                        imp.progress = fraction
+                        if let fraction { self.store.setStage(id, "Downloading \(Int(fraction * 100))%") }
+                    }
+                }
+                downloaded = file
+                imp.progress = 1
+                imp.phase = .queued   // the audio is here; it's prepared and queued next
+                guard self.stillWanted(id) else { try? FileManager.default.removeItem(at: file); return }
+                self.store.setStage(id, "Preparing the audio")
+                let prepared = try await MediaImport.prepare(file, into: self.store.newAudioURL(ext: "m4a"))
+                try? FileManager.default.removeItem(at: file)
+                guard self.stillWanted(id) else { try? FileManager.default.removeItem(at: prepared.url); return }
+                self.store.update(id) { x in
+                    x.audioFileName = prepared.url.lastPathComponent; x.duration = prepared.duration; x.stage = "Queued"
+                    x.processingDevice = Device.id; x.processingDeviceName = Device.name
+                }
+                self.coordinator.enqueueExisting(id)
+                if let thumb = r.thumbnail, let name = await PhoneLinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
+                    self.store.update(id) { $0.link?.thumbnailFile = name }
+                }
+            } catch is CancellationError {
+                if let downloaded { try? FileManager.default.removeItem(at: downloaded) }
+            } catch LinkFetchError.needsMac {
+                self.handLinkToMac(id, imp)
+            } catch {
+                if let downloaded { try? FileManager.default.removeItem(at: downloaded) }
+                guard self.stillWanted(id) else { return }
+                let message = (error as? URLError).map { e -> String in
+                    e.code == .notConnectedToInternet ? "You're offline. Choose Retry when you're connected." : e.localizedDescription
+                } ?? error.localizedDescription
+                Log.note("link fetch failed: \(error)")
+                self.store.update(id) { x in
+                    x.status = .failed; x.stage = nil; x.error = "Couldn't fetch that link: \(message)"
+                    x.processingDevice = nil; x.processingDeviceName = nil
+                }
+                imp.phase = .failed(message)
+                self.say("Couldn't fetch that link")
+            }
+        }
+    }
+
+    /// False once the transcript is deleted or cancelled while its link was being fetched.
+    private func stillWanted(_ id: UUID) -> Bool {
+        guard let t = store.transcript(id) else { return false }
+        return t.deletedAt == nil && t.status == .processing && !Task.isCancelled
+    }
+
+    /// A site this iPhone can't fetch: the Mac fetches it when one syncs this library (its yt-dlp helper picks up
+    /// `pendingLink`). With no Mac, the transcript stops with a message instead of waiting forever.
+    private func handLinkToMac(_ id: UUID, _ imp: LinkImport) {
+        guard stillWanted(id) else { return }
+        if Cloud.enabled && macSeen {
+            store.update(id) { x in
+                x.pendingLink = true; x.status = .processing; x.stage = nil
+                x.processingDevice = nil; x.processingDeviceName = nil
+            }
+            imp.phase = .waitingForMac
+            say(LinkFetchError.needsMac.localizedDescription)
+        } else {
+            let message = "Verbatim can't fetch this link on iPhone yet."
+            store.update(id) { x in
+                x.status = .failed; x.stage = nil; x.error = message
+                x.processingDevice = nil; x.processingDeviceName = nil
+            }
+            imp.phase = .failed(message)
+            say(message)
+        }
+    }
+
+    /// Whether a Mac has ever worked on this library (it's the only device that records app audio or names
+    /// itself "your Mac"). Remembered once seen.
+    var macSeen: Bool {
+        let key = "sync.macSeen"
+        if UserDefaults.standard.bool(forKey: key) { return true }
+        let seen = store.transcripts.contains { t in
+            t.source == .app || (t.processingDevice != Device.id && (t.processingDeviceName ?? "").contains("Mac"))
+                || t.link?.uploadDate != nil
+        }
+        if seen { UserDefaults.standard.set(true, forKey: key) }
+        return seen
+    }
+
+    /// Link downloads that stopped when Verbatim closed start again.
+    private func resumeLinkFetches() {
+        for t in store.live where t.source == .link && t.status == .processing && t.audioFileName == nil
+            && !t.pendingLink && t.processingDevice == Device.id {
+            startLinkFetch(t.id)
+        }
     }
 
     // MARK: Pipeline (same job as the Mac, in TranscriptionCoordinator)
 
     private func enqueue(_ t: Transcript) { coordinator.enqueue(t) }
 
-    func retry(_ t: Transcript) { coordinator.retry(t) }
+    func retry(_ t: Transcript) {
+        // A link whose audio never arrived: fetch it again.
+        if t.source == .link, t.audioFileName == nil, t.sourceURL ?? t.link?.url != nil {
+            store.update(t.id) { x in
+                x.status = .processing; x.error = nil; x.pendingLink = false; x.stage = "Getting the link ready"
+                x.processingDevice = Device.id; x.processingDeviceName = Device.name
+            }
+            startLinkFetch(t.id)
+            return
+        }
+        coordinator.retry(t)
+    }
 
-    func cancel(_ id: UUID) { coordinator.cancel(id) }
+    func cancel(_ id: UUID) {
+        if let task = linkTasks.removeValue(forKey: id) {
+            task.cancel()
+            store.update(id) { x in
+                x.status = .failed; x.stage = nil; x.error = "Cancelled. Choose Retry to run it again."
+                x.processingDevice = nil; x.processingDeviceName = nil
+            }
+            linkImports[id]?.phase = .failed("Cancelled")
+            return
+        }
+        coordinator.cancel(id)
+    }
 
     func pump() { coordinator.pump() }
 
@@ -259,7 +413,7 @@ final class PhoneState: ObservableObject {
     // MARK: Organizing and notes
 
     func delete(_ ids: [UUID]) {
-        for id in ids { coordinator.cancelIfActive(id); store.moveToTrash(id) }
+        for id in ids { linkTasks.removeValue(forKey: id)?.cancel(); coordinator.cancelIfActive(id); store.moveToTrash(id) }
         say(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted")
     }
     func restore(_ id: UUID) { store.restore(id); say("Restored") }
@@ -341,6 +495,8 @@ final class PhoneState: ObservableObject {
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
+        for task in linkTasks.values { task.cancel() }
+        linkTasks = [:]; linkImports = [:]; latestLinkImport = nil
         for t in store.transcripts { store.delete(t) }
         store.projects = []
         store.dictionary = []

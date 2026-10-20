@@ -42,7 +42,7 @@ struct SettingsScreen: View {
                     .padding(.top, 8)
                     .riseIn("title", index: 0, seen: seen, epoch: entrance)
                 group(1, "Personalization") { personalization }
-                group(2, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links are fetched by your Mac. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
+                group(2, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
                 group(3, "Sync and data") { syncAndData }
                 group(4, "Support") { support }
                 group(5, "Welcome tour") { tour }
