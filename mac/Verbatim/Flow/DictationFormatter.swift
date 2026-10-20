@@ -15,7 +15,9 @@ import Foundation
 ///   items ("We need three things:").
 /// - Bulleted lists from spoken cues ("bullet", "next bullet", "bullet point", "dash"), and from an announced
 ///   comma series: "a few things", "the following", "here's what we need", "three things", or a colon, followed
-///   by three or more short items. An ordinary sentence with a comma series stays a sentence.
+///   by three or more short items. A colon announces only after a lead-in that names the list ("Agenda:", "Three
+///   things:") or before clause-length items; "Quick update: we shipped, fixed the bug, and hired Sam" stays a
+///   sentence. An ordinary sentence with a comma series stays a sentence.
 /// - Paragraphs: a break before a spoken topic shift ("Also,", "Anyway,", "One more thing", "Moving on"), and
 ///   inside a paragraph longer than about 4 sentences or 90 words, at the most natural sentence boundary.
 ///   A message under 40 words keeps its paragraphs as spoken.
@@ -478,7 +480,7 @@ enum DictationFormatter {
         if let colon = body.range(of: ": ") {
             let lead = String(body[..<colon.lowerBound]).trimmingCharacters(in: .whitespaces)
             let rest = String(body[colon.upperBound...])
-            if lead.contains(where: { $0.isLetter }) && !lead.contains(",") {
+            if lead.contains(where: { $0.isLetter }) && !lead.contains(","), colonAnnounces(lead: lead, items: rest) {
                 return (lead, rest, lead.lowercased().contains("step"))
             }
         }
@@ -496,6 +498,27 @@ enum DictationFormatter {
         // "We need three things the photos, the copy, and the list": the first item shares the segment.
         let lead = (segment0 as NSString).substring(to: matchEnd)
         return (lead, afterMatch + ", " + rest, steps)
+    }
+
+    /// Lead-in words that make a colon announce a list: "Three things:", "Here's the plan:", "Agenda:".
+    private static let colonAnnouncer = try! NSRegularExpression(pattern:
+        "(?i)\\b(?:things|items|steps|following|lists?|points|reasons|options|tasks|questions|ideas|issues|priorities|topics|" +
+        "agenda|ingredients|groceries|to-?dos?|takeaways|action items)\\b|\\bhere[’']?s\\b|\\bhere are\\b|" +
+        "\\b(?:a few|a couple of|several|two|three|four|five|six|seven|eight|nine|ten|\\d{1,2}) (?:[a-z]+ )?[a-z]{3,}s\\b")
+    /// Lead-in endings that introduce news or a remark rather than a list ("Quick update:", "Heads up:").
+    private static let colonRemarkEnd: Set<String> = ["update", "updates", "news", "note", "recap", "summary", "status", "reminder",
+        "fyi", "up", "question", "thought", "said", "says", "is", "was", "honestly", "basically"]
+
+    /// Whether "lead: items" is a list announcement. A short remark before a colon ("Quick update: we shipped, fixed
+    /// the bug, and hired Sam") stays a sentence. The colon announces when the lead-in names the list ("three
+    /// things", "the following", "here's", "agenda"), or when there are three or more clause-length items (three
+    /// words or more each) after a lead-in of three words or more that doesn't end like a remark ("update").
+    private static func colonAnnounces(lead: String, items: String) -> Bool {
+        let ns = lead as NSString
+        if colonAnnouncer.firstMatch(in: lead, range: NSRange(location: 0, length: ns.length)) != nil { return true }
+        guard CleanupPrepass.wordCount(lead) >= 3, !colonRemarkEnd.contains(lastWord(lead).lowercased()),
+              let parts = series(items) else { return false }
+        return parts.allSatisfy { CleanupPrepass.wordCount($0) >= 3 }
     }
 
     /// Splits "the photos, the copy, and the price list" into three or more short items; nil otherwise.
