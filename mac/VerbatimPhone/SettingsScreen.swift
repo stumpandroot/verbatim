@@ -14,6 +14,7 @@ struct SettingsScreen: View {
     @AppStorage(Profile.aboutMeKey) private var aboutMe = ""
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
+    @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     /// Groups stagger in when you switch to Settings.
@@ -161,6 +162,9 @@ struct SettingsScreen: View {
         SettingsDivider()
         SettingsToggleRow(icon: "sparkle", tint: Ink.butterTint, art: .iconNameAndSort, title: "Name and sort recordings",
                           subtitle: "Suggests a title, kind, and tags when a transcript is ready", isOn: $autoLabels)
+        SettingsDivider()
+        SettingsToggleRow(icon: "text.quote", tint: Ink.butterTint, title: "Write a summary when a transcript finishes",
+                          subtitle: Summarizer.unavailableReason ?? "A short overview and key points at the top of the transcript", isOn: $autoSummary)
         SettingsDivider()
         SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, art: .iconFiller, title: "Hide filler lines",
                           subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", isOn: $hideFiller)

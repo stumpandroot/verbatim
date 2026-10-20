@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .general
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
+    @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
 
@@ -85,6 +86,9 @@ struct SettingsView: View {
             Section {
                 Toggle("Name and sort recordings", isOn: $autoLabels)
                 Text("Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Write a summary when a transcript finishes", isOn: $autoSummary)
+                Text(Summarizer.unavailableReason ?? "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                 Toggle("Hide filler lines", isOn: $hideFiller)
                 Text("Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.")
