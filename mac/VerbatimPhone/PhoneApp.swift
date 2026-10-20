@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct VerbatimPhoneApp: App {
+    @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
     @StateObject private var app = PhoneState()
     var body: some Scene {
         WindowGroup {
@@ -62,7 +63,17 @@ struct PhoneRoot: View {
             }
         } message: { Text("The transcript moves into it.") }
         .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
-        .sheet(isPresented: $app.showLinkSheet) { LinkSheet().presentationDetents([.medium]) }
+        .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
+        // A pasted link that turned out to be a whole show or feed: pick the episode.
+        .sheet(item: $app.episodeChoice) { choice in
+            NavigationStack {
+                EpisodePicker(link: choice.link, show: choice.show,
+                              onPick: { ep in app.episodeChoice = nil; app.addLink(ep.link) },
+                              onNotAShow: { app.episodeChoice = nil })
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { app.episodeChoice = nil } } }
+            }
+            .presentationDetents([.large])
+        }
         .fileImporter(isPresented: $app.showImporter, allowedContentTypes: [.audio, .movie, .audiovisualContent], allowsMultipleSelection: true) { r in
             if case .success(let urls) = r { app.importFiles(urls) }
         }
@@ -90,5 +101,19 @@ private struct SessionStartLayer: View {
                 .transition(.opacity)
                 .zIndex(10)
         }
+    }
+}
+
+/// Background link downloads (LinkDownloads.swift): iOS wakes Verbatim when they finish while it's closed.
+final class PhoneAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        LinkDownloads.shared.activate()
+        return true
+    }
+
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        guard identifier == LinkDownloads.identifier else { completionHandler(); return }
+        LinkDownloads.backgroundCompletion = completionHandler
+        LinkDownloads.shared.activate()
     }
 }
