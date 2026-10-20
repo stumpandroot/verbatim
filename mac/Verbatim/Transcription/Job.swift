@@ -22,8 +22,8 @@ enum TranscriptionJob {
         var speakers: [Speaker] = []
         if wantSpeakers, result.segments.count > 1 {
             do {
-                let turns = try await FluidDiarizer.shared.diarize(url: url, progress: progress)
-                speakers = SpeakerAssigner.assign(turns, to: &result.segments)
+                let found = try await FluidDiarizer.shared.diarizeDetailed(url: url, progress: progress)
+                speakers = SpeakerAssigner.assign(found, to: &result.segments)
                 Log.note("diarize done speakers=\(speakers.count)")
             } catch {
                 Log.note("diarize failed (kept transcript): \(error)")

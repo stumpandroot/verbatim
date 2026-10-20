@@ -339,18 +339,18 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 guard proceed, findSpeakers else { return }
                 guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id, token: token) }; return }
-                let turns = try? await FluidDiarizer.shared.diarize(url: url, progress: { _ in })
+                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: url, progress: { _ in })
                 await MainActor.run {
                     guard self.runToken == token else { return }
                     defer { self.finished(id, token: token) }
                     self.store.update(id) { x in
                         x.stage = nil
                         // Only when nobody has assigned speakers by hand in the meantime.
-                        guard let turns, x.speakers.isEmpty else { return }
+                        guard let found, x.speakers.isEmpty else { return }
                         var segs = x.segments
-                        let found = SpeakerAssigner.assign(turns, to: &segs)
-                        guard found.count >= 2 else { return }
-                        x.segments = segs; x.speakers = found
+                        let speakers = SpeakerAssigner.assign(found, to: &segs)
+                        guard speakers.count >= 2 else { return }
+                        x.segments = segs; x.speakers = speakers
                         for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker }
                     }
                 }

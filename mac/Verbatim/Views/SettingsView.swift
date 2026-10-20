@@ -312,6 +312,7 @@ struct DictationForm: View {
     @AppStorage(FlowSettings.maxDictationMinutesKey) private var maxMinutes: Double = 10
     @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
+    @AppStorage(VoiceProfile.dictationFilterKey) private var onlyMyVoice = false
 
     var body: some View {
         Form {
@@ -389,6 +390,12 @@ struct DictationForm: View {
             Section("Accuracy") {
                 Toggle("Listen for my Dictionary words", isOn: $flow.boostVocabulary)
                 Text("Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Only keep my voice in dictation", isOn: $onlyMyVoice)
+                    .disabled(!VoiceProfile.isEnrolled)
+                Text(VoiceProfile.isEnrolled
+                     ? "When someone nearby talks while you dictate, Verbatim pastes only your words. It takes a moment longer when another voice is heard."
+                     : "Available once Verbatim knows your voice. Your voice profile stays on this Mac.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                 Toggle("Learn from my fixes", isOn: $flow.autoLearn)
                 Text("When you correct a name or term right after it's pasted, the floating button asks whether to remember it. Nothing is learned unless you say yes.")
