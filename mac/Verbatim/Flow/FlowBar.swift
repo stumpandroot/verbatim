@@ -20,6 +20,13 @@ final class FlowBarModel: ObservableObject {
         var onTimeout: () -> Void = {}
     }
 
+    struct ListeningAlert: Equatable {
+        var title: String
+        var detail: String
+        /// Certain (the device says it's muted) rather than a guess from silence.
+        var strong: Bool
+    }
+
     @Published var phase: Phase = .idle
     @Published var hover = false
     /// False while the panel is off screen; set true just after it's shown, so the Ribbon slides in from the edge.
@@ -33,6 +40,8 @@ final class FlowBarModel: ObservableObject {
     @Published var prompt: Prompt? = nil
     @Published var hint = ""          // "hold ⌥ or click"
     @Published var warning = ""       // "AirPods mic: lower quality"
+    /// A problem to fix while listening ("Your mic is muted"), shown in the listening tab until it clears.
+    @Published var alert: ListeningAlert? = nil
     @Published var appLabel = ""      // "MAIL" while writing
     @Published var edge: BarEdge = .bottom
     /// The drawn content's real size, measured by SwiftUI; clicks inside it reach the Ribbon, clicks outside pass through.
@@ -60,6 +69,9 @@ final class FlowBarController {
     private var lockedKey: String?
     private var lastDragEnd = Date.distantPast
     private var noticeTimer: Timer?
+    /// Time left on the notice's countdown, and when it last started running (nil while paused by hover).
+    private var noticeRemaining: TimeInterval = 0
+    private var noticeRunningSince: Date?
     private var promptTimer: Timer?
     private var pollTimer: Timer?
     private var monitors: [Any] = []
@@ -140,7 +152,7 @@ final class FlowBarController {
         // While busy the Ribbon stays on the display it started on, even if the pointer wanders.
         lockedKey = (p == .idle) ? nil : (lockedKey ?? currentScreen().map { self.key(for: $0) })
         model.phase = p
-        if p == .idle { model.warning = ""; model.command = false; model.handsFree = false; model.appLabel = "" }
+        if p == .idle { model.warning = ""; model.alert = nil; model.command = false; model.handsFree = false; model.appLabel = "" }
         if p != .idle { menu.close() }
         refresh()
         pointerMoved()
@@ -148,14 +160,45 @@ final class FlowBarController {
     }
 
     /// A short message in the Ribbon ("Learned “Lititz”", "Copied. Click a text field…"), with an optional action.
+    ///
+    /// Long enough to read: at least 6 s, plus 0.05 s per character, up to 12 s (never shorter than `seconds`).
+    /// A notice with an action stays 12 s. The countdown pauses while the pointer is over the Ribbon, and a
+    /// click dismisses it (running the action, if it has one).
     func flash(_ text: String, action: String? = nil, seconds: Double = 3.5, perform: (() -> Void)? = nil) {
         setPhase(.notice)
         model.notice = text
         model.noticeAction = action
         model.onNoticeAction = perform
+        noticeRemaining = Self.noticeSeconds(text, hasAction: action != nil, requested: seconds)
+        noticeTimer?.invalidate(); noticeTimer = nil
+        noticeRunningSince = nil
+        if !model.hover { runNoticeCountdown() }
+    }
+
+    static func noticeSeconds(_ text: String, hasAction: Bool, requested: Double) -> TimeInterval {
+        if hasAction { return 12 }
+        return max(requested, min(12, 6 + 0.05 * Double(text.count)))
+    }
+
+    private func runNoticeCountdown() {
         noticeTimer?.invalidate()
-        noticeTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+        noticeRunningSince = Date()
+        noticeTimer = Timer.scheduledTimer(withTimeInterval: noticeRemaining, repeats: false) { [weak self] _ in
             Task { @MainActor in if self?.model.phase == .notice { self?.setPhase(.idle) } }
+        }
+    }
+
+    /// Hovering the Ribbon holds a notice; leaving starts the rest of its countdown (at least 2 s more).
+    private func noticeHoverChanged(_ hovering: Bool) {
+        guard model.phase == .notice else { return }
+        if hovering {
+            guard let since = noticeRunningSince else { return }
+            noticeRemaining -= Date().timeIntervalSince(since)
+            noticeRunningSince = nil
+            noticeTimer?.invalidate(); noticeTimer = nil
+        } else if noticeRunningSince == nil {
+            noticeRemaining = max(noticeRemaining, 2)
+            runNoticeCountdown()
         }
     }
 
@@ -303,13 +346,13 @@ final class FlowBarController {
         // Off screen there's nothing to hit or hover: the same result as below, without reading the pointer.
         guard p.isVisible else {
             if !p.ignoresMouseEvents { p.ignoresMouseEvents = true }
-            if model.hover != menu.isOpen { model.hover = menu.isOpen }
+            if model.hover != menu.isOpen { model.hover = menu.isOpen; noticeHoverChanged(menu.isOpen) }
             return
         }
         let inside = ribbonRect()?.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation) ?? false
         if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
         let hover = inside || menu.isOpen
-        if model.hover != hover { model.hover = hover }
+        if model.hover != hover { model.hover = hover; noticeHoverChanged(hover) }
     }
 
     // MARK: Drag to an edge

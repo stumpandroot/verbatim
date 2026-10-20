@@ -92,7 +92,7 @@ struct FlowBarView: View {
 
     /// Changes to any of these animate the shape.
     private var stateKey: String {
-        "\(ribbonStyle)-\(model.phase)-\(closed)-\(model.dragging)-\(model.handsFree)-\(model.warning.isEmpty)-\(model.command)-\(model.edge)-\(model.noticeAction ?? "")-\(model.notice.count)"
+        "\(ribbonStyle)-\(model.phase)-\(closed)-\(model.dragging)-\(model.handsFree)-\(model.warning.isEmpty)-\(model.alert?.title ?? "")-\(model.command)-\(model.edge)-\(model.noticeAction ?? "")-\(model.notice.count)"
     }
 
     private var screenEdge: Edge { switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom } }
@@ -181,7 +181,15 @@ struct FlowBarView: View {
                             .buttonStyle(.plain).help("Cancel (Esc)")
                     }
                 }
-                if !model.warning.isEmpty {
+                if let a = model.alert {
+                    // Muted (the device says so): persimmon on paper, butter on ink. A guess from silence is softer.
+                    VStack(spacing: 1) {
+                        Text(a.title).font(.system(size: 12, weight: a.strong ? .semibold : .medium)).foregroundStyle(RibbonInk.persimmonText)
+                        Text(a.detail).font(.system(size: 10.5, weight: a.strong ? .medium : .regular)).foregroundStyle(a.strong ? RibbonInk.persimmonText : RibbonInk.muted)
+                    }
+                    .lineLimit(1).fixedSize()
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
+                } else if !model.warning.isEmpty {
                     Text(model.warning).font(.system(size: 10.5, weight: .medium)).foregroundStyle(RibbonInk.persimmonText).lineLimit(1).fixedSize()
                 }
             }
@@ -239,7 +247,10 @@ struct FlowBarView: View {
     private var accessibilityLabel: String {
         switch model.phase {
         case .idle: return "Verbatim dictation: " + model.hint
-        case .listening: return model.handsFree ? "Listening. Click to stop and paste." : "Listening"
+        case .listening:
+            let base = model.handsFree ? "Listening. Click to stop and paste." : "Listening"
+            if let a = model.alert { return "\(base). \(a.title). \(a.detail)." }
+            return base
         case .working: return "Writing your words"
         case .notice: return model.notice
         case .prompt: return model.prompt?.title ?? ""

@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import CoreAudio
+import IOKit
 
 /// Input devices on this Mac, and which one Verbatim records from. "System default" follows macOS.
 enum AudioDevices {
@@ -69,6 +70,37 @@ enum AudioDevices {
         guard let unit = node.audioUnit else { return }
         var dev = id
         AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &dev, UInt32(MemoryLayout<AudioDeviceID>.size))
+    }
+
+    /// The Mac's own microphone (built-in transport, internal source), or nil when it has none: a Mac mini,
+    /// Studio, or Pro, or a MacBook with its lid closed. Never a Bluetooth, USB, or headset-jack mic.
+    /// Core Audio and IOKit calls: call off the main thread.
+    static func builtInMic() -> Device? {
+        guard !lidClosed() else { return nil }
+        return inputs().first { d in
+            guard d.transport == "Built-in" else { return false }
+            // 'imic' is the internal mic; 'emic' and line inputs are whatever is plugged into the jack.
+            if let source = dataSource(d.id) { return source == 0x696D6963 }
+            let n = d.name.lowercased()
+            return !n.contains("external") && !n.contains("line") && !n.contains("headset")
+        }
+    }
+
+    /// Whether a MacBook's lid is closed (its built-in mic is then off).
+    static func lidClosed() -> Bool {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return false }
+        defer { IOObjectRelease(service) }
+        guard let v = IORegistryEntryCreateCFProperty(service, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() else { return false }
+        return (v as? Bool) ?? (v as? NSNumber)?.boolValue ?? false
+    }
+
+    private static func dataSource(_ id: AudioDeviceID) -> UInt32? {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDataSource, mScope: kAudioDevicePropertyScopeInput, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &size) == noErr, size == UInt32(MemoryLayout<UInt32>.size) else { return nil }
+        var v: UInt32 = 0
+        return AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &v) == noErr ? v : nil
     }
 
     // MARK: CoreAudio helpers

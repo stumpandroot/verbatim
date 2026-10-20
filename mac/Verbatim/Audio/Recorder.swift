@@ -18,6 +18,9 @@ final class RecordingWriter: @unchecked Sendable {
     private let lock = NSLock()
     private var file: AVAudioFile?
     private var converter: AVAudioConverter?
+    /// The format the converter expects. A buffer in any other format (one still in flight from a device the
+    /// recording just moved off) is skipped rather than fed to the wrong converter.
+    private var inputFormat: AVAudioFormat?
     private(set) var frames: Int64 = 0
     private(set) var envelope: [Float] = []
     private var envAccum: Float = 0, envCount = 0
@@ -33,6 +36,8 @@ final class RecordingWriter: @unchecked Sendable {
     /// Any sample that wasn't exact digital silence. A quiet room still has some noise; a mic that's asleep,
     /// muted in hardware, or switching profiles delivers zeros.
     private var signal = false
+    /// Uptime of the last buffer that wasn't exact digital silence.
+    private var lastSignal: TimeInterval?
     /// Long recordings: every `segmentFrames` the file is closed (so its header is final) and the recording
     /// continues in the next segment file beside it. A crash then loses at most the open segment's header,
     /// not the whole recording. `segments[0]` is the recording's own URL; Recorder joins them at stop.
@@ -46,6 +51,7 @@ final class RecordingWriter: @unchecked Sendable {
     init(url: URL, inputFormat: AVAudioFormat, segmented: Bool = false) throws {
         file = try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
         converter = AVAudioConverter(from: inputFormat, to: recordingFormat)
+        self.inputFormat = inputFormat
         segmentLimit = segmented ? Int64(recordingFormat.sampleRate * RecordingSegments.seconds) : nil
         segmentURLs = [url]
     }
@@ -56,6 +62,7 @@ final class RecordingWriter: @unchecked Sendable {
             throw NSError(domain: "Verbatim", code: 2, userInfo: [NSLocalizedDescriptionKey: "The microphone's format can't be converted."])
         }
         converter = c
+        self.inputFormat = inputFormat
         holding = true
         segmentLimit = nil
     }
@@ -85,9 +92,11 @@ final class RecordingWriter: @unchecked Sendable {
         // Speech RMS sits around 0.02–0.15 on a Mac mic; map that onto most of the bar height.
         let v = min(1, pow(max(0, rms - 0.004) * 6, 0.5))
         lock.lock(); defer { lock.unlock() }
-        if firstBufferAt == nil { firstBufferAt = ProcessInfo.processInfo.systemUptime }
-        if rms > 0 { signal = true }
+        let now = ProcessInfo.processInfo.systemUptime
+        if firstBufferAt == nil { firstBufferAt = now }
+        if rms > 0 { signal = true; lastSignal = now }
         guard !paused, let converter, file != nil || holding else { return 0 }
+        if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount { return v }
         let ratio = recordingFormat.sampleRate / buffer.format.sampleRate
         let cap = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
         guard let out = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: cap) else { return v }
@@ -138,11 +147,15 @@ final class RecordingWriter: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard converter != nil else { return false }
         converter = c
+        inputFormat = format
         return true
     }
 
     /// Whether anything but digital silence has arrived.
     var heardSignal: Bool { lock.lock(); defer { lock.unlock() }; return signal }
+
+    /// When (system uptime) the last sound that wasn't exact digital silence arrived, or nil if none has.
+    var lastSignalAt: TimeInterval? { lock.lock(); defer { lock.unlock() }; return lastSignal }
 
     /// Milliseconds from creating the writer to the first buffer (how long the mic took to wake), if any arrived.
     var firstBufferDelay: Int? {
@@ -179,17 +192,30 @@ final class TapSink: @unchecked Sendable {
     private let lock = NSLock()
     private var writer: RecordingWriter?
     private var onLevel: (@Sendable (Float, TimeInterval) -> Void)?
+    private var lastSignal: TimeInterval?
 
     func set(_ writer: RecordingWriter?, onLevel: (@Sendable (Float, TimeInterval) -> Void)?) {
         lock.lock(); self.writer = writer; self.onLevel = onLevel; lock.unlock()
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) {
-        lock.lock(); let w = writer, cb = onLevel; lock.unlock()
+        // Tracks whether this input delivers anything but exact digital silence, even with no writer set: a
+        // muted mic the recording moved off is still listened to, to notice when it's unmuted.
+        var heard = false
+        if let ch = buffer.floatChannelData?[0] {
+            for i in 0..<Int(buffer.frameLength) where ch[i] != 0 { heard = true; break }
+        }
+        lock.lock()
+        if heard { lastSignal = ProcessInfo.processInfo.systemUptime }
+        let w = writer, cb = onLevel
+        lock.unlock()
         guard let w else { return }
         let v = w.write(buffer)
         cb?(v, w.seconds)
     }
+
+    /// When (system uptime) this input last delivered anything but exact digital silence.
+    var lastSignalAt: TimeInterval? { lock.lock(); defer { lock.unlock() }; return lastSignal }
 }
 
 /// What a recording is doing right now ("recording: starting Shure MV7"), so the hang watch can say which step
@@ -208,6 +234,40 @@ enum CaptureStep {
         lock.lock(); defer { lock.unlock() }
         guard let step else { return nil }
         return "\(step), \(String(format: "%.1f", ProcessInfo.processInfo.systemUptime - since)) s in"
+    }
+}
+
+/// A problem with the mic noticed while recording, shown for as long as it lasts.
+enum MicWarning: Equatable {
+    /// The device reports mute (or its input volume is at zero). Carries the device's name.
+    case muted(String)
+    /// Only exact digital silence is arriving: many USB mics mute in hardware this way, without saying so.
+    case silent(String)
+    /// The chosen mic is muted (`certain`) or silent, so the recording moved to the Mac's own mic until it's back.
+    case usingBuiltIn(builtIn: String, chosen: String, certain: Bool)
+
+    var isMuted: Bool { if case .muted = self { return true }; return false }
+    var title: String {
+        switch self {
+        case .muted: return "Your mic is muted"
+        case .silent: return "Not hearing your mic"
+        case .usingBuiltIn(let builtIn, _, _): return "Using \(builtIn)"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .muted(let name): return "Unmute \(Self.phrase(name)) to keep going"
+        case .silent(let name): return "Is \(Self.phrase(name)) muted?"
+        case .usingBuiltIn(_, let chosen, let certain): return "\(chosen.isEmpty ? "Your mic" : chosen) \(certain ? "is muted" : "seems to be muted")"
+        }
+    }
+    /// A firm statement (the device said so, or the recording moved mics), not a guess from silence.
+    var isFirm: Bool { if case .silent = self { return false }; return true }
+
+    /// "the Shure MV7 mic", "the MacBook Pro Microphone", or "the mic".
+    static func phrase(_ name: String) -> String {
+        guard !name.isEmpty else { return "the mic" }
+        return name.lowercased().contains("mic") ? "the \(name)" : "the \(name) mic"
     }
 }
 
@@ -296,6 +356,12 @@ final class Recorder: ObservableObject {
     /// Whether the last stopped or discarded recording received anything but digital silence.
     private(set) var lastHeardSignal = true
 
+    /// Mac: the mic is muted, or nothing but digital silence is arriving, right now. Set within moments of the
+    /// start (or of the change) and cleared as soon as it's fixed; the recording keeps going either way.
+    @Published private(set) var micWarning: MicWarning?
+    /// Called on every change of `micWarning`, including back to nil.
+    var onMicWarning: ((MicWarning?) -> Void)?
+
     /// Normal recordings on the Mac open their own `InputUnit` on the chosen device per recording, off the main
     /// thread, released on Stop (see `begin(to:done:)`). An AVAudioEngine's input node first opens the system
     /// default input, which with Bluetooth headphones switches them to the call profile and can block the main
@@ -340,6 +406,22 @@ final class Recorder: ObservableObject {
     private var lastAutoReopen: TimeInterval = -100
     /// How long opening a mic may take before the start is given up and the mic released.
     private static let startLimit: TimeInterval = 3
+    /// The recording device's mute state, read and watched off the main thread.
+    private var muteWatch: MicMuteWatch?
+    private var silenceTimer: Timer?
+    private var reportedMuted = false
+    private var hearingSilence = false
+    private var micName = ""
+    /// While the chosen mic is muted: the Mac's built-in mic, running and writing into the same recording.
+    /// The chosen mic keeps running too (its sink tracks signal only), so unmuting it is noticed.
+    private var fallback: OpenInput?
+    private var fallbackCertain = false
+    private var fallbackStartedAt: TimeInterval = 0
+    private var fallbackToken = 0
+    private var switchingToFallback = false
+    /// No built-in mic (or it delivered nothing): don't try again during this recording.
+    private var fallbackUnavailable = false
+    private var lastSwitchBack: TimeInterval = -100
     #endif
 
     static var targetFormat: AVAudioFormat { recordingFormat }
@@ -525,6 +607,9 @@ final class Recorder: ObservableObject {
     /// Stops capture and hands back the writer (not yet closed) and the recording's URL.
     private func endCapture() -> (RecordingWriter, URL)? {
         guard isRecording, let url, let w = writer else { return nil }
+        #if os(macOS)
+        stopMicWatch()
+        #endif
         if keepWarm {
             sink.set(nil, onLevel: nil)
             #if os(macOS)
@@ -686,6 +771,7 @@ final class Recorder: ObservableObject {
             RecordingSegments.setActive(url, true)
             startedAt = ProcessInfo.processInfo.systemUptime
             watch(open)
+            startMicWatch(device: open.device.id, name: open.device.name)
             Log.note("recorder: recording from \(open.device.name) (\(open.device.transport)), \(Int(open.unit.format.sampleRate)) Hz, \(open.unit.format.channelCount) ch; started in \(ms) ms")
             done?(nil)
         case .failure(let error):
@@ -732,6 +818,7 @@ final class Recorder: ObservableObject {
         guard !keepWarm, isRecording, !isStarting, input === changed else { return }
         Log.note("recorder: input changed mid-recording after \(String(format: "%.1f", ProcessInfo.processInfo.systemUptime - startedAt))s (\(changed.device.name))")
         input = nil
+        stopMicWatch()
         changed.sink.set(nil, onLevel: nil)
         audioQueue.async { changed.release() }
         if let onInterrupted { onInterrupted(); return }
@@ -788,6 +875,7 @@ final class Recorder: ObservableObject {
         case .success(let (open, _)):
             input = open
             watch(open)
+            startMicWatch(device: open.device.id, name: open.device.name)
             Log.note("recorder: microphone reopened on \(open.device.name), \(Int(open.unit.format.sampleRate)) Hz")
             if resuming {
                 isPaused = false
@@ -840,12 +928,12 @@ final class Recorder: ObservableObject {
         do {
             if stale || !unitFits(target.id) { try rebuild(on: target) }
             do {
-                try beginCapture(to: url)
+                try beginCapture(to: url, name: target.name)
             } catch {
                 // A device that changed while idle can fail to start. One retry on a fresh unit.
                 Log.note("recorder: dictation start failed on \(target.name) (\(error.localizedDescription)); retrying on a fresh unit")
                 try rebuild(on: target)
-                try beginCapture(to: url)
+                try beginCapture(to: url, name: target.name)
             }
         } catch {
             // Release the device so a failed start never leaves a mic (or a headset's call profile) held open.
@@ -875,7 +963,7 @@ final class Recorder: ObservableObject {
         Log.note("recorder: dictation input ready on \(target.name) (\(target.transport)), \(Int(u.format.sampleRate)) Hz, \(u.format.channelCount) ch")
     }
 
-    private func beginCapture(to url: URL) throws {
+    private func beginCapture(to url: URL, name: String) throws {
         guard let unit else { throw Self.noInput }
         let w = try RecordingWriter(inputFormat: unit.format)
         live.reset()
@@ -903,7 +991,184 @@ final class Recorder: ObservableObject {
         isRecording = true
         isPaused = false
         watchDevice(unit.device)
+        startMicWatch(device: unit.device, name: name)
         watchFirstSignal(w)
+    }
+
+    // MARK: Muted mic
+
+    /// Starts watching the recording device: its mute switch and input volume (Core Audio, on the watch's own
+    /// queue), and the audio itself for exact digital silence. Either sets `micWarning` while it lasts, and
+    /// moves the recording to the Mac's built-in mic until the chosen one is back (see `startFallback`).
+    private func startMicWatch(device: AudioDeviceID, name: String) {
+        stopMicWatch()
+        micName = name
+        fallbackUnavailable = false
+        lastSwitchBack = -100
+        let w = MicMuteWatch(device: device) { [weak self] muted in
+            MainActor.assumeIsolated { self?.mutedChanged(muted) }
+        }
+        muteWatch = w
+        w.start()
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.micTick() }
+        }
+        silenceTimer?.tolerance = 0.05
+    }
+
+    private func stopMicWatch() {
+        muteWatch?.cancel(); muteWatch = nil
+        silenceTimer?.invalidate(); silenceTimer = nil
+        reportedMuted = false
+        hearingSilence = false
+        fallbackToken += 1
+        switchingToFallback = false
+        if let fb = fallback {
+            fb.sink.set(nil, onLevel: nil)
+            audioQueue.async { fb.release() }
+            fallback = nil
+            Log.note("recorder: released the built-in mic fallback")
+        }
+        updateMicWarning()
+    }
+
+    private func mutedChanged(_ muted: Bool) {
+        guard isRecording, muteWatch != nil else { return }
+        reportedMuted = muted
+        updateMicWarning()
+        micTick()
+    }
+
+    /// The chosen mic's sink and format: dictation's kept unit, or a normal recording's open input.
+    private var primarySink: TapSink? { keepWarm ? sink : input?.sink }
+    private var primaryFormat: AVAudioFormat? { keepWarm ? unit?.format : input?.unit.format }
+
+    /// Every 0.15 s while recording. Exact digital silence for 0.6 s from the start, or for 3 s after sound was
+    /// heard (a mic's noise gate can send zeros between words, so mid-recording waits longer), counts as
+    /// muted; a quiet room still sends some noise. Muted moves the recording to the built-in mic; unmuted
+    /// moves it back, at most once per 5 s.
+    private func micTick() {
+        guard isRecording, let w = writer else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let fb = fallback {
+            let primaryHeard = (primarySink?.lastSignalAt).map { now - $0 < 0.5 } ?? false
+            if !reportedMuted, primaryHeard, now - lastSwitchBack >= 5 {
+                switchBack("\(micName) is back")
+            } else if now - max(fb.sink.lastSignalAt ?? 0, fallbackStartedAt) >= 1.5 {
+                // The built-in mic sends nothing (lid closed, or it's off): stay on the chosen mic and just warn.
+                fallbackUnavailable = true
+                switchBack("\(fb.device.name) sent no sound")
+            }
+            return
+        }
+        let skip = isPaused || switchingToFallback || (!keepWarm && (isStarting || input == nil || reopening))
+        let silent: Bool
+        if skip {
+            silent = hearingSilence && switchingToFallback
+        } else if let last = w.lastSignalAt {
+            silent = now - max(last, startedAt) >= 3
+        } else {
+            silent = now - startedAt >= 0.6
+        }
+        if silent != hearingSilence {
+            hearingSilence = silent
+            updateMicWarning()
+        }
+        if (reportedMuted || hearingSilence), !isPaused, !switchingToFallback, !fallbackUnavailable, !skip {
+            startFallback(writer: w)
+        }
+    }
+
+    /// Opens the Mac's built-in mic on the audio queue and, once it runs, points the recording at it. The
+    /// chosen mic keeps running so its return is noticed. Never Bluetooth or any other external mic; with no
+    /// built-in mic (or the lid closed) nothing switches and the warning stays.
+    private func startFallback(writer w: RecordingWriter) {
+        guard let chosen = (keepWarm ? unit?.device : input?.device.id) else { return }
+        switchingToFallback = true
+        fallbackToken += 1
+        let mine = fallbackToken
+        let certain = reportedMuted
+        audioQueue.async { [weak self] in
+            let open = Self.openBuiltIn(excluding: chosen)
+            Task { @MainActor in
+                guard let self, self.fallbackToken == mine, self.isRecording, self.writer === w, self.fallback == nil else {
+                    if let open { open.sink.set(nil, onLevel: nil); DispatchQueue.global(qos: .userInitiated).async { open.release() } }
+                    return
+                }
+                self.finishFallback(open, writer: w, certain: certain)
+            }
+        }
+    }
+
+    nonisolated private static func openBuiltIn(excluding chosen: AudioDeviceID) -> OpenInput? {
+        guard let d = AudioDevices.builtInMic(), d.id != chosen else { return nil }
+        let sink = TapSink()
+        do {
+            let u = try InputUnit(device: d.id) { buffer in sink.feed(buffer) }
+            do { try u.prepare(); try u.start() } catch { u.dispose(); throw error }
+            return OpenInput(unit: u, sink: sink, device: d)
+        } catch {
+            Log.note("recorder: couldn't open \(d.name) as a fallback: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func finishFallback(_ open: OpenInput?, writer w: RecordingWriter, certain: Bool) {
+        switchingToFallback = false
+        guard let open else {
+            fallbackUnavailable = true
+            Log.note("recorder: \(micName) is \(certain ? "muted" : "silent"); no built-in mic to switch to")
+            return
+        }
+        // Still muted? A mic unmuted while the built-in one opened stays the recording's mic.
+        guard reportedMuted || hearingSilence else {
+            open.sink.set(nil, onLevel: nil)
+            audioQueue.async { open.release() }
+            return
+        }
+        primarySink?.set(nil, onLevel: nil)
+        guard w.replaceInput(open.unit.format) else {
+            Log.note("recorder: \(open.device.name)'s format can't be converted; staying on \(micName)")
+            if let pf = primaryFormat { _ = w.replaceInput(pf) }
+            primarySink?.set(w, onLevel: levelHandler())
+            open.sink.set(nil, onLevel: nil)
+            audioQueue.async { open.release() }
+            fallbackUnavailable = true
+            return
+        }
+        open.sink.set(w, onLevel: levelHandler())
+        fallback = open
+        fallbackCertain = certain
+        fallbackStartedAt = ProcessInfo.processInfo.systemUptime
+        Log.note("recorder: switched to \(open.device.name) because \(micName) is \(certain ? "muted" : "sending only silence")")
+        updateMicWarning()
+    }
+
+    /// Points the recording back at the chosen mic and releases the built-in one.
+    private func switchBack(_ reason: String) {
+        guard let fb = fallback, let w = writer else { return }
+        fb.sink.set(nil, onLevel: nil)
+        if let pf = primaryFormat, w.replaceInput(pf) {
+            primarySink?.set(w, onLevel: levelHandler())
+        } else {
+            Log.note("recorder: couldn't point the recording back at \(micName)")
+        }
+        fallback = nil
+        audioQueue.async { fb.release() }
+        lastSwitchBack = ProcessInfo.processInfo.systemUptime
+        hearingSilence = false
+        Log.note("recorder: switched back to \(micName) (\(reason))")
+        updateMicWarning()
+    }
+
+    private func updateMicWarning() {
+        let next: MicWarning?
+        if let fb = fallback { next = .usingBuiltIn(builtIn: fb.device.name, chosen: micName, certain: fallbackCertain) }
+        else { next = reportedMuted ? .muted(micName) : hearingSilence ? .silent(micName) : nil }
+        guard next != micWarning else { return }
+        micWarning = next
+        Log.note("recorder: mic warning: \(next.map { "\($0.title). \($0.detail)" } ?? "cleared")")
+        onMicWarning?(next)
     }
     #endif
 
@@ -916,13 +1181,26 @@ final class Recorder: ObservableObject {
     /// Nothing but digital silence (or nothing at all) 2 s after start means the mic isn't delivering: asleep,
     /// muted in hardware, gone, or a stale route. A quiet speaker still sends room noise, so this never cancels
     /// someone who just hasn't spoken yet. The owner stops, releases the mic, and says so.
+    /// While the Ribbon is already saying the mic seems muted, it waits until 8 s, so unmuting carries on.
     private func watchFirstSignal(_ w: RecordingWriter) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             guard let self, self.isRecording, self.writer === w, !w.heardSignal else { return }
-            Log.note("recorder: no audio 2 s after start (\(w.firstBufferDelay == nil ? "no buffers" : "only silence"))")
-            self.stale = true
-            if let onNoAudio = self.onNoAudio { onNoAudio() } else { self.onInterrupted?() }
+            if self.micWarning != nil {
+                Log.note("recorder: no audio 2 s after start; mic warning showing, waiting until 8 s")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                    guard let self, self.isRecording, self.writer === w, !w.heardSignal else { return }
+                    self.noAudio(w, after: 8)
+                }
+                return
+            }
+            self.noAudio(w, after: 2)
         }
+    }
+
+    private func noAudio(_ w: RecordingWriter, after seconds: Int) {
+        Log.note("recorder: no audio \(seconds) s after start (\(w.firstBufferDelay == nil ? "no buffers" : "only silence"))")
+        stale = true
+        if let onNoAudio { onNoAudio() } else { onInterrupted?() }
     }
 
     private func teardown() {

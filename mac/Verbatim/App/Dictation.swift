@@ -124,6 +124,8 @@ final class DictationController: ObservableObject {
         recorder.onInterrupted = { [weak self] in self?.inputInterrupted() }
         // No sound at all from the mic shortly after starting: stop instead of listening to nothing.
         recorder.onNoAudio = { [weak self] in self?.noAudio() }
+        // A muted mic (or only digital silence) says so right away in the Ribbon, and listening carries on.
+        recorder.onMicWarning = { [weak self] w in self?.micWarningChanged(w) }
         warmRecorder()
         // Load the speech model and run a tiny transcription now, so the first dictation doesn't wait for it.
         prewarmModel(reason: "launch")
@@ -160,13 +162,24 @@ final class DictationController: ObservableObject {
         if isWorking { bar?.model.warning = "Mic changed, so listening stopped" }
     }
 
-    /// The recorder's watchdog: no sound at all 2 seconds in. Stops, releases the mic, and says which mic.
+    /// The recorder's watchdog: no sound at all 2 seconds in (8 when the Ribbon already said the mic seems
+    /// muted). Stops, releases the mic, and says which mic.
     private func noAudio() {
         guard isListening else { return }
         Log.note("dictation: no audio from \(AudioDevices.current()?.name ?? "the mic"); stopped")
+        let warned = recorder.micWarning
         recorder.discard()
         resetListening()
-        showMicProblem("Couldn't hear")
+        showMicProblem("Couldn't hear", warned: warned)
+    }
+
+    /// Shows or clears the muted-mic warning in the listening tab, and announces it to VoiceOver.
+    private func micWarningChanged(_ w: MicWarning?) {
+        guard let m = bar?.model else { return }
+        guard isListening, let w else { m.alert = nil; return }
+        m.alert = .init(title: w.title, detail: w.detail, strong: w.isFirm)
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: "\(w.title). \(w.detail).", .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     /// Back to idle after listening ended without a recording to transcribe.
@@ -175,7 +188,19 @@ final class DictationController: ObservableObject {
     }
 
     /// "Couldn't hear the Shure MV7 mic. Check Settings › General › Microphone.", with a button that opens it.
-    private func showMicProblem(_ verb: String) {
+    /// After a muted-mic warning, it says to unmute instead.
+    private func showMicProblem(_ verb: String, warned: MicWarning? = nil) {
+        switch warned {
+        case .muted(let name):
+            bar?.flash("Stopped listening: \(MicWarning.phrase(name)) is muted. Unmute it, then dictate again.", seconds: 8)
+            return
+        case .silent(let name):
+            bar?.flash("Couldn't hear \(MicWarning.phrase(name)). If it has a mute button or switch, unmute it and dictate again.", action: "Settings", seconds: 8) { [weak self] in
+                self?.openSettings(tab: .general)
+            }
+            return
+        case .usingBuiltIn, nil: break
+        }
         let name = AudioDevices.current()?.name ?? "the microphone"
         let mic = name.range(of: "mic", options: .caseInsensitive) != nil ? name : "the \(name) mic"
         bar?.flash("\(verb) \(mic). Check Settings › General › Microphone.", action: "Open", seconds: 6) { [weak self] in
@@ -518,6 +543,7 @@ final class DictationController: ObservableObject {
 
     private func finish() {
         guard isListening else { return }
+        let warned = recorder.micWarning
         guard let stopped = recorder.stop() else {
             // The recorder already stopped on its own: end listening anyway, so the Ribbon never stays stuck.
             resetListening(); showMicProblem("Couldn't hear"); return
@@ -528,7 +554,7 @@ final class DictationController: ObservableObject {
         if !recorder.lastHeardSignal, Date().timeIntervalSince(startedAt ?? Date()) >= 1 {
             try? FileManager.default.removeItem(at: url)
             command = false; toPad = false
-            showMicProblem("Couldn't hear")
+            showMicProblem("Couldn't hear", warned: warned)
             return
         }
         guard duration >= 0.4 else {                      // too short: discard, like Wispr Flow

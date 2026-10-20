@@ -340,6 +340,13 @@ struct RecordPanel: View {
                 if let id = app.continuing, let t = app.store.transcript(id) {
                     Text("Adding to “\(t.title)”").font(.system(size: 12)).foregroundStyle(Ink.accentText).lineLimit(1)
                 }
+                // Muted, or only digital silence: said at once, and cleared as soon as the mic is back.
+                if let w = app.recorder.micWarning, !starting, !app.recorder.isPaused {
+                    Text("\(w.title). \(w.detail).")
+                        .font(.system(size: 11.5, weight: w.isFirm ? .semibold : .medium)).foregroundStyle(Ink.accentText)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
                 MicSourceMenu(status: "Microphone").environment(\.colorScheme, .light)
             }
             .frame(width: 170, alignment: .leading)
@@ -353,7 +360,7 @@ struct RecordPanel: View {
         .background(Ink.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.persimmon.opacity(0.6)))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(starting ? "Starting the microphone" : app.recorder.isPaused ? "Recording paused" : "Recording")
+        .accessibilityLabel(starting ? "Starting the microphone" : app.recorder.isPaused ? "Recording paused" : app.recorder.micWarning.map { "Recording. \($0.title). \($0.detail)." } ?? "Recording")
         .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
     }
 
