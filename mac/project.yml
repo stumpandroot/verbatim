@@ -138,6 +138,8 @@ targets:
       # Shared with the keyboard extension: the App Group channel and the voice bars.
       - VerbatimKeyboard/KeyboardBridge.swift
       - VerbatimKeyboard/VoiceBars.swift
+      # Shared with the widget extension: the keyboard session's Live Activity and its End session intent.
+      - VerbatimWidgets/SessionActivity.swift
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
@@ -147,6 +149,8 @@ targets:
         product: YouTubeKit
       # The Verbatim keyboard, embedded in the app's PlugIns folder.
       - target: VerbatimKeyboard
+      # The keyboard session's Live Activity (Dynamic Island and Lock Screen), also in PlugIns.
+      - target: VerbatimWidgets
     info:
       path: VerbatimPhone/Info.plist
       properties:
@@ -161,7 +165,9 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this iPhone."
         ITSAppUsesNonExemptEncryption: false
-        # verbatim://dictate?session=… opens the app from the Verbatim keyboard to start listening.
+        # The keyboard session's Live Activity (KeyboardSession.swift, VerbatimWidgets).
+        NSSupportsLiveActivities: true
+        # verbatim://session?start=1… opens the app from the Verbatim keyboard to start a session.
         CFBundleURLTypes:
           - CFBundleURLName: co.stumpandroot.verbatim.ios
             CFBundleURLSchemes: [verbatim]
@@ -234,6 +240,42 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.keyboard
         PRODUCT_NAME: VerbatimKeyboard
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        TARGETED_DEVICE_FAMILY: "1,2"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        APPLICATION_EXTENSION_API_ONLY: true
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
+
+  # The keyboard session's Live Activity: the Dynamic Island and Lock Screen while Verbatim keeps the microphone
+  # ready for the keyboard. Draws only; the app starts, updates, and ends it. The End session button runs an
+  # AppIntent in the app's process, so this extension needs no App Group.
+  VerbatimWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VerbatimWidgets
+        excludes: ["Info.plist"]
+      - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Brand.swift
+    info:
+      path: VerbatimWidgets/Info.plist
+      properties:
+        CFBundleName: Verbatim
+        CFBundleDisplayName: Verbatim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.widgets
+        PRODUCT_NAME: VerbatimWidgets
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"

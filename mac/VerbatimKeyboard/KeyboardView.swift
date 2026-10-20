@@ -20,7 +20,7 @@ enum KB {
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
-    private var busy: Bool { model.stage == .listening || model.stage == .writing || model.stage == .waiting }
+    private var busy: Bool { model.stage == .listening || model.stage == .writing || model.stage == .starting }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -45,15 +45,17 @@ struct KeyboardView: View {
     @ViewBuilder private var topStrip: some View {
         HStack(spacing: 8) {
             switch model.stage {
-            case .listening, .waiting, .writing:
+            case .listening, .starting, .writing:
                 RingsMark(color: KB.persimmon).frame(width: 15, height: 15)
                 Text(stripLabel).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1)
                     .accessibilityLabel(stripAccessibility)
                 Spacer(minLength: 6)
-                Chip(title: "Cancel") { model.cancel() }
-                    .accessibilityHint("Stops listening and inserts nothing")
+                if model.stage == .starting {
+                    Chip(title: "Cancel") { model.cancel() }
+                        .accessibilityHint("Stops waiting for Verbatim")
+                }
             case .inserted:
-                BarsMark(color: KB.persimmon).frame(width: 14, height: 14)
+                SessionDot(on: model.sessionLive)
                 Text("INSERTED · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "WORD" : "WORDS")")
                     .font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 6)
@@ -65,17 +67,33 @@ struct KeyboardView: View {
                 }
             case .idle:
                 BarsMark(color: KB.persimmon).frame(width: 14, height: 14)
-                Text(model.levelLabel.uppercased()).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1)
-                    .accessibilityLabel("Cleanup: \(model.levelLabel)")
+                Text(sessionLabel).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
+                    .accessibilityLabel(sessionAccessibility)
                 Spacer(minLength: 6)
+                Text(model.levelLabel.uppercased()).font(KB.mono(10)).tracking(1.2).foregroundStyle(KB.muted).lineLimit(1)
+                    .accessibilityLabel("Cleanup: \(model.levelLabel)")
             }
         }
         .padding(.horizontal, 6)
     }
 
+    /// "SESSION ON · 4:12 LEFT", "SESSION ON", or "TAP TO START A SESSION".
+    private var sessionLabel: String {
+        guard model.sessionLive else { return "TAP TO START A SESSION" }
+        guard let ends = model.sessionEndsAt else { return "SESSION ON" }
+        return "SESSION ON · \(Self.clock(ends.timeIntervalSince(model.now))) LEFT"
+    }
+
+    private var sessionAccessibility: String {
+        guard model.sessionLive else { return "No session. Tap the record button to start one." }
+        guard let ends = model.sessionEndsAt else { return "Session on" }
+        let m = max(0, Int(ends.timeIntervalSince(model.now)) / 60)
+        return m >= 1 ? "Session on, \(m) minutes left" : "Session on, less than a minute left"
+    }
+
     private var stripLabel: String {
         switch model.stage {
-        case .waiting: return "OPENING VERBATIM"
+        case .starting: return "STARTING A SESSION"
         case .writing: return "WRITING IT DOWN"
         default: return "LISTENING · \(Self.clock(model.elapsed))"
         }
@@ -83,7 +101,7 @@ struct KeyboardView: View {
 
     private var stripAccessibility: String {
         switch model.stage {
-        case .waiting: return "Opening Verbatim"
+        case .starting: return "Starting a session"
         case .writing: return "Writing it down"
         default: return "Listening, \(Int(model.elapsed)) seconds"
         }
@@ -102,9 +120,16 @@ struct KeyboardView: View {
             Button { model.record() } label: {
                 HStack(spacing: 16) {
                     KeyboardRecordButton(size: 64)
-                    Text(model.stage == .inserted ? "Tap to keep going" : "Tap to dictate")
-                        .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
-                        .lineLimit(1).minimumScaleFactor(0.7)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recordTitle)
+                            .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                        if !model.sessionLive {
+                            Text("Verbatim opens for a second, then comes back")
+                                .font(.system(size: 12)).foregroundStyle(KB.muted)
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -112,40 +137,54 @@ struct KeyboardView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(PressFade())
-            .accessibilityLabel(model.stage == .inserted ? "Keep dictating" : "Dictate")
-            .accessibilityHint("Opens Verbatim to listen. Then come back here.")
-        case .waiting, .listening, .writing:
+            .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
+            .accessibilityHint(model.sessionLive ? "Starts listening right away" : "Opens Verbatim for a second to turn on the microphone, then comes back here")
+        case .starting:
             HStack(spacing: 16) {
-                VoiceBars(level: model.stage == .listening ? model.level : 0, color: KB.persimmon, barWidth: 10, maxHeight: 44)
-                    .frame(width: 50)
-                Text(model.stage == .writing ? "Writing it down…" : model.stage == .waiting ? "Opening Verbatim…" : "Listening…")
+                VoiceBars(level: 0, color: KB.persimmon, barWidth: 10, maxHeight: 44).frame(width: 50)
+                Text("Opening Verbatim…")
                     .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 Spacer(minLength: 8)
-                if model.stage != .writing {
-                    Button { model.done() } label: {
-                        HStack(spacing: 8) {
-                            RoundedRectangle(cornerRadius: 2, style: .continuous).fill(KB.persimmon).frame(width: 10, height: 10)
-                            Text("Done").font(.system(size: 16, weight: .semibold)).foregroundStyle(KB.card)
-                        }
-                        .padding(.horizontal, 18).frame(height: 44)
-                        .background(KB.ink, in: Capsule())
-                    }
-                    .buttonStyle(PressFade())
-                    .disabled(model.stage == .waiting)
-                    .opacity(model.stage == .waiting ? 0.5 : 1)
-                    .accessibilityLabel("Done")
-                    .accessibilityHint("Stops listening and inserts your words")
-                } else {
-                    ProgressView().tint(KB.ink).accessibilityLabel("Writing it down")
-                }
             }
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
+        case .listening, .writing:
+            HStack(spacing: 12) {
+                RoundKey(systemName: "xmark", filled: false) { model.cancel() }
+                    .accessibilityLabel("Cancel")
+                    .accessibilityHint("Stops listening and inserts nothing")
+                VStack(spacing: 6) {
+                    if model.stage == .writing {
+                        ProgressView().tint(KB.ink).frame(height: 40).accessibilityLabel("Writing it down")
+                    } else {
+                        ListeningDots(level: model.level, color: KB.persimmon).frame(height: 40)
+                    }
+                    Text(model.stage == .writing ? "Writing it down…" : "Listening · \(model.micName)")
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .combine)
+                RoundKey(systemName: "checkmark", filled: true) { model.done() }
+                    .disabled(model.stage == .writing)
+                    .opacity(model.stage == .writing ? 0.4 : 1)
+                    .accessibilityLabel("Done")
+                    .accessibilityHint("Stops listening and inserts your words")
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
             .accessibilityElement(children: .contain)
         }
+    }
+
+    private var recordTitle: String {
+        guard model.sessionLive else { return "Tap to start" }
+        return model.stage == .inserted ? "Tap to keep going" : "Tap to dictate"
     }
 
     // MARK: Bottom row
@@ -185,6 +224,64 @@ struct KeyboardRecordButton: View {
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+}
+
+/// A small persimmon dot in the top strip: filled while a session is on.
+private struct SessionDot: View {
+    var on: Bool
+    var body: some View {
+        Circle().fill(on ? KB.persimmon : KB.hairline).frame(width: 8, height: 8)
+            .accessibilityLabel(on ? "Session on" : "No session")
+    }
+}
+
+/// Cancel (X, outlined) and Done (check, ink) on the listening card.
+private struct RoundKey: View {
+    var systemName: String
+    var filled: Bool
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName).font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(filled ? KB.card : KB.ink)
+                .frame(width: 52, height: 52)
+                .background(filled ? KB.ink : KB.card, in: Circle())
+                .overlay(Circle().strokeBorder(filled ? Color.clear : KB.hairline))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressFade())
+    }
+}
+
+/// A row of persimmon dots that rise with the voice level, with a slow travelling wave so the row looks alive
+/// even in a quiet room. Under Reduce Motion the dots follow the level only.
+private struct ListeningDots: View {
+    var level: Double
+    var color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private static let count = 9
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 5) {
+                ForEach(0..<Self.count, id: \.self) { i in
+                    Capsule().fill(color).frame(width: 6, height: height(i, t))
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func height(_ i: Int, _ t: TimeInterval) -> CGFloat {
+        let l = pow(min(1, max(0, level)), 0.6)
+        let center = Double(Self.count - 1) / 2
+        let shape = 1 - abs(Double(i) - center) / (center + 1)      // taller in the middle
+        let wave = reduceMotion ? 0.5 : (sin(t * 5 + Double(i) * 0.8) + 1) / 2
+        let idle = 0.12 + 0.08 * wave
+        return 6 + CGFloat(max(idle, l * shape * (0.7 + 0.3 * wave))) * 34
     }
 }
 

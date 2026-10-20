@@ -73,6 +73,33 @@ actor FluidEngine: TranscriptionEngine {
         return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
     }
 
+    /// Transcribes 16 kHz mono samples already in memory: the iPhone keyboard session's hot path. No file read,
+    /// no speech detection, no vocabulary boosting (the session applies Dictionary fixes to the text afterwards),
+    /// so the time is the model's alone once it's warm.
+    func transcribe(samples: [Float], model requested: String) async throws -> EngineResult {
+        let model = Engines.fluidModel(requested)
+        let m = try await prepared(model, progress: { _ in })
+        // Don't interleave with a warm-up inference on the same model; it finishes in about a second.
+        if let p = prewarming, p.model == model { await p.task.value }
+        var input = samples
+        // FluidAudio rejects clips under 0.3 s: pad very short speech with trailing silence.
+        if input.count < 16_000 { input += [Float](repeating: 0, count: 16_000 - input.count) }
+        var state = TdtDecoderState.make()
+        let r = try await m.transcribe(input, decoderState: &state)
+        let words: [WordSpan] = buildWordTimings(from: r.tokenTimings ?? []).map {
+            WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: $0.startTime, end: $0.endTime)
+        }.filter { !$0.text.isEmpty }
+        let duration = Double(samples.count) / 16_000
+        let segments: [Segment]
+        if words.isEmpty {
+            let text = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            segments = text.isEmpty ? [] : [Segment(start: 0, end: duration, text: text)]
+        } else {
+            segments = Engines.segments(fromWords: words)
+        }
+        return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
+    }
+
     /// Loads the model ahead of time so the first dictation doesn't wait for it. Load only; `prewarm` also runs
     /// one inference.
     func warm(model: String) async {

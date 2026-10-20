@@ -37,10 +37,8 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
-    /// The keyboard's hand-off screen: recording for the Verbatim keyboard while you go back to your app.
-    @Published var showHandoff = false
-    /// Dictation for the Verbatim keyboard (KeyboardHandoff.swift).
-    private(set) lazy var handoff = KeyboardHandoff(app: self)
+    /// The Verbatim keyboard's session: microphone and speech model kept ready for dictation (KeyboardSession.swift).
+    private(set) lazy var session = KeyboardSession(app: self)
     /// Why the recorder paused itself (a call, a microphone it couldn't follow); nil once you resume or stop.
     @Published var autoPauseReason: String? = nil
     /// Set to open Library on a kind's raw value, or "all" (the screenshot tour uses it); the Library screen clears it.
@@ -134,6 +132,8 @@ final class PhoneState: ObservableObject {
     }
 
     func startRecording() {
+        // The microphone can serve one of them: a voice memo ends the keyboard session.
+        if session.isOn { session.end(reason: "The session ended for a voice memo. Tap to start a new one.") }
         do {
             try recorder.start(to: store.newRecordingURL())
             continuing = pendingContinue
@@ -510,6 +510,7 @@ final class PhoneState: ObservableObject {
     /// every device, then waits until the deletes are on disk.
     func deleteAllData() {
         if recorder.isRecording { discardRecording() }
+        session.end(reason: nil)
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
@@ -547,12 +548,10 @@ extension PhoneState: TranscriptionHost {
     func progress(_ id: UUID, label: String) { backgroundWork.title(label) }
 
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
-        if handoff.transcriptReady(id) { return }   // a keyboard dictation: its words went to the keyboard
         if queueEmpty { say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
     }
 
     func jobFailed(_ id: UUID, error: Error) {
-        if handoff.jobFailed(id, error: error) { return }
         say("Transcription failed: \(error.localizedDescription)")
     }
 

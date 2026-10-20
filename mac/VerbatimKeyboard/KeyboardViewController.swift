@@ -47,6 +47,34 @@ final class KeyboardViewController: UIInputViewController {
         model.showsGlobe = needsInputModeSwitchKey
     }
 
+    // MARK: The host app
+
+    /// The bundle ID of the app you're typing in, so Verbatim can switch back to it after starting a session.
+    /// Nil when iOS doesn't say; Verbatim then asks you to swipe back yourself.
+    ///
+    /// App Review risk: there is no public API for this. It reads UIInputViewController's private `_hostBundleID`
+    /// (and, failing that, a parent's `_hostApplicationBundleIdentifier`). Both are checked with `responds(to:)`
+    /// first, so a missing selector returns nil instead of crashing. Some iOS versions return nil or a system
+    /// process's ID here; those are ignored.
+    func hostBundleID() -> String? {
+        let candidates: [(NSObject?, String)] = [
+            (self as NSObject?, "_hostBundleID"),
+            (parent as NSObject?, "_hostBundleID"),
+            (self as NSObject?, "_hostApplicationBundleIdentifier"),
+            (parent as NSObject?, "_hostApplicationBundleIdentifier"),
+        ]
+        for (object, name) in candidates {
+            let sel = NSSelectorFromString(name)
+            guard let object, object.responds(to: sel),
+                  let value = object.perform(sel)?.takeUnretainedValue() as? String else { continue }
+            let id = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Not a real host: empty, or a system UI process rather than the app you're in.
+            guard !id.isEmpty, id != "<null>", !id.hasPrefix("com.apple.InputUI"), id != Bundle.main.bundleIdentifier else { continue }
+            return id
+        }
+        return nil
+    }
+
     // MARK: Opening the app
 
     /// Opens the Verbatim app. Returns false when no opener was found.

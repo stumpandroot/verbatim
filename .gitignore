@@ -28,3 +28,4 @@ mac/VerbatimPhone/Info.plist
 mac/VerbatimPhone/VerbatimPhone.entitlements
 mac/VerbatimKeyboard/Info.plist
 mac/VerbatimKeyboard/VerbatimKeyboard.entitlements
+mac/VerbatimWidgets/Info.plist

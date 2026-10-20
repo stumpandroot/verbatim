@@ -44,16 +44,8 @@ struct PhoneRoot: View {
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
         // The "link added" card and the Library tab's count badge, above the tab bar (PhoneLinkCard.swift).
         .overlay { PhoneLinkCardLayer() }
-        .overlay {
-            // The keyboard's hand-off screen. A plain overlay rather than a second full-screen cover, so it shows
-            // even when another sheet is up.
-            if app.showHandoff {
-                HandoffScreen(handoff: app.handoff)
-                    .transition(.opacity)
-                    .zIndex(10)
-            }
-        }
-        .onOpenURL { url in _ = app.handoff.handle(url) }
+        .overlay { SessionStartLayer(session: app.session) }
+        .onOpenURL { url in _ = app.session.handle(url) }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
@@ -85,5 +77,18 @@ struct PhoneRoot: View {
             }
         }
         .animation(Motion.settle, value: app.toast)
+    }
+}
+
+/// The keyboard session's start screen. A plain overlay rather than a second full-screen cover, so it shows even
+/// when another sheet is up.
+private struct SessionStartLayer: View {
+    @ObservedObject var session: KeyboardSession
+    var body: some View {
+        if session.showScreen {
+            SessionStartScreen(session: session)
+                .transition(.opacity)
+                .zIndex(10)
+        }
     }
 }
