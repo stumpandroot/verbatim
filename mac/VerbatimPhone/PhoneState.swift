@@ -262,12 +262,12 @@ final class PhoneState: ObservableObject {
         latestLinkImport = imp
         // The screenshot tour never touches the network.
         guard !PhoneUITest.enabled else { return }
-        let bg = UIApplication.shared.beginBackgroundTask(withName: "Download link")
+        let bg = BackgroundTime("Download link")
         linkTasks[id] = Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.linkImports[id] === imp { self.linkTasks[id] = nil }
-                if bg != .invalid { UIApplication.shared.endBackgroundTask(bg) }
+                bg.end()
             }
             var downloaded: URL?
             do {
@@ -546,4 +546,23 @@ extension PhoneState: TranscriptionHost {
     }
 
     func notify(_ message: String) { say(message) }
+}
+
+/// Extra time from iOS so a link download can finish after you leave the app. Ends when the download does,
+/// or when iOS needs the time back (the download then starts again the next time Verbatim opens).
+@MainActor
+final class BackgroundTime {
+    private var id: UIBackgroundTaskIdentifier = .invalid
+
+    init(_ name: String) {
+        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
+    }
 }
