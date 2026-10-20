@@ -302,9 +302,10 @@ final class PhoneState: ObservableObject {
                 var r: PhoneLinkFetcher.Resolved?
                 let file: URL
                 // The background download from before Verbatim last closed: it finished meanwhile or is still going.
-                imp.phase = .downloading
+                imp.phase = LinkDownloads.shared.hasEarlierAttempt(id) ? .downloading : .resolving
                 if let earlier = try await PhoneLinkFetcher.continueDownload(id, progress: report) {
                     file = earlier
+                    imp.phase = .downloading
                     if let t = self.store.transcript(id), !t.title.hasPrefix("http") { imp.title = t.title }
                 } else {
                     imp.phase = .resolving

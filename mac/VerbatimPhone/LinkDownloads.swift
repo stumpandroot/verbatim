@@ -71,6 +71,11 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
         return Paths.downloads.appendingPathComponent(name)
     }
 
+    /// Whether an earlier attempt left anything behind (a finished file, or a download's bookkeeping).
+    func hasEarlierAttempt(_ id: UUID) -> Bool {
+        finished(id) != nil || FileManager.default.fileExists(atPath: Self.jobURL(id).path)
+    }
+
     private func removeFiles(_ id: UUID) {
         let prefix = Self.base(id) + "."
         for name in (try? FileManager.default.contentsOfDirectory(atPath: Paths.downloads.path)) ?? [] where name.hasPrefix(prefix) {
