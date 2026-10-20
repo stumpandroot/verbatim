@@ -38,7 +38,9 @@ struct SettingsView: View {
             Toggle("Sounds", isOn: $app.sounds)
             Text("A short chime when recording starts and a tick when a transcript is ready. Off automatically with Reduce Motion.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)
-            Toggle("Show the welcome card on Home", isOn: Binding(get: { !app.heroDismissed }, set: { app.heroDismissed = !$0 }))
+            Toggle("Show the welcome card on Home", isOn: $app.showWelcomeCard)
+            Text("The Method cards at the top of Home. They hide after your first transcript.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute)
             Toggle("Show the welcome tour when Verbatim opens", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
             LabeledContent("Welcome tour") { Button("Show Tour") { app.showOnboarding = true } }
             Section("Microphone") {
