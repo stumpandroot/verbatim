@@ -80,6 +80,10 @@ final class PhoneState: ObservableObject {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         coordinator.host = self
+        // Snippets (synced with the Mac) go to the Verbatim keyboard's Snippets chip through the App Group.
+        store.$snippets.sink { list in
+            KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
+        }.store(in: &bag)
         recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
@@ -506,7 +510,7 @@ final class PhoneState: ObservableObject {
     }
 
     /// Settings › Delete all data: every transcript (Recently Deleted too) with its audio and stills, every
-    /// project, the Dictionary, About me, and the downloaded speech models. Uses the Store's own delete paths, so iCloud removes the files on
+    /// project, the Dictionary, snippets, About me, and the downloaded speech models. Uses the Store's own delete paths, so iCloud removes the files on
     /// every device, then waits until the deletes are on disk.
     func deleteAllData() {
         if recorder.isRecording { discardRecording() }
@@ -520,6 +524,7 @@ final class PhoneState: ObservableObject {
         for t in store.transcripts { store.delete(t) }
         store.projects = []
         store.dictionary = []
+        store.snippets = []
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
         // Also files with no transcript in memory, speech models, and local-only copies (Store.removeAllFiles).
         store.removeAllFiles()

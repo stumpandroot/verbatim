@@ -98,7 +98,7 @@ final class KeyboardSession: ObservableObject {
         app.showOnboarding = false
         showScreen = true
         defaults?.removeObject(forKey: KeyboardBridge.Key.endReason)
-        defaults?.set("Polished", forKey: KeyboardBridge.Key.levelLabel)
+        defaults?.set(PhoneDictation.level.title, forKey: KeyboardBridge.Key.levelLabel)
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
                 guard self.stage == .starting else { return }
@@ -144,13 +144,30 @@ final class KeyboardSession: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.goBack() }
     }
 
-    /// Loads the speech model and runs one warm-up inference, so the first dictation pays nothing for it.
+    /// Loads the speech model and runs one warm-up inference, so the first dictation pays nothing for it. Also
+    /// starts loading the speech detector (silence trimming), the vocabulary booster for your Dictionary words,
+    /// and Apple's language model for cleanup, none of which a dictation ever waits for.
     private func warmModel() {
+        FlowCleanup.prewarm(level: PhoneDictation.level)
         guard let app else { return }
         let s = app.jobSettings()
         guard s.engineId == "fluid" else { return }
         let model = s.model
-        Task.detached(priority: .utility) { await FluidEngine.shared.prewarm(model: model) }
+        let terms = boostTerms()
+        Task.detached(priority: .utility) { await FluidEngine.shared.prewarm(model: model, boostTerms: terms, dictation: true) }
+    }
+
+    /// Dictionary words for vocabulary boosting, ranked as on the Mac (newest first, up to 100). Only words for
+    /// every transcript: the iPhone has no active project. Empty when Apply Dictionary is off, or when boosting is
+    /// turned off (`flow.boost`, the Mac's key; on unless set).
+    private func rankedBoostTerms() -> [(text: String, aliases: [String])] {
+        guard let app, app.applyDictionary, UserDefaults.standard.object(forKey: "flow.boost") as? Bool ?? true else { return [] }
+        return BoostVocabulary.rank(app.store.dictionary, project: nil)
+    }
+
+    /// `rankedBoostTerms` oldest first, the order `FluidEngine.prewarm(boostTerms:)` expects.
+    private func boostTerms() -> [(text: String, aliases: [String])] {
+        Array(rankedBoostTerms().reversed())
     }
 
     private func answer(ok: Bool, _ message: String? = nil) {
@@ -256,6 +273,8 @@ final class KeyboardSession: ObservableObject {
         handled.insert(id)
         current = id
         capture.beginTake()
+        // Apple's model loads while you talk, so cleanup starts warm (one prewarmed session serves one dictation).
+        FlowCleanup.prewarm(level: PhoneDictation.level)
         dictating = true
         lastActivity = Date()
         touch()
@@ -311,26 +330,36 @@ final class KeyboardSession: ObservableObject {
         beginBackground()
         let settings = app.jobSettings()
         let dictionary = settings.applyDictionary ? app.store.dictionary : []
+        let ranked = rankedBoostTerms()
+        let vocabulary = dictionary.filter { $0.enabled && $0.projectId == nil }.map(\.preferred)
+        let snippets = app.store.snippets
+        let level = PhoneDictation.level
+        let category = PhoneDictation.category(host: host)
         let t0 = Date()
         Task.detached(priority: .userInitiated) {
             do {
-                let result = try await Self.transcribe(samples, engineId: settings.engineId, model: settings.model)
+                let result = try await Self.transcribe(samples, engineId: settings.engineId, model: settings.model, ranked: ranked)
+                let heard = Date()
                 let original = result.segments
                 var fixed = original
                 let corrections = dictionary.isEmpty ? [] : DictionaryApplier.apply(dictionary, to: &fixed)
                 let raw = fixed.filter { !$0.isFillerOnly }.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }.joined(separator: " ")
-                // iPhone has no model cleanup (Flow's Cleanup.swift is Mac only), so Polished here is what the Mac falls
-                // back to without Apple's model: the Clean prepass (spoken punctuation and line breaks, repeats), then
-                // the rule-based layout (spoken lists and paragraphs). Plain bullets, since the destination is unknown.
-                let cleaned = CleanupPrepass.clean(raw)
-                let text = DictationFormatter.format(cleaned, DictationFormatter.Options(style: .plain)).trimmingCharacters(in: .whitespacesAndNewlines)
+                // The Mac's cleanup at your level: Apple's model on iOS 26 when it's available and answers within the
+                // keyboard's budget, otherwise the rules (prepass, then lists and paragraphs). Plain bullets.
+                let request = PhoneDictation.request(raw: raw, level: level, category: category, vocabulary: vocabulary,
+                                                     snippets: snippets, budget: PhoneDictation.keyboardBudget)
+                let out = await PhoneDictation.clean(request, budget: PhoneDictation.keyboardBudget)
+                let text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let info = FlowInfo(app: category == .other ? "Verbatim" : "Keyboard", bundleID: nil, category: category, style: .casual,
+                                    level: level.rawValue, raw: raw, pasted: text, pastedOK: !text.isEmpty)
                 await MainActor.run {
-                    Log.note("keyboard dictation \(String(format: "%.1f", duration)) s → text in \(String(format: "%.2f", Date().timeIntervalSince(t0))) s")
+                    let total = Date().timeIntervalSince(t0)
+                    Log.note("keyboard dictation \(String(format: "%.1f", duration)) s → words in \(String(format: "%.2f", heard.timeIntervalSince(t0))) s, text in \(String(format: "%.2f", total)) s (\(out.cleaned ? "model" : "rules")\(out.note.map { ": " + $0 } ?? ""))\(total > 1.5 ? " — over the 1.5 s target" : "")")
                     self.deliver(id, text: text, raw: raw)
                     if !text.isEmpty {
                         self.save(samples: samples, duration: duration, original: original, fixed: fixed, corrections: corrections,
-                                  engine: result.engine, model: result.model)
+                                  engine: result.engine, model: result.model, info: info)
                     } else {
                         self.endBackground()
                     }
@@ -344,9 +373,14 @@ final class KeyboardSession: ObservableObject {
         }
     }
 
-    /// The hot path: Parakeet reads the samples straight from memory. Other engines get a temporary file.
-    nonisolated private static func transcribe(_ samples: [Float], engineId: String, model: String) async throws -> EngineResult {
-        if engineId == "fluid" { return try await FluidEngine.shared.transcribe(samples: samples, model: model) }
+    /// The hot path: Parakeet reads the samples straight from memory, with silence trimming and Dictionary boosting
+    /// (`FluidEngine.transcribeSession`). Other engines get a temporary file.
+    nonisolated private static func transcribe(_ samples: [Float], engineId: String, model: String,
+                                               ranked: [(text: String, aliases: [String])]) async throws -> EngineResult {
+        if engineId == "fluid" {
+            return try await FluidEngine.shared.transcribeSession(samples: samples, model: model, ranked: ranked,
+                                                                   fallbackTrim: { SessionCapture.trimQuiet($0) })
+        }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("kb-\(UUID().uuidString).wav")
         defer { try? FileManager.default.removeItem(at: url) }
         try writeWAV(samples, to: url)
@@ -362,7 +396,7 @@ final class KeyboardSession: ObservableObject {
     }
 
     /// After the text is in: writes the audio file and adds the dictation to the library, off the hot path.
-    private func save(samples: [Float], duration: Double, original: [Segment], fixed: [Segment], corrections: [Correction], engine: String, model: String) {
+    private func save(samples: [Float], duration: Double, original: [Segment], fixed: [Segment], corrections: [Correction], engine: String, model: String, info: FlowInfo) {
         guard let app else { endBackground(); return }
         let url = app.store.newRecordingURL()
         Task.detached(priority: .utility) {
@@ -378,6 +412,7 @@ final class KeyboardSession: ObservableObject {
                 t.segments = fixed
                 t.corrections = corrections
                 t.engine = engine
+                t.flow = info
                 t.waveform = wave
                 t.status = .ready
                 app.store.add(t)
@@ -421,6 +456,7 @@ final class KeyboardSession: ObservableObject {
         d.set(true, forKey: KeyboardBridge.Key.sessionActive)
         d.set(Date().timeIntervalSince1970, forKey: KeyboardBridge.Key.heartbeat)
         d.set(Self.micName(), forKey: KeyboardBridge.Key.micName)
+        d.set(PhoneDictation.level.title, forKey: KeyboardBridge.Key.levelLabel)
         KeyboardBridge.post(KeyboardBridge.Note.state)
     }
 

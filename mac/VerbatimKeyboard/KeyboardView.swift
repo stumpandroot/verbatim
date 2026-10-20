@@ -1,16 +1,27 @@
 import SwiftUI
 import UIKit
 
-/// The keyboard's fixed paper palette (the approved mockup). Light only: the keyboard keeps its paper look in
-/// dark host apps.
+/// The keyboard's palette: paper in light (the approved mockup), ink in dark. Each color follows the keyboard's
+/// appearance, which `KeyboardViewController` sets from the host app (`keyboardAppearance`, else its light or dark
+/// mode). Dark: ink background (#1C2A24), paper text, persimmon marks, cards #22322B.
 enum KB {
-    static let paper = Color(hex: 0xF5F0E6)
-    static let ink = Color(hex: 0x26352E)
+    static let uiPaper = dynamic(0xF5F0E6, 0x1C2A24)
+    static let uiInk = dynamic(0x26352E, 0xF5F0E6)
+
+    static let paper = Color(uiColor: uiPaper)
+    static let ink = Color(uiColor: uiInk)
     static let persimmon = Color(hex: 0xFA6B47)
-    static let card = Color(hex: 0xFFFDF9)
-    static let deep = Color(hex: 0xB23F24)
-    static let muted = Color(hex: 0x5F6A62)
-    static let hairline = Color(hex: 0x26352E).opacity(0.14)
+    static let card = Color(uiColor: dynamic(0xFFFDF9, 0x22322B))
+    /// Notices (a failure, Full Access): deep persimmon on paper, a lighter one on ink.
+    static let deep = Color(uiColor: dynamic(0xB23F24, 0xFF9473))
+    static let muted = Color(uiColor: dynamic(0x5F6A62, 0xAEB6AD))
+    static let hairline = Color(uiColor: dynamic(0x26352E, 0xF5F0E6, alpha: 0.14))
+    /// Ink in both appearances: the glyph on the persimmon record button.
+    static let inkFixed = Color(hex: 0x26352E)
+
+    static func dynamic(_ light: UInt32, _ dark: UInt32, alpha: CGFloat = 1) -> UIColor {
+        UIColor { t in (t.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light)).withAlphaComponent(alpha) }
+    }
 
     static func mono(_ size: CGFloat) -> Font { .system(size: size, weight: .medium, design: .monospaced) }
 }
@@ -65,16 +76,50 @@ struct KeyboardView: View {
                     Chip(title: "Use as spoken") { model.useAsSpoken() }
                         .accessibilityHint("Replaces the cleaned-up words with the words as you said them")
                 }
+                if !model.snippets.isEmpty {
+                    IconChip(systemName: "text.quote") { model.toggleSnippets() }
+                        .accessibilityLabel("Snippets")
+                        .accessibilityHint("Shows your snippets to insert")
+                }
             case .idle:
-                BarsMark(color: KB.persimmon).frame(width: 14, height: 14)
-                Text(sessionLabel).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
-                    .accessibilityLabel(sessionAccessibility)
-                Spacer(minLength: 6)
-                Text(model.levelLabel.uppercased()).font(KB.mono(10)).tracking(1.2).foregroundStyle(KB.muted).lineLimit(1)
-                    .accessibilityLabel("Cleanup: \(model.levelLabel)")
+                if model.showingSnippets {
+                    snippetRow
+                } else {
+                    idleStrip
+                }
             }
         }
         .padding(.horizontal, 6)
+    }
+
+    /// Idle: the session, the cleanup level, and the Snippets chip when you have snippets.
+    @ViewBuilder private var idleStrip: some View {
+        BarsMark(color: KB.persimmon).frame(width: 14, height: 14)
+        Text(sessionLabel).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.7)
+            .accessibilityLabel(sessionAccessibility)
+        Spacer(minLength: 6)
+        Text(model.levelLabel.uppercased()).font(KB.mono(10)).tracking(1.2).foregroundStyle(KB.muted).lineLimit(1)
+            .accessibilityLabel("Cleanup: \(model.levelLabel)")
+        if !model.snippets.isEmpty {
+            Chip(title: "Snippets") { model.toggleSnippets() }
+                .accessibilityHint("Shows your snippets to insert")
+        }
+    }
+
+    /// Snippet triggers in a row that scrolls sideways; tapping one inserts its text. The X closes the row.
+    private var snippetRow: some View {
+        HStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(model.snippets) { s in
+                        Chip(title: s.trigger) { model.insertSnippet(s) }
+                            .accessibilityHint("Inserts your saved text")
+                    }
+                }
+            }
+            IconChip(systemName: "xmark") { model.toggleSnippets() }
+                .accessibilityLabel("Close snippets")
+        }
     }
 
     /// "SESSION ON · 4:12 LEFT", "SESSION ON", or "TAP TO START A SESSION".
@@ -220,7 +265,7 @@ struct KeyboardRecordButton: View {
     var body: some View {
         ZStack {
             Circle().fill(KB.persimmon)
-            BrandGlyph(art: .capture, color: KB.ink, minLineWidth: 1.2).padding(size * 0.2)
+            BrandGlyph(art: .capture, color: KB.inkFixed, minLineWidth: 1.2).padding(size * 0.2)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -301,6 +346,22 @@ private struct Chip: View {
     }
 }
 
+/// A round chip with a symbol (Snippets, Close).
+private struct IconChip: View {
+    var systemName: String
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName).font(.system(size: 12, weight: .semibold)).foregroundStyle(KB.ink)
+                .frame(width: 28, height: 28)
+                .background(KB.card, in: Circle())
+                .overlay(Circle().strokeBorder(KB.hairline))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressFade())
+    }
+}
+
 private struct Key<Label: View>: View {
     @ViewBuilder var label: () -> Label
     var action: () -> Void
@@ -371,7 +432,7 @@ struct GlobeKey: UIViewRepresentable {
         let b = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         b.setImage(UIImage(systemName: "globe", withConfiguration: config), for: .normal)
-        b.tintColor = UIColor(red: 0x26 / 255.0, green: 0x35 / 255.0, blue: 0x2E / 255.0, alpha: 1)
+        b.tintColor = KB.uiInk
         b.accessibilityLabel = "Next keyboard"
         if let controller {
             b.addTarget(controller, action: #selector(UIInputViewController.handleInputModeList(from:with:)), for: .allTouchEvents)

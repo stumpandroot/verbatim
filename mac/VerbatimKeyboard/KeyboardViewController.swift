@@ -10,7 +10,6 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         let root = KeyboardView(model: model)
-            .environment(\.colorScheme, .light)   // the approved paper look, whatever the host app's appearance
         let host = UIHostingController(rootView: AnyView(root))
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -27,13 +26,32 @@ final class KeyboardViewController: UIInputViewController {
         height.isActive = true
         host.didMove(toParent: self)
         self.host = host
-        view.backgroundColor = UIColor(red: 0xF5 / 255.0, green: 0xF0 / 255.0, blue: 0xE6 / 255.0, alpha: 1)
+        applyAppearance()
+        // The host's light or dark mode can change while the keyboard is up.
+        _ = registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (vc: KeyboardViewController, _: UITraitCollection) in
+            vc.applyAppearance()
+        }
+    }
+
+    /// Paper in light, ink in dark, following the field you're typing in: its `keyboardAppearance` when it asks for
+    /// one, otherwise the host app's light or dark mode. Set on the SwiftUI host only, so this controller's own
+    /// trait collection keeps reporting the host's mode.
+    private func applyAppearance() {
+        let style: UIUserInterfaceStyle
+        switch textDocumentProxy.keyboardAppearance {
+        case .some(.dark): style = .dark
+        case .some(.light): style = .light
+        default: style = traitCollection.userInterfaceStyle == .dark ? .dark : .light
+        }
+        if host?.overrideUserInterfaceStyle != style { host?.overrideUserInterfaceStyle = style }
+        view.backgroundColor = KB.uiPaper.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.showsGlobe = needsInputModeSwitchKey
         model.hasFullAccess = hasFullAccess
+        applyAppearance()
         model.resume()
     }
 
@@ -45,6 +63,7 @@ final class KeyboardViewController: UIInputViewController {
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         model.showsGlobe = needsInputModeSwitchKey
+        applyAppearance()
     }
 
     // MARK: The host app

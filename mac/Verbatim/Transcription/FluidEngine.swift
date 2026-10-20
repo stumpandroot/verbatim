@@ -73,9 +73,8 @@ actor FluidEngine: TranscriptionEngine {
         return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
     }
 
-    /// Transcribes 16 kHz mono samples already in memory: the iPhone keyboard session's hot path. No file read,
-    /// no speech detection, no vocabulary boosting (the session applies Dictionary fixes to the text afterwards),
-    /// so the time is the model's alone once it's warm.
+    /// Transcribes 16 kHz mono samples already in memory, with nothing else: no file read, no speech detection,
+    /// no vocabulary boosting. `transcribeSession` is the keyboard's path, with both.
     func transcribe(samples: [Float], model requested: String) async throws -> EngineResult {
         let model = Engines.fluidModel(requested)
         let m = try await prepared(model, progress: { _ in })
@@ -100,6 +99,124 @@ actor FluidEngine: TranscriptionEngine {
         return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
     }
 
+    /// The iPhone keyboard session's hot path: 16 kHz mono samples already in memory. Like `transcribeDictation`, it
+    /// trims leading and trailing silence (Silero VAD) and boosts your Dictionary words, but it never waits for
+    /// either to load and caps the boost at `boostBudget` seconds, so the dictation stays near its 1.5 s target:
+    /// - Speech detection is used once it's loaded (`prewarm(dictation: true)` starts it); until then (or when it
+    ///   fails) `fallbackTrim` trims instead, when given (the iPhone passes a loudness-based trim).
+    /// - Boosting runs only with a session already built for these terms; otherwise one is built in the background
+    ///   for the next dictation. A rescore that takes longer than `boostBudget` is dropped (the plain text is used)
+    ///   and logged. Either failure falls back to the plain transcript.
+    /// `ranked` comes from `BoostVocabulary.rank`. Word timings are kept when the boost changed nothing.
+    func transcribeSession(samples: [Float], model requested: String, ranked: [(text: String, aliases: [String])],
+                           boostBudget: Double = 0.3,
+                           fallbackTrim: (([Float]) -> (samples: [Float], start: Double))? = nil) async throws -> EngineResult {
+        let model = Engines.fluidModel(requested)
+        let m = try await prepared(model, progress: { _ in })
+        if let p = prewarming, p.model == model { await p.task.value }
+        let name = Engines.displayName(engine: "fluid", model: model)
+        let fullDuration = Double(samples.count) / 16_000
+        let t0 = Date()
+        var trimmed: (samples: [Float], start: Double)?
+        if vad != nil, samples.count <= Self.vadMaxSamples {
+            trimmed = await trimSilence(samples)
+            if trimmed == nil { Log.note("VAD: no speech detected; transcribing the full audio anyway") }
+        } else {
+            startVadLoad()
+            trimmed = fallbackTrim.map { $0(samples) } ?? (samples: samples, start: 0)
+        }
+        var input = trimmed?.samples ?? samples
+        let offset = trimmed?.start ?? 0
+        let trimTime = Date().timeIntervalSince(t0)
+        if input.count < samples.count {
+            Log.note("keyboard trim: \(String(format: "%.1f", fullDuration)) s → \(String(format: "%.1f", Double(input.count) / 16_000)) s in \(Int(trimTime * 1000)) ms")
+        }
+        // FluidAudio rejects clips under 0.3 s: pad very short speech with trailing silence.
+        if input.count < 16_000 { input += [Float](repeating: 0, count: 16_000 - input.count) }
+        var state = TdtDecoderState.make()
+        let r = try await m.transcribe(input, decoderState: &state)
+        let plain = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = plain
+        if !ranked.isEmpty, !plain.isEmpty, let timings = r.tokenTimings, !timings.isEmpty {
+            if let session = readyBoostSession(ranked) {
+                let t1 = Date()
+                let audio = input
+                let raw = r.text
+                let box = BoostBox(session)
+                let out = await Self.race(seconds: boostBudget) {
+                    await box.session.rescore(text: raw, tokenTimings: timings, audioSamples: audio)
+                }
+                let took = Date().timeIntervalSince(t1)
+                switch out {
+                case .none:
+                    Log.note("keyboard boost: skipped, took over \(Int(boostBudget * 1000)) ms")
+                case .some(.none):
+                    break
+                case .some(.some(let o)):
+                    if !o.detectedTerms.isEmpty { Log.note("keyboard boost heard \(o.detectedTerms.count) term(s) in \(Int(took * 1000)) ms") }
+                    if o.wasModified {
+                        let guarded = BoostGuard.filter(original: r.text, boosted: o.text, terms: ranked)
+                        if guarded.reverted > 0 { Log.note("vocabulary boost: kept \(guarded.kept), reverted \(guarded.reverted) unlikely swap(s)") }
+                        text = guarded.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            } else {
+                Log.note("keyboard boost: skipped, vocabulary model not ready yet")
+            }
+        }
+        let segments: [Segment]
+        if text.isEmpty {
+            segments = []
+        } else if text == plain, let timings = r.tokenTimings, !timings.isEmpty {
+            let words: [WordSpan] = buildWordTimings(from: timings).map {
+                WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: $0.startTime + offset, end: $0.endTime + offset)
+            }.filter { !$0.text.isEmpty }
+            segments = words.isEmpty ? [Segment(start: 0, end: fullDuration, text: text)] : Engines.segments(fromWords: words)
+        } else {
+            segments = [Segment(start: 0, end: fullDuration, text: text)]
+        }
+        return EngineResult(segments: segments, language: nil, engine: "fluid", model: name)
+    }
+
+    /// Carries the boosting session into the race's task.
+    private final class BoostBox: @unchecked Sendable {
+        let session: VocabularyBoostingSession
+        init(_ s: VocabularyBoostingSession) { session = s }
+    }
+
+    /// The boosting session when one is already built for these terms. Otherwise starts building it in the
+    /// background (unless boosting is backing off after a failure) and returns nil, so this dictation doesn't wait.
+    private func readyBoostSession(_ ranked: [(text: String, aliases: [String])]) -> VocabularyBoostingSession? {
+        let vocab = BoostVocabulary.terms(ranked)
+        guard !vocab.terms.isEmpty else { return nil }
+        if let b = boosting, vocab.key == boostedKey { return b }
+        if !boostBackingOff, !boostBuilding {
+            boostBuilding = true
+            Task { _ = await self.boostSession(ranked); self.boostBuilding = false }
+        }
+        return nil
+    }
+
+    private var boostBuilding = false
+
+    /// Returns the work's result, or nil when `seconds` pass first. Unlike a task group, it doesn't wait for work
+    /// that ignores cancellation: that work finishes in the background and its result is dropped.
+    nonisolated static func race<T>(seconds: Double, _ work: @escaping () async -> T) async -> T? {
+        let once = RaceOnce()
+        let job = RaceJob(work)
+        let box: RaceBox<T>? = await withCheckedContinuation { (cont: CheckedContinuation<RaceBox<T>?, Never>) in
+            let worker = Task.detached(priority: .userInitiated) {
+                let v = RaceBox(await job.work())
+                if once.claim() { cont.resume(returning: v) }
+            }
+            Task.detached {
+                try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+                if once.claim() { worker.cancel(); cont.resume(returning: nil) }
+            }
+        }
+        return box?.value
+    }
+
     /// Loads the model ahead of time so the first dictation doesn't wait for it. Load only; `prewarm` also runs
     /// one inference.
     func warm(model: String) async {
@@ -120,9 +237,11 @@ actor FluidEngine: TranscriptionEngine {
     /// specialized the encoder and decoder for this device and the first dictation pays none of it. Also starts
     /// loading the speech detector (Mac) and, when the last dictation used Dictionary boosting (or `boostTerms` is
     /// given), the CTC vocabulary model. Idempotent: cheap when already warm, and concurrent calls share one run.
-    func prewarm(model requested: String, boostTerms: [(text: String, aliases: [String])]? = nil) async {
+    func prewarm(model requested: String, boostTerms: [(text: String, aliases: [String])]? = nil, dictation: Bool = false) async {
         let model = Engines.fluidModel(requested)
         startDictationHelpers()
+        // The iPhone keyboard session dictates too: load the speech detector for its silence trimming.
+        if dictation { startVadLoad() }
         if !(warmed == model && loaded == model) {
             if let p = prewarming, p.model == model {
                 await p.task.value
@@ -234,7 +353,8 @@ actor FluidEngine: TranscriptionEngine {
     /// Kept on both sides of the speech: 250 ms at 16 kHz.
     private static let vadPadSamples = 4_000
 
-    /// Starts the background loads dictation needs (the speech detector). Mac only: the iPhone doesn't dictate.
+    /// Starts the background loads dictation needs (the speech detector). Mac only here: the iPhone loads it only
+    /// for a keyboard session (`prewarm(dictation: true)`), not for every voice memo.
     private func startDictationHelpers() {
         #if os(macOS)
         startVadLoad()
@@ -341,6 +461,21 @@ actor FluidEngine: TranscriptionEngine {
             return nil
         }
     }
+}
+
+/// `FluidEngine.race` helpers: the first of the work and the timer to finish claims the result.
+private final class RaceOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func claim() -> Bool { lock.lock(); defer { lock.unlock() }; if done { return false }; done = true; return true }
+}
+private final class RaceBox<V>: @unchecked Sendable {
+    let value: V
+    init(_ v: V) { value = v }
+}
+private final class RaceJob<V>: @unchecked Sendable {
+    let work: () async -> V
+    init(_ w: @escaping () async -> V) { work = w }
 }
 
 /// Offline speaker diarization (FluidAudio: Pyannote segmentation, WeSpeaker embeddings, VBx clustering).

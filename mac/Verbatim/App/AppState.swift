@@ -111,6 +111,7 @@ final class AppState: ObservableObject {
         recorder.onResumed = { [weak self] in self?.verbiePose = .listening }
         HangWatch.start()
         dictation.attach(self)
+        mirrorSnippets()
         applyAppearance()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
@@ -122,6 +123,32 @@ final class AppState: ObservableObject {
         if !UITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.backfillFrames() }
+    }
+
+    /// Snippets sync through the Store (snippets.json, like the Dictionary), so the iPhone has them too. Settings
+    /// and dictation keep using `FlowSettings.snippets`; the two mirror each other. The first launch with this
+    /// merges the snippets saved on this Mac into the synced list once.
+    private func mirrorSnippets() {
+        let flow = FlowSettings.shared
+        let migratedKey = "flow.snippetsSynced"
+        if !UserDefaults.standard.bool(forKey: migratedKey) {
+            var all = store.snippets
+            for s in flow.snippets where !all.contains(where: { $0.id == s.id }) { all.append(s) }
+            if all != store.snippets { store.snippets = all }
+            UserDefaults.standard.set(true, forKey: migratedKey)
+        }
+        if flow.snippets != store.snippets { flow.snippets = store.snippets }
+        flow.$snippets.dropFirst().removeDuplicates().sink { [weak self] v in
+            MainActor.assumeIsolated {
+                guard let self, self.store.snippets != v else { return }
+                self.store.snippets = v
+            }
+        }.store(in: &bag)
+        store.$snippets.dropFirst().removeDuplicates().sink { v in
+            MainActor.assumeIsolated {
+                if FlowSettings.shared.snippets != v { FlowSettings.shared.snippets = v }
+            }
+        }.store(in: &bag)
     }
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }

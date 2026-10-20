@@ -64,6 +64,29 @@ enum KeyboardBridge {
         static let raw = "kb.d.raw"                       // String: the transcript as spoken
         static let message = "kb.d.message"               // String: why it failed
         static let levelLabel = "kb.levelLabel"           // "Polished": the cleanup the app applies
+        static let snippets = "kb.snippets"               // Data: JSON [Snippet] (trigger and expansion), written by the app
+    }
+
+    /// A snippet as the keyboard sees it: the trigger shown on its chip and the text it inserts. The app writes the
+    /// synced list (Store.snippets) here whenever it changes; the keyboard only reads it.
+    struct Snippet: Codable, Equatable, Identifiable {
+        var id: UUID
+        var trigger: String
+        var expansion: String
+    }
+
+    static func writeSnippets(_ list: [Snippet]) {
+        guard let d = defaults else { return }
+        let usable = list.filter { !$0.trigger.trimmingCharacters(in: .whitespaces).isEmpty && !$0.expansion.isEmpty }
+        let data = try? JSONEncoder().encode(usable)
+        if d.data(forKey: Key.snippets) == data { return }
+        d.set(data, forKey: Key.snippets)
+        post(Note.state)
+    }
+
+    static func readSnippets() -> [Snippet] {
+        guard let data = defaults?.data(forKey: Key.snippets) else { return [] }
+        return (try? JSONDecoder().decode([Snippet].self, from: data)) ?? []
     }
 
     enum Phase: String {

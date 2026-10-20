@@ -16,12 +16,15 @@ struct SettingsScreen: View {
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
+    @ObservedObject private var flow = FlowSettings.shared
     /// Groups stagger in when you switch to Settings.
     @State private var seen = SeenRows()
     @State private var entrance = 0
     /// Tap counts per row: each change gives that row's icon one small bounce.
     @State private var bumps: [String: Int] = [:]
     @State private var showDictionary = false
+    @State private var showSnippets = false
     @State private var showAboutMe = false
     @State private var showKeyboard = false
     @State private var exporting = false
@@ -57,6 +60,7 @@ struct SettingsScreen: View {
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
+        .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
         .sheet(isPresented: Binding(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
@@ -115,6 +119,13 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         SettingsDivider()
+        Button { bump("snippets"); showSnippets = true } label: {
+            SettingsRow(icon: "text.badge.plus", tint: Ink.petalTint, title: "Snippets", subtitle: "Say a trigger, get your saved text", bounce: bumps["snippets", default: 0]) {
+                SettingsValue("\(app.store.snippets.count)"); SettingsChevron()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        SettingsDivider()
         Button { bump("keyboard"); showKeyboard = true } label: {
             SettingsRow(icon: "keyboard", tint: Ink.butterTint, art: .iconDictations, title: "Keyboard", subtitle: "Dictate into any app", bounce: bumps["keyboard", default: 0]) {
                 SettingsValue("Set up"); SettingsChevron()
@@ -151,6 +162,17 @@ struct SettingsScreen: View {
         } label: {
             SettingsRow(icon: "chart.line.uptrend.xyaxis", tint: Ink.sageTint, art: .iconQuality, title: "Quality", subtitle: app.preset.note, bounce: app.presetRaw) {
                 SettingsValue(app.preset.title); SettingsMenuMark()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        SettingsDivider()
+        Menu {
+            Picker("Cleanup", selection: $flow.cleanup) {
+                ForEach(CleanupLevel.allCases) { l in Text(l.title).tag(l) }
+            }
+        } label: {
+            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, title: "Cleanup", subtitle: cleanupSubtitle, subtitleLines: nil, bounce: flow.cleanup.rawValue) {
+                SettingsValue(flow.cleanup.title); SettingsMenuMark()
             }
         }
         .buttonStyle(SettingsRowPress())
@@ -207,6 +229,18 @@ struct SettingsScreen: View {
             SettingsRow(icon: "trash", tint: Ink.persimmonTint, art: .iconDeleteAll, title: "Delete all data", bounce: bumps["delete", default: 0], danger: true) { EmptyView() }
         }
         .buttonStyle(SettingsRowPress())
+    }
+
+    /// What the cleanup level does to keyboard dictations, and what happens without Apple Intelligence.
+    private var cleanupSubtitle: String {
+        let what: String
+        switch flow.cleanup {
+        case .none: what = "Keyboard dictations go in as spoken, with punctuation and capitals."
+        case .light: what = "Removes ums, repeats, and false starts, and turns spoken lists into lists. Keeps your wording."
+        case .medium: what = "Everything Clean does, plus fixes grammar and smooths rambling sentences. Keeps your meaning and voice."
+        }
+        guard flow.cleanup.usesModel, !FlowCleanup.available else { return what }
+        return what + " Without Apple Intelligence on this iPhone, only repeats, lists, and paragraphs are fixed."
     }
 
     private var syncSubtitle: String {
