@@ -6,9 +6,13 @@ import Foundation
 /// ran; never at Literal or in code apps. Foundation only.
 ///
 /// What it does:
-/// - Numbered lists from spoken enumeration: "first… second… third…", "firstly… secondly… finally…",
-///   "one, … two, …", "number one… number two…", "step one… step two…". A lead-in sentence before the
-///   first item ends with a colon when it announces the items ("We need three things:").
+/// - Numbered lists from spoken enumeration: two or more items whose cues count up from one, from any family,
+///   mixed freely: "first", "first of all", "first off", "firstly", "the first thing is", "number one", "step one",
+///   "one,", "1st", "#1", "No. 1", "to start," → "second", "number two", "Number 2", … → "finally", "lastly".
+///   "next" and "then" fill a place only between counted cues. Two items are enough when both cues are clear
+///   ("first of all… number two…"); a bare mid-sentence ordinal takes three. "First of all" with no second
+///   item stays a sentence. A lead-in sentence before the first item ends with a colon when it announces the
+///   items ("We need three things:").
 /// - Bulleted lists from spoken cues ("bullet", "next bullet", "bullet point", "dash"), and from an announced
 ///   comma series: "a few things", "the following", "here's what we need", "three things", or a colon, followed
 ///   by three or more short items. An ordinary sentence with a comma series stays a sentence.
@@ -173,26 +177,45 @@ enum DictationFormatter {
 
     // MARK: Spoken enumeration
 
-    private enum Family: Equatable { case ordinal, cardinal, terminal, prefixed(String) }
+    private enum Kind: Equatable {
+        /// Counts an item: "first", "number two", "secondly", "the third thing is", "2nd", "#2", "One,".
+        case counted
+        /// "finally", "lastly", "Last,", "the last thing is": the last item.
+        case terminal
+        /// "next" and "then": the next item, only between counted cues ("First… then… third…").
+        case soft
+    }
 
     private struct Marker {
         var range: NSRange
-        var value: Int        // 0 for "finally" and "lastly"
-        var family: Family
+        var value: Int        // 0 for terminal and soft cues
+        var kind: Kind
         var boundary: Bool    // starts a clause: line start, after punctuation, or after "and" or "then"
+        /// Clear enough that two items make a list without punctuation: "first of all", "number two", "secondly",
+        /// a cue at the start of a clause, or a bare ordinal before a subject ("second we need…").
+        var strong: Bool
     }
 
     private static let numberWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10]
     private static let ordinalWords: [String: Int] = ["first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10]
 
+    private static let ordinalPattern = "first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth"
+    private static let numberPattern = "one|two|three|four|five|six|seven|eight|nine|ten"
+
+    /// Every spoken cue family. Families mix freely in one list ("first of all… number two… and lastly…").
     private static let markerRegex = try! NSRegularExpression(pattern:
-        "(?i)(?<![\\p{L}\\p{N}'’-])(?:" +
-        "(first|second|third) (?:of all|off)|" +
-        "(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)(?:ly)?|" +
-        "(finally|lastly|last)|" +
-        "(number|step|point|item|option|reason|phase|part) (one|two|three|four|five|six|seven|eight|nine|ten|\\d{1,2})|" +
-        "(one|two|three|four|five|six|seven|eight|nine|ten|\\d{1,2})" +
-        ")(?![\\p{L}\\p{N}'’])")
+        "(?i)(?<![\\p{L}\\p{N}'’#-])(?:" +
+        "(first|second|third|fourth|fifth) (?:of all|off)|" +                                                    // 1
+        "the (\(ordinalPattern)|next|last|final) (?:thing|point|item|step|one)(?: (?:is|was)\\b|(?=[,:]))|" +     // 2
+        "(\(ordinalPattern))(ly)?|" +                                                                            // 3, 4
+        "(\\d{1,2})(?:st|nd|rd|th)|" +                                                                           // 5
+        "(finally|lastly|last)|" +                                                                               // 6
+        "(number|step|point|item|option|reason|phase|part) (\(numberPattern)|\\d{1,2})|" +                       // 7, 8
+        "(?:#|no\\. ?)(\\d{1,2})|" +                                                                             // 9
+        "(to start(?: off| with)?|to begin(?: with)?|for starters)|" +                                           // 10
+        "(next|then)|" +                                                                                         // 11
+        "(\(numberPattern)|\\d{1,2})" +                                                                          // 12
+        ")(?![\\p{L}\\p{N}'’-])")
 
     /// Words before "first" or "second" that make it an adjective or a noun ("the first time", "a second").
     private static let ordinalBlockedBefore: Set<String> = ["a", "an", "the", "this", "that", "these", "those", "my", "your", "our", "their",
@@ -201,7 +224,18 @@ enum DictationFormatter {
     private static let ordinalBlockedAfter: Set<String> = ["time", "times", "place", "half", "hand", "floor", "grade", "quarter", "year", "day",
         "week", "month", "round", "class", "person", "date", "draft", "version", "opinion", "guess", "nature", "rate", "of", "or", "and",
         "edition", "season", "episode", "chapter", "base", "aid", "impression", "name", "line", "cousin", "string", "team", "choice", "one",
-        "ones", "to", "thing", "things", "step", "steps", "world", "language", "person's", "minute", "hour", "page", "item", "lady", "gen"]
+        "ones", "to", "thing", "things", "step", "steps", "world", "language", "person's", "minute", "hour", "page", "item", "lady", "gen",
+        "century", "birthday", "anniversary", "street", "avenue", "row", "seat", "inning", "period", "act", "scene", "take", "cut", "pass",
+        "look", "glance", "sight", "thought", "thoughts"]
+    /// Words after "number one" that make it a ranking ("number one priority"), not a cue.
+    private static let prefixedBlockedAfter: Set<String> = ["priority", "priorities", "fan", "fans", "spot", "seed", "pick", "choice",
+        "hit", "song", "rule", "draft", "overall", "ranked", "in", "on", "at", "of", "or", "and", "to"]
+    /// Words after "next" that make it a time or an adjective ("next week", "next time").
+    private static let nextBlockedAfter: Set<String> = ["week", "weeks", "time", "times", "year", "month", "day", "days", "morning",
+        "weekend", "door", "one", "ones", "to", "few", "step", "steps", "thing", "things", "up"]
+    /// A bare ordinal mid-sentence is a cue when a clause starts after it ("…the location second we need…").
+    private static let clauseOpeners: Set<String> = ["we", "i", "you", "they", "let's", "lets", "we'll", "i'll", "you'll", "we're",
+        "we've", "i've", "i'm", "make", "call", "send", "get", "check", "ask", "book", "confirm", "don't", "do", "please"]
     private static let determiners: Set<String> = ["a", "an", "the", "this", "that", "my", "your", "our", "their", "his", "her", "its",
         "any", "what", "which", "phone", "room", "each", "every", "no", "one", "same"]
 
@@ -216,45 +250,94 @@ enum DictationFormatter {
             let boundary = isClauseStart(before)
             let punctAfter = after.first.map { ",.:)".contains($0) } ?? false
             func g(_ i: Int) -> String? { m.range(at: i).location == NSNotFound ? nil : ns.substring(with: m.range(at: i)).lowercased() }
+            func add(_ value: Int, _ kind: Kind, strong: Bool) {
+                out.append(Marker(range: m.range, value: value, kind: kind, boundary: boundary, strong: strong || boundary))
+            }
             if let w = g(1) {
                 // "first of all", "first off"
-                guard boundary || !ordinalBlockedBefore.contains(prev) else { continue }
-                out.append(Marker(range: m.range, value: ordinalWords[w] ?? 0, family: .ordinal, boundary: boundary))
+                guard boundary || !ordinalBlockedBefore.contains(prev), !next.isEmpty else { continue }
+                add(ordinalWords[w] ?? 0, .counted, strong: true)
             } else if let w = g(2) {
-                guard !ordinalBlockedBefore.contains(prev), !ordinalBlockedAfter.contains(next), !next.isEmpty else { continue }
-                out.append(Marker(range: m.range, value: ordinalWords[w] ?? 0, family: .ordinal, boundary: boundary))
+                // "the second thing is", "the last point,"
+                guard !next.isEmpty else { continue }
+                switch w {
+                case "next": add(0, .soft, strong: false)
+                case "last", "final": add(0, .terminal, strong: true)
+                default: add(ordinalWords[w] ?? 0, .counted, strong: true)
+                }
             } else if let w = g(3) {
+                let ly = g(4) != nil
+                guard !ordinalBlockedBefore.contains(prev), ly || !ordinalBlockedAfter.contains(next), !next.isEmpty else { continue }
+                add(ordinalWords[w] ?? 0, .counted, strong: ly || clauseOpeners.contains(next))
+            } else if let d = g(5) {
+                // "2nd", "3rd": like the words, when a digit stands in for one.
+                guard !ordinalBlockedBefore.contains(prev), !ordinalBlockedAfter.contains(next), !next.isEmpty, let v = Int(d) else { continue }
+                add(v, .counted, strong: clauseOpeners.contains(next))
+            } else if let w = g(6) {
                 // "finally" and "lastly" end a list only at the start of a clause; "last" needs a comma ("Last, …").
                 guard boundary, !next.isEmpty, w != "last" || after.hasPrefix(",") || after.hasPrefix(":") else { continue }
-                out.append(Marker(range: m.range, value: 0, family: .terminal, boundary: true))
-            } else if let prefix = g(4), let n = g(5) {
+                add(0, .terminal, strong: true)
+            } else if let prefix = g(7), let n = g(8) {
                 guard !determiners.contains(prev), let v = numberWords[n] ?? Int(n), !next.isEmpty else { continue }
-                out.append(Marker(range: m.range, value: v, family: .prefixed(prefix), boundary: boundary))
-            } else if let n = g(6) {
+                if prefix == "number" && prefixedBlockedAfter.contains(next) && !punctAfter { continue }
+                add(v, .counted, strong: true)
+            } else if let d = g(9) {
+                // "#2", "No. 2"
+                guard !determiners.contains(prev), let v = Int(d), !next.isEmpty else { continue }
+                add(v, .counted, strong: true)
+            } else if g(10) != nil {
+                // "To start, …", "For starters, …": the first item, at the start of a clause and before a comma.
+                guard boundary, punctAfter, !next.isEmpty else { continue }
+                add(1, .counted, strong: true)
+            } else if let w = g(11) {
+                guard boundary, !next.isEmpty, w == "then" || !nextBlockedAfter.contains(next) else { continue }
+                add(0, .soft, strong: false)
+            } else if let n = g(12) {
                 // "One, the photos." A bare number counts only at the start of a clause and before a mark.
                 guard boundary, punctAfter, let v = numberWords[n] ?? Int(n) else { continue }
-                if n.first?.isNumber == true, before.last.map({ "$£€#".contains($0) }) == true { continue }
+                if n.first?.isNumber == true, before.last.map({ "$£€".contains($0) }) == true { continue }
                 if after.count > 1, after.dropFirst().first?.isNumber == true { continue }   // "1.5", "1,000"
-                out.append(Marker(range: m.range, value: v, family: .cardinal, boundary: true))
+                add(v, .counted, strong: true)
             }
         }
         return out
     }
 
-    /// Finds "first… second… third…" (or another family) and splits the line around it.
+    /// Finds a counted sequence and splits the line around it: two or more items whose cues count up from one,
+    /// from any family ("first of all… number two… and lastly…"). "next" and "then" fill a place only between
+    /// counted cues. Two items are enough when both cues are clear; otherwise it takes three.
     private static func enumeration(_ line: String) -> FoundList? {
         let all = markers(in: line)
         guard all.count >= 2 else { return nil }
-        for (i, start) in all.enumerated() where start.value == 1 && start.family != .terminal {
+        for (i, start) in all.enumerated() where start.value == 1 && start.kind == .counted {
             var seq = [start]
             var want = 2
-            for c in all[(i + 1)...] {
-                if c.family == start.family && c.value == want { seq.append(c); want += 1 }
-                else if c.family == .terminal && want >= 2 { seq.append(c); break }
+            for (j, c) in all.enumerated() where j > i {
+                switch c.kind {
+                case .counted:
+                    if c.value == want {
+                        seq.append(c); want += 1
+                    } else if c.value >= 2 && c.value < want, let k = seq.firstIndex(where: { $0.value == c.value }),
+                              seq[k...].allSatisfy({ $0.kind == .soft }) {
+                        // "First… and then… Second…": the "then" was inside the first item.
+                        seq.removeSubrange(k...); seq.append(c); want = c.value + 1
+                    }
+                case .soft:
+                    // "then" right before another cue ("then second") is a connector, not an item.
+                    let nextStart = j + 1 < all.count ? all[j + 1].range.location : (line as NSString).length
+                    let gap = (line as NSString).substring(with: NSRange(location: c.range.location + c.range.length,
+                                                                         length: max(0, nextStart - c.range.location - c.range.length)))
+                    guard j + 1 >= all.count || gap.contains(where: { $0.isLetter || $0.isNumber }) else { continue }
+                    var s = c; s.value = want
+                    seq.append(s); want += 1
+                case .terminal:
+                    if want >= 2 { seq.append(c) }
+                }
+                if seq.last?.kind == .terminal { break }
             }
-            guard seq.count >= 2 else { continue }
-            // Without punctuation to mark the clauses, ask for three items before calling it a list.
-            if seq.contains(where: { !$0.boundary }) && seq.count < 3 { continue }
+            while seq.last?.kind == .soft { seq.removeLast() }   // "…then let me know" after the last item stays in it
+            guard seq.filter({ $0.kind != .soft }).count >= 2 else { continue }
+            if seq.count < 3 && seq.contains(where: { !$0.strong }) { continue }
             if let found = split(line, at: seq) { return found }
         }
         return nil
@@ -296,10 +379,15 @@ enum DictationFormatter {
         // Short fragments ("The photos") read better without a period, as long as every item is one.
         if items.allSatisfy({ CleanupPrepass.wordCount($0) <= 6 && sentences($0).count == 1 }) {
             items = items.map { $0.hasSuffix(".") && !$0.hasSuffix("..") ? String($0.dropLast()) : $0 }
+        } else if items.contains(where: endsSentence) {
+            // Longer items: when some end with a period ("First of all, X. Second, Y"), all of them do.
+            items = items.map { $0.last.map { $0.isLetter || $0.isNumber || ")”’\"".contains($0) } == true ? $0 + "." : $0 }
         }
         items = items.map { CleanupPrepass.capitalizeFirst($0) }
         return FoundList(lead: lead, items: items, ordered: ordered, trailer: trailer)
     }
+
+    private static func endsSentence(_ s: String) -> Bool { s.last.map { ".!?".contains($0) } ?? false }
 
     private static let discourseWords: Set<String> = ["okay", "ok", "so", "well", "alright", "all", "right", "now", "and", "um", "uh",
                                                       "like", "yeah", "then", "anyway", "anyways", "basically", "alright"]

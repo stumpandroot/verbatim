@@ -64,6 +64,76 @@ let cases: [Case] = [
          category: .work,
          expected: "There are two options:\n1. We wait\n2. We ship now and patch later"),
 
+    // Mixed cue families and two-item lists (Tim's report: "first of all… number two…" didn't format)
+    Case(name: "first of all then number two, unpunctuated (Tim's phrasing)",
+         input: "first of all we need to confirm the location number two we need to book the crew",
+         category: .other,
+         expected: "1. We need to confirm the location\n2. We need to book the crew"),
+    Case(name: "first of all then second, two items",
+         input: "First of all, the budget is approved. Second, we start filming in May.",
+         category: .work,
+         expected: "1. The budget is approved\n2. We start filming in May"),
+    Case(name: "number one number two, lowercase, no punctuation",
+         input: "number one call the venue number two send the invoice",
+         category: .other,
+         expected: "1. Call the venue\n2. Send the invoice"),
+    Case(name: "first then second: then before a cue is a connector",
+         input: "First, call the printer, then second, confirm the venue.",
+         category: .other,
+         expected: "1. Call the printer\n2. Confirm the venue"),
+    Case(name: "one, two as two items",
+         input: "One, finish the edit. Two, send it to Sam.",
+         category: .work,
+         expected: "1. Finish the edit\n2. Send it to Sam"),
+    Case(name: "the first thing is, the second thing is",
+         input: "The first thing is we need a new mic, the second thing is the lights need gels.",
+         category: .other,
+         expected: "1. We need a new mic\n2. The lights need gels"),
+    Case(name: "firstly secondly, unpunctuated",
+         input: "firstly the audio is clean secondly the color is done",
+         category: .other,
+         expected: "1. The audio is clean\n2. The color is done"),
+    Case(name: "first off, Number 2 as a digit, and finally",
+         input: "First off, book the flights. Number 2, reserve the hotel. And finally, rent a car.",
+         category: .work,
+         expected: "1. Book the flights\n2. Reserve the hotel\n3. Rent a car"),
+    Case(name: "to start, next, third",
+         input: "To start, we need the script. Next, we cast the leads. Third, we schedule the shoot.",
+         category: .other,
+         expected: "1. We need the script\n2. We cast the leads\n3. We schedule the shoot"),
+    Case(name: "hash numbers with an announcing lead-in",
+         input: "We have two updates. #1 the app shipped. #2 the site is live.",
+         category: .work,
+         expected: "We have two updates:\n1. The app shipped\n2. The site is live"),
+    Case(name: "1st and 2nd as digits",
+         input: "Here's the plan. 1st we film the interviews, 2nd we cut the trailer.",
+         category: .other,
+         expected: "Here's the plan:\n1. We film the interviews\n2. We cut the trailer"),
+    Case(name: "No. 1, No. 2",
+         input: "No. 1, the logo. No. 2, the fonts.",
+         category: .work,
+         expected: "1. The logo\n2. The fonts"),
+    Case(name: "bare first and second before a clause, unpunctuated",
+         input: "first we need to confirm the location second we need to book the crew",
+         category: .other,
+         expected: "1. We need to confirm the location\n2. We need to book the crew"),
+    Case(name: "non-announcing lead-in before a mixed list",
+         input: "Thanks for jumping on the call. First of all, I'll send the deck tonight. Number two, Sam will book the studio.",
+         category: .other,
+         expected: "Thanks for jumping on the call.\n\n1. I'll send the deck tonight\n2. Sam will book the studio"),
+    Case(name: "long items get consistent periods",
+         input: "First of all, we need to confirm the location with the client. Second, we need to book the whole crew for Saturday",
+         category: .other,
+         expected: "1. We need to confirm the location with the client.\n2. We need to book the whole crew for Saturday."),
+    Case(name: "and lastly ends the list",
+         input: "first the mics, second the lights, and lastly the stands",
+         category: .other,
+         expected: "1. The mics\n2. The lights\n3. The stands"),
+    Case(name: "then after the last item stays in it",
+         input: "First, call the printer. Second, confirm the venue, and then let me know what they say.",
+         category: .other,
+         expected: "1. Call the printer.\n2. Confirm the venue, and then let me know what they say."),
+
     // Bulleted lists
     Case(name: "spoken bullet cues",
          input: "Groceries bullet milk bullet eggs bullet sourdough bread",
@@ -136,6 +206,43 @@ let cases: [Case] = [
          category: .other,
          expected: "Meet at 1, then 2. Then 3 pm works too."),
 
+    Case(name: "first of all with no second item stays a sentence, unpunctuated",
+         input: "first of all I want to thank everyone for coming out tonight",
+         category: .other,
+         expected: "first of all I want to thank everyone for coming out tonight"),
+    Case(name: "number one priority and two of are not cues",
+         input: "That was our number one priority last year, and two of the editors agreed.",
+         category: .work,
+         expected: "That was our number one priority last year, and two of the editors agreed."),
+    Case(name: "number one priority, number two priority is a ranking",
+         input: "Number one priority is the edit, number two priority is the mix.",
+         category: .work,
+         expected: "Number one priority is the edit, number two priority is the mix."),
+    Case(name: "at first and a second pass are not cues",
+         input: "At first it was slow, but a second pass fixed it.",
+         category: .other,
+         expected: "At first it was slow, but a second pass fixed it."),
+    Case(name: "second-guess is not a cue",
+         input: "Don't second-guess the first cut, it works.",
+         category: .personal,
+         expected: "Don't second-guess the first cut, it works."),
+    Case(name: "one of and two or three are not cues",
+         input: "One of the drives failed, so we need two or three new ones.",
+         category: .other,
+         expected: "One of the drives failed, so we need two or three new ones."),
+    Case(name: "first thing tomorrow with no second item",
+         input: "First thing tomorrow I'll call the client, then we can decide.",
+         category: .other,
+         expected: "First thing tomorrow I'll call the client, then we can decide."),
+    Case(name: "first then without a second ordinal is a sentence",
+         input: "First we load the truck, then we drive to the venue.",
+         category: .other,
+         expected: "First we load the truck, then we drive to the venue."),
+    Case(name: "next week is not a cue",
+         input: "First, I'll send the draft. Next week we can review it together.",
+         category: .other,
+         expected: "First, I'll send the draft. Next week we can review it together."),
+
     Case(name: "a question with a comma series stays a question",
          input: "Can you grab the following, milk, eggs, and bread?",
          category: .other,
@@ -184,7 +291,13 @@ let cases: [Case] = [
 
 let cueWords: Set<String> = ["first", "firstly", "second", "secondly", "third", "thirdly", "fourth", "fifth", "finally", "lastly", "last",
                              "one", "two", "three", "four", "five", "number", "step", "point", "item", "option", "reason",
-                             "bullet", "next", "new", "dash", "and", "then", "or", "of", "all", "off", "also", "plus"]
+                             "bullet", "next", "new", "dash", "and", "then", "or", "of", "all", "off", "also", "plus", "firstly", "thirdly",
+                             "the", "thing", "is", "was", "to", "start", "begin", "with", "for", "starters", "no", "final"]
+
+/// "2", "2nd", "1st": numbers spoken as cues may be dropped too.
+func isCue(_ w: String) -> Bool {
+    cueWords.contains(w) || w.range(of: #"^\d{1,2}(?:st|nd|rd|th)?$"#, options: .regularExpression) != nil
+}
 
 func words(_ s: String) -> [String] {
     // Drop list markers ("1.", "-", "•") before comparing words.
@@ -200,13 +313,13 @@ func wordProblem(input: String, output: String) -> String? {
     var i = 0
     for w in b {
         while i < a.count && a[i] != w {
-            if !cueWords.contains(a[i]) { return "dropped “\(a[i])” before “\(w)”" }
+            if !isCue(a[i]) { return "dropped “\(a[i])” before “\(w)”" }
             i += 1
         }
         if i == a.count { return "added or reordered “\(w)”" }
         i += 1
     }
-    for w in a[i...] where !cueWords.contains(w) { return "dropped “\(w)” at the end" }
+    for w in a[i...] where !isCue(w) { return "dropped “\(w)” at the end" }
     return nil
 }
 
