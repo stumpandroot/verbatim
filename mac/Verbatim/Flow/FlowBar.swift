@@ -156,7 +156,7 @@ final class FlowBarController {
         if p != .idle { menu.close() }
         refresh()
         pointerMoved()
-        if p == .idle { DispatchQueue.main.async { [weak self] in self?.dictation?.showPendingLearn() } }
+        if p == .idle { DispatchQueue.main.async { [weak self] in self?.dictation?.showPendingLearn(); self?.dictation?.prepareLiveWords() } }
     }
 
     /// A short message in the Ribbon ("Learned “Lititz”", "Copied. Click a text field…"), with an optional action.
@@ -245,7 +245,7 @@ final class FlowBarController {
         p.isReleasedWhenClosed = false
         p.ignoresMouseEvents = true
         p.animationBehavior = .none   // the Ribbon animates itself; no system fade
-        let host = FlowHostingView(rootView: FlowBarView(model: model, controller: self, live: dictation?.liveMeter ?? LiveMeter()))
+        let host = FlowHostingView(rootView: FlowBarView(model: model, controller: self, live: dictation?.liveMeter ?? LiveMeter(), words: dictation?.liveWords ?? LiveTranscriber()))
         host.onRightClick = { [weak self] in self?.openMenu() }
         host.onMouseMoved = { [weak self] in self?.pointerMoved() }
         host.sizingOptions = []   // the panel keeps its fixed size, whatever the content asks for

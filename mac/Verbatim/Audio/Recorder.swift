@@ -80,8 +80,21 @@ final class RecordingWriter: @unchecked Sendable {
         file = f
     }
 
+    /// Live words (`LiveTranscriber`): gets each converted 16 kHz mono buffer as it's written. Called on the
+    /// audio thread, outside the lock; the buffer is freshly made for each call, so it may be kept.
+    private var liveTap: (@Sendable (AVAudioPCMBuffer) -> Void)?
+    func setLiveTap(_ tap: (@Sendable (AVAudioPCMBuffer) -> Void)?) { lock.lock(); liveTap = tap; lock.unlock() }
+
     /// Returns the perceptual level (0…1) of this buffer.
     func write(_ buffer: AVAudioPCMBuffer) -> Float {
+        var tapped: AVAudioPCMBuffer?
+        var tap: (@Sendable (AVAudioPCMBuffer) -> Void)?
+        let v = write(buffer, tapped: &tapped, tap: &tap)
+        if let tapped, let tap { tap(tapped) }
+        return v
+    }
+
+    private func write(_ buffer: AVAudioPCMBuffer, tapped: inout AVAudioPCMBuffer?, tap: inout (@Sendable (AVAudioPCMBuffer) -> Void)?) -> Float {
         var rms: Float = 0
         if let ch = buffer.floatChannelData?[0], buffer.frameLength > 0 {
             var sum: Float = 0
@@ -107,6 +120,7 @@ final class RecordingWriter: @unchecked Sendable {
             fed = true; status.pointee = .haveData; return buffer
         }
         if err == nil, out.frameLength > 0 {
+            if liveTap != nil { tapped = out; tap = liveTap }
             if let file {
                 try? file.write(from: out)
                 frames += Int64(out.frameLength)
@@ -168,7 +182,7 @@ final class RecordingWriter: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         if let converter, let file, !paused { drain(converter, into: file) }
         if #available(macOS 15, iOS 18, *) { file?.close() }
-        file = nil; converter = nil; preRoll = []; preRollFrames = 0; holding = false
+        file = nil; converter = nil; preRoll = []; preRollFrames = 0; holding = false; liveTap = nil
         return envelope
     }
 
@@ -375,6 +389,11 @@ final class Recorder: ObservableObject {
     private var writer: RecordingWriter?
     private var url: URL?
     private let sink = TapSink()
+    /// Live words: every converted buffer of the current and later recordings goes here too (audio thread).
+    /// Set it before `start`; nil stops it. The recording itself never waits on it.
+    var liveTap: (@Sendable (AVAudioPCMBuffer) -> Void)? {
+        didSet { writer?.setLiveTap(liveTap) }
+    }
     private var configObserver: NSObjectProtocol?
     #if os(iOS)
     private var interruptionObserver: NSObjectProtocol?
@@ -470,6 +489,7 @@ final class Recorder: ObservableObject {
             throw Self.noInput
         }
         let w = try RecordingWriter(url: url, inputFormat: inFormat, segmented: true)
+        w.setLiveTap(liveTap)
         writer = w
         self.url = url
         live.reset()
@@ -767,6 +787,7 @@ final class Recorder: ObservableObject {
         case .success(let (open, w)):
             let done = endStart(keepRecording: true)
             input = open
+            w.setLiveTap(liveTap)
             writer = w
             RecordingSegments.setActive(url, true)
             startedAt = ProcessInfo.processInfo.systemUptime
@@ -966,6 +987,7 @@ final class Recorder: ObservableObject {
     private func beginCapture(to url: URL, name: String) throws {
         guard let unit else { throw Self.noInput }
         let w = try RecordingWriter(inputFormat: unit.format)
+        w.setLiveTap(liveTap)
         live.reset()
         sink.set(w, onLevel: levelHandler())
         do {

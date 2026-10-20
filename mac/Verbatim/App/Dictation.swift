@@ -43,7 +43,11 @@ final class DictationController: ObservableObject {
     }
 
     @Published private(set) var isListening = false {
-        didSet { if isListening != oldValue { carbon.setEscape(secureSince != nil && isListening) } }
+        didSet {
+            if isListening != oldValue { carbon.setEscape(secureSince != nil && isListening) }
+            // Live words are a preview of listening only; they end the moment listening does.
+            if !isListening { liveWords.stop() }
+        }
     }
     @Published private(set) var isWorking = false
     @Published private(set) var handsFree = false
@@ -66,6 +70,9 @@ final class DictationController: ObservableObject {
     private weak var app: AppState?
     /// Keeps one input unit prepared (mic off) on the chosen mic between dictations, so key-down only starts it.
     private let recorder = Recorder(keepWarm: true)
+    /// Live words in the Ribbon while you speak (Settings › Dictation › Show words as you speak). A preview only:
+    /// the pasted text still comes from the main engine and cleanup.
+    let liveWords = LiveTranscriber()
     private var monitors: [Any] = []
     private(set) var bar: FlowBarController?
     private let learner = AutoLearn()
@@ -85,6 +92,14 @@ final class DictationController: ObservableObject {
     /// Whether this dictation goes to the thought pad, decided when it starts (not when the text arrives).
     private var toPad = false
     func showPendingLearn() { learner.showPending() }
+
+    /// Live words, between dictations (the Ribbon went idle) or when the setting is turned on: gets the on-device
+    /// recognizer ready, and on systems that use the older recognizer asks for speech recognition permission once.
+    /// Never while listening or writing, so a permission dialog can't take focus from the paste.
+    func prepareLiveWords() {
+        guard LiveWordsSetting.isOn, !isListening, !isWorking else { return }
+        liveWords.prepare(allowPermissionPrompt: true)
+    }
     var projects: [Project] { app?.store.projects ?? [] }
     private var trustTimer: Timer?
     private var secureTimer: Timer?
@@ -127,6 +142,8 @@ final class DictationController: ObservableObject {
         // A muted mic (or only digital silence) says so right away in the Ribbon, and listening carries on.
         recorder.onMicWarning = { [weak self] w in self?.micWarningChanged(w) }
         warmRecorder()
+        // Live words: ask for the on-device speech model now (no permission prompt at launch).
+        if LiveWordsSetting.isOn { liveWords.prepare() }
         // Load the speech model and run a tiny transcription now, so the first dictation doesn't wait for it.
         prewarmModel(reason: "launch")
         // Core ML can drop compiled models over sleep; warm again a few seconds after waking.
@@ -447,6 +464,8 @@ final class DictationController: ObservableObject {
         targetAppName = target?.localizedName ?? "the front app"
         // The mic starts first: reading the app's text through Accessibility can take a moment, and the
         // first word must not be lost to it.
+        let showWords = LiveWordsSetting.isOn
+        recorder.liveTap = showWords ? liveWords.tap : nil
         do {
             try recorder.start(to: app?.store.newRecordingURL() ?? Paths.downloads.appendingPathComponent("dictation-\(Int(Date().timeIntervalSince1970)).wav"))
         } catch {
@@ -459,6 +478,7 @@ final class DictationController: ObservableObject {
         toPad = !wantCommand && ThoughtPadController.shared.isOpen
         self.handsFree = handsFree
         isListening = true
+        if showWords { liveWords.start(format: Recorder.targetFormat) }
         learner.check()   // Learn from any fixes to the last dictation before this one is pasted.
         let s = FlowSettings.shared
         let ctx = AppContext.capture(readText: s.useContext || wantCommand || s.autoLearn)

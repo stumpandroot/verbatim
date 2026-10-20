@@ -308,6 +308,7 @@ struct DictationForm: View {
     @AppStorage(FlowSettings.maxDictationMinutesKey) private var maxMinutes: Double = 10
     @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
+    @AppStorage(LiveWordsSetting.key) private var liveWords = true
 
     var body: some View {
         Form {
@@ -326,6 +327,9 @@ struct DictationForm: View {
                     Text("Three bars").tag(RibbonMark.bars.rawValue)
                     Text("Rings").tag(RibbonMark.rings.rawValue)
                 }
+                Toggle("Show words as you speak", isOn: $liveWords)
+                    .help("A preview of your words in the floating button while you dictate, recognized on this Mac. What's pasted still comes from Verbatim's own transcription.")
+                    .onChange(of: liveWords) { _, on in if on { dictation.prepareLiveWords() } }
                 Text("Paper is a light tab with ink type. Ink is a dark tab with paper type. The voice mark moves with your voice while you dictate.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }

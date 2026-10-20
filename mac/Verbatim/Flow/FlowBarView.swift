@@ -7,6 +7,11 @@ import AppKit
 enum RibbonStyle: String { case paper, ink; static let key = "flow.ribbonStyle" }
 /// What moves with your voice: the logo's three bars or the colophon's tangent rings.
 enum RibbonMark: String { case bars, rings; static let key = "flow.ribbonMark" }
+/// Settings › Dictation › Floating button look › Show words as you speak. On by default.
+enum LiveWordsSetting {
+    static let key = "flow.liveWords"
+    static var isOn: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
+}
 
 /// The Ribbon's colors. Paper (the default) is a light tab with ink type and persimmon marks; Ink is the dark
 /// tab with paper type. Either stays the same in light and dark mode, so it reads as Verbatim on any wallpaper.
@@ -63,6 +68,9 @@ struct FlowBarView: View {
     @ObservedObject var model: FlowBarModel
     let controller: FlowBarController
     @ObservedObject var live: LiveMeter
+    /// Live words while listening (a preview; the pasted text comes from the main engine).
+    @ObservedObject var words: LiveTranscriber
+    @AppStorage(LiveWordsSetting.key) private var showWords = true
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     /// Settings › General › Limit animation. The bar lives in its own panel, outside the window that injects
     /// `limitMotion`, so it reads the preference directly.
@@ -89,6 +97,16 @@ struct FlowBarView: View {
     }
 
     private var closed: Bool { model.phase == .idle && !(model.hover || model.dragging) }
+
+    /// Live words show while listening when the setting is on and a session is starting or running. When live
+    /// words aren't possible on this Mac, the session goes back to off and nothing extra shows.
+    private var liveWordsShown: Bool { model.phase == .listening && showWords && words.state != .off }
+    /// The words as the Ribbon shows them: the end only, so the line stays short to lay out.
+    private var liveTail: LiveWords { words.words.tail(model.edge == .bottom ? 90 : 80) }
+    /// The tab grows with the words on the same spring as the state morph; with Reduce Motion or Limit
+    /// animation, a quick ease instead (no spring).
+    private var liveMorph: Animation { reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.38, bounce: 0.22) }
+    private var liveKey: String { liveWordsShown ? "\(words.state)|\(liveTail.text)" : "" }
 
     /// Changes to any of these animate the shape.
     private var stateKey: String {
@@ -148,6 +166,7 @@ struct FlowBarView: View {
             .overlay(tab(r).strokeBorder(model.command && model.phase == .listening ? RibbonInk.persimmon : RibbonInk.edge, lineWidth: model.command && model.phase == .listening ? 1.5 : 0.75))
             .clipShape(tab(r))
             .shadow(color: .black.opacity(closed ? 0.12 : 0.16), radius: closed ? 4 : 12, x: 0, y: 0)
+            .animation(liveMorph, value: liveKey)
     }
 
     /// What's inside the shape for each state. Each fades in and out as the shape morphs.
@@ -165,6 +184,10 @@ struct FlowBarView: View {
             .transition(contentTransition)
         case .listening:
             VStack(spacing: 4) {
+                if liveWordsShown {
+                    LiveWordsLine(words: liveTail, twoLines: model.edge != .bottom, reduceMotion: reduceMotion)
+                        .transition(.opacity)
+                }
                 edgeRow(spacing: 10) {
                     RibbonMeter(edge: model.edge, levels: liveLevels, thickness: 5, length: 24)
                 } rest: {
@@ -254,6 +277,84 @@ struct FlowBarView: View {
         case .working: return "Writing your words"
         case .notice: return model.notice
         case .prompt: return model.prompt?.title ?? ""
+        }
+    }
+}
+
+/// While listening: your words so far in a serif line, the end showing, the newest word in persimmon. "Listening…"
+/// until the first word. Grows the tab up to about 320 pt; past that the older words slide off under a fade on
+/// the leading edge. On a side edge it wraps to two lines. Hidden from VoiceOver: announcing every word would
+/// drown out everything else, and the pasted text is what counts.
+private struct LiveWordsLine: View {
+    @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
+    var words: LiveWords
+    var twoLines: Bool
+    var reduceMotion: Bool
+    private static let maxWidth: CGFloat = 320
+    private static let size: CGFloat = 15.5
+
+    var body: some View {
+        Group {
+            if words.isEmpty {
+                Text("Listening…")
+                    .font(Ink.serif(Self.size).italic())
+                    .foregroundStyle(RibbonInk.muted)
+                    .lineLimit(1)
+                    .fixedSize()
+            } else {
+                LiveFit(maxWidth: twoLines ? Self.maxWidth - 20 : Self.maxWidth, wrap: twoLines) {
+                    styled
+                        .font(Ink.serif(Self.size))
+                        .lineLimit(twoLines ? 2 : nil)
+                        .truncationMode(.head)
+                        .multilineTextAlignment(.trailing)
+                        .contentTransition(reduceMotion ? .opacity : .identity)
+                    LinearGradient(colors: [RibbonInk.tab, RibbonInk.tab.opacity(0)], startPoint: .leading, endPoint: .trailing)
+                }
+                .clipped()
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// Settled words in ink, words that may still change a little lighter, the newest word in persimmon.
+    private var styled: Text {
+        let d = words.display
+        var t = Text(d.settled).foregroundColor(RibbonInk.text)
+        if !d.volatile.isEmpty {
+            t = t + Text((d.settled.isEmpty ? "" : " ") + d.volatile).foregroundColor(RibbonInk.text.opacity(0.72))
+        }
+        let lead = d.settled.isEmpty && d.volatile.isEmpty ? "" : " "
+        return t + Text(lead + d.newest).foregroundColor(RibbonInk.persimmonText)
+    }
+}
+
+/// Sizes the live words to their natural width up to `maxWidth`. One line: the text keeps its full width,
+/// pinned to the trailing edge (the caller clips the rest), and the second subview, a fade, covers the leading
+/// edge only when something is cut off. Wrapping: the text wraps at `maxWidth`.
+private struct LiveFit: Layout {
+    var maxWidth: CGFloat
+    var wrap: Bool
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let text = subviews.first else { return .zero }
+        let ideal = text.sizeThatFits(.unspecified)
+        if ideal.width <= maxWidth { return ideal }
+        if wrap { return text.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil)) }
+        return CGSize(width: maxWidth, height: ideal.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let text = subviews.first else { return }
+        let ideal = text.sizeThatFits(.unspecified)
+        if wrap {
+            text.place(at: CGPoint(x: bounds.maxX, y: bounds.minY), anchor: .topTrailing, proposal: ProposedViewSize(width: bounds.width, height: nil))
+        } else {
+            text.place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: .unspecified)
+        }
+        let overflow = !wrap && ideal.width > bounds.width + 0.5
+        for fade in subviews.dropFirst() {
+            fade.place(at: CGPoint(x: bounds.minX, y: bounds.minY), anchor: .topLeading, proposal: ProposedViewSize(width: overflow ? 28 : 0, height: bounds.height))
         }
     }
 }
