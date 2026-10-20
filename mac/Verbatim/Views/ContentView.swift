@@ -24,7 +24,25 @@ struct ContentView: View {
             .animation(Motion.nav, value: app.navCount)
             .overlay(alignment: .bottom) { ToastView() }
         }
+        // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
+        // sidebar's Queue item (anchored by the sidebar; no flight when the sidebar is hidden).
+        .overlayPreferenceValue(QueueItemAnchor.self) { anchor in
+            GeometryReader { g in
+                if let id = app.linkCardID, let imp = app.linkImports[id] {
+                    let side: CGFloat = sidebarOpen ? 244 : 0
+                    LinkCardOverlay(imp: imp, metrics: .mac,
+                                    target: anchor.map { g[$0] }.map { CGPoint(x: $0.midX, y: $0.midY) },
+                                    scrimRect: CGRect(x: side, y: 0, width: max(0, g.size.width - side), height: g.size.height),
+                                    onCancel: { app.cancelLinkCard(id) },
+                                    onRetry: { app.retryLinkCard(id) },
+                                    onLanded: { app.linkCardLanded(id) },
+                                    onClosed: { app.closeLinkCard(id) })
+                        .id(id)
+                }
+            }
+        }
         .background(Ink.paper)
+        .background(WindowReader { w in if app.mainWindow !== w { app.mainWindow = w } })
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
@@ -36,7 +54,7 @@ struct ContentView: View {
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
-        .onAppear { UITest.run(app: app) }
+        .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         .tint(Ink.switchOn)   // switches and checkboxes in brand sage instead of the system blue
         .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app) }

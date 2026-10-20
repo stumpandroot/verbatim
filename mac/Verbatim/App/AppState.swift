@@ -82,6 +82,20 @@ final class AppState: ObservableObject {
     /// iPhone links this Mac is fetching right now.
     var claiming: Set<UUID> = []
 
+    // The "link added" card (AppState+LinkCard).
+    /// Links this Mac is fetching, by transcript; the card observes one of them.
+    var linkImports: [UUID: LinkImport] = [:]
+    var linkTasks: [UUID: Task<Void, Never>] = [:]
+    /// The link whose card is showing.
+    @Changed var linkCardID: UUID? = nil
+    /// Links already counted by the queue but not yet shown in its badge: their card hasn't landed.
+    @Changed var linkBadgeHeld: Set<UUID> = []
+    /// Goes up each time a card lands in Queue, so the badge pops.
+    @Changed var queueBadgePops = 0
+    /// ⌘V on Home, Library, and Links (AppState+LinkCard).
+    var linkPasteMonitor: Any?
+    weak var mainWindow: NSWindow?
+
     private var bag = Set<AnyCancellable>()
 
     init() {
@@ -105,6 +119,7 @@ final class AppState: ObservableObject {
         // Links added on the iPhone wait for a Mac: claim them now and whenever more arrive.
         store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
+        if !UITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.backfillFrames() }
     }

@@ -64,33 +64,26 @@ extension AppState {
         return true
     }
 
+    /// Adds a link: the transcript appears right away and the "link added" card shows the fetch as it happens
+    /// (AppState+LinkCard). Every place that takes a link comes through here.
     func transcribeLink(_ link: String, keepVideo: Bool? = nil) {
         let alsoKeep = keepVideo ?? keepVideoByDefault
         let link = link.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard LinkFetcher.looksLikeLink(link) else { toast = Toast("That doesn't look like a link."); return }
+        guard LinkFetcher.looksLikeLink(link), let u = URL(string: link) else { toast = Toast("That doesn't look like a link."); return }
         guard LinkFetcher.helperURL != nil else { toast = Toast("Links need the yt-dlp helper, which this build is missing."); return }
         verbiePose = .working
-        Task {
-            do {
-                let f = try await LinkFetcher.fetch(link) { _ in }
-                let dest = store.newAudioURL(ext: f.url.pathExtension.isEmpty ? "m4a" : f.url.pathExtension)
-                try FileManager.default.moveItem(at: f.url, to: dest)
-                let duration = Player.duration(of: dest)
-                var t = Transcript(title: f.title, source: .link, sourceLabel: URL(string: link)?.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
-                                   duration: duration, audioFileName: dest.lastPathComponent, model: "")
-                t.sourceURL = f.pageURL ?? link
-                t.link = LinkInfo(url: f.pageURL ?? link, site: f.site, channel: f.uploader, uploadDate: f.uploadDate)
-                enqueue(t)
-                if alsoKeep { self.keepVideo(t.id) }
-                if let thumb = f.thumbnail {
-                    let id = t.id
-                    Task { if let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) { self.store.update(id) { $0.link?.thumbnailFile = file } } }
-                }
-            } catch {
-                verbiePose = .interrupted
-                toast = Toast("Couldn't fetch that link: \(error.localizedDescription)")
-            }
-        }
+        var t = Transcript(title: link, source: .link, sourceLabel: u.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
+                           duration: 0, audioFileName: nil, model: "")
+        t.sourceURL = link
+        t.status = .processing; t.stage = "Finding the audio"
+        t.processingDevice = Device.id; t.processingDeviceName = Device.name
+        if let p = projectFilter { t.projectId = p }
+        store.add(t)
+        let imp = LinkImport(id: t.id, url: link, site: LinkImport.siteName(u))
+        imp.thumbnailURL = LinkImport.quickThumbnail(u)
+        linkImports[t.id] = imp
+        showLinkCard(t.id)
+        startLinkFetch(t.id, link: link, keepVideo: alsoKeep)
     }
 
     /// A link added on the iPhone: this Mac fetches its audio into the same transcript and transcribes it.

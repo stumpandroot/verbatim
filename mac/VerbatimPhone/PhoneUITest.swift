@@ -26,6 +26,14 @@ enum PhoneUITest {
                 await show("\(prefix)03-link")
                 app.showLinkSheet = false
                 try? await Task.sleep(nanoseconds: 600_000_000)
+                // The "link added" card with made-up data (nothing here touches the network).
+                let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
+                card.title = "How we light interviews in small rooms"; card.duration = 3852
+                card.phase = .downloading; card.progress = 0.42
+                app.linkCardImport = card
+                await show("\(prefix)03b-link-card")
+                app.linkCardImport = nil
+                try? await Task.sleep(nanoseconds: 400_000_000)
                 app.tab = .library
                 await show("\(prefix)04-library")
                 app.libraryPath.append(DictationsRoute())
@@ -122,9 +130,17 @@ enum PhoneUITest {
         store.add(link)
         store.addNote(Note(text: "Latches on the side; good close-up for the catalog.", at: 7, segmentId: link.segments[1].id), to: link.id)
 
-        var queued = Transcript(title: "https://vimeo.com/123456789", source: .link, sourceLabel: "vimeo.com", duration: 0, audioFileName: nil, model: "")
-        queued.sourceURL = "https://vimeo.com/123456789"; queued.status = .processing; queued.pendingLink = true
+        // Link rows only; nothing here touches the network (PhoneState skips link fetches in UITest mode).
+        // One handed to the Mac (a site the iPhone can't fetch), and one downloading on this iPhone.
+        var queued = Transcript(title: "https://example.com/talks/417", source: .link, sourceLabel: "example.com", duration: 0, audioFileName: nil, model: "")
+        queued.sourceURL = "https://example.com/talks/417"; queued.status = .processing; queued.pendingLink = true
         store.add(queued)
+
+        var downloading = Transcript(title: "Wheelwright at work", source: .link, sourceLabel: "vimeo.com", duration: 0, audioFileName: nil, model: "")
+        downloading.sourceURL = "https://vimeo.com/123456789"; downloading.status = .processing; downloading.stage = "Downloading 42%"
+        downloading.link = LinkInfo(url: "https://vimeo.com/123456789", site: "Vimeo", channel: "Lancaster Crafts")
+        downloading.processingDevice = Device.id; downloading.processingDeviceName = Device.name
+        store.add(downloading)
 
         var onMac = Transcript(title: "Dealer call, Lititz", source: .file, sourceLabel: "M4A file", duration: 1260, audioFileName: "dealer.m4a", model: "")
         onMac.status = .processing; onMac.processingDevice = "mac-device"; onMac.processingDeviceName = "Tim's MacBook Pro"

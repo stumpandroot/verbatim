@@ -125,7 +125,7 @@ struct HomeScreen: View {
                         LinkGlyph().frame(width: 24)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Link").font(.system(size: 15, weight: .semibold))
-                            Text("Your Mac fetches it").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                            Text("YouTube, podcasts, files").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                         }
                         Spacer(minLength: 0)
                     }
@@ -423,7 +423,7 @@ struct LinkSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Paste a YouTube, Vimeo, or podcast link. Your Mac fetches the audio and transcribes it; the transcript appears here when it's done.")
+                Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbatim downloads the audio and transcribes it on this iPhone.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                 HStack(spacing: 8) {
                     Image(systemName: "link").foregroundStyle(Ink.mute)
@@ -435,9 +435,6 @@ struct LinkSheet: View {
                 .shadow(color: Ink.inkFixed.opacity(0.06), radius: 1, y: 1)
                 PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
                     .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
-                if !Cloud.enabled {
-                    Label("iCloud is off, so your Mac won't see this until you turn it on.", systemImage: "icloud.slash").font(.system(size: 13)).foregroundStyle(Ink.mute)
-                }
                 Spacer()
             }
             .padding(20)
@@ -447,7 +444,7 @@ struct LinkSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Send to Mac") { app.addLink(link); dismiss() }.disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Add") { app.addLink(link); dismiss() }.disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear { focused = true }

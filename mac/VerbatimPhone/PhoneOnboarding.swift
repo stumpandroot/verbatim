@@ -47,7 +47,7 @@ struct PhoneOnboarding: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 0) {
             title("Words worth keeping.")
-            para("Record a thought, an interview, or a call. Verbatim writes it down on this iPhone and keeps it in sync with your Mac. Links you add here are fetched by your Mac the next time it's open.")
+            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbatim writes it down on this iPhone. Turn on iCloud sync to see your transcripts on your Mac too.")
             BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)

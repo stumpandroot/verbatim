@@ -18,6 +18,11 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.10.0
+  # Fetches YouTube audio on the iPhone (VerbatimPhone only; the Mac uses yt-dlp). MIT. Pinned exactly because
+  # it tracks YouTube's private API; update it on purpose. See YOUTUBE_ON_DEVICE below.
+  YouTubeKit:
+    url: https://github.com/alexeichhorn/YouTubeKit
+    exactVersion: 0.4.9
 
 configFiles:
   Debug: Local.xcconfig
@@ -115,6 +120,7 @@ targets:
       - Verbatim/Document/Harper.swift
       - Verbatim/Document/Polish.swift
       - Verbatim/Sources/MediaImport.swift
+      - Verbatim/Sources/LinkImport.swift
       - Verbatim/App/Changed.swift
       - Verbatim/App/Log.swift
       - Verbatim/App/Links.swift
@@ -125,6 +131,7 @@ targets:
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
+      - Verbatim/Views/LinkAddedCard.swift
       - Verbatim/Views/KindViews.swift
       - Verbatim/Flow/CleanupPrepass.swift
       - Verbatim/Flow/DictationFormatter.swift
@@ -136,6 +143,8 @@ targets:
         product: WhisperKit
       - package: FluidAudio
         product: FluidAudio
+      - package: YouTubeKit
+        product: YouTubeKit
       # The Verbatim keyboard, embedded in the app's PlugIns folder.
       - target: VerbatimKeyboard
     info:
@@ -172,6 +181,12 @@ targets:
         "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(inherited) $(SRCROOT)/Vendor/harper/ios-sim"
         OTHER_LDFLAGS: "$(inherited) -lharper_ffi"
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios
+        # YOUTUBE_ON_DEVICE: the iPhone fetches YouTube audio itself (PhoneLinkFetcher, YouTubeKit). App Store
+        # guideline 5.2.3 bars apps that download media from third-party services such as YouTube without
+        # the service's permission, so App Review may reject a build with it. For an App Store build, remove
+        # YOUTUBE_ON_DEVICE here (and the YouTubeKit dependency above to drop the code entirely): YouTube links
+        # then go to the Mac, like any other site the iPhone can't fetch.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) YOUTUBE_ON_DEVICE"
         PRODUCT_NAME: Verbatim
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
