@@ -115,6 +115,14 @@ enum UITest {
         app.libraryKind = nil
         app.go(.queue)
         await show("05b-queue")
+        // The "link added" card with made-up data (the tour never touches the network).
+        app.go(.home)
+        let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
+        card.title = "How we light interviews in small rooms"; card.duration = 3852
+        card.phase = .downloading; card.progress = 0.42
+        app.linkImports[card.id] = card; app.linkBadgeHeld.insert(card.id); app.linkCardID = card.id
+        await show("05j-link-card")
+        app.linkCardID = nil; app.linkBadgeHeld.remove(card.id); app.linkImports[card.id] = nil
         app.go(.links)
         await show("05c-links")
         app.go(.moments)

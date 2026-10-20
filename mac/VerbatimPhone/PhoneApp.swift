@@ -42,6 +42,8 @@ struct PhoneRoot: View {
                 .tabItem { Label { Text("Settings") } icon: { Image(uiImage: BrandArt.iconSettings.templateImage(size: 26, key: "iconSettings")) } }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        // The "link added" card and the Library tab's count badge, above the tab bar (PhoneLinkCard.swift).
+        .overlay { PhoneLinkCardLayer() }
         .overlay {
             // The keyboard's hand-off screen. A plain overlay rather than a second full-screen cover, so it shows
             // even when another sheet is up.

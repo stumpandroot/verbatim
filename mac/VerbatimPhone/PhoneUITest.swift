@@ -26,6 +26,14 @@ enum PhoneUITest {
                 await show("\(prefix)03-link")
                 app.showLinkSheet = false
                 try? await Task.sleep(nanoseconds: 600_000_000)
+                // The "link added" card with made-up data (nothing here touches the network).
+                let card = LinkImport(id: UUID(), url: "https://www.youtube.com/watch?v=Q7r2mDn4x1k", site: "YouTube")
+                card.title = "How we light interviews in small rooms"; card.duration = 3852
+                card.phase = .downloading; card.progress = 0.42
+                app.linkCardImport = card
+                await show("\(prefix)03b-link-card")
+                app.linkCardImport = nil
+                try? await Task.sleep(nanoseconds: 400_000_000)
                 app.tab = .library
                 await show("\(prefix)04-library")
                 app.libraryPath.append(DictationsRoute())

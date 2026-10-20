@@ -244,20 +244,32 @@ final class PhoneState: ObservableObject {
         t.processingDevice = Device.id; t.processingDeviceName = Device.name
         store.add(t)
         libraryFilterRequest = "all"
-        tab = .library
         startLinkFetch(t.id)
+        // The "link added" card shows the fetch; its tile lands on the Library tab (PhoneLinkCard.swift).
+        if let imp = linkImports[t.id] {
+            if let old = linkCardImport, old.id != t.id { linkBadgeHeld.remove(old.id) }
+            linkBadgeHeld.insert(t.id)
+            linkCardImport = imp
+        }
     }
 
     /// Links being fetched on this iPhone, by transcript. A "link added" view can observe `latestLinkImport`.
     @Published private(set) var linkImports: [UUID: LinkImport] = [:]
     @Published private(set) var latestLinkImport: LinkImport? = nil
     private var linkTasks: [UUID: Task<Void, Never>] = [:]
+    /// The link whose "link added" card is showing.
+    @Published var linkCardImport: LinkImport? = nil
+    /// Links counted by the Library badge only once their card has landed there.
+    @Published var linkBadgeHeld: Set<UUID> = []
+    /// Goes up each time a card lands on the Library tab, so its badge pops.
+    @Published var libraryBadgePops = 0
 
     /// Resolves, downloads, and prepares a link transcript's audio, then queues it for transcription.
     private func startLinkFetch(_ id: UUID) {
         guard let t = store.transcript(id), let link = t.sourceURL ?? t.link?.url, let u = URL(string: link) else { return }
         linkTasks[id]?.cancel()
         let imp = LinkImport(id: id, url: link, site: PhoneLinkFetcher.siteName(u))
+        imp.thumbnailURL = LinkImport.quickThumbnail(u)   // YouTube's, from the video ID, before anything loads
         linkImports[id] = imp
         latestLinkImport = imp
         // The screenshot tour never touches the network.
@@ -274,7 +286,7 @@ final class PhoneState: ObservableObject {
                 imp.phase = .resolving
                 let r = try await PhoneLinkFetcher.resolve(u)
                 guard self.stillWanted(id) else { return }
-                imp.title = r.title; imp.site = r.site; imp.thumbnailURL = r.thumbnail
+                imp.title = r.title; imp.site = r.site; imp.thumbnailURL = imp.thumbnailURL ?? r.thumbnail
                 self.store.update(id) { x in
                     if let title = r.title, !title.isEmpty, x.title == link || x.title.hasPrefix("http") { x.title = title }
                     x.link = LinkInfo(url: r.pageURL, site: r.site, channel: r.channel)
@@ -290,6 +302,11 @@ final class PhoneState: ObservableObject {
                     }
                 }
                 downloaded = file
+                // A direct link to a video file has no thumbnail of its own: use a frame from it.
+                if r.thumbnail == nil, imp.thumbnailURL == nil, let name = await LinkImport.saveFrameThumbnail(from: file, as: id.uuidString) {
+                    self.store.update(id) { $0.link?.thumbnailFile = name }
+                    imp.thumbnailURL = Paths.thumbs.appendingPathComponent(name)
+                }
                 imp.progress = 1
                 imp.phase = .queued   // the audio is here; it's prepared and queued next
                 guard self.stillWanted(id) else { try? FileManager.default.removeItem(at: file); return }
@@ -297,6 +314,7 @@ final class PhoneState: ObservableObject {
                 let prepared = try await MediaImport.prepare(file, into: self.store.newAudioURL(ext: "m4a"))
                 try? FileManager.default.removeItem(at: file)
                 guard self.stillWanted(id) else { try? FileManager.default.removeItem(at: prepared.url); return }
+                imp.duration = prepared.duration
                 self.store.update(id) { x in
                     x.audioFileName = prepared.url.lastPathComponent; x.duration = prepared.duration; x.stage = "Queued"
                     x.processingDevice = Device.id; x.processingDeviceName = Device.name
@@ -321,7 +339,7 @@ final class PhoneState: ObservableObject {
                     x.processingDevice = nil; x.processingDeviceName = nil
                 }
                 imp.phase = .failed(message)
-                self.say("Couldn't fetch that link")
+                if self.linkCardImport?.id != id { self.say("Couldn't fetch that link") }
             }
         }
     }
@@ -497,6 +515,7 @@ final class PhoneState: ObservableObject {
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
         for task in linkTasks.values { task.cancel() }
         linkTasks = [:]; linkImports = [:]; latestLinkImport = nil
+        linkCardImport = nil; linkBadgeHeld = []
         for t in store.transcripts { store.delete(t) }
         store.projects = []
         store.dictionary = []
@@ -546,6 +565,48 @@ extension PhoneState: TranscriptionHost {
     }
 
     func notify(_ message: String) { say(message) }
+}
+
+// MARK: - The "link added" card
+
+extension PhoneState {
+    /// The tile reached the Library tab: the badge counts the link now, with a pop.
+    func linkCardLanded(_ id: UUID) {
+        linkBadgeHeld.remove(id)
+        libraryBadgePops += 1
+    }
+
+    /// The card is gone (landed, faded, or cancelled).
+    func closeLinkCard(_ id: UUID) {
+        if linkCardImport?.id == id { linkCardImport = nil }
+        linkBadgeHeld.remove(id)
+    }
+
+    /// Cancel on the card: stops the download and removes the transcript it was filling.
+    func cancelLinkCard(_ id: UUID) {
+        linkTasks.removeValue(forKey: id)?.cancel()
+        coordinator.cancelIfActive(id)
+        if let t = store.transcript(id) { store.delete(t) }
+        linkImports[id] = nil
+        linkBadgeHeld.remove(id)
+    }
+
+    /// Retry on the card, after a failed download. The fetch starts over with a fresh `LinkImport`; the card
+    /// follows it.
+    func retryLinkCard(_ id: UUID) {
+        guard let t = store.transcript(id) else { return }
+        retry(t)
+        if let imp = linkImports[id] { linkCardImport = imp }
+    }
+
+    /// The Library tab's badge: what's queued or transcribing on this iPhone, plus links still downloading, less
+    /// links whose card hasn't landed yet.
+    var libraryBadgeCount: Int {
+        var ids = Set(queue)
+        if let r = runningID { ids.insert(r) }
+        for (id, imp) in linkImports where !imp.isFinished { ids.insert(id) }
+        return ids.subtracting(linkBadgeHeld).count
+    }
 }
 
 /// Extra time from iOS so a link download can finish after you leave the app. Ends when the download does,

@@ -29,8 +29,12 @@ struct Sidebar: View {
                 .uiTarget("side-links")
             SideItem(label: "Moments", art: .iconMoments, selected: app.screen == .moments, pill: pill) { app.go(.moments) }
                 .uiTarget("side-moments")
+            // Links on their way in count too, once their "link added" card has landed here (AppState+LinkCard).
+            let queued = app.queueBadgeCount
             SideItem(label: "Queue", art: .iconQueue, selected: app.screen == .queue,
-                     badge: app.queue.count + (app.runningID == nil ? 0 : 1) == 0 ? nil : "\(app.queue.count + (app.runningID == nil ? 0 : 1))", busy: app.runningID != nil, pill: pill) { app.go(.queue) }
+                     badge: queued == 0 ? nil : "\(queued)", busy: app.runningID != nil, pill: pill,
+                     pillBadge: true, badgePops: app.queueBadgePops) { app.go(.queue) }
+                .anchorPreference(key: QueueItemAnchor.self, value: .bounds) { $0 }
                 .uiTarget("side-queue")
             SideItem(label: "Dictations", art: .iconDictations, selected: app.screen == .dictations, badge: nil, pill: pill) { app.go(.dictations) }
                 .uiTarget("side-dictations")
@@ -100,6 +104,12 @@ struct Sidebar: View {
     }
 }
 
+/// The Queue row's bounds, so the "link added" tile knows where to fly (ContentView).
+struct QueueItemAnchor: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+}
+
 /// The sidebar is part of the page: the same opaque paper as the content, flush to the window edges,
 /// divided from the content by one hairline. No glass, no shadow, no inset; the selected row carries a
 /// persimmon tick at the window edge. Hairline strength follows Increase Contrast through `Ink.hairline`.
@@ -121,6 +131,9 @@ struct SideItem: View {
     var badge: String? = nil
     var busy = false
     var pill: Namespace.ID
+    /// Shows the badge as a persimmon count pill (Queue), which pops when `badgePops` goes up.
+    var pillBadge = false
+    var badgePops = 0
     /// Makes the row a drop target for dragged transcripts.
     var onDropIDs: (([UUID]) -> Void)? = nil
     var action: () -> Void
@@ -134,7 +147,13 @@ struct SideItem: View {
             Text(label).lineLimit(1)
             Spacer(minLength: 0)
             if busy { ProgressView().controlSize(.mini) }
-            if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
+            if pillBadge {
+                // Always in place, so the pop also plays when the first item arrives.
+                CountPill(text: badge ?? "", pops: badgePops)
+                    .opacity(badge == nil ? 0 : 1)
+                    .frame(width: badge == nil ? 0 : nil)
+                    .animation(Motion.fade, value: badge == nil)
+            } else if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background {
