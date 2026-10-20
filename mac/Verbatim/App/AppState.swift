@@ -44,9 +44,9 @@ final class AppState: ObservableObject {
 
     // Preferences, persisted in UserDefaults by key. Never @AppStorage or @Published here: see Changed.swift.
     @Changed("showMenuBar") var showMenuBar = true
-    @Changed("preset") var presetRaw = QualityPreset.balanced.rawValue
+    @Changed("preset") var presetRaw = QualityPreset.defaultPreset.rawValue
     @Changed("advEngine") var advEngine = "fluid"
-    @Changed("advModel") var advModel = "v3"
+    @Changed("advModel") var advModel = "v2"
     @Changed("identifySpeakers") var identifySpeakers = true
     @Changed("applyDictionary") var applyDictionary = true
     @Changed("heroDismissed") var heroDismissed = false
@@ -124,7 +124,7 @@ final class AppState: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.backfillFrames() }
     }
 
-    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
+    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
     var engineChoice: (engine: String, model: String) {
         preset == .advanced ? (advEngine, advModel) : (preset.config.0, preset.config.1)
     }

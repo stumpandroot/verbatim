@@ -65,7 +65,7 @@ struct SettingsView: View {
                         ForEach(Engines.options) { o in Text("\(o.name) · \(o.note)").tag(o.id) }
                     }
                 }
-                Text("Parakeet (NVIDIA, via FluidAudio) is the default: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses. Pick by testing on your own recordings; the labels are starting points, not benchmarks.")
+                Text("Parakeet (NVIDIA, via FluidAudio) is the default, with Parakeet v2 (English only) preselected: fast on Apple silicon with word timings. Pick Balanced or High accuracy for other languages. Whisper is the alternate for languages Parakeet misses. Pick by testing on your own recordings; the labels are starting points, not benchmarks.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section {

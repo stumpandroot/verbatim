@@ -40,6 +40,9 @@ enum QualityPreset: String, CaseIterable, Identifiable, Codable {
     case fast, balanced, accurate, english, advanced
     var id: String { rawValue }
 
+    /// What runs for anyone who never picked a preset: Parakeet v2, English only. A stored choice always wins.
+    static let defaultPreset: QualityPreset = .english
+
     var title: String {
         switch self {
         case .fast: return "Fast"
@@ -52,9 +55,9 @@ enum QualityPreset: String, CaseIterable, Identifiable, Codable {
     var note: String {
         switch self {
         case .fast: return Engines.reduxSupported ? "Parakeet Redux · smallest download, ~220 MB" : "Parakeet Redux needs \(Engines.newerOS); uses Parakeet v3 here"
-        case .balanced: return "Parakeet v3 · 25 languages · ~480 MB · good default"
+        case .balanced: return "Parakeet v3 · 25 languages · ~480 MB"
         case .accurate: return "Parakeet Ultra · most accurate, same speed as v3 · 595 MB"
-        case .english: return "Parakeet v2 · English only"
+        case .english: return "Parakeet v2 · English only · the default"
         case .advanced: return "Choose the engine and model yourself"
         }
     }
@@ -75,7 +78,7 @@ enum QualityPreset: String, CaseIterable, Identifiable, Codable {
         case .balanced: return ("fluid", "v3")
         case .accurate: return ("fluid", "ultra")
         case .english: return ("fluid", "v2")
-        case .advanced: return ("fluid", "v3")
+        case .advanced: return ("fluid", "v2")
         }
     }
 }

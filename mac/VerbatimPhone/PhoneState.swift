@@ -67,7 +67,7 @@ final class PhoneState: ObservableObject {
     var focusSegment: UUID? = nil
 
     // Preferences (same keys as the Mac app; each device keeps its own).
-    @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.balanced.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
+    @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.defaultPreset.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
     @Published var identifySpeakers: Bool = UserDefaults.standard.object(forKey: "identifySpeakers") as? Bool ?? true { didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") } }
     @Published var applyDictionary: Bool = UserDefaults.standard.object(forKey: "applyDictionary") as? Bool ?? true { didSet { UserDefaults.standard.set(applyDictionary, forKey: "applyDictionary") } }
     @Published var appearance: String = UserDefaults.standard.string(forKey: "appearance") ?? "system" { didSet { UserDefaults.standard.set(appearance, forKey: "appearance") } }
@@ -88,7 +88,7 @@ final class PhoneState: ObservableObject {
         if PhoneUITest.enabled { PhoneUITest.run(self) }
     }
 
-    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
+    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
     var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
 
     func say(_ s: String) {
@@ -155,7 +155,7 @@ final class PhoneState: ObservableObject {
     }
 
     private var engineChoice: (String, String) {
-        preset == .advanced ? (UserDefaults.standard.string(forKey: "advEngine") ?? "fluid", UserDefaults.standard.string(forKey: "advModel") ?? "v3") : preset.config
+        preset == .advanced ? (UserDefaults.standard.string(forKey: "advEngine") ?? "fluid", UserDefaults.standard.string(forKey: "advModel") ?? "v2") : preset.config
     }
 
     /// Starts a recording that's added to the end of an existing transcript when you stop.

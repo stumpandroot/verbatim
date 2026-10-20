@@ -140,13 +140,13 @@ struct OnboardingView: View {
             title("Ready when you are.")
             para("Pick how careful transcription should be. You can change any of this in Settings.")
             VStack(spacing: 0) {
-                ForEach([QualityPreset.fast, .balanced, .accurate], id: \.self) { p in
+                ForEach([QualityPreset.english, .fast, .balanced, .accurate], id: \.self) { p in
                     Button { app.presetRaw = p.rawValue } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
-                                    if p == .balanced { Text("Recommended").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.sageText) }
+                                    if p == .defaultPreset { Text("Default").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.sageText) }
                                 }
                                 Text(p.pitch)
                                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
