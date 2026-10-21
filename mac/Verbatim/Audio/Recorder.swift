@@ -406,6 +406,8 @@ final class Recorder: ObservableObject {
     private var configObserver: NSObjectProtocol?
     #if os(iOS)
     private var interruptionObserver: NSObjectProtocol?
+    /// The recording paused itself for a call or another app's audio, so it resumes when that ends.
+    private var pausedForInterruption = false
     #endif
     /// The tap's format on a normal recording's engine.
     private var tapFormat: AVAudioFormat?
@@ -563,6 +565,7 @@ final class Recorder: ObservableObject {
     }
 
     func togglePause() {
+        pausedForInterruption = false
         #if os(macOS)
         if !keepWarm {
             guard isRecording, !isStarting, !reopening else { return }
@@ -1358,7 +1361,19 @@ final class Recorder: ObservableObject {
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             Task { @MainActor in
                 guard let self, let raw, let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
-                if type == .began { self.autoPause("Paused for an interruption. Tap Resume to keep recording.") }
+                if type == .began {
+                    let wasPaused = self.isPaused
+                    self.autoPause("Paused for a call or another app's audio. It resumes when that ends.")
+                    self.pausedForInterruption = !wasPaused && self.isPaused
+                } else if type == .ended, self.pausedForInterruption {
+                    // The call ended: resume on our own, unless the person already resumed or stopped.
+                    self.pausedForInterruption = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        guard let self, self.isRecording, self.isPaused else { return }
+                        self.togglePause()
+                        if !self.isPaused { self.onInputSwitched?("Recording resumed.") }
+                    }
+                }
             }
         }
         #endif
