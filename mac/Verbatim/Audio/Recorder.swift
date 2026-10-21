@@ -565,7 +565,9 @@ final class Recorder: ObservableObject {
     }
 
     func togglePause() {
+        #if os(iOS)
         pausedForInterruption = false
+        #endif
         #if os(macOS)
         if !keepWarm {
             guard isRecording, !isStarting, !reopening else { return }
