@@ -57,6 +57,9 @@ enum SettingsSearchIndex {
               description: "Dictate into any app", target: .page(.keyboard)),
         .init(id: "keyboardTimeout", section: "Keyboard", label: "End keyboard sessions after", keywords: ["session", "timeout", "idle", "microphone", "minutes"],
               description: "How long a session waits before it turns off the microphone", target: .page(.keyboard)),
+        .init(id: "keyboardAutoStart", section: "Keyboard", label: "Start dictating when you come back",
+              keywords: ["auto start", "listen", "first tap", "second tap", "dictate", "microphone", "return", "switch back"],
+              description: "The first tap opens Verbatim and starts listening; no second tap", target: .page(.keyboard)),
         .init(id: "keyboardFullAccess", section: "Keyboard", label: "Allow Full Access for the keyboard", keywords: ["full access", "permission", "privacy"],
               description: "Lets the keyboard start a session and receive your words", target: .page(.keyboard)),
 
@@ -139,6 +142,7 @@ enum SettingsSearchIndex {
         case "keyboardTimeout":
             let s = app.session.timeoutSeconds
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")
+        case "keyboardAutoStart": return onOff(KeyboardBridge.autoStart)
         case "quality": return app.preset.title
         case "speakers": return onOff(app.identifySpeakers)
         case "applyDictionary": return onOff(app.applyDictionary)

@@ -2,7 +2,8 @@ import UIKit
 import Combine
 
 /// The keyboard's state machine. With a session on: idle → listening → writing → inserted, all inside the
-/// keyboard. Without one: idle → starting (Verbatim opens for a moment and comes back) → idle with a session.
+/// keyboard. Without one: idle → starting (Verbatim opens for a moment and comes back) → listening, when Start
+/// dictating when you come back is on (the app began the dictation already), or idle with a session when it's off.
 /// Reads and writes the App Group through `KeyboardBridge`; the app does the listening and transcription.
 @MainActor
 final class KeyboardModel: ObservableObject {
@@ -75,13 +76,11 @@ final class KeyboardModel: ObservableObject {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
         }
-        // A fresh keyboard process: pick up a dictation that's still running or waiting to be inserted.
-        if dictation == nil, let d = KeyboardBridge.uuid(KeyboardBridge.Key.dictation), let p = KeyboardBridge.phase,
-           [.listening, .transcribing, .done].contains(p),
-           defaults?.string(forKey: KeyboardBridge.Key.insertedID) != d.uuidString,
-           KeyboardBridge.uuid(KeyboardBridge.Key.cancelID) != d {
-            dictation = d
-            set(p == .listening ? .listening : .writing)
+        // A fresh keyboard process: pick up a dictation that's still running or waiting to be inserted (including
+        // one the app began from the first tap while Verbatim was in front).
+        if dictation == nil, let running = KeyboardBridge.currentRunningDictation {
+            dictation = running.id
+            set(running.phase == .listening ? .listening : .writing)
         }
         // A session request sent by an earlier keyboard process.
         if request == nil, stage == .idle, let r = KeyboardBridge.uuid(KeyboardBridge.Key.request),
@@ -110,19 +109,41 @@ final class KeyboardModel: ObservableObject {
         if KeyboardBridge.sessionLive { startDictation(defaults) } else { startSession(defaults) }
     }
 
-    /// Step 1: a session request, then Verbatim opens for a moment and switches back here.
+    /// Step 1: a session request, then Verbatim opens for a moment and switches back here. With Start dictating
+    /// when you come back on, the request also names a dictation, which the app begins as soon as the microphone
+    /// is on, so you can talk the moment you're back.
     private func startSession(_ defaults: UserDefaults) {
         let r = UUID()
         request = r
         defaults.set(r.uuidString, forKey: KeyboardBridge.Key.request)
+        var d: UUID? = nil
+        if KeyboardBridge.autoStart {
+            let id = UUID()
+            d = id
+            dictation = id
+            level = 0
+            elapsed = 0
+            defaults.set(id.uuidString, forKey: KeyboardBridge.Key.startID)
+        }
         set(.starting)
         let host = controller?.hostBundleID()
-        if controller?.openContainingApp(KeyboardBridge.sessionURL(request: r, host: host)) != true {
+        if controller?.openContainingApp(KeyboardBridge.sessionURL(request: r, host: host, dictation: d)) != true {
             notice = "Couldn't open Verbatim. Open it yourself to start a session."
             request = nil
+            dropDictation()
             set(.idle)
         }
         retime()
+    }
+
+    /// Forgets a dictation this keyboard asked for, and tells the app not to start or keep it.
+    private func dropDictation() {
+        if let d = dictation {
+            defaults?.set(d.uuidString, forKey: KeyboardBridge.Key.cancelID)
+            KeyboardBridge.post(KeyboardBridge.Note.command)
+        }
+        dictation = nil
+        level = 0
     }
 
     /// Step 3: the app is already listening to the microphone, so this only marks where your words start.
@@ -256,14 +277,24 @@ final class KeyboardModel: ObservableObject {
         if KeyboardBridge.uuid(KeyboardBridge.Key.requestFailed) == r {
             notice = defaults.string(forKey: KeyboardBridge.Key.requestMessage) ?? "Verbatim couldn't start a session."
             request = nil
+            dropDictation()
             set(.idle)
         } else if KeyboardBridge.uuid(KeyboardBridge.Key.requestDone) == r, sessionLive {
             request = nil
             notice = nil
-            set(.idle)
+            // The app began the dictation from this tap (or, in a fresh keyboard process, one is already running):
+            // show it as listening at once, so the next tap ends it.
+            if dictation == nil, let running = KeyboardBridge.currentRunningDictation { dictation = running.id }
+            if dictation != nil {
+                set(.listening)
+                pollDictation(defaults)
+            } else {
+                set(.idle)
+            }
         } else if Date().timeIntervalSince(stageSince) > 20 {
             notice = "Verbatim didn't start. Tap to try again."
             request = nil
+            dropDictation()
             set(.idle)
         }
     }
@@ -284,6 +315,10 @@ final class KeyboardModel: ObservableObject {
         switch phase {
         case .listening:
             if stage != .writing { set(.listening) }
+            // Tells the app a keyboard is showing this dictation (it stops a first-tap dictation nobody came back to).
+            if visible, defaults.string(forKey: KeyboardBridge.Key.seenID) != d.uuidString {
+                defaults.set(d.uuidString, forKey: KeyboardBridge.Key.seenID)
+            }
             level = defaults.double(forKey: KeyboardBridge.Key.level)
             elapsed = defaults.double(forKey: KeyboardBridge.Key.elapsed)
             notice = nil

@@ -71,10 +71,13 @@ final class KeyboardViewController: UIInputViewController {
     /// The bundle ID of the app you're typing in, so Verbatim can switch back to it after starting a session.
     /// Nil when iOS doesn't say; Verbatim then asks you to swipe back yourself.
     ///
-    /// App Review risk: there is no public API for this. It reads UIInputViewController's private `_hostBundleID`
-    /// (and, failing that, a parent's `_hostApplicationBundleIdentifier`). Both are checked with `responds(to:)`
-    /// first, so a missing selector returns nil instead of crashing. Some iOS versions return nil or a system
-    /// process's ID here; those are ignored.
+    /// App Review risk: there is no public API for this (Apple DTS confirmed it on the Apple Developer Forums,
+    /// thread 826851). It reads UIInputViewController's private `_hostBundleID` (and, failing that,
+    /// `_hostApplicationBundleIdentifier`) on this controller and its parent. Each is checked with `responds(to:)`
+    /// first, so a missing selector returns nil instead of crashing. Developers report nil here since iOS 18, and
+    /// nil or the string `<null>` for every known key on iOS 26.4 and later; those are ignored. When this returns
+    /// nil, the app reads the host from its back breadcrumb instead (`KeyboardSession.returnToHostApp`), which is
+    /// the path modern iOS relies on.
     func hostBundleID() -> String? {
         let candidates: [(NSObject?, String)] = [
             (self as NSObject?, "_hostBundleID"),
