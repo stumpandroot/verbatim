@@ -336,10 +336,47 @@ struct ExportSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .export) {
-            SettingsGroup(title: "What's included") {
-                // The same rows as the export sheet, editing the same saved options.
-                ExportOptionRows(options: $options, format: nil)
-                    .settingsAnchor("export.source", radius: 12)
+            SettingsGroup(title: "Text") {
+                // The same saved options as the export sheet, laid out as Settings rows.
+                ExportPaneRow("Text") {
+                    Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.menu).labelsHidden().fixedSize()
+                }
+                .settingsAnchor("export.source", radius: 12)
+                ExportPaneToggle("Title and details header", isOn: $options.header)
+                ExportPaneToggle("Summary", isOn: $options.summary, note: "Written with Apple Intelligence, when the transcript has one.")
+                ExportPaneToggle("One paragraph", isOn: $options.singleParagraph)
+                ExportPaneToggle("“Transcribed with Verbatim” footer", isOn: $options.provenance)
+            }
+            SettingsGroup(title: "Speakers and time") {
+                ExportPaneRow("Speaker names") {
+                    Picker("Speaker names", selection: $options.speakerMode) { ForEach(ExportOptions.SpeakerMode.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.menu).labelsHidden().fixedSize()
+                }
+                ExportPaneRow("Timecodes") {
+                    Picker("Timecodes", selection: $options.timecodeMode) { ForEach(ExportOptions.TimecodeMode.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.menu).labelsHidden().fixedSize()
+                }
+                if options.timecodeMode != .off || options.moments != .off {
+                    ExportPaneRow("Timecode style") {
+                        Picker("Timecode style", selection: $options.timecodeStyle) { ForEach(ExportOptions.TimecodeStyle.allCases) { Text($0.label).tag($0) } }
+                            .pickerStyle(.menu).labelsHidden().fixedSize()
+                    }
+                }
+                ExportPaneRow("Moments") {
+                    Picker("Moments", selection: $options.moments) { ForEach(ExportOptions.MomentsMode.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.menu).labelsHidden().fixedSize()
+                }
+                ExportPaneRow("Start at", note: "Added to every time, such as 01:00:00 for a timeline that starts at one hour.") {
+                    ExportOffsetField(seconds: $options.timecodeOffset)
+                }
+                ExportPaneToggle("Include hidden lines", isOn: $options.includeHidden)
+            }
+            SettingsGroup(title: "Subtitles", footer: "Used for SRT and VTT files.") {
+                ExportPaneStepper("Characters per line", value: $options.subtitles.charsPerLine, range: 16...80, step: 1) { "\($0)" }
+                ExportPaneStepper("Lines per caption", value: $options.subtitles.linesPerCaption, range: 1...3, step: 1) { "\($0)" }
+                ExportPaneStepper("Shortest caption", value: $options.subtitles.minDuration, range: 0.3...5, step: 0.1) { String(format: "%.1f s", $0) }
+                ExportPaneStepper("Longest caption", value: $options.subtitles.maxDuration, range: 2...20, step: 0.5) { ExportOptionRows.seconds($0) }
             }
             .onChange(of: options) { _, o in o.save() }
             SettingsGroup {
@@ -348,6 +385,83 @@ struct ExportSettingsPane: View {
                 }
             }
         }
+    }
+}
+
+// MARK: Export pane rows
+
+/// One Settings row: label (and an optional note) on the left, the control on the right, a hairline above.
+private struct ExportPaneRow<Control: View>: View {
+    var title: String
+    var note: String? = nil
+    @ViewBuilder var control: () -> Control
+    init(_ title: String, note: String? = nil, @ViewBuilder control: @escaping () -> Control) {
+        self.title = title; self.note = note; self.control = control
+    }
+    var body: some View {
+        VStack(spacing: 0) {
+            RowRule()
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
+                    if let note {
+                        Text(note).font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                control()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 11)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ExportPaneToggle: View {
+    var title: String
+    @Binding var isOn: Bool
+    var note: String? = nil
+    init(_ title: String, isOn: Binding<Bool>, note: String? = nil) { self.title = title; self._isOn = isOn; self.note = note }
+    var body: some View {
+        ExportPaneRow(title, note: note) {
+            Toggle(title, isOn: $isOn).toggleStyle(.switch).labelsHidden().tint(Ink.switchOn).controlSize(.small)
+        }
+    }
+}
+
+private struct ExportPaneStepper<V: Strideable>: View {
+    var title: String
+    @Binding var value: V
+    var range: ClosedRange<V>
+    var step: V.Stride
+    var format: (V) -> String
+    init(_ title: String, value: Binding<V>, range: ClosedRange<V>, step: V.Stride, format: @escaping (V) -> String) {
+        self.title = title; self._value = value; self.range = range; self.step = step; self.format = format
+    }
+    var body: some View {
+        ExportPaneRow(title) {
+            HStack(spacing: 8) {
+                Text(format(value)).font(Ink.mono(13)).foregroundStyle(Ink.ink).monospacedDigit()
+                Stepper(title, value: $value, in: range, step: step).labelsHidden().controlSize(.small)
+            }
+        }
+    }
+}
+
+private struct ExportOffsetField: View {
+    @Binding var seconds: Double
+    @State private var text = ""
+    @State private var invalid = false
+    var body: some View {
+        TextField("00:00:00", text: $text)
+            .textFieldStyle(.roundedBorder).font(Ink.mono(13)).multilineTextAlignment(.trailing)
+            .foregroundStyle(invalid ? Ink.accentText : Ink.ink)
+            .frame(width: 96)
+            .onAppear { text = Timecode.offsetText(seconds) }
+            .onChange(of: text) { _, v in
+                if let s = Timecode.parseOffset(v) { invalid = false; seconds = s } else { invalid = true }
+            }
+            .accessibilityHint("Hours, minutes, and seconds added to every time, such as 01:00:00")
     }
 }
 
