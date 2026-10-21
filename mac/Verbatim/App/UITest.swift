@@ -620,8 +620,8 @@ enum UITest {
         check("summary refusal detected", OnDeviceTextRefusal.isRefusal("I’m sorry, but I can’t help with that.") && !OnDeviceTextRefusal.isRefusal("Tim plans errands."))
         check("title sentence case", AutoLabel.cleanTitle("range plans and film title.") == "Range plans and film title" && AutoLabel.cleanTitle("I can't help with that") == nil)
         let longSegs = (0..<60).map { i in Segment(start: Double(i), end: Double(i + 1), text: Array(repeating: "w\(i)", count: 40).joined(separator: " "), speaker: nil) }
-        let ex = AutoLabel.excerpt(longSegs)
-        check("title excerpt samples start, middle, and end", ex.contains("w0") && ex.contains("w30") && ex.contains("w59") && ex.split(whereSeparator: { $0.isWhitespace }).count <= 1_510)
+        let excerpt = AutoLabel.excerpt(longSegs)
+        check("title excerpt samples start, middle, and end", excerpt.contains("w0") && excerpt.contains("w30") && excerpt.contains("w59") && excerpt.split(whereSeparator: { $0.isWhitespace }).count <= 1_510)
 
         // A recording's mic going away: the built-in mic it moves to, and when it pauses instead
         let shure = AudioDevices.Device(id: 41, name: "Shure MV7", transport: "USB")
