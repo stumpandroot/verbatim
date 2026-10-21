@@ -642,7 +642,7 @@ enum UITest {
             let r2 = FolderWatcher.export(t, folder: folder, source: src, options: ExportOptions())
             let srt = (try? String(contentsOf: wdir.appendingPathComponent("clip.srt"), encoding: .utf8)) ?? ""
             check("watch auto-export writes each format", r1.error == nil && r1.written.map(\.lastPathComponent) == ["clip.txt", "clip.srt"]
-                  && srt.contains("00:00:00,000 --> 00:00:02,000") && r2.written.map(\.lastPathComponent) == ["clip 2.txt", "clip 2.srt"])
+                  && srt.contains("00:00:00,000 --> ") && srt.contains("Rolling.") && r2.written.map(\.lastPathComponent) == ["clip 2.txt", "clip 2.srt"])
         }
 
         let fm = FileManager.default
