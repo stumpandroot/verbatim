@@ -540,7 +540,27 @@ final class KeyboardSession: ObservableObject {
             d.set(text, forKey: KeyboardBridge.Key.text)
             d.set(raw, forKey: KeyboardBridge.Key.raw)
         }
+        // The keyboard's Recent row, and Also copy each dictation, before the keyboard hears it's done.
+        if !text.isEmpty {
+            KeyboardBridge.addRecent(id: id, text: text)
+            if KeyboardBridge.alwaysCopy { copyForKeyboard(id, text) }
+        }
         write(text.isEmpty ? .failed : .done, for: id, message: text.isEmpty ? "No words were heard." : nil)
+    }
+
+    /// The clipboard's change count after the app last copied a keyboard dictation, so the polished text replaces
+    /// only that copy, never something you copied since.
+    private var copiedChangeCount: Int?
+
+    /// Settings › Keyboard › Also copy each dictation: the app puts the text on the clipboard and notes which
+    /// dictation it copied. If the write didn't take, the keyboard copies it instead (with Full Access).
+    private func copyForKeyboard(_ id: UUID, _ text: String) {
+        let pb = UIPasteboard.general
+        let before = pb.changeCount
+        pb.string = text
+        guard pb.changeCount != before else { Log.note("keyboard dictation: couldn't copy from the app; the keyboard will"); return }
+        copiedChangeCount = pb.changeCount
+        defaults?.set(id.uuidString, forKey: KeyboardBridge.copiedKey)
     }
 
     /// After the text is in: writes the audio file and adds the dictation to the library, off the hot path.
@@ -605,6 +625,13 @@ final class KeyboardSession: ObservableObject {
             d.set(polished, forKey: KeyboardBridge.Key.polishedText)
             d.set(id.uuidString, forKey: KeyboardBridge.Key.polishedID)
             if d.string(forKey: KeyboardBridge.Key.polishing) == id.uuidString { d.removeObject(forKey: KeyboardBridge.Key.polishing) }
+            KeyboardBridge.updateRecent(id: id, text: polished)
+            // The copy follows the polished text, while the clipboard still holds the copy the app made.
+            if KeyboardBridge.alwaysCopy, d.string(forKey: KeyboardBridge.copiedKey) == id.uuidString,
+               let count = copiedChangeCount, UIPasteboard.general.changeCount == count {
+                UIPasteboard.general.string = polished
+                copiedChangeCount = UIPasteboard.general.changeCount
+            }
             KeyboardBridge.post(KeyboardBridge.Note.state)
             if let t = savedTranscripts[id] { storePolished(polished, transcript: t) } else { pendingPolish[id] = polished }
         }

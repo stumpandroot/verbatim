@@ -284,6 +284,13 @@ enum UITest {
                                      primary: "Remember in Lapp Wagons", secondary: "Not now", seconds: 8))
         await show("08c-remember")
         app.dictation.bar?.setPhase(.idle)
+        // Recent dictations (⌥⌘V) with the seeded dictations, then the Ribbon holding one that didn't paste.
+        RecallPanelController.shared.open()
+        await show("08d-recent-dictations")
+        RecallPanelController.shared.close()
+        app.dictation.previewRescue()
+        await show("08e-didnt-paste")
+        app.dictation.bar?.setPhase(.idle)
         if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
             NSApp.sendAction(action, to: item.target, from: item)
         } else {
@@ -702,6 +709,64 @@ enum UITest {
         check("settings search needs every word", SettingsIndex.search("sync icloud").map(\.id) == ["storage.icloud"] && SettingsIndex.search("   ").isEmpty)
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
+
+        // Recent dictations: newest first, capped, one-line menu titles, number keys, and when the Ribbon keeps a missed paste
+        do {
+            let now = Date()
+            var pool: [Transcript] = (0..<14).map { i in
+                var t = Transcript(title: "d\(i)", source: .dictation, sourceLabel: "Dictation", duration: 2, audioFileName: nil, model: "")
+                t.createdAt = now.addingTimeInterval(-Double(i) * 60)
+                t.flow = FlowInfo(app: i % 2 == 0 ? "Mail" : "Slack", bundleID: nil, category: .other, style: .casual, level: "light",
+                                  raw: "r\(i)", pasted: "Dictation number \(i)", pastedOK: true)
+                return t
+            }
+            var memo = Transcript(title: "m", source: .voiceMemo, sourceLabel: "Voice memo", duration: 2, audioFileName: nil, model: "")
+            memo.createdAt = now.addingTimeInterval(5)
+            var failed = Transcript(title: "f", source: .dictation, sourceLabel: "Dictation", duration: 2, audioFileName: nil, model: "")
+            failed.createdAt = now.addingTimeInterval(5); failed.status = .failed
+            var blank = Transcript(title: "b", source: .dictation, sourceLabel: "Dictation", duration: 2, audioFileName: nil, model: "")
+            blank.createdAt = now.addingTimeInterval(5)
+            blank.flow = FlowInfo(app: "Mail", bundleID: nil, category: .other, style: .casual, level: "light", raw: "", pasted: "  ", pastedOK: false)
+            pool += [memo, failed, blank]
+            let items = Recall.items(from: Array(pool.reversed()), sites: [pool[1].id: "github.com"])
+            let shown = Recall.visible(items, query: "")
+            check("recent dictations: newest first, only dictations with words", items.count == 14 && items.first?.text == "Dictation number 0"
+                  && zip(items, items.dropFirst()).allSatisfy { $0.0.date >= $0.1.date })
+            check("recent dictations: at most 10 rows", shown.count == 10 && shown.last?.text == "Dictation number 9")
+            check("recent dictations: app and website", items[1].source == "Slack · github.com" && items[0].source == "Mail")
+            check("recent dictations: search needs every word", Recall.visible(items, query: "slack NUMBER 13").map(\.text) == ["Dictation number 13"]
+                  && Recall.visible(items, query: "github").map(\.text) == ["Dictation number 1"] && Recall.visible(items, query: "zzz").isEmpty)
+            let long = String(repeating: "word ", count: 30)
+            check("recent dictations: menu titles are one line of 60", Recall.truncate(long).count == 60 && Recall.truncate(long).hasSuffix("…")
+                  && Recall.truncate("Hi\n\nthere  you") == "Hi there you" && Recall.truncate("Short") == "Short")
+            check("recent dictations: two-line preview", Recall.preview("One\n\n  Two\nThree") == "One\nTwo")
+            check("recent dictations: number keys 1–9 then 0", Recall.index(forKeyCode: 18) == 0 && Recall.index(forKeyCode: 25) == 8
+                  && Recall.index(forKeyCode: 29) == 9 && Recall.index(forKeyCode: 82) == 9 && Recall.index(forKeyCode: 0) == nil
+                  && Recall.keyLabel(0) == "1" && Recall.keyLabel(9) == "0" && Recall.keyLabel(10) == nil)
+            check("recent dictations: a number copies, ⇧ pastes", Recall.keyAction(keyCode: 18, modifiers: [], queryEmpty: true) == .copy(0)
+                  && Recall.keyAction(keyCode: 29, modifiers: [.shift], queryEmpty: true) == .paste(9))
+            check("recent dictations: numbers type into search unless ⌘ is held", Recall.keyAction(keyCode: 18, modifiers: [], queryEmpty: false) == nil
+                  && Recall.keyAction(keyCode: 18, modifiers: [.command], queryEmpty: false) == .copy(0)
+                  && Recall.keyAction(keyCode: 18, modifiers: [.command, .shift], queryEmpty: false) == .paste(0)
+                  && Recall.keyAction(keyCode: 18, modifiers: [.option], queryEmpty: true) == nil)
+            check("recent dictations: arrows, Return, and Esc", Recall.keyAction(keyCode: 125, modifiers: [], queryEmpty: false) == .move(1)
+                  && Recall.keyAction(keyCode: 126, modifiers: [], queryEmpty: true) == .move(-1)
+                  && Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: false) == .copySelected
+                  && Recall.keyAction(keyCode: 36, modifiers: [.shift], queryEmpty: false) == .pasteSelected
+                  && Recall.keyAction(keyCode: 53, modifiers: [], queryEmpty: false) == .close
+                  && Recall.keyAction(keyCode: 0, modifiers: [], queryEmpty: true) == nil)
+            check("didn't paste: the Ribbon keeps it with no text field or no read", Recall.rescue(for: .copiedOnly, command: false) == .noField
+                  && Recall.rescue(for: .failed(.notRead), command: false) == .notRead)
+            check("didn't paste: not after a paste that landed, an edit by voice, or a failure with its own fix",
+                  Recall.rescue(for: .pasted, command: false) == nil && Recall.rescue(for: .copiedOnly, command: true) == nil
+                  && Recall.rescue(for: .failed(.notTrusted), command: false) == nil && Recall.rescue(for: .failed(.typingInterrupted), command: false) == nil)
+            check("didn't paste: says when it's on the clipboard", Recall.rescueTitle(.noField, app: "Finder", onClipboard: true) == "Copied, since there was no text field."
+                  && Recall.rescueTitle(.notRead, app: "Notes", onClipboard: false) == "Notes didn't take the paste.")
+            check("settings search finds the clipboard and recent dictations rows", SettingsIndex.search("clipboard").map(\.id).contains("dictate.alwaysCopy")
+                  && SettingsIndex.search("recent").map(\.id).contains("dictate.recall"))
+            check("also copy each dictation is off by default", UserDefaults.standard.object(forKey: AlwaysCopy.key) != nil || !AlwaysCopy.isOn)
+            check("recent dictations shortcut defaults to ⌥⌘V", UserDefaults.standard.object(forKey: RecallShortcut.key) != nil || RecallShortcut.current == .optionCommandV)
+        }
 
         // Watched folders: names, the seen-before key, and an auto-export written with Exporter
         let day = Date(timeIntervalSince1970: 1_790_000_000)

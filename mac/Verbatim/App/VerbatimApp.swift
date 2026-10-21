@@ -53,6 +53,7 @@ struct VerbatimApp: App {
             // Live captions sits below the panel's own rows (kept out of SettingsView.swift).
             VStack(spacing: 0) {
                 MenuBarPanel()
+                RecallMenuSection().padding(.horizontal, 12).padding(.bottom, 10)
                 LiveCaptionsMenuRow().padding(.horizontal, 12).padding(.bottom, 12)
             }
             .frame(width: 320).background(Ink.paper)

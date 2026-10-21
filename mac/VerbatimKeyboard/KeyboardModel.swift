@@ -52,6 +52,11 @@ final class KeyboardModel: ObservableObject {
     /// Your snippets (synced with the Mac; the app writes them to the App Group), and whether the top strip shows them.
     @Published private(set) var snippets: [KeyboardBridge.Snippet] = []
     @Published private(set) var showingSnippets = false
+    /// Your last few dictations (the app writes them to the App Group), and whether the top strip shows them.
+    @Published private(set) var recent: [KeyboardBridge.Recent] = []
+    @Published private(set) var showingRecent = false
+    /// A short confirmation under the card ("Copied."), cleared after a moment.
+    @Published private(set) var info: String? = nil
 
     /// The cleanup level the app applies, for the top strip.
     var levelLabel: String { KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
@@ -83,6 +88,7 @@ final class KeyboardModel: ObservableObject {
     func resume() {
         visible = true
         reloadSnippets()
+        reloadRecent()
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
@@ -118,6 +124,7 @@ final class KeyboardModel: ObservableObject {
         polishing = false
         notice = nil
         showingSnippets = false
+        showingRecent = false
         clearLive()
         if KeyboardBridge.sessionLive { startDictation(defaults) } else { startSession(defaults) }
     }
@@ -223,7 +230,58 @@ final class KeyboardModel: ObservableObject {
         if stage == .inserted { insertion = nil; polishing = false; set(.idle) }
         guard stage == .idle else { return }
         notice = nil
+        showingRecent = false
         showingSnippets = true
+    }
+
+    // MARK: Recent dictations
+
+    /// Shows or hides the Recent row (the clock button). From the inserted state, the row replaces Undo.
+    func toggleRecent() {
+        reloadRecent()
+        if showingRecent || recent.isEmpty { showingRecent = false; return }
+        if stage == .inserted { insertion = nil; polishing = false; set(.idle) }
+        guard stage == .idle else { return }
+        notice = nil
+        showingSnippets = false
+        showingRecent = true
+    }
+
+    /// Inserts a recent dictation where the cursor is, with a space before it after a word, and offers Undo.
+    func insertRecent(_ r: KeyboardBridge.Recent) {
+        guard stage == .idle else { return }
+        let before = proxy?.documentContextBeforeInput ?? ""
+        let lead = (before.last.map { !$0.isWhitespace } ?? false) ? " " : ""
+        let inserted = lead + r.text
+        proxy?.insertText(inserted)
+        showingRecent = false
+        insertion = Insertion(inserted: inserted, text: r.text, raw: r.text, words: Self.wordCount(r.text))
+        set(.inserted)
+    }
+
+    /// Copies a recent dictation (touch and hold). Writing the clipboard needs Full Access; without it, tap inserts.
+    func copyRecent(_ r: KeyboardBridge.Recent) {
+        guard hasFullAccess else {
+            notice = "To copy, turn on Allow Full Access. Tap a dictation to insert it."
+            return
+        }
+        UIPasteboard.general.string = r.text
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        flashInfo("Copied.")
+    }
+
+    private func flashInfo(_ text: String) {
+        notice = nil
+        info = text
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+            if self?.info == text { self?.info = nil }
+        }
+    }
+
+    private func reloadRecent() {
+        let list = KeyboardBridge.readRecent()
+        if list != recent { recent = list }
+        if list.isEmpty { showingRecent = false }
     }
 
     /// Inserts a snippet's text, with a space before it after a word, and offers Undo.
@@ -394,6 +452,12 @@ final class KeyboardModel: ObservableObject {
         polishing = final == text && defaults.string(forKey: KeyboardBridge.Key.polishing) == d.uuidString
         set(.inserted)
         notice = nil
+        reloadRecent()
+        // Also copy each dictation: the app copies it; when it couldn't, the keyboard does (Full Access only).
+        if KeyboardBridge.alwaysCopy, hasFullAccess, defaults.string(forKey: KeyboardBridge.copiedKey) != d.uuidString {
+            UIPasteboard.general.string = final
+            defaults.set(d.uuidString, forKey: KeyboardBridge.copiedKey)
+        }
     }
 
     // MARK: Polish after inserting

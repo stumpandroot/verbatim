@@ -42,6 +42,10 @@ struct KeyboardView: View {
                     .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .accessibilityAddTraits(.updatesFrequently)
+            } else if let i = model.info {
+                Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+                    .lineLimit(1).frame(maxWidth: .infinity)
+                    .accessibilityAddTraits(.updatesFrequently)
             }
             bottomRow.frame(height: 44)
                 .opacity(busy ? 0.4 : 1)
@@ -89,9 +93,12 @@ struct KeyboardView: View {
                         .accessibilityLabel("Snippets")
                         .accessibilityHint("Shows your snippets to insert")
                 }
+                recentButton
             case .idle:
                 if model.showingSnippets {
                     snippetRow
+                } else if model.showingRecent {
+                    recentRow
                 } else {
                     idleStrip
                 }
@@ -111,6 +118,31 @@ struct KeyboardView: View {
         if !model.snippets.isEmpty {
             Chip(title: "Snippets") { model.toggleSnippets() }
                 .accessibilityHint("Shows your snippets to insert")
+        }
+        recentButton
+    }
+
+    /// The clock button: shows your last few dictations in the top strip.
+    @ViewBuilder private var recentButton: some View {
+        if !model.recent.isEmpty {
+            IconChip(systemName: "clock.arrow.circlepath") { model.toggleRecent() }
+                .accessibilityLabel("Recent dictations")
+                .accessibilityHint("Shows your last dictations to insert again")
+        }
+    }
+
+    /// Recent dictations in a row that scrolls sideways: tap one to insert it, touch and hold to copy it.
+    private var recentRow: some View {
+        HStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(model.recent) { r in
+                        RecentChip(text: r.text, insert: { model.insertRecent(r) }, copy: { model.copyRecent(r) })
+                    }
+                }
+            }
+            IconChip(systemName: "xmark") { model.toggleRecent() }
+                .accessibilityLabel("Close recent dictations")
         }
     }
 
@@ -393,6 +425,34 @@ private struct Chip: View {
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
+    }
+}
+
+/// A recent dictation's chip: the start of its text. Tap inserts it; touch and hold copies it.
+private struct RecentChip: View {
+    var text: String
+    var insert: () -> Void
+    var copy: () -> Void
+    var body: some View {
+        Text(Self.label(text)).font(.system(size: 13, weight: .medium)).foregroundStyle(KB.ink).lineLimit(1)
+            .padding(.horizontal, 12).frame(height: 28)
+            .frame(maxWidth: 200)
+            .background(KB.card, in: Capsule())
+            .overlay(Capsule().strokeBorder(KB.hairline))
+            .contentShape(Capsule())
+            .onTapGesture(perform: insert)
+            .onLongPressGesture(minimumDuration: 0.45, perform: copy)
+            .accessibilityElement()
+            .accessibilityLabel(String(text.prefix(200)))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Inserts this dictation")
+            .accessibilityAction(named: "Copy", copy)
+    }
+
+    /// One line of at most 32 characters.
+    static func label(_ s: String) -> String {
+        let line = s.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return line.count > 32 ? String(line.prefix(31)).trimmingCharacters(in: .whitespaces) + "…" : line
     }
 }
 

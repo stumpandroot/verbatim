@@ -49,7 +49,7 @@ struct AppContext {
         AXUIElementSetMessagingTimeout(el, 0.1)
         let subrole: String = attr(el, kAXSubroleAttribute) ?? ""
         c.secureField = subrole == (kAXSecureTextFieldSubrole as String)
-        c.hasFocusedField = isTextInput(el)
+        c.hasFocusedField = isTextInput(el, strict: noFieldApps.contains(c.bundleID ?? ""))
         c.element = el
         guard readText, !c.secureField else { return c }
         let value: String = attr(el, kAXValueAttribute) ?? ""
@@ -78,16 +78,20 @@ struct AppContext {
         AXUIElementSetMessagingTimeout(app, 0.1)
         guard let el: AXUIElement = attr(app, kAXFocusedUIElementAttribute) else { return nil }
         AXUIElementSetMessagingTimeout(el, 0.1)
-        return isTextInput(el)
+        let id = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? ""
+        return isTextInput(el, strict: noFieldApps.contains(id))
     }
 
     /// Text fields, text areas, and anything editable. Web views report AXWebArea or AXGroup for rich editors,
-    /// and some editors sit in a scroll area, so those count too.
-    private static func isTextInput(_ el: AXUIElement) -> Bool {
+    /// and some editors sit in a scroll area, so those count too. `strict` (Finder and the Dock, whose file lists
+    /// and desktop report groups and scroll areas) counts only real text fields, such as a file name being renamed.
+    private static func isTextInput(_ el: AXUIElement, strict: Bool = false) -> Bool {
         let role: String = attr(el, kAXRoleAttribute) ?? ""
         let editable: Bool = attr(el, "AXEditable") ?? false
         let textRoles: Set<String> = [kAXTextFieldRole as String, kAXTextAreaRole as String, kAXComboBoxRole as String, "AXSearchField"]
-        if textRoles.contains(role) || editable || role == "AXWebArea" { return true }
+        if textRoles.contains(role) || editable { return true }
+        if strict { return false }
+        if role == "AXWebArea" { return true }
         return role == "AXGroup" || role == (kAXScrollAreaRole as String)
     }
 

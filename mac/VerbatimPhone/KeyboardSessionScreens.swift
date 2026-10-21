@@ -96,6 +96,8 @@ struct KeyboardSetupScreen: View {
     /// `KeyboardBridge.liveWords`).
     @AppStorage(KeyboardBridge.Key.polishAfter, store: KeyboardBridge.defaults) private var polishAfter = true
     @AppStorage(KeyboardBridge.Key.liveWords, store: KeyboardBridge.defaults) private var liveWords = true
+    /// Also in the App Group: the app copies after each keyboard dictation, or the keyboard does (`KeyboardBridge.alwaysCopy`).
+    @AppStorage(KeyboardBridge.alwaysCopyKey, store: KeyboardBridge.defaults) private var alwaysCopy = false
 
     private let steps = [
         "Open the Settings app.",
@@ -139,6 +141,10 @@ struct KeyboardSetupScreen: View {
 
                 SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
                                   subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
+                    .cardSurface(radius: 14)
+
+                SettingsToggleRow(icon: "doc.on.clipboard", tint: Ink.persimmonTint, title: "Also copy each dictation",
+                                  subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
                     .cardSurface(radius: 14)
 
                 Text("The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbatim can't switch back by itself, tap ◀ and your app's name at the top left.")

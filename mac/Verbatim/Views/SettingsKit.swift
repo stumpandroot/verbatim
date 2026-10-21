@@ -102,6 +102,8 @@ enum SettingsIndex {
         .init("dictate.hotkey", .dictate, "Hotkey", "The key that starts dictation.", keywords: "shortcut key fn option"),
         .init("dictate.mode", .dictate, "Mode", "Hold to talk, or press once to start and again to stop. Press Esc to cancel.", keywords: "push to talk toggle hands-free"),
         .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation, copy last dictation, and the Thought pad.", keywords: "paste again thought pad hotkey"),
+        .init("dictate.recall", .dictate, "Recent dictations", "Shows your last 10 dictations in any app, so you can copy one or paste it again. Press 1–0 to copy, or hold ⇧ to paste. While it's set, the shortcut does nothing else, such as Paste Style (⌥⌘V) in Pages and TextEdit.", keywords: "history recent clipboard copy paste again missed failed lost shortcut hotkey panel"),
+        .init("dictate.alwaysCopy", .dictate, "Also copy each dictation to the clipboard", "Each dictation stays on the clipboard after it's pasted, instead of what you copied before.", keywords: "clipboard copy keep paste pasteboard"),
         .init("dictate.maxMinutes", .dictate, "Stop dictating after", "A minute before, the button says so. Your words up to the stop are pasted, never thrown away.", keywords: "limit time minutes"),
         .init("dictate.cleanup", .dictate, "Cleanup", "How much Verbatim tidies what you say before it's pasted.", keywords: "polish clean literal filler punctuation"),
         .init("dictate.cloud", .dictate, "Cloud cleanup", "Clean up dictation with Anthropic Claude or OpenAI, using your own API key. Off by default.", keywords: "claude anthropic openai chatgpt gpt api cloud grammar ai"),
