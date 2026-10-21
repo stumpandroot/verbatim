@@ -94,7 +94,10 @@ final class PhoneState: ObservableObject {
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
         recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
-        recorder.onInputSwitched = { [weak self] note in self?.say(note) }
+        recorder.onInputSwitched = { [weak self] note in
+            if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
+            self?.say(note)
+        }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
