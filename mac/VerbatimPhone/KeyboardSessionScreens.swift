@@ -92,6 +92,10 @@ struct KeyboardSetupScreen: View {
     @Environment(\.openURL) private var openURL
     /// In the App Group, so the keyboard reads it too (`KeyboardBridge.autoStart`).
     @AppStorage(KeyboardBridge.Key.autoStart, store: KeyboardBridge.defaults) private var autoStart = true
+    /// Also in the App Group: the app reads them when a dictation ends or starts (`KeyboardBridge.polishAfter`,
+    /// `KeyboardBridge.liveWords`).
+    @AppStorage(KeyboardBridge.Key.polishAfter, store: KeyboardBridge.defaults) private var polishAfter = true
+    @AppStorage(KeyboardBridge.Key.liveWords, store: KeyboardBridge.defaults) private var liveWords = true
 
     private let steps = [
         "Open the Settings app.",
@@ -127,6 +131,14 @@ struct KeyboardSetupScreen: View {
 
                 SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
                                   subtitle: "The first tap opens Verbatim and starts listening; no second tap.", isOn: $autoStart)
+                    .cardSurface(radius: 14)
+
+                SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
+                                  subtitle: "Your words appear right away; Verbatim swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
+                    .cardSurface(radius: 14)
+
+                SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
+                                  subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
                     .cardSurface(radius: 14)
 
                 Text("The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbatim can't switch back by itself, tap ◀ and your app's name at the top left.")

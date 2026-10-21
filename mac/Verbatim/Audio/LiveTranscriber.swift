@@ -102,6 +102,11 @@ final class LiveTranscriber: ObservableObject {
 
     private var backend: LiveBackend?
     private var session = 0
+    /// Word-by-word updates, at most 15 a second: words that arrive faster wait for the next frame.
+    static let minInterval: TimeInterval = 1.0 / 15
+    private var pending: LiveWords?
+    private var lastPublish = Date.distantPast
+    private var flushScheduled = false
 
     init() {}
 
@@ -160,13 +165,35 @@ final class LiveTranscriber: ObservableObject {
         input.close()
         backend?.cancel()
         backend = nil
+        pending = nil
+        flushScheduled = false
         if state != .off { state = .off }
         if !words.isEmpty { words = LiveWords() }
         if !text.isEmpty { text = "" }
     }
 
+    /// Shows new words at once, unless the last update was under `minInterval` ago; then the newest words go out
+    /// when it has passed (words in between are skipped, never queued).
     private func receive(_ w: LiveWords, session mine: Int) {
-        guard mine == session, state == .running, w != words else { return }
+        guard mine == session, state == .running else { return }
+        pending = w
+        let wait = Self.minInterval - Date().timeIntervalSince(lastPublish)
+        if wait <= 0 { publish(); return }
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            guard let self, self.session == mine, self.flushScheduled else { return }
+            self.flushScheduled = false
+            self.publish()
+        }
+    }
+
+    private func publish() {
+        guard let w = pending else { return }
+        pending = nil
+        lastPublish = Date()
+        guard w != words else { return }
         words = w
         text = w.text
     }
@@ -290,8 +317,10 @@ final class AnalyzerBackend: LiveBackend, @unchecked Sendable {
         self.converter = converter
     }
 
+    /// Volatile results, and fast results: Apple's progressive (live) configuration, which reports each new word
+    /// as it's heard instead of a few words at a time. Finalized results still replace them as they settle.
     private static func makeTranscriber(_ locale: Locale) -> SpeechTranscriber {
-        SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults], attributeOptions: [])
+        SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults, .fastResults], attributeOptions: [])
     }
 
     /// The supported locale that matches `wanted`: the same language and region, else the same language.
@@ -341,7 +370,8 @@ final class AnalyzerBackend: LiveBackend, @unchecked Sendable {
         let (stream, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         let backend = AnalyzerBackend(analyzer: analyzer, continuation: continuation, converter: LiveConverter(output: format, expecting: expecting))
-        backend.results = Task.detached(priority: .utility) {
+        // User-initiated: results feed what you see while you talk, so they shouldn't wait behind background work.
+        backend.results = Task.detached(priority: .userInitiated) {
             var settled = ""
             do {
                 for try await result in transcriber.results {

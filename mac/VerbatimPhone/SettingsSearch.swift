@@ -60,6 +60,12 @@ enum SettingsSearchIndex {
         .init(id: "keyboardAutoStart", section: "Keyboard", label: "Start dictating when you come back",
               keywords: ["auto start", "listen", "first tap", "second tap", "dictate", "microphone", "return", "switch back"],
               description: "The first tap opens Verbatim and starts listening; no second tap", target: .page(.keyboard)),
+        .init(id: "keyboardPolishAfter", section: "Keyboard", label: "Polish after inserting",
+              keywords: ["polish", "cleanup", "clean up", "swap", "replace", "ums", "filler", "grammar", "faster", "speed", "insert"],
+              description: "Your words appear right away; Verbatim swaps in the cleaned-up version a moment later", target: .page(.keyboard)),
+        .init(id: "keyboardLiveWords", section: "Keyboard", label: "Show words as you speak",
+              keywords: ["live words", "preview", "streaming", "real time", "transcript", "see words"],
+              description: "The keyboard shows your words while you talk", target: .page(.keyboard)),
         .init(id: "keyboardFullAccess", section: "Keyboard", label: "Allow Full Access for the keyboard", keywords: ["full access", "permission", "privacy"],
               description: "Lets the keyboard start a session and receive your words", target: .page(.keyboard)),
 
@@ -143,6 +149,8 @@ enum SettingsSearchIndex {
             let s = app.session.timeoutSeconds
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")
         case "keyboardAutoStart": return onOff(KeyboardBridge.autoStart)
+        case "keyboardPolishAfter": return onOff(KeyboardBridge.polishAfter)
+        case "keyboardLiveWords": return onOff(KeyboardBridge.liveWords)
         case "quality": return app.preset.title
         case "speakers": return onOff(app.identifySpeakers)
         case "applyDictionary": return onOff(app.applyDictionary)

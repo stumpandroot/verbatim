@@ -106,7 +106,9 @@ struct FlowBarView: View {
     /// The tab grows with the words on the same spring as the state morph; with Reduce Motion or Limit
     /// animation, a quick ease instead (no spring).
     private var liveMorph: Animation { reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.38, bounce: 0.22) }
-    private var liveKey: String { liveWordsShown ? "\(words.state)|\(liveTail.text)" : "" }
+    /// Keyed on the word count, not the text: a new word grows the tab on the spring, while a word that's revised
+    /// in place (volatile to final) swaps without restarting the animation.
+    private var liveKey: String { liveWordsShown ? "\(words.state)|\(liveTail.text.split(separator: " ").count)" : "" }
 
     /// Changes to any of these animate the shape.
     private var stateKey: String {

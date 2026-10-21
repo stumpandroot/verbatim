@@ -191,6 +191,43 @@ enum PhoneUITest {
         check("start dictating when you come back is on by default", KeyboardBridge.autoStart)
         KeyboardBridge.defaults?.set(stored, forKey: KeyboardBridge.Key.autoStart)
 
+        let pa = KeyboardBridge.defaults?.object(forKey: KeyboardBridge.Key.polishAfter)
+        KeyboardBridge.defaults?.removeObject(forKey: KeyboardBridge.Key.polishAfter)
+        check("polish after inserting is on by default", KeyboardBridge.polishAfter)
+        KeyboardBridge.defaults?.set(pa, forKey: KeyboardBridge.Key.polishAfter)
+        let lw = KeyboardBridge.defaults?.object(forKey: KeyboardBridge.Key.liveWords)
+        KeyboardBridge.defaults?.removeObject(forKey: KeyboardBridge.Key.liveWords)
+        check("keyboard live words are on by default", KeyboardBridge.liveWords)
+        KeyboardBridge.defaults?.set(lw, forKey: KeyboardBridge.Key.liveWords)
+
+        // Polish after inserting: the background budget, and when the keyboard may swap the text.
+        check("polish budget starts at 2 s", KeyboardBridge.polishBudget(words: 0) == 2)
+        check("polish budget grows 0.05 s a word", abs(KeyboardBridge.polishBudget(words: 100) - 7) < 0.001)
+        check("polish budget stops at 10 s", KeyboardBridge.polishBudget(words: 1_000) == 10)
+        let ins = " Um, so I think we should, uh, meet Tuesday."
+        let pol = " I think we should meet Tuesday."
+        func swap(_ before: String?, same: Bool = true, age: TimeInterval = 3, polished: String = pol) -> KeyboardBridge.SwapDecision {
+            KeyboardBridge.polishSwap(inserted: ins, polished: polished, before: before, sameField: same, age: age)
+        }
+        check("swap when the field ends with the inserted text", swap("Hi Sam." + ins) == .replace)
+        check("swap when the inserted text is the whole field", swap(ins) == .replace)
+        check("keep when you typed after the inserted text", swap("Hi Sam." + ins + " See you") != .replace)
+        check("keep when you deleted part of the inserted text", swap("Hi Sam." + String(ins.dropLast(5))) != .replace)
+        check("keep in a different text field", swap("Hi Sam." + ins, same: false) == .keep("a different text field"))
+        check("keep when the field shows nothing before the cursor", swap(nil) != .replace && swap("") != .replace)
+        check("keep when the polished text arrives too late", swap(ins, age: KeyboardBridge.polishWindow + 1) != .replace)
+        check("keep when the polished text is empty", swap(ins, polished: "  ") != .replace)
+        check("keep when nothing changed", swap(ins, polished: ins) == .keep("nothing changed"))
+        check("swap when iOS cuts the context but 16+ characters match", swap("should, uh, meet Tuesday.") == .replace)
+        check("keep when too little of a cut context matches", swap("Tuesday.") != .replace)
+        let para = " First point.\n\nSecond."
+        check("swap when the context starts after a line break in the inserted text",
+              KeyboardBridge.polishSwap(inserted: para, polished: " First.\n\nSecond.", before: "Second.", sameField: true, age: 2) == .replace)
+
+        check("settings search finds polish after inserting",
+              SettingsSearchIndex.search("polish").flatMap(\.entries).contains { $0.id == "keyboardPolishAfter" })
+        check("settings search finds keyboard live words",
+              SettingsSearchIndex.search("live words").flatMap(\.entries).contains { $0.id == "keyboardLiveWords" })
         check("settings search finds the first-tap setting",
               SettingsSearchIndex.search("second tap").flatMap(\.entries).contains { $0.id == "keyboardAutoStart" })
         check("switching back to the host app is off in UI tests", KeyboardSession.returnToHostApp(linkHost: "com.apple.MobileSMS") == .failed("UI test", retry: false))

@@ -69,8 +69,76 @@ enum KeyboardBridge {
         static let message = "kb.d.message"               // String: why it failed
         static let levelLabel = "kb.levelLabel"           // "Polished": the cleanup the app applies
         static let snippets = "kb.snippets"               // Data: JSON [Snippet] (trigger and expansion), written by the app
+        // Live words while listening (written by the app about 10 times a second, read by the keyboard)
+        static let liveSettled = "kb.d.liveSettled"       // String: words that won't change
+        static let liveVolatile = "kb.d.liveVolatile"     // String: the newest words, which may still change
+
+        // Polish after inserting (written by the app; the keyboard writes `polishOutcome`)
+        static let polishing = "kb.p.pending"             // String UUID: the dictation whose polished text is on its way
+        static let polishedID = "kb.p.id"                 // String UUID: the dictation `polishedInserted`/`polishedText` belong to
+        static let polishedInserted = "kb.p.inserted"     // String: the text the app handed over first (the rule-based text)
+        static let polishedText = "kb.p.text"             // String: the cleaned-up text to swap in
+        static let polishOutcome = "kb.p.outcome"         // String: "<id> swapped" or "<id> kept: <why>", for the app's log
+
         // Settings (written by the app's Settings › Keyboard, read by both)
         static let autoStart = "kb.autoStart"             // Bool, on unless set: the first tap also starts a dictation
+        static let polishAfter = "kb.polishAfter"         // Bool, on unless set: insert the fast text, then swap in the polished text
+        static let liveWords = "kb.liveWords"             // Bool, on unless set: show words in the keyboard while you talk
+    }
+
+    /// Settings › Keyboard › Polish after inserting. On unless turned off.
+    static var polishAfter: Bool {
+        get { defaults?.object(forKey: Key.polishAfter) as? Bool ?? true }
+        set { defaults?.set(newValue, forKey: Key.polishAfter) }
+    }
+
+    /// Settings › Keyboard › Show words as you speak. On unless turned off.
+    static var liveWords: Bool {
+        get { defaults?.object(forKey: Key.liveWords) as? Bool ?? true }
+        set { defaults?.set(newValue, forKey: Key.liveWords) }
+    }
+
+    // MARK: Polish after inserting
+
+    /// How long after inserting the keyboard still swaps in polished text. Later than this, you've moved on.
+    static let polishWindow: TimeInterval = 30
+
+    /// The most time the model gets to polish a dictation in the background: 2 seconds plus 0.05 seconds a word,
+    /// at most 10 seconds.
+    static func polishBudget(words: Int) -> Double {
+        min(10, 2 + 0.05 * Double(max(0, words)))
+    }
+
+    enum SwapDecision: Equatable {
+        case replace
+        case keep(String)
+    }
+
+    /// Whether the keyboard may replace the text it inserted with the polished text. Pure, so it's testable.
+    ///
+    /// - `inserted`: exactly what went into the field (including a leading space).
+    /// - `before`: `documentContextBeforeInput` now. iOS can cut it short (often at a paragraph), so a context
+    ///   that is itself the end of `inserted` also counts, when it's long enough to be sure (16 characters) or
+    ///   starts right after a line break in `inserted`.
+    /// - `sameField`: the field's `documentIdentifier` is the one the text went into.
+    /// - `age`: seconds since the text went in.
+    ///
+    /// Anything typed after the inserted text, a moved cursor, another field, or a late answer keeps your text.
+    static func polishSwap(inserted: String, polished: String, before: String?, sameField: Bool, age: TimeInterval) -> SwapDecision {
+        let clean = polished.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty { return .keep("the polished text is empty") }
+        if inserted.trimmingCharacters(in: .whitespacesAndNewlines) == clean { return .keep("nothing changed") }
+        if !sameField { return .keep("a different text field") }
+        if age > polishWindow { return .keep("it arrived after \(Int(polishWindow)) s") }
+        guard let before, !before.isEmpty else { return .keep("the field doesn't show the text before the cursor") }
+        if before.hasSuffix(inserted) { return .replace }
+        if inserted.hasSuffix(before) {
+            let cut = inserted.index(inserted.endIndex, offsetBy: -before.count)
+            let afterBreak = cut > inserted.startIndex && inserted[inserted.index(before: cut)].isNewline
+            if before.count >= 16 || afterBreak { return .replace }
+            return .keep("too little text before the cursor to be sure")
+        }
+        return .keep("the text before the cursor changed")
     }
 
     /// Settings › Keyboard › Start dictating when you come back. On unless turned off.

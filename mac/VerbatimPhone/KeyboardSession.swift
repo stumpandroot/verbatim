@@ -57,6 +57,13 @@ final class KeyboardSession: ObservableObject {
     private var observers: [NSObjectProtocol] = []
     private var activity: Activity<VerbatimSessionAttributes>?
     private var background: UIBackgroundTaskIdentifier = .invalid
+    /// Live words for the keyboard while you talk (Settings › Keyboard › Show words as you speak).
+    private let live = LiveTranscriber()
+    private var liveWritten = LiveWords()
+    /// Polish after inserting: the saved dictation for each keyboard dictation, and polished text that arrived
+    /// before its dictation was saved.
+    private var savedTranscripts: [UUID: UUID] = [:]
+    private var pendingPolish: [UUID: String] = [:]
 
     init(app: PhoneState) {
         self.app = app
@@ -166,6 +173,8 @@ final class KeyboardSession: ObservableObject {
     /// and Apple's language model for cleanup, none of which a dictation ever waits for.
     private func warmModel() {
         FlowCleanup.prewarm(level: PhoneDictation.level)
+        // Live words: asks for Apple's on-device speech model to be installed. Never prompts for permission here.
+        if KeyboardBridge.liveWords { live.prepare() }
         guard let app else { return }
         let s = app.jobSettings()
         guard s.engineId == "fluid" else { return }
@@ -357,6 +366,7 @@ final class KeyboardSession: ObservableObject {
 
     /// Commands from the keyboard. Separate keys for start, done, and cancel, so none overwrites another.
     private func checkCommands() {
+        logPolishOutcome()
         guard stage == .on else { return }
         if let start = KeyboardBridge.uuid(KeyboardBridge.Key.startID), start != current, !handled.contains(start),
            KeyboardBridge.uuid(KeyboardBridge.Key.cancelID) != start {
@@ -375,6 +385,7 @@ final class KeyboardSession: ObservableObject {
         handled.insert(id)
         current = id
         unseenSince = firstTap ? Date() : nil
+        startLive()
         capture.beginTake()
         // Apple's model loads while you talk, so cleanup starts warm (one prewarmed session serves one dictation).
         FlowCleanup.prewarm(level: PhoneDictation.level)
@@ -399,6 +410,7 @@ final class KeyboardSession: ObservableObject {
         let seconds = capture.takeSeconds
         d.set(Double(capture.level), forKey: KeyboardBridge.Key.level)
         d.set(seconds, forKey: KeyboardBridge.Key.elapsed)
+        writeLive(d)
         KeyboardBridge.post(KeyboardBridge.Note.state)
         checkCommands()
         if dictating, seconds >= KeyboardBridge.maxSeconds { finishDictation() }
@@ -417,6 +429,7 @@ final class KeyboardSession: ObservableObject {
     private func cancelDictation(message: String? = nil) {
         guard let id = current else { return }
         capture.cancelTake()
+        stopLive()
         unseenSince = nil
         current = nil
         dictating = false
@@ -432,6 +445,7 @@ final class KeyboardSession: ObservableObject {
     private func finishDictation() {
         guard let id = current, let app else { return }
         let samples = capture.endTake()
+        stopLive()
         unseenSince = nil
         current = nil
         dictating = false
@@ -450,6 +464,7 @@ final class KeyboardSession: ObservableObject {
         let snippets = app.store.snippets
         let level = PhoneDictation.level
         let category = PhoneDictation.category(host: host)
+        let polishAfter = KeyboardBridge.polishAfter
         let t0 = Date()
         Task.detached(priority: .userInitiated) {
             do {
@@ -462,22 +477,40 @@ final class KeyboardSession: ObservableObject {
                     .filter { !$0.isEmpty }.joined(separator: " ")
                 // The Mac's cleanup at your level: Apple's model on iOS 26 when it's available and answers within the
                 // keyboard's budget, otherwise the rules (prepass, then lists and paragraphs). Plain bullets.
-                let request = PhoneDictation.request(raw: raw, level: level, category: category, vocabulary: vocabulary,
-                                                     snippets: snippets, budget: PhoneDictation.keyboardBudget)
-                let out = await PhoneDictation.clean(request, budget: PhoneDictation.keyboardBudget)
+                // Polish after inserting: the model gets a longer budget and keeps going after the rule-based text
+                // goes in; the keyboard swaps in its text when it arrives (`awaitPolish`).
+                let out: FlowCleanup.Result
+                var later: Task<FlowCleanup.Result, Never>? = nil
+                if polishAfter {
+                    let budget = KeyboardBridge.polishBudget(words: raw.split(whereSeparator: { $0.isWhitespace }).count)
+                    let request = PhoneDictation.request(raw: raw, level: level, category: category, vocabulary: vocabulary,
+                                                         snippets: snippets, budget: budget)
+                    let pair = await Self.cleanThenPolish(request, budget: budget)
+                    out = pair.0
+                    later = pair.1
+                } else {
+                    let request = PhoneDictation.request(raw: raw, level: level, category: category, vocabulary: vocabulary,
+                                                         snippets: snippets, budget: PhoneDictation.keyboardBudget)
+                    out = await PhoneDictation.clean(request, budget: PhoneDictation.keyboardBudget)
+                }
                 let text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let polishing = later != nil && !text.isEmpty
+                let polishJob = later
                 let info = FlowInfo(app: category == .other ? "Verbatim" : "Keyboard", bundleID: nil, category: category, style: .casual,
                                     level: level.rawValue, raw: raw, pasted: text, pastedOK: !text.isEmpty)
                 await MainActor.run {
                     let total = Date().timeIntervalSince(t0)
-                    Log.note("keyboard dictation \(String(format: "%.1f", duration)) s → words in \(String(format: "%.2f", heard.timeIntervalSince(t0))) s, text in \(String(format: "%.2f", total)) s (\(out.cleaned ? "model" : "rules")\(out.note.map { ": " + $0 } ?? ""))\(total > 1.5 ? " — over the 1.5 s target" : "")")
+                    Log.note("keyboard dictation \(String(format: "%.1f", duration)) s → words in \(String(format: "%.2f", heard.timeIntervalSince(t0))) s, text in \(String(format: "%.2f", total)) s (\(out.cleaned ? "model" : "rules")\(out.note.map { ": " + $0 } ?? ""))\(total > 1.5 ? " — over the 1.5 s target" : "")\(polishing ? "; polishing in the background" : "")")
+                    // Before the text: the keyboard reads this when it inserts, to know a polished version is coming.
+                    if polishing { self.defaults?.set(id.uuidString, forKey: KeyboardBridge.Key.polishing) }
                     self.deliver(id, text: text, raw: raw)
                     if !text.isEmpty {
-                        self.save(samples: samples, duration: duration, original: original, fixed: fixed, corrections: corrections,
-                                  engine: result.engine, model: result.model, info: info)
+                        self.save(dictation: id, samples: samples, duration: duration, original: original, fixed: fixed, corrections: corrections,
+                                  engine: result.engine, model: result.model, info: info, cleaned: out.cleaned)
                     } else {
                         self.endBackground()
                     }
+                    if polishing, let polishJob { self.awaitPolish(id, inserted: text, started: t0, polishJob) }
                 }
             } catch {
                 await MainActor.run {
@@ -511,7 +544,8 @@ final class KeyboardSession: ObservableObject {
     }
 
     /// After the text is in: writes the audio file and adds the dictation to the library, off the hot path.
-    private func save(samples: [Float], duration: Double, original: [Segment], fixed: [Segment], corrections: [Correction], engine: String, model: String, info: FlowInfo) {
+    private func save(dictation: UUID, samples: [Float], duration: Double, original: [Segment], fixed: [Segment], corrections: [Correction],
+                      engine: String, model: String, info: FlowInfo, cleaned: Bool) {
         guard let app else { endBackground(); return }
         let url = app.store.newRecordingURL()
         Task.detached(priority: .utility) {
@@ -528,11 +562,100 @@ final class KeyboardSession: ObservableObject {
                 t.corrections = corrections
                 t.engine = engine
                 t.flow = info
+                // As on the Mac: the cleaned-up text is the dictation's document.
+                if cleaned, info.pasted != info.raw { t.document = info.pasted; t.documentLevel = info.level.capitalized }
                 t.waveform = wave
                 t.status = .ready
                 app.store.add(t)
+                self.savedTranscripts[dictation] = t.id
+                if let polished = self.pendingPolish.removeValue(forKey: dictation) { self.storePolished(polished, transcript: t.id) }
             }
         }
+    }
+
+    // MARK: Polish after inserting
+
+    /// Starts the cleanup with the long `budget` and waits for it up to the keyboard's budget. In time: its result,
+    /// and nothing later. Otherwise the rule-based text now, and the cleanup still running for the polished text.
+    nonisolated private static func cleanThenPolish(_ r: FlowCleanup.Request, budget: Double) async -> (FlowCleanup.Result, Task<FlowCleanup.Result, Never>?) {
+        let job = Task.detached(priority: .userInitiated) { await PhoneDictation.clean(r, budget: budget) }
+        // Racing a wait on the job, not the job itself: when the race gives up, the job keeps running.
+        if let done = await FluidEngine.race(seconds: PhoneDictation.keyboardBudget + 0.15, { await job.value }) { return (done, nil) }
+        return (FlowCleanup.Result(text: FlowCleanup.rulesOnly(r), cleaned: false, note: "Inserted the rule-based text; polishing in the background"), job)
+    }
+
+    /// Waits for the background cleanup, then hands its text to the keyboard and updates the saved dictation.
+    private func awaitPolish(_ id: UUID, inserted: String, started: Date, _ later: Task<FlowCleanup.Result, Never>) {
+        let task = PolishBackgroundTask(name: "Keyboard polish")
+        Task { @MainActor in
+            let out = await later.value
+            defer { task.end() }
+            let polished = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let seconds = String(format: "%.2f", Date().timeIntervalSince(started))
+            guard let d = defaults else { return }
+            guard out.cleaned, !polished.isEmpty, polished != inserted else {
+                Log.note("keyboard polish: nothing to swap after \(seconds) s (\(out.cleaned ? "same text" : out.note ?? "the model's text wasn't used"))")
+                if d.string(forKey: KeyboardBridge.Key.polishing) == id.uuidString { d.removeObject(forKey: KeyboardBridge.Key.polishing) }
+                KeyboardBridge.post(KeyboardBridge.Note.state)
+                return
+            }
+            Log.note("keyboard polish: polished text ready after \(seconds) s; handing it to the keyboard")
+            // The text first, then the id the keyboard looks for, then the pending flag (only if it's still ours).
+            d.set(inserted, forKey: KeyboardBridge.Key.polishedInserted)
+            d.set(polished, forKey: KeyboardBridge.Key.polishedText)
+            d.set(id.uuidString, forKey: KeyboardBridge.Key.polishedID)
+            if d.string(forKey: KeyboardBridge.Key.polishing) == id.uuidString { d.removeObject(forKey: KeyboardBridge.Key.polishing) }
+            KeyboardBridge.post(KeyboardBridge.Note.state)
+            if let t = savedTranscripts[id] { storePolished(polished, transcript: t) } else { pendingPolish[id] = polished }
+        }
+    }
+
+    /// The saved dictation keeps the polished text, whether or not the keyboard could swap it in.
+    private func storePolished(_ text: String, transcript: UUID) {
+        app?.store.update(transcript) { t in
+            t.flow?.pasted = text
+            t.document = text
+            t.documentLevel = (t.flow?.level ?? "polished").capitalized
+        }
+    }
+
+    /// What the keyboard did with the polished text, for the log.
+    private func logPolishOutcome() {
+        guard let d = defaults, let outcome = d.string(forKey: KeyboardBridge.Key.polishOutcome) else { return }
+        d.removeObject(forKey: KeyboardBridge.Key.polishOutcome)
+        Log.note("keyboard polish: keyboard " + outcome)
+    }
+
+    // MARK: Live words
+
+    private func startLive() {
+        clearLive()
+        guard KeyboardBridge.liveWords else { return }
+        capture.setLiveTap(live.tap)
+        live.start(format: AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: SessionCapture.sampleRate, channels: 1, interleaved: false))
+    }
+
+    private func stopLive() {
+        capture.setLiveTap(nil)
+        live.stop()
+        clearLive()
+    }
+
+    /// Writes the live words for the keyboard when they changed. Called with the meter, so at most 10 times a second.
+    private func writeLive(_ d: UserDefaults) {
+        let w = live.words
+        guard w != liveWritten else { return }
+        liveWritten = w
+        // The end is enough: the keyboard shows two lines.
+        let shown = w.tail(160)
+        d.set(shown.settled, forKey: KeyboardBridge.Key.liveSettled)
+        d.set(shown.volatile, forKey: KeyboardBridge.Key.liveVolatile)
+    }
+
+    private func clearLive() {
+        liveWritten = LiveWords()
+        defaults?.removeObject(forKey: KeyboardBridge.Key.liveSettled)
+        defaults?.removeObject(forKey: KeyboardBridge.Key.liveVolatile)
     }
 
     // MARK: Session lifetime
@@ -597,6 +720,7 @@ final class KeyboardSession: ObservableObject {
     func end(reason: String?) {
         guard stage != .off else { return }
         if let id = current { capture.cancelTake(); write(.cancelled, for: id); current = nil }
+        stopLive()
         unseenSince = nil
         firstTapDictation = nil
         dictating = false
@@ -722,5 +846,24 @@ final class KeyboardSession: ObservableObject {
             i = end
         }
         return out
+    }
+}
+
+
+/// A UIKit background task that ends once, from `end()` or when iOS's time runs out.
+@MainActor
+private final class PolishBackgroundTask {
+    private var id: UIBackgroundTaskIdentifier = .invalid
+
+    init(name: String) {
+        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }

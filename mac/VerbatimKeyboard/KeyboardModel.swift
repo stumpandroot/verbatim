@@ -1,5 +1,6 @@
 import UIKit
 import Combine
+import os
 
 /// The keyboard's state machine. With a session on: idle → listening → writing → inserted, all inside the
 /// keyboard. Without one: idle → starting (Verbatim opens for a moment and comes back) → listening, when Start
@@ -23,12 +24,21 @@ final class KeyboardModel: ObservableObject {
         var text: String
         var raw: String
         var words: Int
+        /// The dictation it came from (nil for a snippet), the field it went into, and when.
+        var dictation: UUID? = nil
+        var document: UUID? = nil
+        var at = Date()
     }
 
     @Published private(set) var stage: Stage = .idle
     @Published private(set) var level: Double = 0
     @Published private(set) var elapsed: TimeInterval = 0
     @Published private(set) var insertion: Insertion? = nil
+    /// True while Verbatim polishes the text just inserted (Polish after inserting); the strip shows it.
+    @Published private(set) var polishing = false
+    /// Live words while listening: the settled part, and the newest words that may still change.
+    @Published private(set) var liveSettled = ""
+    @Published private(set) var liveVolatile = ""
     /// A short line shown under the record card (a failure, or how to turn on Full Access).
     @Published private(set) var notice: String? = nil
     @Published var showsGlobe = true
@@ -56,6 +66,7 @@ final class KeyboardModel: ObservableObject {
     private var observing = false
     /// Text goes in only while the keyboard is on screen, so it lands in the field you're looking at.
     private var visible = false
+    private static let log = Logger(subsystem: "co.stumpandroot.verbatim.keyboard", category: "polish")
 
     init(controller: KeyboardViewController) {
         self.controller = controller
@@ -104,8 +115,10 @@ final class KeyboardModel: ObservableObject {
             return
         }
         insertion = nil
+        polishing = false
         notice = nil
         showingSnippets = false
+        clearLive()
         if KeyboardBridge.sessionLive { startDictation(defaults) } else { startSession(defaults) }
     }
 
@@ -174,6 +187,7 @@ final class KeyboardModel: ObservableObject {
         dictation = nil
         request = nil
         level = 0
+        clearLive()
         set(.idle)
         retime()
     }
@@ -183,6 +197,7 @@ final class KeyboardModel: ObservableObject {
         guard let ins = insertion else { return }
         deleteBackward(ins.inserted.count)
         insertion = nil
+        polishing = false
         set(.idle)
     }
 
@@ -195,6 +210,8 @@ final class KeyboardModel: ObservableObject {
         proxy?.insertText(new)
         ins.inserted = new; ins.text = ins.raw; ins.words = Self.wordCount(ins.raw)
         insertion = ins
+        // You chose your own words: a polished version arriving later doesn't replace them.
+        polishing = false
     }
 
     // MARK: Snippets
@@ -203,7 +220,7 @@ final class KeyboardModel: ObservableObject {
     func toggleSnippets() {
         reloadSnippets()
         if showingSnippets || snippets.isEmpty { showingSnippets = false; return }
-        if stage == .inserted { insertion = nil; set(.idle) }
+        if stage == .inserted { insertion = nil; polishing = false; set(.idle) }
         guard stage == .idle else { return }
         notice = nil
         showingSnippets = true
@@ -236,7 +253,7 @@ final class KeyboardModel: ObservableObject {
     /// 10 times a second while something is happening; once a second otherwise (for the session countdown).
     private func retime() {
         guard visible else { return }
-        let want: TimeInterval = (stage == .listening || stage == .writing || stage == .starting) ? 0.1 : 1.0
+        let want: TimeInterval = (stage == .listening || stage == .writing || stage == .starting || polishing) ? 0.1 : 1.0
         guard timer == nil || timerInterval != want else { return }
         stopTimer()
         let t = Timer(timeInterval: want, repeats: true) { [weak self] _ in Task { @MainActor in self?.poll() } }
@@ -260,6 +277,7 @@ final class KeyboardModel: ObservableObject {
         case .listening, .writing: pollDictation(defaults)
         case .idle, .inserted: break
         }
+        if polishing { pollPolish(defaults) }
         retime()
     }
 
@@ -321,10 +339,15 @@ final class KeyboardModel: ObservableObject {
             }
             level = defaults.double(forKey: KeyboardBridge.Key.level)
             elapsed = defaults.double(forKey: KeyboardBridge.Key.elapsed)
+            let settled = defaults.string(forKey: KeyboardBridge.Key.liveSettled) ?? ""
+            let volatile = defaults.string(forKey: KeyboardBridge.Key.liveVolatile) ?? ""
+            if settled != liveSettled { liveSettled = settled }
+            if volatile != liveVolatile { liveVolatile = volatile }
             notice = nil
         case .transcribing:
             set(.writing)
             level = 0
+            clearLive()
         case .done:
             insertResult(d, defaults)
         case .failed:
@@ -347,19 +370,90 @@ final class KeyboardModel: ObservableObject {
         let raw = (defaults.string(forKey: KeyboardBridge.Key.raw) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         dictation = nil
         level = 0
+        clearLive()
         guard !text.isEmpty else {
             notice = "No words were heard."
             set(.idle)
             return
         }
+        // The polished text already arrived (the keyboard was away while it was made): insert that instead.
+        var final = text
+        if defaults.string(forKey: KeyboardBridge.Key.polishedID) == d.uuidString,
+           defaults.string(forKey: KeyboardBridge.Key.polishedInserted)?.trimmingCharacters(in: .whitespacesAndNewlines) == text,
+           let p = defaults.string(forKey: KeyboardBridge.Key.polishedText)?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
+            final = p
+            report(d, "inserted the polished text directly")
+        }
         // A space between your earlier words and the new ones.
         let before = proxy?.documentContextBeforeInput ?? ""
         let lead = (before.last.map { !$0.isWhitespace } ?? false) ? " " : ""
-        let inserted = lead + text
+        let inserted = lead + final
         proxy?.insertText(inserted)
-        insertion = Insertion(inserted: inserted, text: text, raw: raw, words: Self.wordCount(text))
+        insertion = Insertion(inserted: inserted, text: final, raw: raw, words: Self.wordCount(final),
+                              dictation: d, document: proxy?.documentIdentifier, at: Date())
+        polishing = final == text && defaults.string(forKey: KeyboardBridge.Key.polishing) == d.uuidString
         set(.inserted)
         notice = nil
+    }
+
+    // MARK: Polish after inserting
+
+    /// While polishing: swaps in the polished text when it arrives, or stops waiting when the app says none is
+    /// coming, a new dictation starts, or the window passes.
+    private func pollPolish(_ defaults: UserDefaults) {
+        guard let ins = insertion, let d = ins.dictation else { polishing = false; return }
+        if defaults.string(forKey: KeyboardBridge.Key.polishedID) == d.uuidString {
+            polishing = false
+            let sent = (defaults.string(forKey: KeyboardBridge.Key.polishedInserted) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let polished = (defaults.string(forKey: KeyboardBridge.Key.polishedText) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard sent == ins.text else { report(d, "kept: the inserted text isn't the text the polish started from"); return }
+            swapPolished(ins, polished: polished)
+        } else if defaults.string(forKey: KeyboardBridge.Key.polishing) != d.uuidString {
+            // The app finished without a better version (or a newer dictation took over).
+            polishing = false
+        } else if Date().timeIntervalSince(ins.at) > KeyboardBridge.polishWindow {
+            polishing = false
+            report(d, "kept: no polished text within \(Int(KeyboardBridge.polishWindow)) s")
+        }
+    }
+
+    /// Replaces exactly the inserted text with the polished text, only when the field still ends with it at the
+    /// cursor (`KeyboardBridge.polishSwap`). Otherwise your text stays as it is.
+    private func swapPolished(_ ins: Insertion, polished: String) {
+        guard let d = ins.dictation else { return }
+        guard visible, let proxy else { report(d, "kept: the keyboard isn't on screen"); return }
+        let lead = ins.inserted.hasPrefix(" ") && !ins.text.hasPrefix(" ") ? " " : ""
+        let decision = KeyboardBridge.polishSwap(inserted: ins.inserted, polished: lead + polished,
+                                                 before: proxy.documentContextBeforeInput,
+                                                 sameField: ins.document == proxy.documentIdentifier,
+                                                 age: Date().timeIntervalSince(ins.at))
+        switch decision {
+        case .keep(let why):
+            report(d, "kept: " + why)
+        case .replace:
+            deleteBackward(ins.inserted.count)
+            let new = lead + polished
+            proxy.insertText(new)
+            var updated = ins
+            updated.inserted = new
+            updated.text = polished
+            updated.words = Self.wordCount(polished)
+            insertion = updated
+            UISelectionFeedbackGenerator().selectionChanged()
+            report(d, "swapped")
+        }
+    }
+
+    /// Logs what happened to a polished text, here and (through the App Group) in Verbatim's log.
+    private func report(_ d: UUID, _ outcome: String) {
+        Self.log.notice("polish \(d.uuidString, privacy: .public): \(outcome, privacy: .public)")
+        defaults?.set("\(d.uuidString.prefix(8)) " + outcome, forKey: KeyboardBridge.Key.polishOutcome)
+        KeyboardBridge.post(KeyboardBridge.Note.command)
+    }
+
+    private func clearLive() {
+        if !liveSettled.isEmpty { liveSettled = "" }
+        if !liveVolatile.isEmpty { liveVolatile = "" }
     }
 
     private func deleteBackward(_ n: Int) {

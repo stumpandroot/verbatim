@@ -66,9 +66,17 @@ struct KeyboardView: View {
                         .accessibilityHint("Stops waiting for Verbatim")
                 }
             case .inserted:
-                SessionDot(on: model.sessionLive)
-                Text("INSERTED · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "WORD" : "WORDS")")
-                    .font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
+                if model.polishing {
+                    // Polish after inserting: a soft pulse while the cleaned-up version is on its way.
+                    PolishingMark()
+                    Text("POLISHING…")
+                        .font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.8)
+                        .accessibilityLabel("Inserted. Polishing your words")
+                } else {
+                    SessionDot(on: model.sessionLive)
+                    Text("INSERTED · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "WORD" : "WORDS")")
+                        .font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
+                }
                 Spacer(minLength: 6)
                 Chip(title: "Undo") { model.undo() }
                     .accessibilityHint("Removes the inserted words")
@@ -205,11 +213,15 @@ struct KeyboardView: View {
                     if model.stage == .writing {
                         ProgressView().tint(KB.ink).frame(height: 40).accessibilityLabel("Writing it down")
                     } else {
-                        ListeningDots(level: model.level, color: KB.persimmon).frame(height: 40)
+                        ListeningDots(level: model.level, color: KB.persimmon).frame(height: hasLiveWords ? 28 : 40)
                     }
-                    Text(model.stage == .writing ? "Writing it down…" : "Listening · \(model.micName)")
-                        .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
-                        .lineLimit(1).minimumScaleFactor(0.75)
+                    if model.stage == .listening, hasLiveWords {
+                        LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile)
+                    } else {
+                        Text(model.stage == .writing ? "Writing it down…" : "Listening · \(model.micName)")
+                            .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
+                            .lineLimit(1).minimumScaleFactor(0.75)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
@@ -226,6 +238,8 @@ struct KeyboardView: View {
             .accessibilityElement(children: .contain)
         }
     }
+
+    private var hasLiveWords: Bool { !model.liveSettled.isEmpty || !model.liveVolatile.isEmpty }
 
     private var recordTitle: String {
         guard model.sessionLive else { return "Tap to start" }
@@ -269,6 +283,42 @@ struct KeyboardRecordButton: View {
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+}
+
+/// Your words while you talk, as Verbatim's live words hear them: settled words in ink, the newest words (which
+/// may still change) lighter. Two lines, the start cut off as it grows. The text swaps in place, with no
+/// per-character animation, so words land one by one without shimmer.
+private struct LiveWordsLine: View {
+    var settled: String
+    var volatile: String
+
+    var body: some View {
+        let joiner = settled.isEmpty || volatile.isEmpty ? "" : " "
+        (Text(settled).foregroundColor(KB.ink) + Text(joiner + volatile).foregroundColor(KB.muted))
+            .font(.system(size: 15, design: .serif))
+            .lineLimit(2)
+            .truncationMode(.head)
+            .multilineTextAlignment(.center)
+            .contentTransition(.identity)
+            .transaction { $0.animation = nil }
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel(settled + joiner + volatile)
+            .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
+/// The session dot, pulsing softly while Verbatim polishes the inserted text. Still under Reduce Motion.
+private struct PolishingMark: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dim = false
+
+    var body: some View {
+        Circle().fill(KB.persimmon).frame(width: 8, height: 8)
+            .opacity(reduceMotion ? 0.7 : (dim ? 0.3 : 1))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: dim)
+            .onAppear { dim = true }
+            .accessibilityHidden(true)
     }
 }
 

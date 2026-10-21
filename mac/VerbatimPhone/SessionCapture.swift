@@ -53,6 +53,14 @@ final class SessionCapture: @unchecked Sendable {
     private var builtOn = ""
     private var background: UIBackgroundTaskIdentifier = .invalid
     private(set) var running = false
+    /// Live words (`LiveTranscriber.tap`): gets each converted 16 kHz buffer of a dictation, starting with its
+    /// pre-roll. Called on the audio thread, outside `lock`.
+    private var liveTap: (@Sendable (AVAudioPCMBuffer) -> Void)?
+
+    /// Sets or clears the live words tap. Set it before `beginTake` so the pre-roll goes to it too.
+    func setLiveTap(_ tap: (@Sendable (AVAudioPCMBuffer) -> Void)?) {
+        lock.lock(); liveTap = tap; lock.unlock()
+    }
 
     /// The newest buffer's perceptual level (0…1).
     var level: Float { lock.lock(); defer { lock.unlock() }; return lastLevel }
@@ -291,8 +299,19 @@ final class SessionCapture: @unchecked Sendable {
     func beginTake() {
         lock.lock()
         take = preRoll
+        let start = preRoll
         preRoll = []
+        let tap = liveTap
         lock.unlock()
+        if let tap, !start.isEmpty, let b = Self.buffer(start, format: outFormat) { tap(b) }
+    }
+
+    private static func buffer(_ samples: [Float], format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let b = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+              let dst = b.floatChannelData?[0] else { return nil }
+        b.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { src in dst.update(from: src.baseAddress!, count: samples.count) }
+        return b
     }
 
     /// Ends the dictation and hands back its samples.
@@ -357,38 +376,44 @@ final class SessionCapture: @unchecked Sendable {
         let v = min(1, pow(max(0, rms - 0.004) * 6, 0.5))
         let seconds = buffer.format.sampleRate > 0 ? Double(buffer.frameLength) / buffer.format.sampleRate : 0
 
-        lock.lock()
-        defer { lock.unlock() }
-        lastLevel = v
-        buffers += 1
-        zeroSeconds = allZero ? zeroSeconds + seconds : 0
-        if !firstBufferLogged {
-            firstBufferLogged = true
-            let line = "session capture: first buffer \(Self.describe(buffer.format)), \(buffer.frameLength) frames"
-            DispatchQueue.main.async { Log.note(line) }
+        var forward: (tap: @Sendable (AVAudioPCMBuffer) -> Void, buffer: AVAudioPCMBuffer)?
+        do {   // under `lock`; the live words tap is called after it
+            lock.lock()
+            defer { lock.unlock() }
+            lastLevel = v
+            buffers += 1
+            zeroSeconds = allZero ? zeroSeconds + seconds : 0
+            if !firstBufferLogged {
+                firstBufferLogged = true
+                let line = "session capture: first buffer \(Self.describe(buffer.format)), \(buffer.frameLength) frames"
+                DispatchQueue.main.async { Log.note(line) }
+            }
+            // A route change (AirPods out, Bluetooth in) can change the format mid-stream: convert from the new one.
+            if inputFormat == nil || buffer.format.sampleRate != inputFormat!.sampleRate || buffer.format.channelCount != inputFormat!.channelCount {
+                converter = AVAudioConverter(from: buffer.format, to: outFormat)
+                inputFormat = buffer.format
+            }
+            guard let converter else { return }
+            let cap = AVAudioFrameCount(Double(buffer.frameLength) * Self.sampleRate / buffer.format.sampleRate) + 32
+            guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: cap) else { return }
+            var fed = false
+            var err: NSError?
+            _ = converter.convert(to: out, error: &err) { _, status in
+                if fed { status.pointee = .noDataNow; return nil }
+                fed = true; status.pointee = .haveData; return buffer
+            }
+            guard err == nil, out.frameLength > 0, let data = out.floatChannelData?[0] else { return }
+            let samples = UnsafeBufferPointer(start: data, count: Int(out.frameLength))
+            if take != nil {
+                if take!.count < Self.maxTakeSamples { take!.append(contentsOf: samples) }
+                // `out` is a new buffer on every call, so live words may keep it.
+                if let tap = liveTap { forward = (tap, out) }
+            } else {
+                preRoll.append(contentsOf: samples)
+                let excess = preRoll.count - Self.preRollSamples
+                if excess > 0 { preRoll.removeFirst(excess) }
+            }
         }
-        // A route change (AirPods out, Bluetooth in) can change the format mid-stream: convert from the new one.
-        if inputFormat == nil || buffer.format.sampleRate != inputFormat!.sampleRate || buffer.format.channelCount != inputFormat!.channelCount {
-            converter = AVAudioConverter(from: buffer.format, to: outFormat)
-            inputFormat = buffer.format
-        }
-        guard let converter else { return }
-        let cap = AVAudioFrameCount(Double(buffer.frameLength) * Self.sampleRate / buffer.format.sampleRate) + 32
-        guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: cap) else { return }
-        var fed = false
-        var err: NSError?
-        _ = converter.convert(to: out, error: &err) { _, status in
-            if fed { status.pointee = .noDataNow; return nil }
-            fed = true; status.pointee = .haveData; return buffer
-        }
-        guard err == nil, out.frameLength > 0, let data = out.floatChannelData?[0] else { return }
-        let samples = UnsafeBufferPointer(start: data, count: Int(out.frameLength))
-        if take != nil {
-            if take!.count < Self.maxTakeSamples { take!.append(contentsOf: samples) }
-        } else {
-            preRoll.append(contentsOf: samples)
-            let excess = preRoll.count - Self.preRollSamples
-            if excess > 0 { preRoll.removeFirst(excess) }
-        }
+        if let forward { forward.tap(forward.buffer) }
     }
 }
