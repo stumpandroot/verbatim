@@ -74,6 +74,11 @@ enum PhoneUITest {
                 await show("\(prefix)08-moments")
                 app.tab = .settings
                 await show("\(prefix)09-settings")
+                // Settings › Your voice, step 2, with made-up progress (no microphone in the simulator).
+                NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: true)
+                await show("\(prefix)09b-voice-enroll")
+                NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: false)
+                try? await Task.sleep(nanoseconds: 700_000_000)
             }
             app.appearance = "light"
             for i in 0..<3 {

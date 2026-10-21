@@ -25,6 +25,9 @@ struct SettingsScreen: View {
     @State private var showDictionary = false
     @State private var showAboutMe = false
     @State private var showKeyboard = false
+    @State private var showVoice = false
+    @State private var voicePreview = false
+    @ObservedObject private var voice = VoiceProfileStatus.shared
     @State private var exporting = false
     @State private var exportURL: URL? = nil
     @State private var confirmDelete = false
@@ -60,6 +63,12 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
+        .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimShowVoiceProfile)) { note in
+            let open = note.object as? Bool ?? false
+            voicePreview = open
+            showVoice = open
+        }
         .sheet(isPresented: Binding(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
             if let exportURL { ShareSheet(items: [exportURL]) }
         }
@@ -96,11 +105,12 @@ struct SettingsScreen: View {
         }
         .accessibilityElement(children: .combine)
         SettingsDivider()
-        SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings") {
-            SettingsValue("Soon")
+        Button { bump("voice"); voicePreview = false; showVoice = true } label: {
+            SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings", bounce: bumps["voice", default: 0]) {
+                SettingsValue(voice.isEnrolled ? "On" : "Set up"); SettingsChevron()
+            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Not available yet")
+        .buttonStyle(SettingsRowPress())
         SettingsDivider()
         Button { bump("me"); showAboutMe = true } label: {
             SettingsRow(icon: "person", tint: Ink.petalTint, art: .iconAboutMe, title: "About me", subtitle: "Context for titles and summaries", bounce: bumps["me", default: 0]) {

@@ -83,6 +83,7 @@ struct SettingsView: View {
                 Text("Only words listed under “Heard as” are replaced, and every fix shows on the transcript.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
+            Section("Your voice") { VoiceProfileSection() }
             Section {
                 Toggle("Name and sort recordings", isOn: $autoLabels)
                 Text("Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.")
