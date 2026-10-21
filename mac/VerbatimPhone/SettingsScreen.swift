@@ -85,6 +85,9 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
+        // Home's avatar opens About me, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
+        .onAppear { openRequestedPage() }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettingsPage)) { _ in openRequestedPage() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimShowVoiceProfile)) { note in
             let open = note.object as? Bool ?? false
             voicePreview = open
@@ -406,6 +409,14 @@ struct SettingsScreen: View {
     }
 
     private func bump(_ key: String) { bumps[key, default: 0] += 1 }
+
+    private func openRequestedPage() {
+        switch SettingsPage.take() {
+        case "aboutMe"?: showAboutMe = true
+        case "keyboard"?: showKeyboard = true
+        default: break
+        }
+    }
 
     /// A search result was chosen: clear the search, then push its subpage, or scroll to its row and flash it.
     private func pickSearchResult(_ entry: SettingsSearchEntry, _ proxy: ScrollViewProxy) {
