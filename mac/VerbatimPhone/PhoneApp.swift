@@ -64,7 +64,7 @@ struct PhoneRoot: View {
             Button("Cancel", role: .cancel) { newProjectName = "" }
             Button("Create") {
                 let n = newProjectName.trimmingCharacters(in: .whitespaces)
-                if !n.isEmpty, let id = app.newProjectFor { app.move(id, to: app.store.addProject(n).id); app.say("Moved to \(n)") }
+                if !n.isEmpty, let id = app.newProjectFor { app.addToProject([id], app.store.addProject(n).id) }
                 newProjectName = ""
             }
         } message: { Text("The transcript moves into it.") }

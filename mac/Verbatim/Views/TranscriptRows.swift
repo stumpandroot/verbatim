@@ -147,11 +147,21 @@ struct RowMenu: View {
     var body: some View {
         Button("Open") { app.go(.transcript(transcript.id)) }
         Button(transcript.pinned ? "Unpin" : "Pin") { app.store.update(transcript.id) { $0.pinned.toggle() } }
-        if !app.store.projects.isEmpty {
-            Menu("Move to project") {
-                Button("No project") { app.store.update(transcript.id) { $0.projectId = nil } }
-                ForEach(app.store.projects) { p in Button(p.name) { app.store.update(transcript.id) { $0.projectId = p.id } } }
+        Menu("Add to project") {
+            // One project at a time: choosing another moves it there (the current one has a checkmark).
+            ForEach(app.store.projects) { p in
+                if transcript.projectId == p.id {
+                    Button { } label: { Label(p.name, systemImage: "checkmark") }.disabled(true)
+                } else {
+                    Button(p.name) { app.addToProject([transcript.id], p.id) }
+                }
             }
+            if let current = transcript.projectId, let name = app.store.projects.first(where: { $0.id == current })?.name {
+                Divider()
+                Button("Remove from \(name)") { app.move([transcript.id], to: nil) }
+            }
+            if !app.store.projects.isEmpty { Divider() }
+            Button("New project…") { app.newProjectFor = [transcript.id] }
         }
         if transcript.status == .ready { Button("Export…") { app.exportRequest = ExportRequest(ids: [transcript.id]) } }
         if transcript.status == .failed { Button("Retry transcription") { app.retry(transcript) } }

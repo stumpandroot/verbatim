@@ -14,7 +14,12 @@ struct LibraryView: View {
 
     var body: some View {
         // `filtered` searches every transcript's text; work it out once per render.
-        let all = app.archive   // no dictations unless searching; they live in Dictations
+        let base = app.filtered
+        let searching = !app.search.trimmingCharacters(in: .whitespaces).isEmpty
+        let typeFilter = app.libraryFilter
+        // Dictations stay out unless you're searching or chose Dictations; they live in Dictations.
+        let all = typeFilter.apply(base, searching: searching)
+        let byKind = kind.map { k in base.filter { $0.kind == k } } ?? base
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
         let groups = Store.group(list)
         let order = groups.flatMap { $0.items.map(\.id) }
@@ -32,13 +37,23 @@ struct LibraryView: View {
                             }
                             .buttonStyle(.bordered).keyboardShortcut(selecting ? .cancelAction : .init("s", modifiers: [.command, .shift]))
                         }
+                        if let p = app.projectFilter {
+                            Button { app.addFromLibrary = p } label: { Label("Add from Library…", systemImage: "tray.and.arrow.down") }
+                                .buttonStyle(.bordered).keyboardShortcut("l", modifiers: [.command, .shift])
+                                .help("Add transcripts you already have to this project (⇧⌘L)")
+                                .uiTarget("add-from-library")
+                        }
                         Button { app.chooseFiles() } label: { Label("Import", systemImage: "plus") }.buttonStyle(.bordered)
+                            .help(app.projectFilter == nil ? "Import audio or video files" : "Import audio or video files into this project")
                     }
                     .staggerIn(0).padding(.bottom, 6)
                     if !selecting && !app.store.projects.isEmpty {
                         Text("Drag a transcript onto a project in the sidebar to file it.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                     }
                     kindChips(all).padding(.top, 12).staggerIn(1)
+                    LibraryFilterBar(filter: Binding(get: { app.libraryFilter }, set: { app.libraryFilter = $0 }),
+                                     items: byKind, searching: searching, wraps: true, shortcuts: true) { selection = [] }
+                        .padding(.top, 8).staggerIn(1)
                     if let k = kind {
                         KindHeroCard(kind: k, meta: heroMeta(k, list), compact: true).frame(maxWidth: 760).padding(.top, 16)
                     }
@@ -48,7 +63,13 @@ struct LibraryView: View {
                     if groups.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             if app.search.isEmpty { IconPlate(art: .iconLibrary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
-                            Text(app.search.isEmpty ? "Nothing in here yet." : "Nothing found for “\(app.search)”.").font(.system(size: 14)).foregroundStyle(Ink.mute)
+                            Text(!app.search.isEmpty ? "Nothing found for “\(app.search)”."
+                                 : typeFilter != .all ? "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label)."
+                                 : app.projectFilter != nil ? "Nothing in this project yet. Add transcripts from your library or import files."
+                                 : "Nothing in here yet.").font(.system(size: 14)).foregroundStyle(Ink.mute)
+                            if app.search.isEmpty, typeFilter != .all {
+                                Button("Show all") { app.libraryFilter = .all }.buttonStyle(.bordered)
+                            }
                         }
                         .padding(.top, 30).staggerIn(1)
                     }

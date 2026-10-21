@@ -48,6 +48,8 @@ final class PhoneState: ObservableObject {
     @Published var autoPauseReason: String? = nil
     /// Set to open Library on a kind's raw value, or "all" (the screenshot tour uses it); the Library screen clears it.
     @Published var libraryFilterRequest: String? = nil
+    /// The Add from Library sheet, open for this project (from a project's Library view, or the screenshot tour).
+    @Published var addFromLibrary: UUID? = nil
     /// The one-time recording-consent notice, shown before the first recording on this iPhone.
     @Published var showConsentNotice = false
     static let consentNoticeKey = "consent.noticeShown"
@@ -565,6 +567,14 @@ final class PhoneState: ObservableObject {
     func restore(_ id: UUID) { store.restore(id); say("Restored") }
     func purge(_ id: UUID) { if let t = store.transcript(id) { store.delete(t) } }
     func move(_ id: UUID, to project: UUID?) { store.update(id) { $0.projectId = project } }
+    /// Adds Library transcripts to a project (Add from Library, Add to project). One project at a time: a transcript
+    /// from another project moves. Saves through the Store, so iCloud carries it to the Mac.
+    func addToProject(_ ids: [UUID], _ project: UUID) {
+        let plan = ProjectAdd.plan(ids, in: store.transcripts, to: project)
+        guard !plan.isEmpty, let name = store.projects.first(where: { $0.id == project })?.name else { return }
+        for id in plan.keys { store.update(id) { $0.projectId = project } }
+        say(plan.count == 1 ? "Added to \(name)" : "Added \(plan.count) to \(name)")
+    }
     func togglePin(_ id: UUID) { store.update(id) { $0.pinned.toggle() } }
     /// Renames a speaker everywhere in the transcript. Any name works (first and last, underscores); blank keeps the old one.
     func renameSpeaker(_ id: UUID, speaker sid: String, to name: String) {

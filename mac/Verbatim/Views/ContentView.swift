@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var app: AppState
     @Environment(\.openSettings) private var openSettings
     @State private var sidebarOpen = true
+    @State private var newProjectName = ""
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
@@ -55,6 +56,18 @@ struct ContentView: View {
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .sheet(item: $app.multitrackDraft) { d in MultitrackSheet(draft: d).environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in ExportSheet(ids: r.ids).environmentObject(app) }
+        .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
+            if let p = app.addFromLibrary { AddFromLibrarySheet(project: p).environmentObject(app) }
+        }
+        .alert("New project", isPresented: Binding(get: { app.newProjectFor != nil }, set: { if !$0 { app.newProjectFor = nil } })) {
+            TextField("Project name", text: $newProjectName)
+            Button("Cancel", role: .cancel) { newProjectName = "" }
+            Button("Create") {
+                let n = newProjectName.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty, let ids = app.newProjectFor { app.addToProject(ids, app.store.addProject(n).id) }
+                newProjectName = ""
+            }
+        } message: { Text("The transcript joins the new project.") }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }

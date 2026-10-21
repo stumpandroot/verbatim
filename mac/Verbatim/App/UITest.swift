@@ -180,6 +180,20 @@ enum UITest {
         app.libraryKind = .idea
         await show("05i-library-ideas")
         app.libraryKind = nil
+        // Type and platform chips: Links, broken down by site.
+        app.libraryFilter = LibraryFilter(source: .links)
+        await show("05k-library-links-filter")
+        app.libraryFilter = .all
+        // A project's Library with Add from Library open (the seeded transcripts; nothing is added).
+        if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
+            app.projectFilter = project.id; app.go(.library)
+            await show("05l-project-library")
+            app.addFromLibrary = project.id
+            await show("05m-add-from-library")
+            app.addFromLibrary = nil
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            app.projectFilter = nil
+        }
         app.go(.queue)
         await show("05b-queue")
         // The "link added" card with made-up data (the tour never touches the network).
@@ -596,6 +610,8 @@ enum UITest {
         check("captions: a finished sentence becomes a line", feed.history.map(\.text) == ["Hello there."] && feed.current.first?.text == "How are you")
         feed.update("a", words: LiveWords(settled: "Hello there. How are you?", volatile: ""))
         check("captions: the current line finishes", feed.history.map(\.text) == ["Hello there.", "How are you?"] && feed.current.isEmpty)
+        // Library type and platform filters, and Add from Library (shared with the iPhone's self-test).
+        LibraryFilterChecks.run { check("library: " + $0, $1) }
         let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
         check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
 

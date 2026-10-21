@@ -72,20 +72,8 @@ enum LinkFetcher {
                        pageURL: part(3), site: part(4).map(siteName), uploadDate: part(5), thumbnail: part(6))
     }
 
-    /// yt-dlp's extractor key ("Youtube", "Vimeo", "TwitchVod") as people say it.
-    static func siteName(_ key: String) -> String {
-        let k = key.lowercased()
-        if k.hasPrefix("youtube") { return "YouTube" }
-        if k.hasPrefix("vimeo") { return "Vimeo" }
-        if k.hasPrefix("twitch") { return "Twitch" }
-        if k.hasPrefix("twitter") || k == "x" { return "X" }
-        if k.hasPrefix("instagram") { return "Instagram" }
-        if k.hasPrefix("tiktok") { return "TikTok" }
-        if k.hasPrefix("facebook") { return "Facebook" }
-        if k.hasPrefix("rumble") { return "Rumble" }
-        if k.hasPrefix("soundcloud") { return "SoundCloud" }
-        return key
-    }
+    /// yt-dlp's extractor key ("Youtube", "Vimeo", "TwitchVod") as people say it (the shared `Platform` mapping).
+    static func siteName(_ key: String) -> String { Platform.name(key) ?? key }
 
     /// Saves the page's thumbnail beside the transcripts. Best effort; no thumbnail is fine.
     static func saveThumbnail(_ remote: String, as name: String) async -> String? {
