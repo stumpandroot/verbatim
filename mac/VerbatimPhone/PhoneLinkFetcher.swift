@@ -403,10 +403,7 @@ enum PhoneLinkFetcher {
     /// The site as people say it.
     static func siteName(_ u: URL) -> String {
         let host = (u.host ?? "").lowercased().replacingOccurrences(of: "www.", with: "")
-        if host.contains("youtu") { return "YouTube" }
-        if host.contains("vimeo") { return "Vimeo" }
-        if host == "podcasts.apple.com" { return "Apple Podcasts" }
-        return host
+        return Platform.name(host) ?? host
     }
 
     private static func titleFromPath(_ u: URL) -> String? {

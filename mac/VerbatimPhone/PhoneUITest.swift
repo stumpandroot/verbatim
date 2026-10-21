@@ -12,6 +12,7 @@ enum PhoneUITest {
     static func run(_ app: PhoneState) {
         seed(app)
         keyboardChecks()
+        libraryChecks()
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             for (prefix, mode) in [("p", "light"), ("d", "dark")] {
@@ -70,6 +71,13 @@ enum PhoneUITest {
                 await show("\(prefix)04b-library-journal")
                 app.libraryFilterRequest = "idea"
                 await show("\(prefix)04c-library-ideas")
+                // Add from Library on the seeded project (made-up transcripts; nothing is added).
+                if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
+                    app.addFromLibrary = project.id
+                    await show("\(prefix)04e-add-from-library")
+                    app.addFromLibrary = nil
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                }
                 if let walk = app.store.live.first(where: { $0.title == "Errands and a long walk" }) {
                     UserDefaults.standard.set(true, forKey: Transcript.mainSpeakerOnlyKey)
                     app.libraryPath.append(walk.id)
@@ -155,6 +163,16 @@ enum PhoneUITest {
     private static func write(_ name: String) {
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("show.txt")
         try? (name + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).
+    static func libraryChecks() {
+        var pass = 0, fail = 0
+        LibraryFilterChecks.run { name, ok in
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") library: \(name)")
+        }
+        Log.note("UITEST library checks: \(pass) passed, \(fail) failed")
     }
 
     /// The keyboard's first-tap logic, which a simulator can't exercise end to end (it can't run keyboards):

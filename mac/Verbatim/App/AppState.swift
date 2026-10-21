@@ -36,6 +36,16 @@ final class AppState: ObservableObject {
     @Changed var projectFilter: UUID? = nil
     /// Library › kind chips: nil is All.
     @Changed var libraryKind: RecordingKind? = nil
+    /// Library › type and platform chips, remembered on this Mac ("videos|YouTube"). See LibraryFilter.
+    @Changed(LibraryFilter.libraryKey) var libraryFilterRaw = "all"
+    var libraryFilter: LibraryFilter {
+        get { LibraryFilter(raw: libraryFilterRaw) }
+        set { libraryFilterRaw = newValue.raw }
+    }
+    /// The Add from Library sheet, open for this project.
+    @Changed var addFromLibrary: UUID? = nil
+    /// "New project…" from a row's Add to project menu: these transcripts join the project once it's named.
+    @Changed var newProjectFor: [UUID]? = nil
     @Changed var focusLink = false
     @Changed var showMicSheet = false
     @Changed var showAppPicker = false

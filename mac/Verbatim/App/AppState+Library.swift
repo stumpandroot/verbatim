@@ -11,6 +11,20 @@ extension AppState {
         Sounds.play("Tink")
     }
 
+    /// Adds Library transcripts to a project. A transcript is in one project at a time, so one from another project
+    /// moves. Saves through the Store like every edit (iCloud carries it to the iPhone); Undo puts each one back.
+    func addToProject(_ ids: [UUID], _ project: UUID) {
+        let plan = ProjectAdd.plan(ids, in: store.transcripts, to: project)
+        guard !plan.isEmpty, let name = store.projects.first(where: { $0.id == project })?.name else { return }
+        for id in plan.keys { store.update(id) { $0.projectId = project } }
+        let n = plan.count, moved = ProjectAdd.moves(plan).count
+        let what = n == 1 ? "1 transcript" : "\(n) transcripts"
+        toast = Toast(moved == 0 ? "Added \(what) to \(name)" : "Added \(what) to \(name), \(moved) from other projects", action: "Undo") { [weak self] in
+            for (id, previous) in plan { self?.store.update(id) { $0.projectId = previous } }
+        }
+        Sounds.play("Tink")
+    }
+
     func delete(_ ids: [UUID]) {
         // Moves to Recently Deleted (kept 30 days). Undo puts them straight back.
         for id in ids { coordinator.cancelIfActive(id); store.moveToTrash(id) }

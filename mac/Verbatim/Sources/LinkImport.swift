@@ -74,10 +74,7 @@ extension LinkImport {
     /// The site as people say it, from the link alone.
     nonisolated static func siteName(_ u: URL) -> String {
         let host = (u.host ?? "").lowercased().replacingOccurrences(of: "www.", with: "")
-        if host.contains("youtu") { return "YouTube" }
-        if host.contains("vimeo") { return "Vimeo" }
-        if host == "podcasts.apple.com" { return "Apple Podcasts" }
-        return host
+        return Platform.name(host) ?? host
     }
 
     /// A still from a downloaded video file (a direct link to an MP4 or MOV), saved into Paths.thumbs as a JPEG.

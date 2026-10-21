@@ -1,28 +1,32 @@
 import SwiftUI
 
-/// Every transcript, searchable, with filter chips for pinned, links, in progress, and each project.
+/// Every transcript, searchable, with filter chips for pinned, in progress, and each project, plus the shared type
+/// and platform chips (LibraryFilterBar). A project's view adds transcripts from the rest of the library.
 struct LibraryScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var search = ""
     @State private var filter: Filter = .all
+    /// Type and platform chips, remembered on this iPhone.
+    @State private var typeFilter = LibraryFilter.saved(LibraryFilter.libraryKey)
     @State private var newProject = false
     @State private var projectName = ""
     /// Rows rise in once; the first screenful staggers when you switch to Library.
     @State private var seen = SeenRows()
     @State private var entrance = 0
 
-    enum Filter: Hashable { case all, pinned, links, working, project(UUID), kind(RecordingKind) }
+    enum Filter: Hashable { case all, pinned, working, project(UUID), kind(RecordingKind) }
 
-    private var items: [Transcript] {
+    private var searching: Bool { !search.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    /// The chip filter and the search, before the type chips (which count over this). Dictations are included here;
+    /// `LibraryFilter.apply` leaves them out unless you're searching or chose Dictations.
+    private var scoped: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
         return app.store.live.filter { t in
-            // Dictations live in their own list; search still finds them (rows say "Dictation").
-            if q.isEmpty && t.isDictation { return false }
             let f: Bool = {
                 switch filter {
                 case .all: return true
                 case .pinned: return t.pinned
-                case .links: return t.linkInfo != nil || t.source == .link
                 case .working: return t.status == .processing
                 case .project(let p): return t.projectId == p
                 case .kind(let k): return t.kind == k
@@ -38,8 +42,10 @@ struct LibraryScreen: View {
     }
 
     var body: some View {
-        // `items` searches every transcript's text; work it out once per render.
-        let items = self.items
+        // `scoped` searches every transcript's text; work it out once per render.
+        let scoped = self.scoped
+        let items = typeFilter.apply(scoped, searching: searching)
+        let project: UUID? = { if case .project(let p) = filter { return p }; return nil }()
         let heroKind: RecordingKind? = { if case .kind(let k) = filter { return k }; return nil }()
         List {
             Section {
@@ -48,7 +54,6 @@ struct LibraryScreen: View {
                         chip("All", .all)
                         ForEach(RecordingKind.pickable) { k in chip(k.plural, .kind(k)) }
                         chip("Pinned", .pinned)
-                        chip("Links", .links)
                         chip("In progress", .working)
                         ForEach(app.store.projects) { p in
                             chip(p.name, .project(p.id))
@@ -67,8 +72,32 @@ struct LibraryScreen: View {
                     .padding(.horizontal, 20)
                 }
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                LibraryFilterBar(filter: $typeFilter, items: scoped, searching: searching, wraps: false) {
+                    typeFilter.save(LibraryFilter.libraryKey)
+                }
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0)).listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
-            if filter == .all, search.isEmpty, !dictations.isEmpty {
+            if let p = project {
+                Section {
+                    Button { app.addFromLibrary = p } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "tray.and.arrow.down").font(.system(size: 15, weight: .semibold))
+                            Text("Add from Library").font(.system(size: 15, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                        }
+                        .foregroundStyle(Ink.ink)
+                        .padding(.horizontal, 14).frame(minHeight: 48)
+                        .cardSurface(radius: 14)
+                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(SoftPress())
+                    .accessibilityHint("Adds transcripts you already have to this project")
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
+            }
+            if filter == .all, search.isEmpty, typeFilter == .all, !dictations.isEmpty {
                 Section {
                     NavigationLink(value: DictationsRoute()) { DictationsCard(dictations: dictations) }
                         .buttonStyle(SoftPress())
@@ -104,7 +133,10 @@ struct LibraryScreen: View {
                 if items.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         if search.isEmpty { IconPlate(art: .iconLibrary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
-                        Text(search.isEmpty ? "Nothing here yet." : "Nothing matches “\(search)”.").font(.system(size: 15)).foregroundStyle(Ink.dim)
+                        Text(!search.isEmpty ? "Nothing matches “\(search)”."
+                             : typeFilter != .all ? "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label)."
+                             : project != nil ? "Nothing in this project yet. Add transcripts from your library."
+                             : "Nothing here yet.").font(.system(size: 15)).foregroundStyle(Ink.dim)
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
@@ -143,6 +175,9 @@ struct LibraryScreen: View {
             guard let r else { return }
             filter = RecordingKind(rawValue: r).map { .kind($0) } ?? .all
             app.libraryFilterRequest = nil
+        }
+        .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
+            if let p = app.addFromLibrary { PhoneAddFromLibrarySheet(project: p).environmentObject(app) }
         }
         .alert("New project", isPresented: $newProject) {
             TextField("Name", text: $projectName)
