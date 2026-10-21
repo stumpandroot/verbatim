@@ -7,10 +7,11 @@ import UIKit
 ///
 /// A *session* keeps the microphone open and the speech model loaded so the keyboard can dictate without
 /// switching apps. It starts when the keyboard opens `verbatim://session?start=1…` (the app comes forward for
-/// under a second, then switches back to the app you came from), and ends after an idle timeout, from the Live
-/// Activity or Settings › Keyboard, or for a call. Each dictation is marked in the running capture, transcribed
-/// straight away with the warm model (not through the transcription queue), handed to the keyboard, and then
-/// saved as a dictation in Library › Dictations.
+/// under a second, then switches back to the app you came from). With Start dictating when you come back on, the
+/// link names a dictation too, and the app begins it as soon as the microphone is on. The session ends after an
+/// idle timeout, from the Live Activity or Settings › Keyboard, or for a call. Each dictation is marked in the
+/// running capture, transcribed straight away with the warm model (not through the transcription queue), handed
+/// to the keyboard, and then saved as a dictation in Library › Dictations.
 @MainActor
 final class KeyboardSession: ObservableObject {
     enum Stage: Equatable {
@@ -48,6 +49,10 @@ final class KeyboardSession: ObservableObject {
     private var handled: Set<UUID> = []
     private var host: String?
     private var request: UUID?
+    /// The dictation the keyboard's first tap asked for (Start dictating when you come back), until it begins.
+    private var firstTapDictation: UUID?
+    /// When a first-tap dictation began, until a keyboard shows it; it stops after `unseenTakeLimit` without one.
+    private var unseenSince: Date?
     private var observing = false
     private var observers: [NSObjectProtocol] = []
     private var activity: Activity<VerbatimSessionAttributes>?
@@ -72,17 +77,22 @@ final class KeyboardSession: ObservableObject {
     @discardableResult
     func handle(_ url: URL) -> Bool {
         guard let link = KeyboardBridge.sessionLink(in: url) else { return false }
-        start(request: link.request, host: link.host)
+        start(request: link.request, host: link.host, dictation: link.dictation)
         return true
     }
 
-    func start(request r: UUID?, host h: String?) {
+    func start(request r: UUID?, host h: String?, dictation d: UUID? = nil) {
         guard let app else { return }
         request = r
         host = h
+        firstTapDictation = d
+        let hostNote = h.map { "names the host app " + $0 } ?? "names no host app (the keyboard couldn't read it)"
+        let dictationNote = d == nil ? "" : ", starts a dictation"
+        Log.note("keyboard session: link " + hostNote + dictationNote)
         observe()
         if stage == .on {
-            // Already on (a second tap, or a keyboard that missed the heartbeat): just go back.
+            // Already on (a second tap, or a keyboard that missed the heartbeat): start the dictation, then go back.
+            beginFirstTapDictation()
             answer(ok: true)
             goBack()
             return
@@ -117,9 +127,12 @@ final class KeyboardSession: ObservableObject {
             let s = AVAudioSession.sharedInstance()
             // Mixes with other audio, so a session doesn't stop your music or podcast.
             try s.setCategory(.playAndRecord, mode: .spokenAudio, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
+            // No pinned input from an earlier recording: the system's current microphone (AirPods when they're in,
+            // the iPhone's otherwise), and the capture follows it when that changes.
+            try? s.setPreferredInput(nil)
             try s.setActive(true)
-            capture.onFailure = { [weak self] in
-                MainActor.assumeIsolated { self?.end(reason: "The microphone stopped. Tap to start a new session.") }
+            capture.onFailure = { [weak self] message in
+                MainActor.assumeIsolated { self?.captureFailed(message) }
             }
             try capture.start()
         } catch {
@@ -133,8 +146,12 @@ final class KeyboardSession: ObservableObject {
         }
         stage = .on
         lastActivity = Date()
+        // A start command left from before this launch isn't for this session.
+        if let old = KeyboardBridge.uuid(KeyboardBridge.Key.startID), old != firstTapDictation { handled.insert(old) }
         touch()
         writeSession()
+        // Listening before the keyboard hears the session is on, so it shows the dictation the moment you're back.
+        beginFirstTapDictation()
         answer(ok: true)
         startHeartbeat()
         startActivity()
@@ -183,14 +200,41 @@ final class KeyboardSession: ObservableObject {
 
     // MARK: Going back to your app
 
-    /// Switches back to the app the keyboard was in. If that isn't possible (no bundle ID, or iOS refused), the
-    /// screen tells you to swipe back. Never blocks.
-    private func goBack() {
-        guard let h = host, Self.returnToHostApp(bundleID: h) else { showManualReturn(); return }
-        // iOS said yes but Verbatim is still in front a moment later: fall back to the swipe.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self, self.stage == .on, UIApplication.shared.applicationState == .active, self.showScreen else { return }
-            self.showManualReturn()
+    /// Begins the dictation the keyboard's first tap asked for, unless the keyboard cancelled it meanwhile or it
+    /// already began. Includes the pre-roll, so words said as Verbatim switches back are kept.
+    private func beginFirstTapDictation() {
+        guard let d = firstTapDictation else { return }
+        firstTapDictation = nil
+        guard stage == .on, KeyboardBridge.autoStart, current != d, !handled.contains(d),
+              KeyboardBridge.uuid(KeyboardBridge.Key.cancelID) != d else { return }
+        Log.note("keyboard session: first tap starts the dictation; listening before switching back")
+        beginDictation(d, firstTap: true)
+    }
+
+    /// Switches back to the app the keyboard was in. If that isn't possible, the screen tells you how to go back
+    /// yourself. Never blocks. The breadcrumb iOS uses for "◀ <app>" can appear a moment after Verbatim comes
+    /// forward, so a miss is retried a few times before the screen shows.
+    private func goBack(attempt: Int = 1) {
+        let result = Self.returnToHostApp(linkHost: host)
+        switch result {
+        case .opened(let id, let source):
+            Log.note("keyboard session: switched back to \(id) (host from \(source))")
+            // iOS said yes but Verbatim is still in front a moment later: fall back to the manual screen.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, self.stage == .on, UIApplication.shared.applicationState == .active, self.showScreen else { return }
+                Log.note("keyboard session: still in front 1.5 s after opening \(id); showing the way back")
+                self.showManualReturn()
+            }
+        case .failed(let why, let retry):
+            if retry, attempt < 4 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                    guard let self, self.stage == .on, UIApplication.shared.applicationState == .active else { return }
+                    self.goBack(attempt: attempt + 1)
+                }
+                return
+            }
+            Log.note("keyboard session: can't switch back by itself (\(why)); showing the way back")
+            showManualReturn()
         }
     }
 
@@ -199,24 +243,82 @@ final class KeyboardSession: ObservableObject {
         showScreen = true
     }
 
-    /// Opens the app with `bundleID` (the app you were typing in).
+    enum ReturnResult: Equatable {
+        /// iOS accepted the request to open `bundleID`; `source` says where the ID came from.
+        case opened(bundleID: String, source: String)
+        /// Nothing was opened; `retry` when the host app isn't known yet and may be in a moment.
+        case failed(String, retry: Bool)
+    }
+
+    // MARK: Private API seam (the only place the app uses undocumented iOS interfaces)
+
+    /// Opens the app you were typing in.
     ///
-    /// App Review risk: this calls the private `LSApplicationWorkspace.openApplicationWithBundleID:` through the
-    /// Objective-C runtime. There is no public API that opens another app by bundle ID. Apple can reject a build
-    /// that uses it under guideline 2.5.1 (public APIs only), and an iOS release can make it fail or return false.
-    /// Everything that depends on it goes through this one function; returning false shows the "swipe right along
-    /// the bottom edge" screen instead, so deleting the body (`return false`) is a safe App Store fallback.
-    static func returnToHostApp(bundleID: String) -> Bool {
-        guard !PhoneUITest.enabled,
-              let cls = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type else { return false }
+    /// Where the host app's bundle ID comes from, in order:
+    /// 1. `linkHost`: the keyboard read it (`KeyboardViewController.hostBundleID()`). iOS has returned nil there
+    ///    since iOS 18 in most reports, and on iOS 26.4 and later every known key returns nil or `<null>`.
+    /// 2. The status bar breadcrumb ("◀ Messages") that iOS shows when another app opened Verbatim. UIKit keeps it
+    ///    on the app's `UIApplication` as `_systemNavigationAction`, a `UISystemNavigationAction` with
+    ///    `destinations` and `bundleIdForDestination:` (see the Apple Wiki "Dev:Breadcrumbs" page and the
+    ///    Homemade-Bread tweak's header). Whether iOS 26.4 and later redacts it here is unverified; the log says.
+    ///
+    /// It then opens that app with `LSApplicationWorkspace.openApplicationWithBundleID:`, because there's no
+    /// public API that opens another app by bundle ID, or returns to the app that opened yours (Apple DTS
+    /// confirmed both on the Apple Developer Forums, thread 826851).
+    ///
+    /// App Review risk: high. Both calls are undocumented, made through the Objective-C runtime after
+    /// `responds(to:)` checks, so a missing selector fails safely instead of crashing. A reviewer can reject the
+    /// build under guideline 2.5.1 (public APIs only), and any iOS release can make them fail. Everything that
+    /// depends on them goes through this one function: making it return `.failed("disabled", retry: false)` keeps
+    /// the app working, with the manual screen ("Tap ◀ <app> at the top left").
+    static func returnToHostApp(linkHost: String?) -> ReturnResult {
+        guard !PhoneUITest.enabled else { return .failed("UI test", retry: false) }
+        var target: (id: String, source: String)?
+        if let h = linkHost { target = (h, "the keyboard") }
+        else if let crumb = breadcrumbHostBundleID() { target = (crumb.id, "the back breadcrumb " + (crumb.title ?? "(no title)")) }
+        guard let target else { return .failed("no host bundle ID from the keyboard or the back breadcrumb", retry: true) }
+        guard let cls = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type else { return .failed("LSApplicationWorkspace is missing", retry: false) }
         let workspaceSel = NSSelectorFromString("defaultWorkspace")
         guard cls.responds(to: workspaceSel),
-              let workspace = cls.perform(workspaceSel)?.takeUnretainedValue() as? NSObject else { return false }
+              let workspace = cls.perform(workspaceSel)?.takeUnretainedValue() as? NSObject else { return .failed("no default workspace", retry: false) }
         let openSel = NSSelectorFromString("openApplicationWithBundleID:")
-        guard workspace.responds(to: openSel) else { return false }
+        guard workspace.responds(to: openSel) else { return .failed("openApplicationWithBundleID: is missing", retry: false) }
         typealias Open = @convention(c) (AnyObject, Selector, NSString) -> Bool
         let open = unsafeBitCast(workspace.method(for: openSel), to: Open.self)
-        return open(workspace, openSel, bundleID as NSString)
+        guard open(workspace, openSel, target.id as NSString) else {
+            return .failed("iOS refused to open \(target.id) (host from \(target.source))", retry: false)
+        }
+        return .opened(bundleID: target.id, source: target.source)
+    }
+
+    /// The app the status bar's back breadcrumb leads to, and its title, when iOS shows one. Part of the seam above.
+    private static func breadcrumbHostBundleID() -> (id: String, title: String?)? {
+        let app = UIApplication.shared
+        let actionSel = NSSelectorFromString("_systemNavigationAction")
+        guard app.responds(to: actionSel), let action = app.perform(actionSel)?.takeUnretainedValue() as? NSObject else {
+            Log.note("keyboard session: no back breadcrumb")
+            return nil
+        }
+        let destinationsSel = NSSelectorFromString("destinations")
+        if action.responds(to: destinationsSel) {
+            let destinations = action.perform(destinationsSel)?.takeUnretainedValue() as? NSArray
+            guard (destinations?.count ?? 0) > 0 else { Log.note("keyboard session: back breadcrumb has no destinations"); return nil }
+        }
+        typealias ForDestination = @convention(c) (AnyObject, Selector, UInt32) -> Unmanaged<AnyObject>?
+        func string(_ name: String) -> String? {
+            let sel = NSSelectorFromString(name)
+            guard action.responds(to: sel) else { return nil }
+            let call = unsafeBitCast(action.method(for: sel), to: ForDestination.self)
+            guard let s = call(action, sel, 0)?.takeUnretainedValue() as? String else { return nil }
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty || t == "<null>" ? nil : t
+        }
+        let title = string("titleForDestination:")
+        guard let id = string("bundleIdForDestination:"), id != Bundle.main.bundleIdentifier else {
+            Log.note("keyboard session: back breadcrumb " + (title ?? "(no title)") + " gives no bundle ID")
+            return nil
+        }
+        return (id, title)
     }
 
     // MARK: Dictation (no app switch)
@@ -268,10 +370,11 @@ final class KeyboardSession: ObservableObject {
         }
     }
 
-    private func beginDictation(_ id: UUID) {
+    private func beginDictation(_ id: UUID, firstTap: Bool = false) {
         if current != nil { cancelDictation() }
         handled.insert(id)
         current = id
+        unseenSince = firstTap ? Date() : nil
         capture.beginTake()
         // Apple's model loads while you talk, so cleanup starts warm (one prewarmed session serves one dictation).
         FlowCleanup.prewarm(level: PhoneDictation.level)
@@ -299,17 +402,28 @@ final class KeyboardSession: ObservableObject {
         KeyboardBridge.post(KeyboardBridge.Note.state)
         checkCommands()
         if dictating, seconds >= KeyboardBridge.maxSeconds { finishDictation() }
+        // A first-tap dictation nobody came back to: stop listening after a minute.
+        if dictating, let since = unseenSince, let id = current {
+            if KeyboardBridge.uuid(KeyboardBridge.Key.seenID) == id {
+                unseenSince = nil
+            } else if KeyboardBridge.shouldStopUnseenTake(startedAt: since, seen: false, now: Date()) {
+                Log.note("keyboard session: no keyboard showed the first-tap dictation within \(Int(KeyboardBridge.unseenTakeLimit)) s; stopping it")
+                cancelDictation(message: "Verbatim stopped listening because you didn't come back within a minute. Tap the record button to dictate.")
+            }
+        }
     }
 
-    private func cancelDictation() {
+    /// Cancels the dictation. With a message, the keyboard shows it (as a failure) instead of going quietly idle.
+    private func cancelDictation(message: String? = nil) {
         guard let id = current else { return }
         capture.cancelTake()
+        unseenSince = nil
         current = nil
         dictating = false
         meter?.invalidate(); meter = nil
         lastActivity = Date()
         touch()
-        write(.cancelled, for: id)
+        if let message { write(.failed, for: id, message: message) } else { write(.cancelled, for: id) }
         updateActivity()
     }
 
@@ -318,6 +432,7 @@ final class KeyboardSession: ObservableObject {
     private func finishDictation() {
         guard let id = current, let app else { return }
         let samples = capture.endTake()
+        unseenSince = nil
         current = nil
         dictating = false
         meter?.invalidate(); meter = nil
@@ -442,6 +557,8 @@ final class KeyboardSession: ObservableObject {
     /// 2 seconds the heartbeat the keyboard watches.
     private func tickHeartbeat() {
         guard stage == .on else { return }
+        capture.checkHealth()
+        guard stage == .on else { return }
         checkCommands()
         if !dictating, let e = endsAt, Date() >= e {
             end(reason: "The session ended after \(Self.label(timeoutSeconds)) without dictation. Tap to start a new one.")
@@ -460,6 +577,14 @@ final class KeyboardSession: ObservableObject {
         KeyboardBridge.post(KeyboardBridge.Note.state)
     }
 
+    /// The capture couldn't keep the microphone (a route change it couldn't recover from): keep what was being
+    /// said, then end with the reason, so the keyboard says what happened instead of listening to nothing.
+    private func captureFailed(_ message: String) {
+        guard stage == .on else { return }
+        if dictating { finishDictation() }
+        end(reason: message)
+    }
+
     /// A call or another app took the audio: keep what was being said, then end.
     private func interrupted(_ reason: String) {
         guard stage == .on else { return }
@@ -472,6 +597,8 @@ final class KeyboardSession: ObservableObject {
     func end(reason: String?) {
         guard stage != .off else { return }
         if let id = current { capture.cancelTake(); write(.cancelled, for: id); current = nil }
+        unseenSince = nil
+        firstTapDictation = nil
         dictating = false
         meter?.invalidate(); meter = nil
         heartbeat?.invalidate(); heartbeat = nil

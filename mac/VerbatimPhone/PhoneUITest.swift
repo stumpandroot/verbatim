@@ -11,6 +11,7 @@ enum PhoneUITest {
 
     static func run(_ app: PhoneState) {
         seed(app)
+        keyboardChecks()
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             for (prefix, mode) in [("p", "light"), ("d", "dark")] {
@@ -154,6 +155,46 @@ enum PhoneUITest {
     private static func write(_ name: String) {
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("show.txt")
         try? (name + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// The keyboard's first-tap logic, which a simulator can't exercise end to end (it can't run keyboards):
+    /// the session link round trip, what a reappearing keyboard picks up, the one-minute stop for a dictation
+    /// nobody came back to, the setting's default, and the search entry. Results go to the log as UITEST lines.
+    static func keyboardChecks() {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") keyboard: \(name)")
+        }
+        let r = UUID(), d = UUID()
+        let link = KeyboardBridge.sessionLink(in: KeyboardBridge.sessionURL(request: r, host: "com.apple.MobileSMS", dictation: d))
+        check("session link carries the first-tap dictation", link == KeyboardBridge.SessionLink(request: r, host: "com.apple.MobileSMS", dictation: d))
+        let plain = KeyboardBridge.sessionLink(in: KeyboardBridge.sessionURL(request: r, host: nil))
+        check("session link without host or dictation", plain == KeyboardBridge.SessionLink(request: r, host: nil, dictation: nil))
+
+        check("a listening dictation is picked up", KeyboardBridge.runningDictation(id: d, phase: .listening, insertedID: nil, cancelID: nil)?.phase == .listening)
+        check("a done dictation is picked up to insert", KeyboardBridge.runningDictation(id: d, phase: .done, insertedID: nil, cancelID: nil)?.id == d)
+        check("an inserted dictation isn't picked up again", KeyboardBridge.runningDictation(id: d, phase: .done, insertedID: d.uuidString, cancelID: nil) == nil)
+        check("a cancelled dictation isn't picked up", KeyboardBridge.runningDictation(id: d, phase: .listening, insertedID: nil, cancelID: d) == nil)
+        check("a failed dictation isn't picked up", KeyboardBridge.runningDictation(id: d, phase: .failed, insertedID: nil, cancelID: nil) == nil)
+
+        let t0 = Date()
+        check("an unseen first-tap dictation keeps listening under a minute",
+              !KeyboardBridge.shouldStopUnseenTake(startedAt: t0, seen: false, now: t0.addingTimeInterval(59)))
+        check("an unseen first-tap dictation stops after a minute",
+              KeyboardBridge.shouldStopUnseenTake(startedAt: t0, seen: false, now: t0.addingTimeInterval(60)))
+        check("a dictation the keyboard showed never stops for that",
+              !KeyboardBridge.shouldStopUnseenTake(startedAt: t0, seen: true, now: t0.addingTimeInterval(600)))
+
+        let stored = KeyboardBridge.defaults?.object(forKey: KeyboardBridge.Key.autoStart)
+        KeyboardBridge.defaults?.removeObject(forKey: KeyboardBridge.Key.autoStart)
+        check("start dictating when you come back is on by default", KeyboardBridge.autoStart)
+        KeyboardBridge.defaults?.set(stored, forKey: KeyboardBridge.Key.autoStart)
+
+        check("settings search finds the first-tap setting",
+              SettingsSearchIndex.search("second tap").flatMap(\.entries).contains { $0.id == "keyboardAutoStart" })
+        check("switching back to the host app is off in UI tests", KeyboardSession.returnToHostApp(linkHost: "com.apple.MobileSMS") == .failed("UI test", retry: false))
+        Log.note("UITEST keyboard checks: \(pass) passed, \(fail) failed")
     }
 
     private static func seed(_ app: PhoneState) {

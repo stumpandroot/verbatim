@@ -31,7 +31,7 @@ struct SessionStartScreen: View {
             HStack(spacing: 18) {
                 VoiceBars(level: session.isOn ? 0.35 : 0, color: Ink.inkFixed, barWidth: 14, maxHeight: 64)
                     .frame(width: 72)
-                Text(session.isOn ? "Ready" : "Starting…")
+                Text(session.dictating ? "Listening" : session.isOn ? "Ready" : "Starting…")
                     .font(Ink.serif(24)).foregroundStyle(Ink.inkFixed)
                 Spacer(minLength: 0)
             }
@@ -40,7 +40,7 @@ struct SessionStartScreen: View {
             .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .padding(.top, 26)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(session.isOn ? "Session ready" : "Starting")
+            .accessibilityLabel(session.dictating ? "Listening" : session.isOn ? "Session ready" : "Starting")
 
             if session.needsManualReturn {
                 HStack(spacing: 12) {
@@ -63,12 +63,21 @@ struct SessionStartScreen: View {
 
     private var title: String {
         if !session.isOn { return "Turning on the microphone…" }
-        return session.needsManualReturn ? "You're set." : "Going back…"
+        if session.needsManualReturn { return session.dictating ? "Listening. Go back to talk." : "You're set." }
+        return "Going back…"
     }
 
+    /// The manual way back names the system's "◀ <app>" link at the top left first: it's one tap, and iOS shows
+    /// it whenever another app opened Verbatim.
     private var detail: String {
         if session.needsManualReturn {
-            return "Swipe right along the bottom edge to go back, or tap the app's name at the top left. Then tap the record button on the Verbatim keyboard and talk."
+            if session.dictating {
+                return "Tap ◀ and your app's name at the top left, or swipe right along the bottom edge. Verbatim is already listening: talk, then tap the check on the keyboard."
+            }
+            return "Tap ◀ and your app's name at the top left, or swipe right along the bottom edge. Then tap the record button on the Verbatim keyboard and talk."
+        }
+        if session.dictating {
+            return "Verbatim switches back to your app in a moment and keeps listening. Talk, then tap the check on the keyboard."
         }
         return "Verbatim switches back to your app in a moment. Dictation then happens right in the keyboard."
     }
@@ -81,6 +90,8 @@ struct SessionStartScreen: View {
 struct KeyboardSetupScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.openURL) private var openURL
+    /// In the App Group, so the keyboard reads it too (`KeyboardBridge.autoStart`).
+    @AppStorage(KeyboardBridge.Key.autoStart, store: KeyboardBridge.defaults) private var autoStart = true
 
     private let steps = [
         "Open the Settings app.",
@@ -114,7 +125,11 @@ struct KeyboardSetupScreen: View {
                 Overline(text: "Sessions", color: Ink.mute).padding(.top, 6)
                 SessionCard(session: app.session)
 
-                Text("The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it.")
+                SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
+                                  subtitle: "The first tap opens Verbatim and starts listening; no second tap.", isOn: $autoStart)
+                    .cardSurface(radius: 14)
+
+                Text("The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbatim can't switch back by itself, tap ◀ and your app's name at the top left.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 

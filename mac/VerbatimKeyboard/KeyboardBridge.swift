@@ -8,7 +8,10 @@ import Foundation
 /// 1. Session start (once): the keyboard writes a session request and opens
 ///    `verbatim://session?start=1&request=<id>&host=<bundle ID>`. The app turns the microphone on, keeps one
 ///    capture engine running (audio stays in memory; nothing is written to disk), loads the speech model, starts
-///    a Live Activity, and switches back to the app you came from.
+///    a Live Activity, and switches back to the app you came from. With Start dictating when you come back on
+///    (`autoStart`, the default), the link also carries `dictate=<id>`: the keyboard has already written that id as
+///    `startID`, and the app begins that dictation the moment the microphone is on, so you can talk as soon as
+///    you're back. The keyboard writes `seenID` once it shows that dictation as listening.
 /// 2. While the session is on, the app writes a heartbeat here every 2 seconds, plus when the session ends.
 /// 3. Dictation (no app switch): the keyboard writes `startID` and posts `Note.command`; the app marks where the
 ///    dictation starts in the running capture and streams level and time here about 10 times a second. Done writes
@@ -54,6 +57,7 @@ enum KeyboardBridge {
         static let doneID = "kb.d.done"                   // String UUID
         static let cancelID = "kb.d.cancel"               // String UUID
         static let insertedID = "kb.d.inserted"           // the dictation whose text a keyboard already inserted
+        static let seenID = "kb.d.seen"                   // the dictation a keyboard has shown as listening
 
         // Dictation state (written by the app)
         static let dictation = "kb.d.id"                  // String UUID: the dictation the fields below describe
@@ -65,6 +69,37 @@ enum KeyboardBridge {
         static let message = "kb.d.message"               // String: why it failed
         static let levelLabel = "kb.levelLabel"           // "Polished": the cleanup the app applies
         static let snippets = "kb.snippets"               // Data: JSON [Snippet] (trigger and expansion), written by the app
+        // Settings (written by the app's Settings › Keyboard, read by both)
+        static let autoStart = "kb.autoStart"             // Bool, on unless set: the first tap also starts a dictation
+    }
+
+    /// Settings › Keyboard › Start dictating when you come back. On unless turned off.
+    static var autoStart: Bool {
+        get { defaults?.object(forKey: Key.autoStart) as? Bool ?? true }
+        set { defaults?.set(newValue, forKey: Key.autoStart) }
+    }
+
+    /// A dictation the app started on its own (the first tap) stops after this long if no keyboard has shown it,
+    /// so a microphone you walked away from doesn't keep a take open.
+    static let unseenTakeLimit: TimeInterval = 60
+
+    /// True when a dictation the app started from the first tap should stop: no keyboard has shown it yet, and it
+    /// has waited `unseenTakeLimit`.
+    static func shouldStopUnseenTake(startedAt: Date, seen: Bool, now: Date) -> Bool {
+        !seen && now.timeIntervalSince(startedAt) >= unseenTakeLimit
+    }
+
+    /// The dictation a keyboard should show when it appears, from the shared state: one that's listening,
+    /// transcribing, or done, and that no keyboard has inserted or cancelled yet. Nil otherwise.
+    static func runningDictation(id: UUID?, phase: Phase?, insertedID: String?, cancelID: UUID?) -> (id: UUID, phase: Phase)? {
+        guard let id, let phase, [.listening, .transcribing, .done].contains(phase),
+              insertedID != id.uuidString, cancelID != id else { return nil }
+        return (id, phase)
+    }
+
+    /// `runningDictation` read from the App Group.
+    static var currentRunningDictation: (id: UUID, phase: Phase)? {
+        runningDictation(id: uuid(Key.dictation), phase: phase, insertedID: defaults?.string(forKey: Key.insertedID), cancelID: uuid(Key.cancelID))
     }
 
     /// A snippet as the keyboard sees it: the trigger shown on its chip and the text it inserts. The app writes the
@@ -109,17 +144,18 @@ enum KeyboardBridge {
 
     // MARK: Links
 
-    static func sessionURL(request: UUID, host: String?) -> URL {
+    static func sessionURL(request: UUID, host: String?, dictation: UUID? = nil) -> URL {
         var c = URLComponents()
         c.scheme = scheme
         c.host = sessionHost
         var items = [URLQueryItem(name: "start", value: "1"), URLQueryItem(name: "request", value: request.uuidString)]
         if let host, !host.isEmpty { items.append(URLQueryItem(name: "host", value: host)) }
+        if let dictation { items.append(URLQueryItem(name: "dictate", value: dictation.uuidString)) }
         c.queryItems = items
         return c.url!
     }
 
-    struct SessionLink { var request: UUID?; var host: String? }
+    struct SessionLink: Equatable { var request: UUID?; var host: String?; var dictation: UUID? = nil }
 
     /// The request in a `verbatim://session?…` link (or the first keyboard's `verbatim://dictate?…`), or nil for any other link.
     static func sessionLink(in url: URL) -> SessionLink? {
@@ -127,7 +163,8 @@ enum KeyboardBridge {
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let request = items.first(where: { $0.name == "request" || $0.name == "session" })?.value.flatMap(UUID.init(uuidString:))
         let host = items.first(where: { $0.name == "host" })?.value
-        return SessionLink(request: request, host: host?.isEmpty == false ? host : nil)
+        let dictation = items.first(where: { $0.name == "dictate" })?.value.flatMap(UUID.init(uuidString:))
+        return SessionLink(request: request, host: host?.isEmpty == false ? host : nil, dictation: dictation)
     }
 
     // MARK: Reading
