@@ -93,6 +93,9 @@ enum SettingsIndex {
         .init("general.autoUpdate", .general, "Check for updates automatically", keywords: "sparkle update"),
         .init("general.beta", .general, "Get beta builds", "Beta builds arrive with every change to Verbatim; leave this off for tested releases only.", keywords: "update prerelease"),
         .init("general.version", .general, "Check for updates", "A check sends your IP address and Verbatim's version to GitHub, nothing else.", keywords: "version update check now"),
+        .init("general.name", .general, "Your name", "Shown on the You page.", keywords: "profile name you"),
+        .init("general.aboutMe", .general, "About me", "A few lines about you. Verbatim uses this to spell names and word titles and summaries.", keywords: "profile context bio titles summaries you"),
+        .init("general.countSites", .general, "Count websites", "When you dictate into Safari, Chrome, Arc, Edge, or Brave, the You page shows which websites, by domain only, never full addresses. macOS asks once per browser.", keywords: "domains browser where you dictate activity stats privacy"),
 
         // Dictation
         .init("dictate.enabled", .dictate, "Dictate anywhere", "Hold or press your hotkey in any app and Verbatim types what you say.", keywords: "dictation voice typing"),

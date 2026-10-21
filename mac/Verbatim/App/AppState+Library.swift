@@ -151,6 +151,7 @@ extension AppState {
         store.dictionary = []
         FlowSettings.shared.snippets = []
         ActivityLog.shared.reset()
+        SiteLog.shared.reset()
         ThoughtPad.shared.clear()
         store.removeAllFiles()
         goHome()
