@@ -152,6 +152,10 @@ targets:
       - Verbatim/Flow/Cleanup.swift
       - Verbatim/Flow/MeaningCheck.swift
       - Verbatim/Flow/FlowSettings.swift
+      # Harper's grammar pass on dictation (in the app process, where keyboard cleanup runs; never in the
+      # keyboard extension), and the opt-in cloud cleanup with your own key.
+      - Verbatim/Flow/GrammarPass.swift
+      - Verbatim/Flow/CloudCleanup.swift
       # Shared with the keyboard extension: the App Group channel and the voice bars.
       - VerbatimKeyboard/KeyboardBridge.swift
       - VerbatimKeyboard/VoiceBars.swift

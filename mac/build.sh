@@ -45,7 +45,8 @@ if [ ! -x Helpers/yt-dlp ] || ! grep -q "$YTDLP_VERSION" Helpers/yt-dlp.version 
 fi
 
 # 1c. Harper grammar engine (Rust staticlib, universal). Skipped if cargo is missing and a prebuilt lib exists.
-if [ ! -f Vendor/harper/libharper_ffi.a ] || [ "${HARPER_REBUILD:-0}" = "1" ]; then
+# A library built before harper_fix (dictation grammar pass) existed is rebuilt too.
+if [ ! -f Vendor/harper/libharper_ffi.a ] || [ "${HARPER_REBUILD:-0}" = "1" ] || ! nm Vendor/harper/libharper_ffi.a 2>/dev/null | grep -q harper_fix; then
   if command -v cargo >/dev/null 2>&1; then
     rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true
     bash Vendor/harper/build.sh

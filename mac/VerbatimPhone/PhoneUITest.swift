@@ -193,6 +193,11 @@ enum PhoneUITest {
 
         check("settings search finds the first-tap setting",
               SettingsSearchIndex.search("second tap").flatMap(\.entries).contains { $0.id == "keyboardAutoStart" })
+        check("settings search finds cloud cleanup",
+              SettingsSearchIndex.search("api key").flatMap(\.entries).contains { $0.id == "cloudCleanup" })
+        check("cloud cleanup is off by default", UserDefaults.standard.object(forKey: CloudCleanup.enabledKey) != nil || !CloudCleanup.enabled)
+        check("cleanup removes fillers on the iPhone", CleanupPrepass.clean("Um, I think, you know, it works.") == "I think it works.")
+        check("grammar pass fixes a/an and capitals on the iPhone", GrammarPass.fix("i sent a email.") == "I sent an email.")
         check("switching back to the host app is off in UI tests", KeyboardSession.returnToHostApp(linkHost: "com.apple.MobileSMS") == .failed("UI test", retry: false))
         Log.note("UITEST keyboard checks: \(pass) passed, \(fail) failed")
     }

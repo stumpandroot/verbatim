@@ -10,7 +10,8 @@ import Foundation
 /// - URLs, email addresses, and @handles
 /// - capitalized names that aren't at the start of a sentence
 ///
-/// It also rejects output under 50% or over the level's growth limit of the input's length, and output that
+/// It also rejects output under the level's shrink limit (50%, or 40% for Polished) or over its growth limit of
+/// the input's length, and output that
 /// looks cut off. A spoken self-correction ("at 2, actually 3", "scratch that") allows the earlier version to
 /// be dropped, never a new value to appear. Reasons never include any of the text.
 enum MeaningCheck {
@@ -25,7 +26,10 @@ enum MeaningCheck {
         var finalPunctuationOptional = false
 
         static let clean = Limits(maxGrowth: 1.6)
-        static let polished = Limits(maxGrowth: 2.0)
+        /// Polished may shrink to 40%, like `FlowCleanup.guardProblem`'s word limit: rambling speech loses its
+        /// filler phrases ("so basically", "kind of", "you know what I mean") and false starts, and a 50% floor
+        /// rejected tightening that kept every fact. Facts are still checked one by one below.
+        static let polished = Limits(maxGrowth: 2.0, minShrink: 0.4)
     }
 
     /// Why the output can't be trusted, or nil when it keeps the meaning.
@@ -37,7 +41,7 @@ enum MeaningCheck {
         if r.count >= 24 {
             let ratio = Double(o.count) / Double(r.count)
             // "Scratch that" may legitimately remove most of what was said.
-            if ratio < limits.minShrink && !cues.wipes { return "cleanup dropped more than half the text" }
+            if ratio < limits.minShrink && !cues.wipes { return "cleanup dropped too much of the text" }
             if ratio > limits.maxGrowth { return "cleanup grew the text past \(Int((limits.maxGrowth * 100).rounded()))%" }
         }
         if looksTruncated(raw: r, output: o, requireFinalPunctuation: !limits.finalPunctuationOptional) { return "cleanup looks cut off" }

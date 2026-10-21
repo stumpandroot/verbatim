@@ -68,6 +68,9 @@ enum SettingsSearchIndex {
               description: "Which transcription model runs on this iPhone"),
         .init(id: "cleanup", section: "Transcription", label: "Cleanup for keyboard dictation", keywords: ["cleanup", "ums", "filler", "grammar", "polish", "dictation"],
               description: "How much keyboard dictations are tidied"),
+        .init(id: "cloudCleanup", section: "Transcription", label: "Cloud cleanup",
+              keywords: ["cloud", "claude", "anthropic", "openai", "chatgpt", "gpt", "api key", "keychain", "model", "grammar", "ai"],
+              description: "Clean up with your own Anthropic or OpenAI key; off by default"),
         .init(id: "speakers", section: "Transcription", label: "Identify speakers", keywords: ["diarization", "voices", "people", "who spoke"]),
         .init(id: "applyDictionary", section: "Transcription", label: "Apply Dictionary", keywords: ["words", "names", "spelling", "corrections"]),
         .init(id: "nameAndSort", section: "Transcription", label: "Name and sort recordings", keywords: ["titles", "tags", "kind", "auto label", "apple intelligence"],
@@ -144,6 +147,7 @@ enum SettingsSearchIndex {
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")
         case "keyboardAutoStart": return onOff(KeyboardBridge.autoStart)
         case "quality": return app.preset.title
+        case "cloudCleanup": return onOff(CloudCleanup.enabled)
         case "speakers": return onOff(app.identifySpeakers)
         case "applyDictionary": return onOff(app.applyDictionary)
         case "nameAndSort": return onOff(d.object(forKey: AutoLabel.enabledKey) as? Bool ?? true)

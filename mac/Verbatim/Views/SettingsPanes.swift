@@ -107,7 +107,8 @@ struct DictationForm: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                SettingsRow("dictate.cleanupHelp", detail: "Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. At Clean and Polished, announce a list (“a few things,” “first… second…,” “step one,” or “bullet”) to get a numbered or bulleted list, and change topic (“also,” “one more thing”) to start a paragraph. Lists and paragraphs work without Apple Intelligence. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
+                SettingsRow("dictate.cleanupHelp", detail: "Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. At Clean and Polished, announce a list (“a few things,” “first… second…,” “step one,” or “bullet”) to get a numbered or bulleted list, and change topic (“also,” “one more thing”) to start a paragraph. Lists, paragraphs, filler removal, and fixes for capitals and “a” or “an” work without Apple Intelligence. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
+                CloudCleanupSettingsRows()
             }
             SettingsGroup(title: "Style for each kind of app") {
                 SettingsRow("dictate.styles", stacked: true) {
@@ -517,5 +518,71 @@ struct AboutSettingsPane: View {
             if mail.canPerform(withItems: [Log.file]) { mail.perform(withItems: [Log.file]); return }
         }
         NSWorkspace.shared.activateFileViewerSelecting([Log.file])
+    }
+}
+
+/// Settings › Dictation › Cleanup › Cloud cleanup: off by default. Your own Anthropic or OpenAI key, saved in your
+/// Keychain on this Mac only (`CloudCleanup`, `CloudKeychain`).
+struct CloudCleanupSettingsRows: View {
+    @AppStorage(CloudCleanup.enabledKey) private var on = false
+    @AppStorage(CloudCleanup.providerKey) private var providerRaw = CloudCleanup.Provider.anthropic.rawValue
+    @State private var key = ""
+    @State private var model = ""
+    @State private var hasKey = false
+    @State private var keyNote: String? = nil
+
+    private var provider: CloudCleanup.Provider { CloudCleanup.Provider(rawValue: providerRaw) ?? .anthropic }
+
+    var body: some View {
+        SettingsToggleRow("dictate.cloud", isOn: $on,
+                          detail: on ? CloudCleanup.privacyNote(provider) + " Without a connection, or if the request fails, Verbatim cleans up on this Mac."
+                                     : "Off. Cleanup runs on this Mac.")
+            .onAppear(perform: load)
+            .onChange(of: providerRaw) { _, _ in load() }
+        if on {
+            SettingsRow("dictate.cloudProvider") {
+                Picker("Provider", selection: $providerRaw) {
+                    ForEach(CloudCleanup.Provider.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .labelsHidden().fixedSize()
+            }
+            SettingsRow("dictate.cloudKey", detail: keyNote ?? (hasKey ? "A key is saved in your Keychain." : "Paste your own \(provider.company) API key. It's saved in your Keychain on this Mac only."), stacked: true) {
+                HStack(spacing: 8) {
+                    SecureField(hasKey ? "Replace the saved key" : provider.keyPlaceholder, text: $key)
+                        .textFieldStyle(.roundedBorder).frame(maxWidth: 320)
+                        .onSubmit(saveKey)
+                    Button("Save", action: saveKey).disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if hasKey {
+                        Button("Remove") { CloudCleanup.deleteKey(for: provider); hasKey = false; keyNote = "Key removed." }
+                    }
+                }
+                Link("Get a key from \(provider.company)", destination: provider.keysURL).font(.system(size: 12.5))
+            }
+            SettingsRow("dictate.cloudModel", detail: "Leave empty for \(provider.defaultModel).") {
+                TextField(provider.defaultModel, text: $model)
+                    .textFieldStyle(.roundedBorder).frame(width: 220)
+                    .onChange(of: model) { _, m in CloudCleanup.setModel(m, for: provider) }
+            }
+        }
+    }
+
+    private func load() {
+        let p = provider
+        hasKey = CloudCleanup.hasKey(p)
+        let m = CloudCleanup.model(for: p)
+        model = m == p.defaultModel ? "" : m
+        key = ""
+        keyNote = nil
+    }
+
+    private func saveKey() {
+        let k = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !k.isEmpty else { return }
+        if CloudCleanup.saveKey(k, for: provider) {
+            hasKey = true; keyNote = "Key saved in your Keychain."
+        } else {
+            keyNote = "Couldn't save the key. Try again."
+        }
+        key = ""
     }
 }

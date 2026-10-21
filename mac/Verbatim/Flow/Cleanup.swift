@@ -15,8 +15,14 @@ import FoundationModels
 ///   for the app you're in.
 /// - Clean and Polished end with `DictationFormatter`, a rule-based pass that makes spoken lists into lists and
 ///   breaks paragraphs, so the layout is the same with or without the model and its list style suits the app.
-/// - Rules run first (`CleanupPrepass`): spoken punctuation, "new line", repeated words. Clean skips the model
-///   for three words or fewer.
+/// - Rules run first (`CleanupPrepass`): spoken punctuation, "new line", fillers (um, uh, and "you know", "I mean",
+///   or "like" where they are clearly filler), stutters, repeated words, and simple false starts. Clean skips the
+///   model for three words or fewer.
+/// - Harper's grammar pass (`GrammarPass`) runs last on the words, after the model or in its place: a/an, sentence
+///   capitals, "i" → "I", its/it's. It can't change a word's meaning, and it never runs for very casual or verbatim
+///   styles.
+/// - Cloud cleanup (`CloudCleanup`, opt-in, your own key) takes the model's place when it's on: same instructions,
+///   same guards, a time limit, and Apple's model then the rules when it fails.
 /// - The transcript is wrapped in delimiters and marked as words to clean, never instructions, so a dictated
 ///   question or "tell Claude to…" is pasted, not answered.
 /// - Guards: if the result grows or shrinks too much, answers a question, looks cut off, takes too long, or
@@ -40,6 +46,10 @@ enum FlowCleanup {
         /// The most time the model may take, in seconds, across every part. Past it, the rest is the rule-based
         /// text. Nil uses the per-part limits only (Mac).
         var timeBudget: Double? = nil
+        /// Harper's grammar pass on the result (`GrammarPass`). Off for tests that compare the rules alone.
+        var grammar: Bool = true
+        /// Cloud cleanup when you turned it on in Settings. The speech bench turns it off.
+        var allowCloud: Bool = true
     }
 
     struct Result {
@@ -64,6 +74,7 @@ enum FlowCleanup {
 
     /// Warms the session the next cleanup at `level` will use. Does nothing at Literal or without the model.
     static func prewarm(level: CleanupLevel) {
+        if level != .literal { GrammarPass.prewarm() }
         guard level.usesModel, available else { return }
         #if canImport(FoundationModels)
         if #available(macOS 26, iOS 26, *) {
@@ -120,27 +131,83 @@ enum FlowCleanup {
 
         // Clean and Polished: the rule-based text is the fallback for every case below.
         let pre = CleanupPrepass.clean(spoken)
-        if CleanupPrepass.isOnlyFillers(pre) { return Result(text: "", cleaned: true, note: "Only filler words") }
-        guard available else {
-            return Result(text: layout(pre, r), cleaned: false, note: "Cleaned with rules only: " + (Polish.status.reason ?? "Apple Intelligence isn't available."))
-        }
-        // Short dictations: little to clean, and the model adds risk and time.
+        if pre.isEmpty || CleanupPrepass.isOnlyFillers(pre) { return Result(text: "", cleaned: true, note: "Only filler words") }
+        // Short dictations: little to clean, and a model adds risk and time.
         let words = CleanupPrepass.wordCount(pre)
         if (r.level == .clean && words <= 3) || (words <= 2 && r.category != .email) {
             return Result(text: layout(pre, r), cleaned: false, note: nil)
         }
 
+        var r = r
+        var cloudNote: String?
+        if r.allowCloud, let cloud = CloudCleanup.current {
+            let started = Date()
+            switch await cleanWithCloud(r, pre: pre, config: cloud) {
+            case .success(let result): return result
+            case .failure(let why): cloudNote = why
+            }
+            // Apple's model gets whatever time is left.
+            if let budget = r.timeBudget { r.timeBudget = budget - Date().timeIntervalSince(started) }
+        }
+        guard available else {
+            return Result(text: layout(pre, r), cleaned: false, note: cloudNote ?? ("Cleaned with rules only: " + (Polish.status.reason ?? "Apple Intelligence isn't available.")))
+        }
+
         #if canImport(FoundationModels)
-        if #available(macOS 26, iOS 26, *) { return await cleanWithModel(r, pre: pre) }
+        if #available(macOS 26, iOS 26, *) {
+            var out = await cleanWithModel(r, pre: pre)
+            if let cloudNote, out.note == nil { out.note = cloudNote + "; cleaned on this device" }
+            return out
+        }
         #endif
-        return Result(text: layout(pre, r), cleaned: false, note: nil)
+        return Result(text: layout(pre, r), cleaned: false, note: cloudNote)
+    }
+
+    private enum CloudAttempt { case success(Result), failure(String) }
+
+    /// Cloud cleanup with the same instructions and guards as Apple's model. A failure says why (never the
+    /// text), and the caller falls back to Apple's model, then the rules.
+    private static func cleanWithCloud(_ r: Request, pre: String, config: CloudCleanup.Config) async -> CloudAttempt {
+        guard pre.count <= CloudCleanup.maxCharacters else { return .failure("Too long for cloud cleanup") }
+        // A keyboard dictation keeps its budget; otherwise up to 8 seconds, longer for long dictations.
+        var seconds = min(20, max(8, Double(pre.count) / 150))
+        if let budget = r.timeBudget { seconds = min(seconds, budget) }
+        // No app context: only the words, destination, tone, and Dictionary terms leave the device.
+        let prompt = userPrompt(r, text: pre, withContext: false)
+        switch await CloudCleanup.complete(system: instructions(level: r.level), prompt: prompt, config: config, seconds: seconds) {
+        case .failed(let why):
+            Log.note("cloud cleanup (\(config.provider.rawValue)): \(why)")
+            return .failure("Cloud cleanup didn't answer (\(why))")
+        case .text(let raw):
+            let out = strip(raw)
+            var limits = r.level == .polished ? MeaningCheck.Limits.polished : MeaningCheck.Limits.clean
+            limits.vocabulary = r.vocabulary
+            limits.finalPunctuationOptional = r.style == .veryCasual || r.category == .email
+            if out == "EMPTY" { return .failure("Cloud cleanup returned nothing") }
+            if let problem = guardProblem(raw: pre, out: out, r: r) {
+                Log.note("cloud cleanup guard: \(problem)")
+                return .failure(problem)
+            }
+            if let problem = MeaningCheck.problem(raw: pre, output: out, limits: limits) {
+                Log.note("cloud cleanup meaning check: \(problem)")
+                return .failure("Kept your words: \(problem)")
+            }
+            return .success(Result(text: layout(out, r), cleaned: true, note: nil))
+        }
     }
 
     /// Lists and paragraphs in the app's style (`DictationFormatter`), then snippets. Snippets go in last, so
     /// their saved text is pasted exactly as written.
     private static func layout(_ text: String, _ r: Request) -> String {
-        let formatted = r.format.map { DictationFormatter.format(text, $0) } ?? DictationFormatter.format(text, for: r.category)
+        let fixed = grammar(text, r)
+        let formatted = r.format.map { DictationFormatter.format(fixed, $0) } ?? DictationFormatter.format(fixed, for: r.category)
         return expandSnippets(formatted, r.snippets)
+    }
+
+    /// Harper's grammar pass, except where your style keeps words as spoken or allows lowercase.
+    private static func grammar(_ text: String, _ r: Request) -> String {
+        guard r.grammar, r.style != .veryCasual, r.style != .verbatim, r.category != .code else { return text }
+        return GrammarPass.fix(text)
     }
 
     /// What Clean and Polished produce without the model: the rule-based prepass, then the layout and snippets.
@@ -152,7 +219,7 @@ enum FlowCleanup {
         if r.category == .code { return expandSnippets(CleanupPrepass.lineBreaksOnly(spoken), r.snippets) }
         if r.level == .literal { return expandSnippets(CleanupPrepass.literal(spoken), r.snippets) }
         let pre = CleanupPrepass.clean(spoken)
-        if CleanupPrepass.isOnlyFillers(pre) { return "" }
+        if pre.isEmpty || CleanupPrepass.isOnlyFillers(pre) { return "" }
         return layout(pre, r)
     }
 
@@ -441,7 +508,15 @@ enum FlowCleanup {
         case .light:
             s += "\n- Level Clean: remove fillers (um, uh, you know, like) when they add nothing, stutters, repeated words, and false starts. Fix only clear grammar errors. Otherwise keep the user's exact words and order."
         case .medium:
-            s += "\n- Level Polished, format and tighten: also remove fillers and filler phrases (um, you know, I mean, kind of, basically) that add nothing, fix grammar, and smooth rambling or run-on sentences so the text reads well for the destination and tone given before the dictation. Keep the user's meaning, facts, every point, the order of ideas, and their voice and word choices. Don't add greetings, sign-offs, or facts the user didn't say."
+            s += """
+
+            - Level Polished: write it the way the user would type it, ready to send with no edits. Always:
+              - Write complete sentences with correct grammar, verb tense, and subject-verb agreement ("they was" → "they were", "me and Jordan went" → "Jordan and I went").
+              - Fix punctuation and capitalization: commas between clauses, a capital to start each sentence, "I" capitalized, apostrophes in contractions ("cant" → "can't", "its going" → "it's going").
+              - Split run-on sentences at each new thought, and remove false starts, repeated words, and filler phrases that add nothing (um, uh, you know, I mean, like, basically, kind of, sort of, a leading "so").
+              - Keep the user's words where they work, their voice, every point, fact, name, and number, and the order of ideas. Never summarize or drop a point.
+              - Don't add greetings, sign-offs, or facts the user didn't say. Use the destination and tone given before the dictation.
+            """
         }
         s += """
 
@@ -476,6 +551,24 @@ enum FlowCleanup {
         <<<DICTATION I picked up apples pears and plums on the way home DICTATION
         I picked up apples, pears, and plums on the way home.
         """
+        if level == .medium {
+            s += """
+
+            <<<DICTATION so basically we looked at the numbers and they was a lot better then last quarter and i think we should keep the same plan going forward DICTATION
+            We looked at the numbers, and they were a lot better than last quarter. I think we should keep the same plan going forward.
+            <<<DICTATION hey Sam so I wanted to let you know the shoot got moved it was supposed to be Thursday but the client cant make it so its going to be Friday at ten instead can you let the crew know DICTATION
+            Hey Sam,
+
+            I wanted to let you know the shoot got moved. It was supposed to be Thursday, but the client can't make it, so it's going to be Friday at 10 instead. Can you let the crew know?
+            <<<DICTATION me and Jordan went over the budget yesterday and there's a couple issues the first one is the venue costs more then we thought and the second one is we still don't have a caterer DICTATION
+            Jordan and I went over the budget yesterday, and there are a couple of issues. The first is that the venue costs more than we thought. The second is that we still don't have a caterer.
+            <<<DICTATION I just wanted to follow up on the proposal I sent last week I know you're busy but if you have any questions or want to go over it together I'm free Tuesday or Wednesday afternoon thanks Tim DICTATION
+            I just wanted to follow up on the proposal I sent last week. I know you're busy, but if you have any questions or want to go over it together, I'm free Tuesday or Wednesday afternoon.
+
+            Thanks,
+            Tim
+            """
+        }
         return s
     }
 
