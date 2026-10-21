@@ -117,6 +117,7 @@ final class AppState: ObservableObject {
         }
         coordinator.host = self
         recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
+        recorder.onInputSwitched = { [weak self] note in self?.toast = Toast(note) }
         recorder.onResumed = { [weak self] in self?.verbiePose = .listening }
         HangWatch.start()
         dictation.attach(self)

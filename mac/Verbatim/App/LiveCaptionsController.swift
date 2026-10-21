@@ -84,6 +84,7 @@ final class LiveCaptions: ObservableObject {
     private init() {
         feed.maxLineLength = 140
         feed.onFinished = { CaptionPermission.announce($0) }
+        recorder.onInputSwitched = { [weak self] note in self?.status = note }
         micWords.$words.sink { [weak self] w in self?.feed.update("mic", words: w) }.store(in: &bag)
         appWords.$words.sink { [weak self] w in self?.feed.update("app", words: w) }.store(in: &bag)
         // App audio can end on its own (the app quit): say so, and keep what was recorded.

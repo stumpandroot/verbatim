@@ -313,11 +313,11 @@ final class OpenInput: @unchecked Sendable {
     }
 
     /// Calls `onChange` on the main queue when the device goes away or changes sample rate, and (when following
-    /// the system default) when the default input changes.
-    func watch(onChange: @escaping () -> Void) {
+    /// the system default and `followDefault`) when the default input changes.
+    func watch(followDefault: Bool = true, onChange: @escaping () -> Void) {
         let block: AudioObjectPropertyListenerBlock = { _, _ in onChange() }
         var targets: [(AudioObjectID, AudioObjectPropertySelector)] = [(device.id, kAudioDevicePropertyDeviceIsAlive), (device.id, kAudioDevicePropertyNominalSampleRate)]
-        if AudioDevices.selectedInputID == nil { targets.append((AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice)) }
+        if followDefault, AudioDevices.selectedInputID == nil { targets.append((AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice)) }
         for (object, selector) in targets {
             var addr = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
             if AudioObjectAddPropertyListenerBlock(object, &addr, DispatchQueue.main, block) == noErr { listeners.append((object, addr, block)) }
@@ -343,6 +343,30 @@ final class MicNameProbe: @unchecked Sendable {
     var name: String? {
         get { lock.lock(); defer { lock.unlock() }; return value }
         set { lock.lock(); value = newValue; lock.unlock() }
+    }
+}
+
+/// Where a normal recording goes after its microphone changed mid-recording (Mac).
+enum MicRecovery: Equatable {
+    /// The Mac's built-in microphone: the recording's mic went away, or the recording already moved there.
+    case builtIn(AudioDevices.Device)
+    /// The chosen mic, or the system default: the mic is still there (a new sample rate, a new default).
+    case current
+    /// Pause with Resume. `micLost`: the mic went away and the built-in one isn't available.
+    case pause(micLost: Bool)
+
+    /// `lostGone`: the recording's mic is no longer connected. `onBuiltIn`: the recording already moved to the
+    /// built-in mic after losing its own. `recentlyReopened`: the mic changed less than 5 seconds ago too.
+    /// `builtIn`: the Mac's built-in mic, if it has one available. A mic going away never pauses the recording
+    /// unless there's no built-in mic to move to.
+    static func plan(lostGone: Bool, onBuiltIn: Bool, recentlyReopened: Bool, builtIn: AudioDevices.Device?) -> MicRecovery {
+        if lostGone {
+            if let builtIn { return .builtIn(builtIn) }
+            return .pause(micLost: true)
+        }
+        if recentlyReopened { return .pause(micLost: false) }
+        if onBuiltIn, let builtIn { return .builtIn(builtIn) }
+        return .current
     }
 }
 #endif
@@ -434,6 +458,9 @@ final class Recorder: ObservableObject {
     private var pendingDone: ((Error?) -> Void)?
     private var reopening = false
     private var lastAutoReopen: TimeInterval = -100
+    /// The recording's mic went away and it moved to the built-in mic: it stays there until Stop (or a Resume),
+    /// and no longer follows the system default.
+    private var stayOnBuiltIn = false
     /// How long opening a mic may take before the start is given up and the mic released.
     private static let startLimit: TimeInterval = 3
     /// The recording device's mute state, read and watched off the main thread.
@@ -746,6 +773,7 @@ final class Recorder: ObservableObject {
         let began = ProcessInfo.processInfo.systemUptime
         self.url = url
         lastAutoReopen = -100
+        stayOnBuiltIn = false
         live.reset()
         isPaused = false
         isStarting = true
@@ -781,13 +809,13 @@ final class Recorder: ObservableObject {
 
     /// Audio queue: finds the device, opens it, and starts it. With `continuing`, the existing writer is pointed
     /// at the new device's format; otherwise a new segmented writer is made at `url`. On failure everything it
-    /// opened is released (and a new file removed).
-    nonisolated private static func openInput(newFileAt url: URL?, continuing existing: RecordingWriter?,
+    /// opened is released (and a new file removed). `device` opens that device instead of the current one.
+    nonisolated private static func openInput(on device: AudioDevices.Device? = nil, newFileAt url: URL?, continuing existing: RecordingWriter?,
                                               levels: @escaping @Sendable (Float, TimeInterval) -> Void,
                                               probe: MicNameProbe) -> Result<(OpenInput, RecordingWriter), Error> {
         CaptureStep.set("recording: finding the microphone")
         // The chosen device if it's connected, otherwise the system default; never anything else.
-        guard let target = AudioDevices.current() else { return .failure(RecorderError("No microphone is connected.")) }
+        guard let target = device ?? AudioDevices.current() else { return .failure(RecorderError("No microphone is connected.")) }
         probe.name = target.name
         var made: InputUnit?
         do {
@@ -883,11 +911,14 @@ final class Recorder: ObservableObject {
             guard let open else { return }
             Task { @MainActor in self?.inputChanged(open) }
         }
-        audioQueue.async { open.watch(onChange: onChange) }
+        let followDefault = !stayOnBuiltIn
+        audioQueue.async { open.watch(followDefault: followDefault, onChange: onChange) }
     }
 
     /// The recording's device went away or changed (or the system default did, when following it). The dead
-    /// input is released; the recording reopens the mic once by itself, then pauses visibly if it changes again.
+    /// input is released. A mic that went away (unplugged, AirPods out, Bluetooth dropped) is replaced by the
+    /// Mac's built-in mic and the recording keeps going; it pauses only if the built-in mic can't start. A mic
+    /// that's still there is reopened once by itself, and the recording pauses visibly if it changes again.
     private func inputChanged(_ changed: OpenInput) {
         guard !keepWarm, isRecording, !isStarting, input === changed else { return }
         Log.note("recorder: input changed mid-recording after \(String(format: "%.1f", ProcessInfo.processInfo.systemUptime - startedAt))s (\(changed.device.name))")
@@ -898,11 +929,82 @@ final class Recorder: ObservableObject {
         if let onInterrupted { onInterrupted(); return }
         if isPaused { Log.note("recorder: input changed while paused; Resume reopens the mic"); return }
         let now = ProcessInfo.processInfo.systemUptime
-        if now - lastAutoReopen > 5 {
-            lastAutoReopen = now
-            reopen(resuming: false)
-        } else {
-            autoPause("The microphone changed. Tap Resume to keep recording.")
+        let recent = now - lastAutoReopen <= 5
+        lastAutoReopen = now
+        recover(from: changed.device, recentlyReopened: recent)
+    }
+
+    static let switchedToBuiltInNotice = "Your microphone disconnected. Recording continues on the Mac's built-in microphone."
+    static let noBuiltInNotice = "Your microphone disconnected, and the Mac's built-in microphone couldn't start. Tap Resume to keep recording."
+
+    /// Audio queue: checks whether `lost` is still connected, then opens the mic `MicRecovery.plan` picks into the
+    /// same writer (the writer converts the new format, so the file keeps one format). The main thread never waits.
+    private func recover(from lost: AudioDevices.Device, recentlyReopened: Bool) {
+        guard let w = writer, !reopening else { return }
+        reopening = true
+        attempt += 1
+        let mine = attempt
+        let levels = levelHandler()
+        let probe = MicNameProbe()
+        let onBuiltIn = stayOnBuiltIn
+        CaptureStep.set("recording: following a microphone change")
+        audioQueue.async { [weak self] in
+            let gone = !AudioDevices.isPresent(lost.id)
+            let builtIn = AudioDevices.builtInMic(excluding: gone ? lost.id : nil)
+            let plan = MicRecovery.plan(lostGone: gone, onBuiltIn: onBuiltIn, recentlyReopened: recentlyReopened, builtIn: builtIn)
+            let result: Result<(OpenInput, RecordingWriter), Error>?
+            switch plan {
+            case .builtIn(let d): result = Self.openInput(on: d, newFileAt: nil, continuing: w, levels: levels, probe: probe)
+            case .current: result = Self.openInput(newFileAt: nil, continuing: w, levels: levels, probe: probe)
+            case .pause: result = nil
+            }
+            Task { @MainActor in
+                guard let self else { if case .success(let (open, _))? = result { open.release() }; return }
+                self.finishRecover(mine, plan: plan, result: result, lost: lost, gone: gone)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.startLimit) { [weak self] in
+            guard let self, self.attempt == mine, self.reopening else { return }
+            Log.note("recorder: following the mic change gave up after \(Int(Self.startLimit)) s (\(CaptureStep.current ?? "no step"))")
+            self.attempt += 1
+            self.reopening = false
+            CaptureStep.set(nil)
+            self.autoPause("Couldn't restart \(Self.micPhrase(probe.name)). Check that it's connected and tap Resume, or Stop to keep what was recorded.")
+        }
+    }
+
+    private func finishRecover(_ mine: Int, plan: MicRecovery, result: Result<(OpenInput, RecordingWriter), Error>?, lost: AudioDevices.Device, gone: Bool) {
+        guard mine == attempt, reopening, isRecording else {
+            if case .success(let (open, _))? = result {
+                open.sink.set(nil, onLevel: nil)
+                audioQueue.async { open.release() }
+                Log.note("recorder: a mic change that was given up finished; mic released")
+            }
+            return
+        }
+        reopening = false
+        CaptureStep.set(nil)
+        switch result {
+        case .success(let (open, _))?:
+            var movedToBuiltIn = false
+            if case .builtIn = plan { movedToBuiltIn = true }
+            if movedToBuiltIn { stayOnBuiltIn = true }
+            input = open
+            watch(open)
+            startMicWatch(device: open.device.id, name: open.device.name)
+            Log.note("recorder: \(gone ? "\(lost.name) went away; " : "")recording continues on \(open.device.name), \(Int(open.unit.format.sampleRate)) Hz")
+            if movedToBuiltIn, open.device.id != lost.id { onInputSwitched?(Self.switchedToBuiltInNotice) }
+        case .failure(let error)?:
+            Log.note("recorder: couldn't follow the mic change: \(error.localizedDescription)")
+            if case .builtIn = plan, gone { autoPause(Self.noBuiltInNotice) }
+            else { autoPause("The microphone changed. Tap Resume to keep recording.") }
+        case nil:
+            if case .pause(micLost: true) = plan {
+                Log.note("recorder: \(lost.name) went away and there's no built-in mic to move to")
+                autoPause(Self.noBuiltInNotice)
+            } else {
+                autoPause("The microphone changed. Tap Resume to keep recording.")
+            }
         }
     }
 
@@ -947,6 +1049,8 @@ final class Recorder: ObservableObject {
         CaptureStep.set(nil)
         switch result {
         case .success(let (open, _)):
+            // Resume opens the chosen mic (or the system default) again, wherever the recording moved before.
+            stayOnBuiltIn = false
             input = open
             watch(open)
             startMicWatch(device: open.device.id, name: open.device.name)
