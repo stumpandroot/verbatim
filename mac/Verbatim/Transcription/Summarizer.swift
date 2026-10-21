@@ -31,7 +31,7 @@ enum Summarizer {
             switch self {
             case .unavailable(let why): return why
             case .tooShort: return "This transcript is too short to summarize."
-            case .empty: return "Apple's on-device model didn't return a summary. Try again in a moment."
+            case .empty: return "Apple Intelligence wouldn't summarize this recording. It sometimes declines everyday talk that mentions topics like weapons, health, or crime. Try again, or write one yourself."
             }
         }
     }
@@ -124,6 +124,27 @@ enum Summarizer {
         return TranscriptSummary(overview: overviewText, keyPoints: kept)
     }
 
+    /// Reads the plain-text answer ("OVERVIEW: …" then "POINTS:" and "- " lines). Without the markers, the whole
+    /// answer is the overview.
+    static func parsePlain(_ answer: String) -> TranscriptSummary {
+        var overview: [String] = [], points: [String] = [], inPoints = false
+        for raw in answer.replacingOccurrences(of: "**", with: "").components(separatedBy: .newlines) {
+            var l = raw.trimmingCharacters(in: .whitespaces)
+            guard !l.isEmpty else { continue }
+            let up = l.uppercased()
+            if up.hasPrefix("OVERVIEW:") {
+                l = String(l.dropFirst("OVERVIEW:".count)).trimmingCharacters(in: .whitespaces)
+                inPoints = false
+                if !l.isEmpty { overview.append(l) }
+                continue
+            }
+            if up.hasPrefix("POINTS:") || up.hasPrefix("KEY POINTS:") { inPoints = true; continue }
+            if l.hasPrefix("- ") || l.hasPrefix("• ") || l.hasPrefix("* ") || l.hasPrefix("– ") { inPoints = true; points.append(l); continue }
+            if inPoints { points.append(l) } else { overview.append(l) }
+        }
+        return clean(overview: overview.joined(separator: " "), points: points)
+    }
+
     // MARK: Running
 
     static let instructions = """
@@ -139,6 +160,15 @@ enum Summarizer {
         2 to 4 sentences covering the whole recording and up to 5 key points, the most important across all parts, \
         each one short sentence. Use the same language as the summaries; never translate. Keep names, numbers, and \
         dates exactly as written. Never add anything the summaries don't say.
+        """
+
+    /// The plain-text form, for the second try with relaxed guardrails (that mode only writes plain text).
+    static let plainFormat = """
+        Write it exactly in this form, with nothing before or after:
+        OVERVIEW: <2 to 4 sentences>
+        POINTS:
+        - <point>
+        - <point>
         """
 
     /// Summarizes a transcript. Off the main actor; takes a few seconds per part. Throws `Failure` when the model
@@ -174,7 +204,9 @@ enum Summarizer {
     }
 
     #if canImport(FoundationModels)
-    /// One part; split in half and retried (up to 3 levels) when it overflows the window.
+    /// One part; split in half and retried (up to 3 levels) when it overflows the window. When Apple's model
+    /// declines the part (its guardrails trip on everyday talk about weapons, health, and the like), it tries once
+    /// more with the guardrails Apple relaxes for transforming the person's own text, as plain text.
     @available(macOS 26, iOS 26, *)
     private static func summarizePart(_ text: String, index: Int, of total: Int, depth: Int = 0) async throws -> [TranscriptSummary] {
         let prompt = total > 1
@@ -185,7 +217,8 @@ enum Summarizer {
             let session = LanguageModelSession(instructions: instructions)
             let r = try await session.respond(to: prompt, generating: GeneratedSummary.self, options: GenerationOptions(temperature: 0.2))
             let s = clean(overview: r.content.overview, points: r.content.keyPoints)
-            return s.isEmpty ? [] : [s]
+            if !s.isEmpty, !OnDeviceTextRefusal.isRefusal(s.overview) { return [s] }
+            Log.note("summary: part \(index + 1) of \(total) came back empty or declined; trying plain text")
         } catch let e as LanguageModelSession.GenerationError {
             if case .exceededContextWindowSize = e, depth < 3, text.count > 400 {
                 let halves = parts(text.components(separatedBy: "\n"), limit: max(200, text.count / 2 + 1))
@@ -193,8 +226,25 @@ enum Summarizer {
                 for h in halves { out += try await summarizePart(h, index: index, of: total, depth: depth + 1) }
                 return out
             }
-            // A part the model won't take (guardrails, language) is skipped; the others still count.
-            Log.note("summary: part \(index + 1) of \(total) skipped (\(Self.describe(e)))")
+            Log.note("summary: part \(index + 1) of \(total) declined (\(Self.describe(e))); trying plain text")
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            Log.note("summary: part \(index + 1) of \(total) failed (\(String(describing: type(of: error)))); trying plain text")
+        }
+        do {
+            let answer = try await OnDeviceText.respond(instructions: instructions + "\n" + plainFormat, prompt: prompt)
+            guard !OnDeviceTextRefusal.isRefusal(answer) else {
+                Log.note("summary: part \(index + 1) of \(total) skipped (declined in plain text too)")
+                return []
+            }
+            let s = parsePlain(answer)
+            return s.isEmpty ? [] : [s]
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            // A part the model won't take at all is skipped; the others still count.
+            Log.note("summary: part \(index + 1) of \(total) skipped (\(String(describing: type(of: error))))")
             return []
         }
     }
@@ -222,9 +272,18 @@ enum Summarizer {
                                                       generating: GeneratedSummary.self, options: GenerationOptions(temperature: 0.2))
                     let s = clean(overview: r.content.overview, points: r.content.keyPoints)
                     next.append(s.isEmpty ? fallbackMerge(g) : s)
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
-                    Log.note("summary: merge pass fell back to joining parts (\(String(describing: type(of: error))))")
-                    next.append(fallbackMerge(g))
+                    Log.note("summary: merge pass declined (\(String(describing: type(of: error)))); trying plain text")
+                    let prompt = "Partial summaries, in order:\n<summaries>\n\(body)\n</summaries>"
+                    if let answer = try? await OnDeviceText.respond(instructions: mergeInstructions + "\n" + plainFormat, prompt: prompt),
+                       !OnDeviceTextRefusal.isRefusal(answer) {
+                        let s = parsePlain(answer)
+                        next.append(s.isEmpty ? fallbackMerge(g) : s)
+                    } else {
+                        next.append(fallbackMerge(g))
+                    }
                 }
             }
             // Always progresses: every group of two or more became one.
@@ -267,7 +326,29 @@ struct GeneratedSummary {
     @Guide(description: "Up to 5 key points, each one short sentence: decisions, facts, action items, open questions")
     var keyPoints: [String]
 }
+
+/// Plain-text answers from Apple's on-device model with `permissiveContentTransformations` guardrails: the mode
+/// Apple provides for summarizing or labeling text the person brought, where the default guardrails decline
+/// ordinary talk about weapons, health, crime, and the like.
+@available(macOS 26, iOS 26, *)
+enum OnDeviceText {
+    static func respond(instructions: String, prompt: String, temperature: Double = 0.2) async throws -> String {
+        let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+        let session = LanguageModelSession(model: model, instructions: instructions)
+        let r = try await session.respond(to: prompt, options: GenerationOptions(temperature: temperature))
+        return r.content
+    }
+}
 #endif
+
+/// Declines the model writes as an answer instead of throwing.
+enum OnDeviceTextRefusal {
+    static func isRefusal(_ s: String) -> Bool {
+        let head = s.lowercased().replacingOccurrences(of: "’", with: "'").prefix(160)
+        return ["i cannot", "i can't", "i'm sorry", "i am sorry", "i am unable", "i'm unable", "i apologize",
+                "i'm not able to", "i am not able to", "as an ai"].contains { head.contains($0) }
+    }
+}
 
 /// Runs summaries for the app and remembers which are under way and which failed, for the Summary block. One at a
 /// time, oldest request first, so two long transcripts never compete for the model.
@@ -279,6 +360,12 @@ final class SummaryCenter: ObservableObject {
     /// Why the last attempt for a transcript didn't produce a summary, until the next attempt.
     @Published private(set) var failures: [UUID: String] = [:]
     @Published private(set) var progress: [UUID: Double] = [:]
+
+    /// Sources whose titles Apple Intelligence may write (the coordinator's `autoTitleSources`). After a summary,
+    /// an automatic title is rewritten from it, since the summary covers the whole recording.
+    var retitleSources: Set<SourceKind> = []
+    /// Transcripts retitled from their summary this session, so the earlier, excerpt-based label doesn't replace it.
+    private(set) var retitled: Set<UUID> = []
 
     private var queue: [(id: UUID, force: Bool)] = []
     private weak var store: Store?
@@ -341,6 +428,22 @@ final class SummaryCenter: ObservableObject {
         }
     }
 
+    private func retitleIfNeeded(_ id: UUID, summary: TranscriptSummary) {
+        guard AutoLabel.enabled, let t = store?.transcript(id), t.titleIsAuto, retitleSources.contains(t.source) else { return }
+        Task.detached(priority: .utility) { [weak self] in
+            guard let title = await AutoLabel.title(from: summary) else { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.store?.update(id) { x in
+                    guard x.titleIsAuto else { return }
+                    x.title = title; x.titleByModel = true
+                }
+                self.retitled.insert(id)
+                Log.note("summary: title rewritten from the summary")
+            }
+        }
+    }
+
     private func finish(_ id: UUID, _ outcome: Result<TranscriptSummary, Error>, force: Bool) {
         running.remove(id)
         progress[id] = nil
@@ -354,6 +457,7 @@ final class SummaryCenter: ObservableObject {
                 x.summary = s; x.summaryByModel = true
             }
             Log.note("summary: written (\(s.keyPoints.count) key points)")
+            retitleIfNeeded(id, summary: s)
         case .failure(let e):
             if e is CancellationError { break }
             failures[id] = (e as? LocalizedError)?.errorDescription ?? "Couldn't write a summary. Try again in a moment."

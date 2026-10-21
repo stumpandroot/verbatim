@@ -614,6 +614,15 @@ enum UITest {
         check("export captions within limits", !caps.isEmpty && caps.allSatisfy { $0.lines.count <= 2 && $0.lines.allSatisfy { $0.count <= 42 } && $0.end - $0.start <= 7.0001 })
         check("export JSON has the export section", Exporter.render(ex, as: .json, options: eo).contains("\"verbatim-export\""))
 
+        // Summaries and titles: plain-text fallback parsing, refusals, sentence case, sampled excerpts
+        let plain = Summarizer.parsePlain("OVERVIEW: Tim plans errands. He weighs a film title.\nPOINTS:\n- Take the dogs out\n- **Range** closes at 5 p.m.")
+        check("summary plain text parses", plain.overview == "Tim plans errands. He weighs a film title." && plain.keyPoints == ["Take the dogs out", "Range closes at 5 p.m."])
+        check("summary refusal detected", OnDeviceTextRefusal.isRefusal("I’m sorry, but I can’t help with that.") && !OnDeviceTextRefusal.isRefusal("Tim plans errands."))
+        check("title sentence case", AutoLabel.cleanTitle("range plans and film title.") == "Range plans and film title" && AutoLabel.cleanTitle("I can't help with that") == nil)
+        let longSegs = (0..<60).map { i in Segment(start: Double(i), end: Double(i + 1), text: Array(repeating: "w\(i)", count: 40).joined(separator: " "), speaker: nil) }
+        let ex = AutoLabel.excerpt(longSegs)
+        check("title excerpt samples start, middle, and end", ex.contains("w0") && ex.contains("w30") && ex.contains("w59") && ex.split(whereSeparator: { $0.isWhitespace }).count <= 1_510)
+
         // Settings search
         let tc = SettingsIndex.search("timecode").map(\.id)
         check("settings search finds timecode rows", tc.contains("export.timecodes") && tc.contains("watched.exportOptions") && tc.contains("captions.soon"))

@@ -73,6 +73,7 @@ final class TranscriptionCoordinator: ObservableObject {
     init(store: Store, config: Config) {
         self.store = store
         self.config = config
+        SummaryCenter.shared.retitleSources = config.autoTitleSources
     }
 
     private var settings: TranscriptionSettings {
@@ -220,7 +221,8 @@ final class TranscriptionCoordinator: ObservableObject {
                 self.store.update(id) { x in
                     guard x.status == .ready else { return }
                     if x.kindIsAuto, x.kind == nil { x.kind = r.kind }
-                    if wantTitle, x.titleIsAuto, let title = r.title { x.title = title; x.titleByModel = true }
+                    // A title written from the summary covers the whole recording; it wins over this excerpt-based one.
+                    if wantTitle, x.titleIsAuto, !SummaryCenter.shared.retitled.contains(id), let title = r.title { x.title = title; x.titleByModel = true }
                     if !r.tags.isEmpty { x.tags = AutoLabel.merge(x.tags, r.tags) }
                 }
                 Log.note("autolabel: kind \(r.kind.rawValue), title \(wantTitle && r.title != nil ? "suggested" : "kept"), \(r.tags.count) tags, model \(r.usedModel)")
