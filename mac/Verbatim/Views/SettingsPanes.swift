@@ -198,7 +198,9 @@ struct DictationForm: View {
 // MARK: - App › Floating button
 
 struct FloatingButtonSettingsPane: View {
+    @EnvironmentObject var app: AppState
     @ObservedObject private var flow = FlowSettings.shared
+    @AppStorage(LiveWordsSetting.key) private var liveWords = true
     @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
 
@@ -222,6 +224,8 @@ struct FloatingButtonSettingsPane: View {
                     }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
                 }
+                SettingsToggleRow("float.liveWords", isOn: $liveWords)
+                    .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords() } }
             }
         }
     }

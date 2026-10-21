@@ -114,6 +114,7 @@ enum SettingsIndex {
         .init("float.show", .floatingButton, "Show the floating button", "Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.", keywords: "flow bar ribbon pill"),
         .init("float.style", .floatingButton, "Style", "Paper is a light tab with ink type. Ink is a dark tab with paper type.", keywords: "look paper ink appearance"),
         .init("float.mark", .floatingButton, "Voice mark", "Moves with your voice while you dictate.", keywords: "bars rings level meter"),
+        .init("float.liveWords", .floatingButton, "Show words as you speak", "A preview of your words in the floating button while you dictate, recognized on this Mac. What's pasted still comes from Verbatim's own transcription.", keywords: "live words preview streaming"),
 
         // Actions
         .init("actions.list", .actions, "Saved actions", "Name, instruction, and how long text is handled.", keywords: "prompt rewrite summarize instruction"),

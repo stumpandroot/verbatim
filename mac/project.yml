@@ -56,6 +56,8 @@ targets:
         NSHumanReadableCopyright: "© 2026 Stump & Root Co."
         NSMicrophoneUsageDescription: "Verbatim records voice memos and dictation with your microphone and transcribes them on this Mac. Recordings stay on this Mac, or in your own iCloud if you turn on sync."
         NSAudioCaptureUsageDescription: "Verbatim records the audio of the app you choose and transcribes it on this Mac. No video is kept."
+        # Live words (Audio/LiveTranscriber.swift): on-device only; asked for on systems before macOS 26.
+        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, on this Mac."
         NSHighResolutionCapable: true
         # Sparkle (mac/Updates/README.md). The feed lives on the `updates` branch; CI rewrites it.
         SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbatim/updates/appcast.xml
@@ -131,6 +133,7 @@ targets:
       - Verbatim/Audio/Player.swift
       - Verbatim/Audio/Recorder.swift
       - Verbatim/Audio/LiveMeter.swift
+      - Verbatim/Audio/LiveTranscriber.swift
       - Verbatim/Export/Exporter.swift
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
@@ -168,6 +171,8 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this iPhone."
+        # Live words (Audio/LiveTranscriber.swift), on device only; for the keyboard session's live words later.
+        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, on this iPhone."
         ITSAppUsesNonExemptEncryption: false
         # The keyboard session's Live Activity (KeyboardSession.swift, VerbatimWidgets).
         NSSupportsLiveActivities: true
