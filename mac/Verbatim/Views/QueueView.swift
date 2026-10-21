@@ -138,7 +138,7 @@ struct QueueRow: View {
     private var status: String {
         switch state {
         case .running: return transcript.stage ?? "Transcribing"
-        case .importing: return "Importing…"
+        case .importing: return transcript.multitrack != nil ? (transcript.stage ?? "Preparing tracks") : "Importing…"
         case .waiting(let n): return n == 1 ? "Next" : "Queued · #\(n)"
         case .done: return "Done"
         case .failed: return transcript.error ?? "Failed"

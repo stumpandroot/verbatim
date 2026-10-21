@@ -143,7 +143,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
-             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel
+             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel, multitrack
     }
     /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
     enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
@@ -206,6 +206,8 @@ struct Transcript: Codable, Identifiable, Equatable {
     var flow: FlowInfo? = nil
     /// Continue recording: an audio file (in Paths.audio) recorded after this one, waiting to be transcribed and joined on.
     var pendingAppend: String? = nil
+    /// Multi-track recordings: one file per mic, each transcribed on its own and woven together by time.
+    var multitrack: MultitrackInfo? = nil
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -267,6 +269,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
         pendingAppend = try c.decodeIfPresent(String.self, forKey: .pendingAppend)
+        multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
         // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
         kind = (try? c.decodeIfPresent(RecordingKind.self, forKey: .kind)) ?? (source == .dictation ? .dictation : nil)
         kindIsAuto = try c.decodeIfPresent(Bool.self, forKey: .kindIsAuto) ?? true

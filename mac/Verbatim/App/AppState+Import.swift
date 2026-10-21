@@ -51,11 +51,12 @@ extension AppState {
         }
     }
 
-    /// Accepts files and folders dropped from Finder, any number at once.
+    /// Accepts files and folders dropped from Finder, any number at once. Two to eight audio files ask whether
+    /// they're separate recordings or one multi-track recording (AppState+Multitrack).
     func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         let ps = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         guard !ps.isEmpty else { return false }
-        let collector = URLCollector(expected: ps.count) { [weak self] urls in Task { @MainActor in self?.importFiles(urls) } }
+        let collector = URLCollector(expected: ps.count) { [weak self] urls in Task { @MainActor in self?.routeDroppedFiles(urls) } }
         for p in ps {
             p.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
                 collector.add(data.flatMap { URL(dataRepresentation: $0, relativeTo: nil) })

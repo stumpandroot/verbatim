@@ -32,6 +32,8 @@ struct VerbatimApp: App {
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Import Files…") { app.chooseFiles() }
                     .keyboardShortcut("o", modifiers: .command)
+                Button("Import Multi-track Recording…") { app.chooseMultitrack() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
                 Button("Record Voice Memo") { app.requestRecord() }
                     .keyboardShortcut("r", modifiers: [.option, .shift])
             }

@@ -145,6 +145,7 @@ struct ImportMenu: View {
     var openPanel: () -> Void
     var body: some View {
         Button { app.chooseFiles() } label: { Label("Choose files or a folder…", systemImage: "doc.on.doc") }
+        Button { app.chooseMultitrack() } label: { Label("Multi-track recording…", systemImage: "square.3.layers.3d.down.right") }
         if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines), s.hasPrefix("http"), !s.contains(" ") {
             Button { app.transcribeLink(s, keepVideo: nil) } label: { Label("Transcribe the copied link", systemImage: "link") }
         }
@@ -215,6 +216,9 @@ struct ImportPanel: View {
             Text("Import").font(.system(size: 14, weight: .bold))
             Button { done(); openFile() } label: { Label("Choose files or a folder…", systemImage: "doc.on.doc") }
                 .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
+            Button { done(); app.chooseMultitrack() } label: { Label("Multi-track recording…", systemImage: "square.3.layers.3d.down.right") }
+                .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
+                .help("One audio file per mic, recorded at the same time. Each file becomes a speaker.")
             Text("Or paste a link").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 TextField("https://…", text: $link).textFieldStyle(.roundedBorder).focused($focused).onSubmit(submit)
