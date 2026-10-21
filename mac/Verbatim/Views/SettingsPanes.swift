@@ -131,6 +131,7 @@ struct DictationForm: View {
                         }
                     }
                 }
+                EmailLayoutRows()
                 SettingsToggleRow("dictate.context", isOn: $flow.useContext)
             }
             SettingsGroup(title: "Accuracy") {

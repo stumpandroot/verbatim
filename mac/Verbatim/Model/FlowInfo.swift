@@ -55,3 +55,77 @@ struct FlowInfo: Codable, Equatable {
     var instruction: String? = nil
     var selection: String? = nil
 }
+
+// MARK: Destination rules
+
+extension AppCategory {
+    /// The kind of app from its bundle ID, the front browser tab's host (domain only, from `SiteCapture`), and the
+    /// window title. Browsers go by host first, then by the tab's title. Foundation only, so the rule tests run
+    /// anywhere.
+    static func classify(bundleID: String?, title: String, host: String? = nil) -> AppCategory {
+        let id = (bundleID ?? "").lowercased()
+        if let c = DestinationRules.byApp(id) { return c }
+        guard DestinationRules.isBrowser(id) || id.isEmpty else { return .other }
+        if let h = host, let c = DestinationRules.byHost(h) { return c }
+        return DestinationRules.byTitle(title.lowercased()) ?? .other
+    }
+}
+
+enum DestinationRules {
+    static let emailApps = ["com.apple.mail", "com.microsoft.outlook", "com.readdle.smartemail", "com.readdle.spark", "com.superhuman",
+                            "com.mimestream", "it.bloop.airmail", "com.freron.mailmate", "com.postbox", "com.canarymail", "com.hey",
+                            "org.mozilla.thunderbird", "ch.protonmail.desktop", "com.notion.mail"]
+    /// Slack, Teams (classic and the new "com.microsoft.teams2"), Discord (it renders Markdown, like Slack), and more.
+    static let workApps = ["com.tinyspeck.slackmacgap", "com.microsoft.teams", "com.linear", "com.atlassian", "com.basecamp", "us.zoom.xos",
+                           "com.figma", "com.hnc.discord", "mattermost.desktop", "org.zulip"]
+    static let personalApps = ["com.apple.mobilesms", "com.apple.ichat", "net.whatsapp", "desktop.whatsapp", "ru.keepcoder.telegram",
+                               "org.telegram", "org.whispersystems.signal", "com.facebook.archon", "com.facebook.messenger"]
+    static let codeApps = ["com.apple.terminal", "com.googlecode.iterm2", "dev.warp", "com.mitchellh.ghostty", "net.kovidgoyal.kitty",
+                           "io.alacritty", "com.github.wez.wezterm", "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92",
+                           "com.exafunction.windsurf", "com.apple.dt.xcode", "com.jetbrains", "dev.zed", "com.sublimetext", "com.panic.nova",
+                           "com.barebones.bbedit"]
+    /// Browsers, including Safari and Chrome web apps ("com.apple.Safari.WebApp.…", "com.google.Chrome.app.…").
+    static let browsers = ["com.apple.safari", "com.google.chrome", "company.thebrowser", "com.brave", "org.mozilla.firefox", "com.microsoft.edgemac",
+                           "com.operasoftware", "com.vivaldi", "com.kagi.kagimacos", "ai.perplexity.comet", "org.chromium.chromium"]
+
+    static func byApp(_ id: String) -> AppCategory? {
+        if emailApps.contains(where: { id.hasPrefix($0) }) { return .email }
+        if codeApps.contains(where: { id.hasPrefix($0) }) { return .code }
+        if workApps.contains(where: { id.hasPrefix($0) }) { return .work }
+        if personalApps.contains(where: { id.hasPrefix($0) }) { return .personal }
+        return nil
+    }
+
+    static func isBrowser(_ id: String) -> Bool { browsers.contains { id.hasPrefix($0) } }
+
+    /// Web apps by host. A host matches its own entry or any subdomain of it ("acme.slack.com" → "slack.com").
+    static let hosts: [(String, AppCategory)] = [
+        ("mail.google.com", .email), ("outlook.office.com", .email), ("outlook.office365.com", .email), ("outlook.live.com", .email),
+        ("outlook.cloud.microsoft", .email), ("mail.proton.me", .email), ("app.fastmail.com", .email), ("app.hey.com", .email),
+        ("mail.superhuman.com", .email), ("mail.yahoo.com", .email), ("mail.aol.com", .email), ("mail.zoho.com", .email),
+        ("mail.zoho.eu", .email), ("app.tuta.com", .email), ("mail.notion.so", .email),
+        ("slack.com", .work), ("teams.microsoft.com", .work), ("teams.live.com", .work), ("teams.cloud.microsoft", .work),
+        ("discord.com", .work), ("chat.google.com", .work), ("linear.app", .work), ("app.asana.com", .work), ("atlassian.net", .work),
+        ("notion.so", .work), ("basecamp.com", .work), ("app.clickup.com", .work),
+        ("web.whatsapp.com", .personal), ("messenger.com", .personal), ("messages.google.com", .personal), ("web.telegram.org", .personal),
+        ("instagram.com", .personal),
+        ("github.com", .code), ("github.dev", .code), ("gitlab.com", .code), ("replit.com", .code), ("colab.research.google.com", .code),
+    ]
+    private static let hostsLongestFirst = hosts.sorted { $0.0.count > $1.0.count }
+
+    static func byHost(_ raw: String) -> AppCategory? {
+        var h = raw.lowercased()
+        if h.hasPrefix("www.") { h.removeFirst(4) }
+        // Longest entry first, so "mail.notion.so" wins over "notion.so".
+        for (d, c) in hostsLongestFirst where h == d || h.hasSuffix("." + d) { return c }
+        return nil
+    }
+
+    static func byTitle(_ t: String) -> AppCategory? {
+        if ["gmail", "outlook", "inbox", "mail -", "proton mail", "fastmail", "superhuman", "icloud mail", "yahoo mail"].contains(where: { t.contains($0) }) { return .email }
+        if ["slack", "teams", "linear", "discord", "jira", "asana", "notion", "google chat"].contains(where: { t.contains($0) }) { return .work }
+        if ["whatsapp", "messenger", "telegram", "instagram", "messages"].contains(where: { t.contains($0) }) { return .personal }
+        if ["github", "gitlab", "codespaces", "replit", "colab"].contains(where: { t.contains($0) }) { return .code }
+        return nil
+    }
+}

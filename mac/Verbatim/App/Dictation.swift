@@ -604,8 +604,8 @@ final class DictationController: ObservableObject {
         let site = siteProbe
         let isCommand = command
         let targetName = targetAppName
-        let category = ctx?.category ?? .other
-        let style = s.style(for: category)
+        let baseCategory = ctx?.category ?? .other
+        let styles = Dictionary(uniqueKeysWithValues: AppCategory.allCases.map { ($0, s.style(for: $0)) })
         let level = s.cleanup
         let snippets = s.snippets
         let useContext = s.useContext
@@ -628,6 +628,10 @@ final class DictationController: ObservableObject {
                 let r = heard
                 let transcribeTime = Date().timeIntervalSince(t0)
                 let t1 = Date()
+                // In a browser, the front tab's host decides first (Gmail is email whatever its tab's title says).
+                let host = await SiteHostCache.resolve(site, bundleID: ctx?.bundleID, title: ctx?.windowTitle ?? "")
+                let category = ctx.map { AppContext.category(bundleID: $0.bundleID, title: $0.windowTitle, host: host) } ?? baseCategory
+                let style = styles[category] ?? .casual
                 let original = r.segments
                 var segs = r.segments
                 let fixes = DictionaryApplier.apply(dict, to: &segs, project: project)

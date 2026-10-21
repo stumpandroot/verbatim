@@ -410,6 +410,71 @@ enum CleanupPrepass {
         return out as String
     }
 
+    // MARK: After the model
+
+    /// Rules that run on the final words at Clean and Polished, after the model or in its place, so a filler or
+    /// slip the model left in still goes: `discourseFillers` (Polished only) and `agreement`.
+    static func finalRules(_ s: String, polished: Bool) -> String {
+        agreement(polished ? discourseFillers(s) : s)
+    }
+
+    private static let soRegex = wordRegex(#"so"#)
+    private static let hedgeRegex = wordRegex(#"kind of|sort of|kinda|sorta"#)
+    /// Words before "kind of" that make it a noun phrase: "a different kind of task", "what kind of", "this sort of thing".
+    private static let hedgeKeepBefore: Set<String> = ["a", "an", "the", "this", "that", "these", "those", "what", "what's", "which", "whatever",
+        "any", "some", "another", "every", "each", "one", "same", "different", "other", "its", "my", "your", "our", "their", "his", "her", "no",
+        "right", "wrong", "all", "similar", "new", "special", "weird", "strange", "certain", "particular", "good", "bad", "best", "worst",
+        "first", "second", "third", "last", "only", "whole", "own", "usual", "typical", "perfect", "exact", "specific", "main", "odd", "nice",
+        "cool", "interesting", "unique", "entire", "many", "two", "three", "kinds", "sorts", "favorite", "favourite"]
+
+    /// Polished: a sentence-opening "So," ("So, once you see this" → "Once you see this"), "So" before "here's" or
+    /// "basically", and "kind of" or "sort of" as a hedge ("we can kind of work on" → "we can work on"). Keeps "so"
+    /// mid-sentence ("so much", "so we moved it"), "So I…" (it may mean "therefore"), and "kind of" as a noun
+    /// phrase ("a different kind of task", "kind of a mess").
+    static func discourseFillers(_ s: String) -> String {
+        var t = strip(soRegex, in: s) { left, _, right in
+            guard startsSentence(left) else { return false }
+            let r = afterSpaces(right)
+            if r.hasPrefix(",") { return !firstWord(String(r.dropFirst())).isEmpty }
+            return ["here's", "here’s", "here", "basically"].contains(firstWord(String(r)).lowercased())
+        }
+        t = strip(hedgeRegex, in: t) { left, _, right in
+            if hedgeKeepBefore.contains(lastWord(left).lowercased()) { return false }
+            let r = afterSpaces(right)
+            guard let ch = r.first, ch.isLetter else { return false }   // "sort of." / "kind of, you know": keep
+            return !["a", "an", "the", "like", "thing", "things"].contains(firstWord(String(r)).lowercased())
+        }
+        return t
+    }
+
+    private static let heresPlural = try! NSRegularExpression(pattern:
+        #"(?<![\p{L}'’])([Hh]ere|[Tt]here)(?:[’']s| is) (a few|a couple of|a couple|several|many|some|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:([\p{L}-]+) )?([\p{L}]+s|people|children|men|women)(?![\p{L}'’])"#)
+    private static let notPlural: Set<String> = ["news", "series", "species", "means", "physics", "politics", "economics", "this", "has",
+        "was", "does", "yes", "lens", "chaos", "always", "perhaps", "sometimes", "its", "his", "hers", "ours", "yours", "theirs", "thanks"]
+    private static let theAnother = try! NSRegularExpression(pattern: #"(?<![\p{L}'’])([Tt]he|[Aa]n?) another(?![\p{L}'’])"#)
+
+    /// High-confidence grammar slips the model and Harper miss: "here's a few things" → "here are a few things",
+    /// "there's two options" → "there are two options" (only before a counted plural), and "the another" → "another".
+    static func agreement(_ s: String) -> String {
+        var out = s as NSString
+        for m in heresPlural.matches(in: s, range: NSRange(location: 0, length: out.length)).reversed() {
+            let noun = out.substring(with: m.range(at: 4)).lowercased()
+            if notPlural.contains(noun) || noun.hasSuffix("ss") || noun.hasSuffix("us") || noun.hasSuffix("is") { continue }
+            let quantity = out.substring(with: m.range(at: 2)).lowercased()
+            if quantity == "some" && m.range(at: 3).location != NSNotFound { continue }   // "some sales stuff"
+            let word = out.substring(with: m.range(at: 1))
+            let headEnd = m.range(at: 2).location
+            out = out.replacingCharacters(in: NSRange(location: m.range.location, length: headEnd - m.range.location), with: word + " are ") as NSString
+        }
+        let t = out as String
+        out = t as NSString
+        for m in theAnother.matches(in: t, range: NSRange(location: 0, length: out.length)).reversed() {
+            let capital = out.substring(with: m.range(at: 1)).first?.isUppercase == true
+            out = out.replacingCharacters(in: m.range, with: capital ? "Another" : "another") as NSString
+        }
+        return out as String
+    }
+
     // MARK: Spacing
 
     static func tidy(_ s: String) -> String {
