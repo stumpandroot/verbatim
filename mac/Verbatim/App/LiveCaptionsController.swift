@@ -124,9 +124,12 @@ final class LiveCaptions: ObservableObject {
         chain { [weak self] in
             await CaptionPermission.ensureSpeech()
             guard let self else { return }
-            await self.refreshApps()
+            // Listing apps asks for Screen & System Audio Recording, so only when the saved source is an app.
             // A saved app that isn't running any more: captions start on the microphone.
-            if let id = self.source.appID, !self.runningApps.contains(where: { $0.id == id }) { self.source = .mic }
+            if let id = self.source.appID {
+                await self.refreshApps()
+                if !self.runningApps.contains(where: { $0.id == id }) { self.source = .mic }
+            }
             await self.startPiece()
         }
     }

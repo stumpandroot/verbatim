@@ -152,6 +152,8 @@ struct LiveCaptionsView: View {
     @ObservedObject var feed: CaptionFeed
     @AppStorage(CaptionSize.key) private var sizeRaw = CaptionSize.medium.rawValue
     @AppStorage(CaptionPrefs.timecodeKey) private var showTimecode = true
+    /// Read once per source change, not on every word (Core Audio can be slow to answer).
+    @State private var micName: String? = nil
 
     private var size: CaptionSize { CaptionSize(rawValue: sizeRaw) ?? .medium }
 
@@ -161,6 +163,8 @@ struct LiveCaptionsView: View {
             lines
             controls
         }
+        .onAppear { micName = AudioDevices.current()?.name }
+        .onChange(of: controller.source) { _, _ in micName = AudioDevices.current()?.name }
         .padding(EdgeInsets(top: 18, leading: 22, bottom: 14, trailing: 22))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Ink.paper)
@@ -225,8 +229,8 @@ struct LiveCaptionsView: View {
                         .frame(width: 30, height: 30).background(Ink.ink.opacity(0.08), in: Circle())
                 }
                 .buttonStyle(.plain).help("Close captions").accessibilityLabel("Close captions")
-                CaptionsChip(title: "Source: \(controller.source.title)") { sourceMenu() }
-                    .accessibilityLabel("Source, \(controller.source.title)")
+                CaptionsChip(title: "Source: \(sourceChip)") { sourceMenu() }
+                    .accessibilityLabel("Source, \(sourceChip)")
                 CaptionsChip(title: CaptionLanguage.shortName(controller.language)) { languageMenu() }
                     .accessibilityLabel("Language, \(CaptionLanguage.fullName(controller.language))")
                 CaptionsChip(title: "Aa Size") { sizeMenu() }
@@ -237,6 +241,16 @@ struct LiveCaptionsView: View {
         }
         .padding(.top, 10)
         .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+    }
+
+    /// "Shure MV7", "Zoom", "Zoom + Shure MV7": the microphone by name, as in Record's tile.
+    private var sourceChip: String {
+        let mic = micName ?? "Microphone"
+        switch controller.source {
+        case .mic: return mic
+        case .app(_, let n): return n
+        case .both(_, let n): return "\(n) + \(mic)"
+        }
     }
 
     private var savePill: some View {
