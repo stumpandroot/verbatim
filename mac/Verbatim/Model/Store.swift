@@ -580,6 +580,7 @@ final class Store: ObservableObject {
         if let p = t.pendingAppend { files.append(Paths.audio.appendingPathComponent(p)) }
         if let th = t.link?.thumbnailFile { files.append(Paths.thumbs.appendingPathComponent(th)) }
         LocalMedia.remove(t.id)
+        if t.multitrack != nil { let tracks = Paths.tracks(t.id); TranscriptFiles.queue.async { try? FileManager.default.removeItem(at: tracks) } }
         // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
         for f in t.notes.compactMap(\.frameFile) { files.append(Paths.thumbs.appendingPathComponent(f)) }
         // Same queue as saves, so a write still queued for this transcript lands before the delete, never after.

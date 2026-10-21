@@ -233,9 +233,14 @@ final class TranscriptionCoordinator: ObservableObject {
     /// Progress can arrive many times a second while a model downloads. Publish at most ~4×/s, only when
     /// the label changed, and without touching the disk: `stage` is display-only.
     private func progressHandler(_ id: UUID) -> @Sendable (EngineProgress) -> Void {
+        let labels = labelHandler(id)
+        return { p in labels(p.label) }
+    }
+
+    /// The same, for runs that write their own labels ("Track 2 of 3 · 41%").
+    private func labelHandler(_ id: UUID) -> @Sendable (String) -> Void {
         let gate = ProgressGate()
-        return { p in
-            let label = p.label
+        return { label in
             guard gate.shouldPublish(label) else { return }
             Task { @MainActor in self.store.setStage(id, label); self.host?.progress(id, label: label) }
         }
@@ -252,6 +257,8 @@ final class TranscriptionCoordinator: ObservableObject {
         let dict = s.applyDictionary ? store.dictionary : []
         let token = UUID(); runToken = token
         if config.logsJobs { Log.note("transcribe start engine=\(s.engineId) model=\(s.model) file=\(url.lastPathComponent)") }
+        // A multi-track recording whose tracks are still here: each track on its own, then woven together.
+        if let mt = t.multitrack, MultitrackJob.canRun(t) { runMultitrack(id, t, mt, s, dict, token); return }
         switch config.speakerPass {
         case .inline: runInline(id, t, url, s, dict, token)
         case .afterWords: runAfterWords(id, t, url, s, dict, token)
@@ -301,6 +308,48 @@ final class TranscriptionCoordinator: ObservableObject {
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
                     guard self.store.transcript(id)?.status == .processing else { return }
+                    self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
+                    self.host?.jobFailed(id, error: error)
+                }
+            }
+        }
+    }
+
+    /// Multi-track: transcribes every track (one speaker each), drops mic bleed, and merges them by time. The
+    /// working copies go once the transcript is ready.
+    private func runMultitrack(_ id: UUID, _ t: Transcript, _ info: MultitrackInfo, _ s: TranscriptionSettings, _ dict: [DictionaryEntry], _ token: UUID) {
+        let engineId = s.engineId, model = s.model
+        let project = t.projectId
+        let logsJobs = config.logsJobs
+        let progress = labelHandler(id)
+        runningTask = Task.detached(priority: .userInitiated) {
+            do {
+                let out = try await MultitrackJob.run(id: id, info: info, engineId: engineId, model: model, dictionary: dict,
+                                                      project: project, progress: progress)
+                await MainActor.run {
+                    defer { self.finished(id, token: token) }
+                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
+                    self.store.update(id) { x in
+                        x.original = out.original
+                        x.segments = out.fixed
+                        x.speakers = out.speakers
+                        x.corrections = out.corrections
+                        x.status = .ready
+                        x.stage = nil
+                        x.engine = out.engine
+                        x.model = out.model
+                        x.language = out.language
+                        x.processingDevice = nil; x.processingDeviceName = nil
+                    }
+                    self.store.removeAfterPendingWrites([Paths.tracks(id)])
+                    self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
+                }
+            } catch {
+                if logsJobs { Log.note("multitrack failed: \(error)") }
+                if error is CancellationError { return }
+                await MainActor.run {
+                    defer { self.finished(id, token: token) }
+                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }

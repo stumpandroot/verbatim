@@ -106,6 +106,10 @@ enum UITest {
         app.showAppPicker = true
         await show("04-app-picker")
         app.showAppPicker = false
+        // The multi-track sheet with made-up tracks (no files, nothing transcribed).
+        app.multitrackDraft = MultitrackDraft.sample()
+        await show("04b-multitrack")
+        app.multitrackDraft = nil
         app.projectFilter = nil; app.go(.library)
         await show("05-library")
         app.libraryKind = .journal

@@ -22,9 +22,16 @@ extension AppState {
     func pump() { coordinator.pump() }
 
     /// Stops a queued or running transcript. It stays in Library as "Cancelled" with Retry.
-    func cancel(_ id: UUID) { coordinator.cancel(id) }
+    func cancel(_ id: UUID) {
+        multitrackTasks.removeValue(forKey: id)?.cancel()
+        coordinator.cancel(id)
+    }
 
-    func cancelAll() { coordinator.cancelAll() }
+    func cancelAll() {
+        for (id, task) in multitrackTasks { task.cancel(); coordinator.cancel(id) }
+        multitrackTasks = [:]
+        coordinator.cancelAll()
+    }
 
     /// Throws away a continued recording that hasn't been added; the transcript stays as it was.
     func discardPendingAppend(_ id: UUID) { coordinator.discardPendingAppend(id) }

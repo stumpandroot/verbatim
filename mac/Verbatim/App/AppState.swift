@@ -75,6 +75,10 @@ final class AppState: ObservableObject {
     @Changed var continuing: UUID? = nil
     /// The welcome tour sheet.
     @Changed var showOnboarding = false
+    /// Import › Multi-track recording: the sheet's tracks while it's open (AppState+Multitrack).
+    @Changed var multitrackDraft: MultitrackDraft? = nil
+    /// Multi-track recordings being prepared (working copies, line-up, mix) before they join the queue.
+    var multitrackTasks: [UUID: Task<Void, Never>] = [:]
     /// The transcript the next recording start will add to (set by Continue, cleared by any other Record).
     var pendingContinue: UUID? = nil
     /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
