@@ -34,6 +34,8 @@ struct VerbatimApp: App {
                     .keyboardShortcut("o", modifiers: .command)
                 Button("Record Voice Memo") { app.requestRecord() }
                     .keyboardShortcut("r", modifiers: [.option, .shift])
+                Button("Live Captions") { app.toggleLiveCaptions() }
+                    .keyboardShortcut("c", modifiers: [.option, .command])
             }
             CommandGroup(after: .textEditing) {
                 Button("Find in Transcripts") { app.goHome() }
@@ -46,7 +48,13 @@ struct VerbatimApp: App {
         }
 
         MenuBarExtra(isInserted: $app.showMenuBar) {
-            MenuBarPanel().environmentObject(app).limitMotionRoot()
+            // Live captions sits below the panel's own rows (kept out of SettingsView.swift).
+            VStack(spacing: 0) {
+                MenuBarPanel()
+                LiveCaptionsMenuRow().padding(.horizontal, 12).padding(.bottom, 12)
+            }
+            .frame(width: 320).background(Ink.paper)
+            .environmentObject(app).limitMotionRoot()
         } label: {
             Image(systemName: "waveform")
         }

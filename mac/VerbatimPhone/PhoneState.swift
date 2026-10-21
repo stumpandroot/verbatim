@@ -37,6 +37,11 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
+    /// Live captions (LiveCaptionsScreen.swift), full screen over everything.
+    @Published var showCaptions = false
+    private(set) lazy var captions = PhoneCaptions()
+    /// Live captions were asked for before the one-time consent notice: they open once it's acknowledged.
+    private var pendingCaptions = false
     /// The Verbatim keyboard's session: microphone and speech model kept ready for dictation (KeyboardSession.swift).
     private(set) lazy var session = KeyboardSession(app: self)
     /// Why the recorder paused itself (a call, a microphone it couldn't follow); nil once you resume or stop.
@@ -115,11 +120,12 @@ final class PhoneState: ObservableObject {
         askMicAndRecord()
     }
 
-    func dismissConsentNotice() { pendingContinue = nil }
+    func dismissConsentNotice() { pendingContinue = nil; pendingCaptions = false }
 
     /// The consent notice's OK: remembered, then recording starts as asked.
     func acknowledgeConsentNotice() {
         UserDefaults.standard.set(true, forKey: Self.consentNoticeKey)
+        if pendingCaptions { pendingCaptions = false; askMicAndOpenCaptions(); return }
         askMicAndRecord()
     }
 
@@ -202,6 +208,54 @@ final class PhoneState: ObservableObject {
         autoPauseReason = nil
         continuing = nil
         recorder.discard()
+    }
+
+    // MARK: Live captions
+
+    /// Home's Live captions. Captions record the room too, so the one-time consent notice comes first.
+    func requestCaptions() {
+        if PhoneUITest.enabled { captions.seedForScreenshots(); showCaptions = true; return }
+        if !UserDefaults.standard.bool(forKey: Self.consentNoticeKey) { pendingCaptions = true; showConsentNotice = true; return }
+        askMicAndOpenCaptions()
+    }
+
+    private func askMicAndOpenCaptions() {
+        AVAudioApplication.requestRecordPermission { ok in
+            Task { @MainActor in
+                if ok { self.openCaptions() } else { self.say("Microphone access is off. Turn it on in Settings › Verbatim.") }
+            }
+        }
+    }
+
+    private func openCaptions() {
+        guard !recorder.isRecording else { say("Stop the recording first."); return }
+        // The microphone can serve one of them: live captions end the keyboard session.
+        if session.isOn { session.end(reason: "The session ended for live captions. Tap to start a new one.") }
+        showCaptions = true
+        let url = store.newRecordingURL()
+        Task {
+            if await captions.start(to: url) {
+                warmModel()
+            } else {
+                showCaptions = false
+                say(captions.status ?? "Couldn't start live captions.")
+            }
+        }
+    }
+
+    /// Stop or Save transcript on the captions screen.
+    func stopCaptions(save: Bool) {
+        showCaptions = false
+        if PhoneUITest.enabled { captions.endScreenshots(); return }
+        guard save else { captions.discard(); return }
+        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbatim will recover the recording the next time it opens."); return }
+        guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
+        guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
+        var t = Transcript(title: "Live captions", source: .voiceMemo, sourceLabel: "Live captions", duration: duration, audioFileName: name, model: "")
+        t.waveform = env
+        enqueue(t)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        say("Saved. Transcribing now.")
     }
 
     // MARK: Import

@@ -97,6 +97,26 @@ struct HomeScreen: View {
     }
 
     private var capture: some View {
+        VStack(spacing: 12) {
+            captureKeys
+            Button { app.requestCaptions() } label: {
+                HStack(spacing: 10) {
+                    CaptionRingsMark().frame(width: 22, height: 22).frame(width: 24)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Live captions").font(.system(size: 15, weight: .semibold))
+                        Text("Read what's said in the room").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14).frame(height: 52)
+            }
+            .buttonStyle(TactileButtonStyle())
+        }
+        .padding(14)
+        .cardSurface(radius: 22)
+    }
+
+    private var captureKeys: some View {
         HStack(spacing: 14) {
             VStack(spacing: 8) {
                 Button { app.requestRecord() } label: {
@@ -134,8 +154,6 @@ struct HomeScreen: View {
                 .buttonStyle(TactileButtonStyle())
             }
         }
-        .padding(14)
-        .cardSurface(radius: 22)
     }
 
     @ViewBuilder private var cards: some View {

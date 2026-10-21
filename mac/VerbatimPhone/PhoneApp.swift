@@ -42,6 +42,9 @@ struct PhoneRoot: View {
                 .tabItem { Label { Text("Settings") } icon: { Image(uiImage: BrandArt.iconSettings.templateImage(size: 26, key: "iconSettings")) } }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        .fullScreenCover(isPresented: $app.showCaptions) {
+            LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).environmentObject(app)
+        }
         // The "link added" card and the Library tab's count badge, above the tab bar (PhoneLinkCard.swift).
         .overlay { PhoneLinkCardLayer() }
         .overlay { SessionStartLayer(session: app.session) }

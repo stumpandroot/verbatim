@@ -46,6 +46,7 @@ struct SettingsView: View {
                 Text("Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
+            LiveCaptionsSettingsSection()
             UpdateSettingsSection()
         }
         .formStyle(.grouped)
