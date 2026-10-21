@@ -56,6 +56,15 @@ enum PhoneUITest {
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript")
+                    // The export sheet with the options a meeting export would use.
+                    let keep = ExportOptions.saved
+                    var o = keep; o.header = true; o.timecodeMode = .everyParagraph; o.moments = .end; o.speakerMode = .onChange; o.save()
+                    ExportOptions.savedFormat = .txt
+                    app.exportRequest = PhoneExportRequest(ids: [rich.id])
+                    await show("\(prefix)05c-export")
+                    app.exportRequest = nil
+                    keep.save()
+                    try? await Task.sleep(nanoseconds: 700_000_000)
                     app.libraryPath = NavigationPath()
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     app.tab = .home

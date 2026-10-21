@@ -53,6 +53,7 @@ struct ContentView: View {
         .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
+        .sheet(item: $app.exportRequest) { r in ExportSheet(ids: r.ids).environmentObject(app) }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }

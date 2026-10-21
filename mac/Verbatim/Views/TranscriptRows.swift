@@ -153,6 +153,7 @@ struct RowMenu: View {
                 ForEach(app.store.projects) { p in Button(p.name) { app.store.update(transcript.id) { $0.projectId = p.id } } }
             }
         }
+        if transcript.status == .ready { Button("Export…") { app.exportRequest = ExportRequest(ids: [transcript.id]) } }
         if transcript.status == .failed { Button("Retry transcription") { app.retry(transcript) } }
         if transcript.status == .processing { Button("Cancel transcription") { app.cancel(transcript.id) } }
         Divider()

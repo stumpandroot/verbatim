@@ -63,6 +63,7 @@ struct PhoneRoot: View {
         } message: { Text("The transcript moves into it.") }
         .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet().presentationDetents([.medium]) }
+        .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
         .fileImporter(isPresented: $app.showImporter, allowedContentTypes: [.audio, .movie, .audiovisualContent], allowsMultipleSelection: true) { r in
             if case .success(let urls) = r { app.importFiles(urls) }
         }

@@ -39,6 +39,8 @@ final class AppState: ObservableObject {
     @Changed var focusLink = false
     @Changed var showMicSheet = false
     @Changed var showAppPicker = false
+    /// The export sheet, for one transcript or a Library selection (ExportSheet).
+    @Changed var exportRequest: ExportRequest? = nil
     @Changed var toast: Toast? = nil
     @Changed var verbiePose: VerbiePose = .ready
 
