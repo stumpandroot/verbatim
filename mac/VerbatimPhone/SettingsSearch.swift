@@ -98,7 +98,7 @@ enum SettingsSearchIndex {
     /// Rows that live on another branch (iphone-polish adds Snippets and the Cleanup picker). Their entries are
     /// registered so search finds them once that branch merges; until then they stay out of results.
     /// Empty this set when iphone-polish lands, and give its rows their `.settingsSearchTarget` ids.
-    static let unavailable: Set<String> = ["snippets", "cleanup"]
+    static let unavailable: Set<String> = []
 
     /// Entries matching `query`, grouped by section in index order. Every word of the query must match the label,
     /// a keyword, the description, or the section (case- and accent-insensitive). Label matches sort first.

@@ -147,6 +147,7 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("snippets", flash: searchFlash)
         SettingsDivider()
         Button { bump("keyboard"); showKeyboard = true } label: {
             SettingsRow(icon: "keyboard", tint: Ink.butterTint, art: .iconDictations, title: "Keyboard", subtitle: "Dictate into any app", bounce: bumps["keyboard", default: 0]) {
@@ -203,6 +204,7 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("cleanup", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, art: .iconSpeakers, title: "Identify speakers", isOn: $app.identifySpeakers)
             .settingsSearchTarget("speakers", flash: searchFlash)
@@ -407,7 +409,7 @@ struct SettingsScreen: View {
         case .page(.aboutMe): showAboutMe = true
         case .page(.dictionary): showDictionary = true
         case .page(.keyboard): showKeyboard = true
-        case .page(.snippets): break   // Wired when iphone-polish (SnippetsScreen) merges.
+        case .page(.snippets): showSnippets = true
         case .row:
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 80_000_000)   // the groups lay out again first
