@@ -121,6 +121,7 @@ final class AppState: ObservableObject {
         HangWatch.start()
         dictation.attach(self)
         mirrorSnippets()
+        FolderWatcher.shared.attach(self)
         applyAppearance()
         autoHideWelcomeCardIfUsed()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }

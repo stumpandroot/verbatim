@@ -76,11 +76,66 @@ enum UITest {
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
+            await settingsSteps(main: window)
             logicChecks()
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             await tour(app: app, window: window)
         }
+    }
+
+    // MARK: Settings window
+
+    private static func openSettingsWindow() {
+        if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
+            NSApp.sendAction(action, to: item.target, from: item)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+    }
+
+    private static var settingsTab: String { UserDefaults.standard.string(forKey: "settingsTab") ?? "" }
+
+    /// Clicks in the Settings window: a sidebar pane, then a search result opening its pane.
+    private static func settingsSteps(main: NSWindow) async {
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        SettingsModel.shared.query = ""
+        openSettingsWindow()
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        guard let w = SettingsModel.shared.window, w.isVisible else { fail += 1; Log.note("UITEST FAIL settings window did not open"); return }
+        w.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        await step("settings sidebar opens Watched folders", w, target: "settings-watched", check: { settingsTab == SettingsTab.watched.rawValue })
+        await step("settings sidebar opens Export", w, target: "settings-export", check: { settingsTab == SettingsTab.export.rawValue })
+        SettingsModel.shared.query = "timecode"
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        let first = SettingsIndex.search("timecode").first
+        await step("settings search result opens its pane", w, target: "settings-result-0", check: {
+            first != nil && settingsTab == first?.section.rawValue && !SettingsModel.shared.isSearching
+        })
+        SettingsModel.shared.query = ""
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        w.close()
+        main.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Two watched folders for the screenshots, like the approved mockup: one watching with SRT and Plain text
+    /// going to a Subtitles folder, one paused with no export.
+    private static func seedWatchedFolders() {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("Verbatim watch demo", isDirectory: true)
+        let dailies = root.appendingPathComponent("Shoot dailies", isDirectory: true)
+        let memos = root.appendingPathComponent("Voice memos", isDirectory: true)
+        let subs = root.appendingPathComponent("Subtitles", isDirectory: true)
+        for d in [dailies, memos, subs] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+        let w = FolderWatcher.shared
+        guard w.folders.isEmpty else { return }
+        if let a = w.add(dailies, formats: [.srt, .txt]) {
+            w.update(a.id) { $0.includeSubfolders = true; $0.destination = FolderWatcher.bookmark(subs); $0.destinationPath = subs.path }
+            UserDefaults.standard.set(a.id.uuidString, forKey: "watch.selected")
+        }
+        if let b = w.add(memos, formats: []) { w.update(b.id) { $0.enabled = false } }
     }
 
     // MARK: Screenshot tour
@@ -220,12 +275,20 @@ enum UITest {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
         await show("09-settings")
-        UserDefaults.standard.set(SettingsTab.transcription.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.models.rawValue, forKey: "settingsTab")
         await show("09c-settings-transcription")
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
         await show("09d-settings-dictate")
         UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
         await show("09b-settings-actions")
+        seedWatchedFolders()
+        UserDefaults.standard.set(SettingsTab.watched.rawValue, forKey: "settingsTab")
+        await show("09e-settings-watched")
+        SettingsModel.shared.query = "timecode"
+        await show("09f-settings-search")
+        SettingsModel.shared.query = ""
+        UserDefaults.standard.set(SettingsTab.export.rawValue, forKey: "settingsTab")
+        await show("09g-settings-export")
         UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
@@ -272,6 +335,8 @@ enum UITest {
         await show("21-dark-settings-dictate")
         UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
         await show("22-dark-settings-actions")
+        UserDefaults.standard.set(SettingsTab.watched.rawValue, forKey: "settingsTab")
+        await show("23-dark-settings-watched")
         UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
@@ -541,6 +606,37 @@ enum UITest {
         let caps = Exporter.captions(ex, eo)
         check("export captions within limits", !caps.isEmpty && caps.allSatisfy { $0.lines.count <= 2 && $0.lines.allSatisfy { $0.count <= 42 } && $0.end - $0.start <= 7.0001 })
         check("export JSON has the export section", Exporter.render(ex, as: .json, options: eo).contains("\"verbatim-export\""))
+
+        // Settings search
+        let tc = SettingsIndex.search("timecode").map(\.id)
+        check("settings search finds timecode rows", tc.contains("export.timecodes") && tc.contains("watched.exportOptions") && tc.contains("captions.soon"))
+        check("settings search needs every word", SettingsIndex.search("sync icloud").map(\.id) == ["storage.icloud"] && SettingsIndex.search("   ").isEmpty)
+        check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
+        check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
+
+        // Watched folders: names, the seen-before key, and an auto-export written with Exporter
+        let day = Date(timeIntervalSince1970: 1_790_000_000)
+        check("watch file name pattern", FolderWatcher.fileName(pattern: "{original name}", original: URL(fileURLWithPath: "/x/Day 1.mov"), title: "T", date: day) == "Day 1"
+              && FolderWatcher.fileName(pattern: "{title}/{original name}", original: URL(fileURLWithPath: "/x/a.wav"), title: "Call", date: day) == "Call-a"
+              && FolderWatcher.fileName(pattern: "  ", original: URL(fileURLWithPath: "/x/b.m4a"), title: "", date: day) == "b")
+        check("watch seen-before key", FolderWatcher.processedKey(path: "/a/b.wav", size: 10, mtime: 5.7) == "/a/b.wav|10|5"
+              && FolderWatcher.processedKey(path: "/a/b.wav", size: 11, mtime: 5.7) != FolderWatcher.processedKey(path: "/a/b.wav", size: 10, mtime: 5.7))
+        do {
+            let fm = FileManager.default
+            let wdir = fm.temporaryDirectory.appendingPathComponent("verbatim-watch-\(UUID().uuidString)", isDirectory: true)
+            try? fm.createDirectory(at: wdir, withIntermediateDirectories: true)
+            defer { try? fm.removeItem(at: wdir) }
+            var t = Transcript(title: "Clip", source: .file, sourceLabel: "MOV file", duration: 4, audioFileName: nil, model: "Test")
+            t.segments = [Segment(start: 0, end: 2, text: "Rolling.", speaker: "S1"), Segment(start: 2, end: 4, text: "Action.", speaker: "S1")]
+            t.speakers = [Speaker(id: "S1", name: "Speaker 1")]
+            let folder = WatchedFolder(name: "w", bookmark: Data(), path: wdir.path, formats: [ExportFormat.srt.rawValue, ExportFormat.txt.rawValue])
+            let src = wdir.appendingPathComponent("clip.mov")
+            let r1 = FolderWatcher.export(t, folder: folder, source: src, options: ExportOptions())
+            let r2 = FolderWatcher.export(t, folder: folder, source: src, options: ExportOptions())
+            let srt = (try? String(contentsOf: wdir.appendingPathComponent("clip.srt"), encoding: .utf8)) ?? ""
+            check("watch auto-export writes each format", r1.error == nil && r1.written.map(\.lastPathComponent) == ["clip.txt", "clip.srt"]
+                  && srt.contains("00:00:00,000 --> 00:00:02,000") && r2.written.map(\.lastPathComponent) == ["clip 2.txt", "clip 2.srt"])
+        }
 
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("verbatim-seg-\(UUID().uuidString)", isDirectory: true)

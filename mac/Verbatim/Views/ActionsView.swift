@@ -118,52 +118,54 @@ struct ActionSettings: View {
     @State private var confirmRestore = false
 
     var body: some View {
-        Form {
-            Section {
-                Text("An action is an instruction you save once and run on any text: selected text in any app (from the floating button's menu, or hold Shift with your dictation key and say the action's name), a dictation, or a whole transcript. Everything runs on this Mac.")
-                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
-            }
-            Section("Actions") {
-                ForEach($settings.actions) { $a in
-                    DisclosureGroup(isExpanded: Binding(get: { editing == a.id }, set: { editing = $0 ? a.id : nil })) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            TextField("Name", text: $a.name)
-                            Text("Instruction").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                            TextEditor(text: $a.instruction).font(.system(size: 13)).frame(minHeight: 70)
-                                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Ink.hairline))
-                            Picker("Long text", selection: $a.kind) {
-                                ForEach(FlowAction.Kind.allCases) { k in Text(k.title).tag(k) }
-                            }
-                            Text(a.kind == .rewrite ? "Long text is done in parts, kept in order." : "Long text is done in parts, then the results are merged into one.")
-                                .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
-                            HStack {
-                                Button("Move Up") { move(a.id, by: -1) }.disabled(settings.actions.first?.id == a.id)
-                                Button("Move Down") { move(a.id, by: 1) }.disabled(settings.actions.last?.id == a.id)
-                                Spacer()
-                                Button("Delete", role: .destructive) {
-                                    // After the row's fields let go of their bindings, or AppKit can read a removed index.
-                                    let id = a.id
-                                    editing = nil
-                                    DispatchQueue.main.async { settings.actions.removeAll { $0.id == id } }
+        SettingsPane(tab: .actions) {
+            SettingsGroup(title: "Actions") {
+                SettingsRow("actions.list", stacked: true) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach($settings.actions) { $a in
+                            DisclosureGroup(isExpanded: Binding(get: { editing == a.id }, set: { editing = $0 ? a.id : nil })) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    TextField("Name", text: $a.name).textFieldStyle(.roundedBorder)
+                                    Text("Instruction").font(.system(size: 12)).foregroundStyle(Ink.mute)
+                                    TextEditor(text: $a.instruction).font(.system(size: 13)).frame(minHeight: 70)
+                                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Ink.hairline))
+                                    Picker("Long text", selection: $a.kind) {
+                                        ForEach(FlowAction.Kind.allCases) { k in Text(k.title).tag(k) }
+                                    }
+                                    .fixedSize()
+                                    Text(a.kind == .rewrite ? "Long text is done in parts, kept in order." : "Long text is done in parts, then the results are merged into one.")
+                                        .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                                    HStack {
+                                        Button("Move Up") { move(a.id, by: -1) }.disabled(settings.actions.first?.id == a.id)
+                                        Button("Move Down") { move(a.id, by: 1) }.disabled(settings.actions.last?.id == a.id)
+                                        Spacer()
+                                        Button("Delete", role: .destructive) {
+                                            // After the row's fields let go of their bindings, or AppKit can read a removed index.
+                                            let id = a.id
+                                            editing = nil
+                                            DispatchQueue.main.async { settings.actions.removeAll { $0.id == id } }
+                                        }
+                                    }
                                 }
+                                .padding(.vertical, 6)
+                            } label: {
+                                Label(a.name.isEmpty ? "Untitled action" : a.name, systemImage: a.symbol).font(.system(size: 13.5))
                             }
                         }
-                        .padding(.vertical, 4)
-                    } label: {
-                        Label(a.name.isEmpty ? "Untitled action" : a.name, systemImage: a.symbol)
                     }
                 }
-                HStack {
+                SettingsRow("actions.add") {
                     Button("Add Action") {
                         let new = FlowAction(name: "New action", instruction: "")
                         settings.actions.append(new); editing = new.id
                     }
-                    Spacer()
-                    Button("Restore Built-in Actions…") { confirmRestore = true }
+                    .buttonStyle(.brandPrimary)
+                }
+                SettingsRow("actions.restore") {
+                    Button("Restore Built-in Actions…") { confirmRestore = true }.buttonStyle(.brandSecondary)
                 }
             }
         }
-        .formStyle(.grouped)
         .confirmationDialog("Restore the built-in actions?", isPresented: $confirmRestore) {
             Button("Restore", role: .destructive) { settings.actions = FlowAction.builtIn }
         } message: { Text("Replaces your actions with the eight that come with Verbatim. Actions you added or changed are removed.") }
