@@ -159,6 +159,9 @@ enum UITest {
         // Home's Dictations section (seeded above), scrolled into view.
         await reveal("home-dictations", in: window)
         await show("02b-home-dictations")
+        // The Method cards between the tiles and Recent.
+        await reveal("home-method", in: window)
+        await show("02c-home-method")
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
@@ -333,6 +336,8 @@ enum UITest {
         // Dark appearance pass
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         await show("11-dark-home")
+        await reveal("home-dictations", in: window)
+        await show("11c-dark-home-recent")
         app.toggleLiveCaptions()
         await show("11b-dark-live-captions")
         LiveCaptions.shared.close(force: true)
@@ -916,6 +921,8 @@ enum UITest {
         cleanupChecks(check)
         VocabularySelfTest.run(check)
         check("settings search finds built-in vocabulary", SettingsIndex.search("chatgpt spelling").map(\.id).contains("models.builtInVocabulary"))
+        HomeSelfTest.run(check)
+        check("settings search finds the Method cards", SettingsIndex.search("method cards").map(\.id).contains("general.welcomeCard"))
     }
 
     /// Dictation cleanup rules (CleanupPrepass), Harper's grammar pass, and the guards. No model, no network.

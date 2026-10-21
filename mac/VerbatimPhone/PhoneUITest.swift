@@ -13,6 +13,7 @@ enum PhoneUITest {
         seed(app)
         keyboardChecks()
         libraryChecks()
+        homeChecks()
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             for (prefix, mode) in [("p", "light"), ("d", "dark")] {
@@ -20,6 +21,11 @@ enum PhoneUITest {
                 app.tab = .home
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 await show("\(prefix)01-home")
+                // The rest of Home: This week, Recent recordings, Recent dictations, and the keyboard row.
+                NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
+                await show("\(prefix)01b-home-recent")
+                NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 app.showRecorder = true
                 await show("\(prefix)02-record")
                 app.showRecorder = false
@@ -163,6 +169,16 @@ enum PhoneUITest {
     private static func write(_ name: String) {
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("show.txt")
         try? (name + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Home's greeting, This week, and counts (shared with the Mac's self-test).
+    static func homeChecks() {
+        var pass = 0, fail = 0
+        HomeSelfTest.run { name, ok in
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+        }
+        Log.note("UITEST home checks: \(pass) passed, \(fail) failed")
     }
 
     /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).

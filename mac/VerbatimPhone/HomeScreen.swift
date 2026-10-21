@@ -1,192 +1,296 @@
 import SwiftUI
+import AVFoundation
 
-/// Home: the headline, a raised Record key with Import and Link beside it, the three method cards, and
-/// recent work. Whatever you record here shows up on your Mac.
+/// Home (approved mockup "PhoneHome", October 2026): the greeting with your initial, a persimmon Record panel,
+/// four slim start tiles (Import, Link, What's playing, Live captions), the compact Method carousel, This week,
+/// Recent recordings, Recent dictations, and the keyboard's state. Brand icons only (HomeKit.swift); opaque paper.
+/// Whatever you record here shows up on your Mac.
 struct HomeScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+    @ObservedObject private var flow = FlowSettings.shared
+    /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
+    @AppStorage("profile.name") private var storedName = ""
     /// Entrances: the first screenful staggers in on launch and on each switch to Home; rows rise once.
     @State private var seen = SeenRows()
     @State private var entrance = 0
-    /// Where the headline rests, unscrolled (in the scroll view's space). It eases up and fades as you scroll.
-    @State private var titleRest: CGFloat? = nil
+    @State private var now = Date()
+    @State private var micName = HomeScreen.currentMic()
+    @State private var recordReplay = 0
+    @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Overline(text: "Verbatim", color: Ink.dim)
-                    DottedRule().frame(height: 1)
-                    SyncBadge()
-                }
-                .padding(.top, 8)
-                .riseIn("eyebrow", index: 0, seen: seen, epoch: entrance)
-                headline
-                    .padding(.top, 14)
-                Text("Capture what was said. Make it readable. Find what matters.")
-                    .font(.system(size: 15)).foregroundStyle(Ink.dim).padding(.top, 6)
-                    .riseIn("lede", index: 2, seen: seen, epoch: entrance)
-
-                capture.padding(.top, 22)
-                    .riseIn("capture", index: 3, seen: seen, epoch: entrance)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    EditorialSectionHeader(index: "01", label: "Method")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) { cards }.padding(.horizontal, 20).padding(.vertical, 4)
-                    }
-                    .padding(.horizontal, -20)
-                }
-                .padding(.top, 28)
-                .riseIn("method", index: 4, seen: seen, epoch: entrance)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    EditorialSectionHeader(index: "02", label: "Recent", title: "Pick up where you left off.")
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header.id("home-top")
+                        .riseIn("header", index: 0, seen: seen, epoch: entrance)
+                    recordPanel
+                        .riseIn("record", index: 1, seen: seen, epoch: entrance)
+                    tiles
+                        .riseIn("tiles", index: 2, seen: seen, epoch: entrance)
+                    method.padding(.top, 4)
+                        .riseIn("method", index: 3, seen: seen, epoch: entrance)
+                    weekCard
+                        .riseIn("week", index: 4, seen: seen, epoch: entrance)
+                    recent.padding(.top, 6).id("home-recent")
                         .riseIn("recent", index: 5, seen: seen, epoch: entrance)
-                    let items = Array(app.store.live.filter { !$0.isDictation }.prefix(6))
-                    if items.isEmpty {
-                        HStack(spacing: 14) {
-                            EmptyStateArt(art: .capture, tint: Ink.persimmonTint)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Record something new.").font(Ink.serif(20)).foregroundStyle(Ink.ink)
-                                Text("Recordings and imports land here, and on your Mac.").font(.system(size: 14)).foregroundStyle(Ink.dim)
-                            }
-                        }
-                        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                        .cardSurface(radius: 14)
-                        .riseIn("empty", index: 6, seen: seen, epoch: entrance)
-                    } else {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                            Button { app.open(t.id) } label: { PhoneRow(transcript: t) }.buttonStyle(SoftPress())
-                                .contextMenu { RowActions(transcript: t) }
-                                .riseIn(t.id, index: 6 + i, seen: seen, epoch: entrance)
-                        }
-                        Button { app.tab = .library } label: { HStack { Text("View library"); Image(systemName: "arrow.right") }.font(.system(size: 15, weight: .medium)) }
-                            .foregroundStyle(Ink.ink).padding(.top, 4)
-                            .riseIn("more", index: 6 + items.count, seen: seen, epoch: entrance)
-                    }
+                    dictations.padding(.top, 6).id("home-dictations")
+                        .riseIn("dictations", index: 6, seen: seen, epoch: entrance)
                 }
-                .padding(.top, 28)
+                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 32)
             }
-            .padding(.horizontal, 20).padding(.bottom, 32)
+            .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeScroll)) { note in
+                guard let id = note.object as? String else { return }
+                withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(id, anchor: .top) }
+            }
         }
         .tabEntrance(.home) { seen.entered(); entrance += 1 }
         .background(Ink.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-    }
-
-    /// The headline eases up (0.18× the scroll) and fades a little (to 60% at 160 pt) as Home scrolls.
-    private var headline: some View {
-        let rest = titleRest
-        let move = !limitMotion
-        return Text("Words worth keeping.").font(Ink.serif(36)).foregroundStyle(Ink.ink)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityAddTraits(.isHeader)
-            .visualEffect { content, proxy in
-                let scrolled: CGFloat = {
-                    guard move, let rest else { return 0 }
-                    return min(max(rest - proxy.frame(in: .scrollView).minY, 0), 160)
-                }()
-                return content.offset(y: -0.18 * scrolled).opacity(1 - Double(scrolled) / 400)
-            }
-            .riseIn("title", index: 1, seen: seen, epoch: entrance)
-            // Measured outside the entrance offset, so the resting position is exact.
-            .background(GeometryReader { g in
-                Color.clear.onAppear { if titleRest == nil { titleRest = g.frame(in: .scrollView).minY } }
-            })
-    }
-
-    private var capture: some View {
-        VStack(spacing: 12) {
-            captureKeys
-            Button { app.requestCaptions() } label: {
-                HStack(spacing: 10) {
-                    CaptionRingsMark().frame(width: 22, height: 22).frame(width: 24)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Live captions").font(.system(size: 15, weight: .semibold))
-                        Text("Read what's said in the room").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 14).frame(height: 52)
-            }
-            .buttonStyle(TactileButtonStyle())
-            // Sound from TikTok or any app, through the broadcast extension (PhoneWhatsPlaying.swift).
-            Button { app.showPlayingSheet = true } label: {
-                HStack(spacing: 10) {
-                    VideoTileIcon(color: Ink.ink).frame(width: 24, height: 24)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Transcribe what's playing").font(.system(size: 15, weight: .semibold))
-                        Text("Sound from TikTok or any app").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 14).frame(height: 52)
-            }
-            .buttonStyle(TactileButtonStyle())
-        }
-        .padding(14)
-        .cardSurface(radius: 22)
-    }
-
-    private var captureKeys: some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 8) {
-                Button { app.requestRecord() } label: {
-                    Circle().fill(Ink.readerFixed).frame(width: 24, height: 24).frame(width: 84, height: 84)
-                }
-                .buttonStyle(RaisedKeyStyle())
-                .background(RecordHalo().frame(width: 84, height: 84))
-                .accessibilityLabel("Record")
-                Text("Record").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
-            }
-            VStack(spacing: 10) {
-                Button { app.showImporter = true } label: {
-                    HStack(spacing: 10) {
-                        ImportGlyph(color: Ink.ink).frame(width: 24, height: 24)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Import").font(.system(size: 15, weight: .semibold))
-                            Text("Audio or video files").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 14).frame(height: 52)
-                }
-                .buttonStyle(TactileButtonStyle())
-                Button { app.showLinkSheet = true } label: {
-                    HStack(spacing: 10) {
-                        LinkGlyph().frame(width: 24)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Link").font(.system(size: 15, weight: .semibold))
-                            Text("YouTube, podcasts, files").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 14).frame(height: 52)
-                }
-                .buttonStyle(TactileButtonStyle())
-            }
+        .onAppear { now = Date(); micName = Self.currentMic() }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
+            DispatchQueue.main.async { micName = Self.currentMic() }
         }
     }
 
-    @ViewBuilder private var cards: some View {
+    /// The input the system would record from, read from the current route (this never opens the microphone).
+    static func currentMic() -> String {
+        AVAudioSession.sharedInstance().currentRoute.inputs.first?.portName ?? "iPhone Microphone"
+    }
+
+    // MARK: Header
+
+    private var firstName: String? { HomeGreeting.firstName(storedName) }
+
+    private var header: some View {
+        let line = HomeGreeting.line(name: firstName, hour: Calendar.current.component(.hour, from: now))
+        return HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(HomeGreeting.dateLine(now)).font(Ink.mono(11)).tracking(2).foregroundStyle(Ink.mute)
+                // "Good afternoon," on one line and the name on the next, as in the mockup.
+                Text(line.replacingOccurrences(of: ", ", with: ",\n"))
+                    .font(Ink.serif(34 * k)).foregroundStyle(Ink.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(line)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Spacer(minLength: 0)
+            Button {
+                SettingsPage.open("aboutMe")
+                app.tab = .settings
+            } label: {
+                ZStack {
+                    Circle().fill(Ink.sage)
+                    if let name = firstName, let first = name.first {
+                        Text(String(first).uppercased()).font(Ink.serif(19)).foregroundStyle(Ink.inkFixed)
+                    } else {
+                        IconGlyph(art: .iconAboutMe, size: 20, color: Ink.inkFixed)
+                    }
+                }
+                .frame(width: 40, height: 40)
+                .contentShape(Circle())
+            }
+            .buttonStyle(SoftPress())
+            .accessibilityLabel("About me")
+            .accessibilityHint("Opens About me in Settings.")
+        }
+    }
+
+    // MARK: Record
+
+    /// Reader white on persimmon, as approved; ink under Increase Contrast (white on persimmon is 2.8:1).
+    private var onPersimmon: Color { contrast == .increased ? Ink.inkFixed : Ink.readerFixed }
+
+    private var recordPanel: some View {
+        Button { app.requestRecord() } label: {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Ready · \(micName)".uppercased()).font(Ink.mono(10.5)).tracking(1.6).lineLimit(1)
+                HomeMeter(bars: 24, barWidth: 5, gap: 7, heights: HomeMeter.phoneHeights, color: onPersimmon)
+                    .frame(height: 44)
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle().fill(Ink.readerFixed)
+                        DrawOnGlyph(art: .capture, color: Color(hex: Ink.persimmonHex), lineWidth: 1.6, replay: recordReplay)
+                            .frame(width: 28, height: 28)
+                    }
+                    .frame(width: 58, height: 58)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Record").font(Ink.serif(30 * k))
+                        Text("A voice note, a meeting, or a thought.").font(.system(size: 13 * k)).opacity(0.9)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .foregroundStyle(onPersimmon)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+        .buttonStyle(HomePressStyle())
+        .accessibilityLabel("Record")
+        .accessibilityValue("Microphone: \(micName)")
+        .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
+    }
+
+    // MARK: Tiles
+
+    private var tiles: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)], spacing: 8) {
+            Group {
+                HomeTile(title: "Import", fill: Ink.sage, metrics: .phone, hint: "Choose audio or video files to transcribe.") {
+                    app.showImporter = true
+                } icon: { replay in
+                    DrawOnGlyph(art: .document, color: Ink.inkFixed, lineWidth: 1.25, replay: replay)
+                }
+                HomeTile(title: "Link", fill: Ink.butter, metrics: .phone, hint: "Paste a YouTube, podcast, or file link to transcribe.") {
+                    app.showLinkSheet = true
+                } icon: { replay in
+                    DrawOnGlyph(art: .iconLinks, color: Ink.inkFixed, lineWidth: 1.4, replay: replay)
+                }
+            }
+            Group {
+                HomeTile(title: "What's playing", fill: Ink.petal, metrics: .phone, hint: "Transcribes sound from TikTok or any app.") {
+                    app.showPlayingSheet = true
+                } icon: { _ in
+                    PulsingRingsGlyph(color: Ink.inkFixed, lineWidth: 1.4)
+                }
+                HomeTile(title: "Live captions", fill: Ink.inkFixed, onFill: Color(hex: Ink.paperHex), disc: Ink.readerFixed.opacity(0.14),
+                         edge: Ink.hairline, metrics: .phone, hint: "Shows what's said in the room as captions.") {
+                    app.requestCaptions()
+                } icon: { replay in
+                    TwinkleRefineGlyph(color: Color(hex: Ink.paperHex), lineWidth: 1.25, replay: replay)
+                }
+            }
+        }
+    }
+
+    // MARK: Method
+
+    private var method: some View {
         let live = app.store.live
-        let latest = live.first { $0.status == .ready && !$0.segments.isEmpty }
-        let moments = live.reduce(0) { $0 + $1.notes.filter { $0.at != nil }.count }
-        BrandFeatureCard(feature: .capture, line: "Record or import a file.", meta: live.count == 1 ? "1 transcript" : "\(live.count) transcripts",
-                         animated: PhoneMotion.on, parallax: PhoneMotion.on) { app.requestRecord() }
-            .frame(width: 236)
-            .modifier(CarouselTilt())
-        BrandFeatureCard(feature: .refine, line: "Clean up a transcript. The original stays.", meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet",
-                         enabled: latest != nil, animated: PhoneMotion.on, parallax: PhoneMotion.on) {
-            if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
+        let latest = HomeCounts.latestRefinable(live)
+        let width = 196 * min(k, 1.5)
+        return VStack(alignment: .leading, spacing: 10) {
+            EditorialSectionHeader(index: "01", label: "Method")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 10) {
+                    CompactMethodCard(feature: .capture, line: "Record or import a file.",
+                                      meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
+                                      animated: PhoneMotion.on, hint: "Starts a voice note.") { app.requestRecord() }
+                        .frame(width: width)
+                    CompactMethodCard(feature: .refine, line: "Clean up a transcript. The original stays.",
+                                      meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
+                                      animated: PhoneMotion.on, hint: "Opens your latest transcript as a document.") {
+                        if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
+                    }
+                    .frame(width: width)
+                    CompactMethodCard(feature: .understand, line: "Search, moments, and summaries.",
+                                      meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
+                                      animated: PhoneMotion.on, hint: "Opens your saved moments.") { app.tab = .moments }
+                        .frame(width: width)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.viewAligned)
+            .contentMargins(.horizontal, 18, for: .scrollContent)
+            .padding(.horizontal, -18)
         }
-        .frame(width: 236)
-        .modifier(CarouselTilt())
-        BrandFeatureCard(feature: .understand, line: "Find what matters: moments and search.", meta: moments == 1 ? "1 saved moment" : "\(moments) saved moments",
-                         animated: PhoneMotion.on, parallax: PhoneMotion.on) { app.tab = .moments }
-            .frame(width: 236)
-            .modifier(CarouselTilt())
+    }
+
+    // MARK: This week
+
+    private var weekCard: some View {
+        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        return HomeWeekCard(week: week, saved: week.secondsSaved(typingWPM: flow.typingWPM), compact: true) { EmptyView() }
+    }
+
+    // MARK: Recent
+
+    private var recent: some View {
+        let items = Array(app.store.live.filter { !$0.isDictation }.prefix(3))
+        return VStack(alignment: .leading, spacing: 8) {
+            HomeSectionTitle(title: "Recent recordings", link: "Library", size: 23, linkHint: "Opens your library.") { app.tab = .library }
+            if items.isEmpty {
+                HStack(spacing: 14) {
+                    EmptyStateArt(art: .capture, tint: Ink.persimmonTint)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Record something new.").font(Ink.serif(20 * k)).foregroundStyle(Ink.ink)
+                        Text("Recordings and imports land here, and on your Mac.").font(.system(size: 14 * k)).foregroundStyle(Ink.dim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                .cardSurface(radius: 16)
+            } else {
+                ForEach(items) { t in
+                    Button { app.open(t.id) } label: { HomeRecentRow(transcript: t, compact: true) }
+                        .buttonStyle(SoftPress())
+                        .contextMenu { RowActions(transcript: t) }
+                        .accessibilityHint("Opens the transcript.")
+                }
+            }
+        }
+    }
+
+    private var keyboardOn: Bool {
+        app.store.live.contains { $0.isDictation } || KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.seenID) != nil
+    }
+
+    private var dictations: some View {
+        let items = Array(app.store.live.filter { $0.isDictation }.sorted { $0.createdAt > $1.createdAt }.prefix(2))
+        return VStack(alignment: .leading, spacing: 8) {
+            HomeSectionTitle(title: "Recent dictations", link: "All", linkLabel: "All dictations", size: 23, linkHint: "Opens every dictation.") {
+                app.tab = .library
+                app.libraryPath.append(DictationsRoute())
+            }
+            HomeDictationsPanel(items: items, compact: true, place: { $0.flow?.app },
+                                copy: { text in UIPasteboard.general.string = text; app.say("Copied") },
+                                empty: "Dictate with the Verbatim keyboard in any app. What you say shows up here.")
+            Button {
+                SettingsPage.open("keyboard")
+                app.tab = .settings
+            } label: {
+                HStack(spacing: 10) {
+                    IconGlyph(art: .iconDictations, size: 20, color: Ink.butterText)
+                    Text(keyboardOn ? "Verbatim keyboard is on" : "Set up the Verbatim keyboard").font(.system(size: 13.5 * k)).foregroundStyle(Ink.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Text("Settings ›").font(.system(size: 13 * k)).foregroundStyle(Ink.mute)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardSurface(radius: 16)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(SoftPress())
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens the keyboard's settings.")
+        }
+    }
+}
+
+extension Notification.Name {
+    /// Scrolls Home to a section ("home-top", "home-recent", "home-dictations"); the screenshot tour uses it.
+    static let verbatimHomeScroll = Notification.Name("verbatimHomeScroll")
+    static let verbatimOpenSettingsPage = Notification.Name("verbatimOpenSettingsPage")
+}
+
+/// Opens a page inside Settings from elsewhere (Home's avatar opens About me; the keyboard row opens Keyboard).
+/// Kept until Settings reads it, because the Settings tab may not exist yet when Home asks.
+enum SettingsPage {
+    static var pending: String?
+    static func open(_ page: String) {
+        pending = page
+        NotificationCenter.default.post(name: .verbatimOpenSettingsPage, object: page)
+    }
+    static func take() -> String? {
+        defer { pending = nil }
+        return pending
     }
 }
 

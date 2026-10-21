@@ -151,6 +151,7 @@ targets:
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
+      - Verbatim/Views/HomeKit.swift
       - Verbatim/Views/LinkAddedCard.swift
       - Verbatim/Views/KindViews.swift
       - Verbatim/Views/LibraryFilterBar.swift
