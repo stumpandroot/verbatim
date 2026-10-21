@@ -49,6 +49,9 @@ final class AutoLearn {
         let pairs = Self.substitutions(a, b)
         guard !pairs.isEmpty, let app else { return }
         let settings = FlowSettings.shared
+        // Every fix is counted too: one made again becomes a Dictionary suggestion, unless you declined it here.
+        EditLearner.record(pairs.filter { !settings.declinedFixes.contains("\($0.0.lowercased())→\($0.1.lowercased())") }
+            .map { (heard: $0.0, fixed: $0.1) })
         var ask: [(heard: String, fixed: String)] = []
         // Changed on a copy and assigned once: every change to the Dictionary rewrites its whole file.
         var dictionary = app.store.dictionary, added = false

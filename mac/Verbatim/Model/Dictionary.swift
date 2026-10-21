@@ -14,7 +14,14 @@ struct DictionaryEntry: Codable, Identifiable, Equatable {
 enum DictionaryApplier {
     /// Applies enabled entries as whole-word, case-insensitive replacements and records each change,
     /// so every fix is visible and reversible. Nothing is replaced unless it matches a listed "heard as" form.
-    static func apply(_ entries: [DictionaryEntry], to segments: inout [Segment], project: UUID? = nil) -> [Correction] {
+    /// Then the built-in vocabulary runs (when it's on and `builtIn` is true); your entries win over it.
+    static func apply(_ entries: [DictionaryEntry], to segments: inout [Segment], project: UUID? = nil, builtIn: Bool = true) -> [Correction] {
+        var out = applyOwn(entries, to: &segments, project: project)
+        if builtIn { out += BuiltInVocabulary.apply(to: &segments, respecting: entries) }
+        return out
+    }
+
+    private static func applyOwn(_ entries: [DictionaryEntry], to segments: inout [Segment], project: UUID?) -> [Correction] {
         var out: [Correction] = []
         let active = entries.filter { $0.enabled && !$0.preferred.isEmpty && ($0.projectId == nil || $0.projectId == project) }
         guard !active.isEmpty else { return [] }

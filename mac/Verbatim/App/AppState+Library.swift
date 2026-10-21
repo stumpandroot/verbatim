@@ -56,6 +56,9 @@ extension AppState {
         if remember, let t = store.transcript(id) {
             store.remember(preferred: to, heardAs: from, from: t.title, project: projectScopedVocabulary ? t.projectId : nil)
             toast = Toast("\(to) added to Dictionary" + (projectScopedVocabulary && t.projectId != nil ? " for this project" : ""))
+        } else if !remember {
+            // Not remembered: counted, so the same fix made again becomes a Dictionary suggestion.
+            EditLearner.record([(heard: from, fixed: to)])
         }
     }
 

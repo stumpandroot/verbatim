@@ -25,6 +25,9 @@ struct DictionaryView: View {
                 Text("Right-click a word in any transcript, choose Correct, and turn on Remember. From then on, every new transcript gets it right. Fixes are listed on each transcript so nothing changes silently.")
                     .font(.system(size: 13.5)).foregroundStyle(Ink.dim).frame(maxWidth: 560, alignment: .leading).padding(.top, 4).padding(.bottom, 18)
 
+                // About me names, repeated fixes, and Contacts (VocabularyViews.swift).
+                DictionarySuggestions()
+
                 HStack(spacing: 8) {
                     TextField("Search \(app.store.dictionary.count) words", text: $filter).textFieldStyle(.roundedBorder)
                     Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.brandPrimary)
@@ -91,6 +94,8 @@ struct DictionaryView: View {
                     .cardSurface(radius: 12)
                     .tiltCard(lift: 1, radius: 12, rotates: false)
                 }
+
+                BuiltInVocabularySection()
             }
             .frame(maxWidth: 820)
             .padding(.horizontal, 40).padding(.top, 36).padding(.bottom, 40)

@@ -79,7 +79,7 @@ enum Continuation {
             return x
         }
         var fixed = shifted
-        let corrections = dictionary.isEmpty ? [] : DictionaryApplier.apply(dictionary, to: &fixed, project: existing.projectId)
+        let corrections = dictionary.isEmpty && !BuiltInVocabulary.isActive ? [] : DictionaryApplier.apply(dictionary, to: &fixed, project: existing.projectId)
         var fresh: [Speaker]? = nil
         var added: [Speaker] = []
         var relabeled: [UUID: String] = [:]

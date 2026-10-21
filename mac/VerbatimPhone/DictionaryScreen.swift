@@ -6,6 +6,8 @@ struct DictionaryScreen: View {
     @State private var heard = ""
     var body: some View {
         List {
+            // About me names, repeated fixes, and Contacts (VocabularyPhone.swift).
+            PhoneDictionarySuggestions()
             Section("Add a word") {
                 TextField("Preferred spelling (Lititz)", text: $preferred)
                 TextField("Heard as (Lit it's, Lititz's)", text: $heard)
@@ -29,6 +31,7 @@ struct DictionaryScreen: View {
                 }
                 .onDelete { idx in app.store.dictionary.remove(atOffsets: idx) }
             }
+            PhoneBuiltInVocabularySection()
         }
         .scrollContentBackground(.hidden)
         .background(Ink.paper.ignoresSafeArea())
