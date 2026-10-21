@@ -22,6 +22,8 @@ enum Paths {
     static let thumbs = root.appendingPathComponent("thumbs", isDirectory: true)
     static let projectsFile = root.appendingPathComponent("projects.json")
     static let dictionaryFile = root.appendingPathComponent("dictionary.json")
+    /// Dictation snippets (say the trigger, get the text), shared by the Mac and the iPhone.
+    static let snippetsFile = root.appendingPathComponent("snippets.json")
     static let models = local.appendingPathComponent("models", isDirectory: true)
     static let downloads = local.appendingPathComponent("downloads", isDirectory: true)
     /// Recordings are written here while they're made, then moved into `audio` when they stop, so a
@@ -120,7 +122,7 @@ enum Cloud {
                 try? fm.removeItem(at: f)
             }
         }
-        for name in ["projects.json", "dictionary.json"] {
+        for name in ["projects.json", "dictionary.json", "snippets.json"] {
             let src = cloud.appendingPathComponent(name)
             if fm.fileExists(atPath: src.path) || fm.fileExists(atPath: cloud.appendingPathComponent(".\(name).icloud").path) {
                 copy(src, Paths.local.appendingPathComponent(name))
@@ -225,13 +227,14 @@ enum Cloud {
         }
         merge(Project.self, "projects.json")
         merge(DictionaryEntry.self, "dictionary.json")
+        merge(Snippet.self, "snippets.json")
         // A later turn-on gets its own dated folder, since "Before iCloud" already exists.
         var backup = old.appendingPathComponent("Before iCloud", isDirectory: true)
         if fm.fileExists(atPath: backup.path) {
             backup = old.appendingPathComponent("Before iCloud \(Formats.pattern("yyyy-MM-dd HH.mm").string(from: Date()))", isDirectory: true)
         }
         try? fm.createDirectory(at: backup, withIntermediateDirectories: true)
-        for name in ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json"] {
+        for name in ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json", "snippets.json"] {
             let src = old.appendingPathComponent(name)
             if fm.fileExists(atPath: src.path) { try? fm.moveItem(at: src, to: backup.appendingPathComponent(name)) }
         }
@@ -328,6 +331,8 @@ final class Store: ObservableObject {
     @Published private(set) var transcripts: [Transcript] = []
     @Published var projects: [Project] = [] { didSet { saveProjects() } }
     @Published var dictionary: [DictionaryEntry] = [] { didSet { saveDictionary() } }
+    /// Snippets for dictation. Synced like the Dictionary; the Mac mirrors them into `FlowSettings.snippets`.
+    @Published var snippets: [Snippet] = [] { didSet { saveSnippets() } }
 
     static let enc: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.prettyPrinted, .sortedKeys]; return e }()
     static let dec: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
@@ -397,6 +402,7 @@ final class Store: ObservableObject {
         sync?.seed(dates)
         projects = Cloud.read(Paths.projectsFile).flatMap { try? Self.dec.decode([Project].self, from: $0) } ?? []
         dictionary = Cloud.read(Paths.dictionaryFile).flatMap { try? Self.dec.decode([DictionaryEntry].self, from: $0) } ?? []
+        snippets = Cloud.read(Paths.snippetsFile).flatMap { try? Self.dec.decode([Snippet].self, from: $0) } ?? []
         recoverOrphans()
         purgeExpired()
     }
@@ -521,6 +527,11 @@ final class Store: ObservableObject {
         loading = true; dictionary = x; loading = false
     }
 
+    func ingestSnippets() {
+        guard let d = Cloud.read(Paths.snippetsFile), let x = try? Self.dec.decode([Snippet].self, from: d), x != snippets else { return }
+        loading = true; snippets = x; loading = false
+    }
+
     /// Moves a finished recording from the local recordings folder into the synced audio folder.
     /// Returns its file name there.
     @discardableResult
@@ -635,7 +646,7 @@ final class Store: ObservableObject {
             .filter { $0.lastPathComponent.hasPrefix("Before iCloud") }
         var local = backups + [Paths.downloads, Paths.models]
         if Cloud.enabled {
-            local += ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json"].map { Paths.local.appendingPathComponent($0) }
+            local += ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json", "snippets.json"].map { Paths.local.appendingPathComponent($0) }
         }
         LocalMedia.removeAll()
         TranscriptFiles.queue.async {
@@ -704,6 +715,11 @@ final class Store: ObservableObject {
     private func saveDictionary() {
         guard !loading, let d = try? Self.enc.encode(dictionary) else { return }
         Cloud.write(d, to: Paths.dictionaryFile)
+    }
+
+    private func saveSnippets() {
+        guard !loading, let d = try? Self.enc.encode(snippets) else { return }
+        Cloud.write(d, to: Paths.snippetsFile)
     }
 
     func addProject(_ name: String) -> Project {

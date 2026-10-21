@@ -141,6 +141,11 @@ targets:
       - Verbatim/Views/SummaryBlock.swift
       - Verbatim/Flow/CleanupPrepass.swift
       - Verbatim/Flow/DictationFormatter.swift
+      # Dictation cleanup with Apple's on-device model (iOS 26), its meaning guard, and the cleanup level and
+      # snippet types (FlowSettings; on the iPhone only `cleanup` is read, under the Mac's key, per device).
+      - Verbatim/Flow/Cleanup.swift
+      - Verbatim/Flow/MeaningCheck.swift
+      - Verbatim/Flow/FlowSettings.swift
       # Shared with the keyboard extension: the App Group channel and the voice bars.
       - VerbatimKeyboard/KeyboardBridge.swift
       - VerbatimKeyboard/VoiceBars.swift

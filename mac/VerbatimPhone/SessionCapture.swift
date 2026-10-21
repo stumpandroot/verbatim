@@ -119,6 +119,39 @@ final class SessionCapture: @unchecked Sendable {
         lock.unlock()
     }
 
+    // MARK: Trimming
+
+    /// Trims leading and trailing quiet from a dictation by loudness, keeping 250 ms around the speech. The keyboard
+    /// uses it until the speech detector (Silero VAD, `FluidEngine`) has loaded. Conservative: when speech can't be
+    /// told from the room (no frame clearly above the noise floor), the samples come back whole.
+    static func trimQuiet(_ samples: [Float]) -> (samples: [Float], start: Double) {
+        let frame = 320                       // 20 ms at 16 kHz
+        let pad = 4_000                       // 250 ms
+        let n = samples.count / frame
+        guard n >= 10 else { return (samples, 0) }
+        var rms = [Float](repeating: 0, count: n)
+        samples.withUnsafeBufferPointer { p in
+            for f in 0..<n {
+                var sum: Float = 0
+                let base = f * frame
+                for i in base..<(base + frame) { sum += p[i] * p[i] }
+                rms[f] = sqrt(sum / Float(frame))
+            }
+        }
+        let sorted = rms.sorted()
+        let noise = sorted[n / 10]
+        let peak = sorted[n - 1]
+        guard peak > max(0.01, noise * 4) else { return (samples, 0) }
+        let threshold = min(max(noise * 2.5, 0.004), peak * 0.25)
+        guard let first = rms.firstIndex(where: { $0 >= threshold }), let last = rms.lastIndex(where: { $0 >= threshold }) else {
+            return (samples, 0)
+        }
+        let start = max(0, first * frame - pad)
+        let end = min(samples.count, (last + 1) * frame + pad)
+        guard end > start, start > 0 || end < samples.count else { return (samples, 0) }
+        return (Array(samples[start..<end]), Double(start) / sampleRate)
+    }
+
     // MARK: Audio thread
 
     private func feed(_ buffer: AVAudioPCMBuffer) {

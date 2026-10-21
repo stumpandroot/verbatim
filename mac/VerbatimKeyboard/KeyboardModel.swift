@@ -38,6 +38,9 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var micName = "iPhone Microphone"
     /// Ticks once a second while idle, so the session countdown moves.
     @Published private(set) var now = Date()
+    /// Your snippets (synced with the Mac; the app writes them to the App Group), and whether the top strip shows them.
+    @Published private(set) var snippets: [KeyboardBridge.Snippet] = []
+    @Published private(set) var showingSnippets = false
 
     /// The cleanup level the app applies, for the top strip.
     var levelLabel: String { KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
@@ -67,6 +70,7 @@ final class KeyboardModel: ObservableObject {
     /// session and the dictation live in the App Group, not only in memory.
     func resume() {
         visible = true
+        reloadSnippets()
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
@@ -102,6 +106,7 @@ final class KeyboardModel: ObservableObject {
         }
         insertion = nil
         notice = nil
+        showingSnippets = false
         if KeyboardBridge.sessionLive { startDictation(defaults) } else { startSession(defaults) }
     }
 
@@ -169,6 +174,36 @@ final class KeyboardModel: ObservableObject {
         proxy?.insertText(new)
         ins.inserted = new; ins.text = ins.raw; ins.words = Self.wordCount(ins.raw)
         insertion = ins
+    }
+
+    // MARK: Snippets
+
+    /// Shows or hides the snippet row. From the inserted state, the row replaces Undo.
+    func toggleSnippets() {
+        reloadSnippets()
+        if showingSnippets || snippets.isEmpty { showingSnippets = false; return }
+        if stage == .inserted { insertion = nil; set(.idle) }
+        guard stage == .idle else { return }
+        notice = nil
+        showingSnippets = true
+    }
+
+    /// Inserts a snippet's text, with a space before it after a word, and offers Undo.
+    func insertSnippet(_ s: KeyboardBridge.Snippet) {
+        guard stage == .idle else { return }
+        let before = proxy?.documentContextBeforeInput ?? ""
+        let lead = (before.last.map { !$0.isWhitespace } ?? false) ? " " : ""
+        let inserted = lead + s.expansion
+        proxy?.insertText(inserted)
+        showingSnippets = false
+        insertion = Insertion(inserted: inserted, text: s.expansion, raw: s.expansion, words: Self.wordCount(s.expansion))
+        set(.inserted)
+    }
+
+    private func reloadSnippets() {
+        let list = KeyboardBridge.readSnippets()
+        if list != snippets { snippets = list }
+        if list.isEmpty { showingSnippets = false }
     }
 
     func space() { proxy?.insertText(" ") }
