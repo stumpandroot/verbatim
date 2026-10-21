@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .general
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
+    @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
 
@@ -85,6 +86,9 @@ struct SettingsView: View {
             Section {
                 Toggle("Name and sort recordings", isOn: $autoLabels)
                 Text("Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Write a summary when a transcript finishes", isOn: $autoSummary)
+                Text(Summarizer.unavailableReason ?? "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                 Toggle("Hide filler lines", isOn: $hideFiller)
                 Text("Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.")
@@ -309,6 +313,7 @@ struct DictationForm: View {
     @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
     @AppStorage(LiveWordsSetting.key) private var liveWords = true
+    @AppStorage(VoiceProfile.dictationFilterKey) private var onlyMyVoice = false
 
     var body: some View {
         Form {
@@ -389,6 +394,12 @@ struct DictationForm: View {
             Section("Accuracy") {
                 Toggle("Listen for my Dictionary words", isOn: $flow.boostVocabulary)
                 Text("Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Toggle("Only keep my voice in dictation", isOn: $onlyMyVoice)
+                    .disabled(!VoiceProfile.isEnrolled)
+                Text(VoiceProfile.isEnrolled
+                     ? "When someone nearby talks while you dictate, Verbatim pastes only your words. It takes a moment longer when another voice is heard."
+                     : "Available once Verbatim knows your voice. Your voice profile stays on this Mac.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
                 Toggle("Learn from my fixes", isOn: $flow.autoLearn)
                 Text("When you correct a name or term right after it's pasted, the floating button asks whether to remember it. Nothing is learned unless you say yes.")

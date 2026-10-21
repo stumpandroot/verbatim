@@ -1050,9 +1050,12 @@ struct AnimatedFeatureArt: View {
 /// The AI label (privacy policy and App Store AI disclosure): shown wherever Verbatim shows text a language model
 /// rewrote, so nobody mistakes it for a word-for-word transcript.
 struct AIGeneratedNote: View {
+    /// The default is for rewritten text; summaries pass `AIGeneratedNote.summary`.
+    var text: String = "Rewritten by Apple Intelligence. It can be wrong, so check names, numbers, and quotes against the transcript."
+    static let summary = "Summarized by Apple Intelligence. It can be wrong, so check names, numbers, and quotes against the transcript."
     var body: some View {
         Label {
-            Text("Rewritten by Apple Intelligence. It can be wrong, so check names, numbers, and quotes against the transcript.")
+            Text(text)
         } icon: {
             Image(systemName: "sparkles")
         }

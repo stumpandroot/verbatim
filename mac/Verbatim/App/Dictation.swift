@@ -612,13 +612,16 @@ final class DictationController: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let t0 = Date()
-                let r: EngineResult
+                var heard: EngineResult
                 if engineId == "fluid" {
                     // Silence trimming for every dictation; the boost (active project's words first) when on.
-                    r = try await FluidEngine.shared.transcribeDictation(url: url, model: model, dictionary: boost ? boostDict : [], project: project)
+                    heard = try await FluidEngine.shared.transcribeDictation(url: url, model: model, dictionary: boost ? boostDict : [], project: project)
                 } else {
-                    r = try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
+                    heard = try await Engines.engine(for: engineId).transcribe(url: url, model: model, progress: { _ in })
                 }
+                // Settings › Only keep my voice in dictation: words from other voices nearby are dropped (VoiceProfile).
+                if let mine = await VoiceProfile.filterDictation(url: url, segments: heard.segments) { heard.segments = mine }
+                let r = heard
                 let transcribeTime = Date().timeIntervalSince(t0)
                 let t1 = Date()
                 let original = r.segments

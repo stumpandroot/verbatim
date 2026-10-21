@@ -152,7 +152,7 @@ final class TranscriptionCoordinator: ObservableObject {
         if config.speakerPass == .afterWords, store.transcript(id)?.status == .ready {
             // The words are in; only the speaker pass was running. Stop it and keep the transcript.
             store.update(id) { $0.stage = nil }
-            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; labelIfNeeded(id); pump() }
+            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; labelIfNeeded(id); SummaryCenter.shared.summarizeIfNeeded(id, store: store); pump() }
             return
         }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
@@ -203,6 +203,7 @@ final class TranscriptionCoordinator: ObservableObject {
         guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
         labelIfNeeded(id)
+        SummaryCenter.shared.summarizeIfNeeded(id, store: store)
         pump()
     }
 
@@ -289,6 +290,8 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if !wave.isEmpty { x.waveform = wave }
                         if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
+                        // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
+                        if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
                     // In a batch, stay quiet until the last one.
                     self.host?.transcriptReady(id, corrections: corrections.count, queueEmpty: self.queue.isEmpty)
@@ -328,6 +331,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if !out.wave.isEmpty { x.waveform = out.wave }
                         if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
+                        if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
                     self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
                     if !findSpeakers { self.finished(id, token: token) }
@@ -335,18 +339,18 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 guard proceed, findSpeakers else { return }
                 guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id, token: token) }; return }
-                let turns = try? await FluidDiarizer.shared.diarize(url: url, progress: { _ in })
+                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: url, progress: { _ in })
                 await MainActor.run {
                     guard self.runToken == token else { return }
                     defer { self.finished(id, token: token) }
                     self.store.update(id) { x in
                         x.stage = nil
                         // Only when nobody has assigned speakers by hand in the meantime.
-                        guard let turns, x.speakers.isEmpty else { return }
+                        guard let found, x.speakers.isEmpty else { return }
                         var segs = x.segments
-                        let found = SpeakerAssigner.assign(turns, to: &segs)
-                        guard found.count >= 2 else { return }
-                        x.segments = segs; x.speakers = found
+                        let speakers = SpeakerAssigner.assign(found, to: &segs)
+                        guard speakers.count >= 2 else { return }
+                        x.segments = segs; x.speakers = speakers
                         for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker }
                     }
                 }
@@ -387,7 +391,11 @@ final class TranscriptionCoordinator: ObservableObject {
                     defer { self.finished(id, token: token) }
                     guard self.runToken == token, !Task.isCancelled, self.store.transcript(id)?.pendingAppend == partName,
                           let name = self.store.adoptRecording(combined) else { try? FileManager.default.removeItem(at: combined); return }
-                    self.store.update(id) { Continuation.apply(out, to: &$0, combinedName: name) }
+                    self.store.update(id) { x in
+                        Continuation.apply(out, to: &x, combinedName: name)
+                        // The recording grew: Apple Intelligence's summary is rewritten for the whole of it.
+                        if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
+                    }
                     // The two halves go only after the transcript pointing at the joined file is on disk.
                     self.store.removeAfterPendingWrites([url, part])
                     self.host?.appendReady(id, queueEmpty: self.queue.isEmpty)

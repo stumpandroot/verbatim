@@ -21,6 +21,8 @@ struct TranscriptScreen: View {
     @State private var showFiller = false
     @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    /// Why Summarize can't run here (Apple Intelligence unavailable), shown when the action is chosen.
+    @State private var summaryUnavailable: String? = nil
 
     private var t: Transcript? { app.store.transcript(id) }
 
@@ -67,6 +69,12 @@ struct TranscriptScreen: View {
                         }
                         Button { showNotes = true } label: { Image(systemName: "note.text") }.accessibilityLabel("Notes")
                         Menu {
+                            Button {
+                                if let why = SummaryAction.unavailableReason { summaryUnavailable = why }
+                                else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
+                            } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }
+                            .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
+                            Divider()
                             Button { app.copyText(t) } label: { Label("Copy text", systemImage: "doc.on.doc") }
                             Divider()
                             ForEach(ExportFormat.allCases) { f in
@@ -77,6 +85,9 @@ struct TranscriptScreen: View {
                         .disabled(t.status != .ready)
                     }
                 }
+                .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
+                    Button("OK", role: .cancel) {}
+                } message: { Text(summaryUnavailable ?? "") }
                 .sheet(isPresented: $showNotes) { NotesSheet(id: id).presentationDetents([.medium, .large]) }
                 .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) { ShareSheet(items: shareItems ?? []) }
                 .alert("Add a note", isPresented: Binding(get: { noteFor != nil }, set: { if !$0 { noteFor = nil } })) {
@@ -164,24 +175,31 @@ struct TranscriptScreen: View {
             }
             .padding(.top, 20)
         } else {
-            switch mode {
-            case .transcript:
-                let background = mainSpeakerOnly ? t.backgroundSegments : []
-                VStack(alignment: .leading, spacing: 10) {
-                    PhoneLines(transcript: t, segments: t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly),
-                               clock: app.player.clock, onNote: { noteFor = $0 })
-                    if hideFillerSetting, t.fillerCount > 0 {
-                        FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 62)
-                    }
-                    if !background.isEmpty {
-                        BackgroundVoicesCard(segments: background,
-                                             onPlay: { s in app.player.seek(to: s.start) },
-                                             onMoveBack: { s in if let main = t.mainSpeaker { app.assign(t.id, segment: s.id, to: main) } })
-                            .padding(.top, 8)
-                    }
+            VStack(alignment: .leading, spacing: 0) {
+                if mode != .review {
+                    SummaryBlock(transcript: t, compact: true,
+                                 onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
+                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
                 }
-            case .document: PhoneDocument(transcript: t)
-            case .review: review(t)
+                switch mode {
+                case .transcript:
+                    let background = mainSpeakerOnly ? t.backgroundSegments : []
+                    VStack(alignment: .leading, spacing: 10) {
+                        PhoneLines(transcript: t, segments: t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly),
+                                   clock: app.player.clock, onNote: { noteFor = $0 })
+                        if hideFillerSetting, t.fillerCount > 0 {
+                            FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 62)
+                        }
+                        if !background.isEmpty {
+                            BackgroundVoicesCard(segments: background,
+                                                 onPlay: { s in app.player.seek(to: s.start) },
+                                                 onMoveBack: { s in if let main = t.mainSpeaker { app.assign(t.id, segment: s.id, to: main) } })
+                                .padding(.top, 8)
+                        }
+                    }
+                case .document: PhoneDocument(transcript: t)
+                case .review: review(t)
+                }
             }
         }
     }
