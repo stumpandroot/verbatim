@@ -24,7 +24,7 @@ struct GeneralSettingsPane: View {
                 SettingsToggleRow("general.sounds", isOn: $app.sounds)
             }
             SettingsGroup(title: "Welcome") {
-                SettingsToggleRow("general.welcomeCard", isOn: Binding(get: { !app.heroDismissed }, set: { app.heroDismissed = !$0 }))
+                SettingsToggleRow("general.welcomeCard", isOn: Binding(get: { app.showWelcomeCard }, set: { app.showWelcomeCard = $0 }))
                 SettingsToggleRow("general.tourOnLaunch", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
                 SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.brandSecondary) }
             }
