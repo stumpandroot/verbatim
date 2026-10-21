@@ -35,26 +35,84 @@ enum DictationFormatter {
         case plain
     }
 
+    /// How long paragraphs run, by destination.
+    enum Paragraphs: String, Equatable {
+        /// Notes, documents, everything else: 4 sentences or 90 words.
+        case normal
+        /// Email, Normal: 1 to 4 sentences, up to 90 words, split before a closing ask when it runs long.
+        case email
+        /// Email, Short: 1 or 2 sentences, up to 50 words.
+        case short
+        /// Slack and Teams: 1 to 3 sentences, up to 60 words.
+        case chat
+        /// Messages and WhatsApp: one paragraph unless it runs past 60 words.
+        case message
+
+        struct Rule {
+            /// Messages with fewer words keep their paragraphs as spoken.
+            var minWords: Int
+            var maxSentences: Int
+            var maxWords: Int
+            /// More than `maxSentences` sentences splits only past this many words (0: always).
+            var sentenceSplitWords: Int
+            /// Prefer a break before a closing ask ("Can you…", "Let me know…").
+            var asks: Bool
+        }
+
+        var rule: Rule {
+            switch self {
+            case .normal: return Rule(minWords: 40, maxSentences: 4, maxWords: 90, sentenceSplitWords: 50, asks: false)
+            case .email: return Rule(minWords: 40, maxSentences: 4, maxWords: 90, sentenceSplitWords: 0, asks: true)
+            case .short: return Rule(minWords: 25, maxSentences: 2, maxWords: 50, sentenceSplitWords: 0, asks: true)
+            case .chat: return Rule(minWords: 30, maxSentences: 3, maxWords: 60, sentenceSplitWords: 0, asks: true)
+            case .message: return Rule(minWords: 60, maxSentences: 4, maxWords: 90, sentenceSplitWords: 50, asks: false)
+            }
+        }
+    }
+
     struct Options: Equatable {
         var style: ListStyle = .markdown
-        /// Puts a spoken greeting ("Hi Sarah,") and sign-off ("Best, Tim") on lines of their own.
+        /// Puts a spoken greeting ("Hi Sarah,") and sign-off ("Thanks, Tim") on lines of their own.
         var email = false
+        /// The cursor is inside a message that already has writing before it: no greeting or sign-off lines.
+        var insertion = false
+        var paragraphs: Paragraphs = .normal
+        /// A blank line between a lead-in and the list under it (email reads cleaner that way in Gmail and Mail).
+        var blankBeforeList = false
+        /// Your name ("Tim Medina"), so "thanks Tim" at the end is your sign-off, not thanks to someone named Tim.
+        var signer: [String] = []
     }
 
     /// The options for an app kind, or nil when the text goes in untouched.
     ///
     /// - Email (Mail, Outlook, Gmail): plain bullets. Mail composers paste text as typed, so "- " would stay a
     ///   dash; "•" reads as a bullet everywhere. Greetings and sign-offs get their own lines.
-    /// - Personal messages (Messages, WhatsApp, Signal): plain bullets, for the same reason.
-    /// - Work chat and everything else (Slack, Linear, Notion, notes, documents, browsers, ChatGPT and Claude):
-    ///   Markdown. These apps render it, convert it on paste, or (AI prompts) read it as structure.
+    /// - Personal messages (Messages, WhatsApp, Signal): plain bullets, for the same reason; short messages stay
+    ///   one paragraph.
+    /// - Work chat (Slack, Teams, Discord, Linear): Markdown, short paragraphs.
+    /// - Everything else (Notion, notes, documents, browsers, ChatGPT and Claude): Markdown. These apps render it,
+    ///   convert it on paste, or (AI prompts) read it as structure.
     /// - Code apps: nil. Words go in as spoken.
     static func options(for category: AppCategory) -> Options? {
         switch category {
         case .code: return nil
-        case .email: return Options(style: .plain, email: true)
-        case .personal: return Options(style: .plain)
-        case .work, .other: return Options(style: .markdown)
+        case .email: return Options(style: .plain, email: true, paragraphs: .email, blankBeforeList: true)
+        case .personal: return Options(style: .plain, paragraphs: .message)
+        case .work: return Options(style: .markdown, paragraphs: .chat)
+        case .other: return Options(style: .markdown)
+        }
+    }
+
+    /// Settings › Dictation › Email: greeting and sign-off lines, and paragraph length. Stored on this device.
+    enum EmailPrefs {
+        static let ownLinesKey = "flow.email.ownLines"
+        static let paragraphsKey = "flow.email.paragraphs"
+        static var ownLines: Bool { UserDefaults.standard.object(forKey: ownLinesKey) as? Bool ?? true }
+        static var short: Bool { UserDefaults.standard.string(forKey: paragraphsKey) == Paragraphs.short.rawValue }
+
+        /// Email options with these settings.
+        static func options(ownLines: Bool = EmailPrefs.ownLines, short: Bool = EmailPrefs.short, insertion: Bool = false, signer: [String] = []) -> Options {
+            Options(style: .plain, email: ownLines, insertion: insertion, paragraphs: short ? .short : .email, blankBeforeList: true, signer: signer)
         }
     }
 
@@ -70,18 +128,28 @@ enum DictationFormatter {
     static func format(_ text: String, _ o: Options) -> String {
         let t = text.replacingOccurrences(of: "\r\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return text }
+        var body = t
+        var greetingLine: String?
+        var greetingName: String?
+        var signOff: [String] = []
+        if o.email && !o.insertion {
+            if let g = splitGreeting(body) { greetingLine = g.line; greetingName = g.name; body = g.rest }
+            if let s = splitSignOff(body, signer: o.signer, greetingName: greetingName) { body = s.body; signOff = s.lines }
+            else if greetingLine != nil { body = closeSentence(body) }
+        }
+        let rule = o.paragraphs.rule
         // Words with a letter, so list numbers ("1.") added by a first run don't count on the second.
-        let auto = t.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter }) }.count >= shortMessageWords
-        var blocks = t.replacingOccurrences(of: "\\n[ \\t]*(?:\\n[ \\t]*)+", with: "\u{0}", options: .regularExpression)
+        let auto = body.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter }) }.count >= rule.minWords
+        let blocks = body.replacingOccurrences(of: "\\n[ \\t]*(?:\\n[ \\t]*)+", with: "\u{0}", options: .regularExpression)
             .components(separatedBy: "\u{0}")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        if o.email, let first = blocks.first, let (greeting, rest) = splitGreeting(first) {
-            blocks.replaceSubrange(0...0, with: [greeting, rest])
-        }
-        var out = blocks.map { formatBlock($0, o, auto: auto) }.joined(separator: "\n\n")
-        if o.email { out = splitSignOff(out) }
-        return tidy(out)
+        var parts: [String] = []
+        if let greetingLine { parts.append(greetingLine) }
+        let formatted = blocks.map { formatBlock($0, o, auto: auto) }.joined(separator: "\n\n")
+        if !formatted.isEmpty { parts.append(formatted) }
+        if !signOff.isEmpty { parts.append(signOff.joined(separator: "\n")) }
+        return tidy(parts.joined(separator: "\n\n"))
     }
 
     // MARK: Blocks and lines
@@ -98,7 +166,7 @@ enum DictationFormatter {
                 // line, so Markdown doesn't fold it into the last item.
                 let afterList = listLine(out.components(separatedBy: "\n").last ?? "") != nil
                 let startsList = listLine(piece.components(separatedBy: "\n").first ?? "") != nil
-                out += afterList && !startsList ? "\n\n" : "\n"
+                out += (afterList && !startsList) || (o.blankBeforeList && !afterList && startsList) ? "\n\n" : "\n"
             }
             out += piece
         }
@@ -139,14 +207,14 @@ enum DictationFormatter {
                 s += formatProse(lead, o, auto: auto) + "\n\n"
             } else if !lead.isEmpty {
                 let (text, colon) = leadIn(lead)
-                s += paragraphs(text, auto: auto) + (colon ? "\n" : "\n\n")
+                s += paragraphs(text, auto: auto, o.paragraphs.rule) + (colon && !o.blankBeforeList ? "\n" : "\n\n")
             }
             s += renderList(l.items, ordered: l.ordered, o)
             let trailer = l.trailer.trimmingCharacters(in: .whitespaces)
             if !trailer.isEmpty { s += "\n\n" + formatProse(trailer, o, auto: auto) }
             return s
         }
-        return paragraphs(line, auto: auto)
+        return paragraphs(line, auto: auto, o.paragraphs.rule)
     }
 
     /// The list in a line of prose. The one that starts first wins; later ones are in its trailer.
@@ -551,7 +619,11 @@ enum DictationFormatter {
     private static let continuation = try! NSRegularExpression(pattern: "^(?:It|That|This|They|These|Those|He|She|Which|And|Or|Because|Plus|Even|Too)\\b")
 
     /// Breaks a run of prose into paragraphs: at topic shifts, then inside paragraphs that run long.
-    static func paragraphs(_ text: String, auto: Bool) -> String {
+    /// A sentence that asks something of the reader, where a long email or chat message reads best split.
+    private static let askStart = try! NSRegularExpression(pattern: "^(?:Can|Could|Would|Will) you\\b|^(?:Let me know|Please|Do you|Are you|Is there|When can|Any chance|Feel free)\\b")
+
+    /// Breaks a run of prose into paragraphs: at topic shifts, then inside paragraphs that run long.
+    static func paragraphs(_ text: String, auto: Bool, _ rule: Paragraphs.Rule = Paragraphs.normal.rule) -> String {
         guard auto else { return text }
         let sents = sentences(text)
         guard sents.count > 1 else { return text }
@@ -560,18 +632,18 @@ enum DictationFormatter {
             if i > 0, matches(topicShift, s), !groups[groups.count - 1].isEmpty { groups.append([]) }
             groups[groups.count - 1].append(s)
         }
-        return groups.flatMap(splitLong).map { $0.joined(separator: " ") }.joined(separator: "\n\n")
+        return groups.flatMap { splitLong($0, rule) }.map { $0.joined(separator: " ") }.joined(separator: "\n\n")
     }
 
-    private static func isLong(_ group: [String]) -> Bool {
+    private static func isLong(_ group: [String], _ rule: Paragraphs.Rule) -> Bool {
         let words = group.reduce(0) { $0 + CleanupPrepass.wordCount($1) }
-        return group.count > 1 && (words > 90 || (group.count > 4 && words > 50))
+        return group.count > 1 && (words > rule.maxWords || (group.count > rule.maxSentences && words > rule.sentenceSplitWords))
     }
 
     /// Splits a long paragraph at the sentence boundary that best balances its halves, preferring a sentence
     /// that starts a new step of thought ("So", "But", "Now") over one that refers back ("It", "That").
-    private static func splitLong(_ group: [String]) -> [[String]] {
-        guard isLong(group) else { return [group] }
+    private static func splitLong(_ group: [String], _ rule: Paragraphs.Rule) -> [[String]] {
+        guard isLong(group, rule) else { return [group] }
         let n = group.count
         let minSide = n >= 4 ? 2 : 1
         let counts = group.map(CleanupPrepass.wordCount)
@@ -583,34 +655,224 @@ enum DictationFormatter {
             var score = -abs(total - 2 * left)
             if matches(softStart, group[k]) { score += 30 }
             if matches(continuation, group[k]) { score -= 30 }
+            if rule.asks && matches(askStart, group[k]) { score += 30 }
             if score > bestScore { bestScore = score; best = k }
         }
-        return splitLong(Array(group[..<best])) + splitLong(Array(group[best...]))
+        return splitLong(Array(group[..<best]), rule) + splitLong(Array(group[best...]), rule)
     }
 
     // MARK: Email
 
-    private static let greeting = try! NSRegularExpression(pattern: "^((?:Hi|Hello|Hey|Dear|Good (?:morning|afternoon|evening))(?:\\s+[\\p{L}][\\p{L}'’.-]*){0,3}\\s*,)\\s+(\\S[\\s\\S]*)$")
+    // Greetings and sign-offs go on lines of their own only when you said them; nothing is ever added.
 
-    /// "Hi Sarah, thanks for…" → ("Hi Sarah,", "Thanks for…"), when the rest is a message of its own.
-    private static func splitGreeting(_ block: String) -> (String, String)? {
-        let ns = block as NSString
-        guard let m = greeting.firstMatch(in: block, range: NSRange(location: 0, length: ns.length)) else { return nil }
-        let rest = ns.substring(with: m.range(at: 2))
-        guard CleanupPrepass.wordCount(rest) >= 6, listLine(rest) == nil else { return nil }
-        return (ns.substring(with: m.range(at: 1)), CleanupPrepass.capitalizeFirst(rest))
+    private static let greetWord = try! NSRegularExpression(pattern:
+        "^(?i:(good (?:morning|afternoon|evening)|hello|hiya|hey|hi|dear|greetings|morning|afternoon|evening))(?![\\p{L}\\p{N}'’-])")
+    private static let wordAt = try! NSRegularExpression(pattern: "[ \\t]*([\\p{L}][\\p{L}\\p{N}'’-]*)")
+    private static let joinerAt = try! NSRegularExpression(pattern: "[ \\t]*,?[ \\t]+(?:and|&)(?=[ \\t])")
+    private static let separatorAt = try! NSRegularExpression(pattern: "[ \\t]*([,.!:;—–-]*)")
+
+    /// Who a greeting can address without a capital: "Hi team", "Hello everyone", "Hey all".
+    private static let groupWords: Set<String> = ["team", "everyone", "everybody", "all", "folks", "guys", "there", "both", "y'all", "y’all",
+                                                  "friends", "gang", "crew", "again"]
+    private static let titleWords: Set<String> = ["mr", "mrs", "ms", "dr", "prof", "miss", "mx"]
+    /// Capitalized words that start the message rather than name someone: "Hi Sarah I wanted…" stops at "I".
+    private static let notNames: Set<String> = ["i", "i'm", "i’m", "i've", "i’ve", "i'll", "i’ll", "i'd", "i’d", "we", "we're", "we’re", "we'll", "we’ll",
+        "just", "hope", "hoping", "thanks", "thank", "can", "could", "would", "will", "quick", "so", "it", "it's", "it’s", "this", "that",
+        "the", "a", "an", "please", "how", "what", "when", "where", "why", "who", "wanted", "following", "sorry", "happy", "good", "great",
+        "let", "let's", "let’s", "are", "is", "do", "did", "have", "here", "here's", "here’s", "there's", "our", "my", "your", "per", "as",
+        "attached", "welcome", "not", "any", "if", "one", "also", "okay", "ok", "yes", "no", "yeah", "hey", "hi", "hello", "dear", "god",
+        "lord", "you", "they", "he", "she", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "today", "tomorrow",
+        "tonight", "just", "long", "nice", "glad", "congrats", "congratulations", "best", "regards", "cheers", "sincerely", "and", "but", "or"]
+    /// Lowercase words that never name anyone after "hi": "hey, can you…", "hi so…".
+    private static let notLowercaseNames: Set<String> = ["so", "just", "um", "uh", "quick", "yeah", "okay", "ok", "well", "can", "could", "would",
+        "how", "what", "i", "hope", "thanks", "thank", "sorry", "please", "is", "are", "do", "did", "there's", "here's", "it's", "man", "dude",
+        "buddy", "mate", "bro", "you", "again", "and"]
+
+    private static func isCapitalized(_ w: String) -> Bool { w.first?.isUppercase == true }
+
+    private static func word(in ns: NSString, at p: Int) -> (text: String, end: Int)? {
+        guard p < ns.length, let m = wordAt.firstMatch(in: ns as String, options: .anchored, range: NSRange(location: p, length: ns.length - p)) else { return nil }
+        return (ns.substring(with: m.range(at: 1)), m.range.location + m.range.length)
     }
 
-    private static let signOff = try! NSRegularExpression(pattern: "([.!?])[ \\t]+((?:Best|Best regards|Kind regards|Warm regards|Regards|Cheers|Sincerely|Talk soon|All the best),?)[ \\t]+(\\p{Lu}[\\p{L}'’-]*)\\.?$")
-
-    /// "…see you then. Best, Tim" → the sign-off and name on lines of their own. "Thanks, Sarah" is left alone:
-    /// it may thank the reader rather than sign the email.
-    private static func splitSignOff(_ text: String) -> String {
+    /// "Hi Sarah, thanks for…" → ("Hi Sarah,", "Thanks for…"); "hi Sarah how are you" → ("Hi Sarah,", "How are
+    /// you"); "Hi, Sarah." → "Hi Sarah,". A greeting with no name ("Hey,") counts only when a new sentence follows
+    /// it, so "Hey, can you send…" and "Hello world is…" stay as they are. `name` is who was greeted, lowercased.
+    private static func splitGreeting(_ text: String) -> (line: String, rest: String, name: String?)? {
         let ns = text as NSString
-        guard let m = signOff.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else { return text }
-        var word = ns.substring(with: m.range(at: 2))
-        if !word.hasSuffix(",") { word += "," }
-        return ns.substring(to: m.range(at: 1).location + 1) + "\n\n" + word + "\n" + ns.substring(with: m.range(at: 3))
+        guard let g = greetWord.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        let greet = ns.substring(with: g.range(at: 1))
+        let lowGreet = greet.lowercased()
+        var p = g.range.location + g.range.length
+        let sep1Match = separatorAt.firstMatch(in: text, options: .anchored, range: NSRange(location: p, length: ns.length - p))
+        let sep1 = sep1Match.map { ns.substring(with: $0.range(at: 1)) } ?? ""
+        if let s = sep1Match { p = s.range.location + s.range.length }
+        let afterGreet = p
+
+        // Names: "Sarah", "Sarah Jones", "Mr. Smith", "Sarah and Jake", "team", or one lowercase name before a comma.
+        var names: [String] = []
+        if !sep1.contains(".") && !sep1.contains("!") {
+            while let (w, e) = word(in: ns, at: p) {
+                let lw = w.lowercased()
+                if names.isEmpty && groupWords.contains(lw) { names.append(lw); p = e; break }
+                if titleWords.contains(lw) {
+                    var e1 = e
+                    if e1 < ns.length && ns.substring(with: NSRange(location: e1, length: 1)) == "." { e1 += 1 }
+                    guard let (w2, e2) = word(in: ns, at: e1), isCapitalized(w2), !notNames.contains(w2.lowercased()) else { break }
+                    names.append(CleanupPrepass.capitalizeFirst(lw) + ". " + w2); p = e2
+                } else if isCapitalized(w) && !notNames.contains(lw) && !lw.hasSuffix("'s") && !lw.hasSuffix("’s") {
+                    var name = w; p = e
+                    if let (w2, e2) = word(in: ns, at: e), isCapitalized(w2), !notNames.contains(w2.lowercased()),
+                       ns.substring(with: NSRange(location: e, length: e2 - e)).hasPrefix(" "),
+                       !ns.substring(with: NSRange(location: e, length: e2 - e)).contains(",") {
+                        // A surname, when another word follows it ("Hi Sarah Jones, …"), not the end of the text.
+                        if let next = separatorAt.firstMatch(in: text, options: .anchored, range: NSRange(location: e2, length: ns.length - e2)),
+                           ns.substring(with: next.range(at: 1)).isEmpty == false || e2 == ns.length {
+                            name += " " + w2; p = e2
+                        }
+                    }
+                    names.append(name)
+                } else if names.isEmpty, !isCapitalized(w), !notLowercaseNames.contains(lw), !notNames.contains(lw), w.count >= 2,
+                          e < ns.length, ns.substring(with: NSRange(location: e, length: 1)) == "," {
+                    names.append(CleanupPrepass.capitalizeFirst(w)); p = e
+                    break
+                } else { break }
+                // "and Jake", "& Jake"
+                guard let j = joinerAt.firstMatch(in: text, options: .anchored, range: NSRange(location: p, length: ns.length - p)),
+                      let (w3, _) = word(in: ns, at: j.range.location + j.range.length),
+                      isCapitalized(w3), !notNames.contains(w3.lowercased()), names.count < 3 else { break }
+                p = j.range.location + j.range.length
+            }
+        }
+        if lowGreet == "dear" && names.isEmpty { return nil }
+        if names.isEmpty { p = afterGreet }
+        // What ends the greeting: a comma, a period, or nothing ("hi Sarah how are you").
+        let sep2Match = separatorAt.firstMatch(in: text, options: .anchored, range: NSRange(location: p, length: ns.length - p))
+        let sep2 = names.isEmpty ? sep1 : (sep2Match.map { ns.substring(with: $0.range(at: 1)) } ?? "")
+        if !names.isEmpty, let s = sep2Match { p = s.range.location + s.range.length }
+        let rest = ns.substring(from: p).trimmingCharacters(in: .whitespacesAndNewlines)
+        if names.isEmpty {
+            // "Hey." / "Hi, I wanted…" / "Good morning!" alone: a greeting only before a new sentence.
+            guard !sep1.isEmpty || rest.isEmpty else { return nil }
+            if let first = rest.first, !(first.isUppercase || first.isNumber) { return nil }
+        } else if rest.isEmpty == false, sep2.isEmpty, let first = rest.first, !first.isLetter && !first.isNumber && first != "\"" && first != "“" {
+            return nil
+        }
+        let greeting = CleanupPrepass.capitalizeFirst(lowGreet)
+        let line = greeting + (names.isEmpty ? "" : " " + names.joined(separator: " and ")) + ","
+        let name = names.isEmpty ? nil : names.joined(separator: " and ").lowercased()
+        return (line, CleanupPrepass.capitalizeFirst(rest), name)
+    }
+
+    // MARK: Sign-off
+
+    private static let thanksClosers = ["thank you so much", "thank you very much", "thanks so much", "thanks very much", "thanks a lot",
+        "thanks a ton", "thanks again", "thanks in advance", "thank you again", "thank you", "many thanks", "thanks", "thx",
+        "appreciate it", "much appreciated"]
+    private static let otherClosers = ["best regards", "kind regards", "warm regards", "warmest regards", "warm wishes", "best wishes",
+        "all the best", "regards", "best", "cheers", "sincerely", "warmly", "talk soon", "speak soon", "take care", "respectfully",
+        "yours truly", "cordially", "with gratitude"]
+    private static let closers: [[String]] = (thanksClosers + otherClosers).map { $0.split(separator: " ").map(String.init) }
+        .sorted { $0.count > $1.count }
+    /// Words before a closer that make it part of a sentence: "I wanted to say thanks", "no thanks", "we'll talk soon".
+    private static let closerBlockedBefore: Set<String> = ["say", "said", "saying", "says", "give", "gave", "giving", "send", "sending", "sent",
+        "a", "an", "the", "my", "our", "your", "his", "her", "their", "many", "big", "huge", "special", "no", "with", "and", "or", "extra",
+        "all", "of", "for", "express", "owe", "deserve", "deserves", "get", "got", "i", "we", "you", "they", "he", "she", "it", "to", "can",
+        "could", "will", "would", "should", "let's", "lets", "let’s", "i'll", "i’ll", "we'll", "we’ll", "gonna", "just", "so", "very", "really",
+        "also", "must", "may", "might", "please", "us", "them", "him", "me", "is", "was", "be", "the", "at", "in", "on", "by", "very"]
+    private static let questionStart = try! NSRegularExpression(pattern:
+        "(?i)^(?:can|could|would|will|do|does|did|is|are|was|were|have|has|should|shall|may|what|when|where|why|who|how|which)\\b")
+
+    /// Ends a run-on body ("…can you send it over") with "?" for a question, else ".". A list's last item stays as is.
+    private static func closeSentence(_ body: String) -> String {
+        guard let l = body.last, l.isLetter || l.isNumber || ")”’\"".contains(l) else { return body }
+        let lastLine = body.components(separatedBy: "\n").last ?? body
+        if listLine(lastLine) != nil { return body }
+        let last = sentences(lastLine).last ?? lastLine
+        return body + (matches(questionStart, last) ? "?" : ".")
+    }
+
+    private static func bare(_ token: String) -> String {
+        token.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ",.!;:"))
+    }
+
+    private static func signerMatches(_ name: String, _ signer: [String]) -> Bool {
+        let n = name.lowercased()
+        for s in signer {
+            let full = s.lowercased().trimmingCharacters(in: .whitespaces)
+            guard !full.isEmpty else { continue }
+            if n == full { return true }
+            let first = full.split(separator: " ").first.map(String.init) ?? full
+            if !n.contains(" "), n.count >= 3, first.count >= 3, first.hasPrefix(n) || n.hasPrefix(first) { return true }
+        }
+        return false
+    }
+
+    /// "…let me know. Thanks, Tim" or "…let me know thanks Tim" → ("…let me know.", ["Thanks,", "Tim"]). Only at the
+    /// very end, and only words you said. "Thanks for the update" is a sentence. "Thank you, Sarah" is thanks to the
+    /// reader unless Sarah is you (`signer`) or the email greeted someone else.
+    private static func splitSignOff(_ text: String, signer: [String], greetingName: String?) -> (body: String, lines: [String])? {
+        let ns = text as NSString
+        let tokens = try! NSRegularExpression(pattern: "\\S+").matches(in: text, range: NSRange(location: 0, length: ns.length)).suffix(9).map { $0.range }
+        guard tokens.count >= 2 else { return nil }
+        let words = tokens.map { ns.substring(with: $0) }
+        for nameLen in 0...3 where nameLen < words.count {
+            let nameWords = Array(words.suffix(nameLen))
+            // Name words: letters only; only the last may end with "." or "!".
+            let nameOK = nameWords.enumerated().allSatisfy { i, w in
+                var core = w
+                if i == nameWords.count - 1 { while let l = core.last, ".!".contains(l) { core.removeLast() } }
+                if i == 0, titleWords.contains(core.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))) { return true }
+                return !core.isEmpty && core.allSatisfy { $0.isLetter || "'’-".contains($0) }
+            }
+            guard nameOK else { continue }
+            let name = nameWords.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ",.!")) }.joined(separator: " ")
+            let end = words.count - nameLen
+            for closer in closers where closer.count <= end {
+                let start = end - closer.count
+                let cw = Array(words[start..<end])
+                // Every closer word matches; only its last word may carry punctuation.
+                guard zip(cw, closer).allSatisfy({ bare($0) == $1 }),
+                      cw.dropLast().allSatisfy({ $0.lowercased() == bare($0) }) else { continue }
+                let closerText = closer.joined(separator: " ")
+                let isThanks = thanksClosers.contains(closerText)
+                // The whole text is a sign-off: leave it, unless a greeting came before it ("Hi Sarah. Thanks, Tim").
+                if start == 0 && greetingName == nil { return nil }
+                let prev = start > 0 ? words[start - 1] : "."
+                let gap = start > 0 ? ns.substring(with: NSRange(location: tokens[start - 1].location + tokens[start - 1].length,
+                                                                 length: tokens[start].location - tokens[start - 1].location - tokens[start - 1].length)) : ""
+                let standalone = gap.contains("\n") || (prev.last.map { ".!?;:,".contains($0) } ?? false)
+                // The name: capitalized words, or your own name in any case.
+                if nameLen > 0 {
+                    let mine = signerMatches(name, signer)
+                    let looksLikeName = nameWords.allSatisfy { isCapitalized($0) } && !nameWords.contains { notNames.contains(bare($0)) || groupWords.contains(bare($0)) }
+                    guard mine || looksLikeName else { continue }
+                    if isThanks && !mine {
+                        // "Thank you, Sarah": thanks to the reader, unless the email greeted someone else.
+                        guard let g = greetingName, !g.contains(name.lowercased()) else { continue }
+                    }
+                } else {
+                    // A bare closer ends a sentence of its own ("…let me know. Thanks."), or runs on after one ("…know thanks").
+                    if closerText == "best" && !standalone { continue }
+                    if !standalone && !(isThanks || closerText == "cheers") { continue }
+                }
+                if !standalone {
+                    guard !closerBlockedBefore.contains(bare(prev)), CleanupPrepass.wordCount(ns.substring(to: tokens[start].location)) >= 3 else { continue }
+                }
+                var body = ns.substring(to: tokens[start].location).trimmingCharacters(in: .whitespacesAndNewlines)
+                while let l = body.last, ",;:—–-".contains(l) { body.removeLast(); body = body.trimmingCharacters(in: .whitespaces) }
+                if start > 0 {
+                    guard body.contains(where: { $0.isLetter || $0.isNumber }) else { return nil }
+                    body = closeSentence(body)
+                }
+                var line = closerText
+                line = line.prefix(1).uppercased() + line.dropFirst() + ","
+                var lines = [line]
+                if nameLen > 0 { lines.append(name.split(separator: " ").map { CleanupPrepass.capitalizeFirst(String($0)) }.joined(separator: " ")) }
+                return (body, lines)
+            }
+        }
+        return nil
     }
 
     // MARK: Sentences and words

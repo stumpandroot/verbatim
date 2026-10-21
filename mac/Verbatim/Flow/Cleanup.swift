@@ -199,10 +199,31 @@ enum FlowCleanup {
     /// Lists and paragraphs in the app's style (`DictationFormatter`), then snippets. Snippets go in last, so
     /// their saved text is pasted exactly as written.
     private static func layout(_ text: String, _ r: Request) -> String {
-        let fixed = grammar(text, r)
-        let formatted = r.format.map { DictationFormatter.format(fixed, $0) } ?? DictationFormatter.format(fixed, for: r.category)
+        let fixed = grammar(CleanupPrepass.finalRules(text, polished: r.level == .polished), r)
+        let formatted: String
+        if let o = r.format ?? formatOptions(r) { formatted = DictationFormatter.format(fixed, o) } else { formatted = fixed }
         return expandSnippets(formatted, r.snippets)
     }
+
+    /// The destination's layout. Email follows Settings › Dictation › Email, knows your name for "Thanks, Tim",
+    /// and leaves greetings and sign-offs alone when the cursor is inside text you already wrote.
+    static func formatOptions(_ r: Request) -> DictationFormatter.Options? {
+        guard r.category == .email else { return DictationFormatter.options(for: r.category) }
+        #if os(macOS)
+        return DictationFormatter.EmailPrefs.options(insertion: r.context?.insertsMidText ?? false, signer: signer())
+        #else
+        return DictationFormatter.EmailPrefs.options()
+        #endif
+    }
+
+    #if os(macOS)
+    /// Your name from the You page (`profile.name`), or the Mac account's full name until you set one.
+    static func signer() -> [String] {
+        let stored = (UserDefaults.standard.string(forKey: "profile.name") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = stored.isEmpty ? NSFullUserName().trimmingCharacters(in: .whitespacesAndNewlines) : stored
+        return name.isEmpty ? [] : [name]
+    }
+    #endif
 
     /// Harper's grammar pass, except where your style keeps words as spoken or allows lowercase.
     private static func grammar(_ text: String, _ r: Request) -> String {
@@ -513,7 +534,8 @@ enum FlowCleanup {
             - Level Polished: write it the way the user would type it, ready to send with no edits. Always:
               - Write complete sentences with correct grammar, verb tense, and subject-verb agreement ("they was" → "they were", "me and Jordan went" → "Jordan and I went").
               - Fix punctuation and capitalization: commas between clauses, a capital to start each sentence, "I" capitalized, apostrophes in contractions ("cant" → "can't", "its going" → "it's going").
-              - Split run-on sentences at each new thought, and remove false starts, repeated words, and filler phrases that add nothing (um, uh, you know, I mean, like, basically, kind of, sort of, a leading "so").
+              - Split run-on sentences at each new thought, and remove false starts, repeated words, and filler phrases that add nothing (um, uh, you know, I mean, like, basically, a hedging "kind of" or "sort of", and "so" or "so," opening a sentence). Keep "so" when it means "therefore" mid-sentence, "so much", and "kind of" as a noun phrase ("a different kind of task").
+              - Fix agreement and stray words: "here's a few things" → "here are a few things", "there's two options" → "there are two options", "the another" → "another".
               - Keep the user's words where they work, their voice, every point, fact, name, and number, and the order of ideas. Never summarize or drop a point.
               - Don't add greetings, sign-offs, or facts the user didn't say. Use the destination and tone given before the dictation.
             """
@@ -562,6 +584,13 @@ enum FlowCleanup {
             I wanted to let you know the shoot got moved. It was supposed to be Thursday, but the client can't make it, so it's going to be Friday at 10 instead. Can you let the crew know?
             <<<DICTATION me and Jordan went over the budget yesterday and there's a couple issues the first one is the venue costs more then we thought and the second one is we still don't have a caterer DICTATION
             Jordan and I went over the budget yesterday, and there are a couple of issues. The first is that the venue costs more than we thought. The second is that we still don't have a caterer.
+            <<<DICTATION so here's a few things we can kind of work on first the edit second the color and third the mix so once you see this let me know DICTATION
+            Here are a few things we can work on:
+            1. The edit
+            2. The color
+            3. The mix
+
+            Once you see this, let me know.
             <<<DICTATION I just wanted to follow up on the proposal I sent last week I know you're busy but if you have any questions or want to go over it together I'm free Tuesday or Wednesday afternoon thanks Tim DICTATION
             I just wanted to follow up on the proposal I sent last week. I know you're busy, but if you have any questions or want to go over it together, I'm free Tuesday or Wednesday afternoon.
 
@@ -572,11 +601,53 @@ enum FlowCleanup {
         return s
     }
 
-    private static func destination(_ c: AppCategory) -> String? {
+    private static func destination(_ c: AppCategory, insertion: Bool) -> String? {
         switch c {
-        case .email: return "an email. If the user dictated a whole message, format it as an email with paragraphs; add a greeting line and a sign-off line only if the user said them. If the cursor is in the middle of an existing email, output just the sentences."
-        case .work: return "a work chat message: short paragraphs, no greeting or sign-off unless spoken."
-        case .personal: return "a personal text message: short and natural, no greeting or sign-off unless spoken."
+        case .email:
+            if insertion {
+                return "the middle of an email that already has text before the cursor. Output only the new sentences and paragraphs: no greeting or sign-off lines."
+            }
+            let own = DictationFormatter.EmailPrefs.ownLines
+            let length = DictationFormatter.EmailPrefs.short ? "1 or 2 sentences" : "1 to 4 sentences"
+            var s = "an email. Write the body in paragraphs of \(length), with a blank line between paragraphs; keep a short email as one paragraph. "
+            if own {
+                s += """
+                If the user started with a greeting (hi, hey, hello, dear, good morning, plus any name), put it on its own line ending \
+                with a comma, then a blank line. If the user ended with a sign-off (thanks, thank you so much, best, regards, cheers, \
+                plus any name), put it after a blank line on its own line ending with a comma, with the name on the next line. \
+                Never add a greeting, sign-off, or name the user didn't say. "Thanks for the update" is a sentence, not a sign-off.
+
+                Email examples. SAID is what the user said; WRITTEN is the output.
+                SAID: hi Sarah how are you I wanted to check on the March invoice can you send it over thanks Tim
+                WRITTEN:
+                Hi Sarah,
+
+                How are you? I wanted to check on the March invoice. Can you send it over?
+
+                Thanks,
+                Tim
+                SAID: hey team so quick update the shoot moved to Friday
+                WRITTEN:
+                Hey team,
+
+                Quick update: the shoot moved to Friday.
+                SAID: thanks for the notes yesterday I'll send the new cut tonight
+                WRITTEN:
+                Thanks for the notes yesterday. I'll send the new cut tonight.
+                SAID: so once you see this let me know what you think thank you so much Tim
+                WRITTEN:
+                Once you see this, let me know what you think.
+
+                Thank you so much,
+                Tim
+                (End of email examples.)
+                """
+            } else {
+                s += "Keep a greeting or sign-off the user said where it is, and never add one."
+            }
+            return s
+        case .work: return "a work chat message (Slack or Teams): short paragraphs of 1 to 3 sentences, no greeting or sign-off formatting, lists as \"- \" lines, and @mentions and #channels exactly as written."
+        case .personal: return "a personal text message: casual and natural, one paragraph for a short message, no greeting or sign-off formatting. Keep emoji words as words, and keep every question mark."
         case .code, .other: return nil
         }
     }
@@ -592,7 +663,12 @@ enum FlowCleanup {
 
     private static func userPrompt(_ r: Request, text: String, withContext: Bool) -> String {
         var lines: [String] = []
-        if let d = destination(r.category) { lines.append("Destination: " + d) }
+        #if os(macOS)
+        let insertion = r.context?.insertsMidText ?? false
+        #else
+        let insertion = false
+        #endif
+        if let d = destination(r.category, insertion: insertion) { lines.append("Destination: " + d) }
         lines.append("Tone: " + tone(r.style))
         if !r.vocabulary.isEmpty {
             lines.append("Spell these names and terms exactly like this when they appear: " + r.vocabulary.prefix(80).joined(separator: ", "))

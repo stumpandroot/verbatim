@@ -80,6 +80,59 @@ final class SiteProbe: @unchecked Sendable {
         waiters.append(f)
         lock.unlock()
     }
+
+    /// The host if it arrives within `seconds`, else nil. Dictation asks for it after transcribing, seconds after
+    /// the probe started, so it's almost always there already; the paste never waits longer than `seconds`.
+    func value(within seconds: Double) async -> String? {
+        lock.lock()
+        if done { let v = host; lock.unlock(); return v }
+        lock.unlock()
+        return await withCheckedContinuation { (c: CheckedContinuation<String?, Never>) in
+            let once = ResumeOnce(c)
+            whenDone { once.resume($0) }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + seconds) { once.resume(nil) }
+        }
+    }
+
+    private final class ResumeOnce: @unchecked Sendable {
+        private let lock = NSLock()
+        private var c: CheckedContinuation<String?, Never>?
+        init(_ c: CheckedContinuation<String?, Never>) { self.c = c }
+        func resume(_ v: String?) {
+            lock.lock(); let k = c; c = nil; lock.unlock()
+            k?.resume(returning: v)
+        }
+    }
+}
+
+/// The last host seen for each browser window, by bundle ID and window title, so a dictation whose probe came back
+/// empty (another ask in flight, or too slow) still knows it's in Gmail. In memory only, never saved.
+enum SiteHostCache {
+    private static let lock = NSLock()
+    private static var hosts: [String: String] = [:]
+
+    private static func key(_ bundleID: String?, _ title: String) -> String { (bundleID ?? "") + "\u{1}" + title }
+
+    static func remember(_ host: String, bundleID: String?, title: String) {
+        lock.lock(); defer { lock.unlock() }
+        if hosts.count > 64 { hosts.removeAll() }
+        hosts[key(bundleID, title)] = host
+    }
+
+    static func host(bundleID: String?, title: String) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        return hosts[key(bundleID, title)]
+    }
+
+    /// The front tab's host for a dictation: the probe's answer within 150 ms, else the last one seen for this
+    /// window. Nil when it's not a supported browser or Count websites is off.
+    static func resolve(_ probe: SiteProbe?, bundleID: String?, title: String) async -> String? {
+        if let probe, let h = await probe.value(within: 0.15) {
+            remember(h, bundleID: bundleID, title: title)
+            return h
+        }
+        return host(bundleID: bundleID, title: title)
+    }
 }
 
 enum SiteCapture {

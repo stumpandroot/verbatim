@@ -4,8 +4,6 @@ import Foundation
 // Every case also checks that a second run changes nothing, and that the output's words are the input's words in
 // order, minus list cue words only.
 
-enum AppCategory { case email, work, personal, code, other }
-
 struct Case {
     let name: String
     let input: String
@@ -53,7 +51,7 @@ let cases: [Case] = [
     Case(name: "email uses plain bullets and numbers",
          input: "We need a few things for the shoot, the tripod, the softboxes, and extra batteries.",
          category: .email,
-         expected: "We need a few things for the shoot:\n• The tripod\n• The softboxes\n• Extra batteries"),
+         expected: "We need a few things for the shoot:\n\n• The tripod\n• The softboxes\n• Extra batteries"),
 
     Case(name: "a lead-in of only discourse words joins the first item",
          input: "Okay so first of all I want to say thanks. Second, the schedule. Third, the budget.",
@@ -174,7 +172,7 @@ let cases: [Case] = [
     Case(name: "model's list syntax is normalized to the destination",
          input: "We need:\n* The photos\n* The copy\n1) Call Sam\n2) Book the room",
          category: .email,
-         expected: "We need:\n• The photos\n• The copy\n1. Call Sam\n2. Book the room"),
+         expected: "We need:\n\n• The photos\n• The copy\n1. Call Sam\n2. Book the room"),
     Case(name: "model's bullets become Markdown in chat",
          input: "Updates:\n• Shipped the build\n• Fixed the crash",
          category: .work,
@@ -370,5 +368,11 @@ for c in cases {
         for p in problems { print("    " + p) }
     }
 }
-print("\n\(passed) passed, \(failed) failed, \(cases.count) cases")
+// Destination checks, shared with the Mac self-test.
+let destination = DestinationChecks.run()
+for r in destination {
+    if r.ok { passed += 1; print("PASS  \(r.name)") }
+    else { failed += 1; print("FAIL  \(r.name)\n    " + r.detail.replacingOccurrences(of: "\n", with: "⏎\n    ")) }
+}
+print("\n\(passed) passed, \(failed) failed, \(cases.count + destination.count) cases")
 exit(failed == 0 ? 0 : 1)

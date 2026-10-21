@@ -1007,6 +1007,14 @@ enum UITest {
         check("cloud cleanup privacy line", CloudCleanup.privacyNote(.openai) == "Your words are sent to OpenAI for cleanup. Your audio stays on this device.")
         check("cloud cleanup default models", CloudCleanup.Provider.anthropic.defaultModel == "claude-haiku-5-5" && CloudCleanup.Provider.openai.defaultModel == "gpt-5.4-mini")
         check("settings search finds cloud cleanup", SettingsIndex.search("api key").map(\.id).contains("dictate.cloudKey"))
+
+        // Formatting by destination: email greetings, sign-offs, and paragraphs; Slack and Messages; the rules after
+        // the model; and the app and website classifier (DestinationChecks, also run by mac/tools/test-formatter.sh).
+        for r in DestinationChecks.run() {
+            check("destination: \(r.name)", r.ok)
+            if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
+        }
+        check("settings search finds the email layout", SettingsIndex.search("greeting sign-off").map(\.id).contains("dictate.emailLines"))
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {

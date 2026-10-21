@@ -105,26 +105,15 @@ struct AppContext {
 
     private static let noFieldApps: Set<String> = ["com.apple.finder", "com.apple.dock"]
 
-    static func category(bundleID: String?, title: String) -> AppCategory {
-        let id = (bundleID ?? "").lowercased()
-        let t = title.lowercased()
-        let email = ["com.apple.mail", "com.microsoft.outlook", "com.readdle.smartemail", "com.readdle.spark", "com.superhuman", "com.mimestream", "it.bloop.airmail", "com.freron.mailmate", "com.postbox", "com.canarymail", "com.hey"]
-        let work = ["com.tinyspeck.slackmacgap", "com.microsoft.teams", "com.linear", "com.atlassian", "com.basecamp", "us.zoom.xos", "com.figma"]
-        let personal = ["com.apple.mobilesms", "com.apple.ichat", "net.whatsapp", "desktop.whatsapp", "ru.keepcoder.telegram", "org.telegram", "org.whispersystems.signal", "com.hnc.discord", "com.facebook.archon", "com.facebook.messenger"]
-        let code = ["com.apple.terminal", "com.googlecode.iterm2", "dev.warp", "com.mitchellh.ghostty", "net.kovidgoyal.kitty", "io.alacritty", "com.github.wez.wezterm", "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf", "com.apple.dt.xcode", "com.jetbrains", "dev.zed", "com.sublimetext", "com.panic.nova", "com.barebones.bbedit"]
-        if email.contains(where: { id.hasPrefix($0) }) { return .email }
-        if code.contains(where: { id.hasPrefix($0) }) { return .code }
-        if work.contains(where: { id.hasPrefix($0) }) { return .work }
-        if personal.contains(where: { id.hasPrefix($0) }) { return .personal }
-        // Browsers and web apps: decide from the tab's title.
-        let browsers = ["com.apple.safari", "com.google.chrome", "company.thebrowser", "com.brave", "org.mozilla.firefox", "com.microsoft.edgemac", "com.operasoftware", "com.vivaldi", "com.kagi.kagimacos", "ai.perplexity.comet"]
-        if browsers.contains(where: { id.hasPrefix($0) }) || id.isEmpty {
-            if ["gmail", "outlook", "inbox", "mail -", "proton mail", "fastmail", "superhuman"].contains(where: { t.contains($0) }) { return .email }
-            if ["slack", "teams", "linear", "discord", "jira", "asana", "notion"].contains(where: { t.contains($0) }) { return .work }
-            if ["whatsapp", "messenger", "telegram", "instagram", "messages"].contains(where: { t.contains($0) }) { return .personal }
-            if ["github", "gitlab", "codespaces", "replit", "colab"].contains(where: { t.contains($0) }) { return .code }
-        }
-        return .other
+    /// The app's kind from its bundle ID and window title (`AppCategory.classify`). Dictation refines it with the
+    /// front tab's host once `SiteCapture` has it.
+    static func category(bundleID: String?, title: String, host: String? = nil) -> AppCategory {
+        AppCategory.classify(bundleID: bundleID, title: title, host: host)
+    }
+
+    /// True when the field already has writing before the cursor, so a dictation goes into the middle of a message.
+    var insertsMidText: Bool {
+        before.contains { $0.isLetter || $0.isNumber }
     }
 
     // MARK: AX helpers
