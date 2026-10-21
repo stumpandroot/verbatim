@@ -360,7 +360,10 @@ enum MicRecovery: Equatable {
     /// `builtIn`: the Mac's built-in mic, if it has one available. A mic going away never pauses the recording
     /// unless there's no built-in mic to move to.
     static func plan(lostGone: Bool, onBuiltIn: Bool, recentlyReopened: Bool, builtIn: AudioDevices.Device?) -> MicRecovery {
-        if lostGone { return builtIn.map { .builtIn($0) } ?? .pause(micLost: true) }
+        if lostGone {
+            if let builtIn { return .builtIn(builtIn) }
+            return .pause(micLost: true)
+        }
         if recentlyReopened { return .pause(micLost: false) }
         if onBuiltIn, let builtIn { return .builtIn(builtIn) }
         return .current
