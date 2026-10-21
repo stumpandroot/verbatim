@@ -646,6 +646,40 @@ enum UITest {
               && MicRecovery.plan(lostGone: false, onBuiltIn: false, recentlyReopened: true, builtIn: mbp) == .pause(micLost: false)
               && MicRecovery.plan(lostGone: false, onBuiltIn: true, recentlyReopened: false, builtIn: mbp) == .builtIn(mbp))
 
+        // Voice enrollment without a microphone: following along, passage rotation, and the audio guard before the
+        // speaker models run.
+        check("voice: passage words normalize", VoicePassages.normalized("Grandfather's wheel, by hand.") == ["grandfathers", "wheel", "by", "hand"]
+              && VoicePassages.normalized("  — ").isEmpty)
+        check("voice: heard words follow in order, past a missed word", VoicePassages.matched(["a", "b", "c", "d"], heard: ["a", "c", "d"]) == 4
+              && VoicePassages.matched(["a", "b"], heard: ["x", "y"]) == 0 && VoicePassages.matched([], heard: ["a"]) == 0
+              && VoicePassages.matched(["a"], heard: []) == 0)
+        check("voice: extra passages wrap for any stored index", VoicePassages.extraIndex(-1, count: 4) == 3 && VoicePassages.extraIndex(9, count: 4) == 1
+              && VoicePassages.extraIndex(Int.min, count: 4) == 0 && VoicePassages.extraIndex(Int.max, count: 4) == 3 && VoicePassages.extraIndex(5, count: 0) == 0)
+        let clockStep = VoiceEnrollment.follow(words: 26, matched: 0, followsWords: false, inPassage: 2, elapsed: 2, wordsRead: 0, doneAt: nil)
+        check("voice: without live words the clock moves the reading", clockStep.wordsRead == 5 && clockStep.doneAt == nil && !clockStep.advance)
+        let heardStep = VoiceEnrollment.follow(words: 10, matched: 9, followsWords: true, inPassage: 4, elapsed: 4, wordsRead: 3, doneAt: nil)
+        let nextStep = VoiceEnrollment.follow(words: 10, matched: 10, followsWords: true, inPassage: 4.9, elapsed: 4.9, wordsRead: heardStep.wordsRead, doneAt: heardStep.doneAt)
+        check("voice: a passage is done with all but its last word, then moves on", heardStep.wordsRead == 10 && heardStep.doneAt == 4 && !heardStep.advance && nextStep.advance)
+        let slowStep = VoiceEnrollment.follow(words: 10, matched: 2, followsWords: true, inPassage: 9.5, elapsed: 9.5, wordsRead: 2, doneAt: nil)
+        check("voice: a missed word never stalls the reading", slowStep.wordsRead == 10 && slowStep.doneAt == 9.5)
+        check("voice: progress never goes backwards", VoiceEnrollment.follow(words: 10, matched: 3, followsWords: true, inPassage: 1, elapsed: 1, wordsRead: 7, doneAt: nil).wordsRead == 7)
+        let oddStep = VoiceEnrollment.follow(words: 10, matched: 0, followsWords: false, inPassage: .nan, elapsed: .nan, wordsRead: 0, doneAt: nil)
+        _ = VoiceEnrollment.follow(words: 0, matched: 0, followsWords: true, inPassage: .infinity, elapsed: .infinity, wordsRead: 0, doneAt: nil)
+        check("voice: odd clock values never trap", oddStep.wordsRead == 0 && !oddStep.advance && VoiceEnrollment.wholeSeconds(-5) == 0
+              && VoiceEnrollment.wholeSeconds(61.9) == 61 && VoiceEnrollment.wholeSeconds(.infinity) == 0 && VoiceEnrollment.wholeSeconds(1e30) == 359_999
+              && VoiceEnrollment.clock(75) == "1:15" && VoiceEnrollment.clock(.nan) == "0:00")
+        let split = VoicePassageCard.split(["The", "morning", "—", "light"], wordsRead: 2)
+        check("voice: the passage card darkens read words with their punctuation", split.read == "The morning —" && split.rest == "light")
+        var guardOK = false
+        if case .failure(.noSpeech) = VoiceProfile.prepareSamples([]), case .failure(.silent) = VoiceProfile.prepareSamples([Float](repeating: 0, count: 32_000)),
+           case .success(let short) = VoiceProfile.prepareSamples([Float.nan, 0.1, -0.2]), case .success(let long) = VoiceProfile.prepareSamples([Float](repeating: 0.1, count: 32_000)) {
+            guardOK = short.count == 16_000 && short[0] == 0 && short[2] == -0.2 && long.count == 32_000
+        }
+        check("voice: no audio or only silence never reaches the speaker models; short clips are padded", guardOK)
+        let previewModel = VoiceEnrollment(preview: true)
+        previewModel.start(); previewModel.readMore(); previewModel.togglePause()
+        check("voice: the preview never records", previewModel.step == .reading && previewModel.wordsRead == 15 && !previewModel.isStarting && !previewModel.isPaused)
+
         // Settings search
         let tc = SettingsIndex.search("timecode").map(\.id)
         check("settings search finds timecode rows", tc.contains("export.timecodes") && tc.contains("watched.exportOptions") && tc.contains("captions.soon"))

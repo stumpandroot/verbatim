@@ -25,8 +25,15 @@ enum VoicePassages {
     /// The next extra passage, in turn, so Read more doesn't repeat itself.
     static func nextExtra() -> String {
         let i = UserDefaults.standard.integer(forKey: extraKey)
-        UserDefaults.standard.set(i + 1, forKey: extraKey)
-        return extras[i % extras.count]
+        let at = extraIndex(i, count: extras.count)
+        UserDefaults.standard.set(at + 1, forKey: extraKey)
+        return extras[at]
+    }
+
+    /// `i` wrapped into 0..<count, for any stored value (negative or huge), so a bad default can't index out of range.
+    static func extraIndex(_ i: Int, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        return ((i % count) + count) % count
     }
 
     /// Comparable words: lowercased letters and digits, apostrophes dropped ("grandfather's" → "grandfathers").
@@ -131,6 +138,10 @@ final class VoiceEnrollment: ObservableObject {
     private var passageDoneAt: TimeInterval?
     private var lastAnnounced = 0
     private var analysis: Task<Void, Never>?
+    /// Bumped by every start, cancel, and failure. A microphone answer or a recorder start that arrives for an
+    /// older value is dropped, so two quick Starts (or Cancel during the permission prompt) never run two recorders.
+    private var generation = 0
+    private var loggedLiveWords = false
 
     /// `preview` (UI tour, no microphone): opens on step 2 with made-up progress and never records.
     init(preview: Bool = false) {
@@ -161,6 +172,33 @@ final class VoiceEnrollment: ObservableObject {
         return max(10, Int((Double(words) / Self.wordsPerSecond / 5).rounded()) * 5)
     }
 
+    /// Whole seconds for labels and counters: never traps on a value that isn't finite or doesn't fit.
+    static func wholeSeconds(_ t: TimeInterval) -> Int {
+        guard t.isFinite else { return 0 }
+        return Int(max(0, min(t, 359_999)))
+    }
+
+    /// One tick of following along, without a microphone: how many of the passage's `words` are read and whether
+    /// the passage is done. `matched` is how many words the recognizer heard in order (used when `followsWords`);
+    /// otherwise the clock (`inPassage` seconds at `wordsPerSecond`) moves it. A passage is done when its words
+    /// are read (all but the last, when following words), or after plenty of time, so a word the recognizer
+    /// missed never stalls the reading. `advance` is true 0.8 s after it's done, so the last word can land.
+    static func follow(words: Int, matched: Int, followsWords: Bool, inPassage: TimeInterval, elapsed: TimeInterval,
+                       wordsRead: Int, doneAt: TimeInterval?) -> (wordsRead: Int, doneAt: TimeInterval?, advance: Bool) {
+        let words = max(0, words)
+        let read = followsWords ? matched : wholeSeconds(inPassage * wordsPerSecond)
+        var next = min(words, max(wordsRead, read))
+        var done = doneAt
+        let expected = Double(words) / wordsPerSecond
+        let wordsDone = next >= words - (followsWords ? 1 : 0)
+        if done == nil, wordsDone || inPassage > expected * 1.8 + 2 {
+            done = elapsed
+            next = words
+        }
+        let advance = done.map { elapsed - $0 >= 0.8 } ?? false
+        return (next, done, advance)
+    }
+
     /// 0…1 across every passage, by words read.
     var fraction: Double {
         let counts = passages.map { VoicePassages.normalized($0).count }
@@ -178,7 +216,7 @@ final class VoiceEnrollment: ObservableObject {
     }
 
     static func clock(_ t: TimeInterval) -> String {
-        let s = max(0, Int(t))
+        let s = wholeSeconds(t)
         return "\(s / 60):" + String(format: "%02d", s % 60)
     }
 
@@ -197,6 +235,7 @@ final class VoiceEnrollment: ObservableObject {
     /// Step 2 from the start: the three passages, replacing any saved profile.
     func start() {
         guard !preview else { return }
+        Self.trace("start (three passages, replacing the saved profile)")
         passages = VoicePassages.first
         replacing = true
         begin()
@@ -205,6 +244,7 @@ final class VoiceEnrollment: ObservableObject {
     /// One more passage, added to the saved profile.
     func readMore() {
         guard !preview else { return }
+        Self.trace("start (one more passage, added to the saved profile)")
         passages = [VoicePassages.nextExtra()]
         replacing = false
         begin()
@@ -219,12 +259,16 @@ final class VoiceEnrollment: ObservableObject {
 
     /// Ends the reading now and learns from what was recorded.
     func finishNow() {
-        guard step == .reading else { return }
+        guard step == .reading, !isStarting else { return }
+        Self.trace("finish now")
         finish()
     }
 
     /// Leaves without saving anything new: stops the microphone and deletes the recording.
     func cancel() {
+        generation += 1
+        if recorder != nil || analysis != nil { Self.trace("cancelled") }
+        CaptureStep.set(nil)
         ticker?.cancel(); ticker = nil
         analysis?.cancel(); analysis = nil
         transcriber.stop()
@@ -244,13 +288,18 @@ final class VoiceEnrollment: ObservableObject {
 
     private func begin() {
         cancel()
+        let mine = generation
         passageIndex = 0; wordsRead = 0; elapsed = 0; heardBase = 0; passageStart = 0; passageDoneAt = nil
-        lastAnnounced = 0; followsWords = false
+        lastAnnounced = 0; followsWords = false; loggedLiveWords = false
         step = .reading
         isStarting = true
         refreshMicName()
+        Self.trace("asking for the microphone")
         Self.askForMicrophone { [weak self] ok in
-            guard let self, self.step == .reading else { return }
+            guard let self, self.generation == mine, self.step == .reading, self.recorder == nil else {
+                Self.trace("a microphone answer arrived for an earlier start; ignored")
+                return
+            }
             guard ok else {
                 #if os(macOS)
                 self.fail("Verbatim needs the microphone to learn your voice. Allow it in System Settings › Privacy & Security › Microphone, then try again.")
@@ -264,15 +313,25 @@ final class VoiceEnrollment: ObservableObject {
     }
 
     private func record() {
+        let mine = generation
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-enroll-\(UUID().uuidString).wav")
         self.url = url
         let r = Recorder()
         recorder = r
         r.liveTap = transcriber.tap
+        // The recorder pauses itself when its mic goes away and it can't follow; show Resume and Finish Now then.
+        r.onAutoPaused = { [weak self, weak r] reason in
+            guard let self, let r, self.recorder === r else { return }
+            Self.trace("recorder paused itself: \(reason)")
+            self.isPaused = r.isPaused
+        }
+        r.onInputSwitched = { reason in Self.trace("recorder switched microphones: \(reason)") }
+        Self.trace("opening the microphone (\(micName.isEmpty ? "name not known yet" : micName))")
+        CaptureStep.set("voice enroll: opening the microphone")
         #if os(macOS)
         r.begin(to: url) { [weak self] error in
-            guard let self, self.recorder === r else { return }
-            if let error { self.fail(error.localizedDescription); return }
+            guard let self, self.generation == mine, self.recorder === r else { return }
+            if let error { self.fail("Couldn't record your voice. \(error.localizedDescription)"); return }
             self.started()
         }
         #else
@@ -281,15 +340,19 @@ final class VoiceEnrollment: ObservableObject {
             refreshMicName()
             started()
         } catch {
-            fail(error.localizedDescription)
+            fail("Couldn't record your voice. \(error.localizedDescription)")
         }
         #endif
     }
 
     private func started() {
+        guard step == .reading, recorder != nil else { return }
         isStarting = false
-        transcriber.start(format: Recorder.targetFormat)
-        Log.note("voice enroll: reading \(passages.count) passage(s), replacing=\(replacing)")
+        let f = Recorder.targetFormat
+        Self.trace("recorder began on \(micName.isEmpty ? "the current mic" : micName), writing \(Int(f.sampleRate)) Hz \(f.channelCount) ch")
+        transcriber.start(format: f)
+        Self.trace("live words asked to start; reading \(passages.count) passage(s), replacing=\(replacing)")
+        CaptureStep.set("voice enroll: reading")
         ticker = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 200_000_000)
@@ -300,30 +363,25 @@ final class VoiceEnrollment: ObservableObject {
     }
 
     private func tick() {
-        guard step == .reading, let recorder, !isPaused else { return }
+        guard step == .reading, let recorder else { return }
+        // The recorder can pause itself (its mic went away); mirror it so Resume and Finish Now show.
+        if recorder.isPaused != isPaused { isPaused = recorder.isPaused }
+        guard !isPaused, !isStarting else { return }
         elapsed = recorder.elapsed
         let words = VoicePassages.normalized(passage)
         let heard = VoicePassages.normalized(transcriber.text)
         if !heard.isEmpty { followsWords = true }
-        let inPassage = elapsed - passageStart
-        let read: Int
-        if followsWords {
-            read = VoicePassages.matched(words, heard: Array(heard.dropFirst(min(heardBase, heard.count))))
-        } else {
-            read = Int(inPassage * Self.wordsPerSecond)
+        if !loggedLiveWords, transcriber.state != .starting {
+            loggedLiveWords = true
+            Self.trace("live words \(transcriber.state == .running ? "running" : "off; following the clock")")
         }
-        let next = min(words.count, max(wordsRead, read))
-        if next != wordsRead { wordsRead = next }
-
-        // A passage is done when its words are read (or the last one is all that's missing), or after plenty of
-        // time, so a word the recognizer missed never stalls the reading. A short pause lets the last word land.
-        let expected = Double(words.count) / Self.wordsPerSecond
-        let wordsDone = wordsRead >= words.count - (followsWords ? 1 : 0)
-        if passageDoneAt == nil, wordsDone || inPassage > expected * 1.8 + 2 {
-            passageDoneAt = elapsed
-            if wordsRead != words.count { wordsRead = words.count }
-        }
-        if let doneAt = passageDoneAt, elapsed - doneAt >= 0.8 {
+        let matched = followsWords ? VoicePassages.matched(words, heard: Array(heard.dropFirst(min(heardBase, heard.count)))) : 0
+        let f = Self.follow(words: words.count, matched: matched, followsWords: followsWords, inPassage: elapsed - passageStart,
+                            elapsed: elapsed, wordsRead: wordsRead, doneAt: passageDoneAt)
+        if f.wordsRead != wordsRead { wordsRead = f.wordsRead }
+        passageDoneAt = f.doneAt
+        if f.advance {
+            Self.trace("passage \(passageIndex + 1) of \(passages.count) done at \(String(format: "%.1f", elapsed)) s (\(followsWords ? "by words" : "by the clock"))")
             if passageIndex + 1 < passages.count {
                 passageIndex += 1
                 wordsRead = 0
@@ -340,7 +398,7 @@ final class VoiceEnrollment: ObservableObject {
 
     /// VoiceOver hears the time every 10 seconds.
     private func announceProgress() {
-        let s = Int(elapsed)
+        let s = Self.wholeSeconds(elapsed)
         guard s >= lastAnnounced + 10 else { return }
         lastAnnounced = s - s % 10
         let message: String = "\(lastAnnounced) seconds of about \(aboutSeconds)"
@@ -348,28 +406,39 @@ final class VoiceEnrollment: ObservableObject {
     }
 
     private func finish() {
+        guard step == .reading else { return }
         ticker?.cancel(); ticker = nil
         transcriber.stop()
         guard let recorder else { return }
         let stopped = recorder.stop()
         self.recorder = nil
         isPaused = false
+        let heardSound = recorder.lastHeardSignal
         guard let stopped else {
-            fail("Verbatim couldn't keep that recording. Try again.")
+            fail("Couldn't record your voice. Verbatim couldn't keep that recording. Try again.")
             return
         }
         let file = stopped.0, seconds = stopped.1
-        guard seconds >= 2 else {
+        Self.trace("recording stopped: \(String(format: "%.1f", seconds)) s, sound heard: \(heardSound)")
+        guard seconds.isFinite, seconds >= 2 else {
             removeRecording()
             fail("That was too short to learn from. Read the passage aloud, close to the microphone.")
             return
         }
+        guard heardSound else {
+            removeRecording()
+            fail("Couldn't record your voice. Verbatim heard only silence. Check that your microphone isn't muted, then try again.")
+            return
+        }
         step = .analyzing
+        CaptureStep.set("voice enroll: learning your voice")
         let replacing = self.replacing
         analysis = Task { @MainActor [weak self] in
             do {
                 let result = try await VoiceProfile.enroll(from: [file], replacing: replacing)
                 guard let self, !Task.isCancelled else { return }
+                CaptureStep.set(nil)
+                Self.trace("saved: quality \(result.quality), \(Int(result.seconds)) s, hint \(result.hint.rawValue)")
                 self.removeRecording()
                 VoiceProfileStatus.shared.refresh()
                 self.step = .result(result)
@@ -379,12 +448,14 @@ final class VoiceEnrollment: ObservableObject {
                 guard let self, !Task.isCancelled else { return }
                 self.removeRecording()
                 VoiceProfileStatus.shared.refresh()
-                self.fail(error.localizedDescription)
+                self.fail(error is VoiceProfile.Failure ? error.localizedDescription : "Couldn't learn your voice. \(error.localizedDescription)")
             }
         }
     }
 
     private func fail(_ message: String) {
+        generation += 1
+        CaptureStep.set(nil)
         ticker?.cancel(); ticker = nil
         transcriber.stop()
         recorder?.discard()
@@ -392,8 +463,13 @@ final class VoiceEnrollment: ObservableObject {
         removeRecording()
         isStarting = false
         isPaused = false
-        Log.note("voice enroll: \(message)")
+        Self.trace("failed: \(message)")
         step = .failed(message)
+    }
+
+    /// A breadcrumb in native.log, written before returning, so a crash right after still shows the last step.
+    nonisolated static func trace(_ message: String) {
+        Log.noteNow("voice enroll: \(message)")
     }
 
     private func removeRecording() {
