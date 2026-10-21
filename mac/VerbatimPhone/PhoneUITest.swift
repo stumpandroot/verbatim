@@ -83,6 +83,9 @@ enum PhoneUITest {
                 await show("\(prefix)08-moments")
                 app.tab = .settings
                 await show("\(prefix)09-settings")
+                SettingsSearchModel.shared.query = "keyboard"
+                await show("\(prefix)09b-settings-search")
+                SettingsSearchModel.shared.query = ""
             }
             app.appearance = "light"
             for i in 0..<3 {
