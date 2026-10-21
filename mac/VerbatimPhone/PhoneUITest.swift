@@ -22,6 +22,15 @@ enum PhoneUITest {
                 await show("\(prefix)02-record")
                 app.showRecorder = false
                 try? await Task.sleep(nanoseconds: 600_000_000)
+                // Live captions with made-up lines (no microphone or speech in UI test mode).
+                app.requestCaptions()
+                await show("\(prefix)02b-live-captions")
+                if prefix == "p" {
+                    app.captions.flipped = true
+                    await show("p02c-live-captions-flipped")
+                }
+                app.stopCaptions(save: false)
+                try? await Task.sleep(nanoseconds: 600_000_000)
                 app.showLinkSheet = true
                 await show("\(prefix)03-link")
                 app.showLinkSheet = false

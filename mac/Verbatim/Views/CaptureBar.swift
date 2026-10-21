@@ -10,6 +10,7 @@ struct CaptureBar: View {
     @State private var importOpen = false
     @State private var fileOver = false
     @State private var mic: AudioDevices.Device? = AudioDevices.current()
+    @ObservedObject private var captions = LiveCaptions.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -63,6 +64,16 @@ struct CaptureBar: View {
                 }
             }
             .uiTarget("tile-app")
+            divider
+            CaptureSegment(highlighted: captions.isOpen, action: { app.toggleLiveCaptions() }) {
+                CaptionRingsMark(color: Ink.ink).frame(width: 22, height: 22).frame(width: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Live captions").font(.system(size: 15, weight: .medium)).lineLimit(1).minimumScaleFactor(0.85)
+                    Text(captions.isOpen ? "On screen now" : "⌥⌘C").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                }
+            }
+            .help("Captions in a floating panel, from your mic or an app's audio")
+            .uiTarget("tile-captions")
         }
         .padding(6)
         .frame(height: 70)

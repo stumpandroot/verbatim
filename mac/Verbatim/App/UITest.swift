@@ -70,6 +70,9 @@ enum UITest {
             await step("app tile opens the picker", window, target: "tile-app", check: { app.showAppPicker })
             app.showAppPicker = false
             try? await Task.sleep(nanoseconds: 400_000_000)
+            await step("captions tile opens the live captions panel", window, target: "tile-captions", check: { LiveCaptions.shared.isOpen })
+            LiveCaptions.shared.close(force: true)
+            try? await Task.sleep(nanoseconds: 400_000_000)
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
@@ -110,6 +113,10 @@ enum UITest {
         app.multitrackDraft = MultitrackDraft.sample()
         await show("04b-multitrack")
         app.multitrackDraft = nil
+        // Live captions with made-up lines (no speech or audio in UI test mode).
+        app.toggleLiveCaptions()
+        await show("04c-live-captions")
+        LiveCaptions.shared.close(force: true)
         app.projectFilter = nil; app.go(.library)
         await show("05-library")
         app.libraryKind = .journal
@@ -234,6 +241,9 @@ enum UITest {
         // Dark appearance pass
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         await show("11-dark-home")
+        app.toggleLiveCaptions()
+        await show("11b-dark-live-captions")
+        LiveCaptions.shared.close(force: true)
         if let m = memo { app.go(.transcript(m.id)) }
         await show("12-dark-transcript")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Document")
@@ -507,6 +517,12 @@ enum UITest {
         }
         check("filler-only lines", Segment(start: 0, end: 1, text: "Um.").isFillerOnly && Segment(start: 0, end: 1, text: "uh, hmm…").isFillerOnly
               && !Segment(start: 0, end: 1, text: "Um, I think so.").isFillerOnly && !Segment(start: 0, end: 1, text: "").isFillerOnly)
+        let feed = CaptionFeed()
+        feed.addSource("a", speaker: nil)
+        feed.update("a", words: LiveWords(settled: "Hello there. How are", volatile: "you"))
+        check("captions: a finished sentence becomes a line", feed.history.map(\.text) == ["Hello there."] && feed.current.first?.text == "How are you")
+        feed.update("a", words: LiveWords(settled: "Hello there. How are you?", volatile: ""))
+        check("captions: the current line finishes", feed.history.map(\.text) == ["Hello there.", "How are you?"] && feed.current.isEmpty)
         let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
         check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
 

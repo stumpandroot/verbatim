@@ -19,6 +19,8 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
     @Published private(set) var appName = ""
     let live = LiveMeter()
     var elapsed: TimeInterval { live.elapsed }
+    /// Live captions: every buffer of the app's audio also goes here, from the capture queue. Set before `start`.
+    nonisolated let liveTap = LiveTapSlot()
 
     private var stream: SCStream?
     private var file: AVAudioFile?
@@ -97,6 +99,8 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
             bufferListSize: MemoryLayout<AudioBufferList>.size + Int(asbd.mChannelsPerFrame - 1) * MemoryLayout<AudioBuffer>.size,
             blockBufferAllocator: nil, blockBufferMemoryAllocator: nil, flags: 0, blockBufferOut: &blockBuffer)
         guard status == noErr else { return }
+        // A copy for live captions: the buffer's data lives in the sample buffer's block, released after this call.
+        if let tap = liveTap.current, let copy = pcm.captionCopy() { tap(copy) }
         // Peak level for the meter
         var peak: Float = 0
         if let ch = pcm.floatChannelData?[0] {
@@ -112,5 +116,25 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
         Task { @MainActor in Log.note("app capture stopped: \(error.localizedDescription)"); _ = await self.stop() }
+    }
+}
+
+/// A live-words tap that the audio side reads and the main actor sets. Thread-safe.
+final class LiveTapSlot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tap: (@Sendable (AVAudioPCMBuffer) -> Void)?
+    var current: (@Sendable (AVAudioPCMBuffer) -> Void)? { lock.lock(); defer { lock.unlock() }; return tap }
+    func set(_ t: (@Sendable (AVAudioPCMBuffer) -> Void)?) { lock.lock(); tap = t; lock.unlock() }
+}
+
+extension AVAudioPCMBuffer {
+    /// A copy with its own memory, first channel only (float formats). Nil for other formats.
+    func captionCopy() -> AVAudioPCMBuffer? {
+        guard let src = floatChannelData, frameLength > 0,
+              let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: format.sampleRate, channels: 1, interleaved: false),
+              let out = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frameLength), let dst = out.floatChannelData else { return nil }
+        out.frameLength = frameLength
+        dst[0].update(from: src[0], count: Int(frameLength))
+        return out
     }
 }

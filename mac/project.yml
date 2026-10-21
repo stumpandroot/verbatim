@@ -130,6 +130,7 @@ targets:
       - Verbatim/Audio/Recorder.swift
       - Verbatim/Audio/LiveMeter.swift
       - Verbatim/Audio/LiveTranscriber.swift
+      - Verbatim/Audio/LiveCaptions.swift
       - Verbatim/Export/Exporter.swift
       - Verbatim/Export/ExportCore.swift
       - Verbatim/Export/ExportOptionsForm.swift
