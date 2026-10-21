@@ -224,6 +224,37 @@ enum PhoneUITest {
         check("swap when the context starts after a line break in the inserted text",
               KeyboardBridge.polishSwap(inserted: para, polished: " First.\n\nSecond.", before: "Second.", sameField: true, age: 2) == .replace)
 
+        // The keyboard's Recent row: newest first, one entry per dictation, at most 10 of about 2 KB each.
+        let t = Date()
+        var recent: [KeyboardBridge.Recent] = []
+        let ids = (0..<12).map { _ in UUID() }
+        for (i, id) in ids.enumerated() { recent = KeyboardBridge.addingRecent(recent, .init(id: id, text: "Dictation \(i)", date: t.addingTimeInterval(Double(i)))) }
+        check("recent: newest first, capped at 10", recent.count == 10 && recent.first?.text == "Dictation 11" && recent.last?.text == "Dictation 2")
+        recent = KeyboardBridge.addingRecent(recent, .init(id: ids[5], text: "Dictation 5 again", date: t.addingTimeInterval(20)))
+        check("recent: the same dictation moves to the front once", recent.count == 10 && recent.first?.text == "Dictation 5 again"
+              && recent.filter { $0.id == ids[5] }.count == 1)
+        check("recent: empty text is skipped", KeyboardBridge.addingRecent(recent, .init(id: UUID(), text: "  \n", date: t)) == recent)
+        let polishedList = KeyboardBridge.replacingRecent(recent, id: ids[11], text: "Polished eleven.")
+        check("recent: the polished text replaces it in place", polishedList.map(\.id) == recent.map(\.id)
+              && polishedList.first { $0.id == ids[11] }?.text == "Polished eleven.")
+        let big = String(repeating: "é", count: 3_000)
+        let clipped = KeyboardBridge.clip(big)
+        check("recent: long text is cut to 2 KB", clipped.utf8.count <= KeyboardBridge.recentMaxBytes && clipped.hasSuffix("…")
+              && KeyboardBridge.clip("short") == "short")
+        let storedRecent = KeyboardBridge.defaults?.data(forKey: KeyboardBridge.recentKey)
+        KeyboardBridge.defaults?.removeObject(forKey: KeyboardBridge.recentKey)
+        let a = UUID()
+        KeyboardBridge.addRecent(id: a, text: "From the App Group")
+        KeyboardBridge.updateRecent(id: a, text: "From the App Group, polished")
+        check("recent: round trip through the App Group", KeyboardBridge.readRecent().first.map { $0.id == a && $0.text == "From the App Group, polished" } ?? false)
+        KeyboardBridge.defaults?.set(storedRecent, forKey: KeyboardBridge.recentKey)
+        let ac = KeyboardBridge.defaults?.object(forKey: KeyboardBridge.alwaysCopyKey)
+        KeyboardBridge.defaults?.removeObject(forKey: KeyboardBridge.alwaysCopyKey)
+        check("also copy each dictation is off by default", !KeyboardBridge.alwaysCopy)
+        KeyboardBridge.defaults?.set(ac, forKey: KeyboardBridge.alwaysCopyKey)
+        check("settings search finds also copy each dictation",
+              SettingsSearchIndex.search("clipboard").flatMap(\.entries).contains { $0.id == "keyboardAlwaysCopy" })
+
         check("settings search finds polish after inserting",
               SettingsSearchIndex.search("polish").flatMap(\.entries).contains { $0.id == "keyboardPolishAfter" })
         check("settings search finds keyboard live words",

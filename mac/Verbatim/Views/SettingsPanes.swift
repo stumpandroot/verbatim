@@ -90,6 +90,7 @@ struct DictationForm: View {
                     VStack(alignment: .leading, spacing: 8) { DictationHotkeyRows(dictation: dictation) }
                         .settingsFormRows()
                 }
+                RecallShortcutRow()
                 SettingsRow("dictate.maxMinutes", detail: "A minute before, the button says so. Your words up to the stop are pasted, never thrown away. Recording in the app has no limit.") {
                     Picker("Stop dictating after", selection: $maxMinutes) {
                         Text("5 minutes").tag(5.0); Text("10 minutes").tag(10.0); Text("20 minutes").tag(20.0); Text("No limit").tag(0.0)
@@ -175,6 +176,7 @@ struct DictationForm: View {
                         }
                     }
                 }
+                AlwaysCopyRow()
                 SettingsRow("dictate.typeInstead", stacked: true) {
                     VStack(alignment: .leading, spacing: 8) { PasteSettingsRows() }
                         .settingsFormRows()

@@ -66,6 +66,9 @@ enum SettingsSearchIndex {
         .init(id: "keyboardLiveWords", section: "Keyboard", label: "Show words as you speak",
               keywords: ["live words", "preview", "streaming", "real time", "transcript", "see words"],
               description: "The keyboard shows your words while you talk", target: .page(.keyboard)),
+        .init(id: "keyboardAlwaysCopy", section: "Keyboard", label: "Also copy each dictation",
+              keywords: ["clipboard", "copy", "paste", "pasteboard", "recent", "history", "missed", "keep"],
+              description: "Each keyboard dictation also goes on the clipboard", target: .page(.keyboard)),
         .init(id: "keyboardFullAccess", section: "Keyboard", label: "Allow Full Access for the keyboard", keywords: ["full access", "permission", "privacy"],
               description: "Lets the keyboard start a session and receive your words", target: .page(.keyboard)),
 
@@ -154,6 +157,7 @@ enum SettingsSearchIndex {
         case "keyboardAutoStart": return onOff(KeyboardBridge.autoStart)
         case "keyboardPolishAfter": return onOff(KeyboardBridge.polishAfter)
         case "keyboardLiveWords": return onOff(KeyboardBridge.liveWords)
+        case "keyboardAlwaysCopy": return onOff(KeyboardBridge.alwaysCopy)
         case "quality": return app.preset.title
         case "cloudCleanup": return onOff(CloudCleanup.enabled)
         case "speakers": return onOff(app.identifySpeakers)

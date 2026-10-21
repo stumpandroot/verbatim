@@ -279,3 +279,81 @@ enum KeyboardBridge {
         list.forEach { $0() }
     }
 }
+
+// MARK: - Recent dictations and copying
+
+/// The keyboard's Recent row and Settings › Keyboard › Also copy each dictation. The app writes each keyboard
+/// dictation here as it delivers it (and again when the polished text arrives); the keyboard only reads the list.
+/// Small on purpose: at most 10 items of about 2 KB each, so the keyboard's memory limit is never at risk.
+extension KeyboardBridge {
+    struct Recent: Codable, Equatable, Identifiable {
+        var id: UUID
+        var text: String
+        var date: Date
+    }
+
+    static let recentCap = 10
+    static let recentMaxBytes = 2_048
+
+    static let recentKey = "kb.recent"              // Data: JSON [Recent], newest first, written by the app
+    static let alwaysCopyKey = "kb.alwaysCopy"      // Bool, off unless set: copy each keyboard dictation
+    static let copiedKey = "kb.copiedID"            // String UUID: the dictation the app already put on the clipboard
+
+    /// Settings › Keyboard › Also copy each dictation. Off unless turned on.
+    static var alwaysCopy: Bool {
+        get { defaults?.bool(forKey: alwaysCopyKey) ?? false }
+        set { defaults?.set(newValue, forKey: alwaysCopyKey) }
+    }
+
+    /// `text` cut to at most `maxBytes` of UTF-8, on a character boundary, with "…" when cut.
+    static func clip(_ text: String, maxBytes: Int = recentMaxBytes) -> String {
+        guard text.utf8.count > maxBytes else { return text }
+        var out = ""
+        var bytes = 0
+        let budget = maxBytes - "…".utf8.count
+        for ch in text {
+            let n = String(ch).utf8.count
+            if bytes + n > budget { break }
+            out.append(ch)
+            bytes += n
+        }
+        return out + "…"
+    }
+
+    /// The list with `item` first (replacing an older copy of the same dictation), clipped and capped. Pure.
+    static func addingRecent(_ list: [Recent], _ item: Recent, cap: Int = recentCap) -> [Recent] {
+        let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return list }
+        let clipped = Recent(id: item.id, text: clip(text), date: item.date)
+        return Array(([clipped] + list.filter { $0.id != item.id }).prefix(cap))
+    }
+
+    /// The list with one dictation's text replaced (the polished text), in place. Pure.
+    static func replacingRecent(_ list: [Recent], id: UUID, text: String) -> [Recent] {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return list }
+        return list.map { $0.id == id ? Recent(id: id, text: clip(clean), date: $0.date) : $0 }
+    }
+
+    static func readRecent() -> [Recent] {
+        guard let data = defaults?.data(forKey: recentKey) else { return [] }
+        return (try? JSONDecoder().decode([Recent].self, from: data)) ?? []
+    }
+
+    private static func writeRecent(_ list: [Recent]) {
+        guard let d = defaults, let data = try? JSONEncoder().encode(list) else { return }
+        d.set(data, forKey: recentKey)
+    }
+
+    /// Called by the app as it delivers a keyboard dictation.
+    static func addRecent(id: UUID, text: String, date: Date = Date()) {
+        writeRecent(addingRecent(readRecent(), Recent(id: id, text: text, date: date)))
+    }
+
+    /// Called by the app when the polished text for a dictation arrives.
+    static func updateRecent(id: UUID, text: String) {
+        let list = readRecent()
+        let updated = replacingRecent(list, id: id, text: text)
+        if updated != list { writeRecent(updated) }
+    }
+}

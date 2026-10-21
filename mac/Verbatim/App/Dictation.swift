@@ -119,6 +119,10 @@ final class DictationController: ObservableObject {
         carbon.owner = self
         learner.app = app
         ThoughtPadController.shared.dictation = self
+        // Recent dictations (⌥⌘V by default): works in every app, even with dictation off.
+        RecallPanelController.shared.dictation = self
+        RecallHotkey.shared.onPress = { [weak self] in self?.toggleRecall() }
+        RecallHotkey.shared.apply()
         bar = FlowBarController(dictation: self)
         refreshMonitors()
         purgeOldDictations()
@@ -366,6 +370,8 @@ final class DictationController: ObservableObject {
         // Esc cancels a dictation in progress; ⌘⌃V pastes the last one again.
         if e.type == .keyDown {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
+            // Esc closes the didn't-paste notice (the words stay on the clipboard and in the thought pad).
+            if e.keyCode == UInt16(kVK_Escape), rescuing, bar?.model.phase == .prompt { rescuing = false; bar?.dismissPrompt(); return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { if !e.isARepeat { pasteLast() }; return }
             if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtPadController.shared.toggle(); return }
@@ -724,12 +730,22 @@ final class DictationController: ObservableObject {
         lastPasteConfirmed = false
         let appName = tgt?.localizedName ?? targetAppName
         Task { @MainActor in
-            // A failed dictation paste puts your old clipboard back: the words go to the thought pad instead.
-            // An edit by voice has no pad piece, so its result stays on the clipboard.
+            // A paste that doesn't land leaves the words on the clipboard (unless you copied something else
+            // meanwhile) and, for a dictation, in the thought pad too. With Also copy each dictation to the
+            // clipboard on, a paste that lands leaves them on the clipboard as well.
             let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true,
-                                             onFailure: wasCommand ? .leaveOnClipboard : .restoreClipboard)
+                                             onFailure: .leaveOnClipboard, keepOnClipboard: !wasCommand && AlwaysCopy.isOn)
             isWorking = false
             Sounds.done()
+            if let rescue = Recall.rescue(for: outcome, command: wasCommand) {
+                // No text field, or the app never read the paste: the Ribbon holds the words with Copy and Paste again.
+                ThoughtPad.shared.add(text, seconds: lastDuration, missed: true)
+                if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+                stoppedAtLimit = false
+                offerRescue(text, title: Recall.rescueTitle(rescue, app: appName, onClipboard: Paster.leftTextOnClipboard))
+                Log.note("dictation not pasted (\(rescue)); kept in the Ribbon, clipboard=\(Paster.leftTextOnClipboard)")
+                return
+            }
             switch outcome {
             case .pasted:
                 lastPasteConfirmed = true
@@ -897,12 +913,52 @@ final class DictationController: ObservableObject {
     /// Pastes the last dictation again where the cursor is now (⌘⌃V).
     func pasteLast() {
         guard let last = lastResult ?? app?.store.live.first(where: { $0.source == .dictation })?.flow?.pasted, !last.isEmpty else { return }
+        pasteText(last)
+    }
+
+    /// Pastes text where the cursor is now, in the app in front (Paste last dictation, Recent dictations, Paste again).
+    func pasteText(_ text: String) {
         let ctx = AppContext.capture(readText: false)
         Task { @MainActor in
-            let out = await Paster.paste(last, into: NSWorkspace.shared.frontmostApplication, focusedField: ctx.hasFocusedField)
+            let out = await Paster.paste(text, into: NSWorkspace.shared.frontmostApplication, focusedField: ctx.hasFocusedField)
             if out == .pasted { lastPasteConfirmed = true }
             explainUnpasted(out)
         }
+    }
+
+    // MARK: Recent dictations and missed pastes
+
+    /// True while the Ribbon holds a dictation that didn't land (Esc closes it).
+    private var rescuing = false
+
+    /// Dictations for Recent dictations, newest first.
+    func recallItems() -> [RecallItem] { Recall.items(from: app?.store.live ?? [], sites: SiteLog.shared.hosts) }
+
+    func toggleRecall() { RecallPanelController.shared.toggle() }
+
+    /// Copies text on purpose (the notice's Copy), and says so by the pointer.
+    func copyText(_ text: String) {
+        Paster.copy(text)
+        RecallHUD.shared.show("Copied", near: NSEvent.mouseLocation)
+    }
+
+    /// A dictation that didn't land stays in the Ribbon for 12 seconds: what it says, Copy, and Paste again (after
+    /// you click the text field you meant). Esc or the X closes it; it stays in Dictations and the thought pad.
+    private func offerRescue(_ text: String, title: String) {
+        rescuing = true
+        bar?.ask(.init(title: title, body: "", quote: Recall.truncate(text, to: 110), after: "",
+                       primary: "Paste again", secondary: "Copy", seconds: 12,
+                       onPrimary: { [weak self] in self?.rescuing = false; self?.pasteText(text) },
+                       onSecondary: { [weak self] in self?.rescuing = false; self?.copyText(text) },
+                       onTimeout: { [weak self] in self?.rescuing = false }))
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: "\(title) Click a text field, then choose Paste again.", .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    }
+
+    /// The didn't-paste notice with sample words, for screenshots.
+    func previewRescue() {
+        offerRescue("Hi Jonathan, I think we should meet on Friday morning to go over the catalog.",
+                    title: Recall.rescueTitle(.noField, app: "Finder", onClipboard: true))
     }
 
     /// Says why text wasn't pasted. Each of these leaves it on the clipboard.

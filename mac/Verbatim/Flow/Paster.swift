@@ -51,18 +51,31 @@ enum Paster {
         case restoreClipboard
     }
 
+    /// Whether the last paste that didn't land left its text on the clipboard. False when you copied something
+    /// else before the target read it (your copy wins), or when the old clipboard came back.
+    private(set) static var leftTextOnClipboard = false
+
     /// Pastes `text` into `target`. With no text field focused, leaves the text on the clipboard and returns `.copiedOnly`.
-    static func paste(_ text: String, into target: NSRunningApplication?, focusedField: Bool, onFailure: OnFailure = .leaveOnClipboard) async -> Outcome {
+    /// With `keepOnClipboard` (Settings › Dictation › Also copy each dictation to the clipboard), a paste that lands
+    /// leaves the text on the clipboard as an ordinary copy instead of putting the old clipboard back.
+    static func paste(_ text: String, into target: NSRunningApplication?, focusedField: Bool, onFailure: OnFailure = .leaveOnClipboard,
+                      keepOnClipboard: Bool = false) async -> Outcome {
         let previous = chain
         let task = Task { @MainActor () -> Outcome in
             _ = await previous?.value
-            return await run(text, target: target, focusedField: focusedField, onFailure: onFailure)
+            leftTextOnClipboard = false
+            let out = await run(text, target: target, focusedField: focusedField, onFailure: onFailure, keep: keepOnClipboard)
+            if out != .pasted, NSPasteboard.general.changeCount == lastWrite { leftTextOnClipboard = true }
+            return out
         }
         chain = Task { _ = await task.value }
         return await task.value
     }
 
-    private static func run(_ text: String, target: NSRunningApplication?, focusedField: Bool, onFailure: OnFailure) async -> Outcome {
+    /// The clipboard's change count right after Verbatim last wrote text to it as real data.
+    private static var lastWrite = -1
+
+    private static func run(_ text: String, target: NSRunningApplication?, focusedField: Bool, onFailure: OnFailure, keep: Bool) async -> Outcome {
         let pb = NSPasteboard.general
         guard AXIsProcessTrusted() else {
             Log.note("paste: Accessibility not allowed, ⌘V not pressed")
@@ -87,6 +100,7 @@ enum Paster {
             switch await DirectTyper.type(text) {
             case .posted:
                 Log.note("paste: typed \(text.count) chars")
+                if keep { copy(text) }
                 return .pasted
             case .partiallyPosted:
                 Log.note("paste: typing interrupted part way; not retried")
@@ -131,7 +145,7 @@ enum Paster {
 
         if legacy {
             try? await Task.sleep(nanoseconds: UInt64(timeout(for: target) * 1_000_000_000))
-            if !receipt.lost, pb.changeCount == change { restore(snapshot, to: pb) }
+            if !receipt.lost, pb.changeCount == change { if keep { copy(text) } else { restore(snapshot, to: pb) } }
             return .pasted
         }
 
@@ -155,7 +169,7 @@ enum Paster {
         let stillOurs = !receipt.lost && pb.changeCount == change
         let waited = String(format: "%.2f", ProcessInfo.processInfo.systemUptime - injected)
         if read {
-            if stillOurs { restore(snapshot, to: pb) }
+            if stillOurs { if keep { copy(text) } else { restore(snapshot, to: pb) } }
             Log.note("paste: read by \(target?.bundleIdentifier ?? "front app") after ⌘V, settled in \(waited)s, restored=\(stillOurs)")
             return .pasted
         }
@@ -255,6 +269,7 @@ enum Paster {
         item.setString(text, forType: .string)
         for m in markers { item.setData(markerData(m), forType: m) }
         pb.writeObjects([item])
+        lastWrite = pb.changeCount
     }
 
     nonisolated static func markerData(_ type: NSPasteboard.PasteboardType) -> Data {
@@ -266,6 +281,7 @@ enum Paster {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
+        lastWrite = pb.changeCount
     }
 
     // MARK: ⌘V in any keyboard layout
