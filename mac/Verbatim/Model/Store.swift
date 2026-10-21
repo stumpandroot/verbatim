@@ -24,6 +24,8 @@ enum Paths {
     static let dictionaryFile = root.appendingPathComponent("dictionary.json")
     /// Dictation snippets (say the trigger, get the text), shared by the Mac and the iPhone.
     static let snippetsFile = root.appendingPathComponent("snippets.json")
+    /// Your name and About me, shared by the Mac and the iPhone (Home greeting, titles, summaries).
+    static let profileFile = root.appendingPathComponent("profile.json")
     static let models = local.appendingPathComponent("models", isDirectory: true)
     static let downloads = local.appendingPathComponent("downloads", isDirectory: true)
     /// Recordings are written here while they're made, then moved into `audio` when they stop, so a
@@ -405,6 +407,7 @@ final class Store: ObservableObject {
         snippets = Cloud.read(Paths.snippetsFile).flatMap { try? Self.dec.decode([Snippet].self, from: $0) } ?? []
         recoverOrphans()
         purgeExpired()
+        startProfileSync()
     }
 
     /// Transcripts that aren't in Recently Deleted.
@@ -525,6 +528,52 @@ final class Store: ObservableObject {
     func ingestDictionary() {
         guard let d = Cloud.read(Paths.dictionaryFile), let x = try? Self.dec.decode([DictionaryEntry].self, from: d), x != dictionary else { return }
         loading = true; dictionary = x; loading = false
+    }
+
+    // MARK: Profile (name and About me), synced as one small file
+
+    struct SyncedProfile: Codable, Equatable { var name: String; var aboutMe: String }
+    static let profileNameKey = "profile.name", profileAboutKey = "profile.aboutMe"
+    private var lastProfile: SyncedProfile?
+    private var profileObserver: NSObjectProtocol?
+
+    private var localProfile: SyncedProfile {
+        let d = UserDefaults.standard
+        return SyncedProfile(name: d.string(forKey: Self.profileNameKey) ?? "", aboutMe: d.string(forKey: Self.profileAboutKey) ?? "")
+    }
+
+    /// At launch: takes the synced profile where this device has nothing, then writes back when either field changes.
+    func startProfileSync() {
+        if let d = Cloud.read(Paths.profileFile), let p = try? Self.dec.decode(SyncedProfile.self, from: d) {
+            let here = localProfile
+            let merged = SyncedProfile(name: here.name.isEmpty ? p.name : here.name, aboutMe: here.aboutMe.isEmpty ? p.aboutMe : here.aboutMe)
+            apply(merged)
+            lastProfile = p
+        }
+        saveProfileIfChanged()
+        profileObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.saveProfileIfChanged() }
+        }
+    }
+
+    private func apply(_ p: SyncedProfile) {
+        let d = UserDefaults.standard
+        if d.string(forKey: Self.profileNameKey) ?? "" != p.name { d.set(p.name, forKey: Self.profileNameKey) }
+        if d.string(forKey: Self.profileAboutKey) ?? "" != p.aboutMe { d.set(p.aboutMe, forKey: Self.profileAboutKey) }
+    }
+
+    private func saveProfileIfChanged() {
+        let p = localProfile
+        guard p != lastProfile, !(p.name.isEmpty && p.aboutMe.isEmpty && lastProfile == nil) else { return }
+        lastProfile = p
+        if let d = try? JSONEncoder().encode(p) { Cloud.write(d, to: Paths.profileFile) }
+    }
+
+    /// The other device changed your name or About me: the newer file wins.
+    func ingestProfile() {
+        guard let d = Cloud.read(Paths.profileFile), let p = try? Self.dec.decode(SyncedProfile.self, from: d), p != localProfile else { return }
+        lastProfile = p
+        apply(p)
     }
 
     func ingestSnippets() {

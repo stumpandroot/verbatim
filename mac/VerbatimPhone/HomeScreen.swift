@@ -102,7 +102,7 @@ struct HomeScreen: View {
     // MARK: Record
 
     /// Reader white on persimmon, as approved; ink under Increase Contrast (white on persimmon is 2.8:1).
-    private var onPersimmon: Color { contrast == .increased ? Ink.inkFixed : Ink.readerFixed }
+    private var onPersimmon: Color { Ink.inkFixed }   // ink on persimmon: 4.4:1, like the Method cards; white measured 2.8:1
 
     private var recordPanel: some View {
         Button { app.requestRecord() } label: {

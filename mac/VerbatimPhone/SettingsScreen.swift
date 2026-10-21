@@ -574,14 +574,25 @@ struct SettingsRowPress: ButtonStyle {
 
 // MARK: - About me
 
-/// A few lines of context (up to 300 characters) for wording titles and summaries. Stays on this iPhone.
+/// Your name (Home greeting, email sign-offs) and a few lines of context (up to 300 characters) for wording titles
+/// and summaries. Both sync with your Mac through iCloud when sync is on.
 struct AboutMeScreen: View {
     @AppStorage(Profile.aboutMeKey) private var aboutMe = ""
+    @AppStorage("profile.name") private var name = ""
     @FocusState private var focused: Bool
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
+                Text("YOUR NAME").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).padding(.horizontal, 4)
+                TextField("Your name", text: $name)
+                    .textContentType(.name)
+                    .font(.system(size: 16)).foregroundStyle(Ink.ink)
+                    .padding(.horizontal, 14).frame(height: 48)
+                    .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                    .accessibilityLabel("Your name")
+                Text("ABOUT ME").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).padding(.horizontal, 4).padding(.top, 10)
                 ZStack(alignment: .topLeading) {
                     if aboutMe.isEmpty {
                         Text("For example: I'm a teacher. I record lessons and parent meetings, and often mention Room 12 and the spring fair.")
@@ -603,7 +614,7 @@ struct AboutMeScreen: View {
                     if v.count > Profile.aboutMeLimit { aboutMe = String(v.prefix(Profile.aboutMeLimit)) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Stays on this iPhone. Verbatim will use it on device to word titles and summaries.")
+                    Text("Verbatim uses this on device to spell names and word titles and summaries. It syncs with your Mac when iCloud sync is on.")
                         .font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)

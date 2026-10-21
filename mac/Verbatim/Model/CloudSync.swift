@@ -35,7 +35,7 @@ final class CloudSync: NSObject {
         defer { query.enableUpdates() }
         guard let store else { return }
         var transcriptsChanged: [URL] = [], unchanged: [URL] = []
-        var projects = false, dictionary = false, snippets = false
+        var projects = false, dictionary = false, snippets = false, profile = false
         // Every item once when gathering finishes; after that only what each update says was added or changed.
         let items: [Any]
         if n.name == .NSMetadataQueryDidUpdate {
@@ -69,6 +69,7 @@ final class CloudSync: NSObject {
             case (_, "projects.json"): projects = true
             case (_, "dictionary.json"): dictionary = true
             case (_, "snippets.json"): snippets = true
+            case (_, "profile.json"): profile = true
             default: break
             }
         }
@@ -86,6 +87,7 @@ final class CloudSync: NSObject {
         if projects { store.ingestProjects() }
         if dictionary { store.ingestDictionary() }
         if snippets { store.ingestSnippets() }
+        if profile { store.ingestProfile() }
     }
 
     /// Keeps the current version and drops the rest. Transcript edits are small and frequent, so the most
