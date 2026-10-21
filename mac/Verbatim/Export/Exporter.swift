@@ -26,6 +26,8 @@ struct ExportOptions: Equatable {
     var timecodes = false
     var singleParagraph = false
     var provenance = false
+    /// Put the transcript's summary (when it has one) before the text, as its own section. Off by default.
+    var summary = false
 
     static var saved: ExportOptions {
         let d = UserDefaults.standard
@@ -33,18 +35,32 @@ struct ExportOptions: Equatable {
         if let s = d.string(forKey: "export.source"), let v = Source(rawValue: s) { o.source = v }
         if d.object(forKey: "export.speakers") != nil { o.speakers = d.bool(forKey: "export.speakers") }
         o.timecodes = d.bool(forKey: "export.timecodes"); o.singleParagraph = d.bool(forKey: "export.single"); o.provenance = d.bool(forKey: "export.prov")
+        o.summary = d.bool(forKey: "export.summary")
         return o
     }
     func save() {
         let d = UserDefaults.standard
         d.set(source.rawValue, forKey: "export.source"); d.set(speakers, forKey: "export.speakers"); d.set(timecodes, forKey: "export.timecodes")
         d.set(singleParagraph, forKey: "export.single"); d.set(provenance, forKey: "export.prov")
+        d.set(summary, forKey: "export.summary")
     }
 }
 
 enum Exporter {
+    /// The summary as an export section: a "Summary" heading, the overview, and "- " key points, then a rule. nil when
+    /// the transcript has no summary. `markdown` uses a "## Summary" heading and ends without the rule.
+    static func summarySection(_ t: Transcript, markdown: Bool = false) -> String? {
+        guard let s = t.summary, !s.isEmpty else { return nil }
+        let label = t.summaryByModel ? "Summary (written by Apple Intelligence; check it against the transcript)" : "Summary"
+        return markdown ? "## \(label)\n\n\(s.plainText)\n\n" : "\(label)\n\n\(s.plainText)\n\n———\n\n"
+    }
+
     /// The text people copy or export, shaped by the options.
     static func text(_ t: Transcript, _ o: ExportOptions, markdownLinks: Bool = false) -> String {
+        text(t, o, markdownLinks: markdownLinks, includeSummary: true)
+    }
+
+    private static func text(_ t: Transcript, _ o: ExportOptions, markdownLinks: Bool, includeSummary: Bool) -> String {
         var body: String
         if o.source == .document && !o.timecodes {
             body = t.documentText
@@ -68,7 +84,8 @@ enum Exporter {
             body = lines.joined(separator: o.timecodes ? "\n" : "\n\n")
         }
         if o.singleParagraph { body = body.replacingOccurrences(of: "\n+", with: " ", options: .regularExpression) }
-        return body + (o.provenance ? provenance(t) : "")
+        let lead = includeSummary && o.summary ? (summarySection(t) ?? "") : ""
+        return lead + body + (o.provenance ? provenance(t) : "")
     }
 
     static func render(_ t: Transcript, as f: ExportFormat, options o: ExportOptions) -> String {
@@ -81,7 +98,9 @@ enum Exporter {
                 if let d = info.uploadDisplay { out += " · \(d)" }
                 out += "\n\n"
             }
-            out += text(t, o, markdownLinks: true).replacingOccurrences(of: "(?m)^([^:\\[\\n][^:\\n]{0,47}): ", with: "**$1:** ", options: .regularExpression)
+            // The summary goes in as its own section, outside the speaker-label bolding below.
+            if o.summary, let section = summarySection(t, markdown: true) { out += section + "## Transcript\n\n" }
+            out += text(t, o, markdownLinks: true, includeSummary: false).replacingOccurrences(of: "(?m)^([^:\\[\\n][^:\\n]{0,47}): ", with: "**$1:** ", options: .regularExpression)
             return out
         default: return render(t, as: f)
         }

@@ -48,7 +48,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .floatingButton: return "The small button at the edge of your screen that starts and pastes a dictation."
         case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac."
         case .models: return "Which model transcribes your recordings, and what Verbatim does to a transcript when it's ready."
-        case .speakers: return "Who's talking in a recording, and which microphone records you."
+        case .speakers: return "Who's talking in a recording, how Verbatim knows your voice, and which microphone records you."
         case .captions: return "Live captions for whatever your Mac is playing or hearing."
         case .watched: return "Drop audio or video into a watched folder and Verbatim transcribes it, then exports the results where you choose."
         case .export: return "What goes into an export or a copy: which text, speaker names, and timecodes."
@@ -127,10 +127,13 @@ enum SettingsIndex {
         .init("models.applyDictionary", .models, "Apply Dictionary to new transcripts", "Only words listed under “Heard as” are replaced, and every fix shows on the transcript.", keywords: "vocabulary corrections replace"),
         .init("models.projectVocab", .models, "Project vocabulary", "Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.", keywords: "dictionary project scope"),
         .init("models.nameSort", .models, "Name and sort recordings", "Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.", keywords: "auto label title tags kind"),
+        .init("models.summary", .models, "Write a summary when a transcript finishes", "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.", keywords: "summary summaries overview key points recap"),
         .init("models.hideFiller", .models, "Hide filler lines", "Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.", keywords: "um uh filler"),
         .init("models.offline", .models, "Where models run", "Models download once from Hugging Face and run on this Mac. Transcription never leaves your computer.", keywords: "privacy offline download hugging face"),
 
         // Speakers and your voice
+        .init("speakers.voiceProfile", .speakers, "Voice profile", "Teach Verbatim your voice so transcripts label you as You.", keywords: "enroll my voice recognize me you"),
+        .init("speakers.onlyMyVoice", .speakers, "Only keep my voice in dictation", "When someone nearby talks while you dictate, Verbatim pastes only your words.", keywords: "voice filter background people dictation me"),
         .init("speakers.identify", .speakers, "Identify speakers", "Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.", keywords: "diarization speaker labels who"),
         .init("speakers.mainOnly", .speakers, "Main speaker only", "Other voices fold into a Background voices section under the transcript.", keywords: "background voices"),
         .init("speakers.mic", .speakers, "Record from", "Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.", keywords: "microphone input device airpods"),

@@ -124,6 +124,54 @@ struct Project: Codable, Identifiable, Equatable, Hashable {
     var colorIndex: Int = 0     // coral, lime, iris, …
 }
 
+/// A short summary of a transcript: a 2–4 sentence overview and up to 5 key points.
+struct TranscriptSummary: Codable, Equatable {
+    var overview: String
+    var keyPoints: [String] = []
+    var createdAt = Date()
+
+    static let maxKeyPoints = 5
+
+    init(overview: String, keyPoints: [String] = [], createdAt: Date = Date()) {
+        self.overview = overview; self.keyPoints = Array(keyPoints.prefix(Self.maxKeyPoints)); self.createdAt = createdAt
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case overview, keyPoints, createdAt }
+        let c = try d.container(keyedBy: K.self)
+        overview = try c.decodeIfPresent(String.self, forKey: .overview) ?? ""
+        keyPoints = try c.decodeIfPresent([String].self, forKey: .keyPoints) ?? []
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
+
+    var isEmpty: Bool { overview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && keyPoints.isEmpty }
+
+    /// The overview, a blank line, then one "- " line per key point. Also the editable form (`parse` reads it back).
+    var plainText: String {
+        var out = overview.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !keyPoints.isEmpty { out += (out.isEmpty ? "" : "\n\n") + keyPoints.map { "- " + $0 }.joined(separator: "\n") }
+        return out
+    }
+
+    /// Reads text edited in the `plainText` shape: lines that start with "- ", "• ", or "* " are key points (no limit on
+    /// what the person keeps), everything else is the overview.
+    static func parse(_ text: String) -> TranscriptSummary {
+        var overview: [String] = [], points: [String] = []
+        for raw in text.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if let p = ["- ", "• ", "* ", "– "].first(where: { line.hasPrefix($0) }) {
+                let point = String(line.dropFirst(p.count)).trimmingCharacters(in: .whitespaces)
+                if !point.isEmpty { points.append(point) }
+            } else if !line.isEmpty {
+                overview.append(line)
+            }
+        }
+        var s = TranscriptSummary(overview: overview.joined(separator: " "))
+        s.keyPoints = points
+        return s
+    }
+}
+
 /// A note attached to a transcript, optionally pinned to a moment (passage-linked) or marked as a bookmark.
 struct Note: Codable, Identifiable, Equatable {
     var id = UUID()
@@ -143,7 +191,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
-             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel
+             processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
+             summary, summaryByModel
     }
     /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
     enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
@@ -171,6 +220,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// The title came from Apple Intelligence (AutoLabel), not the first words: re-transcribing keeps it, and the
     /// transcript says where it came from. Only meaningful while `titleIsAuto`.
     var titleByModel = false
+    /// A short overview and key points (Summarizer). nil until written. `summaryByModel` is true while the text is
+    /// Apple Intelligence's; it turns false once the person edits it, and automatic summaries never replace it then.
+    var summary: TranscriptSummary? = nil
+    var summaryByModel = false
     var pinned = false
     var notes: [Note] = []
     var waveform: [Float] = []       // 120 RMS buckets in 0…1
@@ -278,7 +331,13 @@ struct Transcript: Codable, Identifiable, Equatable {
             titleIsAuto = Self.defaultTitles.contains(title) || title == Self.titleFrom(segments)
         }
         titleByModel = try c.decodeIfPresent(Bool.self, forKey: .titleByModel) ?? false
+        // A summary a newer build wrote in a shape this one can't read is dropped, never the whole file.
+        summary = (try? c.decodeIfPresent(TranscriptSummary.self, forKey: .summary)) ?? nil
+        summaryByModel = try c.decodeIfPresent(Bool.self, forKey: .summaryByModel) ?? false
     }
+
+    /// A summary the person wrote or edited: automatic summaries leave it alone.
+    var summaryIsEdited: Bool { summary != nil && !summaryByModel }
 
     /// Placeholder titles Verbatim gives a transcript before it has words.
     static let defaultTitles: Set<String> = ["Voice memo", "Recovered recording", "Dictation", "App audio", "Untitled"]

@@ -361,28 +361,79 @@ actor FluidDiarizer: DiarizationEngine {
 
     /// Returns no turns where the diarizer could crash; callers already treat that as "no speakers found".
     func diarize(url: URL, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> [(speaker: String, start: Double, end: Double)] {
+        try await diarizeDetailed(url: url, progress: progress).turns
+    }
+
+    /// Turns plus one voice embedding per speaker (VoiceProfile compares them with yours). Empty where the diarizer
+    /// could crash.
+    func diarizeDetailed(url: URL, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> DiarizationOutput {
         guard Self.isSupported else {
             Log.note("diarize skipped: speaker labels need macOS 15")
-            return []
+            return DiarizationOutput(turns: [], embeddings: [:])
         }
         progress(.diarizing)
-        let m: OfflineDiarizerManager
-        if let existing = manager { m = existing } else {
-            let d = OfflineDiarizerManager()
-            progress(.downloading("speaker models", nil))
-            try await d.prepareModels(directory: Paths.models.appendingPathComponent("diarizer", isDirectory: true))
-            manager = d
-            m = d
-        }
+        let m = try await prepared(progress)
         progress(.diarizing)
-        let result = try await m.process(url)
-        return result.segments.map { (speaker: $0.speakerId, start: Double($0.startTimeSeconds), end: Double($0.endTimeSeconds)) }
+        return Self.output(try await m.process(url))
+    }
+
+    /// The same analysis on 16 kHz mono samples already in memory (voice profile enrollment, dictation).
+    func diarize(samples: [Float]) async throws -> DiarizationOutput {
+        guard Self.isSupported else { return DiarizationOutput(turns: [], embeddings: [:]) }
+        let m = try await prepared({ _ in })
+        return Self.output(try await m.process(audio: samples))
+    }
+
+    private func prepared(_ progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> OfflineDiarizerManager {
+        if let existing = manager { return existing }
+        // Per-chunk embeddings on: they're how VoiceProfile recognizes your voice (about 1–2 MB per hour of audio).
+        var config = OfflineDiarizerConfig.default
+        config.exposeChunkEmbeddings = true
+        let d = OfflineDiarizerManager(config: config)
+        progress(.downloading("speaker models", nil))
+        try await d.prepareModels(directory: Paths.models.appendingPathComponent("diarizer", isDirectory: true))
+        manager = d
+        return d
+    }
+
+    /// Turns from the segments; each speaker's embedding is the mean of its chunks' L2-normalized 256-dimension
+    /// WeSpeaker embeddings (`ChunkEmbedding.embedding256`), normalized again.
+    private static func output(_ result: DiarizationResult) -> DiarizationOutput {
+        let turns = result.segments.map { (speaker: $0.speakerId, start: Double($0.startTimeSeconds), end: Double($0.endTimeSeconds)) }
+        let speakers = Set(turns.map(\.speaker))
+        var grouped: [String: [[Float]]] = [:]
+        for c in result.chunkEmbeddings ?? [] where speakers.contains(c.speakerId) && !c.embedding256.isEmpty {
+            grouped[c.speakerId, default: []].append(c.embedding256)
+        }
+        var embeddings: [String: [Float]] = [:]
+        for (id, list) in grouped { if let mean = VoiceMath.mean(list) { embeddings[id] = mean } }
+        return DiarizationOutput(turns: turns, embeddings: embeddings, chunks: grouped)
+    }
+}
+
+/// What the diarizer found: who spoke when, and each speaker's voice embedding (keyed like `turns`' speaker).
+struct DiarizationOutput: Sendable {
+    var turns: [(speaker: String, start: Double, end: Double)]
+    var embeddings: [String: [Float]]
+    /// Every chunk embedding per speaker, for enrollment quality.
+    var chunks: [String: [[Float]]] = [:]
+
+    /// Seconds each speaker talks.
+    var seconds: [String: Double] {
+        var out: [String: Double] = [:]
+        for t in turns { out[t.speaker, default: 0] += max(0, t.end - t.start) }
+        return out
     }
 }
 
 enum SpeakerAssigner {
     /// Gives each segment the speaker who talks for most of its span; builds the speaker list in order of appearance.
     static func assign(_ turns: [(speaker: String, start: Double, end: Double)], to segments: inout [Segment]) -> [Speaker] {
+        assignMapped(turns, to: &segments).speakers
+    }
+
+    /// Like `assign`, also returning which diarizer label became which speaker id ("S3" → "S1").
+    static func assignMapped(_ turns: [(speaker: String, start: Double, end: Double)], to segments: inout [Segment]) -> (speakers: [Speaker], map: [String: String]) {
         var order: [String] = []
         for i in segments.indices {
             let s = segments[i]
@@ -396,6 +447,16 @@ enum SpeakerAssigner {
                 segments[i].speaker = "S\(order.firstIndex(of: best)! + 1)"
             }
         }
-        return order.indices.map { Speaker(id: "S\($0 + 1)", name: "Speaker \($0 + 1)") }
+        var map: [String: String] = [:]
+        for (i, label) in order.enumerated() { map[label] = "S\(i + 1)" }
+        return (order.indices.map { Speaker(id: "S\($0 + 1)", name: "Speaker \($0 + 1)") }, map)
+    }
+
+    /// Speakers from a diarization, with the one who sounds like you named "You" (VoiceProfile, once enrolled).
+    static func assign(_ out: DiarizationOutput, to segments: inout [Segment]) -> [Speaker] {
+        let mapped = assignMapped(out.turns, to: &segments)
+        var speakers = mapped.speakers
+        VoiceProfile.labelYou(&speakers, embeddings: out.embeddings, map: mapped.map)
+        return speakers
     }
 }

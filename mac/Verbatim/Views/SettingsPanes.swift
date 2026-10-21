@@ -236,6 +236,7 @@ struct FloatingButtonSettingsPane: View {
 struct ModelsSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
+    @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
 
     var body: some View {
@@ -266,6 +267,7 @@ struct ModelsSettingsPane: View {
             }
             SettingsGroup(title: "When a transcript is ready") {
                 SettingsToggleRow("models.nameSort", isOn: $autoLabels)
+                SettingsToggleRow("models.summary", isOn: $autoSummary, detail: Summarizer.unavailableReason)
                 SettingsToggleRow("models.hideFiller", isOn: $hideFiller)
             }
         }
@@ -277,9 +279,18 @@ struct ModelsSettingsPane: View {
 struct SpeakersSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    @AppStorage(VoiceProfile.dictationFilterKey) private var onlyMyVoice = false
 
     var body: some View {
         SettingsPane(tab: .speakers) {
+            VoiceProfileSection()
+            SettingsGroup(title: "Your voice") {
+                SettingsToggleRow("speakers.onlyMyVoice", isOn: $onlyMyVoice,
+                                  detail: VoiceProfile.isEnrolled
+                                    ? "When someone nearby talks while you dictate, Verbatim pastes only your words. It takes a moment longer when another voice is heard."
+                                    : "Available once Verbatim knows your voice. Your voice profile stays on this Mac.",
+                                  disabled: !VoiceProfile.isEnrolled)
+            }
             SettingsGroup(title: "Speakers") {
                 if FluidDiarizer.isSupported {
                     SettingsToggleRow("speakers.identify", isOn: $app.identifySpeakers)
@@ -291,6 +302,19 @@ struct SpeakersSettingsPane: View {
             SettingsGroup(title: "Your microphone") {
                 SettingsRow("speakers.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
             }
+        }
+    }
+}
+
+/// Hook for the voice profile enrollment UI (record a sample, re-enroll, delete), which a separate change fills
+/// in. It sits at the top of Speakers and your voice; replace this view's body, keep the name. The anchor id
+/// "speakers.voiceProfile" is registered in SettingsIndex so search can reach it.
+struct VoiceProfileSection: View {
+    var body: some View {
+        SettingsGroup(title: "Voice profile") {
+            SettingsRow("speakers.voiceProfile", detail: VoiceProfile.isEnrolled
+                        ? "Verbatim knows your voice. Your voice profile stays on this Mac."
+                        : "Teach Verbatim your voice so transcripts label you as You and dictation can keep only your words. Coming in the next build.")
         }
     }
 }

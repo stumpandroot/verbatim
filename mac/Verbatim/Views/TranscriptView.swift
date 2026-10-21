@@ -20,6 +20,8 @@ struct TranscriptView: View {
     /// True once the mode bar has scrolled under the top edge; a pinned copy shows there instead.
     @State private var barPinned = false
     @State private var runningAction: FlowAction? = nil
+    /// Why Summarize can't run here (Apple Intelligence unavailable), shown when the action is chosen.
+    @State private var summaryUnavailable: String? = nil
     /// "2 filler lines hidden · Show": per view, starting from Settings › Hide filler lines.
     @State private var showFiller = false
     @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
@@ -43,6 +45,16 @@ struct TranscriptView: View {
                 .environmentObject(app)
             }
         }
+        .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(summaryUnavailable ?? "") }
+    }
+
+    /// The Summarize action: runs it, or says why it can't run on this Mac.
+    private func summarize(_ t: Transcript) {
+        if let why = SummaryAction.unavailableReason { summaryUnavailable = why; return }
+        // An edited summary is replaced only from the Summary block's Regenerate, which asks first.
+        SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false)
     }
 
     @ViewBuilder private var screenBody: some View {
@@ -234,7 +246,12 @@ struct TranscriptView: View {
                 .buttonStyle(.plain)
                 .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
                 .help("Record more and add it to the end of this transcript")
-            Menu { ActionsMenuItems { runningAction = $0 } } label: { ToolLabel(title: "Actions", symbol: "wand.and.stars", compact: compact) }
+            Menu {
+                ActionsMenuItems { runningAction = $0 }
+                Divider()
+                Button(SummaryAction.title(t)) { summarize(t) }
+                    .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
+            } label: { ToolLabel(title: "Actions", symbol: "wand.and.stars", compact: compact) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(t.status != .ready)
                 .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
@@ -256,10 +273,17 @@ struct TranscriptView: View {
         if t.status == .processing { processing(t) }
         else if t.status == .failed { failed(t) }
         else {
-            switch view {
-            case .original: original(t)
-            case .document: DocumentView(transcript: t)
-            case .review: review(t)
+            VStack(alignment: .leading, spacing: 0) {
+                if view != .review {
+                    SummaryBlock(transcript: t,
+                                 onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
+                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
+                }
+                switch view {
+                case .original: original(t)
+                case .document: DocumentView(transcript: t)
+                case .review: review(t)
+                }
             }
         }
     }
