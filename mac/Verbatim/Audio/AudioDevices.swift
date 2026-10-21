@@ -75,15 +75,32 @@ enum AudioDevices {
     /// The Mac's own microphone (built-in transport, internal source), or nil when it has none: a Mac mini,
     /// Studio, or Pro, or a MacBook with its lid closed. Never a Bluetooth, USB, or headset-jack mic.
     /// Core Audio and IOKit calls: call off the main thread.
-    static func builtInMic() -> Device? {
+    static func builtInMic(excluding: AudioDeviceID? = nil) -> Device? {
         guard !lidClosed() else { return nil }
-        return inputs().first { d in
-            guard d.transport == "Built-in" else { return false }
-            // 'imic' is the internal mic; 'emic' and line inputs are whatever is plugged into the jack.
-            if let source = dataSource(d.id) { return source == 0x696D6963 }
-            let n = d.name.lowercased()
+        let candidates: [(device: Device, source: UInt32?)] = inputs().map { d in
+            (device: d, source: d.transport == "Built-in" ? dataSource(d.id) : nil)
+        }
+        return pickBuiltIn(candidates, excluding: excluding)
+    }
+
+    /// The Mac's own microphone among `candidates` (each with its data source, when it has one), skipping
+    /// `excluding`. 'imic' is the internal mic; 'emic' and line inputs are whatever is plugged into the jack.
+    static func pickBuiltIn(_ candidates: [(device: Device, source: UInt32?)], excluding: AudioDeviceID? = nil) -> Device? {
+        let match = candidates.first { c in
+            guard c.device.transport == "Built-in", c.device.id != excluding else { return false }
+            if let source = c.source { return source == 0x696D6963 }
+            let n = c.device.name.lowercased()
             return !n.contains("external") && !n.contains("line") && !n.contains("headset")
         }
+        return match?.device
+    }
+
+    /// Whether the device is still connected and alive. Core Audio calls: call off the main thread.
+    static func isPresent(_ id: AudioDeviceID) -> Bool {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDeviceIsAlive, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var alive = UInt32(0); var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &alive) == noErr, alive != 0 else { return false }
+        return inputs().contains { $0.id == id }
     }
 
     /// Whether a MacBook's lid is closed (its built-in mic is then off).

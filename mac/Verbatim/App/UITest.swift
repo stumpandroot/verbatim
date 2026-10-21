@@ -623,6 +623,28 @@ enum UITest {
         let ex = AutoLabel.excerpt(longSegs)
         check("title excerpt samples start, middle, and end", ex.contains("w0") && ex.contains("w30") && ex.contains("w59") && ex.split(whereSeparator: { $0.isWhitespace }).count <= 1_510)
 
+        // A recording's mic going away: the built-in mic it moves to, and when it pauses instead
+        let shure = AudioDevices.Device(id: 41, name: "Shure MV7", transport: "USB")
+        let pods = AudioDevices.Device(id: 42, name: "AirPods Pro", transport: "Bluetooth")
+        let jack = AudioDevices.Device(id: 43, name: "External Microphone", transport: "Built-in")
+        let mbp = AudioDevices.Device(id: 44, name: "MacBook Pro Microphone", transport: "Built-in")
+        let imic: UInt32 = 0x696D6963, emic: UInt32 = 0x656D6963
+        let mics: [(device: AudioDevices.Device, source: UInt32?)] = [(shure, nil), (pods, nil), (jack, emic), (mbp, imic)]
+        check("mic fallback picks the internal built-in mic", AudioDevices.pickBuiltIn(mics) == mbp
+              && AudioDevices.pickBuiltIn(mics, excluding: mbp.id) == nil
+              && AudioDevices.pickBuiltIn([(shure, nil), (pods, nil)]) == nil)
+        check("mic fallback without a data source goes by name", AudioDevices.pickBuiltIn([(jack, nil), (mbp, nil)]) == mbp
+              && AudioDevices.pickBuiltIn([(jack, nil)]) == nil)
+        check("a mic going away moves to the built-in mic, never pauses for time",
+              MicRecovery.plan(lostGone: true, onBuiltIn: false, recentlyReopened: false, builtIn: mbp) == .builtIn(mbp)
+              && MicRecovery.plan(lostGone: true, onBuiltIn: false, recentlyReopened: true, builtIn: mbp) == .builtIn(mbp))
+        check("a mic going away pauses only without a built-in mic",
+              MicRecovery.plan(lostGone: true, onBuiltIn: false, recentlyReopened: false, builtIn: nil) == .pause(micLost: true))
+        check("a mic that's still there follows the change, then pauses if it changes again",
+              MicRecovery.plan(lostGone: false, onBuiltIn: false, recentlyReopened: false, builtIn: mbp) == .current
+              && MicRecovery.plan(lostGone: false, onBuiltIn: false, recentlyReopened: true, builtIn: mbp) == .pause(micLost: false)
+              && MicRecovery.plan(lostGone: false, onBuiltIn: true, recentlyReopened: false, builtIn: mbp) == .builtIn(mbp))
+
         // Settings search
         let tc = SettingsIndex.search("timecode").map(\.id)
         check("settings search finds timecode rows", tc.contains("export.timecodes") && tc.contains("watched.exportOptions") && tc.contains("captions.soon"))
