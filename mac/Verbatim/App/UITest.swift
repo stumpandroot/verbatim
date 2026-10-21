@@ -147,6 +147,7 @@ enum UITest {
         seedArchive(app)
         seedDictations(app)
         seedActivity()
+        YouTourSeed.run()
         try? await Task.sleep(nanoseconds: 800_000_000)
         let memo = app.store.transcripts.first { $0.title == "Lapp Wagons catalog call" }
         app.go(.home); app.captureMode = "voice"
@@ -254,7 +255,7 @@ enum UITest {
         app.go(.dictations)
         await show("07b-dictations")
         app.go(.activity)
-        await show("07c-activity")
+        await show("07c-you")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         let pad = ThoughtPad.shared
@@ -328,7 +329,7 @@ enum UITest {
         app.go(.dictations)
         await show("16-dark-dictations")
         app.go(.activity)
-        await show("17-dark-activity")
+        await show("17-dark-you")
         app.go(.dictionary)
         await show("18-dark-dictionary")
         app.go(.moments)
@@ -754,6 +755,49 @@ enum UITest {
                           Segment(start: 2, end: 3, text: "Okay, take your time.", speaker: "S1"), Segment(start: 3, end: 4, text: "Uh.", speaker: "S1")]
         let shown = turns.visibleSegments(hideFiller: true).map(\.text)
         check("filler hides only within a speaker's turn", shown == ["Did you sign it?", "Um.", "Okay, take your time."])
+
+        // You page: websites by domain only.
+        check("site host from a web address", SiteHost.host(from: "https://mail.google.com/mail/u/0/#inbox") == "mail.google.com"
+              && SiteHost.host(from: "  HTTPS://www.Notion.so/page?x=1 ") == "notion.so" && SiteHost.host(from: "https://example.com.") == "example.com")
+        check("site host drops ports and sign-ins", SiteHost.host(from: "http://localhost:3000/app") == "localhost"
+              && SiteHost.host(from: "https://user:pw@Example.COM:8443/a") == "example.com" && SiteHost.host(from: "https://[2001:db8::1]:8080/") == "[2001:db8::1]")
+        check("site host keeps international names", SiteHost.host(from: "https://Bücher.de/katalog") == "bücher.de" && SiteHost.host(from: "https://xn--bcher-kva.de/") == "xn--bcher-kva.de")
+        check("site host is nil for other schemes", [("file:///Users/a/b.html"), "about:blank", "chrome://newtab/", "javascript:alert(1)", "", "https://", "https://www.", "mailto:a@b.co", "ftp://x.org"]
+              .allSatisfy { SiteHost.host(from: $0) == nil })
+        check("browsers that can be asked", BrowserTabs.isSupported("com.google.Chrome") && BrowserTabs.isSupported("company.thebrowser.Browser")
+              && BrowserTabs.isSupported("com.apple.Safari") && !BrowserTabs.isSupported("org.mozilla.firefox") && !BrowserTabs.isSupported(nil))
+        // You page: weeks start on the region's first weekday.
+        var gc = Calendar(identifier: .gregorian); gc.timeZone = TimeZone(identifier: "UTC")!
+        let wed = gc.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 15))!
+        gc.firstWeekday = 1
+        let sunWeek = YouRange.interval(.week, containing: wed, calendar: gc)
+        gc.firstWeekday = 2
+        let monWeek = YouRange.interval(.week, containing: wed, calendar: gc)
+        check("week starts on Sunday or Monday by region", gc.component(.day, from: sunWeek.start) == 18 && gc.component(.day, from: monWeek.start) == 19
+              && YouRange.days(in: monWeek, calendar: gc).count == 7 && gc.component(.weekday, from: monWeek.start) == 2)
+        gc.firstWeekday = 1
+        let newYear = YouRange.interval(.week, containing: gc.date(from: DateComponents(year: 2027, month: 1, day: 1, hour: 9))!, calendar: gc)
+        let back = YouRange.interval(.week, containing: YouRange.shifted(wed, .week, by: -3, calendar: gc), calendar: gc)
+        check("week math crosses months and years", gc.component(.day, from: newYear.start) == 27 && gc.component(.month, from: newYear.start) == 12
+              && gc.component(.day, from: back.start) == 27 && gc.component(.month, from: back.start) == 9)
+        let oct = YouRange.interval(.month, containing: wed, calendar: gc)
+        check("month has its days", YouRange.days(in: oct, calendar: gc).count == 31
+              && YouRange.days(in: YouRange.interval(.month, containing: gc.date(from: DateComponents(year: 2027, month: 2, day: 10))!, calendar: gc), calendar: gc).count == 28
+              && YouRange.isCurrent(oct, now: wed) && !YouRange.isCurrent(monWeek, now: oct.end))
+        // Sidebar: saved order and hidden items.
+        let known = ["home", "library", "links", "you"]
+        check("sidebar order keeps yours, drops unknown, adds new at the end",
+              SidebarRules.merge(saved: ["you", "gone", "home", "you"], known: known) == ["you", "home", "library", "links"]
+              && SidebarRules.merge(saved: [], known: known) == known)
+        check("sidebar never hides Settings or everything",
+              SidebarRules.sanitizeHidden(["settings", "links", "gone"], known: known) == ["links"]
+              && SidebarRules.sanitizeHidden(known, known: known).isEmpty
+              && !SidebarRules.canHide("settings", hidden: [], known: known)
+              && !SidebarRules.canHide("you", hidden: ["home", "library", "links"], known: known)
+              && SidebarRules.canHide("you", hidden: ["home"], known: known)
+              && !SidebarRules.canHide("gone", hidden: [], known: known))
+        check("sidebar move", SidebarRules.move("you", to: "library", in: known) == ["home", "you", "library", "links"]
+              && SidebarRules.move("home", to: "links", in: known) == ["library", "links", "home", "you"])
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {

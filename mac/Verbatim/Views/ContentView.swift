@@ -72,7 +72,7 @@ struct ContentView: View {
         case .trash: return "Recently Deleted"
         case .dictionary: return "Dictionary"
         case .dictations: return "Dictations"
-        case .activity: return "Activity"
+        case .activity: return "You"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
         }
     }
@@ -102,7 +102,7 @@ struct ContentView: View {
         case .trash: TrashView()
         case .dictionary: DictionaryView()
         case .dictations: DictationsView()
-        case .activity: ActivityView()
+        case .activity: YouView()
         case .transcript(let id): TranscriptView(id: id)
         }
     }

@@ -29,6 +29,7 @@ struct GeneralSettingsPane: View {
                 SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.brandSecondary) }
             }
             UpdateSettingsSection()
+            YouSettingsSection()
         }
     }
 }

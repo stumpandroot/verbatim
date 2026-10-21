@@ -8,6 +8,9 @@ struct Sidebar: View {
     @State private var newProject = false
     @State private var projectName = ""
     @Namespace private var pill
+    @ObservedObject private var layout = SidebarLayout.shared
+    @State private var customizing = false
+    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         // `store.trash` filters and sorts every transcript; read it once per render.
@@ -21,27 +24,20 @@ struct Sidebar: View {
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbatim")
 
-            SideItem(label: "Home", art: .iconHome, selected: app.screen == .home, pill: pill) { app.go(.home) }
-                .uiTarget("side-home")
-            SideItem(label: "Library", art: .iconLibrary, selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
-                .uiTarget("side-library")
-            SideItem(label: "Links", art: .iconLinks, selected: app.screen == .links, badge: nil, pill: pill) { app.go(.links) }
-                .uiTarget("side-links")
-            SideItem(label: "Moments", art: .iconMoments, selected: app.screen == .moments, pill: pill) { app.go(.moments) }
-                .uiTarget("side-moments")
-            // Links on their way in count too, once their "link added" card has landed here (AppState+LinkCard).
-            let queued = app.queueBadgeCount
-            SideItem(label: "Queue", art: .iconQueue, selected: app.screen == .queue,
-                     badge: queued == 0 ? nil : "\(queued)", busy: app.runningID != nil, pill: pill,
-                     pillBadge: true, badgePops: app.queueBadgePops) { app.go(.queue) }
-                .anchorPreference(key: QueueItemAnchor.self, value: .bounds) { $0 }
-                .uiTarget("side-queue")
-            SideItem(label: "Dictations", art: .iconDictations, selected: app.screen == .dictations, badge: nil, pill: pill) { app.go(.dictations) }
-                .uiTarget("side-dictations")
-            SideItem(label: "Activity", art: .iconActivity, selected: app.screen == .activity, badge: nil, pill: pill) { app.go(.activity) }
-                .uiTarget("side-activity")
-            SideItem(label: "Dictionary", art: .iconDictionary, selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
-                .uiTarget("side-dict")
+            // The main items, in your order (SidebarLayout): drag to move, right-click to hide or customize.
+            ForEach(layout.visible) { id in
+                mainItem(id)
+                    .onDrag { layout.itemProvider(id) }
+                    .onDrop(of: [SidebarLayout.dragType], delegate: SidebarReorderDrop(target: id, layout: layout, animation: limitMotion ? nil : .spring(duration: 0.3, bounce: 0)))
+                    .contextMenu {
+                        Button("Hide from sidebar") { withAnimation(limitMotion ? nil : .spring(duration: 0.3, bounce: 0)) { layout.setHidden(id, true) } }
+                            .disabled(!layout.canHide(id))
+                        Button("Customize sidebar…") { customizing = true }
+                    }
+                    .accessibilityAction(named: "Move up") { layout.nudge(id, by: -1) }
+                    .accessibilityAction(named: "Move down") { layout.nudge(id, by: 1) }
+                    .accessibilityAction(named: "Hide from sidebar") { layout.setHidden(id, true) }
+            }
 
             HStack {
                 Overline(text: "Projects", color: Ink.mute)
@@ -101,6 +97,42 @@ struct Sidebar: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .modifier(SidebarPaper())
         .ignoresSafeArea(edges: .top)
+        .sheet(isPresented: $customizing) { CustomizeSidebarSheet() }
+    }
+
+    /// One main item: its label, icon, selection, badge, and drop target for transcripts.
+    @ViewBuilder private func mainItem(_ id: SidebarItemID) -> some View {
+        switch id {
+        case .home:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .home, pill: pill) { app.go(.home) }
+                .uiTarget("side-home")
+        case .library:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
+                .uiTarget("side-library")
+        case .links:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .links, pill: pill) { app.go(.links) }
+                .uiTarget("side-links")
+        case .moments:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .moments, pill: pill) { app.go(.moments) }
+                .uiTarget("side-moments")
+        case .queue:
+            // Links on their way in count too, once their "link added" card has landed here (AppState+LinkCard).
+            let queued = app.queueBadgeCount
+            SideItem(label: id.title, art: id.art, selected: app.screen == .queue,
+                     badge: queued == 0 ? nil : "\(queued)", busy: app.runningID != nil, pill: pill,
+                     pillBadge: true, badgePops: app.queueBadgePops) { app.go(.queue) }
+                .anchorPreference(key: QueueItemAnchor.self, value: .bounds) { $0 }
+                .uiTarget("side-queue")
+        case .dictations:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .dictations, pill: pill) { app.go(.dictations) }
+                .uiTarget("side-dictations")
+        case .you:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .activity, pill: pill) { app.go(.activity) }
+                .uiTarget("side-you")
+        case .dictionary:
+            SideItem(label: id.title, art: id.art, selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
+                .uiTarget("side-dict")
+        }
     }
 }
 

@@ -58,6 +58,8 @@ targets:
         NSAudioCaptureUsageDescription: "Verbatim records the audio of the app you choose and transcribes it on this Mac. No video is kept."
         # Live words (Audio/LiveTranscriber.swift): on-device only; asked for on systems before macOS 26.
         NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, on this Mac."
+        # The You page's "Where you dictate" (App/SiteCapture.swift): the front tab's host only, asked once per browser.
+        NSAppleEventsUsageDescription: "Verbatim reads the website you're dictating into, by domain only, to show where you dictate."
         NSHighResolutionCapable: true
         # Sparkle (mac/Updates/README.md). The feed lives on the `updates` branch; CI rewrites it.
         SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbatim/updates/appcast.xml
@@ -79,6 +81,8 @@ targets:
         # are inert today; they keep the bookmarks working if the sandbox is ever turned on.
         com.apple.security.files.user-selected.read-write: true
         com.apple.security.files.bookmarks.app-scope: true
+        # Hardened runtime: asking a browser for its front tab's address (App/SiteCapture.swift).
+        com.apple.security.automation.apple-events: true
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h

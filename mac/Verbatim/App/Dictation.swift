@@ -78,6 +78,8 @@ final class DictationController: ObservableObject {
     private let learner = AutoLearn()
     private var target: NSRunningApplication?
     private var context: AppContext?
+    /// The browser tab's website for the You page, asked for as dictation starts (SiteCapture).
+    private var siteProbe: SiteProbe?
     private var command = false
     private var keyDown = false
     /// When the hotkey went down, from the event itself (handling can lag while the mic starts).
@@ -462,6 +464,7 @@ final class DictationController: ObservableObject {
         }
         target = NSWorkspace.shared.frontmostApplication
         targetAppName = target?.localizedName ?? "the front app"
+        siteProbe = SiteCapture.probe(bundleID: target?.bundleIdentifier)
         // The mic starts first: reading the app's text through Accessibility can take a moment, and the
         // first word must not be lost to it.
         let showWords = LiveWordsSetting.isOn
@@ -598,6 +601,7 @@ final class DictationController: ObservableObject {
         let project = s.activeProject.flatMap { p in app?.store.projects.contains(where: { $0.id == p }) == true ? p : nil }
         let dict = (app?.store.dictionary ?? []).filter { $0.projectId == nil || $0.projectId == project }
         let ctx = context
+        let site = siteProbe
         let isCommand = command
         let targetName = targetAppName
         let category = ctx?.category ?? .other
@@ -653,6 +657,7 @@ final class DictationController: ObservableObject {
                     let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned, project: project)
                     if let id, !isCommand, !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: info, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
+                        SiteLog.shared.attach(id, site)
                     }
                     self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw)
                 }

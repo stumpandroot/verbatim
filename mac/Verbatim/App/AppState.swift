@@ -191,7 +191,7 @@ final class AppState: ObservableObject {
         case (_, .transcript): direction = .push
         case (.transcript, _): direction = .pop
         default:
-            let a = Self.order[key(screen)] ?? 0, b = Self.order[key(next)] ?? 0
+            let a = rank(screen), b = rank(next)
             direction = b > a ? .up : .down
         }
         if UITest.enabled { Log.note("UITEST go \(key(next)) nav=\(nav.count + 1)") }
@@ -202,6 +202,13 @@ final class AppState: ObservableObject {
     }
 
     func goHome() { go(.home) }
+
+    /// Where a screen sits in your sidebar order (SidebarLayout), so screens slide the way the sidebar reads.
+    private func rank(_ s: Screen) -> Int {
+        let k = key(s)
+        if let id = SidebarItemID(rawValue: k == "activity" ? "you" : k) { return SidebarLayout.shared.index(id) }
+        return Self.order[k] ?? 0
+    }
 
     private func key(_ s: Screen) -> String {
         switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript" }
