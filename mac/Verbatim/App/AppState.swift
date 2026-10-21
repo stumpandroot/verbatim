@@ -111,6 +111,7 @@ final class AppState: ObservableObject {
         recorder.onResumed = { [weak self] in self?.verbiePose = .listening }
         HangWatch.start()
         dictation.attach(self)
+        FolderWatcher.shared.attach(self)
         applyAppearance()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.

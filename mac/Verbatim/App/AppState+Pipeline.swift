@@ -52,6 +52,7 @@ extension AppState: TranscriptionHost {
 
     func transcriptReady(_ id: UUID, corrections n: Int, queueEmpty: Bool) {
         verbiePose = .saved
+        FolderWatcher.shared.transcriptReady(id)   // auto-export, if it came from a watched folder
         // In a batch, stay quiet until the last one; then one chime and one toast.
         if queueEmpty {
             Sounds.done()
@@ -62,6 +63,7 @@ extension AppState: TranscriptionHost {
 
     func jobFailed(_ id: UUID, error: Error) {
         verbiePose = .interrupted
+        FolderWatcher.shared.transcriptFailed(id, error: error)
         toast = Toast("Transcription failed: \(error.localizedDescription)")
     }
 

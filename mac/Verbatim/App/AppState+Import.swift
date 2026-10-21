@@ -18,19 +18,23 @@ extension AppState {
 
     /// Imports any number of files or folders. Each gets a Library entry right away; files are copied (and video
     /// reduced to its audio) one after another in the background, and each joins the queue as soon as it's ready.
-    func importFiles(_ urls: [URL]) {
+    /// Returns each new transcript with the file it came from. Watched folders (FolderWatcher) pass `useLibraryProject: false`
+    /// so a file never lands in whatever project the Library happens to show, and `announce: false` to stay quiet.
+    @discardableResult
+    func importFiles(_ urls: [URL], useLibraryProject: Bool = true, announce: Bool = true) -> [(UUID, URL)] {
         let files = MediaImport.expand(urls)
-        guard !files.isEmpty else { toast = Toast("No audio or video files found there."); return }
+        guard !files.isEmpty else { if announce { toast = Toast("No audio or video files found there.") }; return [] }
         var pending: [(UUID, URL)] = []
+        let projectId: UUID? = useLibraryProject ? projectFilter : nil
         for src in files {
             var t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file,
                                sourceLabel: src.pathExtension.uppercased() + " file", duration: 0, audioFileName: nil, model: "")
             t.status = .processing; t.stage = "Importing"
-            if let p = projectFilter { t.projectId = p }
+            if let p = projectId { t.projectId = p }
             store.add(t)
             pending.append((t.id, src))
         }
-        if files.count > 1 { toast = Toast("Added \(files.count) files to the queue", action: "View") { [weak self] in self?.go(.queue) } }
+        if announce && files.count > 1 { toast = Toast("Added \(files.count) files to the queue", action: "View") { [weak self] in self?.go(.queue) } }
         verbiePose = .receiving
         Task {
             for (id, src) in pending {
@@ -46,9 +50,11 @@ extension AppState {
                     coordinator.enqueueExisting(id)
                 } catch {
                     store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
+                    FolderWatcher.shared.transcriptFailed(id, error: error)
                 }
             }
         }
+        return pending
     }
 
     /// Accepts files and folders dropped from Finder, any number at once.
