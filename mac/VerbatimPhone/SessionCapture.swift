@@ -63,6 +63,12 @@ final class SessionCapture: @unchecked Sendable {
         guard running else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        // Let the new route settle (AirPods out, the built-in mic coming up) before reading its format.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.restartNow() }
+    }
+
+    private func restartNow() {
+        guard running else { return }
         do {
             try installTap()
             engine.prepare()
@@ -90,7 +96,8 @@ final class SessionCapture: @unchecked Sendable {
         converter = c
         inputFormat = format
         lock.unlock()
-        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
+        // nil: the tap takes whatever the input delivers, so a stale format after a route change can't crash it.
+        input.installTap(onBus: 0, bufferSize: 1_024, format: nil) { [weak self] buffer, _ in
             self?.feed(buffer)
         }
     }
@@ -167,8 +174,12 @@ final class SessionCapture: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         lastLevel = v
-        guard let converter, let f = inputFormat,
-              buffer.format.sampleRate == f.sampleRate, buffer.format.channelCount == f.channelCount else { return }
+        // A route change (AirPods out, Bluetooth in) can change the format mid-stream: convert from the new one.
+        if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount {
+            converter = AVAudioConverter(from: buffer.format, to: outFormat)
+            inputFormat = buffer.format
+        }
+        guard let converter else { return }
         let cap = AVAudioFrameCount(Double(buffer.frameLength) * Self.sampleRate / buffer.format.sampleRate) + 32
         guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: cap) else { return }
         var fed = false

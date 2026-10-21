@@ -108,8 +108,15 @@ final class RecordingWriter: @unchecked Sendable {
         let now = ProcessInfo.processInfo.systemUptime
         if firstBufferAt == nil { firstBufferAt = now }
         if rms > 0 { signal = true; lastSignal = now }
-        guard !paused, let converter, file != nil || holding else { return 0 }
-        if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount { return v }
+        guard !paused, converter != nil, file != nil || holding else { return 0 }
+        // A route change (AirPods out, a new device) can change the format mid-stream: convert from the new one
+        // instead of dropping it, so the file keeps one format and nothing is lost.
+        if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount {
+            guard let c = AVAudioConverter(from: buffer.format, to: recordingFormat) else { return v }
+            converter = c
+            inputFormat = buffer.format
+        }
+        guard let converter else { return v }
         let ratio = recordingFormat.sampleRate / buffer.format.sampleRate
         let cap = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
         guard let out = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: cap) else { return v }
@@ -511,7 +518,14 @@ final class Recorder: ObservableObject {
     }
 
     private func installRecordingTap(on input: AVAudioInputNode, format: AVAudioFormat, writer w: RecordingWriter) {
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
+        // iPhone: nil takes whatever the input delivers. Passing a format read during a route change (AirPods taken
+        // out) can mismatch the hardware, and AVAudioEngine raises an exception that ends the app.
+        #if os(iOS)
+        let tapFormat: AVAudioFormat? = nil
+        #else
+        let tapFormat: AVAudioFormat? = format
+        #endif
+        input.installTap(onBus: 0, bufferSize: 2048, format: tapFormat) { [weak self] buffer, _ in
             let v = w.write(buffer)
             let secs = w.seconds
             Task { @MainActor [weak self] in self?.meter(v, seconds: secs) }
@@ -559,9 +573,16 @@ final class Recorder: ObservableObject {
     /// Normal recordings: points the tap at the input's current format (a new device, a new sample rate) and
     /// starts the engine again. The writer converts whatever arrives, so the file keeps one format.
     private func restartCapture() -> Bool {
-        guard !keepWarm, let engine, let w = writer else { return false }
+        guard !keepWarm, var engine, let w = writer else { return false }
         #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(true)
+        // A fresh engine after a route change: the old one can keep the departed device's format.
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        removeConfigObserver()
+        engine = AVAudioEngine()
+        self.engine = engine
+        observeConfiguration(of: engine)
         #endif
         let input = engine.inputNode
         input.removeTap(onBus: 0)
@@ -1353,10 +1374,19 @@ final class Recorder: ObservableObject {
             } else if isPaused {
                 // Already paused: Resume restarts capture on whatever input is there then.
                 Log.note("recorder: configuration change while paused")
-            } else if !restartCapture() {
+            } else {
                 // Normal recordings: follow the new input (a new sample rate is fine, the writer converts). If that
-                // can't start, pause visibly instead of recording nothing.
-                autoPause("The microphone changed. Tap Resume to keep recording.")
+                // can't start, pause visibly instead of recording nothing. On iPhone, let the new route settle
+                // first (AirPods out, the built-in mic coming up).
+                #if os(iOS)
+                let delay = 0.4
+                #else
+                let delay = 0.0
+                #endif
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    guard let self, self.isRecording, !self.isPaused, !(self.engine?.isRunning ?? false) else { return }
+                    if !self.restartCapture() { self.autoPause("The microphone changed. Tap Resume to keep recording.") }
+                }
             }
         }
     }

@@ -453,7 +453,7 @@ final class Store: ObservableObject {
             var t = Transcript(title: "Recovered recording", source: .voiceMemo, sourceLabel: "Recovered", duration: dur, audioFileName: name, model: "")
             t.createdAt = when
             t.status = .failed
-            t.error = "This recording was saved but never transcribed. Right-click to retry."
+            t.error = "This recording was saved but never transcribed. Choose Retry to transcribe it."
             searchCache[t.id] = nil
             transcripts.append(t)
             save(t)
