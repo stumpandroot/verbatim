@@ -49,10 +49,21 @@ enum Log {
     }
 
     static func note(_ message: String) {
+        queue.async(execute: entry(message))
+    }
+
+    /// Like `note`, but returns only once the line is in the file, so a crash right after it still leaves it in
+    /// native.log. For breadcrumbs before risky steps; never call it on the log's own queue.
+    static func noteNow(_ message: String) {
+        queue.sync(execute: entry(message))
+    }
+
+    /// Redacts and stamps the line now; the returned work appends it to the file (run on `queue`).
+    private static func entry(_ message: String) -> () -> Void {
         let clean = redact(message)
         logger.info("\(clean, privacy: .private)")
         let line = String(format: "%@ +%.3fs %@\n", stamp.string(from: Date()), Date().timeIntervalSince(t0), clean)
-        queue.async {
+        return {
             if Date().timeIntervalSince(lastTrim) > 86_400 { try? handle?.close(); handle = nil; trimOldLines(file); lastTrim = Date() }
             // Reopened if the file was removed meanwhile, so lines keep landing in native.log as before.
             if handle != nil, !FileManager.default.fileExists(atPath: file.path) { try? handle?.close(); handle = nil }

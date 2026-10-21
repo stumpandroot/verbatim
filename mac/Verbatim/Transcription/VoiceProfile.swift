@@ -81,7 +81,7 @@ enum VoiceProfile {
     }
 
     enum Failure: LocalizedError {
-        case unsupported, noSpeech, unreadable(String)
+        case unsupported, noSpeech, silent, unreadable(String)
         var errorDescription: String? {
             switch self {
             case .unsupported:
@@ -91,6 +91,7 @@ enum VoiceProfile {
                 return "Recognizing your voice isn't available on this device."
                 #endif
             case .noSpeech: return "Verbatim didn't hear a voice in that recording. Read a little more, close to the microphone."
+            case .silent: return "Verbatim heard only silence. Check that your microphone isn't muted, then try again."
             case .unreadable(let name): return "Verbatim couldn't read \(name)."
             }
         }
@@ -206,9 +207,29 @@ enum VoiceProfile {
     /// downloaded (the first run downloads them). Always saves what it heard; the profile is used once it holds
     /// `minSeconds` of your voice.
     static func enroll(from urls: [URL], replacing: Bool = false) async throws -> Enrollment {
-        try await Task.detached(priority: .userInitiated) {
+        let work = Task.detached(priority: .userInitiated) {
             try await VoiceProfile.enrollNow(urls, replacing: replacing)
-        }.value
+        }
+        // Cancelling the enrollment (closing the sheet) cancels the work too, so nothing is saved after you leave.
+        return try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
+    }
+
+    /// Samples the diarizer can use: nothing that isn't finite, at least a second long (padded with silence), or a
+    /// reason not to run it at all (no audio, or nothing but silence).
+    static func prepareSamples(_ raw: [Float]) -> Result<[Float], Failure> {
+        guard !raw.isEmpty else { return .failure(.noSpeech) }
+        var peak: Float = 0
+        var samples = raw
+        for i in samples.indices {
+            let v = samples[i]
+            if !v.isFinite { samples[i] = 0; continue }
+            peak = max(peak, abs(v))
+        }
+        // About -66 dBFS: a muted mic, or one that's asleep. A quiet room is well above it.
+        guard peak >= 0.0005 else { return .failure(.silent) }
+        // The diarizer needs about a second of audio; pad short clips with silence.
+        if samples.count < 16_000 { samples += [Float](repeating: 0, count: 16_000 - samples.count) }
+        return .success(samples)
     }
 
     private static func enrollNow(_ urls: [URL], replacing: Bool) async throws -> Enrollment {
@@ -216,17 +237,30 @@ enum VoiceProfile {
         var chunks: [[Float]] = []
         var seconds: Double = 0
         var otherVoices = false
+        var silentClips = 0
         for url in urls {
             try Task.checkCancellation()
-            let samples: [Float]
-            do { samples = try AudioConverter().resampleAudioFile(url) } catch { throw Failure.unreadable(url.lastPathComponent) }
-            // The diarizer needs about a second of audio; pad short clips with silence.
-            let padded = samples.count < 16_000 ? samples + [Float](repeating: 0, count: 16_000 - samples.count) : samples
-            let out: DiarizationOutput
-            do { out = try await FluidDiarizer.shared.diarize(samples: padded) } catch {
-                Log.note("voice profile: a clip had no usable speech (\(String(describing: type(of: error))))")
+            let raw: [Float]
+            do { raw = try AudioConverter().resampleAudioFile(url) } catch {
+                Log.noteNow("voice profile: couldn't read the recording (\(String(describing: type(of: error))))")
+                throw Failure.unreadable(url.lastPathComponent)
+            }
+            let padded: [Float]
+            switch prepareSamples(raw) {
+            case .success(let s): padded = s
+            case .failure(let reason):
+                Log.noteNow("voice profile: skipped a clip of \(raw.count) samples (\(reason))")
+                if case .silent = reason { silentClips += 1 }
                 continue
             }
+            try Task.checkCancellation()
+            Log.noteNow("voice profile: embedding start, \(raw.count) samples (\(String(format: "%.1f", Double(raw.count) / 16_000)) s)")
+            let out: DiarizationOutput
+            do { out = try await FluidDiarizer.shared.diarize(samples: padded) } catch {
+                Log.noteNow("voice profile: a clip had no usable speech (\(String(describing: type(of: error))))")
+                continue
+            }
+            Log.noteNow("voice profile: embedding end, \(out.turns.count) turn(s), \(out.chunks.values.reduce(0) { $0 + $1.count }) chunk(s)")
             let time = out.seconds
             // The main voice in each clip is you; anyone else talking (a TV, a room) is left out and noted.
             guard let main = time.max(by: { $0.value < $1.value })?.key, let mine = out.chunks[main], !mine.isEmpty else { continue }
@@ -235,9 +269,11 @@ enum VoiceProfile {
             chunks += mine
             seconds += time[main] ?? 0
         }
+        try Task.checkCancellation()
         guard let mean = VoiceMath.mean(chunks) else {
-            if replacing || stored == nil { throw Failure.noSpeech }
-            return result(for: stored!, otherVoices: false, heardNothing: true)
+            if silentClips == urls.count, !urls.isEmpty { throw Failure.silent }
+            guard !replacing, let old = stored else { throw Failure.noSpeech }
+            return result(for: old, otherVoices: false, heardNothing: true)
         }
         let consistency = chunks.isEmpty ? 0 : chunks.compactMap { VoiceMath.cosine($0, mean) }.reduce(0, +) / Float(chunks.count)
         var next = Stored(embedding: mean, seconds: seconds, consistency: consistency, chunks: chunks.count)
@@ -251,6 +287,7 @@ enum VoiceProfile {
             }
         }
         // Saved even when short, so "Read a little more" adds to it; it's used only from `minSeconds` (`isEnrolled`).
+        try Task.checkCancellation()
         try save(next)
         Log.note("voice profile: \(Int(next.seconds)) s, \(next.chunks) chunks, quality \(quality(seconds: next.seconds, consistency: next.consistency))")
         return result(for: next, otherVoices: otherVoices, heardNothing: false)

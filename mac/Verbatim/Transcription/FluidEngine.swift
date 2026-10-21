@@ -507,6 +507,8 @@ actor FluidDiarizer: DiarizationEngine {
             return DiarizationOutput(turns: [], embeddings: [:])
         }
         progress(.diarizing)
+        await acquire()
+        defer { release() }
         let m = try await prepared(progress)
         progress(.diarizing)
         return Self.output(try await m.process(url))
@@ -515,8 +517,25 @@ actor FluidDiarizer: DiarizationEngine {
     /// The same analysis on 16 kHz mono samples already in memory (voice profile enrollment, dictation).
     func diarize(samples: [Float]) async throws -> DiarizationOutput {
         guard Self.isSupported else { return DiarizationOutput(turns: [], embeddings: [:]) }
+        guard !samples.isEmpty else { throw VoiceProfile.Failure.noSpeech }
+        await acquire()
+        defer { release() }
         let m = try await prepared({ _ in })
         return Self.output(try await m.process(audio: samples))
+    }
+
+    // One analysis at a time. An actor runs other calls while one awaits, so without this a voice enrollment and
+    // a transcript's speaker detection could download, compile, or run the same models at once.
+    private var busy = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    private func acquire() async {
+        guard busy else { busy = true; return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    private func release() {
+        if waiting.isEmpty { busy = false } else { waiting.removeFirst().resume() }
     }
 
     private func prepared(_ progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> OfflineDiarizerManager {

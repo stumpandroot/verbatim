@@ -129,12 +129,19 @@ struct VoiceProfileControls: View {
 enum VoiceEnrollmentSheet {
     private static var window: NSWindow?
     private static var model: VoiceEnrollment?
+    private static var parentCloseObserver: NSObjectProtocol?
 
-    /// Opens the sheet on `parent` (the key window, normally Settings). `readMore` goes straight to one more
-    /// passage; `preview` (UI tour) shows step 2 with made-up progress and never records.
+    /// Opens the sheet on `parent` (the key window: Settings, or the main window from the You page). `readMore`
+    /// goes straight to one more passage; `preview` (UI tour) shows step 2 with made-up progress and never records.
     static func present(readMore: Bool = false, preview: Bool = false, from parent: NSWindow? = nil) {
         guard window == nil else { window?.makeKeyAndOrderFront(nil); return }
-        guard let parent = parent ?? NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        // A sheet goes on a real document window: never on a panel (the Ribbon, a popover), or one that's closing.
+        let candidates = [parent, NSApp.keyWindow, NSApp.mainWindow].compactMap { $0 }
+        guard let parent = candidates.first(where: { !($0 is NSPanel) && $0.isVisible }) else {
+            Log.noteNow("voice enroll: no window to open the sheet on")
+            return
+        }
+        VoiceEnrollment.trace("opening the sheet\(readMore ? " (read more)" : "")\(preview ? " (preview)" : "") on \(parent === NSApp.mainWindow ? "the main window" : "another window")")
         let m = VoiceEnrollment(preview: preview)
         let root = VoiceEnrollmentView(model: m, close: { dismiss() })
             .limitMotionRoot()
@@ -143,22 +150,34 @@ enum VoiceEnrollmentSheet {
         host.sizingOptions = [.preferredContentSize]
         let w = NSWindow(contentViewController: host)
         w.styleMask = [.titled]
+        // Kept alive by `window` (ARC); a window that also released itself on close would be freed twice.
+        w.isReleasedWhenClosed = false
         w.title = "Your voice"
         w.backgroundColor = NSColor(Ink.paper)
         model = m
         window = w
+        // The window under the sheet closing (Settings closed with ⌘W) stops the recording with it.
+        parentCloseObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: parent, queue: .main) { _ in
+            MainActor.assumeIsolated { dismiss() }
+        }
         parent.beginSheet(w) { _ in
             m.cancel()
-            window = nil
-            model = nil
+            if window === w { cleanUp() }
         }
         if readMore { m.readMore() }
     }
 
     static func dismiss() {
         guard let w = window else { return }
+        VoiceEnrollment.trace("closing the sheet")
         model?.cancel()
-        if let parent = w.sheetParent { parent.endSheet(w) } else { w.close() }
+        cleanUp()
+        if let parent = w.sheetParent { parent.endSheet(w) } else { w.orderOut(nil) }
+    }
+
+    private static func cleanUp() {
+        if let o = parentCloseObserver { NotificationCenter.default.removeObserver(o) }
+        parentCloseObserver = nil
         window = nil
         model = nil
     }
