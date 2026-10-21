@@ -47,6 +47,8 @@ final class PhoneState: ObservableObject {
     @Published var showConsentNotice = false
     static let consentNoticeKey = "consent.noticeShown"
     @Published var showLinkSheet = false
+    /// The export sheet (PhoneExportSheet), for one transcript or several.
+    @Published var exportRequest: PhoneExportRequest? = nil
     @Published var showImporter = false
     @Published var showOnboarding = Onboarding.shouldShow
     /// "New project…" from a row's menu: name it, then the transcript moves into it.
@@ -461,14 +463,14 @@ final class PhoneState: ObservableObject {
         say("Copied")
     }
 
-    /// Writes an export to a temporary file for the share sheet.
-    func exportFile(_ t: Transcript, as f: ExportFormat) -> URL? {
-        var base = t.title.replacingOccurrences(of: "[/:\\\\?%*|\"<>]", with: "-", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-        if base.isEmpty { base = "Transcript" }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(base + "." + f.ext)
+    /// Writes an export to a temporary file for the share sheet, named "{title}.{ext}".
+    func exportFile(_ t: Transcript, as f: ExportFormat, options: ExportOptions = .saved) -> URL? {
+        var used = Set<String>()
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Export-\(UUID().uuidString)", isDirectory: true)
+        let url = dir.appendingPathComponent(ExportNames.unique(t.title, ext: f.ext, used: &used))
         do {
-            if f == .docx { try Exporter.writeDocx(t, options: .saved, to: url) }
-            else { try Exporter.render(t, as: f, options: .saved).write(to: url, atomically: true, encoding: .utf8) }
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try Exporter.write(t, as: f, options: options, to: url)
             return url
         } catch { say("Couldn't export: \(error.localizedDescription)"); return nil }
     }

@@ -147,6 +147,24 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 1_500_000_000)   // Harper lints off the main thread
         await show("06b-document")
         NotificationCenter.default.post(name: .verbatimShowMode, object: "Transcript")
+        // The export sheet (one transcript, then a Library selection of three).
+        if let m = memo {
+            let keep = ExportOptions.saved
+            var o = keep; o.header = true; o.timecodeMode = .everyParagraph; o.moments = .end; o.speakerMode = .onChange; o.save()
+            ExportOptions.savedFormat = .txt
+            app.exportRequest = ExportRequest(ids: [m.id])
+            await show("06f-export-sheet")
+            app.exportRequest = nil
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            ExportOptions.savedFormat = .srt
+            let three = [m.id] + app.archive.filter { $0.id != m.id && $0.status == .ready }.prefix(2).map(\.id)
+            app.exportRequest = ExportRequest(ids: three)
+            await show("06g-export-batch-srt")
+            app.exportRequest = nil
+            ExportOptions.savedFormat = .txt
+            keep.save()
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
         if let walk = app.store.live.first(where: { $0.title == "Errands and a long walk" }) {
             UserDefaults.standard.set(true, forKey: Transcript.mainSpeakerOnlyKey)
             app.go(.transcript(walk.id))
@@ -491,6 +509,22 @@ enum UITest {
               && !Segment(start: 0, end: 1, text: "Um, I think so.").isFillerOnly && !Segment(start: 0, end: 1, text: "").isFillerOnly)
         let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
         check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
+
+        // Export: the options shape the text, and subtitles honor the caption limits.
+        var ex = Transcript(title: "Export check", source: .voiceMemo, sourceLabel: "Voice memo", duration: 40, audioFileName: nil, model: "Test")
+        ex.segments = [Segment(start: 0, end: 6, text: "This wall gets the best light in the morning, so the chair goes here.", speaker: "S1"),
+                       Segment(start: 6.2, end: 7, text: "Um.", speaker: "S1"),
+                       Segment(start: 7.5, end: 14, text: "Agreed. Can we bring the second key in from the left so the background stays darker?", speaker: "S2")]
+        ex.speakers = [Speaker(id: "S1", name: "Ana"), Speaker(id: "S2", name: "Tim")]
+        ex.notes = [Note(text: "Second key", at: 7.5, isBookmark: true)]
+        var eo = ExportOptions(); eo.timecodeMode = .everyParagraph; eo.moments = .end
+        let etext = Exporter.render(ex, as: .txt, options: eo)
+        check("export text has header, stamps, speakers, moments",
+              etext.hasPrefix("Export check\n") && etext.contains("[00:00:07] Tim: Agreed.") && etext.contains("Moments\n[00:00:07] Second key"))
+        check("export leaves hidden filler out", !etext.contains("Um.") && Exporter.render(ex, as: .txt, options: { var o = eo; o.includeHidden = true; return o }()).contains("Um."))
+        let caps = Exporter.captions(ex, eo)
+        check("export captions within limits", !caps.isEmpty && caps.allSatisfy { $0.lines.count <= 2 && $0.lines.allSatisfy { $0.count <= 42 } && $0.end - $0.start <= 7.0001 })
+        check("export JSON has the export section", Exporter.render(ex, as: .json, options: eo).contains("\"verbatim-export\""))
 
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("verbatim-seg-\(UUID().uuidString)", isDirectory: true)

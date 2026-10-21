@@ -2,10 +2,13 @@ import SwiftUI
 
 /// Every transcript, grouped by day (pinned first), filtered by the sidebar project and the search field.
 /// Select mode picks many at once to move, export, or delete; any row (or the selection) drags onto a project.
+/// ⌘-click adds or removes a row and Shift-click selects a range, starting Select mode when it's off.
 struct LibraryView: View {
     @EnvironmentObject var app: AppState
     @State private var selecting = false
     @State private var selection: Set<UUID> = []
+    /// Where a Shift-click range starts: the last row clicked or ⌘-clicked.
+    @State private var anchor: UUID? = nil
     /// Library › kind chips (nil is All), kept on AppState so the screenshot tour can choose one.
     private var kind: RecordingKind? { app.libraryKind }
 
@@ -14,6 +17,7 @@ struct LibraryView: View {
         let all = app.archive   // no dictations unless searching; they live in Dictations
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
         let groups = Store.group(list)
+        let order = groups.flatMap { $0.items.map(\.id) }
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -24,7 +28,7 @@ struct LibraryView: View {
                         Spacer()
                         if !list.isEmpty {
                             Button(selecting ? "Done" : "Select") {
-                                withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = [] } }
+                                withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = []; anchor = nil } }
                             }
                             .buttonStyle(.bordered).keyboardShortcut(selecting ? .cancelAction : .init("s", modifiers: [.command, .shift]))
                         }
@@ -49,7 +53,7 @@ struct LibraryView: View {
                         .padding(.top, 30).staggerIn(1)
                     }
                     if kind == .journal && !selecting {
-                        journal(list).padding(.top, 20)
+                        journal(list, order: order).padding(.top, 20)
                     } else {
                     ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
                         HStack {
@@ -68,7 +72,7 @@ struct LibraryView: View {
                             ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
                                 HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
                                            dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
-                                           open: { if selecting { toggle(t.id) } else { app.go(.transcript(t.id)) } })
+                                           open: { click(t.id, order: order) })
                                     .staggerIn(2 + gi * 2 + ii)
                                     .contextMenu { RowMenu(transcript: t) }
                             }
@@ -124,13 +128,13 @@ struct LibraryView: View {
     }
 
     /// Journal reads by day: "◇ TODAY ···· SAT 17 OCT", then each entry's title, time, and opening lines.
-    private func journal(_ list: [Transcript]) -> some View {
+    private func journal(_ list: [Transcript], order: [UUID]) -> some View {
         VStack(alignment: .leading, spacing: 26) {
             ForEach(JournalDays.group(list)) { day in
                 VStack(alignment: .leading, spacing: 10) {
                     EditorialSectionHeader(index: day.date.uppercased(), label: day.label)
                     ForEach(day.entries) { t in
-                        Button { app.go(.transcript(t.id)) } label: {
+                        Button { click(t.id, order: order) } label: {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                                     Text(t.title).font(Ink.serif(22)).foregroundStyle(Ink.ink).lineLimit(1)
@@ -157,7 +161,37 @@ struct LibraryView: View {
 
     private func toggle(_ id: UUID) { if selection.contains(id) { selection.remove(id) } else { selection.insert(id) } }
 
+    /// A row click: ⌘ adds or removes it, Shift selects the range from the anchor (both start Select mode); a plain
+    /// click toggles in Select mode and opens the transcript otherwise.
+    private func click(_ id: UUID, order: [UUID]) {
+        let flags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.contains(.shift), let a = anchor ?? (selecting ? selection.first : nil),
+           let i = order.firstIndex(of: a), let j = order.firstIndex(of: id) {
+            withAnimation(Motion.snap) { selecting = true }
+            selection.formUnion(order[min(i, j)...max(i, j)])
+        } else if flags.contains(.command) || flags.contains(.shift) {
+            withAnimation(Motion.snap) { selecting = true }
+            toggle(id); anchor = id
+        } else if selecting {
+            toggle(id); anchor = id
+        } else {
+            app.go(.transcript(id))
+        }
+    }
+
     private var chosen: [Transcript] { app.filtered.filter { selection.contains($0.id) } }
+
+    private var exportTitle: String {
+        let n = chosen.filter { $0.status == .ready }.count
+        return n == 1 ? "Export 1 transcript" : "Export \(n) transcripts"
+    }
+
+    /// The export sheet for the selection, in Library order (transcripts still in progress are left out).
+    private func openExport() {
+        let ids = chosen.filter { $0.status == .ready }.map(\.id)
+        guard !ids.isEmpty else { return }
+        app.exportRequest = ExportRequest(ids: ids)
+    }
 
     /// Glass action bar for the selection.
     private var actionBar: some View {
@@ -173,20 +207,16 @@ struct LibraryView: View {
             } label: { Label("Move to", systemImage: "folder") }
             .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
             Menu {
-                ForEach(ExportFormat.allCases) { f in
-                    Button("\(f.rawValue)…") {
-                        let n = Exporter.saveMany(chosen, as: f)
-                        if n > 0 { app.toast = Toast("Exported \(n) transcript\(n == 1 ? "" : "s")") }
-                    }
-                }
+                Button(exportTitle + "…") { openExport() }
                 Divider()
                 Button("Copy all to clipboard") {
-                    let text = chosen.map { "\($0.title)\n\n" + Exporter.text($0, .saved) }.joined(separator: "\n\n———\n\n")
+                    let text = Exporter.clipboard(chosen.filter { $0.status == .ready }, as: .txt, options: .saved)
                     NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
                     app.toast = Toast("Copied \(chosen.count) transcripts")
                 }
-            } label: { Label("Export", systemImage: "square.and.arrow.up") }
+            } label: { Label(exportTitle + "…", systemImage: "square.and.arrow.up") } primaryAction: { openExport() }
             .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
+            .help("Choose a format and options, then a folder: one file per transcript")
             Button(role: .destructive) {
                 app.delete(Array(selection)); selection = []
             } label: { Label("Delete", systemImage: "trash") }

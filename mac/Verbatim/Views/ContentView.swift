@@ -54,6 +54,7 @@ struct ContentView: View {
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .sheet(item: $app.multitrackDraft) { d in MultitrackSheet(draft: d).environmentObject(app) }
+        .sheet(item: $app.exportRequest) { r in ExportSheet(ids: r.ids).environmentObject(app) }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }

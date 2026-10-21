@@ -77,9 +77,7 @@ struct TranscriptScreen: View {
                             Divider()
                             Button { app.copyText(t) } label: { Label("Copy text", systemImage: "doc.on.doc") }
                             Divider()
-                            ForEach(ExportFormat.allCases) { f in
-                                Button(f.rawValue) { if let u = app.exportFile(t, as: f) { shareItems = [u] } }
-                            }
+                            Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
                         } label: { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Copy and export")
                         .disabled(t.status != .ready)
