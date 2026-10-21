@@ -363,6 +363,8 @@ final class Recorder: ObservableObject {
     /// Called when a normal recording pauses itself (a phone call, or a microphone change it couldn't follow),
     /// with a short reason to show. Resume carries on in the same file.
     var onAutoPaused: ((String) -> Void)?
+    /// A recording moved to another microphone on its own (the one it was using went away) and kept going.
+    var onInputSwitched: ((String) -> Void)?
     var elapsed: TimeInterval { live.elapsed }
 
     /// Called when the input device changes or drops out mid-recording. The recording isn't moved to another
@@ -511,11 +513,34 @@ final class Recorder: ObservableObject {
         }
         RecordingSegments.setActive(url, true)
         observeInterruptions()
+        pinCurrentInput()
         startedAt = ProcessInfo.processInfo.systemUptime
         isRecording = true
         isPaused = false
         #endif
     }
+
+    #if os(iOS)
+    /// Keeps a recording on the microphone it started with: AirPods connecting mid-recording don't take it over
+    /// (that route switch is what froze the app). When this input goes away, iOS falls back to the iPhone mic.
+    private func pinCurrentInput() {
+        let s = AVAudioSession.sharedInstance()
+        guard let cur = s.currentRoute.inputs.first,
+              let port = s.availableInputs?.first(where: { $0.uid == cur.uid }) else { return }
+        try? s.setPreferredInput(port)
+    }
+
+    /// After the pinned input went away: the iPhone's own microphone, pinned in its place.
+    private func pinBuiltInMic() {
+        let s = AVAudioSession.sharedInstance()
+        if let mic = s.availableInputs?.first(where: { $0.portType == .builtInMic }) { try? s.setPreferredInput(mic) }
+        else { try? s.setPreferredInput(nil) }
+    }
+
+    private var currentInputName: String {
+        AVAudioSession.sharedInstance().currentRoute.inputs.first.map { $0.portType == .builtInMic ? "the iPhone microphone" : $0.portName } ?? "the iPhone microphone"
+    }
+    #endif
 
     private func installRecordingTap(on input: AVAudioInputNode, format: AVAudioFormat, writer w: RecordingWriter) {
         // iPhone: nil takes whatever the input delivers. Passing a format read during a route change (AirPods taken
@@ -575,6 +600,7 @@ final class Recorder: ObservableObject {
     private func restartCapture() -> Bool {
         guard !keepWarm, var engine, let w = writer else { return false }
         #if os(iOS)
+        pinBuiltInMic()
         try? AVAudioSession.sharedInstance().setActive(true)
         // A fresh engine after a route change: the old one can keep the departed device's format.
         engine.inputNode.removeTap(onBus: 0)
@@ -686,6 +712,7 @@ final class Recorder: ObservableObject {
         live.reset()
         self.url = nil
         #if os(iOS)
+        try? AVAudioSession.sharedInstance().setPreferredInput(nil)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
         if keepWarm {
@@ -1385,7 +1412,13 @@ final class Recorder: ObservableObject {
                 #endif
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self, self.isRecording, !self.isPaused, !(self.engine?.isRunning ?? false) else { return }
-                    if !self.restartCapture() { self.autoPause("The microphone changed. Tap Resume to keep recording.") }
+                    if self.restartCapture() {
+                        #if os(iOS)
+                        self.onInputSwitched?("Your microphone disconnected. Recording continues on \(self.currentInputName).")
+                        #endif
+                    } else {
+                        self.autoPause("The microphone changed. Tap Resume to keep recording.")
+                    }
                 }
             }
         }
