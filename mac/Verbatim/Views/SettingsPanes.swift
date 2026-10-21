@@ -240,6 +240,7 @@ struct ModelsSettingsPane: View {
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
+    @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
 
     var body: some View {
         SettingsPane(tab: .models) {
@@ -265,6 +266,7 @@ struct ModelsSettingsPane: View {
             }
             SettingsGroup(title: "Dictionary") {
                 SettingsToggleRow("models.applyDictionary", isOn: $app.applyDictionary)
+                SettingsToggleRow("models.builtInVocabulary", isOn: $builtInVocabulary)
                 SettingsToggleRow("models.projectVocab", isOn: $app.projectScopedVocabulary)
             }
             SettingsGroup(title: "When a transcript is ready") {

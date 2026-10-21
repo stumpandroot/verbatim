@@ -32,7 +32,7 @@ enum TranscriptionJob {
         let original = result.segments
         var fixed = result.segments
         var corrections: [Correction] = []
-        if !dictionary.isEmpty {
+        if !dictionary.isEmpty || BuiltInVocabulary.isActive {
             progress(.applyingDictionary)
             corrections = DictionaryApplier.apply(dictionary, to: &fixed, project: project)
         }

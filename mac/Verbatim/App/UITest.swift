@@ -799,6 +799,8 @@ enum UITest {
         check("sidebar move", SidebarRules.move("you", to: "library", in: known) == ["home", "you", "library", "links"]
               && SidebarRules.move("home", to: "links", in: known) == ["library", "links", "home", "you"])
         cleanupChecks(check)
+        VocabularySelfTest.run(check)
+        check("settings search finds built-in vocabulary", SettingsIndex.search("chatgpt spelling").map(\.id).contains("models.builtInVocabulary"))
     }
 
     /// Dictation cleanup rules (CleanupPrepass), Harper's grammar pass, and the guards. No model, no network.

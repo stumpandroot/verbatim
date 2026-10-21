@@ -185,10 +185,11 @@ final class KeyboardSession: ObservableObject {
 
     /// Dictionary words for vocabulary boosting, ranked as on the Mac (newest first, up to 100). Only words for
     /// every transcript: the iPhone has no active project. Empty when Apply Dictionary is off, or when boosting is
-    /// turned off (`flow.boost`, the Mac's key; on unless set).
+    /// turned off (`flow.boost`, the Mac's key; on unless set). Built-in vocabulary terms follow your words.
     private func rankedBoostTerms() -> [(text: String, aliases: [String])] {
-        guard let app, app.applyDictionary, UserDefaults.standard.object(forKey: "flow.boost") as? Bool ?? true else { return [] }
-        return BoostVocabulary.rank(app.store.dictionary, project: nil)
+        guard let app, UserDefaults.standard.object(forKey: "flow.boost") as? Bool ?? true else { return [] }
+        let mine = app.applyDictionary ? app.store.dictionary : []
+        return BoostVocabulary.rank(mine + BuiltInVocabulary.boostEntries(excluding: app.store.dictionary), project: nil)
     }
 
     /// `rankedBoostTerms` oldest first, the order `FluidEngine.prewarm(boostTerms:)` expects.
@@ -472,7 +473,7 @@ final class KeyboardSession: ObservableObject {
                 let heard = Date()
                 let original = result.segments
                 var fixed = original
-                let corrections = dictionary.isEmpty ? [] : DictionaryApplier.apply(dictionary, to: &fixed)
+                let corrections = dictionary.isEmpty && !BuiltInVocabulary.isActive ? [] : DictionaryApplier.apply(dictionary, to: &fixed)
                 let raw = fixed.filter { !$0.isFillerOnly }.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }.joined(separator: " ")
                 // The Mac's cleanup at your level: Apple's model on iOS 26 when it's available and answers within the

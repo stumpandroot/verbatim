@@ -611,7 +611,7 @@ final class DictationController: ObservableObject {
         let useContext = s.useContext
         let boost = s.boostVocabulary
         let vocabulary = dict.filter(\.enabled).map(\.preferred)
-        let boostDict = dict.filter(\.enabled)
+        let boostDict = dict.filter(\.enabled) + BuiltInVocabulary.boostEntries(excluding: dict)
         let saved = s.actions
         Task.detached(priority: .userInitiated) { [weak self] in
             do {

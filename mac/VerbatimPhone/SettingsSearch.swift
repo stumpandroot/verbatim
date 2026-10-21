@@ -43,6 +43,9 @@ enum SettingsSearchIndex {
               description: "Context for titles and summaries", target: .page(.aboutMe)),
         .init(id: "dictionary", section: "Personalization", label: "Dictionary", keywords: ["words", "names", "spelling", "vocabulary", "custom words"],
               description: "Names and words to spell your way", target: .page(.dictionary)),
+        .init(id: "builtInVocabulary", section: "Personalization", label: "Built-in vocabulary",
+              keywords: ["modern words", "brands", "apps", "tech terms", "spelling", "chatgpt", "iphone", "youtube", "contacts", "suggestions"],
+              description: "About 500 modern words spelled right", target: .page(.dictionary)),
         .init(id: "snippets", section: "Personalization", label: "Snippets in the keyboard", keywords: ["snippets", "trigger", "text expansion", "shortcut", "saved text"],
               description: "Say a trigger, get your saved text", target: .page(.snippets)),
         .init(id: "summaries", section: "Personalization", label: "Summaries", keywords: ["recap", "overview", "summary"],
@@ -146,6 +149,7 @@ enum SettingsSearchIndex {
         case "summaries": return onOff(d.object(forKey: Summarizer.autoKey) as? Bool ?? true)
         case "aboutMe": return (d.string(forKey: Profile.aboutMeKey) ?? "").isEmpty ? "Add" : "Added"
         case "dictionary": return "\(app.store.dictionary.count)"
+        case "builtInVocabulary": return onOff(BuiltInVocabulary.isOn)
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
         case "keyboardTimeout":

@@ -1,0 +1,5359 @@
+{
+ "version": 1,
+ "about": "Built-in modern vocabulary. heard: replaced in any case. exact: replaced only when written exactly so. context: replaced only next to a context word or capitalized mid-sentence. after: extra context words for this term. boost: false keeps a term out of recognition boosting.",
+ "terms": [
+  {
+   "term": "ChatGPT",
+   "category": "AI",
+   "heard": [
+    "chatgpt",
+    "chat gpt",
+    "chat g p t",
+    "chat gbt",
+    "chat gpd",
+    "chat jpt",
+    "chat gtp",
+    "chat-gpt",
+    "chat g.p.t.",
+    "chad gpt"
+   ]
+  },
+  {
+   "term": "GitHub",
+   "category": "Software",
+   "heard": [
+    "github",
+    "git hub",
+    "git-hub"
+   ]
+  },
+  {
+   "term": "YouTube",
+   "category": "Platforms",
+   "heard": [
+    "youtube",
+    "you tube",
+    "u tube",
+    "you-tube"
+   ]
+  },
+  {
+   "term": "iPhone",
+   "category": "Devices",
+   "heard": [
+    "iphone",
+    "i-phone",
+    "eye phone"
+   ],
+   "exact": [
+    "i phone",
+    "I-phone"
+   ],
+   "context": [
+    "I phone"
+   ],
+   "after": [
+    "pro",
+    "max",
+    "plus",
+    "mini",
+    "case",
+    "cases",
+    "charger",
+    "screen",
+    "update",
+    "backup",
+    "camera",
+    "photos",
+    "settings",
+    "app",
+    "apps",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "se",
+    "air"
+   ]
+  },
+  {
+   "term": "macOS",
+   "category": "Software",
+   "heard": [
+    "mac os",
+    "macos",
+    "mac o s"
+   ]
+  },
+  {
+   "term": "Claude",
+   "category": "AI",
+   "heard": [
+    "claude",
+    "clod ai"
+   ]
+  },
+  {
+   "term": "Anthropic",
+   "category": "AI",
+   "heard": [
+    "anthropik",
+    "an thropic",
+    "anthro pic"
+   ],
+   "exact": [
+    "Anthropik"
+   ],
+   "context": [
+    "anthropic"
+   ],
+   "after": [
+    "api",
+    "console",
+    "account",
+    "models",
+    "model",
+    "team"
+   ]
+  },
+  {
+   "term": "OpenAI",
+   "category": "AI",
+   "heard": [
+    "openai",
+    "open a i",
+    "open a.i."
+   ],
+   "exact": [
+    "Open AI",
+    "OpenAi"
+   ],
+   "context": [
+    "open AI",
+    "open ai"
+   ],
+   "after": [
+    "api",
+    "account",
+    "team",
+    "playground"
+   ]
+  },
+  {
+   "term": "Wispr Flow",
+   "category": "AI",
+   "heard": [
+    "wispr flow",
+    "whisper flow",
+    "wisper flow",
+    "whispr flow",
+    "wispr-flow"
+   ]
+  },
+  {
+   "term": "Claude Code",
+   "category": "AI",
+   "heard": [
+    "claude code",
+    "clawed code",
+    "claud code"
+   ],
+   "context": [
+    "cloud code"
+   ]
+  },
+  {
+   "term": "TikTok",
+   "category": "Platforms",
+   "heard": [
+    "tiktok",
+    "tik tok",
+    "tic tok",
+    "tik-tok"
+   ],
+   "context": [
+    "tick tock",
+    "tic toc"
+   ],
+   "after": [
+    "video",
+    "videos",
+    "account",
+    "post",
+    "posts",
+    "ad",
+    "ads",
+    "shop",
+    "live",
+    "creator",
+    "creators",
+    "trend",
+    "trends",
+    "feed"
+   ]
+  },
+  {
+   "term": "LinkedIn",
+   "category": "Platforms",
+   "heard": [
+    "linkedin",
+    "linkdin",
+    "linked-in"
+   ],
+   "exact": [
+    "Linked In",
+    "LinkedIN"
+   ],
+   "context": [
+    "linked in"
+   ],
+   "after": [
+    "profile",
+    "post",
+    "posts",
+    "page",
+    "message",
+    "messages",
+    "connection",
+    "connections",
+    "account",
+    "network",
+    "learning",
+    "premium",
+    "recruiter",
+    "ad",
+    "ads",
+    "group",
+    "groups",
+    "article",
+    "headline",
+    "bio",
+    "inbox",
+    "feed"
+   ]
+  },
+  {
+   "term": "Figma",
+   "category": "Creative tools",
+   "heard": [
+    "figma",
+    "fig ma",
+    "figmah"
+   ]
+  },
+  {
+   "term": "Webflow",
+   "category": "Software",
+   "heard": [
+    "webflow",
+    "web flow"
+   ]
+  },
+  {
+   "term": "Airtable",
+   "category": "Software",
+   "heard": [
+    "airtable",
+    "air table"
+   ]
+  },
+  {
+   "term": "Supabase",
+   "category": "Software",
+   "heard": [
+    "supabase",
+    "supa base",
+    "supabass"
+   ],
+   "context": [
+    "super base"
+   ]
+  },
+  {
+   "term": "Vercel",
+   "category": "Software",
+   "heard": [
+    "vercel",
+    "versel",
+    "ver cell",
+    "vercell"
+   ]
+  },
+  {
+   "term": "Midjourney",
+   "category": "AI",
+   "heard": [
+    "midjourney"
+   ],
+   "exact": [
+    "Mid Journey",
+    "MidJourney",
+    "Mid-Journey"
+   ],
+   "context": [
+    "mid journey",
+    "mid-journey"
+   ],
+   "after": [
+    "prompt",
+    "prompts",
+    "image",
+    "images",
+    "bot",
+    "v6",
+    "v7",
+    "style",
+    "discord"
+   ]
+  },
+  {
+   "term": "DaVinci Resolve",
+   "category": "Creative tools",
+   "heard": [
+    "davinci resolve",
+    "da vinci resolve",
+    "da-vinci resolve",
+    "the vinci resolve"
+   ]
+  },
+  {
+   "term": "Final Cut Pro",
+   "category": "Creative tools",
+   "heard": [
+    "final cut pro",
+    "finalcut pro"
+   ]
+  },
+  {
+   "term": "Premiere Pro",
+   "category": "Creative tools",
+   "heard": [
+    "premiere pro",
+    "premier pro",
+    "premiere-pro",
+    "premier-pro"
+   ]
+  },
+  {
+   "term": "After Effects",
+   "category": "Creative tools",
+   "heard": [
+    "aftereffects"
+   ],
+   "exact": [
+    "after Effects",
+    "AfterEffects"
+   ],
+   "context": [
+    "after effects"
+   ],
+   "after": [
+    "project",
+    "template",
+    "templates",
+    "comp",
+    "composition",
+    "plugin",
+    "plugins",
+    "expression",
+    "expressions",
+    "render",
+    "preset",
+    "presets"
+   ]
+  },
+  {
+   "term": "Lightroom",
+   "category": "Creative tools",
+   "heard": [
+    "lightroom",
+    "light-room"
+   ],
+   "exact": [
+    "Light Room",
+    "LightRoom"
+   ],
+   "context": [
+    "light room"
+   ],
+   "after": [
+    "preset",
+    "presets",
+    "catalog",
+    "classic",
+    "mobile",
+    "edit",
+    "edits",
+    "library"
+   ]
+  },
+  {
+   "term": "Photoshop",
+   "category": "Creative tools",
+   "heard": [
+    "photoshop",
+    "photo-shop"
+   ],
+   "exact": [
+    "Photo Shop",
+    "PhotoShop"
+   ],
+   "context": [
+    "photo shop"
+   ],
+   "after": [
+    "file",
+    "files",
+    "layer",
+    "layers",
+    "action",
+    "actions",
+    "brush",
+    "brushes",
+    "plugin",
+    "psd",
+    "document"
+   ]
+  },
+  {
+   "term": "Canva",
+   "category": "Creative tools",
+   "heard": [
+    "canva"
+   ]
+  },
+  {
+   "term": "Xcode",
+   "category": "Software",
+   "heard": [
+    "xcode",
+    "x code",
+    "ex code",
+    "x-code"
+   ]
+  },
+  {
+   "term": "SwiftUI",
+   "category": "Software",
+   "heard": [
+    "swiftui",
+    "swift ui",
+    "swift u i",
+    "swift you i",
+    "swift-ui"
+   ]
+  },
+  {
+   "term": "TestFlight",
+   "category": "Software",
+   "heard": [
+    "testflight"
+   ],
+   "exact": [
+    "Test Flight",
+    "Testflight"
+   ],
+   "context": [
+    "test flight"
+   ],
+   "after": [
+    "build",
+    "builds",
+    "link",
+    "invite",
+    "invites",
+    "beta",
+    "testers",
+    "tester",
+    "app"
+   ]
+  },
+  {
+   "term": "Shopify",
+   "category": "Platforms",
+   "heard": [
+    "shopify",
+    "shop ify",
+    "shopafy"
+   ]
+  },
+  {
+   "term": "Squarespace",
+   "category": "Platforms",
+   "heard": [
+    "squarespace",
+    "square-space"
+   ],
+   "exact": [
+    "Square Space",
+    "SquareSpace"
+   ],
+   "context": [
+    "square space"
+   ],
+   "after": [
+    "site",
+    "website",
+    "template",
+    "templates",
+    "domain",
+    "account"
+   ]
+  },
+  {
+   "term": "Gmail",
+   "category": "Platforms",
+   "heard": [
+    "gmail",
+    "g mail",
+    "gee mail",
+    "g-mail"
+   ]
+  },
+  {
+   "term": "AirPods",
+   "category": "Devices",
+   "heard": [
+    "airpods",
+    "air pods",
+    "airpod",
+    "air pod"
+   ]
+  },
+  {
+   "term": "AirPods Pro",
+   "category": "Devices",
+   "heard": [
+    "airpods pro",
+    "air pods pro"
+   ]
+  },
+  {
+   "term": "AirPods Max",
+   "category": "Devices",
+   "heard": [
+    "airpods max",
+    "air pods max"
+   ]
+  },
+  {
+   "term": "MacBook",
+   "category": "Devices",
+   "heard": [
+    "macbook",
+    "mac book",
+    "mack book",
+    "mac-book"
+   ]
+  },
+  {
+   "term": "MacBook Pro",
+   "category": "Devices",
+   "heard": [
+    "macbook pro",
+    "mac book pro",
+    "mac-book pro"
+   ]
+  },
+  {
+   "term": "MacBook Air",
+   "category": "Devices",
+   "heard": [
+    "macbook air",
+    "mac book air",
+    "mac-book air"
+   ]
+  },
+  {
+   "term": "iPad",
+   "category": "Devices",
+   "heard": [
+    "ipad",
+    "i-pad"
+   ],
+   "exact": [
+    "i pad",
+    "I-pad"
+   ],
+   "context": [
+    "I pad"
+   ],
+   "after": [
+    "pro",
+    "air",
+    "mini",
+    "case",
+    "cases",
+    "charger",
+    "screen",
+    "app",
+    "apps",
+    "keyboard"
+   ]
+  },
+  {
+   "term": "iPads",
+   "category": "Devices",
+   "heard": [
+    "ipads"
+   ],
+   "exact": [
+    "i pads"
+   ]
+  },
+  {
+   "term": "iPhones",
+   "category": "Devices",
+   "heard": [
+    "iphones",
+    "eye phones"
+   ],
+   "exact": [
+    "i phones"
+   ]
+  },
+  {
+   "term": "iOS",
+   "category": "Software",
+   "heard": [
+    "ios",
+    "i o s",
+    "eye o s",
+    "i-os"
+   ]
+  },
+  {
+   "term": "iPadOS",
+   "category": "Software",
+   "heard": [
+    "ipados",
+    "ipad os",
+    "i pad os"
+   ]
+  },
+  {
+   "term": "watchOS",
+   "category": "Software",
+   "heard": [
+    "watchos",
+    "watch os"
+   ]
+  },
+  {
+   "term": "visionOS",
+   "category": "Software",
+   "heard": [
+    "visionos",
+    "vision os"
+   ]
+  },
+  {
+   "term": "tvOS",
+   "category": "Software",
+   "heard": [
+    "tvos",
+    "tv os",
+    "t v o s"
+   ]
+  },
+  {
+   "term": "Apple Watch",
+   "category": "Devices",
+   "heard": [
+    "apple watch",
+    "apple-watch"
+   ]
+  },
+  {
+   "term": "Apple Pencil",
+   "category": "Devices",
+   "heard": [
+    "apple pencil"
+   ]
+  },
+  {
+   "term": "Apple TV",
+   "category": "Devices",
+   "heard": [
+    "apple tv",
+    "apple t v",
+    "apple t.v."
+   ]
+  },
+  {
+   "term": "Apple Music",
+   "category": "Platforms",
+   "heard": [
+    "apple music"
+   ]
+  },
+  {
+   "term": "Apple Pay",
+   "category": "Platforms",
+   "heard": [
+    "apple pay"
+   ]
+  },
+  {
+   "term": "Apple ID",
+   "category": "Software",
+   "heard": [
+    "apple id",
+    "apple i d",
+    "apple i.d."
+   ]
+  },
+  {
+   "term": "Apple Intelligence",
+   "category": "AI",
+   "heard": [
+    "apple intelligence"
+   ]
+  },
+  {
+   "term": "Apple Vision Pro",
+   "category": "Devices",
+   "heard": [
+    "apple vision pro"
+   ]
+  },
+  {
+   "term": "Vision Pro",
+   "category": "Devices",
+   "heard": [
+    "vision pro"
+   ]
+  },
+  {
+   "term": "iCloud",
+   "category": "Platforms",
+   "heard": [
+    "icloud",
+    "eye cloud",
+    "i-cloud"
+   ],
+   "exact": [
+    "i cloud",
+    "I Cloud",
+    "ICloud"
+   ]
+  },
+  {
+   "term": "iMessage",
+   "category": "Software",
+   "heard": [
+    "imessage",
+    "eye message"
+   ],
+   "exact": [
+    "i message"
+   ]
+  },
+  {
+   "term": "iMac",
+   "category": "Devices",
+   "heard": [
+    "imac",
+    "eye mac",
+    "i-mac"
+   ],
+   "exact": [
+    "i mac"
+   ]
+  },
+  {
+   "term": "Mac mini",
+   "category": "Devices",
+   "heard": [
+    "mac mini",
+    "mac-mini"
+   ]
+  },
+  {
+   "term": "Mac Studio",
+   "category": "Devices",
+   "heard": [
+    "mac studio"
+   ]
+  },
+  {
+   "term": "FaceTime",
+   "category": "Software",
+   "heard": [
+    "facetime"
+   ],
+   "exact": [
+    "Face Time",
+    "Facetime"
+   ],
+   "context": [
+    "face time"
+   ],
+   "after": [
+    "call",
+    "calls",
+    "me",
+    "you",
+    "him",
+    "her",
+    "them",
+    "link",
+    "audio",
+    "video"
+   ]
+  },
+  {
+   "term": "AirDrop",
+   "category": "Software",
+   "exact": [
+    "Air Drop",
+    "Airdrop"
+   ],
+   "context": [
+    "airdrop",
+    "air drop"
+   ],
+   "after": [
+    "it",
+    "me",
+    "you",
+    "them",
+    "this",
+    "that",
+    "photos",
+    "photo",
+    "files",
+    "file",
+    "video",
+    "videos"
+   ]
+  },
+  {
+   "term": "AirPlay",
+   "category": "Software",
+   "exact": [
+    "Air Play",
+    "Airplay"
+   ],
+   "context": [
+    "airplay",
+    "air play"
+   ],
+   "after": [
+    "to",
+    "it",
+    "speaker",
+    "speakers",
+    "receiver",
+    "mirroring"
+   ]
+  },
+  {
+   "term": "AirTag",
+   "category": "Devices",
+   "heard": [
+    "airtag",
+    "air tag"
+   ]
+  },
+  {
+   "term": "AirTags",
+   "category": "Devices",
+   "heard": [
+    "airtags",
+    "air tags"
+   ]
+  },
+  {
+   "term": "CarPlay",
+   "category": "Software",
+   "heard": [
+    "carplay",
+    "car-play"
+   ],
+   "exact": [
+    "Car Play",
+    "Carplay"
+   ],
+   "context": [
+    "car play"
+   ]
+  },
+  {
+   "term": "HomeKit",
+   "category": "Software",
+   "heard": [
+    "homekit"
+   ],
+   "exact": [
+    "Home Kit",
+    "Homekit"
+   ],
+   "context": [
+    "home kit"
+   ]
+  },
+  {
+   "term": "HomePod",
+   "category": "Devices",
+   "heard": [
+    "homepod",
+    "home pod"
+   ]
+  },
+  {
+   "term": "App Store",
+   "category": "Platforms",
+   "exact": [
+    "App store",
+    "app Store",
+    "Appstore",
+    "AppStore"
+   ],
+   "context": [
+    "app store"
+   ],
+   "after": [
+    "listing",
+    "review",
+    "reviews",
+    "connect",
+    "page",
+    "search",
+    "link"
+   ]
+  },
+  {
+   "term": "iMovie",
+   "category": "Creative tools",
+   "heard": [
+    "imovie",
+    "eye movie",
+    "i-movie"
+   ],
+   "exact": [
+    "i movie"
+   ]
+  },
+  {
+   "term": "GarageBand",
+   "category": "Creative tools",
+   "heard": [
+    "garageband"
+   ],
+   "exact": [
+    "Garage Band",
+    "Garageband"
+   ],
+   "context": [
+    "garage band"
+   ],
+   "after": [
+    "project",
+    "projects",
+    "track",
+    "tracks",
+    "app",
+    "file"
+   ]
+  },
+  {
+   "term": "Logic Pro",
+   "category": "Creative tools",
+   "heard": [
+    "logic pro",
+    "logic-pro"
+   ]
+  },
+  {
+   "term": "Siri",
+   "category": "AI",
+   "heard": [
+    "siri"
+   ],
+   "exact": [
+    "Sirri"
+   ]
+  },
+  {
+   "term": "Wi-Fi",
+   "category": "Internet",
+   "heard": [
+    "wifi",
+    "wi fi",
+    "why fi",
+    "wi-fi",
+    "wi fie"
+   ]
+  },
+  {
+   "term": "Bluetooth",
+   "category": "Internet",
+   "heard": [
+    "bluetooth",
+    "blue tooth",
+    "blue-tooth"
+   ]
+  },
+  {
+   "term": "USB-C",
+   "category": "Devices",
+   "heard": [
+    "usb c",
+    "usb-c",
+    "u s b c",
+    "usbc",
+    "usb see"
+   ]
+  },
+  {
+   "term": "USB",
+   "category": "Devices",
+   "heard": [
+    "usb",
+    "u s b"
+   ]
+  },
+  {
+   "term": "HDMI",
+   "category": "Devices",
+   "heard": [
+    "hdmi",
+    "h d m i"
+   ]
+  },
+  {
+   "term": "HDR",
+   "category": "Devices",
+   "heard": [
+    "hdr",
+    "h d r"
+   ]
+  },
+  {
+   "term": "4K",
+   "category": "Devices",
+   "context": [
+    "4k",
+    "4 k",
+    "four k"
+   ],
+   "after": [
+    "video",
+    "videos",
+    "resolution",
+    "monitor",
+    "monitors",
+    "display",
+    "displays",
+    "tv",
+    "tvs",
+    "camera",
+    "cameras",
+    "footage",
+    "screen",
+    "screens",
+    "hdr",
+    "60",
+    "30",
+    "24",
+    "raw",
+    "export",
+    "exports",
+    "upload",
+    "uploads",
+    "stream"
+   ]
+  },
+  {
+   "term": "1080p",
+   "category": "Devices",
+   "heard": [
+    "1080 p",
+    "ten eighty p",
+    "10 80 p"
+   ]
+  },
+  {
+   "term": "B-roll",
+   "category": "Creative tools",
+   "heard": [
+    "b roll",
+    "b-roll",
+    "bee roll",
+    "broll"
+   ]
+  },
+  {
+   "term": "OpenAI API",
+   "category": "AI",
+   "heard": [
+    "openai api",
+    "open ai api"
+   ]
+  },
+  {
+   "term": "GPT-4",
+   "category": "AI",
+   "heard": [
+    "gpt 4",
+    "gpt four",
+    "g p t 4",
+    "g p t four",
+    "gpt-four"
+   ]
+  },
+  {
+   "term": "GPT-4o",
+   "category": "AI",
+   "heard": [
+    "gpt 4o",
+    "gpt 4 o",
+    "gpt four o",
+    "gpt-4 o"
+   ]
+  },
+  {
+   "term": "GPT-5",
+   "category": "AI",
+   "heard": [
+    "gpt 5",
+    "gpt five",
+    "g p t 5",
+    "gpt-five"
+   ]
+  },
+  {
+   "term": "GPT",
+   "category": "AI",
+   "heard": [
+    "gpt",
+    "g p t",
+    "gbt",
+    "g.p.t."
+   ]
+  },
+  {
+   "term": "GPTs",
+   "category": "AI",
+   "heard": [
+    "gpts",
+    "g p ts",
+    "g p t s"
+   ]
+  },
+  {
+   "term": "LLM",
+   "category": "AI",
+   "heard": [
+    "llm",
+    "l l m",
+    "l.l.m."
+   ]
+  },
+  {
+   "term": "LLMs",
+   "category": "AI",
+   "heard": [
+    "llms",
+    "l l ms",
+    "l l m s"
+   ]
+  },
+  {
+   "term": "AI",
+   "category": "AI",
+   "exact": [
+    "ai",
+    "a.i."
+   ]
+  },
+  {
+   "term": "AGI",
+   "category": "AI",
+   "heard": [
+    "agi",
+    "a g i"
+   ]
+  },
+  {
+   "term": "MCP",
+   "category": "AI",
+   "heard": [
+    "mcp",
+    "m c p"
+   ]
+  },
+  {
+   "term": "NotebookLM",
+   "category": "AI",
+   "heard": [
+    "notebooklm",
+    "notebook lm",
+    "notebook l m",
+    "notebook llm"
+   ]
+  },
+  {
+   "term": "Gemini",
+   "category": "AI",
+   "context": [
+    "gemini"
+   ],
+   "after": [
+    "app",
+    "api",
+    "pro",
+    "flash",
+    "ultra",
+    "advanced",
+    "model",
+    "models",
+    "chat",
+    "prompt"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Microsoft Copilot",
+   "category": "AI",
+   "heard": [
+    "microsoft copilot",
+    "microsoft co-pilot",
+    "microsoft co pilot"
+   ]
+  },
+  {
+   "term": "GitHub Copilot",
+   "category": "AI",
+   "heard": [
+    "github copilot",
+    "github co-pilot",
+    "github co pilot"
+   ]
+  },
+  {
+   "term": "Perplexity",
+   "category": "AI",
+   "context": [
+    "perplexity"
+   ],
+   "after": [
+    "search",
+    "app",
+    "pro",
+    "answer",
+    "answers",
+    "api"
+   ],
+   "boost": false
+  },
+  {
+   "term": "DeepSeek",
+   "category": "AI",
+   "heard": [
+    "deepseek",
+    "deep seek",
+    "deep-seek"
+   ]
+  },
+  {
+   "term": "DeepMind",
+   "category": "AI",
+   "heard": [
+    "deepmind"
+   ],
+   "exact": [
+    "Deep Mind",
+    "Deepmind"
+   ],
+   "context": [
+    "deep mind"
+   ]
+  },
+  {
+   "term": "DALL-E",
+   "category": "AI",
+   "heard": [
+    "dall e",
+    "dall-e",
+    "dalle",
+    "dall·e",
+    "dolly e"
+   ],
+   "exact": [
+    "Dall E",
+    "DallE",
+    "Dall-e"
+   ]
+  },
+  {
+   "term": "Stable Diffusion",
+   "category": "AI",
+   "heard": [
+    "stable diffusion"
+   ]
+  },
+  {
+   "term": "Hugging Face",
+   "category": "AI",
+   "heard": [
+    "huggingface"
+   ],
+   "exact": [
+    "HuggingFace"
+   ],
+   "context": [
+    "hugging face"
+   ],
+   "after": [
+    "model",
+    "models",
+    "hub",
+    "space",
+    "spaces",
+    "dataset",
+    "datasets",
+    "token",
+    "api",
+    "repo"
+   ]
+  },
+  {
+   "term": "ElevenLabs",
+   "category": "AI",
+   "heard": [
+    "elevenlabs",
+    "eleven labs",
+    "11 labs",
+    "11labs",
+    "eleven-labs"
+   ]
+  },
+  {
+   "term": "Otter.ai",
+   "category": "AI",
+   "heard": [
+    "otter ai",
+    "otter a i",
+    "otter dot ai"
+   ]
+  },
+  {
+   "term": "Superwhisper",
+   "category": "AI",
+   "heard": [
+    "superwhisper",
+    "super whisper",
+    "super-whisper"
+   ]
+  },
+  {
+   "term": "MacWhisper",
+   "category": "AI",
+   "heard": [
+    "macwhisper",
+    "mac whisper"
+   ]
+  },
+  {
+   "term": "LangChain",
+   "category": "AI",
+   "heard": [
+    "langchain",
+    "lang chain"
+   ]
+  },
+  {
+   "term": "Ollama",
+   "category": "AI",
+   "heard": [
+    "ollama",
+    "o llama",
+    "oh llama"
+   ]
+  },
+  {
+   "term": "LM Studio",
+   "category": "AI",
+   "heard": [
+    "lm studio",
+    "l m studio"
+   ]
+  },
+  {
+   "term": "Nvidia",
+   "category": "Brands",
+   "heard": [
+    "nvidia",
+    "envidia",
+    "n vidia",
+    "en vidia"
+   ],
+   "exact": [
+    "NVidia"
+   ]
+  },
+  {
+   "term": "AMD",
+   "category": "Brands",
+   "heard": [
+    "amd",
+    "a m d"
+   ]
+  },
+  {
+   "term": "Qualcomm",
+   "category": "Brands",
+   "heard": [
+    "qualcomm",
+    "qual comm",
+    "qualcom"
+   ]
+  },
+  {
+   "term": "Apple silicon",
+   "category": "Devices",
+   "exact": [
+    "Apple Silicon"
+   ]
+  },
+  {
+   "term": "Microsoft",
+   "category": "Brands",
+   "heard": [
+    "microsoft",
+    "micro soft",
+    "micro-soft"
+   ]
+  },
+  {
+   "term": "Microsoft Teams",
+   "category": "Platforms",
+   "heard": [
+    "microsoft teams",
+    "ms teams",
+    "m s teams"
+   ]
+  },
+  {
+   "term": "Microsoft Word",
+   "category": "Software",
+   "heard": [
+    "microsoft word"
+   ]
+  },
+  {
+   "term": "Microsoft Excel",
+   "category": "Software",
+   "heard": [
+    "microsoft excel"
+   ]
+  },
+  {
+   "term": "Microsoft 365",
+   "category": "Software",
+   "heard": [
+    "microsoft 365",
+    "microsoft three sixty five",
+    "microsoft three-sixty-five"
+   ]
+  },
+  {
+   "term": "Office 365",
+   "category": "Software",
+   "heard": [
+    "office 365",
+    "office three sixty five"
+   ]
+  },
+  {
+   "term": "Excel",
+   "category": "Software",
+   "context": [
+    "excel"
+   ],
+   "after": [
+    "file",
+    "files",
+    "sheet",
+    "sheets",
+    "spreadsheet",
+    "spreadsheets",
+    "formula",
+    "formulas",
+    "doc",
+    "workbook",
+    "template",
+    "macro",
+    "macros",
+    "table",
+    "export"
+   ],
+   "boost": false
+  },
+  {
+   "term": "PowerPoint",
+   "category": "Software",
+   "heard": [
+    "powerpoint",
+    "power-point"
+   ],
+   "exact": [
+    "Power Point",
+    "Powerpoint"
+   ],
+   "context": [
+    "power point"
+   ],
+   "after": [
+    "deck",
+    "decks",
+    "slide",
+    "slides",
+    "presentation",
+    "presentations",
+    "file",
+    "template",
+    "templates"
+   ]
+  },
+  {
+   "term": "SharePoint",
+   "category": "Software",
+   "heard": [
+    "sharepoint"
+   ],
+   "exact": [
+    "Share Point",
+    "Sharepoint"
+   ],
+   "context": [
+    "share point"
+   ],
+   "after": [
+    "site",
+    "sites",
+    "folder",
+    "folders",
+    "page",
+    "link"
+   ]
+  },
+  {
+   "term": "OneNote",
+   "category": "Software",
+   "heard": [
+    "onenote"
+   ],
+   "exact": [
+    "One Note",
+    "Onenote"
+   ],
+   "context": [
+    "one note"
+   ],
+   "after": [
+    "notebook",
+    "notebooks",
+    "page",
+    "pages",
+    "app"
+   ]
+  },
+  {
+   "term": "OneDrive",
+   "category": "Platforms",
+   "heard": [
+    "onedrive"
+   ],
+   "exact": [
+    "One Drive",
+    "Onedrive"
+   ],
+   "context": [
+    "one drive"
+   ],
+   "after": [
+    "folder",
+    "folders",
+    "link",
+    "account",
+    "file",
+    "files",
+    "storage"
+   ]
+  },
+  {
+   "term": "Outlook calendar",
+   "category": "Software",
+   "heard": [
+    "outlook calendar"
+   ]
+  },
+  {
+   "term": "Hotmail",
+   "category": "Platforms",
+   "heard": [
+    "hotmail",
+    "hot mail"
+   ]
+  },
+  {
+   "term": "Google Docs",
+   "category": "Software",
+   "heard": [
+    "google docs",
+    "google-docs"
+   ]
+  },
+  {
+   "term": "Google Doc",
+   "category": "Software",
+   "heard": [
+    "google doc"
+   ]
+  },
+  {
+   "term": "Google Drive",
+   "category": "Software",
+   "heard": [
+    "google drive"
+   ]
+  },
+  {
+   "term": "Google Sheets",
+   "category": "Software",
+   "heard": [
+    "google sheets"
+   ]
+  },
+  {
+   "term": "Google Slides",
+   "category": "Software",
+   "heard": [
+    "google slides"
+   ]
+  },
+  {
+   "term": "Google Meet",
+   "category": "Software",
+   "heard": [
+    "google meet"
+   ]
+  },
+  {
+   "term": "Google Calendar",
+   "category": "Software",
+   "heard": [
+    "google calendar",
+    "google calender"
+   ]
+  },
+  {
+   "term": "Google Maps",
+   "category": "Software",
+   "heard": [
+    "google maps"
+   ]
+  },
+  {
+   "term": "Google Photos",
+   "category": "Software",
+   "heard": [
+    "google photos"
+   ]
+  },
+  {
+   "term": "Google Analytics",
+   "category": "Software",
+   "heard": [
+    "google analytics"
+   ]
+  },
+  {
+   "term": "Google Ads",
+   "category": "Software",
+   "heard": [
+    "google ads"
+   ]
+  },
+  {
+   "term": "Google Workspace",
+   "category": "Software",
+   "heard": [
+    "google workspace"
+   ]
+  },
+  {
+   "term": "Google Chrome",
+   "category": "Software",
+   "heard": [
+    "google chrome"
+   ]
+  },
+  {
+   "term": "Google Pay",
+   "category": "Platforms",
+   "heard": [
+    "google pay"
+   ]
+  },
+  {
+   "term": "Google Pixel",
+   "category": "Devices",
+   "heard": [
+    "google pixel"
+   ]
+  },
+  {
+   "term": "Google Flights",
+   "category": "Platforms",
+   "heard": [
+    "google flights"
+   ]
+  },
+  {
+   "term": "Google Search Console",
+   "category": "Software",
+   "heard": [
+    "google search console"
+   ]
+  },
+  {
+   "term": "Zoom",
+   "category": "Platforms",
+   "context": [
+    "zoom"
+   ],
+   "after": [
+    "call",
+    "calls",
+    "meeting",
+    "meetings",
+    "link",
+    "links",
+    "room",
+    "rooms",
+    "account",
+    "invite",
+    "invites",
+    "webinar",
+    "webinars",
+    "recording",
+    "recordings",
+    "chat",
+    "background",
+    "backgrounds"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Slack",
+   "category": "Platforms",
+   "context": [
+    "slack"
+   ],
+   "after": [
+    "channel",
+    "channels",
+    "message",
+    "messages",
+    "thread",
+    "threads",
+    "workspace",
+    "workspaces",
+    "huddle",
+    "huddles",
+    "dm",
+    "dms",
+    "app",
+    "bot",
+    "integration",
+    "notification",
+    "notifications",
+    "status",
+    "emoji",
+    "post"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Notion",
+   "category": "Software",
+   "context": [
+    "notion"
+   ],
+   "after": [
+    "page",
+    "pages",
+    "doc",
+    "docs",
+    "database",
+    "databases",
+    "template",
+    "templates",
+    "workspace",
+    "board",
+    "boards",
+    "wiki",
+    "calendar",
+    "site",
+    "integration"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Discord",
+   "category": "Platforms",
+   "context": [
+    "discord"
+   ],
+   "after": [
+    "server",
+    "servers",
+    "channel",
+    "channels",
+    "bot",
+    "bots",
+    "message",
+    "messages",
+    "community",
+    "dm",
+    "dms",
+    "call",
+    "link",
+    "invite"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Twitch",
+   "category": "Platforms",
+   "context": [
+    "twitch"
+   ],
+   "after": [
+    "stream",
+    "streams",
+    "streamer",
+    "streamers",
+    "chat",
+    "channel",
+    "channels",
+    "emote",
+    "emotes",
+    "subs",
+    "account"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Uber",
+   "category": "Platforms",
+   "context": [
+    "uber"
+   ],
+   "after": [
+    "ride",
+    "rides",
+    "driver",
+    "drivers",
+    "app",
+    "account",
+    "eats",
+    "pool",
+    "xl",
+    "black",
+    "trip",
+    "trips"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Uber Eats",
+   "category": "Platforms",
+   "heard": [
+    "uber eats",
+    "ubereats"
+   ]
+  },
+  {
+   "term": "Lyft",
+   "category": "Platforms",
+   "heard": [
+    "lyft"
+   ]
+  },
+  {
+   "term": "Asana",
+   "category": "Software",
+   "context": [
+    "asana"
+   ],
+   "after": [
+    "board",
+    "boards",
+    "project",
+    "projects",
+    "task",
+    "tasks",
+    "workspace",
+    "team"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Loom",
+   "category": "Software",
+   "context": [
+    "loom"
+   ],
+   "after": [
+    "video",
+    "videos",
+    "recording",
+    "recordings",
+    "link",
+    "links",
+    "message",
+    "messages"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Stripe",
+   "category": "Platforms",
+   "context": [
+    "stripe"
+   ],
+   "after": [
+    "account",
+    "payment",
+    "payments",
+    "checkout",
+    "dashboard",
+    "api",
+    "invoice",
+    "invoices",
+    "link",
+    "fees",
+    "connect"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Salesforce",
+   "category": "Software",
+   "heard": [
+    "salesforce"
+   ],
+   "exact": [
+    "Sales Force",
+    "SalesForce"
+   ],
+   "context": [
+    "sales force"
+   ],
+   "after": [
+    "crm",
+    "account",
+    "instance",
+    "dashboard",
+    "report",
+    "reports",
+    "admin"
+   ]
+  },
+  {
+   "term": "ClickUp",
+   "category": "Software",
+   "heard": [
+    "clickup"
+   ],
+   "exact": [
+    "Click Up",
+    "Clickup"
+   ],
+   "context": [
+    "click up"
+   ],
+   "after": [
+    "task",
+    "tasks",
+    "board",
+    "boards",
+    "workspace",
+    "list",
+    "doc",
+    "docs"
+   ]
+  },
+  {
+   "term": "Trello",
+   "category": "Software",
+   "heard": [
+    "trello",
+    "trelo"
+   ]
+  },
+  {
+   "term": "Jira",
+   "category": "Software",
+   "heard": [
+    "jira"
+   ]
+  },
+  {
+   "term": "Miro",
+   "category": "Software",
+   "context": [
+    "miro"
+   ],
+   "after": [
+    "board",
+    "boards",
+    "template",
+    "templates",
+    "workspace"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Calendly",
+   "category": "Software",
+   "heard": [
+    "calendly",
+    "calendar ly",
+    "calend ly",
+    "calendlee"
+   ]
+  },
+  {
+   "term": "Typeform",
+   "category": "Software",
+   "heard": [
+    "typeform",
+    "type form"
+   ]
+  },
+  {
+   "term": "HubSpot",
+   "category": "Software",
+   "heard": [
+    "hubspot",
+    "hub spot",
+    "hub-spot"
+   ]
+  },
+  {
+   "term": "Mailchimp",
+   "category": "Software",
+   "heard": [
+    "mailchimp",
+    "mail chimp"
+   ]
+  },
+  {
+   "term": "Klaviyo",
+   "category": "Software",
+   "heard": [
+    "klaviyo",
+    "clavio",
+    "claviyo",
+    "klavio",
+    "klavyo"
+   ]
+  },
+  {
+   "term": "Zapier",
+   "category": "Software",
+   "heard": [
+    "zapier",
+    "zappier",
+    "zap ier",
+    "zappeer"
+   ]
+  },
+  {
+   "term": "Descript",
+   "category": "Creative tools",
+   "heard": [
+    "descript"
+   ]
+  },
+  {
+   "term": "Frame.io",
+   "category": "Creative tools",
+   "heard": [
+    "frame io",
+    "frame i o",
+    "frameio"
+   ]
+  },
+  {
+   "term": "Vimeo",
+   "category": "Platforms",
+   "heard": [
+    "vimeo",
+    "vim eo"
+   ]
+  },
+  {
+   "term": "Substack",
+   "category": "Platforms",
+   "heard": [
+    "substack",
+    "sub stack"
+   ]
+  },
+  {
+   "term": "Patreon",
+   "category": "Platforms",
+   "heard": [
+    "patreon",
+    "patrion"
+   ]
+  },
+  {
+   "term": "GoFundMe",
+   "category": "Platforms",
+   "heard": [
+    "gofundme",
+    "go fund me"
+   ]
+  },
+  {
+   "term": "Eventbrite",
+   "category": "Platforms",
+   "heard": [
+    "eventbrite",
+    "event brite"
+   ]
+  },
+  {
+   "term": "Kickstarter",
+   "category": "Platforms",
+   "heard": [
+    "kickstarter"
+   ]
+  },
+  {
+   "term": "Netlify",
+   "category": "Software",
+   "heard": [
+    "netlify",
+    "net lify",
+    "netlifly"
+   ]
+  },
+  {
+   "term": "Firebase",
+   "category": "Software",
+   "heard": [
+    "firebase"
+   ],
+   "exact": [
+    "Fire Base",
+    "FireBase"
+   ],
+   "context": [
+    "fire base"
+   ],
+   "after": [
+    "project",
+    "auth",
+    "database",
+    "console",
+    "app",
+    "hosting",
+    "function",
+    "functions"
+   ]
+  },
+  {
+   "term": "Heroku",
+   "category": "Software",
+   "heard": [
+    "heroku",
+    "hero coo",
+    "herokoo"
+   ]
+  },
+  {
+   "term": "AWS",
+   "category": "Software",
+   "heard": [
+    "aws",
+    "a w s",
+    "a.w.s."
+   ]
+  },
+  {
+   "term": "Amazon Web Services",
+   "category": "Software",
+   "heard": [
+    "amazon web services"
+   ]
+  },
+  {
+   "term": "Microsoft Azure",
+   "category": "Software",
+   "heard": [
+    "microsoft azure"
+   ]
+  },
+  {
+   "term": "Cloudflare",
+   "category": "Software",
+   "heard": [
+    "cloudflare",
+    "cloud flare",
+    "cloud-flare"
+   ]
+  },
+  {
+   "term": "Docker",
+   "category": "Software",
+   "heard": [
+    "docker"
+   ]
+  },
+  {
+   "term": "Kubernetes",
+   "category": "Software",
+   "heard": [
+    "kubernetes",
+    "kuber netties",
+    "cooper netties",
+    "kubernetties"
+   ]
+  },
+  {
+   "term": "GitLab",
+   "category": "Software",
+   "heard": [
+    "gitlab",
+    "git lab"
+   ]
+  },
+  {
+   "term": "npm",
+   "category": "Software",
+   "heard": [
+    "n p m"
+   ]
+  },
+  {
+   "term": "Node.js",
+   "category": "Software",
+   "heard": [
+    "node js",
+    "node j s",
+    "nodejs",
+    "node dot js"
+   ]
+  },
+  {
+   "term": "JavaScript",
+   "category": "Software",
+   "heard": [
+    "javascript",
+    "java script",
+    "java-script"
+   ]
+  },
+  {
+   "term": "TypeScript",
+   "category": "Software",
+   "heard": [
+    "typescript",
+    "type script",
+    "type-script"
+   ]
+  },
+  {
+   "term": "Next.js",
+   "category": "Software",
+   "heard": [
+    "next js",
+    "next j s",
+    "nextjs",
+    "next dot js"
+   ]
+  },
+  {
+   "term": "Tailwind CSS",
+   "category": "Software",
+   "heard": [
+    "tailwind css",
+    "tail wind css"
+   ]
+  },
+  {
+   "term": "CSS",
+   "category": "Software",
+   "heard": [
+    "css",
+    "c s s"
+   ]
+  },
+  {
+   "term": "HTML",
+   "category": "Software",
+   "heard": [
+    "html",
+    "h t m l"
+   ]
+  },
+  {
+   "term": "JSON",
+   "category": "Software",
+   "heard": [
+    "json",
+    "j son"
+   ]
+  },
+  {
+   "term": "SQL",
+   "category": "Software",
+   "heard": [
+    "sql",
+    "s q l"
+   ]
+  },
+  {
+   "term": "PostgreSQL",
+   "category": "Software",
+   "heard": [
+    "postgresql",
+    "postgres sql",
+    "postgre sql",
+    "postgres q l",
+    "postgres sequel"
+   ]
+  },
+  {
+   "term": "Postgres",
+   "category": "Software",
+   "heard": [
+    "postgres",
+    "post gres",
+    "postgress"
+   ]
+  },
+  {
+   "term": "MySQL",
+   "category": "Software",
+   "heard": [
+    "mysql",
+    "my-sql"
+   ],
+   "context": [
+    "my sequel"
+   ],
+   "after": [
+    "database",
+    "databases",
+    "server",
+    "query",
+    "queries",
+    "table",
+    "tables"
+   ]
+  },
+  {
+   "term": "Android",
+   "category": "Software",
+   "context": [
+    "android"
+   ],
+   "after": [
+    "phone",
+    "phones",
+    "app",
+    "apps",
+    "device",
+    "devices",
+    "user",
+    "users",
+    "studio",
+    "version",
+    "update",
+    "tablet",
+    "tablets",
+    "auto",
+    "os",
+    "developer",
+    "developers",
+    "emulator"
+   ]
+  },
+  {
+   "term": "Linux",
+   "category": "Software",
+   "heard": [
+    "linux",
+    "linnux"
+   ]
+  },
+  {
+   "term": "Ubuntu",
+   "category": "Software",
+   "heard": [
+    "ubuntu",
+    "oo buntu"
+   ]
+  },
+  {
+   "term": "Windows 11",
+   "category": "Software",
+   "heard": [
+    "windows 11",
+    "windows eleven"
+   ]
+  },
+  {
+   "term": "Chromebook",
+   "category": "Devices",
+   "heard": [
+    "chromebook",
+    "chrome book"
+   ]
+  },
+  {
+   "term": "Raspberry Pi",
+   "category": "Devices",
+   "heard": [
+    "raspberry pi",
+    "raspberry-pi"
+   ],
+   "context": [
+    "raspberry pie"
+   ],
+   "after": [
+    "board",
+    "boards",
+    "project",
+    "projects",
+    "zero",
+    "pico",
+    "4",
+    "5",
+    "cluster"
+   ]
+  },
+  {
+   "term": "VS Code",
+   "category": "Software",
+   "heard": [
+    "vs code",
+    "v s code",
+    "vscode",
+    "vs-code",
+    "v.s. code"
+   ]
+  },
+  {
+   "term": "Visual Studio Code",
+   "category": "Software",
+   "heard": [
+    "visual studio code"
+   ]
+  },
+  {
+   "term": "Replit",
+   "category": "Software",
+   "heard": [
+    "replit",
+    "rep lit",
+    "replet"
+   ]
+  },
+  {
+   "term": "Samsung",
+   "category": "Brands",
+   "heard": [
+    "samsung"
+   ]
+  },
+  {
+   "term": "Fitbit",
+   "category": "Devices",
+   "heard": [
+    "fitbit"
+   ],
+   "exact": [
+    "Fit Bit",
+    "FitBit"
+   ],
+   "context": [
+    "fit bit"
+   ]
+  },
+  {
+   "term": "Garmin",
+   "category": "Devices",
+   "heard": [
+    "garmin"
+   ]
+  },
+  {
+   "term": "GoPro",
+   "category": "Devices",
+   "heard": [
+    "gopro"
+   ],
+   "exact": [
+    "Go Pro",
+    "Gopro",
+    "Go-Pro"
+   ],
+   "context": [
+    "go pro"
+   ],
+   "after": [
+    "camera",
+    "cameras",
+    "footage",
+    "hero",
+    "mount",
+    "mounts",
+    "video",
+    "videos",
+    "clip",
+    "clips",
+    "11",
+    "12",
+    "13",
+    "max"
+   ]
+  },
+  {
+   "term": "DJI",
+   "category": "Devices",
+   "heard": [
+    "dji",
+    "d j i",
+    "d.j.i."
+   ]
+  },
+  {
+   "term": "Nikon",
+   "category": "Devices",
+   "heard": [
+    "nikon"
+   ]
+  },
+  {
+   "term": "Fujifilm",
+   "category": "Devices",
+   "heard": [
+    "fujifilm",
+    "fuji film"
+   ]
+  },
+  {
+   "term": "Blackmagic",
+   "category": "Devices",
+   "heard": [
+    "blackmagic"
+   ],
+   "exact": [
+    "BlackMagic"
+   ],
+   "context": [
+    "black magic"
+   ],
+   "after": [
+    "camera",
+    "cameras",
+    "design",
+    "pocket",
+    "raw",
+    "ursa",
+    "atem",
+    "cinema",
+    "disk"
+   ]
+  },
+  {
+   "term": "Elgato",
+   "category": "Devices",
+   "heard": [
+    "elgato",
+    "el gato"
+   ]
+  },
+  {
+   "term": "Logitech",
+   "category": "Devices",
+   "heard": [
+    "logitech",
+    "logi tech",
+    "logitec"
+   ]
+  },
+  {
+   "term": "Sonos",
+   "category": "Devices",
+   "heard": [
+    "sonos",
+    "sono s"
+   ]
+  },
+  {
+   "term": "Roku",
+   "category": "Devices",
+   "heard": [
+    "roku"
+   ]
+  },
+  {
+   "term": "Nintendo Switch",
+   "category": "Devices",
+   "heard": [
+    "nintendo switch"
+   ]
+  },
+  {
+   "term": "PlayStation",
+   "category": "Devices",
+   "heard": [
+    "playstation"
+   ],
+   "exact": [
+    "Play Station",
+    "Playstation"
+   ],
+   "context": [
+    "play station"
+   ],
+   "after": [
+    "5",
+    "4",
+    "plus",
+    "network",
+    "store",
+    "controller",
+    "games",
+    "game"
+   ]
+  },
+  {
+   "term": "Xbox",
+   "category": "Devices",
+   "heard": [
+    "xbox",
+    "x box",
+    "ex box",
+    "x-box"
+   ]
+  },
+  {
+   "term": "Steam Deck",
+   "category": "Devices",
+   "heard": [
+    "steam deck"
+   ]
+  },
+  {
+   "term": "Meta Quest",
+   "category": "Devices",
+   "heard": [
+    "meta quest"
+   ]
+  },
+  {
+   "term": "Oura Ring",
+   "category": "Devices",
+   "heard": [
+    "oura ring"
+   ]
+  },
+  {
+   "term": "Roomba",
+   "category": "Devices",
+   "heard": [
+    "roomba"
+   ]
+  },
+  {
+   "term": "Instant Pot",
+   "category": "Brands",
+   "heard": [
+    "instant pot",
+    "instapot",
+    "insta pot",
+    "instant-pot"
+   ]
+  },
+  {
+   "term": "KitchenAid",
+   "category": "Brands",
+   "heard": [
+    "kitchenaid",
+    "kitchen-aid"
+   ],
+   "exact": [
+    "Kitchen Aid",
+    "Kitchenaid"
+   ],
+   "context": [
+    "kitchen aid"
+   ],
+   "after": [
+    "mixer",
+    "mixers",
+    "stand mixer",
+    "attachment"
+   ]
+  },
+  {
+   "term": "Keurig",
+   "category": "Brands",
+   "heard": [
+    "keurig"
+   ]
+  },
+  {
+   "term": "Nespresso",
+   "category": "Brands",
+   "heard": [
+    "nespresso",
+    "ness presso",
+    "nes presso"
+   ]
+  },
+  {
+   "term": "Peloton",
+   "category": "Devices",
+   "context": [
+    "peloton"
+   ],
+   "after": [
+    "bike",
+    "bikes",
+    "tread",
+    "app",
+    "class",
+    "classes",
+    "instructor",
+    "ride",
+    "rides",
+    "membership"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Ray-Ban",
+   "category": "Brands",
+   "heard": [
+    "ray ban",
+    "rayban"
+   ]
+  },
+  {
+   "term": "Spotify",
+   "category": "Platforms",
+   "heard": [
+    "spotify",
+    "spot ify"
+   ]
+  },
+  {
+   "term": "Netflix",
+   "category": "Platforms",
+   "heard": [
+    "netflix",
+    "net flix",
+    "net flicks"
+   ]
+  },
+  {
+   "term": "Hulu",
+   "category": "Platforms",
+   "heard": [
+    "hulu"
+   ]
+  },
+  {
+   "term": "HBO Max",
+   "category": "Platforms",
+   "heard": [
+    "hbo max",
+    "h b o max"
+   ]
+  },
+  {
+   "term": "HBO",
+   "category": "Platforms",
+   "heard": [
+    "hbo",
+    "h b o"
+   ]
+  },
+  {
+   "term": "Prime Video",
+   "category": "Platforms",
+   "heard": [
+    "prime video"
+   ]
+  },
+  {
+   "term": "IMDb",
+   "category": "Platforms",
+   "heard": [
+    "imdb",
+    "i m d b",
+    "i.m.d.b."
+   ]
+  },
+  {
+   "term": "SoundCloud",
+   "category": "Platforms",
+   "heard": [
+    "soundcloud",
+    "sound cloud"
+   ]
+  },
+  {
+   "term": "Bandcamp",
+   "category": "Platforms",
+   "heard": [
+    "bandcamp"
+   ],
+   "exact": [
+    "BandCamp"
+   ],
+   "context": [
+    "band camp"
+   ],
+   "after": [
+    "page",
+    "album",
+    "albums",
+    "sales",
+    "friday",
+    "link"
+   ]
+  },
+  {
+   "term": "Apple Podcasts",
+   "category": "Platforms",
+   "heard": [
+    "apple podcasts"
+   ]
+  },
+  {
+   "term": "Pocket Casts",
+   "category": "Platforms",
+   "heard": [
+    "pocket casts",
+    "pocketcasts"
+   ]
+  },
+  {
+   "term": "Shazam",
+   "category": "Software",
+   "heard": [
+    "shazam"
+   ]
+  },
+  {
+   "term": "Instagram",
+   "category": "Platforms",
+   "heard": [
+    "instagram",
+    "insta gram",
+    "instagramm"
+   ]
+  },
+  {
+   "term": "Facebook",
+   "category": "Platforms",
+   "heard": [
+    "facebook",
+    "face book",
+    "face-book"
+   ]
+  },
+  {
+   "term": "WhatsApp",
+   "category": "Platforms",
+   "heard": [
+    "whatsapp",
+    "what sapp"
+   ],
+   "exact": [
+    "Whats App"
+   ],
+   "context": [
+    "what's app",
+    "whats app"
+   ],
+   "after": [
+    "message",
+    "messages",
+    "group",
+    "groups",
+    "chat",
+    "call",
+    "calls",
+    "number",
+    "me",
+    "you",
+    "link",
+    "status"
+   ]
+  },
+  {
+   "term": "Snapchat",
+   "category": "Platforms",
+   "heard": [
+    "snapchat",
+    "snap chat"
+   ]
+  },
+  {
+   "term": "Pinterest",
+   "category": "Platforms",
+   "heard": [
+    "pinterest",
+    "pintrest"
+   ]
+  },
+  {
+   "term": "Reddit",
+   "category": "Platforms",
+   "heard": [
+    "reddit"
+   ]
+  },
+  {
+   "term": "Twitter",
+   "category": "Platforms",
+   "heard": [
+    "twitter"
+   ]
+  },
+  {
+   "term": "Bluesky",
+   "category": "Platforms",
+   "heard": [
+    "bluesky"
+   ],
+   "exact": [
+    "BlueSky"
+   ],
+   "context": [
+    "blue sky"
+   ],
+   "after": [
+    "post",
+    "posts",
+    "account",
+    "handle",
+    "feed",
+    "profile",
+    "thread"
+   ]
+  },
+  {
+   "term": "Tumblr",
+   "category": "Platforms",
+   "heard": [
+    "tumblr"
+   ]
+  },
+  {
+   "term": "Quora",
+   "category": "Platforms",
+   "heard": [
+    "quora",
+    "quorra"
+   ]
+  },
+  {
+   "term": "Threads app",
+   "category": "Platforms",
+   "heard": [
+    "threads app"
+   ]
+  },
+  {
+   "term": "WeChat",
+   "category": "Platforms",
+   "heard": [
+    "wechat"
+   ],
+   "exact": [
+    "We Chat",
+    "Wechat"
+   ],
+   "context": [
+    "we chat"
+   ],
+   "after": [
+    "account",
+    "group",
+    "groups",
+    "message",
+    "messages",
+    "pay",
+    "id",
+    "app"
+   ]
+  },
+  {
+   "term": "Telegram channel",
+   "category": "Platforms",
+   "heard": [
+    "telegram channel"
+   ]
+  },
+  {
+   "term": "Yelp",
+   "category": "Platforms",
+   "context": [
+    "yelp"
+   ],
+   "after": [
+    "review",
+    "reviews",
+    "page",
+    "listing",
+    "rating",
+    "ratings",
+    "account",
+    "ad",
+    "ads"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Tripadvisor",
+   "category": "Platforms",
+   "heard": [
+    "tripadvisor"
+   ]
+  },
+  {
+   "term": "Glassdoor",
+   "category": "Platforms",
+   "heard": [
+    "glassdoor"
+   ],
+   "exact": [
+    "Glass Door",
+    "GlassDoor"
+   ],
+   "context": [
+    "glass door"
+   ],
+   "after": [
+    "review",
+    "reviews",
+    "rating",
+    "ratings",
+    "page"
+   ]
+  },
+  {
+   "term": "Upwork",
+   "category": "Platforms",
+   "heard": [
+    "upwork"
+   ],
+   "exact": [
+    "Up Work",
+    "UpWork"
+   ],
+   "context": [
+    "up work"
+   ],
+   "after": [
+    "profile",
+    "job",
+    "jobs",
+    "client",
+    "clients",
+    "contract",
+    "freelancer",
+    "freelancers",
+    "proposal",
+    "proposals"
+   ]
+  },
+  {
+   "term": "Fiverr",
+   "category": "Platforms",
+   "heard": [
+    "fiverr"
+   ],
+   "context": [
+    "fiver"
+   ],
+   "after": [
+    "gig",
+    "gigs",
+    "seller",
+    "sellers",
+    "freelancer",
+    "freelancers",
+    "profile",
+    "order",
+    "orders"
+   ]
+  },
+  {
+   "term": "Behance",
+   "category": "Platforms",
+   "heard": [
+    "behance",
+    "be hance",
+    "bee hance"
+   ]
+  },
+  {
+   "term": "Dribbble",
+   "category": "Platforms",
+   "heard": [
+    "dribbble"
+   ],
+   "context": [
+    "dribble"
+   ],
+   "after": [
+    "shot",
+    "shots",
+    "profile",
+    "portfolio",
+    "account",
+    "designer",
+    "designers"
+   ]
+  },
+  {
+   "term": "Product Hunt",
+   "category": "Platforms",
+   "heard": [
+    "producthunt"
+   ],
+   "exact": [
+    "Product hunt"
+   ],
+   "context": [
+    "product hunt"
+   ],
+   "after": [
+    "launch",
+    "launches",
+    "page",
+    "listing",
+    "upvote",
+    "upvotes"
+   ]
+  },
+  {
+   "term": "Airbnb",
+   "category": "Platforms",
+   "heard": [
+    "airbnb",
+    "air bnb",
+    "air b n b",
+    "air b and b",
+    "air bee and bee",
+    "air b&b"
+   ]
+  },
+  {
+   "term": "Vrbo",
+   "category": "Platforms",
+   "heard": [
+    "vrbo",
+    "v r b o"
+   ]
+  },
+  {
+   "term": "Expedia",
+   "category": "Platforms",
+   "heard": [
+    "expedia",
+    "x pedia",
+    "ex pedia"
+   ]
+  },
+  {
+   "term": "Waze",
+   "category": "Software",
+   "heard": [
+    "waze"
+   ]
+  },
+  {
+   "term": "Apple Maps",
+   "category": "Software",
+   "heard": [
+    "apple maps"
+   ]
+  },
+  {
+   "term": "DoorDash",
+   "category": "Platforms",
+   "heard": [
+    "doordash",
+    "door dash",
+    "door-dash"
+   ]
+  },
+  {
+   "term": "Grubhub",
+   "category": "Platforms",
+   "heard": [
+    "grubhub",
+    "grub hub"
+   ]
+  },
+  {
+   "term": "Instacart",
+   "category": "Platforms",
+   "heard": [
+    "instacart",
+    "insta cart"
+   ]
+  },
+  {
+   "term": "Venmo",
+   "category": "Platforms",
+   "heard": [
+    "venmo",
+    "ven mo"
+   ]
+  },
+  {
+   "term": "PayPal",
+   "category": "Platforms",
+   "heard": [
+    "paypal",
+    "pay pal",
+    "pay-pal"
+   ]
+  },
+  {
+   "term": "Zelle",
+   "category": "Platforms",
+   "heard": [
+    "zelle"
+   ]
+  },
+  {
+   "term": "Cash App",
+   "category": "Platforms",
+   "heard": [
+    "cashapp",
+    "cash-app"
+   ],
+   "exact": [
+    "Cash app"
+   ],
+   "context": [
+    "cash app"
+   ],
+   "after": [
+    "me",
+    "you",
+    "account",
+    "tag",
+    "card"
+   ]
+  },
+  {
+   "term": "QuickBooks",
+   "category": "Software",
+   "heard": [
+    "quickbooks",
+    "quickbook"
+   ],
+   "exact": [
+    "Quick Books",
+    "Quickbooks"
+   ],
+   "context": [
+    "quick books"
+   ],
+   "after": [
+    "online",
+    "account",
+    "invoice",
+    "invoices",
+    "file",
+    "report",
+    "reports"
+   ]
+  },
+  {
+   "term": "Xero",
+   "category": "Software",
+   "heard": [
+    "xero"
+   ]
+  },
+  {
+   "term": "FreshBooks",
+   "category": "Software",
+   "heard": [
+    "freshbooks"
+   ],
+   "exact": [
+    "Fresh Books",
+    "Freshbooks"
+   ],
+   "context": [
+    "fresh books"
+   ],
+   "after": [
+    "account",
+    "invoice",
+    "invoices"
+   ]
+  },
+  {
+   "term": "TurboTax",
+   "category": "Software",
+   "heard": [
+    "turbotax",
+    "turbo tax",
+    "turbo-tax"
+   ]
+  },
+  {
+   "term": "Expensify",
+   "category": "Software",
+   "heard": [
+    "expensify",
+    "expense ify"
+   ]
+  },
+  {
+   "term": "DocuSign",
+   "category": "Software",
+   "heard": [
+    "docusign",
+    "docu sign",
+    "doc u sign",
+    "docu-sign"
+   ]
+  },
+  {
+   "term": "PandaDoc",
+   "category": "Software",
+   "heard": [
+    "pandadoc",
+    "panda doc"
+   ]
+  },
+  {
+   "term": "HoneyBook",
+   "category": "Software",
+   "heard": [
+    "honeybook"
+   ],
+   "exact": [
+    "Honey Book",
+    "Honeybook"
+   ],
+   "context": [
+    "honey book"
+   ],
+   "after": [
+    "account",
+    "invoice",
+    "invoices",
+    "proposal",
+    "proposals",
+    "contract",
+    "contracts",
+    "client",
+    "clients"
+   ]
+  },
+  {
+   "term": "Dubsado",
+   "category": "Software",
+   "heard": [
+    "dubsado",
+    "dub sado"
+   ]
+  },
+  {
+   "term": "Pipedrive",
+   "category": "Software",
+   "heard": [
+    "pipedrive",
+    "pipe drive"
+   ]
+  },
+  {
+   "term": "Zendesk",
+   "category": "Software",
+   "heard": [
+    "zendesk"
+   ]
+  },
+  {
+   "term": "SavvyCal",
+   "category": "Software",
+   "heard": [
+    "savvycal",
+    "savvy cal"
+   ]
+  },
+  {
+   "term": "Evernote",
+   "category": "Software",
+   "heard": [
+    "evernote",
+    "ever note"
+   ]
+  },
+  {
+   "term": "Todoist",
+   "category": "Software",
+   "heard": [
+    "todoist",
+    "to doist",
+    "todo ist"
+   ]
+  },
+  {
+   "term": "OmniFocus",
+   "category": "Software",
+   "heard": [
+    "omnifocus",
+    "omni focus"
+   ]
+  },
+  {
+   "term": "1Password",
+   "category": "Software",
+   "heard": [
+    "1password"
+   ],
+   "exact": [
+    "One Password",
+    "OnePassword",
+    "1 Password"
+   ],
+   "context": [
+    "one password",
+    "1 password"
+   ],
+   "after": [
+    "vault",
+    "vaults",
+    "app",
+    "account",
+    "item",
+    "items",
+    "extension",
+    "login"
+   ]
+  },
+  {
+   "term": "LastPass",
+   "category": "Software",
+   "heard": [
+    "lastpass"
+   ],
+   "exact": [
+    "Last Pass",
+    "Lastpass"
+   ],
+   "context": [
+    "last pass"
+   ],
+   "after": [
+    "vault",
+    "account",
+    "app",
+    "extension",
+    "login"
+   ]
+  },
+  {
+   "term": "Grammarly",
+   "category": "Software",
+   "heard": [
+    "grammarly",
+    "grammar ly",
+    "grammerly"
+   ]
+  },
+  {
+   "term": "Raycast",
+   "category": "Software",
+   "heard": [
+    "raycast"
+   ],
+   "exact": [
+    "Ray Cast"
+   ]
+  },
+  {
+   "term": "Firefox",
+   "category": "Software",
+   "heard": [
+    "firefox",
+    "fire fox",
+    "fire-fox"
+   ]
+  },
+  {
+   "term": "Microsoft Edge",
+   "category": "Software",
+   "heard": [
+    "microsoft edge"
+   ]
+  },
+  {
+   "term": "DuckDuckGo",
+   "category": "Software",
+   "heard": [
+    "duckduckgo",
+    "duck duck go",
+    "duck-duck-go"
+   ]
+  },
+  {
+   "term": "Dropbox",
+   "category": "Platforms",
+   "heard": [
+    "dropbox"
+   ],
+   "exact": [
+    "Drop Box",
+    "DropBox"
+   ],
+   "context": [
+    "drop box"
+   ],
+   "after": [
+    "folder",
+    "folders",
+    "link",
+    "links",
+    "account",
+    "file",
+    "files",
+    "paper",
+    "transfer"
+   ]
+  },
+  {
+   "term": "WordPress",
+   "category": "Platforms",
+   "heard": [
+    "wordpress",
+    "word press",
+    "word-press"
+   ]
+  },
+  {
+   "term": "Wix",
+   "category": "Platforms",
+   "heard": [
+    "wix"
+   ]
+  },
+  {
+   "term": "GoDaddy",
+   "category": "Platforms",
+   "heard": [
+    "godaddy"
+   ]
+  },
+  {
+   "term": "Namecheap",
+   "category": "Platforms",
+   "heard": [
+    "namecheap"
+   ]
+  },
+  {
+   "term": "Linktree",
+   "category": "Platforms",
+   "heard": [
+    "linktree"
+   ],
+   "exact": [
+    "Link Tree",
+    "LinkTree"
+   ],
+   "context": [
+    "link tree"
+   ],
+   "after": [
+    "link",
+    "bio",
+    "page",
+    "account"
+   ]
+  },
+  {
+   "term": "Beehiiv",
+   "category": "Platforms",
+   "heard": [
+    "beehiiv",
+    "bee hiiv"
+   ]
+  },
+  {
+   "term": "ConvertKit",
+   "category": "Platforms",
+   "heard": [
+    "convertkit"
+   ]
+  },
+  {
+   "term": "Kajabi",
+   "category": "Platforms",
+   "heard": [
+    "kajabi",
+    "kajabee",
+    "ka jabi"
+   ]
+  },
+  {
+   "term": "Thinkific",
+   "category": "Platforms",
+   "heard": [
+    "thinkific",
+    "think ific"
+   ]
+  },
+  {
+   "term": "Gumroad",
+   "category": "Platforms",
+   "heard": [
+    "gumroad",
+    "gum road"
+   ]
+  },
+  {
+   "term": "Etsy",
+   "category": "Platforms",
+   "heard": [
+    "etsy"
+   ]
+  },
+  {
+   "term": "eBay",
+   "category": "Platforms",
+   "heard": [
+    "ebay",
+    "e bay",
+    "e-bay"
+   ]
+  },
+  {
+   "term": "Walmart",
+   "category": "Brands",
+   "heard": [
+    "walmart",
+    "wal mart",
+    "wall mart",
+    "wal-mart"
+   ]
+  },
+  {
+   "term": "Costco",
+   "category": "Brands",
+   "heard": [
+    "costco",
+    "cost co"
+   ]
+  },
+  {
+   "term": "Home Depot",
+   "category": "Brands",
+   "heard": [
+    "home depot"
+   ]
+  },
+  {
+   "term": "Chick-fil-A",
+   "category": "Brands",
+   "heard": [
+    "chick fil a",
+    "chick-fil-a",
+    "chickfila",
+    "chick fil-a",
+    "chick filet",
+    "chick fila"
+   ]
+  },
+  {
+   "term": "Starbucks",
+   "category": "Brands",
+   "heard": [
+    "starbucks",
+    "star bucks"
+   ]
+  },
+  {
+   "term": "McDonald's",
+   "category": "Brands",
+   "heard": [
+    "mcdonalds",
+    "mc donalds"
+   ]
+  },
+  {
+   "term": "FedEx",
+   "category": "Brands",
+   "heard": [
+    "fedex",
+    "fed ex",
+    "fed-ex"
+   ]
+  },
+  {
+   "term": "USPS",
+   "category": "Brands",
+   "heard": [
+    "usps",
+    "u s p s",
+    "u.s.p.s."
+   ]
+  },
+  {
+   "term": "DHL",
+   "category": "Brands",
+   "heard": [
+    "dhl",
+    "d h l"
+   ]
+  },
+  {
+   "term": "IBM",
+   "category": "Brands",
+   "heard": [
+    "ibm",
+    "i b m"
+   ]
+  },
+  {
+   "term": "SpaceX",
+   "category": "Brands",
+   "heard": [
+    "spacex",
+    "space x"
+   ]
+  },
+  {
+   "term": "ByteDance",
+   "category": "Brands",
+   "heard": [
+    "bytedance",
+    "byte dance"
+   ]
+  },
+  {
+   "term": "Ahrefs",
+   "category": "Software",
+   "heard": [
+    "ahrefs",
+    "a hrefs",
+    "h refs",
+    "a refs"
+   ]
+  },
+  {
+   "term": "Semrush",
+   "category": "Software",
+   "heard": [
+    "semrush",
+    "sem rush",
+    "sem-rush"
+   ]
+  },
+  {
+   "term": "Yoast",
+   "category": "Software",
+   "heard": [
+    "yoast"
+   ]
+  },
+  {
+   "term": "Hotjar",
+   "category": "Software",
+   "heard": [
+    "hotjar"
+   ]
+  },
+  {
+   "term": "Webex",
+   "category": "Platforms",
+   "heard": [
+    "webex",
+    "web ex"
+   ]
+  },
+  {
+   "term": "StreamYard",
+   "category": "Creative tools",
+   "heard": [
+    "streamyard",
+    "stream yard"
+   ]
+  },
+  {
+   "term": "OBS",
+   "category": "Creative tools",
+   "heard": [
+    "obs",
+    "o b s"
+   ]
+  },
+  {
+   "term": "Pro Tools",
+   "category": "Creative tools",
+   "heard": [
+    "protools"
+   ],
+   "exact": [
+    "ProTools"
+   ],
+   "context": [
+    "pro tools"
+   ],
+   "after": [
+    "session",
+    "sessions",
+    "project",
+    "plugin",
+    "plugins",
+    "template"
+   ]
+  },
+  {
+   "term": "Ableton",
+   "category": "Creative tools",
+   "heard": [
+    "ableton",
+    "able ton"
+   ]
+  },
+  {
+   "term": "FL Studio",
+   "category": "Creative tools",
+   "heard": [
+    "fl studio",
+    "f l studio"
+   ]
+  },
+  {
+   "term": "Cinema 4D",
+   "category": "Creative tools",
+   "heard": [
+    "cinema 4d",
+    "cinema four d"
+   ]
+  },
+  {
+   "term": "Unreal Engine",
+   "category": "Creative tools",
+   "heard": [
+    "unreal engine"
+   ]
+  },
+  {
+   "term": "Procreate",
+   "category": "Creative tools",
+   "context": [
+    "procreate"
+   ],
+   "after": [
+    "app",
+    "brush",
+    "brushes",
+    "file",
+    "files",
+    "canvas",
+    "ipad",
+    "drawing",
+    "drawings"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Affinity Designer",
+   "category": "Creative tools",
+   "heard": [
+    "affinity designer"
+   ]
+  },
+  {
+   "term": "Affinity Photo",
+   "category": "Creative tools",
+   "heard": [
+    "affinity photo"
+   ]
+  },
+  {
+   "term": "Adobe Express",
+   "category": "Creative tools",
+   "heard": [
+    "adobe express"
+   ]
+  },
+  {
+   "term": "Adobe Firefly",
+   "category": "AI",
+   "heard": [
+    "adobe firefly",
+    "adobe fire fly"
+   ]
+  },
+  {
+   "term": "Adobe Illustrator",
+   "category": "Creative tools",
+   "heard": [
+    "adobe illustrator"
+   ]
+  },
+  {
+   "term": "Adobe Premiere",
+   "category": "Creative tools",
+   "heard": [
+    "adobe premiere",
+    "adobe premier"
+   ]
+  },
+  {
+   "term": "Adobe Stock",
+   "category": "Creative tools",
+   "heard": [
+    "adobe stock"
+   ]
+  },
+  {
+   "term": "Adobe Acrobat",
+   "category": "Software",
+   "heard": [
+    "adobe acrobat"
+   ]
+  },
+  {
+   "term": "Adobe Creative Cloud",
+   "category": "Creative tools",
+   "heard": [
+    "adobe creative cloud"
+   ]
+  },
+  {
+   "term": "InDesign",
+   "category": "Creative tools",
+   "heard": [
+    "indesign"
+   ],
+   "exact": [
+    "Indesign"
+   ]
+  },
+  {
+   "term": "CapCut",
+   "category": "Creative tools",
+   "heard": [
+    "capcut",
+    "cap cut",
+    "cap-cut"
+   ]
+  },
+  {
+   "term": "FigJam",
+   "category": "Creative tools",
+   "heard": [
+    "figjam"
+   ],
+   "exact": [
+    "Fig Jam",
+    "Figjam"
+   ],
+   "context": [
+    "fig jam"
+   ],
+   "after": [
+    "board",
+    "boards",
+    "file",
+    "files",
+    "template",
+    "templates"
+   ]
+  },
+  {
+   "term": "Epidemic Sound",
+   "category": "Creative tools",
+   "heard": [
+    "epidemic sound"
+   ]
+  },
+  {
+   "term": "Artlist",
+   "category": "Creative tools",
+   "heard": [
+    "artlist"
+   ],
+   "exact": [
+    "Art List",
+    "ArtList"
+   ],
+   "context": [
+    "art list"
+   ],
+   "after": [
+    "song",
+    "songs",
+    "music",
+    "license",
+    "subscription",
+    "track",
+    "tracks"
+   ]
+  },
+  {
+   "term": "Envato",
+   "category": "Creative tools",
+   "heard": [
+    "envato",
+    "en vato"
+   ]
+  },
+  {
+   "term": "Motion Array",
+   "category": "Creative tools",
+   "heard": [
+    "motion array"
+   ]
+  },
+  {
+   "term": "Shutterstock",
+   "category": "Creative tools",
+   "heard": [
+    "shutterstock",
+    "shutter stock"
+   ]
+  },
+  {
+   "term": "Unsplash",
+   "category": "Creative tools",
+   "heard": [
+    "unsplash",
+    "un splash"
+   ]
+  },
+  {
+   "term": "Pexels",
+   "category": "Creative tools",
+   "heard": [
+    "pexels"
+   ]
+  },
+  {
+   "term": "Getty Images",
+   "category": "Creative tools",
+   "heard": [
+    "getty images"
+   ]
+  },
+  {
+   "term": "ProRes",
+   "category": "Creative tools",
+   "heard": [
+    "prores",
+    "pro res",
+    "pro-res"
+   ]
+  },
+  {
+   "term": "ProRAW",
+   "category": "Creative tools",
+   "heard": [
+    "proraw",
+    "pro raw"
+   ]
+  },
+  {
+   "term": "LUT",
+   "category": "Creative tools",
+   "heard": [
+    "lut",
+    "l u t"
+   ]
+  },
+  {
+   "term": "LUTs",
+   "category": "Creative tools",
+   "heard": [
+    "luts",
+    "l u ts",
+    "l u t s"
+   ]
+  },
+  {
+   "term": "RGB",
+   "category": "Creative tools",
+   "heard": [
+    "rgb",
+    "r g b"
+   ]
+  },
+  {
+   "term": "CMYK",
+   "category": "Creative tools",
+   "heard": [
+    "cmyk",
+    "c m y k"
+   ]
+  },
+  {
+   "term": "SVG",
+   "category": "Creative tools",
+   "heard": [
+    "svg",
+    "s v g"
+   ]
+  },
+  {
+   "term": "HEIC",
+   "category": "Creative tools",
+   "heard": [
+    "heic",
+    "h e i c"
+   ]
+  },
+  {
+   "term": "PNG",
+   "category": "Internet",
+   "heard": [
+    "png",
+    "p n g"
+   ]
+  },
+  {
+   "term": "JPEG",
+   "category": "Internet",
+   "heard": [
+    "jpeg",
+    "j peg",
+    "jay peg"
+   ]
+  },
+  {
+   "term": "JPG",
+   "category": "Internet",
+   "heard": [
+    "jpg",
+    "j p g"
+   ]
+  },
+  {
+   "term": "GIF",
+   "category": "Internet",
+   "heard": [
+    "gif"
+   ]
+  },
+  {
+   "term": "MP4",
+   "category": "Internet",
+   "heard": [
+    "mp4",
+    "m p 4",
+    "mp 4",
+    "m p four",
+    "mp four"
+   ]
+  },
+  {
+   "term": "MP3",
+   "category": "Internet",
+   "heard": [
+    "mp3",
+    "m p 3",
+    "mp 3",
+    "m p three",
+    "mp three"
+   ]
+  },
+  {
+   "term": "PDF",
+   "category": "Internet",
+   "heard": [
+    "pdf",
+    "p d f"
+   ]
+  },
+  {
+   "term": "PDFs",
+   "category": "Internet",
+   "heard": [
+    "pdfs",
+    "p d fs",
+    "p d f s"
+   ]
+  },
+  {
+   "term": "API",
+   "category": "Software",
+   "heard": [
+    "api",
+    "a p i"
+   ]
+  },
+  {
+   "term": "APIs",
+   "category": "Software",
+   "heard": [
+    "apis",
+    "a p is",
+    "a p i s"
+   ]
+  },
+  {
+   "term": "SDK",
+   "category": "Software",
+   "heard": [
+    "sdk",
+    "s d k"
+   ]
+  },
+  {
+   "term": "URL",
+   "category": "Internet",
+   "heard": [
+    "url",
+    "u r l"
+   ]
+  },
+  {
+   "term": "URLs",
+   "category": "Internet",
+   "heard": [
+    "urls",
+    "u r ls",
+    "u r l s"
+   ]
+  },
+  {
+   "term": "SEO",
+   "category": "Internet",
+   "heard": [
+    "seo",
+    "s e o"
+   ]
+  },
+  {
+   "term": "SaaS",
+   "category": "Internet",
+   "heard": [
+    "saas"
+   ],
+   "context": [
+    "sass"
+   ],
+   "after": [
+    "company",
+    "companies",
+    "business",
+    "businesses",
+    "product",
+    "products",
+    "platform",
+    "platforms",
+    "startup",
+    "startups",
+    "app",
+    "apps",
+    "tool",
+    "tools",
+    "pricing",
+    "founder",
+    "founders",
+    "model"
+   ]
+  },
+  {
+   "term": "UX",
+   "category": "Internet",
+   "heard": [
+    "ux",
+    "u x"
+   ]
+  },
+  {
+   "term": "UI",
+   "category": "Internet",
+   "heard": [
+    "ui",
+    "u i"
+   ]
+  },
+  {
+   "term": "UI/UX",
+   "category": "Internet",
+   "heard": [
+    "ui ux",
+    "u i u x",
+    "ui slash ux"
+   ]
+  },
+  {
+   "term": "GPU",
+   "category": "Devices",
+   "heard": [
+    "gpu",
+    "g p u"
+   ]
+  },
+  {
+   "term": "CPU",
+   "category": "Devices",
+   "heard": [
+    "cpu",
+    "c p u"
+   ]
+  },
+  {
+   "term": "DM",
+   "category": "Internet",
+   "heard": [
+    "d m"
+   ],
+   "exact": [
+    "dm"
+   ]
+  },
+  {
+   "term": "DMs",
+   "category": "Internet",
+   "heard": [
+    "dms",
+    "d ms",
+    "d m s"
+   ]
+  },
+  {
+   "term": "FAQ",
+   "category": "Internet",
+   "heard": [
+    "faq",
+    "f a q"
+   ]
+  },
+  {
+   "term": "FAQs",
+   "category": "Internet",
+   "heard": [
+    "faqs",
+    "f a qs",
+    "f a q s"
+   ]
+  },
+  {
+   "term": "CTA",
+   "category": "Internet",
+   "heard": [
+    "cta",
+    "c t a"
+   ]
+  },
+  {
+   "term": "ROI",
+   "category": "Internet",
+   "heard": [
+    "roi",
+    "r o i"
+   ]
+  },
+  {
+   "term": "KPI",
+   "category": "Internet",
+   "heard": [
+    "kpi",
+    "k p i"
+   ]
+  },
+  {
+   "term": "KPIs",
+   "category": "Internet",
+   "heard": [
+    "kpis",
+    "k p is",
+    "k p i s"
+   ]
+  },
+  {
+   "term": "B2B",
+   "category": "Internet",
+   "heard": [
+    "b2b",
+    "b to b",
+    "b 2 b",
+    "b-to-b"
+   ]
+  },
+  {
+   "term": "B2C",
+   "category": "Internet",
+   "heard": [
+    "b2c",
+    "b to c",
+    "b 2 c",
+    "b-to-c"
+   ]
+  },
+  {
+   "term": "CRM",
+   "category": "Internet",
+   "heard": [
+    "crm",
+    "c r m"
+   ]
+  },
+  {
+   "term": "CMS",
+   "category": "Internet",
+   "heard": [
+    "cms",
+    "c m s"
+   ]
+  },
+  {
+   "term": "SMS",
+   "category": "Internet",
+   "heard": [
+    "sms",
+    "s m s"
+   ]
+  },
+  {
+   "term": "QR code",
+   "category": "Internet",
+   "heard": [
+    "qr code",
+    "q r code",
+    "cue are code",
+    "q-r code",
+    "qr-code"
+   ]
+  },
+  {
+   "term": "QR codes",
+   "category": "Internet",
+   "heard": [
+    "qr codes",
+    "q r codes",
+    "cue are codes"
+   ]
+  },
+  {
+   "term": "VPN",
+   "category": "Internet",
+   "heard": [
+    "vpn",
+    "v p n"
+   ]
+  },
+  {
+   "term": "IP address",
+   "category": "Internet",
+   "heard": [
+    "ip address",
+    "i p address",
+    "i.p. address"
+   ]
+  },
+  {
+   "term": "DNS",
+   "category": "Internet",
+   "heard": [
+    "dns",
+    "d n s"
+   ]
+  },
+  {
+   "term": "SSL",
+   "category": "Internet",
+   "heard": [
+    "ssl",
+    "s s l"
+   ]
+  },
+  {
+   "term": "OAuth",
+   "category": "Internet",
+   "heard": [
+    "oauth",
+    "o auth",
+    "oh auth"
+   ]
+  },
+  {
+   "term": "2FA",
+   "category": "Internet",
+   "heard": [
+    "2fa",
+    "two fa",
+    "2 f a",
+    "two f a",
+    "two-fa"
+   ]
+  },
+  {
+   "term": "NFT",
+   "category": "Internet",
+   "heard": [
+    "nft",
+    "n f t"
+   ]
+  },
+  {
+   "term": "NFTs",
+   "category": "Internet",
+   "heard": [
+    "nfts",
+    "n f ts",
+    "n f t s"
+   ]
+  },
+  {
+   "term": "Bitcoin",
+   "category": "Internet",
+   "heard": [
+    "bitcoin",
+    "bit coin"
+   ]
+  },
+  {
+   "term": "Ethereum",
+   "category": "Internet",
+   "heard": [
+    "ethereum",
+    "etherium",
+    "ether ium"
+   ]
+  },
+  {
+   "term": "Web3",
+   "category": "Internet",
+   "heard": [
+    "web3"
+   ]
+  },
+  {
+   "term": "VR",
+   "category": "Internet",
+   "heard": [
+    "vr",
+    "v r"
+   ]
+  },
+  {
+   "term": "UGC",
+   "category": "Internet",
+   "heard": [
+    "ugc",
+    "u g c"
+   ]
+  },
+  {
+   "term": "A/B test",
+   "category": "Internet",
+   "heard": [
+    "a b test",
+    "a-b test",
+    "a slash b test"
+   ]
+  },
+  {
+   "term": "A/B testing",
+   "category": "Internet",
+   "heard": [
+    "a b testing",
+    "a-b testing",
+    "a slash b testing"
+   ]
+  },
+  {
+   "term": "e-commerce",
+   "category": "Internet",
+   "heard": [
+    "ecommerce",
+    "e commerce"
+   ]
+  },
+  {
+   "term": "Q&A",
+   "category": "Internet",
+   "heard": [
+    "q and a",
+    "q & a",
+    "q n a"
+   ]
+  },
+  {
+   "term": "LLC",
+   "category": "Internet",
+   "heard": [
+    "llc",
+    "l l c",
+    "l.l.c."
+   ]
+  },
+  {
+   "term": "CEO",
+   "category": "Internet",
+   "heard": [
+    "ceo",
+    "c e o"
+   ]
+  },
+  {
+   "term": "CTO",
+   "category": "Internet",
+   "heard": [
+    "cto",
+    "c t o"
+   ]
+  },
+  {
+   "term": "CFO",
+   "category": "Internet",
+   "heard": [
+    "cfo",
+    "c f o"
+   ]
+  },
+  {
+   "term": "Gen Z",
+   "category": "Internet",
+   "heard": [
+    "gen z",
+    "gen zee",
+    "jen z",
+    "genz"
+   ]
+  },
+  {
+   "term": "Obsidian",
+   "category": "Software",
+   "context": [
+    "obsidian"
+   ],
+   "after": [
+    "vault",
+    "vaults",
+    "note",
+    "notes",
+    "plugin",
+    "plugins",
+    "graph",
+    "app",
+    "sync"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Framer",
+   "category": "Software",
+   "context": [
+    "framer"
+   ],
+   "after": [
+    "site",
+    "sites",
+    "website",
+    "template",
+    "templates",
+    "component",
+    "components",
+    "project",
+    "motion"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Kindle",
+   "category": "Devices",
+   "context": [
+    "kindle"
+   ],
+   "after": [
+    "book",
+    "books",
+    "app",
+    "unlimited",
+    "paperwhite",
+    "scribe",
+    "edition",
+    "store",
+    "library"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Audible",
+   "category": "Platforms",
+   "context": [
+    "audible"
+   ],
+   "after": [
+    "book",
+    "books",
+    "app",
+    "credit",
+    "credits",
+    "subscription",
+    "library",
+    "account"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Tailwind",
+   "category": "Software",
+   "context": [
+    "tailwind"
+   ],
+   "after": [
+    "css",
+    "class",
+    "classes",
+    "config",
+    "theme",
+    "component",
+    "components",
+    "ui"
+   ],
+   "boost": false
+  },
+  {
+   "term": "React",
+   "category": "Software",
+   "context": [
+    "react"
+   ],
+   "after": [
+    "app",
+    "apps",
+    "component",
+    "components",
+    "native",
+    "hook",
+    "hooks",
+    "router",
+    "query",
+    "project",
+    "code",
+    "state"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Adobe",
+   "category": "Brands",
+   "context": [
+    "adobe"
+   ],
+   "after": [
+    "account",
+    "subscription",
+    "suite",
+    "apps",
+    "app",
+    "cloud",
+    "fonts",
+    "stock",
+    "express",
+    "creative"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Notion Calendar",
+   "category": "Software",
+   "heard": [
+    "notion calendar"
+   ]
+  },
+  {
+   "term": "YouTuber",
+   "category": "Platforms",
+   "heard": [
+    "youtuber",
+    "you tuber",
+    "you-tuber"
+   ]
+  },
+  {
+   "term": "YouTubers",
+   "category": "Platforms",
+   "heard": [
+    "youtubers",
+    "you tubers",
+    "you-tubers"
+   ]
+  },
+  {
+   "term": "YouTube Shorts",
+   "category": "Platforms",
+   "heard": [
+    "youtube shorts",
+    "you tube shorts"
+   ]
+  },
+  {
+   "term": "TikToker",
+   "category": "Platforms",
+   "heard": [
+    "tiktoker",
+    "tik toker",
+    "tik-toker"
+   ]
+  },
+  {
+   "term": "TikTokers",
+   "category": "Platforms",
+   "heard": [
+    "tiktokers",
+    "tik tokers"
+   ]
+  },
+  {
+   "term": "Instagram Reels",
+   "category": "Platforms",
+   "heard": [
+    "instagram reels",
+    "insta reels"
+   ]
+  },
+  {
+   "term": "Facebook Marketplace",
+   "category": "Platforms",
+   "heard": [
+    "facebook marketplace",
+    "face book marketplace"
+   ]
+  },
+  {
+   "term": "Google Business Profile",
+   "category": "Platforms",
+   "heard": [
+    "google business profile"
+   ]
+  },
+  {
+   "term": "Google My Business",
+   "category": "Platforms",
+   "heard": [
+    "google my business"
+   ]
+  },
+  {
+   "term": "Squarespace Domains",
+   "category": "Platforms",
+   "heard": [
+    "squarespace domains"
+   ]
+  },
+  {
+   "term": "Shopify Plus",
+   "category": "Platforms",
+   "heard": [
+    "shopify plus"
+   ]
+  },
+  {
+   "term": "Stripe Checkout",
+   "category": "Platforms",
+   "heard": [
+    "stripe checkout"
+   ]
+  },
+  {
+   "term": "Calendly link",
+   "category": "Software",
+   "heard": [
+    "calendly link",
+    "calendar ly link"
+   ]
+  },
+  {
+   "term": "Zoom link",
+   "category": "Platforms",
+   "heard": [
+    "zoom link"
+   ]
+  },
+  {
+   "term": "ChatGPT Plus",
+   "category": "AI",
+   "heard": [
+    "chatgpt plus",
+    "chat gpt plus"
+   ]
+  },
+  {
+   "term": "Claude Pro",
+   "category": "AI",
+   "heard": [
+    "claude pro"
+   ]
+  },
+  {
+   "term": "Claude.ai",
+   "category": "AI",
+   "heard": [
+    "claude dot ai"
+   ]
+  },
+  {
+   "term": "Gemini Advanced",
+   "category": "AI",
+   "heard": [
+    "gemini advanced"
+   ]
+  },
+  {
+   "term": "Copilot Pro",
+   "category": "AI",
+   "heard": [
+    "copilot pro",
+    "co-pilot pro"
+   ]
+  },
+  {
+   "term": "Runway ML",
+   "category": "AI",
+   "heard": [
+    "runway ml",
+    "runway m l"
+   ]
+  },
+  {
+   "term": "Leonardo.Ai",
+   "category": "AI",
+   "heard": [
+    "leonardo ai",
+    "leonardo a i"
+   ]
+  },
+  {
+   "term": "Recraft",
+   "category": "AI",
+   "heard": [
+    "recraft"
+   ]
+  },
+  {
+   "term": "Krea AI",
+   "category": "AI",
+   "heard": [
+    "krea ai",
+    "krea a i"
+   ]
+  },
+  {
+   "term": "Kling AI",
+   "category": "AI",
+   "heard": [
+    "kling ai",
+    "kling a i"
+   ]
+  },
+  {
+   "term": "Character.AI",
+   "category": "AI",
+   "heard": [
+    "character a i",
+    "character dot ai"
+   ]
+  },
+  {
+   "term": "Granola",
+   "category": "AI",
+   "heard": [
+    "granola ai",
+    "granola app"
+   ]
+  },
+  {
+   "term": "Fireflies.ai",
+   "category": "AI",
+   "heard": [
+    "fireflies ai",
+    "fireflies a i",
+    "fireflies dot ai"
+   ]
+  },
+  {
+   "term": "Gamma app",
+   "category": "AI",
+   "heard": [
+    "gamma app"
+   ]
+  },
+  {
+   "term": "Cursor AI",
+   "category": "AI",
+   "heard": [
+    "cursor ai",
+    "cursor a i"
+   ]
+  },
+  {
+   "term": "Windsurf",
+   "category": "AI",
+   "heard": [
+    "windsurf ai",
+    "windsurf ide"
+   ]
+  },
+  {
+   "term": "Bolt.new",
+   "category": "AI",
+   "heard": [
+    "bolt dot new"
+   ]
+  },
+  {
+   "term": "v0",
+   "category": "AI",
+   "heard": [
+    "vercel v0",
+    "vercel v zero"
+   ]
+  },
+  {
+   "term": "Groq",
+   "category": "AI",
+   "heard": [
+    "groq"
+   ]
+  },
+  {
+   "term": "xAI",
+   "category": "AI",
+   "heard": [
+    "x ai",
+    "x a i"
+   ]
+  },
+  {
+   "term": "Grok",
+   "category": "AI",
+   "heard": [
+    "grok ai",
+    "grok 3",
+    "grok 4"
+   ]
+  },
+  {
+   "term": "Llama 3",
+   "category": "AI",
+   "heard": [
+    "llama 3"
+   ]
+  },
+  {
+   "term": "Mistral AI",
+   "category": "AI",
+   "heard": [
+    "mistral ai",
+    "mistral a i"
+   ]
+  },
+  {
+   "term": "Claude Sonnet",
+   "category": "AI",
+   "heard": [
+    "claude sonnet",
+    "claud sonnet"
+   ]
+  },
+  {
+   "term": "Claude Opus",
+   "category": "AI",
+   "heard": [
+    "claude opus",
+    "claud opus"
+   ]
+  },
+  {
+   "term": "Claude Haiku",
+   "category": "AI",
+   "heard": [
+    "claude haiku",
+    "claud haiku"
+   ]
+  },
+  {
+   "term": "GPT-4.1",
+   "category": "AI",
+   "heard": [
+    "gpt 4.1",
+    "gpt four point one"
+   ]
+  },
+  {
+   "term": "AirPods case",
+   "category": "Devices",
+   "heard": [
+    "airpods case",
+    "air pods case"
+   ]
+  },
+  {
+   "term": "Magic Mouse",
+   "category": "Devices",
+   "heard": [
+    "magic mouse"
+   ]
+  },
+  {
+   "term": "Magic Keyboard",
+   "category": "Devices",
+   "heard": [
+    "magic keyboard"
+   ]
+  },
+  {
+   "term": "Pro Display XDR",
+   "category": "Devices",
+   "heard": [
+    "pro display xdr",
+    "pro display x d r"
+   ]
+  },
+  {
+   "term": "Thunderbolt",
+   "category": "Devices",
+   "context": [
+    "thunderbolt"
+   ],
+   "after": [
+    "port",
+    "ports",
+    "cable",
+    "cables",
+    "dock",
+    "docks",
+    "display",
+    "drive",
+    "3",
+    "4",
+    "5"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Lightning cable",
+   "category": "Devices",
+   "heard": [
+    "lightning cable",
+    "lightning cables"
+   ]
+  },
+  {
+   "term": "MagSafe",
+   "category": "Devices",
+   "heard": [
+    "magsafe",
+    "mag safe",
+    "mag-safe"
+   ]
+  },
+  {
+   "term": "Face ID",
+   "category": "Software",
+   "heard": [
+    "face id",
+    "face i d",
+    "faceid"
+   ]
+  },
+  {
+   "term": "Touch ID",
+   "category": "Software",
+   "heard": [
+    "touch id",
+    "touch i d",
+    "touchid"
+   ]
+  },
+  {
+   "term": "Dynamic Island",
+   "category": "Software",
+   "heard": [
+    "dynamic island"
+   ]
+  },
+  {
+   "term": "Finder window",
+   "category": "Software",
+   "heard": [
+    "finder window"
+   ]
+  },
+  {
+   "term": "Time Machine",
+   "category": "Software",
+   "heard": [
+    "time machine backup",
+    "time machine backups"
+   ]
+  },
+  {
+   "term": "Keychain",
+   "category": "Software",
+   "context": [
+    "keychain"
+   ],
+   "after": [
+    "access",
+    "password",
+    "passwords",
+    "item",
+    "items"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Shortcuts app",
+   "category": "Software",
+   "heard": [
+    "shortcuts app"
+   ]
+  },
+  {
+   "term": "Liquid Glass",
+   "category": "Software",
+   "heard": [
+    "liquid glass"
+   ]
+  },
+  {
+   "term": "Galaxy S25",
+   "category": "Devices",
+   "heard": [
+    "galaxy s25",
+    "galaxy s 25"
+   ]
+  },
+  {
+   "term": "Pixel 9",
+   "category": "Devices",
+   "heard": [
+    "pixel 9",
+    "pixel nine"
+   ]
+  },
+  {
+   "term": "Nest thermostat",
+   "category": "Devices",
+   "heard": [
+    "nest thermostat"
+   ]
+  },
+  {
+   "term": "Starlink",
+   "category": "Devices",
+   "heard": [
+    "starlink",
+    "star link"
+   ]
+  },
+  {
+   "term": "Tesla Model 3",
+   "category": "Devices",
+   "heard": [
+    "tesla model 3",
+    "tesla model three"
+   ]
+  },
+  {
+   "term": "Tesla Model Y",
+   "category": "Devices",
+   "heard": [
+    "tesla model y"
+   ]
+  },
+  {
+   "term": "Oculus",
+   "category": "Devices",
+   "heard": [
+    "oculus"
+   ]
+  },
+  {
+   "term": "Meta Ray-Ban",
+   "category": "Devices",
+   "heard": [
+    "meta ray ban",
+    "meta ray-ban",
+    "meta rayban"
+   ]
+  },
+  {
+   "term": "Sony a7",
+   "category": "Devices",
+   "heard": [
+    "sony a7",
+    "sony a 7",
+    "sony a seven"
+   ]
+  },
+  {
+   "term": "Canon R5",
+   "category": "Devices",
+   "heard": [
+    "canon r5",
+    "canon r 5"
+   ]
+  },
+  {
+   "term": "Rode mic",
+   "category": "Devices",
+   "heard": [
+    "rode mic",
+    "rode microphone"
+   ]
+  },
+  {
+   "term": "Shure SM7B",
+   "category": "Devices",
+   "heard": [
+    "shure sm7b",
+    "sure sm7b",
+    "shure sm 7 b",
+    "sm7b",
+    "sm 7 b"
+   ]
+  },
+  {
+   "term": "Zoom H6",
+   "category": "Devices",
+   "heard": [
+    "zoom h6",
+    "zoom h 6"
+   ]
+  }
+ ]
+}

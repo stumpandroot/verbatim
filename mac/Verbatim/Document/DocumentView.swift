@@ -105,6 +105,8 @@ struct DocumentView: View {
                 t.document = new
             }
         } else {
+            // Typing: the fixes in it can become Dictionary suggestions (EditSessions).
+            EditSessions.shared.typed(transcript.id, before: text, after: new)
             app.store.updateDeferred(transcript.id) { $0.document = new }
         }
     }

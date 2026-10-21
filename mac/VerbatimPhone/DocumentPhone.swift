@@ -58,6 +58,7 @@ struct PhoneDocument: View {
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
                 .onChange(of: text) { _, v in
                     guard loaded, v != transcript.documentText else { return }
+                    EditSessions.shared.typed(transcript.id, before: transcript.documentText, after: v)
                     app.store.updateDeferred(transcript.id) { $0.document = v }
                     relint()
                 }

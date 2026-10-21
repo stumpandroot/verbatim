@@ -236,6 +236,9 @@ enum PhoneUITest {
         check("cleanup removes fillers on the iPhone", CleanupPrepass.clean("Um, I think, you know, it works.") == "I think it works.")
         check("grammar pass fixes a/an and capitals on the iPhone", GrammarPass.fix("i sent a email.") == "I sent an email.")
         check("switching back to the host app is off in UI tests", KeyboardSession.returnToHostApp(linkHost: "com.apple.MobileSMS") == .failed("UI test", retry: false))
+        VocabularySelfTest.run(check)
+        check("settings search finds built-in vocabulary",
+              SettingsSearchIndex.search("modern words").flatMap(\.entries).contains { $0.id == "builtInVocabulary" })
         Log.note("UITEST keyboard checks: \(pass) passed, \(fail) failed")
     }
 
