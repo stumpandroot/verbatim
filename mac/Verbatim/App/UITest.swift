@@ -798,6 +798,98 @@ enum UITest {
               && !SidebarRules.canHide("gone", hidden: [], known: known))
         check("sidebar move", SidebarRules.move("you", to: "library", in: known) == ["home", "you", "library", "links"]
               && SidebarRules.move("home", to: "links", in: known) == ["library", "links", "home", "you"])
+        cleanupChecks(check)
+    }
+
+    /// Dictation cleanup rules (CleanupPrepass), Harper's grammar pass, and the guards. No model, no network.
+    private static func cleanupChecks(_ check: (String, Bool) -> Void) {
+        func clean(_ input: String, _ want: String) {
+            let got = CleanupPrepass.clean(input)
+            if got != want { Log.note("UITEST cleanup got “\(got)” for “\(input)”") }
+            check("cleanup: \(input)", got == want)
+        }
+        // Filler sounds
+        clean("Um, I think we should go.", "I think we should go.")
+        clean("um so I think we should uh meet on Thursday", "So I think we should meet on Thursday")
+        clean("So, um, I think it works.", "So, I think it works.")
+        clean("And, uh, then we left.", "And then we left.")
+        clean("We should, um.", "We should.")
+        clean("Um. Let's start.", "Let's start.")
+        clean("Uh... so the plan is set.", "So the plan is set.")
+        clean("Hmm, let me check. Er, the file is there.", "Let me check. The file is there.")
+        clean("I need, uh, three copies.", "I need three copies.")
+        clean("If you're free tomorrow, um, let's meet.", "If you're free tomorrow, let's meet.")
+        clean("Erm, okay, let's go.", "Okay, let's go.")
+        clean("Um, um, um.", "")
+        // Filler sounds that stay
+        clean("The cut is 5 mm wide.", "The cut is 5 mm wide.")
+        clean("Take him to the ER now.", "Take him to the ER now.")
+        clean("Huh? What did you say?", "Huh? What did you say?")
+        clean("Uh-huh, that's right.", "Uh-huh, that's right.")
+        clean("Uh huh, that's right.", "Uh huh, that's right.")
+        clean("Mm hmm.", "Mm hmm.")
+        clean("Grab the umbrella and the hummus.", "Grab the umbrella and the hummus.")
+        // "You know"
+        clean("You know, I think we should wait.", "I think we should wait.")
+        clean("It was hard, you know.", "It was hard.")
+        clean("It's tough, you know?", "It's tough, you know?")
+        clean("Do you know the answer?", "Do you know the answer?")
+        clean("You know the answer?", "You know the answer?")
+        clean("As you know, the budget is tight.", "As you know, the budget is tight.")
+        clean("I told him, you know the drill.", "I told him, you know the drill.")
+        // "I mean"
+        clean("I mean, it's fine.", "It's fine.")
+        clean("I mean it.", "I mean it.")
+        clean("I mean what I say.", "I mean what I say.")
+        clean("Let's meet Tuesday. I mean, Wednesday.", "Let's meet Tuesday. I mean, Wednesday.")
+        clean("It costs 50, I mean, 60 dollars.", "It costs 50, I mean, 60 dollars.")
+        // "Like"
+        clean("I like it.", "I like it.")
+        clean("It was, like, really good.", "It was really good.")
+        clean("Like, I don't know.", "I don't know.")
+        clean("There were, like, 50 people.", "There were, like, 50 people.")
+        clean("We need a few things, like, the photos.", "We need a few things, like, the photos.")
+        clean("Like I said, it works.", "Like I said, it works.")
+        clean("I'd like, um, two coffees.", "I'd like two coffees.")
+        // Stutters, repeats, and false starts
+        clean("I-I-I think so.", "I think so.")
+        clean("It was so-so, bye-bye.", "It was so-so, bye-bye.")
+        clean("th- the dog ran", "The dog ran")
+        clean("We need pre- and post-production.", "We need pre- and post-production.")
+        clean("I had had enough.", "I had had enough.")
+        clean("No no, that's wrong.", "No no, that's wrong.")
+        clean("I think I think we should go.", "I think we should go.")
+        clean("We went to Bora Bora.", "We went to Bora Bora.")
+        clean("We should — we need to finish today.", "We need to finish today.")
+        clean("I was going to -- I'll call you later.", "I'll call you later.")
+        clean("We have three options — red, blue, and green.", "We have three options — red, blue, and green.")
+        clean("The plan - the new one - is ready.", "The plan - the new one - is ready.")
+        // Together
+        clean("um hi Sarah comma uh I wanted to follow up on the proposal period", "Hi Sarah, I wanted to follow up on the proposal.")
+        clean("Hi team, um, quick update. The, uh, the shoot moved to Friday. Uh, let me know if, you know, that works.",
+              "Hi team, quick update. The shoot moved to Friday. Let me know if that works.")
+        check("cleanup: Literal keeps fillers", CleanupPrepass.literal("um I like it") == "Um I like it")
+
+        // Harper's grammar pass and its guard
+        check("grammar fixes a/an, capitals, and i", GrammarPass.fix("i think we should send a email. it's a easy fix.") == "I think we should send an email. It's an easy fix.")
+        check("grammar keeps had had and iPhone", GrammarPass.fix("I had had enough. iPhone sales are up.") == "I had had enough. iPhone sales are up.")
+        check("grammar keeps line breaks", GrammarPass.fix("Three things:\n1. The photos\n2. the copy") == "Three things:\n1. The photos\n2. The copy")
+        check("grammar guard rejects a changed number", !GrammarPass.accepts(original: "I sent 500 units.", fixed: "I sent 50 units."))
+        check("grammar guard rejects a dropped not", !GrammarPass.accepts(original: "I do not agree.", fixed: "I do agree."))
+        check("grammar guard rejects IPhone", !GrammarPass.accepts(original: "iPhone sales", fixed: "IPhone sales"))
+        check("grammar guard rejects changed punctuation", !GrammarPass.accepts(original: "Yes, we can.", fixed: "Yes we can."))
+
+        // Guards: Polished may tighten rambling to 40%; Clean keeps 50%.
+        let ramble = "So basically what I was kind of thinking is that we should probably sort of move the shoot to Friday."
+        check("polished may tighten rambling", MeaningCheck.problem(raw: ramble, output: "I think we should move the shoot to Friday.", limits: .polished) == nil)
+        check("clean keeps the 50% floor", MeaningCheck.problem(raw: ramble, output: "I think we should move the shoot to Friday.", limits: .clean) != nil)
+        check("polished still catches a changed day", MeaningCheck.problem(raw: ramble, output: "I think we should move the shoot to Monday.", limits: .polished) != nil)
+
+        // Cloud cleanup: off by default, never configured without a key.
+        check("cloud cleanup is off by default", UserDefaults.standard.object(forKey: CloudCleanup.enabledKey) != nil || CloudCleanup.current == nil)
+        check("cloud cleanup privacy line", CloudCleanup.privacyNote(.openai) == "Your words are sent to OpenAI for cleanup. Your audio stays on this device.")
+        check("cloud cleanup default models", CloudCleanup.Provider.anthropic.defaultModel == "claude-haiku-5-5" && CloudCleanup.Provider.openai.defaultModel == "gpt-5.4-mini")
+        check("settings search finds cloud cleanup", SettingsIndex.search("api key").map(\.id).contains("dictate.cloudKey"))
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {

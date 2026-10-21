@@ -209,6 +209,8 @@ struct SettingsScreen: View {
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("cleanup", flash: searchFlash)
         SettingsDivider()
+        CloudCleanupRows(searchFlash: searchFlash)
+        SettingsDivider()
         SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, art: .iconSpeakers, title: "Identify speakers", isOn: $app.identifySpeakers)
             .settingsSearchTarget("speakers", flash: searchFlash)
         SettingsDivider()
@@ -282,10 +284,10 @@ struct SettingsScreen: View {
         switch flow.cleanup {
         case .none: what = "Keyboard dictations go in as spoken, with punctuation and capitals."
         case .light: what = "Removes ums, repeats, and false starts, and turns spoken lists into lists. Keeps your wording."
-        case .medium: what = "Everything Clean does, plus fixes grammar and smooths rambling sentences. Keeps your meaning and voice."
+        case .medium: what = "Everything Clean does, plus fixes grammar, splits run-on sentences, and smooths rambling. Keeps your meaning and voice."
         }
         guard flow.cleanup.usesModel, !FlowCleanup.available else { return what }
-        return what + " Without Apple Intelligence on this iPhone, only repeats, lists, and paragraphs are fixed."
+        return what + " Without Apple Intelligence on this iPhone, rules remove ums, repeats, and false starts, fix capitals and “a” or “an,” and make lists and paragraphs."
     }
 
     private var syncSubtitle: String {

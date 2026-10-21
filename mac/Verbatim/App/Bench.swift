@@ -320,7 +320,7 @@ enum Bench {
                         do {
                             let r = try await timed(30) {
                                 await FlowCleanup.run(.init(raw: req.raw, level: req.level, style: req.style, category: req.category,
-                                                            context: nil, vocabulary: vocabulary, useContext: false))
+                                                            context: nil, vocabulary: vocabulary, useContext: false, allowCloud: false))
                             }
                             out.seconds = Date().timeIntervalSince(tc)
                             out.text = r.text

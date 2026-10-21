@@ -209,9 +209,9 @@ enum Summarizer {
     /// more with the guardrails Apple relaxes for transforming the person's own text, as plain text.
     @available(macOS 26, iOS 26, *)
     private static func summarizePart(_ text: String, index: Int, of total: Int, depth: Int = 0) async throws -> [TranscriptSummary] {
-        let prompt = total > 1
+        let prompt = AboutMeContext.promptPrefix + (total > 1
             ? "Transcript, part \(index + 1) of \(total):\n<transcript>\n\(text)\n</transcript>"
-            : "Transcript:\n<transcript>\n\(text)\n</transcript>"
+            : "Transcript:\n<transcript>\n\(text)\n</transcript>")
         do {
             // A fresh session per part, so no earlier part sits in the context window.
             let session = LanguageModelSession(instructions: instructions)
@@ -340,6 +340,20 @@ enum OnDeviceText {
     }
 }
 #endif
+
+/// The person's About me (You page, Settings): reference for spelling names and wording, never content to add.
+enum AboutMeContext {
+    static let key = "profile.aboutMe"
+    static var text: String? {
+        let t = (UserDefaults.standard.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : String(t.prefix(300))
+    }
+    /// A prompt prefix, or "" when there's no About me.
+    static var promptPrefix: String {
+        guard let t = text else { return "" }
+        return "About the person who made this recording (reference only, for spelling names and terms; never add it to your answer):\n<about>\n\(t)\n</about>\n\n"
+    }
+}
 
 /// Declines the model writes as an answer instead of throwing.
 enum OnDeviceTextRefusal {

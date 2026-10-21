@@ -118,7 +118,7 @@ enum AutoLabel {
                 that matter most. Use specific words from the summary (names, places, projects). Never use vague \
                 titles such as "Testing", "Voice memo", "Random thoughts", or "Update". No quotes and no trailing period.
                 """
-            let prompt = "Summary:\n<summary>\n\(summary.plainText)\n</summary>"
+            let prompt = AboutMeContext.promptPrefix + "Summary:\n<summary>\n\(summary.plainText)\n</summary>"
             guard let answer = try? await OnDeviceText.respond(instructions: instructions, prompt: prompt) else { return nil }
             let line = answer.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty } ?? ""
             let stripped = line.uppercased().hasPrefix("TITLE:") ? String(line.dropFirst(6)) : line
@@ -137,7 +137,7 @@ enum AutoLabel {
         if #available(macOS 26, iOS 26, *), case .ready = Polish.status {
             do {
                 let session = LanguageModelSession(instructions: labelInstructions)
-                let r = try await session.respond(to: "Transcript excerpt (\(speakers) speaker\(speakers == 1 ? "" : "s"), \(Int(duration / 60)) min):\n\(text)",
+                let r = try await session.respond(to: AboutMeContext.promptPrefix + "Transcript excerpt (\(speakers) speaker\(speakers == 1 ? "" : "s"), \(Int(duration / 60)) min):\n\(text)",
                                                   generating: GeneratedLabels.self)
                 let kind = RecordingKind(rawValue: r.content.kind.lowercased().trimmingCharacters(in: .whitespaces))
                     .flatMap { RecordingKind.pickable.contains($0) ? $0 : nil } ?? fallback.kind
@@ -147,7 +147,7 @@ enum AutoLabel {
             } catch {
                 // Declined (guardrails) or failed: once more as plain text with Apple's relaxed guardrails.
                 Log.note("autolabel: guided labels declined (\(String(describing: type(of: error)))); trying plain text")
-                let prompt = "Transcript excerpt (\(speakers) speaker\(speakers == 1 ? "" : "s"), \(Int(duration / 60)) min):\n\(text)"
+                let prompt = AboutMeContext.promptPrefix + "Transcript excerpt (\(speakers) speaker\(speakers == 1 ? "" : "s"), \(Int(duration / 60)) min):\n\(text)"
                 guard let answer = try? await OnDeviceText.respond(instructions: labelInstructions + "\n" + plainLabelFormat, prompt: prompt),
                       !OnDeviceTextRefusal.isRefusal(answer) else { return fallback }
                 let p = parsePlainLabels(answer)

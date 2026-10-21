@@ -8,7 +8,9 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-harper-core = "2"
+# Pinned: 2.11.0 (Apache-2.0, crates.io, Sep 16 2026) is the version CI builds with the vendored zip crates and Rust 1.97.
+# 2.13.0 (Oct 16 2026) exists; update on purpose and re-check harper_fix's rule names (FIX_RULES in src/lib.rs).
+harper-core = "=2.11.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -23,7 +23,9 @@ if ! command -v xcodegen >/dev/null 2>&1; then
 fi
 
 # Harper (spelling and grammar). Built from source when Rust is installed; otherwise from the CI download.
-if [ ! -f Vendor/harper/libharper_ffi.a ] || [ ! -f Vendor/harper/ios/libharper_ffi.a ] || [ ! -f Vendor/harper/ios-sim/libharper_ffi.a ]; then
+# Libraries built before harper_fix (the dictation grammar pass) existed are rebuilt too.
+harper_stale() { [ ! -f "$1" ] || ! nm "$1" 2>/dev/null | grep -q harper_fix; }
+if harper_stale Vendor/harper/libharper_ffi.a || harper_stale Vendor/harper/ios/libharper_ffi.a || harper_stale Vendor/harper/ios-sim/libharper_ffi.a; then
   if command -v cargo >/dev/null 2>&1; then
     echo "Building Harper for Mac and iPhone (a few minutes the first time)…"
     rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios >/dev/null
