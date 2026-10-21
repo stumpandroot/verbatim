@@ -55,6 +55,8 @@ final class PhoneState: ObservableObject {
     /// The export sheet (PhoneExportSheet), for one transcript or several.
     @Published var exportRequest: PhoneExportRequest? = nil
     @Published var showImporter = false
+    /// Transcribe what's playing (PhoneWhatsPlaying.swift): the sheet with the system broadcast picker.
+    @Published var showPlayingSheet = false
     @Published var showOnboarding = Onboarding.shouldShow
     /// "New project…" from a row's menu: name it, then the transcript moves into it.
     @Published var newProjectFor: UUID? = nil
@@ -96,6 +98,10 @@ final class PhoneState: ObservableObject {
         coordinator.resume(includeUnowned: false)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
         if !PhoneUITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
+        // Files and links shared to Verbatim, and sound from Transcribe what's playing (PhoneInbox.swift). PhoneRoot
+        // imports again each time the app becomes active; the broadcast extension's notification covers an open app.
+        watchInbox()
+        if !PhoneUITest.enabled { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.importInbox() } }
         if PhoneUITest.enabled { PhoneUITest.run(self) }
     }
 
@@ -266,30 +272,62 @@ final class PhoneState: ObservableObject {
 
     // MARK: Import
 
-    func importFiles(_ urls: [URL]) {
+    @discardableResult
+    func importFiles(_ urls: [URL]) -> [UUID] {
         let files = MediaImport.expand(urls)
-        guard !files.isEmpty else { say("No audio or video found."); return }
-        var pending: [(UUID, URL)] = []
-        for src in files {
-            var t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file, sourceLabel: src.pathExtension.uppercased() + " file", duration: 0, audioFileName: nil, model: "")
+        guard !files.isEmpty else { say("No audio or video found."); return [] }
+        let ids = importSources(files.map {
+            ImportSource(url: $0, title: $0.deletingPathExtension().lastPathComponent, label: $0.pathExtension.uppercased() + " file")
+        })
+        if files.count > 1 { say("Added \(files.count) files") }
+        return ids
+    }
+
+    /// A file to import, and what its transcript is called and says about where it came from.
+    struct ImportSource {
+        var url: URL
+        var title: String
+        var label: String
+        var source: SourceKind = .file
+        var createdAt: Date? = nil
+        /// Runs once the audio is prepared or the import failed (the inbox deletes its staged copy here).
+        var finished: (() -> Void)? = nil
+    }
+
+    /// The import path for picked, shared, and played files: each transcript appears at once ("Importing"), then
+    /// its audio is prepared (video becomes M4A) and it joins the transcription queue.
+    @discardableResult
+    func importSources(_ sources: [ImportSource]) -> [UUID] {
+        var pending: [(UUID, ImportSource)] = []
+        for s in sources {
+            var t = Transcript(title: s.title, source: s.source, sourceLabel: s.label, duration: 0, audioFileName: nil, model: "")
+            if let d = s.createdAt { t.createdAt = d }
             t.status = .processing; t.stage = "Importing"; t.processingDevice = Device.id; t.processingDeviceName = Device.name
             store.add(t)
-            pending.append((t.id, src))
+            pending.append((t.id, s))
         }
-        if files.count > 1 { say("Added \(files.count) files") }
         Task {
-            for (id, src) in pending {
+            for (id, s) in pending {
+                let src = s.url
                 let access = src.startAccessingSecurityScopedResource()
-                defer { if access { src.stopAccessingSecurityScopedResource() } }
                 do {
                     let prepared = try await MediaImport.prepare(src, into: store.newAudioURL(ext: "m4a"))
-                    store.update(id) { $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued" }
-                    coordinator.enqueueExisting(id)
+                    if store.transcript(id) == nil {
+                        // Cancelled from the "added" card while the audio was being prepared.
+                        try? FileManager.default.removeItem(at: prepared.url)
+                    } else {
+                        store.update(id) { $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued" }
+                        // The screenshot tour never runs the speech engines (they download models).
+                        if !PhoneUITest.enabled { coordinator.enqueueExisting(id) }
+                    }
                 } catch {
                     store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                 }
+                if access { src.stopAccessingSecurityScopedResource() }
+                s.finished?()
             }
         }
+        return pending.map { $0.0 }
     }
 
     /// Adds a link: the transcript appears in Library right away, then this iPhone resolves the link, downloads

@@ -111,6 +111,19 @@ struct HomeScreen: View {
                 .padding(.horizontal, 14).frame(height: 52)
             }
             .buttonStyle(TactileButtonStyle())
+            // Sound from TikTok or any app, through the broadcast extension (PhoneWhatsPlaying.swift).
+            Button { app.showPlayingSheet = true } label: {
+                HStack(spacing: 10) {
+                    VideoTileIcon(color: Ink.ink).frame(width: 24, height: 24)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Transcribe what's playing").font(.system(size: 15, weight: .semibold))
+                        Text("Sound from TikTok or any app").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14).frame(height: 52)
+            }
+            .buttonStyle(TactileButtonStyle())
         }
         .padding(14)
         .cardSurface(radius: 22)

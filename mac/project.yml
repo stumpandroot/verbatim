@@ -157,6 +157,8 @@ targets:
       - VerbatimKeyboard/VoiceBars.swift
       # Shared with the widget extension: the keyboard session's Live Activity and its End session intent.
       - VerbatimWidgets/SessionActivity.swift
+      # Shared with the share and broadcast extensions: the App Group inbox they fill and the app imports.
+      - VerbatimShare/VerbatimInbox.swift
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
@@ -168,6 +170,10 @@ targets:
       - target: VerbatimKeyboard
       # The keyboard session's Live Activity (Dynamic Island and Lock Screen), also in PlugIns.
       - target: VerbatimWidgets
+      # Verbatim in the share sheet (videos, audio, links), also in PlugIns.
+      - target: VerbatimShare
+      # Transcribe what's playing: the ReplayKit broadcast extension that keeps app audio only, also in PlugIns.
+      - target: VerbatimBroadcast
     info:
       path: VerbatimPhone/Info.plist
       properties:
@@ -295,6 +301,97 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.widgets
         PRODUCT_NAME: VerbatimWidgets
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        TARGETED_DEVICE_FAMILY: "1,2"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        APPLICATION_EXTENSION_API_ONLY: true
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
+
+  # Verbatim in the share sheet. A shared video or audio file is copied into the App Group inbox
+  # (VerbatimShare/VerbatimInbox.swift) and transcribed the next time the app opens; a web link goes to the app's link
+  # flow. A TikTok link gets an explanation instead: nothing here downloads TikTok media (guideline 5.2.3). Only the
+  # palette is shared, to stay small.
+  VerbatimShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VerbatimShare
+        excludes: ["Info.plist", "VerbatimShare.entitlements"]
+      - Verbatim/Views/Tokens.swift
+    info:
+      path: VerbatimShare/Info.plist
+      properties:
+        CFBundleName: Verbatim
+        CFBundleDisplayName: Verbatim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            # Up to five videos or audio files, or a web link (not other files shared by location).
+            NSExtensionActivationRule: >-
+              SUBQUERY(extensionItems, $extensionItem, SUBQUERY($extensionItem.attachments, $attachment,
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.movie"
+              OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.audio"
+              OR (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
+              AND NOT (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url"))
+              ).@count BETWEEN {1, 5}).@count >= 1
+    entitlements:
+      path: VerbatimShare/VerbatimShare.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.share
+        PRODUCT_NAME: VerbatimShare
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        TARGETED_DEVICE_FAMILY: "1,2"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        APPLICATION_EXTENSION_API_ONLY: true
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
+
+  # Transcribe what's playing: a ReplayKit broadcast upload extension. It keeps only the sound other apps play
+  # (.audioApp), never the screen or the microphone, streams it to an AAC file in the App Group, and the app
+  # transcribes it when the broadcast stops (VerbatimBroadcast/SampleHandler.swift).
+  VerbatimBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VerbatimBroadcast
+        excludes: ["Info.plist", "VerbatimBroadcast.entitlements"]
+      - VerbatimShare/VerbatimInbox.swift
+    info:
+      path: VerbatimBroadcast/Info.plist
+      properties:
+        CFBundleName: Verbatim
+        CFBundleDisplayName: Verbatim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SampleHandler
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    entitlements:
+      path: VerbatimBroadcast/VerbatimBroadcast.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.broadcast
+        PRODUCT_NAME: VerbatimBroadcast
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"

@@ -18,6 +18,7 @@ struct VerbatimPhoneApp: App {
 /// Four tabs in the system tab bar (Liquid Glass on iOS 26). Paper underneath; the recorder covers the screen.
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
+    @Environment(\.scenePhase) private var scenePhase
     @State private var newProjectName = ""
 
     var body: some View {
@@ -50,6 +51,8 @@ struct PhoneRoot: View {
         .overlay { PhoneLinkCardLayer() }
         .overlay { SessionStartLayer(session: app.session) }
         .onOpenURL { url in _ = app.session.handle(url) }
+        // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
+        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
@@ -67,6 +70,7 @@ struct PhoneRoot: View {
         } message: { Text("The transcript moves into it.") }
         .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
+        .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet() }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in

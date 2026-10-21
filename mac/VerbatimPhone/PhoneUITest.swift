@@ -43,6 +43,22 @@ enum PhoneUITest {
                 await show("\(prefix)03b-link-card")
                 app.linkCardImport = nil
                 try? await Task.sleep(nanoseconds: 400_000_000)
+                // Transcribe what's playing: the sheet, with the system broadcast picker behind Start.
+                app.showPlayingSheet = true
+                await show("\(prefix)03c-whats-playing")
+                app.showPlayingSheet = false
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                if prefix == "p" {
+                    // A file shared to Verbatim: a generated clip seeded into the App Group inbox, then imported the way
+                    // a launch does. The "added" card lands on the Library tab, where the new row shows.
+                    seedInbox()
+                    app.importInbox()
+                    try? await Task.sleep(nanoseconds: 2_600_000_000)
+                    app.tab = .library
+                    await show("p03d-inbox-import")
+                    app.tab = .home
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                }
                 app.tab = .library
                 await show("\(prefix)04-library")
                 app.libraryPath.append(DictationsRoute())
@@ -245,6 +261,16 @@ enum PhoneUITest {
         dictate("Can you send the dealer sheet as a PDF by Friday? Same photos, trimmed copy.", minutesAgo: 60 * 26)
         add("Wheel sizes to confirm", .note, daysAgo: 2, hour: 15, duration: 48, tags: ["lapp wagons"], [
             ("Confirm the twelve and sixteen inch wheel sizes with Jonathan before the captions.", nil)])
+    }
+
+    /// A six-second clip and its manifest in the inbox, as the share extension leaves them.
+    private static func seedInbox() {
+        guard let folder = VerbatimInbox.inbox else { Log.note("UITEST inbox unavailable"); return }
+        let id = UUID()
+        let name = id.uuidString + ".wav"
+        writeToneFile(folder.appendingPathComponent(name), seconds: 6)
+        let item = VerbatimInbox.Item(id: id, kind: .file, fileName: name, originalName: "Porch interview, Lititz.wav", date: Date())
+        do { try VerbatimInbox.writeManifest(item, in: folder) } catch { Log.note("UITEST inbox manifest: \(error)") }
     }
 
     private static func writeToneFile(_ url: URL, seconds: Double) {
