@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// About me: a few lines of context, kept only on this iPhone (UserDefaults, never synced).
 enum Profile {
@@ -33,14 +34,27 @@ struct SettingsScreen: View {
     @State private var confirmSyncOff = false
     @State private var copyingDown = false
     @State private var copyFailed = 0
+    /// Search: the shared query, and the row that flashes after a result scrolls to it.
+    @ObservedObject private var search = SettingsSearchModel.shared
+    @State private var searchFlash: String? = nil
+    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Settings").font(Ink.serif(36)).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.top, 8)
                     .riseIn("title", index: 0, seen: seen, epoch: entrance)
+                SettingsSearchField(text: $search.query) {
+                    if let first = SettingsSearchIndex.search(search.query).first?.entries.first { pickSearchResult(first, proxy) }
+                }
+                .padding(.top, 14)
+                .riseIn("search", index: 0, seen: seen, epoch: entrance)
+                if search.isActive {
+                    SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
+                } else {
                 group(1, "Personalization") { personalization }
                 group(2, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
                 group(3, "Sync and data") { syncAndData }
@@ -49,8 +63,11 @@ struct SettingsScreen: View {
                 footer
                     .padding(.top, 30)
                     .riseIn("footer", index: 6, seen: seen, epoch: entrance)
+                }
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
+        }
+        .scrollDismissesKeyboard(.immediately)
         }
         .tabEntrance(.settings) { seen.entered(); entrance += 1 }
         .background(Ink.paper.ignoresSafeArea())
@@ -94,12 +111,14 @@ struct SettingsScreen: View {
             SettingsValue(app.preset == .english ? "English" : "Automatic")
         }
         .accessibilityElement(children: .combine)
+        .settingsSearchTarget("language", flash: searchFlash)
         SettingsDivider()
         SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings") {
             SettingsValue("Soon")
         }
         .accessibilityElement(children: .combine)
         .accessibilityHint("Not available yet")
+        .settingsSearchTarget("voice", flash: searchFlash)
         SettingsDivider()
         Button { bump("me"); showAboutMe = true } label: {
             SettingsRow(icon: "person", tint: Ink.petalTint, art: .iconAboutMe, title: "About me", subtitle: "Context for titles and summaries", bounce: bumps["me", default: 0]) {
@@ -107,6 +126,7 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("aboutMe", flash: searchFlash)
         SettingsDivider()
         Button { bump("dict"); showDictionary = true } label: {
             SettingsRow(icon: "book.closed", tint: Ink.sageTint, art: .iconDictionary, title: "Dictionary", subtitle: "Names and words to spell your way", bounce: bumps["dict", default: 0]) {
@@ -114,6 +134,7 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("dictionary", flash: searchFlash)
         SettingsDivider()
         Button { bump("keyboard"); showKeyboard = true } label: {
             SettingsRow(icon: "keyboard", tint: Ink.butterTint, art: .iconDictations, title: "Keyboard", subtitle: "Dictate into any app", bounce: bumps["keyboard", default: 0]) {
@@ -121,12 +142,14 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("keyboardRow", flash: searchFlash)
         SettingsDivider()
         SettingsRow(icon: "text.alignleft", tint: Ink.persimmonTint, art: .iconSummaries, title: "Summaries", subtitle: "For recordings over 5 minutes") {
             SettingsValue("Soon")
         }
         .accessibilityElement(children: .combine)
         .accessibilityHint("Not available yet")
+        .settingsSearchTarget("summaries", flash: searchFlash)
         SettingsDivider()
         Menu {
             Picker("Appearance", selection: $app.appearance) {
@@ -138,9 +161,11 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("appearance", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "tortoise", tint: Ink.sageTint, art: .iconLimitMotion, title: "Limit animation",
                           subtitle: "Fades instead of movement; illustrations stay still.", isOn: $motionLimited)
+            .settingsSearchTarget("limitMotion", flash: searchFlash)
     }
 
     @ViewBuilder private var transcription: some View {
@@ -154,19 +179,25 @@ struct SettingsScreen: View {
             }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("quality", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, art: .iconSpeakers, title: "Identify speakers", isOn: $app.identifySpeakers)
+            .settingsSearchTarget("speakers", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, art: .iconApplyDictionary, title: "Apply Dictionary", isOn: $app.applyDictionary)
+            .settingsSearchTarget("applyDictionary", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "sparkle", tint: Ink.butterTint, art: .iconNameAndSort, title: "Name and sort recordings",
                           subtitle: "Suggests a title, kind, and tags when a transcript is ready", isOn: $autoLabels)
+            .settingsSearchTarget("nameAndSort", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, art: .iconFiller, title: "Hide filler lines",
                           subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", isOn: $hideFiller)
+            .settingsSearchTarget("hideFiller", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
                           subtitle: "Other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
+            .settingsSearchTarget("mainSpeaker", flash: searchFlash)
     }
 
     @ViewBuilder private var syncAndData: some View {
@@ -181,11 +212,13 @@ struct SettingsScreen: View {
             .padding(.horizontal, 14).padding(.vertical, 10)
             .frame(minHeight: 54)
             .disabled(copyingDown)
+            .settingsSearchTarget("sync", flash: searchFlash)
         } else {
             SettingsRow(icon: "icloud.slash", tint: Ink.sageTint, art: .iconSyncOff, title: "iCloud is off",
                         subtitle: "Sign in to iCloud in the Settings app to sync with your Mac. Until then, everything stays on this iPhone.",
                         subtitleLines: nil) { EmptyView() }
                 .accessibilityElement(children: .combine)
+                .settingsSearchTarget("sync", flash: searchFlash)
         }
         SettingsDivider()
         Button {
@@ -202,11 +235,13 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         .disabled(exporting)
+        .settingsSearchTarget("export", flash: searchFlash)
         SettingsDivider()
         Button { bump("delete"); confirmDelete = true } label: {
             SettingsRow(icon: "trash", tint: Ink.persimmonTint, art: .iconDeleteAll, title: "Delete all data", bounce: bumps["delete", default: 0], danger: true) { EmptyView() }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("deleteAll", flash: searchFlash)
     }
 
     private var syncSubtitle: String {
@@ -240,11 +275,13 @@ struct SettingsScreen: View {
             SettingsRow(icon: "bubble.left", tint: Ink.sageTint, art: .iconSupport, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("support", flash: searchFlash)
         SettingsDivider()
         Button { bump("feedback"); if let u = Links.mail(subject: "Verbatim feedback") { openURL(u) } } label: {
             SettingsRow(icon: "pencil", tint: Ink.persimmonTint, art: .iconFeedback, title: "Share feedback", bounce: bumps["feedback", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("feedback", flash: searchFlash)
         SettingsDivider()
         ShareLink(item: Log.file, subject: Text("Verbatim diagnostic log"),
                   message: Text("Send to \(Links.supportEmail)")) {
@@ -253,32 +290,38 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("log"); Log.trimNow() })
+        .settingsSearchTarget("log", flash: searchFlash)
         SettingsDivider()
         Button { bump("privacy"); openURL(Links.privacy) } label: {
             SettingsRow(icon: "lock", tint: Ink.petalTint, art: .iconPrivacy, title: "Privacy policy", bounce: bumps["privacy", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("privacy", flash: searchFlash)
         SettingsDivider()
         Button { bump("terms"); openURL(Links.terms) } label: {
             SettingsRow(icon: "doc.text", tint: Ink.sageTint, art: .iconTerms, title: "Terms of use", bounce: bumps["terms", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("terms", flash: searchFlash)
         SettingsDivider()
         ShareLink(item: Links.base) {
             SettingsRow(icon: "square.and.arrow.up", tint: Ink.persimmonTint, art: .iconShare, title: "Share Verbatim", bounce: bumps["share", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("share") })
+        .settingsSearchTarget("share", flash: searchFlash)
     }
 
     @ViewBuilder private var tour: some View {
         SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, art: .iconTour, title: "Show it when Verbatim opens",
                           isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
+            .settingsSearchTarget("tourOnLaunch", flash: searchFlash)
         SettingsDivider()
         Button { bump("tour"); app.showOnboarding = true } label: {
             SettingsRow(icon: "play.rectangle", tint: Ink.sageTint, art: .iconTour, title: "Show Tour", bounce: bumps["tour", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("tour", flash: searchFlash)
     }
 
     private var footer: some View {
@@ -317,6 +360,27 @@ struct SettingsScreen: View {
     }
 
     private func bump(_ key: String) { bumps[key, default: 0] += 1 }
+
+    /// A search result was chosen: clear the search, then push its subpage, or scroll to its row and flash it.
+    private func pickSearchResult(_ entry: SettingsSearchEntry, _ proxy: ScrollViewProxy) {
+        search.query = ""
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        switch entry.target {
+        case .page(.aboutMe): showAboutMe = true
+        case .page(.dictionary): showDictionary = true
+        case .page(.keyboard): showKeyboard = true
+        case .page(.snippets): break   // Wired when iphone-polish (SnippetsScreen) merges.
+        case .row:
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 80_000_000)   // the groups lay out again first
+                withAnimation(limitMotion ? nil : Motion.nav) { proxy.scrollTo(entry.id, anchor: .center) }
+                searchFlash = entry.id
+                AccessibilityNotification.Announcement(entry.label).post()
+                try? await Task.sleep(nanoseconds: 1_400_000_000)
+                if searchFlash == entry.id { searchFlash = nil }
+            }
+        }
+    }
 
     private var deleteTitle: String {
         let n = app.store.transcripts.count
