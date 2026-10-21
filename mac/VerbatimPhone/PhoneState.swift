@@ -74,7 +74,7 @@ final class PhoneState: ObservableObject {
     var focusSegment: UUID? = nil
 
     // Preferences (same keys as the Mac app; each device keeps its own).
-    @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.balanced.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
+    @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.defaultPreset.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
     @Published var identifySpeakers: Bool = UserDefaults.standard.object(forKey: "identifySpeakers") as? Bool ?? true { didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") } }
     @Published var applyDictionary: Bool = UserDefaults.standard.object(forKey: "applyDictionary") as? Bool ?? true { didSet { UserDefaults.standard.set(applyDictionary, forKey: "applyDictionary") } }
     @Published var appearance: String = UserDefaults.standard.string(forKey: "appearance") ?? "system" { didSet { UserDefaults.standard.set(appearance, forKey: "appearance") } }
@@ -99,7 +99,7 @@ final class PhoneState: ObservableObject {
         if PhoneUITest.enabled { PhoneUITest.run(self) }
     }
 
-    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .balanced }
+    var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
     var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
 
     func say(_ s: String) {
@@ -167,7 +167,7 @@ final class PhoneState: ObservableObject {
     }
 
     private var engineChoice: (String, String) {
-        preset == .advanced ? (UserDefaults.standard.string(forKey: "advEngine") ?? "fluid", UserDefaults.standard.string(forKey: "advModel") ?? "v3") : preset.config
+        preset == .advanced ? (UserDefaults.standard.string(forKey: "advEngine") ?? "fluid", UserDefaults.standard.string(forKey: "advModel") ?? "v2") : preset.config
     }
 
     /// Starts a recording that's added to the end of an existing transcript when you stop.
@@ -313,6 +313,14 @@ final class PhoneState: ObservableObject {
         }
     }
 
+    /// A show or feed found while fetching a link: the root's episode picker sheet (EpisodePicker.swift).
+    struct EpisodeChoice: Identifiable {
+        let id = UUID()
+        let link: URL
+        let show: PodcastShow?
+    }
+    @Published var episodeChoice: EpisodeChoice? = nil
+
     /// Links being fetched on this iPhone, by transcript. A "link added" view can observe `latestLinkImport`.
     @Published private(set) var linkImports: [UUID: LinkImport] = [:]
     @Published private(set) var latestLinkImport: LinkImport? = nil
@@ -342,28 +350,40 @@ final class PhoneState: ObservableObject {
                 bg.end()
             }
             var downloaded: URL?
-            do {
-                imp.phase = .resolving
-                let r = try await PhoneLinkFetcher.resolve(u)
-                guard self.stillWanted(id) else { return }
-                imp.title = r.title; imp.site = r.site; imp.thumbnailURL = imp.thumbnailURL ?? r.thumbnail
-                self.store.update(id) { x in
-                    if let title = r.title, !title.isEmpty, x.title == link || x.title.hasPrefix("http") { x.title = title }
-                    x.link = LinkInfo(url: r.pageURL, site: r.site, channel: r.channel)
-                    x.stage = "Downloading"
+            // Called at most once per whole percent.
+            let report: @Sendable (Double?) -> Void = { fraction in
+                Task { @MainActor in
+                    guard imp.phase == .downloading else { return }   // a late report after the download finished
+                    imp.progress = fraction
+                    if let fraction { self.store.setStage(id, "Downloading \(Int(fraction * 100))%") }
                 }
-                imp.phase = .downloading
-                // Called at most once per whole percent.
-                let file = try await PhoneLinkFetcher.download(r) { fraction in
-                    Task { @MainActor in
-                        guard imp.phase == .downloading else { return }   // a late report after the download finished
-                        imp.progress = fraction
-                        if let fraction { self.store.setStage(id, "Downloading \(Int(fraction * 100))%") }
+            }
+            do {
+                var r: PhoneLinkFetcher.Resolved?
+                let file: URL
+                // The background download from before Verbatim last closed: it finished meanwhile or is still going.
+                imp.phase = LinkDownloads.shared.hasEarlierAttempt(id) ? .downloading : .resolving
+                if let earlier = try await PhoneLinkFetcher.continueDownload(id, progress: report) {
+                    file = earlier
+                    imp.phase = .downloading
+                    if let t = self.store.transcript(id), !t.title.hasPrefix("http") { imp.title = t.title }
+                } else {
+                    imp.phase = .resolving
+                    let resolved = try await PhoneLinkFetcher.resolve(u)
+                    r = resolved
+                    guard self.stillWanted(id) else { return }
+                    imp.title = resolved.title; imp.site = resolved.site; imp.thumbnailURL = imp.thumbnailURL ?? resolved.thumbnail
+                    self.store.update(id) { x in
+                        if let title = resolved.title, !title.isEmpty, x.title == link || x.title.hasPrefix("http") { x.title = title }
+                        x.link = LinkInfo(url: resolved.pageURL, site: resolved.site, channel: resolved.channel)
+                        x.stage = "Downloading"
                     }
+                    imp.phase = .downloading
+                    file = try await PhoneLinkFetcher.download(resolved, id: id, progress: report)
                 }
                 downloaded = file
                 // A direct link to a video file has no thumbnail of its own: use a frame from it.
-                if r.thumbnail == nil, imp.thumbnailURL == nil, let name = await LinkImport.saveFrameThumbnail(from: file, as: id.uuidString) {
+                if r?.thumbnail == nil, imp.thumbnailURL == nil, self.store.transcript(id)?.link?.thumbnailFile == nil, let name = await LinkImport.saveFrameThumbnail(from: file, as: id.uuidString) {
                     self.store.update(id) { $0.link?.thumbnailFile = name }
                     imp.thumbnailURL = Paths.thumbs.appendingPathComponent(name)
                 }
@@ -380,13 +400,19 @@ final class PhoneState: ObservableObject {
                     x.processingDevice = Device.id; x.processingDeviceName = Device.name
                 }
                 self.coordinator.enqueueExisting(id)
-                if let thumb = r.thumbnail, let name = await PhoneLinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
+                if let thumb = r?.thumbnail, let name = await PhoneLinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
                     self.store.update(id) { $0.link?.thumbnailFile = name }
                 }
             } catch is CancellationError {
                 if let downloaded { try? FileManager.default.removeItem(at: downloaded) }
             } catch LinkFetchError.needsMac {
                 self.handLinkToMac(id, imp)
+            } catch LinkFetchError.chooseEpisode(let show) {
+                // A whole show or feed: no transcript for it; the episode picker adds the one you choose.
+                guard self.stillWanted(id) else { return }
+                self.cancelLinkCard(id)
+                self.closeLinkCard(id)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.episodeChoice = EpisodeChoice(link: u, show: show) }
             } catch {
                 if let downloaded { try? FileManager.default.removeItem(at: downloaded) }
                 guard self.stillWanted(id) else { return }

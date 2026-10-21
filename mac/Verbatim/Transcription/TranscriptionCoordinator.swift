@@ -76,7 +76,7 @@ final class TranscriptionCoordinator: ObservableObject {
     }
 
     private var settings: TranscriptionSettings {
-        host?.jobSettings() ?? TranscriptionSettings(engineId: "fluid", model: "v3", wantSpeakers: true, applyDictionary: true)
+        host?.jobSettings() ?? TranscriptionSettings(engineId: "fluid", model: QualityPreset.defaultPreset.config.1, wantSpeakers: true, applyDictionary: true)
     }
 
     // MARK: Launch

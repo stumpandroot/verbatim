@@ -39,7 +39,9 @@ struct SettingsView: View {
             Toggle("Sounds", isOn: $app.sounds)
             Text("A short chime when recording starts and a tick when a transcript is ready. Off automatically with Reduce Motion.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)
-            Toggle("Show the welcome card on Home", isOn: Binding(get: { !app.heroDismissed }, set: { app.heroDismissed = !$0 }))
+            Toggle("Show the welcome card on Home", isOn: $app.showWelcomeCard)
+            Text("The Method cards at the top of Home. They hide after your first transcript.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute)
             Toggle("Show the welcome tour when Verbatim opens", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
             LabeledContent("Welcome tour") { Button("Show Tour") { app.showOnboarding = true } }
             Section("Microphone") {
@@ -67,7 +69,7 @@ struct SettingsView: View {
                         ForEach(Engines.options) { o in Text("\(o.name) · \(o.note)").tag(o.id) }
                     }
                 }
-                Text("Parakeet (NVIDIA, via FluidAudio) is the default: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses. Pick by testing on your own recordings; the labels are starting points, not benchmarks.")
+                Text("Parakeet (NVIDIA, via FluidAudio) is the default, with Parakeet v2 (English only) preselected: fast on Apple silicon with word timings. Pick Balanced or High accuracy for other languages. Whisper is the alternate for languages Parakeet misses. Pick by testing on your own recordings; the labels are starting points, not benchmarks.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             Section {

@@ -38,14 +38,15 @@ struct HomeView: View {
                     .transition(.asymmetric(insertion: .opacity, removal: .identity))
                 }
 
-                MethodCards().padding(.top, 30).staggerIn(2)
-                RecentWork().padding(.top, 30).staggerIn(3)
-                RecentDictations().staggerIn(4)   // pads itself, so nothing is left when it hides
+                if app.showsWelcomeCard { MethodCards().padding(.top, 30).staggerIn(2) }
+                RecentWork(index: app.showsWelcomeCard ? 2 : 1).padding(.top, 30).staggerIn(3)
+                RecentDictations(index: app.showsWelcomeCard ? 3 : 2).staggerIn(4)   // pads itself, so nothing is left when it hides
             }
             .frame(maxWidth: 1040)
             .padding(.horizontal, 32).padding(.bottom, 36)
             .frame(maxWidth: .infinity)
         }
+        .onAppear { app.autoHideWelcomeCardIfUsed() }
     }
 
     private var masthead: some View {
@@ -123,10 +124,12 @@ struct MethodCards: View {
 /// Recent transcripts as document rows: title, source, duration, state, date.
 struct RecentWork: View {
     @EnvironmentObject var app: AppState
+    /// Section number: 02 under the welcome card, 01 when it's hidden.
+    var index = 2
     var body: some View {
         let items = Array(app.archive.prefix(6))
         VStack(alignment: .leading, spacing: 14) {
-            EditorialSectionHeader(index: "02", label: "Recent", title: "Pick up where you left off.") {
+            EditorialSectionHeader(index: String(format: "%02d", index), label: "Recent", title: "Pick up where you left off.") {
                 InlineLink(title: "View library") { app.go(.library) }
             }
             if items.isEmpty {
@@ -168,11 +171,12 @@ struct RecentWork: View {
 /// the search field; hidden when there are none.
 struct RecentDictations: View {
     @EnvironmentObject var app: AppState
+    var index = 3
     var body: some View {
         let items = Array(app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt }.prefix(5))
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
-                EditorialSectionHeader(index: "03", label: "Dictations", title: "What you said lately.") {
+                EditorialSectionHeader(index: String(format: "%02d", index), label: "Dictations", title: "What you said lately.") {
                     InlineLink(title: "See all") { app.go(.dictations) }
                         .accessibilityLabel("See all dictations")
                 }

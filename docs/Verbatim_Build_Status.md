@@ -4,7 +4,7 @@ The native Mac app exists and builds green on a macOS 26 CI runner (repo `stumpa
 
 | Area | Decision or state |
 |---|---|
-| Engines | Parakeet (FluidAudio) by default, WhisperKit as alternate; presets Fast / Balanced / High accuracy / Advanced |
+| Engines | Parakeet (FluidAudio) by default (Parakeet v2, English only, for anyone who never picks a preset), WhisperKit as alternate; presets English only / Fast / Balanced / High accuracy / Advanced |
 | Design direction | Editorial: New York serif for the Home headline, section titles, and note titles; SF Pro elsewhere. Glass for navigation and controls (system sidebar material with lavender tint, capture toolbar, player, menus); paper for words (transcripts, note cards). Replaced the earlier "Color Pop" lime capture card |
 | Highlights | Saved passage = lime (persistent); playing passage = iris (moves); hover = light iris (temporary) |
 | Transcript modes | Transcript (timecodes, speakers only when 2+), Document, Review. Summary hidden until built |

@@ -438,6 +438,9 @@ struct LinkSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var link = ""
     @FocusState private var focused: Bool
+    /// A show or feed link: its episodes, pushed in this sheet.
+    @State private var pickFrom: URL?
+    @State private var detent: PresentationDetent = .medium
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
@@ -462,10 +465,28 @@ struct LinkSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { app.addLink(link); dismiss() }.disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Add") { add() }.disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear { focused = true }
+            .navigationDestination(item: $pickFrom) { u in
+                EpisodePicker(link: u, show: nil,
+                              onPick: { ep in app.addLink(ep.link); dismiss() },
+                              onNotAShow: { app.addLink(u.absoluteString); dismiss() })
+            }
+        }
+        .presentationDetents([.medium, .large], selection: $detent)
+    }
+
+    /// A podcast show or feed opens its episode list; anything else is added as is.
+    private func add() {
+        let trimmed = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let u = URL(string: trimmed), PhoneLinkFetcher.isShowLink(u) {
+            focused = false
+            detent = .large
+            pickFrom = u
+        } else {
+            app.addLink(link); dismiss()
         }
     }
 }

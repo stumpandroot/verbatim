@@ -143,6 +143,10 @@ jobs:
           pkill -9 -x Verbatim || true; sleep 1
           OUT="$RUNNER_TEMP/shots"; rm -rf "$OUT"; mkdir -p "$OUT" dist/screens
           cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
+          # A stable name for the same DMG, so .../raw/ci-screens/Verbatim-latest.dmg survives the force-push below.
+          # Identical bytes share one git blob, so this adds no size. The iPhone and bench steps clone and add to this
+          # commit, so they keep it.
+          cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-latest.dmg"
           open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$OUT/open-${GITHUB_RUN_NUMBER}.txt" 2>&1; echo "open exit=$?" >> "$OUT/open-${GITHUB_RUN_NUMBER}.txt"
           sleep 20
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/transcript-${GITHUB_RUN_NUMBER}.png" || true
