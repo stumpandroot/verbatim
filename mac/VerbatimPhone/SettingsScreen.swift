@@ -29,6 +29,9 @@ struct SettingsScreen: View {
     @State private var showSnippets = false
     @State private var showAboutMe = false
     @State private var showKeyboard = false
+    @State private var showVoice = false
+    @State private var voicePreview = false
+    @ObservedObject private var voice = VoiceProfileStatus.shared
     @State private var exporting = false
     @State private var exportURL: URL? = nil
     @State private var confirmDelete = false
@@ -81,6 +84,12 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
+        .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimShowVoiceProfile)) { note in
+            let open = note.object as? Bool ?? false
+            voicePreview = open
+            showVoice = open
+        }
         .sheet(isPresented: Binding(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
             if let exportURL { ShareSheet(items: [exportURL]) }
         }
@@ -118,11 +127,12 @@ struct SettingsScreen: View {
         .accessibilityElement(children: .combine)
         .settingsSearchTarget("language", flash: searchFlash)
         SettingsDivider()
-        SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings") {
-            SettingsValue("Soon")
+        Button { bump("voice"); voicePreview = false; showVoice = true } label: {
+            SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings", bounce: bumps["voice", default: 0]) {
+                SettingsValue(voice.isEnrolled ? "On" : "Set up"); SettingsChevron()
+            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Not available yet")
+        .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("voice", flash: searchFlash)
         SettingsDivider()
         Button { bump("me"); showAboutMe = true } label: {
@@ -156,13 +166,6 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("keyboardRow", flash: searchFlash)
-        SettingsDivider()
-        SettingsRow(icon: "text.alignleft", tint: Ink.persimmonTint, art: .iconSummaries, title: "Summaries", subtitle: "For recordings over 5 minutes") {
-            SettingsValue("Soon")
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Not available yet")
-        .settingsSearchTarget("summaries", flash: searchFlash)
         SettingsDivider()
         Menu {
             Picker("Appearance", selection: $app.appearance) {
@@ -218,6 +221,7 @@ struct SettingsScreen: View {
         SettingsDivider()
         SettingsToggleRow(icon: "text.quote", tint: Ink.butterTint, title: "Write a summary when a transcript finishes",
                           subtitle: Summarizer.unavailableReason ?? "A short overview and key points at the top of the transcript", isOn: $autoSummary)
+            .settingsSearchTarget("summaries", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, art: .iconFiller, title: "Hide filler lines",
                           subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", isOn: $hideFiller)

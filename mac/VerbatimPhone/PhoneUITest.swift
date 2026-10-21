@@ -95,6 +95,11 @@ enum PhoneUITest {
                 SettingsSearchModel.shared.query = "keyboard"
                 await show("\(prefix)09b-settings-search")
                 SettingsSearchModel.shared.query = ""
+                // Settings › Your voice, step 2, with made-up progress (no microphone in the simulator).
+                NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: true)
+                await show("\(prefix)09c-voice-enroll")
+                NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: false)
+                try? await Task.sleep(nanoseconds: 700_000_000)
             }
             app.appearance = "light"
             for i in 0..<3 {

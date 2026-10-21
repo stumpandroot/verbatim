@@ -277,6 +277,13 @@ enum UITest {
         await show("09-settings")
         UserDefaults.standard.set(SettingsTab.models.rawValue, forKey: "settingsTab")
         await show("09c-settings-transcription")
+        // Voice profile enrollment, step 2, with made-up progress (no microphone on the runner).
+        if let settings = NSApp.keyWindow ?? NSApp.windows.first(where: { $0 != window && $0.isVisible && !($0 is NSPanel) }) {
+            VoiceEnrollmentSheet.present(preview: true, from: settings)
+            await show("09e-voice-enroll")
+            VoiceEnrollmentSheet.dismiss()
+            try? await Task.sleep(nanoseconds: 600_000_000)
+        }
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
         await show("09d-settings-dictate")
         UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")

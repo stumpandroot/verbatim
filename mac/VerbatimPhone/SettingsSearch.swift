@@ -130,7 +130,8 @@ enum SettingsSearchIndex {
         func onOff(_ on: Bool) -> String { on ? "On" : "Off" }
         switch id {
         case "language": return app.preset == .english ? "English" : "Automatic"
-        case "voice", "summaries": return "Soon"
+        case "voice": return VoiceProfileStatus.shared.isEnrolled ? "On" : "Set up"
+        case "summaries": return onOff(d.object(forKey: Summarizer.autoKey) as? Bool ?? true)
         case "aboutMe": return (d.string(forKey: Profile.aboutMeKey) ?? "").isEmpty ? "Add" : "Added"
         case "dictionary": return "\(app.store.dictionary.count)"
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
