@@ -17,7 +17,7 @@ import Combine
 @MainActor
 final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     static let shared = RecordingPresence()
-    static let notificationID = "co.stumpandroot.verbatim.recording.paused"
+    nonisolated static let notificationID = "co.stumpandroot.verbatim.recording.paused"
     static let notificationsAskedKey = "recording.notificationsAsked"
 
     private weak var app: PhoneState?
