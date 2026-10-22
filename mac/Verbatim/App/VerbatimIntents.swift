@@ -49,7 +49,8 @@ struct TranscribeFileIntent: AppIntent {
     static let title: LocalizedStringResource = "Transcribe a file"
     static let description = IntentDescription("Transcribes an audio or video file on this Mac and returns the text. The file is added to your Library.")
 
-    @Parameter(title: "File", supportedContentTypes: [.audio, .movie])
+    // supportedTypeIdentifiers: supportedContentTypes needs macOS 15.
+    @Parameter(title: "File", supportedTypeIdentifiers: ["public.audio", "public.movie"])
     var file: IntentFile
 
     init() {}
