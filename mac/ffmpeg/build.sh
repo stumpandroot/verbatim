@@ -62,7 +62,7 @@ WORK="${FFMPEG_WORK:-${TMPDIR:-/tmp}/verbatim-ffmpeg}"
 mkdir -p "$WORK"
 TARBALL="$WORK/ffmpeg-${FFMPEG_VERSION}.tar.xz"
 if [ ! -f "$TARBALL" ] || ! echo "$FFMPEG_SHA256  $TARBALL" | shasum -a 256 -c - >/dev/null 2>&1; then
-  echo "Downloading FFmpeg $FFMPEG_VERSION…"
+  echo "Downloading FFmpeg ${FFMPEG_VERSION}…"
   curl -fsSL --retry 3 -o "$TARBALL" "$FFMPEG_URL"
 fi
 echo "$FFMPEG_SHA256  $TARBALL" | shasum -a 256 -c - || { echo "error: FFmpeg tarball checksum mismatch" >&2; exit 1; }
