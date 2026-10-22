@@ -196,6 +196,10 @@ check("guess: clear Spanish from a v3 pass", LanguageGuess.evaluate([("es", 0.93
 check("guess: too few words is unknown", LanguageGuess.evaluate([("es", 0.99)], words: 3, englishOnlyPass: false) == .unknown)
 check("guess: no clear winner is unknown", LanguageGuess.evaluate([("it", 0.3), ("es", 0.25), ("pt", 0.2)], words: 20, englishOnlyPass: false) == .unknown)
 check("guess: clean English from a v2 pass", LanguageGuess.evaluate([("en", 0.95)], words: 50, englishOnlyPass: true) == .known("en", 0.95))
+check("guess: English words the v2 model wasn't sure of are only likely English",
+      LanguageGuess.evaluate([("en", 0.9)], words: 40, englishOnlyPass: true, confidence: 0.62) == .likelyEnglish)
+check("guess: likely English gets a second opinion", LanguageGuess.likelyEnglish.wantsConfirmation)
+check("guess: confident v2 English is English", LanguageGuess.evaluate([("en", 0.9)], words: 40, englishOnlyPass: true, confidence: 0.93) == .known("en", 0.9))
 check("guess: muddled v2 pass is not English", LanguageGuess.evaluate([("en", 0.4), ("nl", 0.3)], words: 30, englishOnlyPass: true) == .notEnglish)
 check("guess: regional codes merge", LanguageGuess.evaluate([("zh-Hans", 0.5), ("zh-Hant", 0.3)], words: 10, englishOnlyPass: false) == .known("zh", 0.8))
 check("guess: sure guesses need no second opinion", !LanguageGuess.known("es", 0.9).wantsConfirmation && LanguageGuess.known("es", 0.6).wantsConfirmation && LanguageGuess.unknown.wantsConfirmation)
@@ -217,6 +221,7 @@ check("route: Spanish on Ultra stays", LanguageRoute.decide(.known("es", 0.9), m
 check("route: Japanese goes to Apple's recognizer", LanguageRoute.decide(.known("ja", 0.9), model: "v3", v3Downloaded: true, appleSupports: apple) == .apple("ja"))
 check("route: Mandarin with no Apple recognizer is unsupported", LanguageRoute.decide(.known("zh", 0.9), model: "v2", v3Downloaded: false, appleSupports: none) == .unsupported("zh"))
 check("route: not English on v2 without v3 offers v3", LanguageRoute.decide(.notEnglish, model: "v2", v3Downloaded: false, appleSupports: apple) == .offerV3(nil))
+check("route: likely English with no second opinion stays English", LanguageRoute.decide(.likelyEnglish, model: "v2", v3Downloaded: false, appleSupports: apple) == .keep("en"))
 check("route: unknown keeps the model", LanguageRoute.decide(.unknown, model: "v2", v3Downloaded: false, appleSupports: apple) == .keep(nil))
 
 print("\n\(passed) passed, \(failed) failed")

@@ -45,9 +45,10 @@ enum LanguageDetection {
             // v3 when it's here (it can hear 25 languages); otherwise the model you picked.
             let passModel = LanguageRules.isMultilingual(model) || !(forceV3 || FluidEngine.isDownloaded("v3")) ? model : "v3"
             progress(.checkingLanguage)
-            let words = try await FluidEngine.shared.sectionWords(samples: samples, model: passModel, language: nil, progress: progress)
+            let (words, confidence) = try await FluidEngine.shared.clipWords(samples: samples, model: passModel, language: nil, progress: progress)
             let text = words.map(\.text).joined(separator: " ")
-            var guess = LanguageGuess.evaluate(hypotheses(text), words: words.count, englishOnlyPass: !LanguageRules.isMultilingual(passModel))
+            var guess = LanguageGuess.evaluate(hypotheses(text), words: words.count, englishOnlyPass: !LanguageRules.isMultilingual(passModel),
+                                               confidence: confidence)
             if guess.wantsConfirmation, AppleSpeech.authorized {
                 let candidates = guess.candidates(device: await deviceLanguages())
                 var results: [(language: String, confidence: Double, words: Int)] = []
@@ -59,7 +60,7 @@ enum LanguageDetection {
                     guess = .known(picked, LanguageGuess.sure)
                 }
             }
-            Log.note("language check: \(guess) from \(words.count) words with \(passModel)")
+            Log.note("language check: \(guess) from \(words.count) words with \(passModel), confidence \(String(format: "%.2f", confidence))")
             return Outcome(guess: guess, passModel: passModel, words: words, coveredWhole: clip >= total)
         } catch {
             Log.note("language check skipped: \(error.localizedDescription)")

@@ -34,6 +34,9 @@ enum LanguageRules {
 enum LanguageGuess: Equatable {
     /// One language, with the recognizer's probability for it.
     case known(String, Double)
+    /// An English-only pass whose words read as English, but which the model wasn't sure it heard (low token
+    /// confidence): English unless a second opinion hears another language.
+    case likelyEnglish
     /// An English-only pass whose words don't read as English: probably another language, but which one is unclear.
     case notEnglish
     /// Too few words, or no clear winner.
@@ -44,9 +47,13 @@ enum LanguageGuess: Equatable {
     /// A guess this sure needs no second opinion.
     static let sure = 0.8
 
+    /// Below this average token confidence, an English-only pass's English is only `likelyEnglish`.
+    static let englishConfidence = 0.8
+
     /// `hypotheses` are (language code, probability) pairs; `englishOnlyPass` is true when the first pass used
-    /// Parakeet v2, which writes any speech as English words.
-    static func evaluate(_ hypotheses: [(String, Double)], words: Int, englishOnlyPass: Bool) -> LanguageGuess {
+    /// Parakeet v2, which writes any speech as English words, so its words reading as English prove little:
+    /// `confidence` (the pass's average token confidence, 0…1) decides how sure that English is.
+    static func evaluate(_ hypotheses: [(String, Double)], words: Int, englishOnlyPass: Bool, confidence: Double? = nil) -> LanguageGuess {
         guard words >= minimumWords else { return .unknown }
         var merged: [String: Double] = [:]
         for (code, p) in hypotheses { merged[LanguageRules.base(code), default: 0] += p }
@@ -54,7 +61,8 @@ enum LanguageGuess: Equatable {
             return englishOnlyPass ? .notEnglish : .unknown
         }
         if englishOnlyPass {
-            return top.key == "en" && top.value >= 0.6 ? .known("en", top.value) : .notEnglish
+            guard top.key == "en" && top.value >= 0.6 else { return .notEnglish }
+            return (confidence ?? 1) >= englishConfidence ? .known("en", top.value) : .likelyEnglish
         }
         return top.value >= 0.5 ? .known(top.key, top.value) : .unknown
     }
@@ -69,7 +77,7 @@ enum LanguageGuess: Equatable {
     var wantsConfirmation: Bool {
         switch self {
         case .known(let l, let p): return l != "en" && p < Self.sure
-        case .notEnglish, .unknown: return true
+        case .likelyEnglish, .notEnglish, .unknown: return true
         }
     }
 
@@ -118,6 +126,8 @@ enum LanguageRoute: Equatable {
         switch guess {
         case .unknown:
             return .keep(nil)
+        case .likelyEnglish:
+            return .keep("en")
         case .notEnglish:
             if LanguageRules.isMultilingual(model) { return .keep(nil) }
             return v3Downloaded ? .keep(nil) : .offerV3(nil)

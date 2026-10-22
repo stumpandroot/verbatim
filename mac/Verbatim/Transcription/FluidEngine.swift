@@ -95,6 +95,12 @@ actor FluidEngine: TranscriptionEngine {
     /// memory, words timed from the samples' start. Downloads and loads the model when needed.
     func sectionWords(samples: [Float], model requested: String, language: String?,
                       progress: @escaping @Sendable (EngineProgress) -> Void = { _ in }) async throws -> [SectionWord] {
+        try await clipWords(samples: samples, model: requested, language: language, progress: progress).words
+    }
+
+    /// `sectionWords` with the model's average token confidence (0.1…1), for the language check.
+    func clipWords(samples: [Float], model requested: String, language: String?,
+                   progress: @escaping @Sendable (EngineProgress) -> Void = { _ in }) async throws -> (words: [SectionWord], confidence: Double) {
         let model = Engines.fluidModel(requested)
         let m = try await prepared(model, progress: progress)
         if let p = prewarming, p.model == model { await p.task.value }
@@ -103,10 +109,11 @@ actor FluidEngine: TranscriptionEngine {
         if input.count < 16_000 { input += [Float](repeating: 0, count: 16_000 - input.count) }
         var state = TdtDecoderState.make()
         let r = try await m.transcribe(input, decoderState: &state, language: Self.hint(language, model: model))
-        return buildWordTimings(from: r.tokenTimings ?? []).compactMap { w -> SectionWord? in
+        let words = buildWordTimings(from: r.tokenTimings ?? []).compactMap { w -> SectionWord? in
             let text = w.word.trimmingCharacters(in: .whitespaces)
             return text.isEmpty ? nil : SectionWord(text: text, start: w.startTime, end: w.endTime)
         }
+        return (words, Double(r.confidence))
     }
 
     /// Transcribes 16 kHz mono samples already in memory, with nothing else: no file read, no speech detection,
