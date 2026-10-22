@@ -18,6 +18,10 @@ enum PhoneUITest {
         recorderChecks(app)
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
+        // Imports through the bundled FFmpeg (MKV) and files with several audio tracks (shared with the Mac).
+        Task { @MainActor in
+            await MediaImportSelfTest.run { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") import: \(name)") }
+        }
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             for (prefix, mode) in [("p", "light"), ("d", "dark")] {

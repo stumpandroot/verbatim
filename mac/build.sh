@@ -56,6 +56,10 @@ if [ ! -f Vendor/harper/libharper_ffi.a ] || [ "${HARPER_REBUILD:-0}" = "1" ] ||
   fi
 fi
 
+# 1d. FFmpeg (audio only, LGPL, dynamic frameworks) for MKV, WebM, AVI, and other imports. Does nothing when
+# Vendor/ffmpeg already matches ffmpeg/build.sh (CI restores it from its cache).
+bash ffmpeg/build.sh
+
 # 2. Build
 rm -rf build dist && mkdir -p dist build
 SIGN=()
@@ -113,6 +117,13 @@ if [ -n "$IDENTITY" ]; then
     fi
   done
   codesign --verify --strict --verbose=2 "$SPARKLE"
+  # FFmpeg's frameworks (ffmpeg/build.sh): Xcode embeds and signs them; sign them again here with the hardened
+  # runtime and a timestamp, as notarization expects of every binary, before the app's own signature seals them.
+  for LIB in libavutil libswresample libavcodec libavformat; do
+    FW="$APP/Contents/Frameworks/$LIB.framework"
+    if [ ! -d "$FW" ]; then echo "error: $LIB.framework is missing from $APP/Contents/Frameworks" >&2; exit 1; fi
+    codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$FW"
+  done
   codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
 

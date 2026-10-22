@@ -378,12 +378,21 @@ final class PhoneState: ObservableObject {
                 let src = s.url
                 let access = src.startAccessingSecurityScopedResource()
                 do {
-                    let prepared = try await MediaImport.prepare(src, into: store.newAudioURL(ext: "m4a"))
+                    // Several audio tracks: mixed, or kept apart as speakers (Settings › Files with several audio tracks).
+                    let folder = AudioTracksPreference.current == .separate ? Paths.tracks(id) : nil
+                    let store = self.store
+                    let prepared = try await MediaImport.prepare(src, into: store.newAudioURL(ext: "m4a"), separateTracksInto: folder) { s in
+                        Task { @MainActor in store.setStage(id, s) }
+                    }
                     if store.transcript(id) == nil {
                         // Cancelled from the "added" card while the audio was being prepared.
                         try? FileManager.default.removeItem(at: prepared.url)
+                        if folder != nil { try? FileManager.default.removeItem(at: Paths.tracks(id)) }
                     } else {
-                        store.update(id) { $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued" }
+                        store.update(id) {
+                            $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued"
+                            if let mt = prepared.multitrack { $0.multitrack = mt; $0.waveform = prepared.wave }
+                        }
                         // The screenshot tour never runs the speech engines (they download models).
                         if !PhoneUITest.enabled { coordinator.enqueueExisting(id) }
                     }

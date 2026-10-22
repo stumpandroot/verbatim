@@ -102,6 +102,9 @@ enum SettingsSearchIndex {
               description: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view"),
         .init(id: "mainSpeaker", section: "Transcription", label: "Main speaker only", keywords: ["background voices", "speakers", "focus"],
               description: "Other voices fold into a Background voices section"),
+        .init(id: "audioTracks", section: "Transcription", label: "Files with several audio tracks",
+              keywords: ["multiple audio tracks", "mkv", "video", "language", "commentary", "mix", "separate", "speakers", "import"],
+              description: "Mix every track, or keep each track as a speaker"),
 
         // Sync and data
         .init(id: "sync", section: "Sync and data", label: "iCloud sync", keywords: ["cloud", "mac", "sync", "backup", "devices"],
@@ -118,6 +121,8 @@ enum SettingsSearchIndex {
         .init(id: "privacy", section: "Support", label: "Privacy policy", keywords: ["data", "legal"]),
         .init(id: "terms", section: "Support", label: "Terms of use", keywords: ["legal", "terms of service"]),
         .init(id: "share", section: "Support", label: "Share Verbatim", keywords: ["invite", "recommend", "friend"]),
+        .init(id: "acknowledgements", section: "Support", label: "Acknowledgements", keywords: ["ffmpeg", "lgpl", "open source", "license", "credits"],
+              description: "Open-source software in Verbatim and its licenses"),
 
         // Welcome tour
         .init(id: "tourOnLaunch", section: "Welcome tour", label: "Show the tour when Verbatim opens", keywords: ["onboarding", "welcome", "launch", "intro"]),
@@ -167,6 +172,7 @@ enum SettingsSearchIndex {
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
         case "recordLiveWords": return onOff(RecordingLiveText.enabled)
+        case "audioTracks": return AudioTracksPreference.current == .separate ? "Separate" : "Mix"
         case "keyboardTimeout":
             let s = app.session.timeoutSeconds
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")

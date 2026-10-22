@@ -49,6 +49,21 @@ jobs:
           key: spm-${{ hashFiles('mac/project.yml') }}
           restore-keys: spm-
 
+      # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh): built once, then restored from the cache until the script
+      # (version, checksum, or options) changes. The first build takes about 10 minutes.
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: mac/Vendor/ffmpeg
+          key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
+      - name: Build FFmpeg (audio only, LGPL)
+        run: |
+          bash ffmpeg/build.sh
+          echo "FFmpeg per slice (added to the app):"
+          for s in macos-arm64_x86_64 ios-arm64 ios-arm64_x86_64-simulator; do
+            echo "  $s: $(du -sch Vendor/ffmpeg/*.xcframework/$s/*.framework 2>/dev/null | tail -1 | cut -f1)"
+          done
+
       - name: Generate the project and grammar libraries
         run: |
           brew install xcodegen
@@ -72,6 +87,10 @@ jobs:
             exit 1
           fi
           echo "${{ matrix.target }} compiles."
+          APP="$(ls -d build/dd/Build/Products/Debug*/Verbatim.app | head -1)"
+          FW="$APP/Contents/Frameworks"; [ -d "$FW" ] || FW="$APP/Frameworks"
+          ls -d "$FW"/libav*.framework "$FW"/libswresample.framework || { echo "::error::FFmpeg's frameworks aren't embedded in $APP"; exit 1; }
+          echo "FFmpeg frameworks in the ${{ matrix.target }} app: $(du -sch "$FW"/libav*.framework "$FW"/libswresample.framework | tail -1 | cut -f1)"
 
       # The App Store switch (mac/APP_STORE.md): the iPhone app again with VERBATIM_APP_STORE=YES, in the same
       # derived data, so only Verbatim's own targets recompile. Then proves the flag took effect: APP_STORE was

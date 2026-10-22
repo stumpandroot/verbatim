@@ -45,6 +45,12 @@ if harper_stale Vendor/harper/libharper_ffi.a || harper_stale Vendor/harper/ios/
 fi
 echo "✓ Harper libraries ready"
 
+# FFmpeg (audio only, LGPL), which reads MKV, WebM, AVI, and other files. Built from the pinned source the first
+# time (about 5–10 minutes), then only when ffmpeg/build.sh changes.
+echo "Building FFmpeg for Mac and iPhone if needed…"
+bash ffmpeg/build.sh
+echo "✓ FFmpeg ready"
+
 # The link helper (yt-dlp) for the Mac app's link fetching. The iPhone hands links to the Mac.
 YTDLP_VERSION="2026.08.19"
 mkdir -p Helpers

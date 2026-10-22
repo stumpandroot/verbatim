@@ -83,6 +83,16 @@ targets:
         product: FluidAudio
       - package: Sparkle
         product: Sparkle
+      # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh builds Vendor/ffmpeg), linked dynamically and embedded as
+      # separate frameworks so anyone can replace them (Resources/FFmpeg/FFmpeg-NOTICE.txt).
+      - framework: Vendor/ffmpeg/libavutil.xcframework
+        embed: true
+      - framework: Vendor/ffmpeg/libswresample.xcframework
+        embed: true
+      - framework: Vendor/ffmpeg/libavcodec.xcframework
+        embed: true
+      - framework: Vendor/ffmpeg/libavformat.xcframework
+        embed: true
     info:
       path: Verbatim/Info.plist
       properties:
@@ -111,6 +121,69 @@ targets:
         SUScheduledCheckInterval: 86400
         # Never send Sparkle's anonymous system profile; a check sends only the IP address and app version.
         SUEnableSystemProfiling: false
+        # Containers the bundled FFmpeg reads (Sources/FFmpegAudio.swift), declared so the open panel and drag and drop
+        # know them as video or audio. Imported, not exported: a system or app declaration wins.
+        UTImportedTypeDeclarations: &importedMediaTypes
+          - UTTypeIdentifier: org.matroska.mkv
+            UTTypeDescription: Matroska video
+            UTTypeConformsTo: [public.movie]
+            UTTypeTagSpecification:
+              public.filename-extension: [mkv]
+              public.mime-type: [video/x-matroska]
+          - UTTypeIdentifier: org.matroska.mka
+            UTTypeDescription: Matroska audio
+            UTTypeConformsTo: [public.audio]
+            UTTypeTagSpecification:
+              public.filename-extension: [mka]
+              public.mime-type: [audio/x-matroska]
+          - UTTypeIdentifier: org.webmproject.webm
+            UTTypeDescription: WebM video
+            UTTypeConformsTo: [public.movie]
+            UTTypeTagSpecification:
+              public.filename-extension: [webm]
+              public.mime-type: [video/webm]
+          - UTTypeIdentifier: com.microsoft.windows-media-wmv
+            UTTypeDescription: Windows Media video
+            UTTypeConformsTo: [public.movie]
+            UTTypeTagSpecification:
+              public.filename-extension: [wmv]
+              public.mime-type: [video/x-ms-wmv]
+          - UTTypeIdentifier: com.microsoft.windows-media-wma
+            UTTypeDescription: Windows Media audio
+            UTTypeConformsTo: [public.audio]
+            UTTypeTagSpecification:
+              public.filename-extension: [wma]
+              public.mime-type: [audio/x-ms-wma]
+          - UTTypeIdentifier: com.microsoft.advanced-systems-format
+            UTTypeDescription: Advanced Systems Format
+            UTTypeConformsTo: [public.movie]
+            UTTypeTagSpecification:
+              public.filename-extension: [asf]
+              public.mime-type: [video/x-ms-asf]
+          - UTTypeIdentifier: com.adobe.flash.video
+            UTTypeDescription: Flash video
+            UTTypeConformsTo: [public.movie]
+            UTTypeTagSpecification:
+              public.filename-extension: [flv]
+              public.mime-type: [video/x-flv]
+          - UTTypeIdentifier: org.xiph.ogg-audio
+            UTTypeDescription: Ogg audio
+            UTTypeConformsTo: [public.audio]
+            UTTypeTagSpecification:
+              public.filename-extension: [ogg, oga]
+              public.mime-type: [audio/ogg]
+          - UTTypeIdentifier: org.xiph.ogg-video
+            UTTypeDescription: Ogg video
+            UTTypeConformsTo: [public.movie]
+            UTTypeTagSpecification:
+              public.filename-extension: [ogv]
+              public.mime-type: [video/ogg]
+          - UTTypeIdentifier: org.xiph.opus
+            UTTypeDescription: Opus audio
+            UTTypeConformsTo: [public.audio]
+            UTTypeTagSpecification:
+              public.filename-extension: [opus]
+              public.mime-type: [audio/opus]
     entitlements:
       path: Verbatim/Verbatim.entitlements
       properties:
@@ -131,7 +204,7 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper"
         OTHER_LDFLAGS: "$(inherited) -lharper_ffi"
-        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper"
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper $(SRCROOT)/Vendor/ffmpeg/include"
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim
         PRODUCT_NAME: Verbatim
         MARKETING_VERSION: "1.0.0"
@@ -175,6 +248,14 @@ targets:
       - Verbatim/Document/Harper.swift
       - Verbatim/Document/Polish.swift
       - Verbatim/Sources/MediaImport.swift
+      # The bundled FFmpeg's C layer and Swift side, its notice and license, the import self-test and its files.
+      - Verbatim/Sources/VBFFmpeg.c
+      - Verbatim/Sources/VBFFmpeg.h
+      - Verbatim/Sources/FFmpegAudio.swift
+      - Verbatim/Sources/MediaImportSelfTest.swift
+      - Verbatim/Resources/FFmpeg
+      - Verbatim/Resources/TestFixtures
+      - Verbatim/Views/Acknowledgements.swift
       - Verbatim/Sources/LinkImport.swift
       - Verbatim/App/Changed.swift
       - Verbatim/App/Log.swift
@@ -230,6 +311,15 @@ targets:
         product: FluidAudio
       - package: YouTubeKit
         product: YouTubeKit
+      # The audio-only LGPL FFmpeg, as on the Mac. The app decodes; the share extension only copies files to the inbox.
+      - framework: Vendor/ffmpeg/libavutil.xcframework
+        embed: true
+      - framework: Vendor/ffmpeg/libswresample.xcframework
+        embed: true
+      - framework: Vendor/ffmpeg/libavcodec.xcframework
+        embed: true
+      - framework: Vendor/ffmpeg/libavformat.xcframework
+        embed: true
       # The Verbatim keyboard, embedded in the app's PlugIns folder.
       - target: VerbatimKeyboard
       # The keyboard session's Live Activity (Dynamic Island and Lock Screen), also in PlugIns.
@@ -262,6 +352,8 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: co.stumpandroot.verbatim.ios
             CFBundleURLSchemes: [verbatim]
+        # MKV, WebM, and the other containers the bundled FFmpeg reads, so the file picker offers them.
+        UTImportedTypeDeclarations: *importedMediaTypes
     entitlements:
       path: VerbatimPhone/VerbatimPhone.entitlements
       properties:
@@ -273,7 +365,7 @@ targets:
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h
-        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper"
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper $(SRCROOT)/Vendor/ffmpeg/include"
         "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": "$(inherited) $(SRCROOT)/Vendor/harper/ios"
         "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(inherited) $(SRCROOT)/Vendor/harper/ios-sim"
         OTHER_LDFLAGS: "$(inherited) -lharper_ffi"
@@ -413,9 +505,12 @@ targets:
               SUBQUERY(extensionItems, $extensionItem, SUBQUERY($extensionItem.attachments, $attachment,
               ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.movie"
               OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.audio"
+              OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.matroska.mkv"
+              OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.webmproject.webm"
               OR (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
               AND NOT (ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.file-url"))
               ).@count BETWEEN {1, 5}).@count >= 1
+        UTImportedTypeDeclarations: *importedMediaTypes
     entitlements:
       path: VerbatimShare/VerbatimShare.entitlements
       properties:
