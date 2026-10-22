@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct VerbatimApp: App {
     @StateObject private var app = AppState()
+    /// Asks before quitting cuts off a recording (QuitGuard.swift).
+    @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 
     init() {
         Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))")

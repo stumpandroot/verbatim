@@ -89,6 +89,8 @@ final class AppState: ObservableObject {
     var runningID: UUID? { coordinator.runningID }
     /// Continue recording: the transcript the current recording will be added to.
     @Changed var continuing: UUID? = nil
+    /// Stop was pressed and the recording is being saved (segments joined off the main thread): Home says "Saving…".
+    @Changed var savingRecording = false
     /// The welcome tour sheet.
     @Changed var showOnboarding = false
     /// Import › Multi-track recording: the sheet's tracks while it's open (AppState+Multitrack).
@@ -140,6 +142,9 @@ final class AppState: ObservableObject {
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
         coordinator.resume(includeUnowned: true)
+        // Recordings recovered once launch recovery finishes in the background: transcribe them too.
+        store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
+        QuitGuard.app = self
         // Links added on the iPhone wait for a Mac: claim them now and whenever more arrive.
         store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }

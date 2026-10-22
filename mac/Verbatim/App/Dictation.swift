@@ -581,7 +581,7 @@ final class DictationController: ObservableObject {
         isListening = false; handsFree = false
         // A second or more without a single non-silent sample: the mic isn't delivering (shorter is a stray tap).
         if !recorder.lastHeardSignal, Date().timeIntervalSince(startedAt ?? Date()) >= 1 {
-            try? FileManager.default.removeItem(at: url)
+            keepNothingHeard(url: url, duration: duration, env: env)   // in Dictations, never pasted
             command = false; toPad = false
             showMicProblem("Couldn't hear", warned: warned)
             return
@@ -594,7 +594,7 @@ final class DictationController: ObservableObject {
         // (an empty result is reported, and the audio is kept in Dictations).
         let loud = env.sorted(by: >).prefix(max(1, env.count / 10))
         if !stoppedAtLimit, !env.isEmpty, (loud.reduce(0, +) / Float(loud.count)) < 0.05 {
-            try? FileManager.default.removeItem(at: url)
+            keepNothingHeard(url: url, duration: duration, env: env)   // in Dictations, never pasted
             bar?.flash("Didn't hear anything. Check your mic in Settings.", seconds: 3)
             return
         }
@@ -694,6 +694,18 @@ final class DictationController: ObservableObject {
         if cleaned, info.pasted != info.raw { t.document = info.pasted; t.documentLevel = info.level.capitalized }
         app.store.add(t)
         return t.id
+    }
+
+    /// A dictation too quiet to transcribe (or with no signal at all): its audio stays in Dictations as
+    /// "Nothing heard", with Retry, instead of being deleted. Nothing is pasted.
+    private func keepNothingHeard(url: URL, duration: Double, env: [Float]) {
+        guard let app else { return }
+        let name = app.store.adoptRecording(url) ?? url.lastPathComponent
+        var t = Transcript(title: "Nothing heard", source: .dictation, sourceLabel: "Dictation", duration: duration, audioFileName: name, model: "")
+        t.waveform = env; t.status = .failed
+        t.error = "Nothing heard. Choose Retry to transcribe it anyway."
+        app.store.add(t)
+        Log.note("dictation: nothing heard; kept in Dictations (\(String(format: "%.1f", duration)) s)")
     }
 
     private func keepFailed(url: URL, duration: Double, env: [Float], error: String) {

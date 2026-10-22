@@ -130,6 +130,7 @@ struct HomeView: View {
     private var recordOverline: String {
         if app.capture.isCapturing { return "Capturing · \(app.capture.appName)" }
         if app.recorder.isRecording { return app.recorder.isPaused ? "Paused" : "Recording" }
+        if app.savingRecording { return "Saving…" }
         return "Ready · \(micName)"
     }
 

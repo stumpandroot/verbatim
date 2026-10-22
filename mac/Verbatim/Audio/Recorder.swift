@@ -46,6 +46,19 @@ final class RecordingWriter: @unchecked Sendable {
     /// Only touched with `lock` held (the audio thread appends to it); read through `segments`.
     private var segmentURLs: [URL] = []
     var segments: [URL] { lock.lock(); defer { lock.unlock() }; return segmentURLs }
+    /// A write to the file failed (usually a full disk), or new segment files couldn't be opened 3 times in a
+    /// row. The writer then takes no more audio until `retryAfterFailure` opens a fresh segment, so `frames`
+    /// only ever counts audio that's on disk.
+    private var failed = false
+    private var segmentOpenFailures = 0
+    /// Called once per failure, on the audio thread, outside the lock. Recorder pauses the recording on it.
+    private var onFailure: (@Sendable () -> Void)?
+    func setOnFailure(_ f: (@Sendable () -> Void)?) { lock.lock(); onFailure = f; lock.unlock() }
+    var writeFailed: Bool { lock.lock(); defer { lock.unlock() }; return failed }
+    /// Audio frames on disk (pre-roll not yet written isn't counted).
+    var framesWritten: Int64 { lock.lock(); defer { lock.unlock() }; return frames }
+    /// Self-test only: every write that would go past this many frames fails, as on a full disk.
+    var failWritesAfterFrames: Int64?
 
     /// `segmented`: roll to a new file every `RecordingSegments.seconds` (normal recordings, not dictation).
     init(url: URL, inputFormat: AVAudioFormat, segmented: Bool = false) throws {
@@ -72,8 +85,8 @@ final class RecordingWriter: @unchecked Sendable {
         let f = try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
         lock.lock(); defer { lock.unlock() }
         for b in preRoll {
-            try? f.write(from: b)
-            frames += Int64(b.frameLength)
+            // Only audio that reached the file counts.
+            if (try? f.write(from: b)) != nil { frames += Int64(b.frameLength) }
         }
         preRoll = []; preRollFrames = 0
         holding = false
@@ -89,12 +102,59 @@ final class RecordingWriter: @unchecked Sendable {
     func write(_ buffer: AVAudioPCMBuffer) -> Float {
         var tapped: AVAudioPCMBuffer?
         var tap: (@Sendable (AVAudioPCMBuffer) -> Void)?
-        let v = write(buffer, tapped: &tapped, tap: &tap)
+        var failure: (@Sendable () -> Void)?
+        let v = write(buffer, tapped: &tapped, tap: &tap, failure: &failure)
         if let tapped, let tap { tap(tapped) }
+        failure?()
         return v
     }
 
-    private func write(_ buffer: AVAudioPCMBuffer, tapped: inout AVAudioPCMBuffer?, tap: inout (@Sendable (AVAudioPCMBuffer) -> Void)?) -> Float {
+    /// Writes one converted buffer to the open file. Called with `lock` held. On an error the writer stops taking
+    /// audio and hands back the failure callback for the caller to run outside the lock.
+    private func append(_ out: AVAudioPCMBuffer, to file: AVAudioFile, failure: inout (@Sendable () -> Void)?) {
+        do {
+            if let limit = failWritesAfterFrames, frames + Int64(out.frameLength) > limit {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)
+            }
+            try file.write(from: out)
+        } catch {
+            fail("write failed (\(error.localizedDescription))", failure: &failure)
+            return
+        }
+        frames += Int64(out.frameLength)
+        framesInSegment += Int64(out.frameLength)
+        if let limit = segmentLimit, framesInSegment >= limit { rollSegment(failure: &failure) }
+    }
+
+    private func fail(_ why: String, failure: inout (@Sendable () -> Void)?) {
+        guard !failed else { return }
+        failed = true
+        Log.note("recorder: \(why) after \(frames) frames; taking no more audio")
+        failure = onFailure
+    }
+
+    /// After a failure (Resume): continues in a fresh segment file, so whatever went wrong with the last file
+    /// can't touch what's already saved. False when it still can't write.
+    func retryAfterFailure() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard failed else { return true }
+        guard segmentLimit != nil, let first = segmentURLs.first else { return false }
+        let next = RecordingSegments.url(for: first, index: segmentURLs.count + 1)
+        guard let f = try? AVAudioFile(forWriting: next, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true) else {
+            Log.note("recorder: still can't open a new segment"); return false
+        }
+        if #available(macOS 15, iOS 18, *) { file?.close() }
+        file = f
+        segmentURLs.append(next)
+        framesInSegment = 0
+        segmentOpenFailures = 0
+        failed = false
+        Log.note("recorder: writing again in segment \(segmentURLs.count)")
+        return true
+    }
+
+    private func write(_ buffer: AVAudioPCMBuffer, tapped: inout AVAudioPCMBuffer?, tap: inout (@Sendable (AVAudioPCMBuffer) -> Void)?,
+                       failure: inout (@Sendable () -> Void)?) -> Float {
         var rms: Float = 0
         if let ch = buffer.floatChannelData?[0], buffer.frameLength > 0 {
             var sum: Float = 0
@@ -108,7 +168,7 @@ final class RecordingWriter: @unchecked Sendable {
         let now = ProcessInfo.processInfo.systemUptime
         if firstBufferAt == nil { firstBufferAt = now }
         if rms > 0 { signal = true; lastSignal = now }
-        guard !paused, converter != nil, file != nil || holding else { return 0 }
+        guard !paused, !failed, converter != nil, file != nil || holding else { return 0 }
         // A route change (AirPods out, a new device) can change the format mid-stream: convert from the new one
         // instead of dropping it, so the file keeps one format and nothing is lost.
         if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount {
@@ -129,10 +189,7 @@ final class RecordingWriter: @unchecked Sendable {
         if err == nil, out.frameLength > 0 {
             if liveTap != nil { tapped = out; tap = liveTap }
             if let file {
-                try? file.write(from: out)
-                frames += Int64(out.frameLength)
-                framesInSegment += Int64(out.frameLength)
-                if let limit = segmentLimit, framesInSegment >= limit { rollSegment() }
+                append(out, to: file, failure: &failure)
             } else {
                 preRoll.append(out)
                 preRollFrames += Int64(out.frameLength)
@@ -147,15 +204,20 @@ final class RecordingWriter: @unchecked Sendable {
     var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames + preRollFrames) / recordingFormat.sampleRate }
 
     /// Opens the next segment file, then closes the current one (finalizing its header). Called with `lock`
-    /// held, on the audio thread. If the next file can't be opened, keeps writing the current one.
-    private func rollSegment() {
+    /// held, on the audio thread. If the next file can't be opened, keeps writing the current one and tries again
+    /// a second later; after 3 failures in a row (a full disk, usually) the writer stops taking audio.
+    private func rollSegment(failure: inout (@Sendable () -> Void)?) {
         framesInSegment = 0
         guard let first = segmentURLs.first else { return }
         let next = RecordingSegments.url(for: first, index: segmentURLs.count + 1)
         guard let f = try? AVAudioFile(forWriting: next, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true) else {
-            Log.note("recorder: couldn't open segment \(segmentURLs.count + 1); continuing in the current file")
+            segmentOpenFailures += 1
+            Log.note("recorder: couldn't open segment \(segmentURLs.count + 1) (try \(segmentOpenFailures)); continuing in the current file")
+            if segmentOpenFailures >= 3 { fail("couldn't open a new segment 3 times", failure: &failure); return }
+            framesInSegment = max(0, (segmentLimit ?? 0) - Int64(recordingFormat.sampleRate))
             return
         }
+        segmentOpenFailures = 0
         if #available(macOS 15, iOS 18, *) { file?.close() }
         file = f
         segmentURLs.append(next)
@@ -187,9 +249,9 @@ final class RecordingWriter: @unchecked Sendable {
     /// Flushes the converter (its resampler holds the last few milliseconds) and closes the file.
     func close() -> [Float] {
         lock.lock(); defer { lock.unlock() }
-        if let converter, let file, !paused { drain(converter, into: file) }
+        if let converter, let file, !paused, !failed { drain(converter, into: file) }
         if #available(macOS 15, iOS 18, *) { file?.close() }
-        file = nil; converter = nil; preRoll = []; preRollFrames = 0; holding = false; liveTap = nil
+        file = nil; converter = nil; preRoll = []; preRollFrames = 0; holding = false; liveTap = nil; onFailure = nil
         return envelope
     }
 
@@ -199,7 +261,7 @@ final class RecordingWriter: @unchecked Sendable {
             var err: NSError?
             let status = converter.convert(to: out, error: &err) { _, s in s.pointee = .endOfStream; return nil }
             if err == nil, out.frameLength > 0 {
-                try? file.write(from: out)
+                guard (try? file.write(from: out)) != nil else { return }
                 frames += Int64(out.frameLength)
             }
             if err != nil || status != .haveData || out.frameLength == 0 { return }
@@ -290,6 +352,23 @@ enum MicWarning: Equatable {
         guard !name.isEmpty else { return "the mic" }
         return name.lowercased().contains("mic") ? "the \(name)" : "the \(name) mic"
     }
+}
+
+/// A normal recording once Stop has saved it (`Recorder.stopAndSave`).
+struct StoppedRecording: Sendable {
+    /// The recording's file. Usually the URL it was started with; another name when its first part couldn't be read.
+    var url: URL
+    var duration: TimeInterval
+    var envelope: [Float]
+    /// Audio frames that reached the disk. Zero means nothing was recorded at all.
+    var framesWritten: Int64
+    /// The segments couldn't be joined: every part stays in the recordings folder for launch recovery, and the
+    /// caller must not adopt `url`.
+    var joinFailed = false
+    /// Parts that couldn't be read, in seconds of the recording. Silence stands in for each one.
+    var skipped: [ClosedRange<Double>] = []
+    /// The URL the recording was started with (where its continuation marker sits), when `url` differs.
+    var startedAs: URL? = nil
 }
 
 struct RecorderError: LocalizedError {
@@ -384,9 +463,15 @@ final class Recorder: ObservableObject {
     /// The last `stop()` couldn't join a long recording's segments. The caller must not adopt the file then:
     /// every part stays in the recordings folder, and launch recovery joins it.
     private(set) var lastJoinFailed = false
-    /// Called when a normal recording pauses itself (a phone call, or a microphone change it couldn't follow),
-    /// with a short reason to show. Resume carries on in the same file.
+    /// Called when a normal recording pauses itself (a phone call, a microphone change it couldn't follow, or
+    /// audio it can't save), with a short reason to show. Resume carries on in the same recording.
     var onAutoPaused: ((String) -> Void)?
+    /// A recording's audio can't be written (a full disk): it pauses with this, and Resume tries a fresh file.
+    #if os(iOS)
+    static let cantSaveNotice = "Verbatim can't save audio. Free up space, then tap Resume."
+    #else
+    static let cantSaveNotice = "Verbatim can't save audio. Free up space, then click Resume."
+    #endif
     /// A recording moved to another microphone on its own (the one it was using went away) and kept going.
     var onInputSwitched: ((String) -> Void)?
     var elapsed: TimeInterval { live.elapsed }
@@ -528,6 +613,7 @@ final class Recorder: ObservableObject {
         }
         let w = try RecordingWriter(url: url, inputFormat: inFormat, segmented: true)
         w.setLiveTap(liveTap)
+        watchWrites(w)
         writer = w
         self.url = url
         live.reset()
@@ -591,10 +677,25 @@ final class Recorder: ObservableObject {
         live.push(v, seconds: seconds, paused: isPaused)
     }
 
+    /// Pauses the recording the moment its audio can't be written, so it never looks like it's recording
+    /// while nothing is saved.
+    private func watchWrites(_ w: RecordingWriter) {
+        w.setOnFailure { [weak self, weak w] in
+            Task { @MainActor in
+                guard let self, let w, self.writer === w, self.isRecording else { return }
+                self.autoPause(Self.cantSaveNotice)
+            }
+        }
+    }
+
     func togglePause() {
         #if os(iOS)
         pausedForInterruption = false
         #endif
+        // Resuming after audio couldn't be written: carry on in a fresh segment file, or stay paused.
+        if isPaused, !keepWarm, let w = writer, w.writeFailed {
+            guard w.retryAfterFailure() else { onAutoPaused?(Self.cantSaveNotice); return }
+        }
         #if os(macOS)
         if !keepWarm {
             guard isRecording, !isStarting, !reopening else { return }
@@ -672,9 +773,11 @@ final class Recorder: ObservableObject {
         let env = Waveform.resample(w.close(), to: 120)   // close() flushes the converter's last frames first
         let d = w.seconds
         let parts = w.segments
+        var out = url
         if parts.count > 1 {
-            if RecordingSegments.join(parts) != nil {
-                Log.note("recorder: joined \(parts.count) segments")
+            if let joined = RecordingSegments.join(parts) {
+                out = joined.url
+                Log.note("recorder: joined \(parts.count) segments\(joined.skipped.isEmpty ? "" : ", \(joined.skipped.count) unreadable")")
             } else {
                 lastJoinFailed = true
                 Log.note("recorder: couldn't join \(parts.count) segments; all kept for recovery at next launch")
@@ -683,7 +786,41 @@ final class Recorder: ObservableObject {
         RecordingSegments.setActive(url, false)
         Log.note("recorder: stopped \(String(format: "%.2f", d))s, first audio \(firstDelay.map { "\($0) ms" } ?? "never") after start, warm=\(keepWarm)")
         finishStop()
-        return (url, d, env)
+        return (out, d, env)
+    }
+
+    /// Stop for normal recordings: capture ends at once (the recorder is free and `isRecording` is false), then a
+    /// long recording's segments are joined off the main thread, so the app stays responsive however long it ran.
+    /// Until the join is done the files stay marked in progress; if the app dies meanwhile, the join marker and
+    /// launch recovery finish the job. Nil when nothing was recording (or Stop cancelled a start).
+    func stopAndSave() async -> StoppedRecording? {
+        lastJoinFailed = false
+        #if os(macOS)
+        if isStarting { cancelStart(); return nil }
+        #endif
+        guard let (w, url) = endCapture() else { return nil }
+        lastHeardSignal = w.heardSignal
+        let env = Waveform.resample(w.close(), to: 120)   // close() flushes the converter's last frames first
+        var result = StoppedRecording(url: url, duration: w.seconds, envelope: env, framesWritten: w.framesWritten)
+        let parts = w.segments
+        Log.note("recorder: stopped \(String(format: "%.2f", result.duration))s in \(parts.count) part\(parts.count == 1 ? "" : "s"), \(w.writeFailed ? "after a write failure" : "all written")")
+        finishStop()
+        if parts.count > 1 {
+            let joined = await Task.detached(priority: .userInitiated) { RecordingSegments.join(parts) }.value
+            if let joined {
+                if joined.url != url { result.startedAs = url }
+                result.url = joined.url
+                result.skipped = joined.skipped
+                result.duration = joined.seconds
+                Log.note("recorder: joined \(parts.count) segments in the background\(joined.skipped.isEmpty ? "" : ", \(joined.skipped.count) unreadable")")
+            } else {
+                result.joinFailed = true
+                Log.note("recorder: couldn't join \(parts.count) segments; all kept for recovery at next launch")
+            }
+        }
+        RecordingSegments.setActive(url, false)
+        lastJoinFailed = result.joinFailed
+        return result
     }
 
     /// Stops and deletes the recording and its segments without joining them.
@@ -869,6 +1006,7 @@ final class Recorder: ObservableObject {
             let done = endStart(keepRecording: true)
             input = open
             w.setLiveTap(liveTap)
+            watchWrites(w)
             writer = w
             RecordingSegments.setActive(url, true)
             startedAt = ProcessInfo.processInfo.systemUptime
@@ -1600,6 +1738,23 @@ enum RecordingSegments {
         var segments: [String]
         /// The first part had already been adopted: this segment was renamed to `base` to start the file.
         var renamedFrom: String?
+        /// Parts that couldn't be read (silence stands in for them): set aside once the join is done, so they're
+        /// never joined again but never deleted either.
+        var unreadable: [String]? = nil
+    }
+
+    /// What `join` made: the file, the parts it couldn't read, and the joined length.
+    struct JoinResult: Sendable {
+        var url: URL
+        /// Unreadable parts as seconds of the recording (from where they'd start to where they'd end).
+        var skipped: [ClosedRange<Double>]
+        var seconds: Double
+    }
+
+    /// A piece of the joined file: a readable segment's samples, or zeros where an unreadable one was.
+    private enum Piece {
+        case audio(URL)
+        case silence(UInt64)
     }
 
     static func markerURL(for base: URL) -> URL {
@@ -1612,11 +1767,14 @@ enum RecordingSegments {
     }
 
     /// Appends segments 2… onto segment 1 (the recording's URL) in place, then deletes them. Every part is checked
-    /// first (a readable WAV, all in one format); if any fails, nothing is touched. When segment 1 is missing
-    /// (already adopted elsewhere), the next segment is renamed to a fresh name nobody uses (`isTaken`) and becomes
-    /// the file. Returns the joined file's URL, or nil when it couldn't join (every file is then as it was).
+    /// first. A part that can't be read (or isn't in the recording's format) never strands the parts after it:
+    /// silence as long as its file stands in for it (so the times after it still line up), its range is reported
+    /// in `skipped`, and the file is set aside under an "Unreadable …" name, never deleted. When segment 1 is
+    /// missing (already adopted elsewhere) or unreadable, the first readable segment is renamed to a fresh name
+    /// nobody uses (`isTaken`) and becomes the file. Nil when it couldn't join at all (no part readable, or the
+    /// disk work failed and was rolled back): every file is then as it was.
     @discardableResult
-    static func join(_ urls: [URL], isTaken: ((String) -> Bool)? = nil) -> URL? {
+    static func join(_ urls: [URL], isTaken: ((String) -> Bool)? = nil) -> JoinResult? {
         let fm = FileManager.default
         guard let first = urls.first else { return nil }
         let folder = first.deletingLastPathComponent()
@@ -1626,31 +1784,65 @@ enum RecordingSegments {
         var layouts: [URL: WavRepair.Layout] = [:]
         for part in existing {
             WavRepair.fixHeader(part)
-            guard let l = WavRepair.layout(part) else {
-                Log.note("recorder: segment \(part.lastPathComponent) unreadable; join skipped, every file kept")
-                return nil
-            }
-            layouts[part] = l
+            if let l = WavRepair.layout(part) { layouts[part] = l }
+            else { Log.note("recorder: segment \(part.lastPathComponent) unreadable; joining the rest around it") }
         }
-        guard Set(existing.compactMap { layouts[$0]?.format }).count == 1 else {
-            Log.note("recorder: segments differ in format; join skipped"); return nil
+        // The first readable part sets the format; a part in any other format can't be appended byte for byte.
+        guard let startPart = existing.first(where: { layouts[$0] != nil }), let start = layouts[startPart] else {
+            Log.note("recorder: no part of \(first.lastPathComponent) is readable; every file kept"); return nil
+        }
+        for part in existing where layouts[part].map({ $0.format != start.format }) ?? false {
+            Log.note("recorder: segment \(part.lastPathComponent) is in another format; joining the rest around it")
+            layouts[part] = nil
+        }
+        let byteRate = Double(max(1, start.byteRate))
+        let align = UInt64(max(1, start.blockAlign))
+
+        // Lay out the recording: each part's place in time, and what goes into the joined file for it.
+        var pieces: [Piece] = []
+        var skipped: [ClosedRange<Double>] = []
+        var unreadable: [URL] = []
+        var at: Double = 0
+        let startIndex = existing.firstIndex(of: startPart)!
+        for (i, part) in existing.enumerated() {
+            if let l = layouts[part] {
+                if i > startIndex { pieces.append(.audio(part)) }
+                at += Double(l.dataLength) / byteRate
+                continue
+            }
+            // Unreadable: as long as its file says (less a WAV header), rounded to whole frames.
+            let size = (try? fm.attributesOfItem(atPath: part.path)[.size] as? UInt64) ?? 0
+            let bytes = (size > 44 ? size - 44 : 0) / align * align
+            let seconds = Double(bytes) / byteRate
+            skipped.append(at...(at + seconds))
+            unreadable.append(part)
+            // Before the first readable part there's nothing to put silence in front of; after it, silence keeps
+            // the later parts at their times.
+            if i > startIndex, bytes > 0 { pieces.append(.silence(bytes)) }
+            at += seconds
         }
 
         var base = first
         var renamedFrom: URL?
-        if !fm.fileExists(atPath: first.path) {
+        if startPart != first {
             base = uniqueURL(near: first, isTaken: isTaken)
-            renamedFrom = existing[0]
+            renamedFrom = startPart
         }
-        let rest = Array(existing.dropFirst())
-        let start = layouts[renamedFrom ?? base]!
-        if rest.isEmpty && renamedFrom == nil { return base }
-        let expected = rest.reduce(start.dataLength) { $0 + (layouts[$1]?.dataLength ?? 0) }
+        let appended = pieces.compactMap { if case .audio(let u) = $0 { return u } else { return nil } }
+        let expected = pieces.reduce(start.dataLength) { total, p in
+            switch p {
+            case .audio(let u): return total + (layouts[u]?.dataLength ?? 0)
+            case .silence(let n): return total + n
+            }
+        }
+        let seconds = Double(expected) / byteRate
+        if pieces.isEmpty && renamedFrom == nil && unreadable.isEmpty { return JoinResult(url: base, skipped: [], seconds: seconds) }
         guard start.dataOffset + expected <= UInt64(UInt32.max) else {
             Log.note("recorder: recording too long for one WAV file; segments kept"); return nil
         }
         let m = JoinMarker(base: base.lastPathComponent, originalLength: start.dataLength, expectedLength: expected,
-                           segments: rest.map(\.lastPathComponent), renamedFrom: renamedFrom?.lastPathComponent)
+                           segments: appended.map(\.lastPathComponent), renamedFrom: renamedFrom?.lastPathComponent,
+                           unreadable: unreadable.isEmpty ? nil : unreadable.map(\.lastPathComponent))
         do { try writeMarker(m, in: folder) } catch {
             Log.note("recorder: couldn't write the join marker; join skipped"); return nil
         }
@@ -1661,25 +1853,53 @@ enum RecordingSegments {
             }
         }
         do {
-            try append(rest, layouts: layouts, to: base, layout: start, total: expected)
+            try append(pieces, layouts: layouts, to: base, layout: start, total: expected)
         } catch {
             Log.note("recorder: join failed (\(error.localizedDescription)); rolled back, segments kept")
             rollBack(m, in: folder)
             return nil
         }
-        // Every byte is in the base and on disk: now the segments can go, then the marker.
-        for u in rest { try? fm.removeItem(at: u) }
+        // Every byte is in the base and on disk: now the segments can go, the unreadable ones are set aside, and
+        // then the marker goes.
+        for u in appended { try? fm.removeItem(at: u) }
+        for u in unreadable { setAside(u) }
         try? fm.removeItem(at: markerURL(for: base))
-        return base
+        return JoinResult(url: base, skipped: skipped, seconds: seconds)
     }
 
-    /// Appends each segment's sample bytes after the base's, then writes the final header sizes.
-    private static func append(_ parts: [URL], layouts: [URL: WavRepair.Layout], to base: URL, layout: WavRepair.Layout, total: UInt64) throws {
+    /// Keeps a part that can't be read out of every later join and out of recovery, without deleting it:
+    /// "Unreadable <name>.bin" in the same folder.
+    static func setAside(_ part: URL) {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: part.path) else { return }
+        let folder = part.deletingLastPathComponent()
+        var dest = folder.appendingPathComponent("Unreadable \(part.lastPathComponent).bin")
+        if fm.fileExists(atPath: dest.path) { dest = folder.appendingPathComponent("Unreadable \(part.lastPathComponent) \(UUID().uuidString.prefix(4)).bin") }
+        do { try fm.moveItem(at: part, to: dest); Log.note("recorder: set aside unreadable \(part.lastPathComponent)") }
+        catch { Log.note("recorder: couldn't set aside \(part.lastPathComponent): \(error.localizedDescription)") }
+    }
+
+    /// Appends each piece after the base's samples (a segment's sample bytes, or zeros), then writes the final
+    /// header sizes.
+    private static func append(_ pieces: [Piece], layouts: [URL: WavRepair.Layout], to base: URL, layout: WavRepair.Layout, total: UInt64) throws {
         let out = try FileHandle(forUpdating: base)
         defer { try? out.close() }
         try out.truncate(atOffset: layout.dataOffset + layout.dataLength)
         try out.seekToEnd()
-        for part in parts {
+        for piece in pieces {
+            let part: URL
+            switch piece {
+            case .silence(let n):
+                var remaining = n
+                let zeros = Data(count: Int(min(n, 1 << 20)))
+                while remaining > 0 {
+                    let k = Int(min(remaining, UInt64(zeros.count)))
+                    try out.write(contentsOf: k == zeros.count ? zeros : zeros.prefix(k))
+                    remaining -= UInt64(k)
+                }
+                continue
+            case .audio(let u): part = u
+            }
             guard let l = layouts[part] else { continue }
             let input = try FileHandle(forReadingFrom: part)
             defer { try? input.close() }
@@ -1734,6 +1954,7 @@ enum RecordingSegments {
                     try? h.close()
                 }
                 for s in m.segments { try? fm.removeItem(at: folder.appendingPathComponent(s)) }
+                for s in m.unreadable ?? [] { setAside(folder.appendingPathComponent(s)) }
                 try? fm.removeItem(at: f)
                 Log.note("recorder: finished an interrupted join of \(m.segments.count) segments")
             } else {
@@ -1743,9 +1964,11 @@ enum RecordingSegments {
         }
     }
 
-    /// "<stem> 2.wav", "<stem> 3.wav"…: the first name not on disk here and not taken elsewhere.
-    private static func uniqueURL(near url: URL, isTaken: ((String) -> Bool)?) -> URL {
+    /// "<stem> 2.wav", "<stem> 3.wav"…: the first name not on disk here and not taken elsewhere. With `tryPlain`,
+    /// `url` itself comes first.
+    private static func uniqueURL(near url: URL, isTaken: ((String) -> Bool)?, tryPlain: Bool = false) -> URL {
         let fm = FileManager.default
+        if tryPlain, !fm.fileExists(atPath: url.path), !(isTaken?(url.lastPathComponent) ?? false) { return url }
         let folder = url.deletingLastPathComponent(), stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
         var n = 2
         while true {
@@ -1772,7 +1995,11 @@ enum RecordingSegments {
     /// At launch, before orphaned recordings are recovered: finishes or rolls back an interrupted join, then joins
     /// leftover segments onto their first file. When the first file was already adopted (it's gone from here), the
     /// segments become a new recording under a name `isTaken` says is free. Recordings in progress are left alone.
-    static func joinLeftovers(in folder: URL, isTaken: ((String) -> Bool)? = nil) {
+    /// Parts that still can't be joined become recordings of their own ("<name> part 3.wav"), so recovery
+    /// surfaces each one. Returns the unreadable ranges of each joined file, by file name.
+    @discardableResult
+    static func joinLeftovers(in folder: URL, isTaken: ((String) -> Bool)? = nil) -> [String: [ClosedRange<Double>]] {
+        var skipped: [String: [ClosedRange<Double>]] = [:]
         let fm = FileManager.default
         finishInterrupted(in: folder)
         let files = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [])) ?? []
@@ -1781,10 +2008,24 @@ enum RecordingSegments {
         var groups: [URL: [(Int, URL)]] = [:]
         for f in files where !isActive(f) { if let p = parse(f) { groups[p.base, default: []].append((p.index, f)) } }
         for (base, parts) in groups {
-            let ordered = [base] + parts.sorted { $0.0 < $1.0 }.map(\.1)
+            let sorted = parts.sorted { $0.0 < $1.0 }
+            let ordered = [base] + sorted.map(\.1)
             let joined = join(ordered, isTaken: isTaken)
-            Log.note("recorder: recovered \(parts.count + 1) segments of an interrupted recording (\(joined.map { "joined into \($0.lastPathComponent)" } ?? "join failed, kept"))")
+            Log.note("recorder: recovered \(parts.count + 1) segments of an interrupted recording (\(joined.map { "joined into \($0.url.lastPathComponent)" } ?? "join failed"))")
+            if let joined {
+                if !joined.skipped.isEmpty { skipped[joined.url.lastPathComponent] = joined.skipped }
+                continue
+            }
+            // Still can't be joined: each readable part becomes its own recording; unreadable ones are set aside.
+            for (index, part) in sorted where fm.fileExists(atPath: part.path) {
+                guard WavRepair.layout(part) != nil else { setAside(part); continue }
+                let stem = base.deletingPathExtension().lastPathComponent
+                let dest = uniqueURL(near: folder.appendingPathComponent("\(stem) part \(index).\(part.pathExtension)"), isTaken: isTaken, tryPlain: true)
+                do { try fm.moveItem(at: part, to: dest); Log.note("recorder: kept \(part.lastPathComponent) as \(dest.lastPathComponent)") }
+                catch { Log.note("recorder: couldn't rename \(part.lastPathComponent): \(error.localizedDescription)") }
+            }
         }
+        return skipped
     }
 }
 
@@ -1799,6 +2040,9 @@ enum WavRepair {
         var dataLength: UInt64
         var dataSizeField: UInt64
         var format: Data
+        /// From the fmt chunk: bytes per second, and bytes per frame (all channels).
+        var byteRate: UInt32 { format.count >= 12 ? format[format.startIndex + 8..<format.startIndex + 12].enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << (8 * UInt32($1.offset)) } : 0 }
+        var blockAlign: UInt16 { format.count >= 14 ? UInt16(format[format.startIndex + 12]) | UInt16(format[format.startIndex + 13]) << 8 : 0 }
     }
 
     static func layout(_ url: URL) -> Layout? {
