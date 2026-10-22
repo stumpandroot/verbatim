@@ -17,6 +17,7 @@
 # Needs: Xcode (clang, lipo, xcodebuild), curl, shasum. Takes about 5–10 minutes. CI caches the output, keyed on
 # this script's hash, so changing the version or any option here rebuilds it.
 set -euo pipefail
+trap 'echo "error: ffmpeg/build.sh stopped at line $LINENO" >&2' ERR
 
 FFMPEG_VERSION="7.1.5"
 FFMPEG_SHA256="de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f"
@@ -120,13 +121,19 @@ make_framework() {
   cp "$bin" "$exe"
   chmod 755 "$exe"
   strip -x "$exe" 2>/dev/null || true
-  install_name_tool -id "$id" "$exe" 2>/dev/null
-  # Point at the other libraries by their framework paths.
-  otool -L "$exe" | awk 'NR>1 {print $1}' | grep -E '^@rpath/lib(avutil|swresample|avcodec|avformat)\.[0-9]+\.dylib$' | while read -r dep; do
+  install_name_tool -id "$id" "$exe" 2>&1 | grep -v "invalidate the code signature" || true
+  # Point at the other libraries by their framework paths (libavutil depends on none of them).
+  local deps
+  deps="$(otool -L "$exe" | awk 'NR>1 {print $1}' | grep -E '^@rpath/lib(avutil|swresample|avcodec|avformat)\.[0-9]+\.dylib$' || true)"
+  for dep in $deps; do
     local d; d="$(basename "$dep" | cut -d. -f1)"
     local to="@rpath/$d.framework/$d"; [ "$kind" = macos ] && to="@rpath/$d.framework/Versions/A/$d"
-    install_name_tool -change "$dep" "$to" "$exe" 2>/dev/null
+    install_name_tool -change "$dep" "$to" "$exe" 2>&1 | grep -v "invalidate the code signature" || true
   done
+  if otool -L "$exe" | awk 'NR>1 {print $1}' | grep -qE '^@rpath/lib[a-z]+\.[0-9]+\.dylib$'; then
+    echo "error: $lib ($kind) still links a library by its dylib name:" >&2; otool -L "$exe" >&2; exit 1
+  fi
+  otool -D "$exe" | tail -n 1 | grep -qxF "$id" || { echo "error: $lib ($kind) has the wrong install name" >&2; otool -D "$exe" >&2; exit 1; }
   local platform min minkey
   case "$kind" in
     macos) platform=MacOSX; min="$MACOS_MIN"; minkey=LSMinimumSystemVersion ;;
@@ -152,7 +159,7 @@ make_framework() {
 </plist>
 PLIST
   # install_name_tool invalidates the linker's ad-hoc signature; Xcode re-signs with your identity when it embeds.
-  codesign --force --sign - "$exe" >/dev/null 2>&1
+  codesign --force --sign - "$exe"
 }
 
 STAGE="$WORK/frameworks"
