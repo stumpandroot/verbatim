@@ -217,16 +217,20 @@ struct ShareCardView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
+                // The in-app wordmark: the bars and "Verbatim" in the serif (DESIGN.md §4).
+                ShareBarsMark().fill(Ink.persimmon).frame(width: 14, height: 15)
+                Text("Verbatim").font(Ink.serif(17)).foregroundStyle(Ink.ink)
+                Spacer(minLength: 0)
                 ZStack {
                     Circle().fill(markFill)
-                    Image(systemName: markSymbol)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Ink.inkFixed)
+                    switch model.outcome {
+                    case .added, .link: Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(markInk)
+                    case .working: ProgressView().controlSize(.mini).tint(markInk)
+                    case .tiktok, .failed: Text("!").font(.system(size: 14, weight: .bold)).foregroundStyle(markInk)
+                    }
                 }
                 .frame(width: 24, height: 24)
                 .accessibilityHidden(true)
-                Overline(text: "Verbatim", color: Ink.accentText)
-                Spacer(minLength: 0)
             }
 
             Text(title)
@@ -262,8 +266,8 @@ struct ShareCardView: View {
         }
         .padding(20)
         .frame(maxWidth: 360, alignment: .leading)
-        .cardSurface(radius: 20)
-        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 16, y: 8)
+        .cardSurface(radius: Radius.tile)
+        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 3, y: 1)
         .padding(.horizontal, 16)
         .accessibilityElement(children: .contain)
     }
@@ -294,19 +298,20 @@ struct ShareCardView: View {
         }
     }
 
-    private var markSymbol: String {
-        switch model.outcome {
-        case .added, .link: return "checkmark"
-        case .working: return "arrow.down"
-        case .tiktok, .failed: return "exclamationmark"
-        }
-    }
-
+    /// Added is sage (an import); working is neutral; a failure is `Ink.danger`, never persimmon.
     private var markFill: Color {
         switch model.outcome {
         case .added, .link: return Ink.sage
-        case .working: return Ink.butter
-        case .tiktok, .failed: return Ink.persimmon
+        case .working: return Ink.neutralChip
+        case .tiktok, .failed: return Ink.danger
+        }
+    }
+
+    private var markInk: Color {
+        switch model.outcome {
+        case .added, .link: return Ink.inkFixed
+        case .working: return Ink.ink
+        case .tiktok, .failed: return Ink.readerFixed
         }
     }
 }
@@ -316,7 +321,22 @@ private struct ShareButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Ink.onInteractive)
-            .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : 1), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// The bars mark (brand/verbatim-mark-bars.svg, 76 × 80): two bars and a last bar with a speech tail. Drawn here
+/// because the share extension doesn't compile Brand.swift.
+private struct ShareBarsMark: Shape {
+    func path(in r: CGRect) -> Path {
+        let sx = r.width / 76, sy = r.height / 80
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: r.minX + (x - 22) * sx, y: r.minY + (y - 18) * sy) }
+        var path = Path()
+        path.addRect(CGRect(origin: p(22, 18), size: CGSize(width: 76 * sx, height: 14 * sy)))
+        path.addRect(CGRect(origin: p(22, 43), size: CGSize(width: 58 * sx, height: 14 * sy)))
+        path.move(to: p(22, 68)); path.addLine(to: p(98, 68)); path.addLine(to: p(98, 82))
+        path.addLine(to: p(44, 82)); path.addLine(to: p(22, 98)); path.closeSubpath()
+        return path
     }
 }

@@ -2,31 +2,16 @@ import SwiftUI
 
 // Capture and archive: kinds, tags, hidden filler lines, and background voices, shared by the Mac and iPhone apps.
 // Design rules (claude/verbatim-capture-archive-design.md): every piece takes a form the app already has (chips,
-// row cards, meta lines, dotted-leader headings); one bold color block per screen; kind colors are brand tokens.
+// row cards, meta lines, dotted-leader headings); kinds are neutral, so action hues keep one meaning each.
 
 extension RecordingKind {
-    /// The bold block color (Library hero card, the transcript's kind chip).
-    var fill: Color {
-        switch self {
-        case .journal: return Ink.petal
-        case .idea: return Ink.butter
-        case .meeting: return Ink.sage
-        case .note: return Ink.persimmon
-        case .dictation: return Ink.ink
-        }
-    }
-    /// Text and diagram color on `fill`: fixed ink on the colors (they stay light in dark mode), paper on ink.
-    var onFill: Color { self == .dictation ? Ink.paper : Ink.inkFixed }
-    /// The light tint for row icon tiles.
-    var tint: Color {
-        switch self {
-        case .journal: return Ink.petalTint
-        case .idea: return Ink.butterTint
-        case .meeting: return Ink.sageTint
-        case .note: return Ink.persimmonTint
-        case .dictation: return Ink.track
-        }
-    }
+    /// Kinds are neutral (DESIGN.md §1): ink at 6% behind `dim` text and the kind's own diagram, so a category
+    /// never borrows an action hue (persimmon Record, butter Dictate, sage Import, petal App audio).
+    var fill: Color { Ink.neutralChip }
+    /// Text and diagram color on `fill`.
+    var onFill: Color { Ink.ink }
+    /// The tint for row icon tiles.
+    var tint: Color { Ink.neutralChip }
     var art: BrandArt {
         switch self {
         case .journal: return .kindJournal
@@ -284,10 +269,10 @@ struct BackgroundVoicesCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(limitMotion ? nil : Motion.settle) { open.toggle() } } label: {
                 HStack(spacing: 12) {
-                    BrandGlyph(art: .featureBackground, color: Ink.inkFixed, minLineWidth: 1)
+                    BrandGlyph(art: .featureBackground, color: Ink.ink, minLineWidth: 1)
                         .frame(width: compact ? 18 : 28, height: compact ? 18 : 28)
                         .frame(width: compact ? 28 : 46, height: compact ? 28 : 46)
-                        .background(Ink.sageTint, in: RoundedRectangle(cornerRadius: compact ? 7 : 12, style: .continuous))
+                        .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: compact ? 7 : Radius.row, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Background voices").font(.system(size: compact ? 14 : 17, weight: .semibold)).foregroundStyle(Ink.ink)
                         Text(segments.count == 1 ? "1 short line from people nearby" : "\(segments.count) short lines from people nearby")
@@ -318,8 +303,8 @@ struct BackgroundVoicesCard: View {
                 .padding(.horizontal, 14).padding(.bottom, 14)
             }
         }
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous).strokeBorder(Ink.hairline))
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: compact ? Radius.row : Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: compact ? Radius.row : Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
     }
 
     private var moveHint: String {
@@ -343,13 +328,13 @@ struct KindHeroCard: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(kind.index).font(Ink.mono(11, weight: .medium))
+                    Text(kind.index).font(Ink.mono(11)).foregroundStyle(Ink.mute)
                     Rectangle().fill(kind.onFill.opacity(0.5)).frame(width: 14, height: 1)
                 }
                 Spacer(minLength: 12)
                 Text(kind.plural).font(Ink.serif(compact ? 32 : 36)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(kind.line).font(.system(size: compact ? 14 : 15, weight: .semibold)).padding(.top, 4)
-                Text(meta.uppercased()).font(Ink.mono(10.5, weight: .medium)).tracking(0.9).opacity(0.85).padding(.top, 8)
+                Text(kind.line).font(.system(size: compact ? 14 : 15)).foregroundStyle(Ink.dim).padding(.top, 4)
+                Text(meta).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute).padding(.top, 8)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 0) {
@@ -361,7 +346,8 @@ struct KindHeroCard: View {
         .foregroundStyle(kind.onFill)
         .padding(compact ? 16 : 18)
         .frame(maxWidth: .infinity, minHeight: compact ? 150 : 168, alignment: .topLeading)
-        .background(kind.fill, in: RoundedRectangle(cornerRadius: compact ? 16 : 20, style: .continuous))
+        // A paper card with the kind's diagram in ink: no colored fill on a working screen.
+        .cardSurface(radius: Radius.tile)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(kind.plural). \(kind.line) \(meta)")
     }
@@ -375,7 +361,7 @@ struct KindTile: View {
         BrandGlyph(art: kind.art, color: Ink.ink, minLineWidth: 1)
             .frame(width: size * 0.64, height: size * 0.64)
             .frame(width: size, height: size)
-            .background(kind.tint, in: RoundedRectangle(cornerRadius: size * 0.26, style: .continuous))
+            .background(kind.tint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             .accessibilityHidden(true)
     }
 }

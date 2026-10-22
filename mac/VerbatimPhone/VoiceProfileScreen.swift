@@ -50,8 +50,8 @@ struct VoiceProfileScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(overview ? "YOUR VOICE" : "YOUR VOICE · STEP \(model.step.number) OF 3")
-                .font(Ink.mono(11, weight: .medium)).tracking(2).foregroundStyle(Ink.mute)
+            Text(overview ? "Your voice" : "Your voice · step \(model.step.number) of 3")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute)
             Text(title).font(Ink.serif(36)).foregroundStyle(Ink.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
@@ -130,7 +130,7 @@ struct VoiceProfileScreen: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: 18)
+        .cardSurface(radius: Radius.tile)
     }
 
     /// The switches that use the profile and Delete voice profile, confirmed in place.
@@ -168,13 +168,13 @@ struct VoiceProfileScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Button { confirmingDelete = true } label: {
-                        SettingsRow(icon: "trash", tint: Ink.persimmonTint, title: "Delete voice profile", danger: true) { EmptyView() }
+                        SettingsRow(icon: "trash", tint: Ink.persimmonTint, art: .iconDeleteAll, title: "Delete voice profile", danger: true) { EmptyView() }
                     }
                     .buttonStyle(SettingsRowPress())
                 }
             }
         }
-        .cardSurface(radius: 18)
+        .cardSurface(radius: Radius.tile)
     }
 
     // MARK: Bottom

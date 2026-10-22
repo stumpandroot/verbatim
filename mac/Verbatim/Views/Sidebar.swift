@@ -40,14 +40,14 @@ struct Sidebar: View {
             }
 
             HStack {
-                Overline(text: "Projects", color: Ink.mute)
+                Text("Projects").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
                 Spacer()
                 Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 22).hoverChip().tapArea { newProject = true }
                     .help("New project")
             }
             .padding(.leading, 12).padding(.trailing, 6).padding(.top, 18).padding(.bottom, 4)
             ForEach(app.store.projects) { p in
-                SideItem(label: p.name, symbol: "folder.fill", symbolColor: [Ink.persimmon, Ink.sageText, Ink.petal][p.colorIndex % 3],
+                SideItem(label: p.name, art: .iconProject,
                          selected: app.screen == .library && app.projectFilter == p.id, pill: pill, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
                     .contextMenu { Button("Delete project", role: .destructive) {
                         app.store.projects.removeAll { $0.id == p.id }
@@ -89,7 +89,7 @@ struct Sidebar: View {
                     .font(.system(size: 13.5)).foregroundStyle(Ink.dim)
                     .padding(.horizontal, 12).padding(.vertical, 7).contentShape(Rectangle())
             }
-            .buttonStyle(.plain).hoverChip(radius: 10)
+            .buttonStyle(.plain).hoverChip(radius: Radius.button)
         }
         .padding(.horizontal, 12).padding(.top, 40).padding(.bottom, 12)
         .font(.system(size: 14.5))
@@ -191,8 +191,8 @@ struct SideItem: View {
         .background {
             ZStack {
                 // Hover previews with a light ink tint; selection is the persimmon tick and semibold type, no fill.
-                if dropping { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.accentSubtle).overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.persimmon, lineWidth: 1.5)) }
-                else if hover && !selected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.ink.opacity(0.06)) }
+                if dropping { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.wash).overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5)) }
+                else if hover && !selected { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.ink.opacity(0.06)) }
             }
         }
         .overlay(alignment: .leading) {
@@ -212,22 +212,3 @@ struct SideItem: View {
     }
 }
 
-/// The app mark for the menu bar panel: the persimmon app icon geometry (app_icon_persimmon).
-struct BrandMark: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Ink.persimmon)
-            BarsMark(color: Color(hex: Ink.paperHex)).padding(4.5)
-        }
-    }
-}
-
-/// A native AppKit material (sidebar, popover, HUD) for SwiftUI.
-struct VisualEffect: NSViewRepresentable {
-    var material: NSVisualEffectView.Material
-    var blending: NSVisualEffectView.BlendingMode = .withinWindow
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let v = NSVisualEffectView(); v.material = material; v.blendingMode = blending; v.state = .followsWindowActiveState; return v
-    }
-    func updateNSView(_ v: NSVisualEffectView, context: Context) { v.material = material; v.blendingMode = blending }
-}
