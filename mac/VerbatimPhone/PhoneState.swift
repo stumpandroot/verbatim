@@ -118,7 +118,8 @@ final class PhoneState: ObservableObject {
         store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
         // Picked files the app quit in the middle of importing start again (their placeholders are still "Importing").
-        let resumable = store.takeResumableImports().compactMap { id, url -> (UUID, ImportSource)? in
+        let resumable = store.takeResumableImports().compactMap { pair -> (UUID, ImportSource)? in
+            let (id, url) = pair
             guard let t = store.transcript(id) else { return nil }
             return (id, ImportSource(url: url, title: t.title, label: t.sourceLabel, source: t.source))
         }

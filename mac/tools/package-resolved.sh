@@ -27,7 +27,9 @@ case "${1:-}" in
       cat "$generated"
       exit 1
     fi
-    if ! diff -u "$committed" "$generated"; then
+    # The pins are what matter; originHash only fingerprints the requirements in project.yml.
+    pins() { grep -v '"originHash"' "$1"; }
+    if ! diff -u <(pins "$committed") <(pins "$generated"); then
       echo "::error::Swift package versions changed from mac/Package.resolved. If that's intended, commit the file above as mac/Package.resolved."
       exit 1
     fi

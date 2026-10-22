@@ -11,9 +11,11 @@ packages:
   ArgmaxOSS:
     url: https://github.com/argmaxinc/argmax-oss-swift.git
     from: 1.1.0
+  # Pinned exactly (the version CI resolved, 503b4bd): the speech models and their APIs change between releases.
+  # Every package's version is also fixed by mac/Package.resolved; update both on purpose.
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio.git
-    from: 0.17.7
+    exactVersion: 0.17.7
   # Automatic updates for the Mac app (direct download). Mac target only; see mac/Updates/README.md.
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
