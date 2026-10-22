@@ -73,7 +73,7 @@ struct DictationsListScreen: View {
                         Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
                     }
                     .swipeActions(edge: .leading) {
-                        Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)
+                        Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
                     }
             }
         }

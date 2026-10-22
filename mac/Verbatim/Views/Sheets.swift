@@ -33,16 +33,16 @@ struct AppPickerSheet: View {
                 .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
             if !consentSeen {
                 // One-time recording-consent notice: shown until the first capture starts.
-                Label("Many places require everyone's consent to record a conversation. Let people on a call know before you capture it.",
-                      systemImage: "person.2.wave.2")
+                Label { Text("Many places require everyone's consent to record a conversation. Let people on a call know before you capture it.") }
+                    icon: { ArtIcon(art: .iconSpeakers, size: 16) }
                     .font(.system(size: 12.5)).foregroundStyle(Ink.ink)
                     .fixedSize(horizontal: false, vertical: true)   // wraps instead of cutting off
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Ink.coral.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             TextField("Filter apps", text: $filter).textFieldStyle(.roundedBorder)
             if let e = error {
-                Text(e).font(.system(size: 12.5)).foregroundStyle(Ink.coral)
+                Text(e).font(.system(size: 12.5)).foregroundStyle(Ink.danger)
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {

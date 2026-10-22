@@ -59,8 +59,8 @@ struct PhoneOnboarding: View {
             title("Let Verbatim hear you.")
             para("Only while you record. Audio is transcribed on this iPhone and isn't uploaded anywhere except your own iCloud, when sync is on.")
             HStack(spacing: 14) {
-                Image(systemName: "mic").font(.system(size: 19)).foregroundStyle(Ink.ink)
-                    .frame(width: 44, height: 44).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                IconGlyph(art: .capture, size: 22, color: Ink.ink)
+                    .frame(width: 44, height: 44).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Microphone").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
                     Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(Ink.mute)

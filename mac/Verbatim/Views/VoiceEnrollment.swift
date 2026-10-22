@@ -646,10 +646,10 @@ struct VoiceRecordButton: View {
             ZStack {
                 Circle().fill(Ink.persimmon)
                 if model.isPaused {
-                    Image(systemName: "play.fill").font(.system(size: size * 0.32, weight: .bold)).foregroundStyle(Color(hex: Ink.paperHex))
+                    IconGlyph(art: .iconPlay, size: size * 0.36, color: Ink.inkFixed)
                         .offset(x: size * 0.03)
                 } else {
-                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Color(hex: Ink.paperHex))
+                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Ink.inkFixed)
                         .frame(width: size * 0.26, height: size * 0.26)
                 }
             }

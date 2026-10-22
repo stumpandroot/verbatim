@@ -322,7 +322,7 @@ struct RowActions: View {
     var transcript: Transcript
     var body: some View {
         Button { app.togglePin(transcript.id) } label: { Label(transcript.pinned ? "Unpin" : "Pin", systemImage: transcript.pinned ? "pin.slash" : "pin") }
-        Button { RenameCenter.shared.begin(transcript) } label: { Label("Rename…", systemImage: "pencil") }
+        Button { RenameCenter.shared.begin(transcript) } label: { Label("Rename…", systemImage: "pencil") }   // brand: system surface (context menu)
         Menu {
             // One project at a time: choosing another moves it there (the current one has a checkmark).
             ForEach(app.store.projects) { p in
@@ -334,13 +334,13 @@ struct RowActions: View {
             }
             if let current = transcript.projectId, let name = app.store.projects.first(where: { $0.id == current })?.name {
                 Divider()
-                Button { app.move(transcript.id, to: nil); app.say("Removed from \(name)") } label: { Label("Remove from \(name)", systemImage: "folder.badge.minus") }
+                Button { app.move(transcript.id, to: nil); app.say("Removed from \(name)") } label: { Label("Remove from \(name)", systemImage: "folder.badge.minus") }   // brand: system surface (context menu)
             }
             if !app.store.projects.isEmpty { Divider() }
-            Button { app.newProjectFor = transcript.id } label: { Label("New project…", systemImage: "folder.badge.plus") }
-        } label: { Label("Add to project", systemImage: "folder.badge.plus") }
-        if transcript.status == .ready { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }
-        if transcript.status == .failed { Button { app.retry(transcript) } label: { Label("Retry", systemImage: "arrow.clockwise") } }
+            Button { app.newProjectFor = transcript.id } label: { Label("New project…", systemImage: "folder.badge.plus") }   // brand: system surface (context menu)
+        } label: { Label("Add to project", systemImage: "folder.badge.plus") }   // brand: system surface (context menu)
+        if transcript.status == .ready { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }   // brand: system surface (context menu)
+        if transcript.status == .failed { Button { app.retry(transcript) } label: { Label("Retry", systemImage: "arrow.clockwise") } }   // brand: system surface (context menu)
         if transcript.status == .processing, transcript.processingDevice == Device.id { Button { app.cancel(transcript.id) } label: { Label("Cancel transcription", systemImage: "xmark") } }
         Divider()
         Button(role: .destructive) { app.delete([transcript.id]) } label: { Label("Delete", systemImage: "trash") }
@@ -425,7 +425,7 @@ struct RecordScreen: View {
             if paused, let reason = app.autoPauseReason {
                 // Paused by an interruption (a call, a microphone change): say so, and offer Resume right here.
                 HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "phone.arrow.down.left").font(.system(size: 17, weight: .medium)).foregroundStyle(Ink.accentText)
+                    IconGlyph(art: .iconAttention, size: 20, color: Ink.ink)
                         .accessibilityHidden(true)
                     Text(reason).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
@@ -626,7 +626,7 @@ struct LinkSheet: View {
                 Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbatim downloads the audio and transcribes it on this iPhone.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                 HStack(spacing: 8) {
-                    Image(systemName: "link").foregroundStyle(Ink.mute)
+                    IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)
                     TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
                 }
                 .padding(12)

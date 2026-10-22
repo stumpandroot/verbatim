@@ -251,7 +251,7 @@ struct FillerToggle: View {
 /// Under a title Apple Intelligence wrote (AI-label rule): small, mute, gone once the person renames it.
 struct AITitleNote: View {
     var body: some View {
-        Label { Text("Title by Apple Intelligence") } icon: { Image(systemName: "sparkle") }
+        Label { Text("Title by Apple Intelligence") } icon: { ArtIcon(art: .iconAI, size: 14) }
             .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
             .accessibilityElement(children: .combine)
     }
@@ -262,7 +262,7 @@ struct AITitleNote: View {
 struct CleanedLabel: View {
     var source: CleanupSource
     var body: some View {
-        Label { Text(source.label) } icon: { Image(systemName: source == .model ? "sparkles" : "checkmark.seal") }
+        Label { Text(source.label) } icon: { ArtIcon(art: source == .model ? .iconAI : .iconApplyDictionary, size: 14) }
             .font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("cleaned-label")

@@ -23,20 +23,21 @@ struct MomentsScreen: View {
                         VStack(alignment: .leading, spacing: 6) {
                             if let f = n.frameFile { StillImage(file: f).frame(height: 96).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
                             HStack(spacing: 4) {
-                                if n.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
+                                if n.isBookmark { ArtIcon(art: .bookmark, size: 12) }
                                 Text((n.at ?? 0).timecode).font(Ink.mono(11.5))
                             }
-                            .foregroundStyle(n.isBookmark ? Ink.sageText : Ink.accentText)
+                            .foregroundStyle(n.isBookmark ? Ink.butterText : Ink.dim)
                             Text(n.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineLimit(4).multilineTextAlignment(.leading)
                             Text(t.title).font(Ink.serif(13)).foregroundStyle(Ink.mute).lineLimit(1)
                         }
                         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(n.isBookmark ? Ink.butterTint : n.segmentId != nil ? Ink.petalTint : Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(n.isBookmark ? Ink.butterTint : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(n.isBookmark ? Color.clear : Ink.hairline))
                     }
                     .buttonStyle(SoftPress())
                     .riseIn(m.id, index: i, seen: seen, epoch: entrance)
                     .contextMenu {
-                        if let info = t.linkInfo, info.supportsTimestamps, let u = info.url(at: n.at ?? 0) { Link(destination: u) { Label("Open video", systemImage: "play.rectangle") } }
+                        if let info = t.linkInfo, info.supportsTimestamps, let u = info.url(at: n.at ?? 0) { Link(destination: u) { Label("Open video", systemImage: "play.rectangle") } }   // brand: system surface (context menu)
                         Button(role: .destructive) { app.deleteNote(t.id, note: n.id) } label: { Label("Delete", systemImage: "trash") }
                     }
                 }

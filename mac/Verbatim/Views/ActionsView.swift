@@ -65,7 +65,7 @@ struct ActionSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         // A solid marked strip, so the result never reads as the transcript.
                         HStack(spacing: 7) {
-                            Image(systemName: "sparkles").font(.system(size: 11, weight: .semibold))
+                            ArtIcon(art: .iconAI, size: 13)
                             Text(aiLabel).font(.system(size: 12, weight: .semibold))
                             Spacer(minLength: 6)
                             if !skipped.isEmpty { Text(skipped).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }

@@ -55,7 +55,7 @@ struct PhoneActionSheet: View {
                         VStack(alignment: .leading, spacing: 0) {
                             // A solid marked strip, so the result never reads as the transcript.
                             HStack(spacing: 7) {
-                                Image(systemName: "sparkles").font(.system(size: 12, weight: .semibold))
+                                ArtIcon(art: .iconAI, size: 14)
                                 Text(TranscriptActions.madeByLabel).font(.system(size: 13, weight: .semibold)).lineLimit(2)
                                 Spacer(minLength: 0)
                             }
@@ -92,7 +92,7 @@ struct PhoneActionSheet: View {
                         .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                     HStack(spacing: 10) {
                         Button { UIPasteboard.general.string = result; app.say("Copied"); dismiss() } label: {
-                            Label("Copy", systemImage: "doc.on.doc").frame(maxWidth: .infinity)
+                            Label("Copy", art: .iconCopy).frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.brandPrimary)
                         ShareLink(item: result) { Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
@@ -100,7 +100,7 @@ struct PhoneActionSheet: View {
                         Button {
                             app.store.addNote(Note(text: result, aiAction: action.name), to: transcript.id)
                             app.say("Saved as a note"); dismiss()
-                        } label: { Label("Save as note", systemImage: "note.text.badge.plus").frame(maxWidth: .infinity) }
+                        } label: { Label("Save as note", art: .iconNotes).frame(maxWidth: .infinity) }
                         .buttonStyle(.brandSecondary)
                     }
                     .labelStyle(.titleAndIcon)

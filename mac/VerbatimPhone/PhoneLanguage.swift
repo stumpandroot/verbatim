@@ -32,7 +32,7 @@ struct TranscriptLanguageMenu: View {
     var body: some View {
         Menu {
             Section("Transcribe again in") {
-                Button { pending = .some(nil) } label: { Label("Detect automatically", systemImage: "sparkle.magnifyingglass") }
+                Button { pending = .some(nil) } label: { Label("Detect automatically", systemImage: "sparkle.magnifyingglass") }   // brand: system surface (menu)
                 ForEach(LanguageDetection.pickableV3, id: \.self) { item($0) }
             }
             Section("With Apple speech recognition") {

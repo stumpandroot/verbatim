@@ -260,10 +260,10 @@ struct MenuBarPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                BrandMark().frame(width: 20, height: 20)
-                Text("Verbatim").font(.system(size: 13, weight: .semibold))
+                BarsMark().frame(width: 16, height: 16)
+                Text("Verbatim").font(Ink.serif(17))
                 Spacer()
-                Text("⌥⇧R to record").font(.system(size: 11)).foregroundStyle(Ink.mute)
+                HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Ink.mute)
             }
             if app.recorder.isRecording {
                 HStack(spacing: 10) {
@@ -276,7 +276,7 @@ struct MenuBarPanel: View {
                 .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             } else if app.capture.isCapturing {
                 HStack(spacing: 10) {
-                    Image(systemName: "rectangle.on.rectangle").foregroundStyle(Ink.iris)
+                    ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris)
                     HStack(spacing: 4) { Text("Capturing \(app.capture.appName) ·").font(.system(size: 12.5)); ElapsedText(live: app.capture.live) }
                     Spacer()
                     Button("Stop") { app.stopCapture() }.buttonStyle(.brandPrimary)
@@ -290,7 +290,7 @@ struct MenuBarPanel: View {
                 .buttonStyle(.plain).pressable()
                 Button { NSApp.activate(ignoringOtherApps: true); app.pickApp() } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "rectangle.on.rectangle").foregroundStyle(Ink.iris).frame(width: 26)
+                        ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris).frame(width: 26)
                         Text("Capture an app's audio").font(.system(size: 13, weight: .medium)); Spacer()
                     }
                     .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
@@ -300,11 +300,12 @@ struct MenuBarPanel: View {
             if let last = app.store.live.first {
                 Button { NSApp.activate(ignoringOtherApps: true); app.go(.transcript(last.id)) } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: last.source.symbol).foregroundStyle(Ink.inkFixed).frame(width: 26, height: 26)
-                            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        let style = HomeRecentStyle(last)
+                        BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.3).frame(width: 15, height: 15).frame(width: 26, height: 26)
+                            .background(style.tint, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(last.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-                            Text("Last transcript · \(last.duration.timecode)").font(.system(size: 11)).foregroundStyle(Ink.mute)
+                            Text("Last transcript · \(HomeRecentStyle.length(last.duration))").font(.system(size: 11)).foregroundStyle(Ink.mute)
                         }
                         Spacer()
                     }
@@ -314,7 +315,7 @@ struct MenuBarPanel: View {
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 Button { app.dictation.copyLast() } label: {
-                    HStack(spacing: 8) { Image(systemName: "doc.on.clipboard").foregroundStyle(Ink.iris).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
+                    HStack(spacing: 8) { ArtIcon(art: .iconCopy, size: 16).foregroundStyle(Ink.iris).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
                         .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

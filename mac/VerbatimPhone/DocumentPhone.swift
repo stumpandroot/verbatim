@@ -51,7 +51,7 @@ struct PhoneDocument: View {
             if !visibleLints.isEmpty {
                 Button { showLints = true } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "text.badge.checkmark")
+                        ArtIcon(art: .iconApplyDictionary, size: 17)
                         Text("\(visibleLints.count) suggestion\(visibleLints.count == 1 ? "" : "s")").font(.system(size: 14, weight: .semibold))
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))

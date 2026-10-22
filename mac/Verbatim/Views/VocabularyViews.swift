@@ -23,7 +23,7 @@ struct DictionarySuggestions: View {
                 Text("SUGGESTIONS").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Button { showContacts = true } label: { Label("Suggest names from Contacts", systemImage: "person.crop.circle") }
+                Button { showContacts = true } label: { Label("Suggest names from Contacts", art: .iconAboutMe) }
                     .buttonStyle(.brandSecondary)
                     .help("Pick names from your contacts. Names stay on this Mac.")
             }

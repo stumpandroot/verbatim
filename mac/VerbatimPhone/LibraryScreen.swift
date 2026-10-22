@@ -85,7 +85,7 @@ struct LibraryScreen: View {
                 Section {
                     Button { app.addFromLibrary = p } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: "tray.and.arrow.down").font(.system(size: 15, weight: .semibold))
+                            ArtIcon(art: .iconLibrary, size: 18)
                             Text("Add from Library").font(.system(size: 15, weight: .semibold))
                             Spacer()
                             Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
@@ -168,7 +168,7 @@ struct LibraryScreen: View {
                             Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
                         }
                         .swipeActions(edge: .leading) {
-                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)
+                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
                         }
                 }
             }

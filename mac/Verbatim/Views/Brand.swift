@@ -443,7 +443,7 @@ struct Keycap: View {
     var body: some View {
         Text(keys).font(Ink.mono(size))
             .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.25)
-            .overlay(Capsule().strokeBorder(.foreground.opacity(0.75), lineWidth: 1))
+            .overlay(Capsule().strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
             .fixedSize()
             .accessibilityLabel(Keycap.spoken(keys))
     }

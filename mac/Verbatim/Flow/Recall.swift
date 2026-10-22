@@ -615,7 +615,7 @@ struct RecallMenuSection: View {
             VStack(alignment: .leading, spacing: 0) {
                 Button { expanded.toggle() } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath").foregroundStyle(Ink.iris).frame(width: 26)
+                        ArtIcon(art: .iconRecent, size: 16).foregroundStyle(Ink.iris).frame(width: 26)
                         Text("Recent dictations").font(.system(size: 12.5, weight: .medium))
                         Spacer()
                         if RecallShortcut.current != .off {

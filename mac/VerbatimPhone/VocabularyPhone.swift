@@ -38,7 +38,7 @@ struct PhoneDictionarySuggestions: View {
                 .padding(.vertical, 4)
             }
             Button { showContacts = true } label: {
-                Label("Suggest names from Contacts", systemImage: "person.crop.circle")
+                Label("Suggest names from Contacts", art: .iconAboutMe)
             }
             .tint(Ink.ink)
             .task(id: aboutMe) { modelNames = await NameExtractor.modelNames(in: aboutMe) }

@@ -64,29 +64,27 @@ struct HistoryRow: View {
     @State private var hover = false
 
     var body: some View {
-        CardButton(tilt: 2, lift: 2, radius: 14, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) {
+        CardButton(tilt: 2, lift: 2, radius: Radius.row, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) {
             HStack(spacing: 14) {
                 if let sel = selected {
                     Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.iris : Ink.mute)
                 }
-                if let k = transcript.kind, k != .dictation {
-                    KindTile(kind: k, size: 48)
-                } else {
-                    Image(systemName: transcript.source.symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(tileFg)
-                        .frame(width: 48, height: 48).background(tileBg, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                }
+                // Colored by source, as on Home (DESIGN.md §1); the kind is a neutral word in the meta line.
+                BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.4).frame(width: 22, height: 22)
+                    .frame(width: 48, height: 48).background(style.tint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        if transcript.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Ink.mute) }
+                        if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
                         Text(transcript.title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1).layoutPriority(1)
                     }
                     HStack(spacing: 6) {
                         Text(transcript.sourceLabel)
-                        Text("·"); Text(transcript.duration.timecode)
+                        Text("·"); Text(HomeRecentStyle.length(transcript.duration)).monospacedDigit()
                         if !transcript.speakers.isEmpty { Text("·"); Text("\(transcript.speakers.count) speakers") }
                         if let k = transcript.kind, k != .dictation { Text("·"); Text(k.label) }
                         if transcript.status == .processing { Text("·"); Text(transcript.stageText).foregroundStyle(Ink.iris); ProgressView().controlSize(.mini) }
-                        if transcript.status == .failed { Text("·"); Text("Needs retry").foregroundStyle(Ink.coral) }
+                        if transcript.status == .failed { Text("·"); Text("Needs retry").foregroundStyle(Ink.danger).fontWeight(.semibold) }
                     }
                     .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
@@ -98,8 +96,8 @@ struct HistoryRow: View {
                 Color.clear.frame(width: 30, height: 28)   // room for the ⋯ menu, which sits above the click layer
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(selected == true ? Ink.irisTint.opacity(0.6) : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(selected == true ? Ink.iris.opacity(0.5) : Ink.ink.opacity(hover ? 0.14 : 0.07)))
+            .background(selected == true ? Ink.wash : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(selected == true ? Ink.iris.opacity(0.5) : Ink.ink.opacity(hover ? 0.14 : 0.07)))
         }
         .overlay(alignment: .trailing) {
             if selected == nil { RowMenuButton(transcript: transcript).padding(.trailing, 12) }
@@ -109,9 +107,8 @@ struct HistoryRow: View {
     }
 
     private var placeholder: [Float] { (0..<48).map { _ in Float.random(in: 0.08...0.25) } }
-    private var tileBg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coralTint; case .app: return Ink.limeTint; default: return Ink.irisTint } }
-    private var tileFg: Color { switch transcript.source { case .voiceMemo, .dictation: return Ink.coral; case .app: return Ink.limeText; default: return Ink.iris } }
-    private var waveColor: Color { transcript.source == .voiceMemo || transcript.source == .dictation ? Ink.coral.opacity(0.85) : Ink.iris.opacity(0.75) }
+    private var style: HomeRecentStyle { HomeRecentStyle(transcript) }
+    private var waveColor: Color { Ink.ink.opacity(0.55) }
     private var dateLine: String {
         let cal = Calendar.current
         if cal.isDateInToday(transcript.createdAt) { return "Today" }
