@@ -55,6 +55,11 @@ enum SettingsSearchIndex {
         .init(id: "limitMotion", section: "Personalization", label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
               description: "Fades instead of movement; illustrations stay still"),
 
+        // Recording
+        .init(id: "recordLiveWords", section: "Recording", label: "Show words while you record",
+              keywords: ["live text", "live words", "preview", "real time", "transcript", "voice note", "recorder", "battery"],
+              description: "A preview of your words on the recorder"),
+
         // Keyboard (Settings › Keyboard)
         .init(id: "keyboard", section: "Keyboard", label: "Set up the Verbatim keyboard", keywords: ["keyboard", "dictate", "add keyboard", "globe key", "extension"],
               description: "Dictate into any app", target: .page(.keyboard)),
@@ -161,6 +166,7 @@ enum SettingsSearchIndex {
         case "builtInVocabulary": return onOff(BuiltInVocabulary.isOn)
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
+        case "recordLiveWords": return onOff(RecordingLiveText.enabled)
         case "keyboardTimeout":
             let s = app.session.timeoutSeconds
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")

@@ -18,6 +18,8 @@ struct SettingsScreen: View {
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    /// Show words while you record (MiniRecorder.swift). On by default.
+    @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
     @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true
     /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
@@ -65,13 +67,14 @@ struct SettingsScreen: View {
                     SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
                 } else {
                 group(1, "Personalization") { personalization }
-                group(2, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
-                group(3, "Sync and data") { syncAndData }
-                group(4, "Support") { support }
-                group(5, "Welcome tour") { tour }
+                group(2, "Recording") { recording }
+                group(3, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
+                group(4, "Sync and data") { syncAndData }
+                group(5, "Support") { support }
+                group(6, "Welcome tour") { tour }
                 footer
                     .padding(.top, 30)
-                    .riseIn("footer", index: 6, seen: seen, epoch: entrance)
+                    .riseIn("footer", index: 7, seen: seen, epoch: entrance)
                 }
             }
             .padding(.horizontal, 20).padding(.bottom, 32)
@@ -187,6 +190,13 @@ struct SettingsScreen: View {
         SettingsToggleRow(icon: "tortoise", tint: Ink.sageTint, art: .iconLimitMotion, title: "Limit animation",
                           subtitle: "Fades instead of movement; illustrations stay still.", isOn: $motionLimited)
             .settingsSearchTarget("limitMotion", flash: searchFlash)
+    }
+
+    @ViewBuilder private var recording: some View {
+        SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, art: .iconDictations, title: "Show words while you record",
+                          subtitle: "A preview of your words on the recorder, made on this iPhone. The saved transcript comes from the full model after you stop.",
+                          isOn: $recordLiveWords)
+            .settingsSearchTarget("recordLiveWords", flash: searchFlash)
     }
 
     @ViewBuilder private var transcription: some View {

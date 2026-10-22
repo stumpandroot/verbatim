@@ -109,7 +109,7 @@ final class KeyboardSession: ObservableObject {
         guard stage == .off else { return }
         guard !app.recorder.isRecording else {
             answer(ok: false, "Verbatim is recording a voice memo. Stop it first.")
-            app.say("Stop the recording first to use the keyboard.")
+            app.askToFinishRecording(for: "the keyboard")
             return
         }
         stage = .starting

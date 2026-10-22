@@ -356,8 +356,16 @@ struct RowActions: View {
 
 // MARK: - Recording
 
+/// The full-screen recorder. The chevron (top left), a swipe down, or VoiceOver's escape minimizes it to the bar
+/// above the tab bar without stopping anything (MiniRecorder.swift); Stop and Discard end the recording.
 struct RecordScreen: View {
     @EnvironmentObject var app: PhoneState
+    /// The namespace the bar shares, for the zoom between them.
+    var zoom: Namespace.ID
+    @Environment(\.limitMotion) private var limitMotion
+    /// How far a swipe down has pulled the screen (iOS 17, or with motion limited; otherwise the system's zoom
+    /// transition handles the swipe).
+    @State private var pull: CGFloat = 0
     private var paused: Bool { app.recorder.isPaused }
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
     /// The system cover slides up; its content staggers in behind it.
@@ -370,12 +378,24 @@ struct RecordScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
+                Button { app.minimizeRecorder() } label: {
+                    ChevronDownMark()
+                        .stroke(Ink.ink, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        .frame(width: 16, height: 16)
+                        .frame(width: 36, height: 36)
+                        .background(Ink.reader, in: Circle())
+                        .overlay(Circle().strokeBorder(Ink.hairline))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(SoftPress())
+                .accessibilityLabel("Minimize")
+                .accessibilityHint("Keeps recording. Use the bar above the tab bar to come back.")
                 Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
                 Overline(text: adding == nil ? "New recording" : "Continue recording", color: Ink.dim)
                 DottedRule().frame(height: 1)
                 Overline(text: adding == nil ? "Voice note" : "Adds to \(adding!.duration.timecode)", color: Ink.mute)
             }
-            .padding(.top, 14)
+            .padding(.top, 8)
             .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             Text(headline)
@@ -393,6 +413,9 @@ struct RecordScreen: View {
                             Overline(text: paused ? "Paused" : "Recording", color: paused ? Ink.mute : Ink.accentText)
                         }
                         ElapsedLabel(live: app.recorder.live, size: 54)
+                        // The recording is written to disk as it goes, in 5-minute parts.
+                        Overline(text: "Saved as you go", color: Ink.mute)
+                            .accessibilityLabel("Saved as you go. The recording is written to this iPhone while you talk.")
                     }
                     Spacer(minLength: 8)
                     LiveCaptureMark(live: app.recorder.live, paused: paused).frame(width: 78, height: 100)
@@ -425,6 +448,11 @@ struct RecordScreen: View {
                     .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
             }
 
+            // Show words while you record: the newest three lines, a preview only.
+            RecordLiveText(text: app.recordingWords)
+                .padding(.top, 16)
+                .padding(.horizontal, 4)
+
             Spacer(minLength: 20)
 
             // Centered: the Record button you tapped is now Stop, with Discard and Pause on either side.
@@ -452,15 +480,32 @@ struct RecordScreen: View {
         }
         .padding(.horizontal, 20)
         .background(Ink.paper.ignoresSafeArea())
-        .interactiveDismissDisabled()
+        .offset(y: pull)
+        // Swipe down to minimize where the system's zoom transition doesn't provide it. Never stops the recording.
+        .gesture(swipeDown, including: RecorderZoomDestination.systemSwipe(limitMotion: limitMotion) ? .subviews : .all)
+        .modifier(RecorderZoomDestination(zoom: zoom))
         .sensoryFeedback(.impact(weight: .light), trigger: paused)
         .accessibilityElement(children: .contain)
+        .accessibilityAction(.escape) { app.minimizeRecorder() }
         .confirmationDialog("Move this recording to Recently Deleted?", isPresented: $confirmDiscard, titleVisibility: .visible) {
             Button("Move to Recently Deleted", role: .destructive) { app.discardRecording() }
             Button("Keep recording", role: .cancel) {}
         } message: {
             Text("\(discardLength) recorded. You can restore it for 30 days.")
         }
+    }
+
+    private var swipeDown: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onChanged { v in
+                guard v.translation.height > 0, abs(v.translation.height) > abs(v.translation.width) else { return }
+                pull = v.translation.height
+            }
+            .onEnded { v in
+                let minimize = v.translation.height > 120 || v.predictedEndTranslation.height > 320
+                if minimize { app.minimizeRecorder() }
+                withAnimation(limitMotion ? nil : .spring(duration: 0.35, bounce: 0)) { pull = 0 }
+            }
     }
 
     private var headline: String {

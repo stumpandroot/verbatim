@@ -15,11 +15,14 @@ struct VerbatimPhoneApp: App {
     }
 }
 
-/// Four tabs in the system tab bar (Liquid Glass on iOS 26). Paper underneath; the recorder covers the screen.
+/// Four tabs in the system tab bar (Liquid Glass on iOS 26). Paper underneath. The recorder covers the screen
+/// until you minimize it; then a bar above the tab bar carries the recording on every tab (MiniRecorder.swift).
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
     @State private var newProjectName = ""
+    /// The full-screen recorder zooms out of the bar and back into it.
+    @Namespace private var recorderZoom
 
     var body: some View {
         TabView(selection: $app.tab) {
@@ -28,22 +31,26 @@ struct PhoneRoot: View {
                     .navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
                     .navigationDestination(for: DocumentRoute.self) { TranscriptScreen(id: $0.id, startMode: .document) }
             }
+            .miniRecorderInset(.home, zoom: recorderZoom)
             .tabItem { Label { Text("Home") } icon: { Image(uiImage: BrandArt.iconHome.templateImage(size: 26, key: "iconHome")) } }.tag(PhoneState.Tab.home)
 
             NavigationStack(path: $app.libraryPath) {
                 LibraryScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
+            .miniRecorderInset(.library, zoom: recorderZoom)
             .tabItem { Label { Text("Library") } icon: { Image(uiImage: BrandArt.iconLibrary.templateImage(size: 26, key: "iconLibrary")) } }.tag(PhoneState.Tab.library)
 
             NavigationStack(path: $app.momentsPath) {
                 MomentsScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
+            .miniRecorderInset(.moments, zoom: recorderZoom)
             .tabItem { Label { Text("Moments") } icon: { Image(uiImage: BrandArt.iconMoments.templateImage(size: 26, key: "iconMoments")) } }.tag(PhoneState.Tab.moments)
 
             NavigationStack { SettingsScreen() }
+                .miniRecorderInset(.settings, zoom: recorderZoom)
                 .tabItem { Label { Text("Settings") } icon: { Image(uiImage: BrandArt.iconSettings.templateImage(size: 26, key: "iconSettings")) } }.tag(PhoneState.Tab.settings)
         }
-        .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen() }
+        .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen(zoom: recorderZoom) }
         .fullScreenCover(isPresented: $app.showCaptions) {
             LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).environmentObject(app)
         }
@@ -58,6 +65,16 @@ struct PhoneRoot: View {
             Button("Record") { app.acknowledgeConsentNotice() }
         } message: {
             Text("Many places require everyone's consent to record a conversation. Let people know before you record them.")
+        }
+        // Live captions or the keyboard while a recording runs behind the bar.
+        .alert("Finish your recording first", isPresented: Binding(get: { app.finishRecordingFirst != nil }, set: { if !$0 { app.finishRecordingFirst = nil } })) {
+            Button("Not Now", role: .cancel) {}
+            Button("Open Recording") {
+                // After the alert has gone, so the recorder's cover can present.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { app.openRecorder() }
+            }
+        } message: {
+            Text("Stop or discard your recording to use \(app.finishRecordingFirst ?? "this"). It keeps recording until you do.")
         }
         .alert("Microphone access is off", isPresented: $app.showMicDenied) {
             Button("Not Now", role: .cancel) {}

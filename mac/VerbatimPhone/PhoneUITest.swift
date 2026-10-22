@@ -14,6 +14,7 @@ enum PhoneUITest {
         keyboardChecks()
         libraryChecks()
         homeChecks()
+        recorderChecks(app)
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
         Task {
@@ -31,6 +32,22 @@ enum PhoneUITest {
                 app.showRecorder = true
                 await show("\(prefix)02-record")
                 app.showRecorder = false
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                // A recording with live text, then minimized to the bar over Library. A stand-in recording with
+                // made-up words (no microphone or speech in the simulator).
+                app.previewRecording = true
+                app.recorder.live.setElapsed(252)
+                app.recordingWords.seedForScreenshots()
+                app.openRecorder()
+                await show("\(prefix)02d-record-live-text")
+                app.minimizeRecorder()
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                app.tab = .library
+                await show("\(prefix)02e-mini-recorder-library")
+                app.tab = .home
+                app.previewRecording = false
+                app.recordingWords.clearScreenshots()
+                app.recorder.live.reset()
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 // Live captions with made-up lines (no microphone or speech in UI test mode).
                 app.requestCaptions()
@@ -181,6 +198,61 @@ enum PhoneUITest {
             Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
         }
         Log.note("UITEST home checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// The minimized recorder (MiniRecorder.swift): minimizing never stops the recording, reopening keeps its
+    /// elapsed time, Record reopens instead of starting a second recording, and live captions ask you to finish
+    /// first. The pure rules, then PhoneState itself with the stand-in recording (no microphone in the simulator).
+    static func recorderChecks(_ app: PhoneState) {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") recorder: \(name)")
+        }
+        typealias P = RecorderPresentation
+        let running = P.State(recording: true, paused: false, fullScreen: true, elapsed: 252)
+        let small = P.minimize(running)
+        check("minimize hides the full screen", !small.fullScreen)
+        check("minimize doesn't stop or pause the recording", small.recording && small.paused == running.paused)
+        check("minimize keeps a paused recording paused", P.minimize(P.State(recording: true, paused: true, fullScreen: true, elapsed: 9)).paused)
+        let back = P.reopen(small)
+        check("reopen shows the full screen with the same elapsed time", back.fullScreen && back.elapsed == 252 && back.recording)
+        check("reopen without a recording shows nothing", !P.reopen(P.State(recording: false, paused: false, fullScreen: false, elapsed: 0)).fullScreen)
+        check("Record reopens while recording", P.recordTap(recording: true, saving: false) == .reopen)
+        check("Record reopens while saving", P.recordTap(recording: false, saving: true) == .reopen)
+        check("Record starts a new recording when nothing is recording", P.recordTap(recording: false, saving: false) == .start)
+        check("the bar shows while recording or saving", P.showsBar(recording: true, saving: false) && P.showsBar(recording: false, saving: true))
+        check("no bar without a recording", !P.showsBar(recording: false, saving: false))
+        check("bar clock", P.clock(252) == "4:12" && P.clock(5) == "0:05" && P.clock(3725) == "1:02:05")
+        check("bar VoiceOver label", P.accessibilityLabel(paused: false, saving: false, elapsed: 252) == "Recording, 4 minutes 12 seconds")
+        check("bar VoiceOver label when paused", P.accessibilityLabel(paused: true, saving: false, elapsed: 61) == "Paused, 1 minute 1 second")
+        let stored = UserDefaults.standard.object(forKey: RecordingLiveText.enabledKey)
+        UserDefaults.standard.removeObject(forKey: RecordingLiveText.enabledKey)
+        check("show words while you record is on by default", RecordingLiveText.enabled)
+        UserDefaults.standard.set(stored, forKey: RecordingLiveText.enabledKey)
+        check("settings search finds show words while you record",
+              SettingsSearchIndex.search("live text").flatMap(\.entries).contains { $0.id == "recordLiveWords" })
+
+        // PhoneState, with the stand-in recording.
+        app.previewRecording = true
+        app.recorder.live.setElapsed(252)
+        app.showRecorder = true
+        app.minimizeRecorder()
+        check("PhoneState: minimize hides the full screen and keeps the recording",
+              !app.showRecorder && app.recordingActive && app.recorder.live.elapsed == 252)
+        app.requestRecord()
+        check("PhoneState: Record reopens the recording instead of starting a new one",
+              app.showRecorder && !app.recorder.isRecording && app.recorder.live.elapsed == 252 && !app.showConsentNotice)
+        app.minimizeRecorder()
+        app.requestCaptions()
+        check("PhoneState: live captions ask you to finish the recording first", app.finishRecordingFirst == "live captions" && !app.showCaptions)
+        app.finishRecordingFirst = nil
+        app.showRecorder = false
+        app.previewRecording = false
+        app.recorder.live.reset()
+        app.openRecorder()
+        check("PhoneState: nothing to reopen without a recording", !app.showRecorder)
+        Log.note("UITEST recorder checks: \(pass) passed, \(fail) failed")
     }
 
     /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).

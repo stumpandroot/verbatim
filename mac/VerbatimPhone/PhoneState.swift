@@ -37,6 +37,12 @@ final class PhoneState: ObservableObject {
     @Published var momentsPath = NavigationPath()
     @Published var toast: String? = nil
     @Published var showRecorder = false
+    /// The screenshot tour's stand-in for a running recording (no microphone in the simulator). UI test mode only.
+    @Published var previewRecording = false
+    /// "Finish your recording first": the feature that asked for the microphone while a recording runs.
+    @Published var finishRecordingFirst: String? = nil
+    /// Show words while you record (MiniRecorder.swift): live text from the recorder's own buffers.
+    private(set) lazy var recordingWords = RecordingLiveText()
     /// Live captions (LiveCaptionsScreen.swift), full screen over everything.
     @Published var showCaptions = false
     private(set) lazy var captions = PhoneCaptions()
@@ -139,6 +145,8 @@ final class PhoneState: ObservableObject {
     // MARK: Recording
 
     func requestRecord(appendTo target: UUID? = nil) {
+        // A recording is running behind the bar: Record brings it back instead of starting another.
+        if RecorderPresentation.recordTap(recording: recorder.isRecording || previewRecording, saving: savingRecording) == .reopen { openRecorder(); return }
         pendingContinue = target
         if !UserDefaults.standard.bool(forKey: Self.consentNoticeKey) { showConsentNotice = true; return }
         askMicAndRecord()
@@ -167,7 +175,9 @@ final class PhoneState: ObservableObject {
         guard !savingRecording else { say("Saving the last recording. Try again in a moment."); return }
         do {
             let url = store.newRecordingURL()
+            recordingWords.prepare(recorder)   // before start, so live text hears the first word
             try recorder.start(to: url)
+            recordingWords.begin()
             continuing = pendingContinue
             pendingContinue = nil
             // If Verbatim is closed mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
@@ -177,6 +187,7 @@ final class PhoneState: ObservableObject {
             warmModel()
             if let warning = Store.lowSpaceWarning() { say(warning) }
         } catch {
+            recordingWords.end()
             say("Couldn't start recording: \(error.localizedDescription)")
         }
     }
@@ -222,6 +233,7 @@ final class PhoneState: ObservableObject {
     }
 
     private func finishRecording(discard: Bool) async {
+        recordingWords.end()   // the preview stops at once; the saved transcript comes from the full engine
         autoPauseReason = nil
         let target = continuing
         continuing = nil
@@ -277,6 +289,7 @@ final class PhoneState: ObservableObject {
 
     /// Home's Live captions. Captions record the room too, so the one-time consent notice comes first.
     func requestCaptions() {
+        if recordingActive { askToFinishRecording(for: "live captions"); return }
         if PhoneUITest.enabled { captions.seedForScreenshots(); showCaptions = true; return }
         if !UserDefaults.standard.bool(forKey: Self.consentNoticeKey) { pendingCaptions = true; showConsentNotice = true; return }
         askMicAndOpenCaptions()
@@ -291,7 +304,7 @@ final class PhoneState: ObservableObject {
     }
 
     private func openCaptions() {
-        guard !recorder.isRecording else { say("Stop the recording first."); return }
+        guard !recorder.isRecording else { askToFinishRecording(for: "live captions"); return }
         // The microphone can serve one of them: live captions end the keyboard session.
         if session.isOn { session.end(reason: "The session ended for live captions. Tap to start a new one.") }
         showCaptions = true
@@ -698,6 +711,7 @@ final class PhoneState: ObservableObject {
         // Everything goes, so a recording in progress is deleted outright here, not kept in Recently Deleted.
         if recorder.isRecording {
             showRecorder = false; autoPauseReason = nil; continuing = nil
+            recordingWords.end()
             recorder.discard()
         }
         session.end(reason: nil)
