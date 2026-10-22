@@ -17,8 +17,8 @@ struct WhatsPlayingSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
-                        Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                        Overline(text: "App audio", color: Ink.accentText)
+                        Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
+                        Overline(text: "App audio", color: Ink.dim)
                         DottedRule().frame(height: 1)
                     }
                     .accessibilityHidden(true)
@@ -86,7 +86,7 @@ struct WhatsPlayingSheet: View {
 
     private func step(_ n: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(n).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.accentText).frame(width: 14, alignment: .leading)
+            Text(n).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.mute).frame(width: 14, alignment: .leading)
             Text(text).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

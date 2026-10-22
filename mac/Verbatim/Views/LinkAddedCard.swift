@@ -4,7 +4,7 @@ import SwiftUI
 //
 // Pasting a link shows a centered card over a light scrim: the thumbnail as soon as it's known, the title (a
 // shimmering placeholder until then), and the download as it happens. When the audio is in the queue, or when you
-// choose Done, the card folds in place into a small persimmon video tile, which then flies to the Queue item (Mac
+// choose Done, the card folds in place into a small sage video tile, which then flies to the Queue item (Mac
 // sidebar) or the Library tab (iPhone) and the count there goes up. Downloading keeps going either way.
 //
 // Motion (from the prototype): enter spring(0.38, bounce 0.22) from scale 0.94, y +14, opacity 0; fold
@@ -92,10 +92,11 @@ struct LinkCardOverlay: View {
                 .accessibilityHidden(true)
         }
         .frame(width: folded ? metrics.tile : nil, height: folded ? metrics.tile : nil)
-        .background(folded ? Ink.persimmon : Ink.card, in: shape)
+        // Sage: a link is an import (persimmon means Record).
+        .background(folded ? Ink.sage : Ink.card, in: shape)
         .overlay(shape.strokeBorder(Ink.hairline).opacity(folded ? 0 : 1))
         .clipShape(shape)
-        .shadow(color: Color.black.opacity(folded ? 0.14 : 0.2), radius: folded ? 10 : 28, y: folded ? 6 : 20)
+        .shadow(color: Ink.inkFixed.opacity(folded ? 0.1 : 0.12), radius: folded ? 3 : 4, y: 1)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Link added")
         .accessibilityAddTraits(.isModal)
@@ -384,7 +385,7 @@ struct LinkCardButtonStyle: ButtonStyle {
     }
 }
 
-/// A 4 pt persimmon bar on a faint ink rail.
+/// A 4 pt sage bar on a faint ink rail (links are imports).
 struct ProgressRail: View {
     var value: Double
     var body: some View {
@@ -392,7 +393,7 @@ struct ProgressRail: View {
             .frame(height: 4)
             .overlay(alignment: .leading) {
                 GeometryReader { g in
-                    Capsule().fill(Ink.persimmon).frame(width: g.size.width * value)
+                    Capsule().fill(Ink.sageText).frame(width: g.size.width * value)
                 }
             }
             .animation(.linear(duration: 0.16), value: value)
@@ -400,36 +401,18 @@ struct ProgressRail: View {
     }
 }
 
-/// The title's placeholder: a soft bar with a light sweeping across it (still when motion is limited).
+/// The title's placeholder: a still, soft bar (nothing loops, DESIGN.md §7; the status line and progress rail
+/// below show that the link is loading).
 struct ShimmerBar: View {
-    @Environment(\.limitMotion) private var limitMotion
-    @State private var sweep = false
-    private static let base = Ink.dyn(0xEEE7DA, 0x26352E)
-    private static let light = Ink.dyn(0xF6F1E7, 0x2F4038)
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
-        shape.fill(Self.base)
-            .overlay {
-                if !limitMotion {
-                    GeometryReader { g in
-                        LinearGradient(colors: [Self.base, Self.light, Self.base], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: g.size.width)
-                            .offset(x: sweep ? g.size.width : -g.size.width)
-                    }
-                }
-            }
-            .clipShape(shape)
-            .onAppear {
-                guard !limitMotion else { return }
-                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { sweep = true }
-            }
+        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Ink.placeholder)
     }
 }
 
 /// The thumbnail's stand-in: diagonal paper stripes, 10 pt each way.
 struct StripedPaper: View {
-    private static let a = Ink.dyn(0xE9E1D2, 0x24332C)
-    private static let b = Ink.dyn(0xE2D9C8, 0x2A3A33)
+    private static let a = Ink.stripeA
+    private static let b = Ink.stripeB
     var body: some View {
         Canvas { ctx, size in
             ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Self.a))
@@ -467,8 +450,8 @@ struct VideoTileIcon: View {
     }
 }
 
-/// A count badge: a persimmon pill with a paper number. `pops` going up plays the landing pop (from 1.6×,
-/// spring 0.45 s, bounce 0.45); with motion limited the number just changes.
+/// A count badge: a neutral pill (counts never borrow an action hue). `pops` going up plays a short landing pop
+/// with no bounce; with motion limited the number just changes.
 struct CountPill: View {
     var text: String
     var pops: Int
@@ -477,10 +460,10 @@ struct CountPill: View {
     var body: some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold)).monospacedDigit()
-            .foregroundStyle(Color(hex: Ink.paperHex))
+            .foregroundStyle(Ink.dim)
             .padding(.horizontal, 5)
             .frame(minWidth: 18, minHeight: 18)
-            .background(Ink.persimmon, in: Capsule())
+            .background(Ink.neutralChip, in: Capsule())
             .scaleEffect(scale)
             .onChange(of: pops) { _, _ in pop() }
     }
@@ -488,7 +471,7 @@ struct CountPill: View {
     private func pop() {
         guard !limitMotion else { return }
         var t = Transaction(); t.disablesAnimations = true
-        withTransaction(t) { scale = 1.6 }
+        withTransaction(t) { scale = 1.3 }
         DispatchQueue.main.async { withAnimation(.smooth(duration: 0.3)) { scale = 1 } }
     }
 }

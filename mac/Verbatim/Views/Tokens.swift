@@ -88,6 +88,10 @@ enum Ink {
         dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.36) : PColor(hex: inkHex).withAlphaComponent(0.36)
     }
     static let track = dyn(0xE8E2D6, 0x2A3A33)                  // segmented tracks, progress rails
+    /// Placeholders while a link loads: the title bar, and the striped thumbnail's two stripes.
+    static let placeholder = dyn(0xEEE7DA, 0x26352E)
+    static let stripeA = dyn(0xE9E1D2, 0x24332C)
+    static let stripeB = dyn(0xE2D9C8, 0x2A3A33)
     static let wash = dyn(0xEFE9DD, 0x22312A)                   // selected rows on paper
     static let notes = dyn(0xF1EBDF, 0x1C2A24)                  // notes panel
     /// Saved passage: butter behind ink text, readable in both modes.

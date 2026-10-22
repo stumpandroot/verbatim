@@ -114,9 +114,10 @@ struct YouView: View {
         let name = YouProfile.displayName(storedName)
         return HStack(alignment: .bottom, spacing: 20) {
             Text(YouProfile.initial(name))
-                .font(Ink.serif(28)).foregroundStyle(Ink.inkFixed)
+                .font(Ink.serif(28)).foregroundStyle(Ink.ink)
                 .frame(width: 64, height: 64)
-                .background(Color(hex: Ink.sageHex), in: Circle())
+                .background(Ink.card, in: Circle())
+                .overlay(Circle().strokeBorder(Ink.hairline))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("You").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
@@ -218,17 +219,18 @@ struct YouView: View {
     private var voiceCard: some View {
         let known = voice.isEnrolled || voice.isPartial
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Your voice").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.inkFixed)
-            VoiceRingsMark(lineWidth: 2, color: Ink.inkFixed).frame(width: 96, height: 64)
-            Text(voice.line).font(Ink.serif(19)).foregroundStyle(Ink.inkFixed).lineSpacing(1)
+            Text("Your voice").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+            IconGlyph(art: .iconVoice, size: 40, color: Ink.ink).padding(.vertical, 12)
+            Text(voice.line).font(Ink.serif(19)).foregroundStyle(Ink.ink).lineSpacing(1)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 4)
             Button(known ? "Read more passages →" : "Set up your voice →") { VoiceEnrollmentSheet.present(readMore: known) }
-                .buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                .buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
         }
         .padding(.horizontal, 18).padding(.vertical, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        // Neutral: sage means Import, so the voice card is paper with a hairline.
+        .cardSurface(radius: Radius.tile)
     }
 
     // MARK: Your week
@@ -372,7 +374,7 @@ struct YouView: View {
             Spacer(minLength: 6)
             ZStack(alignment: .leading) {
                 Capsule().fill(Ink.track)
-                Capsule().fill(Ink.persimmon).frame(width: max(4, 90 * min(1, share)))
+                Capsule().fill(Ink.butter).frame(width: max(4, 90 * min(1, share)))
             }
             .frame(width: 90, height: 5)
             Text(n.formatted()).font(Ink.mono(11)).foregroundStyle(Ink.mute).frame(width: 46, alignment: .trailing)
@@ -474,7 +476,7 @@ struct DayBars: View {
         let future = day > today
         let isToday = day == today
         let h: CGFloat = future || n == 0 ? 4 : max(6, barMax * CGFloat(n) / CGFloat(maxWords))
-        let fill: Color = future || n == 0 ? Ink.hairline : (isToday ? Ink.persimmon : Ink.ink)
+        let fill: Color = future || n == 0 ? Ink.hairline : (isToday ? Ink.butter : Ink.ink)
         let radius: CGFloat = span == .week ? 6 : 3
         return VStack(spacing: 6) {
             Text(future ? "—" : (labeled ? n.formatted() : " "))
