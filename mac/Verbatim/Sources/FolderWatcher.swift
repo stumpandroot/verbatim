@@ -110,7 +110,7 @@ final class FolderWatcher: ObservableObject {
 
     @discardableResult
     func add(_ url: URL, formats: [ExportFormat] = [.txt]) -> WatchedFolder? {
-        guard let bm = Self.bookmark(url) else { app?.toast = Toast("Verbatim couldn't keep access to that folder."); return nil }
+        guard let bm = Self.bookmark(url) else { app?.toast = Toast("Verbose couldn't keep access to that folder."); return nil }
         if let existing = folders.first(where: { $0.path == url.path }) { return existing }
         let first = folders.isEmpty
         let f = WatchedFolder(name: FileManager.default.displayName(atPath: url.path), bookmark: bm, path: url.path,
@@ -129,7 +129,7 @@ final class FolderWatcher: ObservableObject {
         panel.canChooseFiles = false; panel.canChooseDirectories = true
         panel.directoryURL = URL(fileURLWithPath: folders[i].path).deletingLastPathComponent()
         panel.prompt = "Give Access"
-        panel.message = "Choose “\(folders[i].name)” again so Verbatim can keep watching it."
+        panel.message = "Choose “\(folders[i].name)” again so Verbose can keep watching it."
         guard panel.runModal() == .OK, let url = panel.url, let bm = Self.bookmark(url) else { return }
         stopAccess(id)
         startAccess(id, url)
@@ -388,7 +388,7 @@ final class FolderWatcher: ObservableObject {
         var dir = source.deletingLastPathComponent()
         var scopedDir: URL? = nil
         if let d = f.destination {
-            guard let r = resolve(d) else { return ([], "Verbatim lost access to the Save to folder. Choose it again in Settings › Watched folders.") }
+            guard let r = resolve(d) else { return ([], "Verbose lost access to the Save to folder. Choose it again in Settings › Watched folders.") }
             dir = r.url
             if r.url.startAccessingSecurityScopedResource() { scopedDir = r.url }
         }

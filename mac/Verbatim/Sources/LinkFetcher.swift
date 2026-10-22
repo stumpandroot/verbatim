@@ -189,7 +189,7 @@ enum LinkFetcher {
             if vcodec != "none" { video = u; if acodec != "none" { audio = nil } }
             else if acodec != "none" { audio = u }
         }
-        guard let v = video else { throw NSError(domain: "Verbatim", code: 13, userInfo: [NSLocalizedDescriptionKey: "That link has no video Verbatim can keep as MP4."]) }
+        guard let v = video else { throw NSError(domain: "Verbatim", code: 13, userInfo: [NSLocalizedDescriptionKey: "That link has no video Verbose can keep as MP4."]) }
         // If the video file already carries sound, the separate audio isn't needed.
         let hasSound = !((try? await AVURLAsset(url: v).loadTracks(withMediaType: .audio)) ?? []).isEmpty
         if hasSound, let a = audio { try? FileManager.default.removeItem(at: a); audio = nil }

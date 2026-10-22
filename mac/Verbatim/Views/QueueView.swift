@@ -80,7 +80,7 @@ struct QueueView: View {
             IconPlate(art: .iconQueue, size: 80)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Nothing waiting").font(Ink.serif(20, weight: .regular))
-                Text("Add a batch of recordings, interviews, or videos. Verbatim works through them while you do something else.")
+                Text("Add a batch of recordings, interviews, or videos. Verbose works through them while you do something else.")
                     .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
             }
             Spacer()

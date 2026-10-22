@@ -269,14 +269,14 @@ struct HomeScreen: View {
             }
             HomeDictationsPanel(items: items, compact: true, place: { $0.flow?.app },
                                 copy: { text in UIPasteboard.general.string = text; app.say("Copied") },
-                                empty: "Dictate with the Verbatim keyboard in any app. What you say shows up here.")
+                                empty: "Dictate with the Verbose keyboard in any app. What you say shows up here.")
             Button {
                 SettingsPage.open("keyboard")
                 app.tab = .settings
             } label: {
                 HStack(spacing: 10) {
                     IconGlyph(art: .iconDictations, size: 20, color: Ink.butterText)
-                    Text(keyboardOn ? "Verbatim keyboard is on" : "Set up the Verbatim keyboard").font(.system(size: 13.5 * k)).foregroundStyle(Ink.ink)
+                    Text(keyboardOn ? "Verbose keyboard is on" : "Set up the Verbose keyboard").font(.system(size: 13.5 * k)).foregroundStyle(Ink.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     Text("Settings ›").font(.system(size: 13 * k)).foregroundStyle(Ink.mute)
@@ -621,7 +621,7 @@ struct LinkSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbatim downloads the audio and transcribes it on this iPhone.")
+                Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                 HStack(spacing: 8) {
                     IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)

@@ -170,7 +170,7 @@ struct YouView: View {
                 .lineLimit(6)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 4)
-            Text("Verbatim uses this to spell names and word titles and summaries.")
+            Text("Verbose uses this to spell names and word titles and summaries.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -619,7 +619,7 @@ struct AboutMeSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("You").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 Text("About me").font(Ink.serif(32)).foregroundStyle(Ink.ink).accessibilityAddTraits(.isHeader)
-                Text("A few lines about you and your work. Verbatim uses this to spell names and word titles and summaries. It stays on this Mac.")
+                Text("A few lines about you and your work. Verbose uses this to spell names and word titles and summaries. It stays on this Mac.")
                     .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
             }
             ZStack(alignment: .topLeading) {
@@ -673,7 +673,7 @@ struct YouSettingsSection: View {
                 TextField("Your name", text: $name, prompt: Text(NSFullUserName()))
                     .textFieldStyle(.roundedBorder).labelsHidden().frame(width: 220)
             }
-            SettingsRow("general.aboutMe", detail: aboutMe.isEmpty ? nil : "\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters. Verbatim uses this to spell names and word titles and summaries.") {
+            SettingsRow("general.aboutMe", detail: aboutMe.isEmpty ? nil : "\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters. Verbose uses this to spell names and word titles and summaries.") {
                 Button(aboutMe.isEmpty ? "Add…" : "Edit…") { editing = true }.buttonStyle(.brandSecondary)
             }
             SettingsToggleRow("general.countSites", isOn: $countSites)

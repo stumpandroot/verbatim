@@ -86,7 +86,7 @@ enum MediaImportSelfTest {
             _ = try await MediaImport.prepare(junk, into: dir.appendingPathComponent("junk.m4a"))
             check("a broken MKV fails clearly", false)
         } catch {
-            check("a broken MKV fails clearly", error.localizedDescription == "“not-a-video.mkv” has no audio Verbatim can read.")
+            check("a broken MKV fails clearly", error.localizedDescription == "“not-a-video.mkv” has no audio Verbose can read.")
         }
     }
 

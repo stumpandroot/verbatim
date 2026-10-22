@@ -85,7 +85,7 @@ extension PhoneState {
             if ids.count > 1 { say("Added \(ids.count) items") }
         }
         if refusedTikTok {
-            say("Verbatim can't download TikTok videos. Save the video in TikTok, then share it to Verbatim.")
+            say("Verbose can't download TikTok videos. Save the video in TikTok, then share it to Verbose.")
         }
     }
 

@@ -47,7 +47,7 @@ enum DictationTiming {
     /// the field that was focused when dictation started does.
     static func blocksPaste(secureAtStart: Bool, secureNow: Bool?) -> Bool { secureNow ?? secureAtStart }
 
-    static let securePasteNotice = "Verbatim doesn't paste into password fields. Copied instead."
+    static let securePasteNotice = "Verbose doesn't paste into password fields. Copied instead."
 
     // MARK: Ribbon
 
@@ -203,7 +203,7 @@ enum DictationTimingChecks {
         check("paste: never into a password field",
               DictationTiming.blocksPaste(secureAtStart: false, secureNow: true) && DictationTiming.blocksPaste(secureAtStart: true, secureNow: nil)
                 && !DictationTiming.blocksPaste(secureAtStart: true, secureNow: false) && !DictationTiming.blocksPaste(secureAtStart: false, secureNow: nil))
-        expect("paste: the password field notice", DictationTiming.securePasteNotice, "Verbatim doesn't paste into password fields. Copied instead.")
+        expect("paste: the password field notice", DictationTiming.securePasteNotice, "Verbose doesn't paste into password fields. Copied instead.")
 
         // Ribbon hint line
         expect("hint line: right option", DictationTiming.hintLine("hold right ⌥ or click"), "Click or hold right ⌥ to dictate")

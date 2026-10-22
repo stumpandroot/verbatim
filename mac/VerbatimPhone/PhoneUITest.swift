@@ -429,7 +429,7 @@ enum PhoneUITest {
               VerbatimRecordingAttributes.ContentState.make(elapsed: -3, isPaused: true, pausedReason: nil, now: now).elapsed == 0
               && VerbatimRecordingAttributes.ContentState.make(elapsed: .nan, isPaused: true, pausedReason: nil, now: now).elapsed == 0)
         check("recording activity: short reasons",
-              VerbatimRecordingAttributes.shortReason(Recorder.callPausedNotice) == "Paused for a call. Open Verbatim."
+              VerbatimRecordingAttributes.shortReason(Recorder.callPausedNotice) == "Paused for a call. Open Verbose."
               && VerbatimRecordingAttributes.shortReason(Recorder.audioRestartedNotice) == "Audio restarted. Tap Resume."
               && VerbatimRecordingAttributes.shortReason(Recorder.interruptionBeganNotice) == "Paused for a call"
               && VerbatimRecordingAttributes.shortReason(nil) == nil)

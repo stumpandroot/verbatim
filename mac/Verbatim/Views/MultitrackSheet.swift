@@ -31,7 +31,7 @@ struct MultitrackSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Import · one file per mic").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             Text("Each mic is one speaker.").font(Ink.serif(34)).foregroundStyle(Ink.ink)
-            Text("Verbatim transcribes each track on its own and weaves them into one transcript by time. Speaker names come from the track names, and you can change them here.")
+            Text("Verbose transcribes each track on its own and weaves them into one transcript by time. Speaker names come from the track names, and you can change them here.")
                 .font(.system(size: 14)).lineSpacing(3).foregroundStyle(Ink.dim)
                 .frame(maxWidth: 540, alignment: .leading).fixedSize(horizontal: false, vertical: true)
         }
@@ -72,7 +72,7 @@ struct MultitrackSheet: View {
         Button {
             if let urls = AppState.pickAudioFiles(prompt: "Add", message: "Add audio files, one per mic.") { draft.add(urls) }
         } label: {
-            Text(draft.canAdd ? "+ Add a track, or drop files here" : "Eight tracks is the most Verbatim can weave together")
+            Text(draft.canAdd ? "+ Add a track, or drop files here" : "Eight tracks is the most Verbose can weave together")
                 .font(.system(size: 13.5, weight: .medium)).foregroundStyle(Ink.dim)
                 .frame(maxWidth: .infinity).frame(height: 52).contentShape(Rectangle())
         }

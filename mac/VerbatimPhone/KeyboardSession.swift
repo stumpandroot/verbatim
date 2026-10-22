@@ -130,7 +130,7 @@ final class KeyboardSession: ObservableObject {
         }
         guard stage == .off else { return }
         guard !app.recorder.isRecording else {
-            answer(ok: false, "Verbatim is recording a voice memo. Stop it first.")
+            answer(ok: false, "Verbose is recording a voice memo. Stop it first.")
             app.askToFinishRecording(for: "the keyboard")
             return
         }
@@ -146,8 +146,8 @@ final class KeyboardSession: ObservableObject {
                 if ok { self.beginCapture() } else {
                     self.stage = .off
                     self.showScreen = false
-                    self.answer(ok: false, "Microphone access is off. Turn it on in Settings › Verbatim.")
-                    app.say("Microphone access is off. Turn it on in Settings › Verbatim.")
+                    self.answer(ok: false, "Microphone access is off. Turn it on in Settings › Verbose.")
+                    app.say("Microphone access is off. Turn it on in Settings › Verbose.")
                 }
             }
         }
@@ -393,7 +393,7 @@ final class KeyboardSession: ObservableObject {
             MainActor.assumeIsolated { self?.interrupted("The session ended. Tap to start a new one.") }
         })
         observers.append(nc.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.end(reason: "Verbatim was closed. Tap to start a new session.") }
+            MainActor.assumeIsolated { self?.end(reason: "Verbose was closed. Tap to start a new session.") }
         })
         // Back in your app: the start screen's job is done.
         observers.append(nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
@@ -461,7 +461,7 @@ final class KeyboardSession: ObservableObject {
                 unseenSince = nil
             } else if KeyboardBridge.shouldStopUnseenTake(startedAt: since, seen: false, now: Date()) {
                 Log.note("keyboard session: no keyboard showed the first-tap dictation within \(Int(KeyboardBridge.unseenTakeLimit)) s; stopping it")
-                cancelDictation(message: "Verbatim stopped listening because you didn't come back within a minute. Tap the record button to dictate.")
+                cancelDictation(message: "Verbose stopped listening because you didn't come back within a minute. Tap the record button to dictate.")
             }
         }
     }

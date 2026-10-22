@@ -155,7 +155,7 @@ final class SpotlightIndex {
         a.contentModificationDate = t.createdAt
         a.duration = NSNumber(value: t.duration)
         a.kind = t.isDictation ? "Dictation" : (t.kind?.label ?? "Transcript")
-        a.keywords = ["Verbatim", "transcript"] + t.tags + [t.kind?.label].compactMap { $0 }
+        a.keywords = ["Verbose", "transcript"] + t.tags + [t.kind?.label].compactMap { $0 }
         return CSSearchableItem(uniqueIdentifier: t.id.uuidString, domainIdentifier: domain, attributeSet: a)
     }
 }

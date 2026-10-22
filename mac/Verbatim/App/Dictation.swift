@@ -525,12 +525,12 @@ final class DictationController: ObservableObject {
                 Task { @MainActor in
                     // The key was let go during the permission dialog, so listen hands-free; click or tap to stop.
                     if ok { self?.begin(handsFree: true, command: wantCommand) }
-                    else { self?.bar?.flash("Verbatim can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() } }
+                    else { self?.bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() } }
                 }
             }
             return
         default:
-            bar?.flash("Verbatim can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() }
+            bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() }
             return
         }
         target = NSWorkspace.shared.frontmostApplication
@@ -1362,8 +1362,8 @@ struct DictationHotkeyRows: View {
         LabeledContent("Thought pad") { Text("⌃⌥P").font(.system(size: 13, design: .monospaced)) }
         if dictation.secureInputOn {
             Text(dictation.hotkey.isModifierOnly
-                 ? "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Your hotkey still works, and Verbatim listens for the other shortcuts another way until it's off."
-                 : "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Verbatim listens for \(dictation.hotkey.title) another way until it's off. If it doesn't respond, click the floating button, or pick a modifier hotkey like right ⌥.")
+                 ? "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Your hotkey still works, and Verbose listens for the other shortcuts another way until it's off."
+                 : "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Verbose listens for \(dictation.hotkey.title) another way until it's off. If it doesn't respond, click the floating button, or pick a modifier hotkey like right ⌥.")
                 .font(.system(size: 12)).foregroundStyle(Ink.accentText)
         }
     }

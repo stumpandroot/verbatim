@@ -185,7 +185,7 @@ struct FlowMenuView: View {
                     }
                 }
                 .frame(maxHeight: min(CGFloat(actions.projects.count) * 31, 280))
-                Text(actions.projects.isEmpty ? "Make a project in Verbatim's sidebar first." : "Uses the project's Dictionary words and files each dictation there.")
+                Text(actions.projects.isEmpty ? "Make a project in Verbose's sidebar first." : "Uses the project's Dictionary words and files each dictation there.")
                     .font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.horizontal, 10).padding(.vertical, 6)
                     .fixedSize(horizontal: false, vertical: true)
             case .actions:

@@ -28,7 +28,7 @@ enum FFmpegAudio {
 
     static func err(_ s: String) -> NSError { NSError(domain: "Verbatim", code: 41, userInfo: [NSLocalizedDescriptionKey: s]) }
 
-    private static func noAudio(_ src: URL) -> NSError { err("“\(src.lastPathComponent)” has no audio Verbatim can read.") }
+    private static func noAudio(_ src: URL) -> NSError { err("“\(src.lastPathComponent)” has no audio Verbose can read.") }
 
     private static func string(_ buf: [CChar]) -> String {
         buf.withUnsafeBufferPointer { p in p.baseAddress.map { String(cString: $0) } ?? "" }

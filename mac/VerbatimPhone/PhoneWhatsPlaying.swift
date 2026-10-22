@@ -29,7 +29,7 @@ struct WhatsPlayingSheet: View {
                         .padding(.top, 14)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("Start, then open TikTok or any app and play videos. Verbatim records the sound they play — not your microphone or screen — and transcribes it when you stop.")
+                    Text("Start, then open TikTok or any app and play videos. Verbose records the sound they play — not your microphone or screen — and transcribes it when you stop.")
                         .font(.system(size: 16)).foregroundStyle(Ink.dim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
@@ -54,9 +54,9 @@ struct WhatsPlayingSheet: View {
                             .accessibilityHidden(true)
                     )
                     .padding(.top, 22)
-                    .accessibilityHint("Opens the screen broadcast picker with Verbatim chosen. Only app sound is kept.")
+                    .accessibilityHint("Opens the screen broadcast picker with Verbose chosen. Only app sound is kept.")
 
-                    Text("You can also start it from Control Center: press and hold Screen Recording, then choose Verbatim.")
+                    Text("You can also start it from Control Center: press and hold Screen Recording, then choose Verbose.")
                         .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 14)

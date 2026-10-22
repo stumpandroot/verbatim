@@ -113,7 +113,7 @@ struct SettingsScreen: View {
             Button("Cancel", role: .cancel) {}
             Button("Turn Off") { turnSyncOff() }
         } message: {
-            Text("Verbatim copies your library onto this iPhone, then stops syncing the next time it opens. Your Mac keeps what's already in iCloud.")
+            Text("Verbose copies your library onto this iPhone, then stops syncing the next time it opens. Your Mac keeps what's already in iCloud.")
         }
         .alert("Delete all data?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
@@ -138,7 +138,7 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var personalization: some View {
         SettingsToggleRow(icon: "globe", tint: Ink.sageTint, art: .iconLanguage, title: "Detect the language",
-                          subtitle: "Verbatim listens to the first 30 seconds and uses a model that knows that language. To change one transcript's language, tap its language under the title.",
+                          subtitle: "Verbose listens to the first 30 seconds and uses a model that knows that language. To change one transcript's language, tap its language under the title.",
                           isOn: $detectLanguage)
             .settingsSearchTarget("language", flash: searchFlash)
         SettingsDivider()
@@ -340,7 +340,7 @@ struct SettingsScreen: View {
         if copyingDown { return "Copying your library to this iPhone…" }
         if copyFailed > 0 { return "\(copyFailed) file\(copyFailed == 1 ? "" : "s") couldn't be downloaded from iCloud, so sync is still on. Check your connection and try again." }
         if syncWanted != Cloud.enabled {
-            return syncWanted ? "Starts the next time you open Verbatim." : "Your library is on this iPhone. Syncing stops the next time you open Verbatim (swipe it away to finish now)."
+            return syncWanted ? "Starts the next time you open Verbose." : "Your library is on this iPhone. Syncing stops the next time you open Verbose (swipe it away to finish now)."
         }
         return syncWanted
             ? "Transcripts, notes, projects, and the Dictionary match your Mac. Audio from the other device downloads when you play it."
@@ -363,19 +363,19 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var support: some View {
-        Button { bump("support"); if let u = Links.mail(subject: "Verbatim support") { openURL(u) } } label: {
+        Button { bump("support"); if let u = Links.mail(subject: "Verbose support") { openURL(u) } } label: {
             SettingsRow(icon: "bubble.left", tint: Ink.sageTint, art: .iconSupport, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("support", flash: searchFlash)
         SettingsDivider()
-        Button { bump("feedback"); if let u = Links.mail(subject: "Verbatim feedback") { openURL(u) } } label: {
+        Button { bump("feedback"); if let u = Links.mail(subject: "Verbose feedback") { openURL(u) } } label: {
             SettingsRow(icon: "pencil", tint: Ink.persimmonTint, art: .iconFeedback, title: "Share feedback", bounce: bumps["feedback", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("feedback", flash: searchFlash)
         SettingsDivider()
-        ShareLink(item: Log.file, subject: Text("Verbatim diagnostic log"),
+        ShareLink(item: Log.file, subject: Text("Verbose diagnostic log"),
                   message: Text("Send to \(Links.supportEmail)")) {
             SettingsRow(icon: "stethoscope", tint: Ink.petalTint, art: .iconDiagnosticLog, title: "Send diagnostic log",
                         subtitle: "7 days of app events, without links or folder names", bounce: bumps["log", default: 0]) { SettingsChevron() }
@@ -397,7 +397,7 @@ struct SettingsScreen: View {
         .settingsSearchTarget("terms", flash: searchFlash)
         SettingsDivider()
         ShareLink(item: Links.base) {
-            SettingsRow(icon: "square.and.arrow.up", tint: Ink.persimmonTint, art: .iconShare, title: "Share Verbatim", bounce: bumps["share", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "square.and.arrow.up", tint: Ink.persimmonTint, art: .iconShare, title: "Share Verbose", bounce: bumps["share", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("share") })
@@ -412,7 +412,7 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var tour: some View {
-        SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, art: .iconTour, title: "Show it when Verbatim opens",
+        SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, art: .iconTour, title: "Show it when Verbose opens",
                           isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
             .settingsSearchTarget("tourOnLaunch", flash: searchFlash)
         SettingsDivider()
@@ -428,8 +428,15 @@ struct SettingsScreen: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = info?["CFBundleVersion"] as? String ?? "1"
         return VStack(spacing: 6) {
+            // The lockup (DESIGN.md §4) and the tagline in the serif.
+            HStack(spacing: 8) {
+                BarsMark(color: Ink.persimmon).frame(width: 17, height: 18)
+                Ink.wordmark(22)
+            }
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
+            Text(Ink.tagline).font(Ink.serif(16)).foregroundStyle(Ink.dim).padding(.bottom, 6)
             Text("Version \(version) (\(build))")
-            Text("Verbatim · Stump & Root Co.")
+            Text("Verbose · Stump & Root Co.")
         }
         .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
         .frame(maxWidth: .infinity)
@@ -498,7 +505,7 @@ struct SettingsScreen: View {
         let things = n == 1 ? "the 1 transcript" : "all \(n) transcripts"
         let projects = p == 1 ? "1 project" : "\(p) projects"
         let words = w == 1 ? "1 Dictionary word" : "\(w) Dictionary words"
-        return "Verbatim deletes \(things) (Recently Deleted too) with their audio, plus \(projects) and \(words), for good."
+        return "Verbose deletes \(things) (Recently Deleted too) with their audio, plus \(projects) and \(words), for good."
     }
 }
 
@@ -664,7 +671,7 @@ struct AboutMeScreen: View {
                     if v.count > Profile.aboutMeLimit { aboutMe = String(v.prefix(Profile.aboutMeLimit)) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Verbatim uses this on device to spell names and word titles and summaries. It syncs with your Mac when iCloud sync is on.")
+                    Text("Verbose uses this on device to spell names and word titles and summaries. It syncs with your Mac when iCloud sync is on.")
                         .font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)

@@ -40,7 +40,7 @@ struct EmailLayoutRows: View {
     private var preview: some View {
         HStack(alignment: .top, spacing: 12) {
             pane("You say", sample)
-            pane("Verbatim writes", formatted)
+            pane("Verbose writes", formatted)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Sample email, before and after")

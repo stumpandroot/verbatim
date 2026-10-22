@@ -91,7 +91,7 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
     /// Short notices for the person (audio can't be saved; saving again).
     var onNotice: ((String) -> Void)?
 
-    static let cantSaveNotice = "Verbatim can't save the app's audio. Free up space; it keeps trying."
+    static let cantSaveNotice = "Verbose can't save the app's audio. Free up space; it keeps trying."
 
     private var stream: SCStream?
     private var writer: RecordingWriter?

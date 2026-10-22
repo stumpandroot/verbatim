@@ -17,7 +17,7 @@ struct StartSessionControl: ControlWidget {
             }
         }
         .displayName("Start dictation session")
-        .description("Opens Verbatim and turns on the microphone for the Verbatim keyboard.")
+        .description("Opens Verbose and turns on the microphone for the Verbose keyboard.")
     }
 }
 
@@ -34,7 +34,7 @@ struct StartSessionWidget: Widget {
                 .containerBackground(for: .widget) { Color.clear }
         }
         .configurationDisplayName("Start dictation session")
-        .description("Opens Verbatim and turns on the microphone for the Verbatim keyboard.")
+        .description("Opens Verbose and turns on the microphone for the Verbose keyboard.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -60,14 +60,14 @@ private struct StartSessionAccessoryView: View {
                 AccessoryWidgetBackground()
                 BarsMark(color: .white).padding(12)
             }
-            .accessibilityLabel("Start a Verbatim dictation session")
+            .accessibilityLabel("Start a Verbose dictation session")
         case .accessoryInline:
             Label("Start dictating", systemImage: "mic.fill")   // brand: system surface
         default:
             HStack(spacing: 8) {
                 BarsMark(color: .white).frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Verbatim").font(.system(size: 15, weight: .semibold)).widgetAccentable()
+                    Text("Verbose").font(.system(size: 15, weight: .semibold)).widgetAccentable()
                     Text("Start dictation session").font(.system(size: 13)).lineLimit(2)
                 }
                 Spacer(minLength: 0)

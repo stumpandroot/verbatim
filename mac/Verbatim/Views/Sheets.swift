@@ -6,7 +6,7 @@ struct MicSheet: View {
     var body: some View {
         VStack(spacing: 8) {
             EmptyStateArt(art: .capture, tint: Ink.persimmonTint).padding(.bottom, 4)
-            Text("Verbatim wants to use the microphone").font(.system(size: 15, weight: .semibold))
+            Text("Verbose wants to use the microphone").font(.system(size: 15, weight: .semibold))
             Text("Voice memos are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
@@ -29,7 +29,7 @@ struct AppPickerSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Capture audio from").font(.system(size: 15, weight: .semibold))
-            Text("Pick the app that is playing. macOS asks once for Screen & System Audio Recording; Verbatim keeps only the audio, on this Mac.")
+            Text("Pick the app that is playing. macOS asks once for Screen & System Audio Recording; Verbose keeps only the audio, on this Mac.")
                 .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
             if !consentSeen {
                 // One-time recording-consent notice: shown until the first capture starts.
@@ -66,7 +66,7 @@ struct AppPickerSheet: View {
         .padding(20).frame(width: 420).background(Ink.paper)
         .task {
             do { apps = try await AppAudioCapture.runningApps() }
-            catch { self.error = "Couldn't list apps: \(error.localizedDescription). Allow Verbatim under Privacy & Security › Screen & System Audio Recording, then try again." }
+            catch { self.error = "Couldn't list apps: \(error.localizedDescription). Allow Verbose under Privacy & Security › Screen & System Audio Recording, then try again." }
         }
     }
 }

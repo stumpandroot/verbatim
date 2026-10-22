@@ -45,7 +45,7 @@ final class PhoneBackgroundWork {
             }
         }
         guard bgRegistered else { return }
-        let req = BGContinuedProcessingTaskRequest(identifier: Self.bgIdentifier, title: "Transcribing", subtitle: "Verbatim keeps going while you're away")
+        let req = BGContinuedProcessingTaskRequest(identifier: Self.bgIdentifier, title: "Transcribing", subtitle: "Verbose keeps going while you're away")
         req.strategy = .fail
         do { try BGTaskScheduler.shared.submit(req); bgSubmitted = true }
         catch { Log.note("continued processing not available: \(error)") }

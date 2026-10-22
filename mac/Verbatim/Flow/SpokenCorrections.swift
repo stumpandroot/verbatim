@@ -117,8 +117,8 @@ enum SpokenCorrections {
         let visible = corrections.filter { !$0.removed.isEmpty }
         guard let c = visible.first else { return "" }
         if visible.count > 1 {
-            if visible.contains(where: { $0.kind == .startOver }) { return "You started over, and Verbatim kept only what came after." }
-            return "Verbatim made \(visible.count) spoken corrections."
+            if visible.contains(where: { $0.kind == .startOver }) { return "You started over, and Verbose kept only what came after." }
+            return "Verbose made \(visible.count) spoken corrections."
         }
         switch c.kind {
         case .startOver: return "You started over. Removed “\(short(c.removed))”"

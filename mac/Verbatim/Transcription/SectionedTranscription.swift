@@ -103,7 +103,7 @@ final class SectionAudio {
 
 enum SectionError: LocalizedError {
     case unreadable
-    var errorDescription: String? { "Verbatim couldn't read this recording's audio." }
+    var errorDescription: String? { "Verbose couldn't read this recording's audio." }
 }
 
 /// Finished sections of one recording, saved on this device (never synced: the audio folder can be in iCloud, and

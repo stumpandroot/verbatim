@@ -13,7 +13,7 @@ extension SettingsIndex {
         .init("privacy.statement", .privacy, "No account, no analytics", PrivacyStatement.text, keywords: "privacy data tracking telemetry account"),
         .init("privacy.localOnly", .privacy, "Local Only", PrivacyStatement.localOnlyDetail, keywords: "offline airplane network internet block cloud privacy"),
         .init("privacy.spotlight", .privacy, "Show transcripts in Spotlight", "Titles, words, and dates are indexed on this Mac, so Spotlight finds what was said. Turning this off removes them from Spotlight.", keywords: "search index finder corespotlight"),
-        .init("privacy.activity", .privacy, "Network activity", "Every time Verbatim used the network: when, why, and the host. Never what was sent. The last 500 are kept on this Mac.", keywords: "log requests hosts connections downloads privacy"),
+        .init("privacy.activity", .privacy, "Network activity", "Every time Verbose used the network: when, why, and the host. Never what was sent. The last 500 are kept on this Mac.", keywords: "log requests hosts connections downloads privacy"),
         .init("dictate.autoSend", .dictate, "After pasting, press", "Return or ⌘Return sends the message once a dictation lands. Never in a password field.", keywords: "send enter return submit auto message chat"),
     ]
 }
@@ -42,7 +42,7 @@ struct PrivacySettingsPane: View {
                         .buttonStyle(.brandSecondary).disabled(model.events.isEmpty)
                 }
                 if model.events.isEmpty {
-                    Text("Nothing yet. Verbatim hasn't used the network on this Mac since the list was cleared.")
+                    Text("Nothing yet. Verbose hasn't used the network on this Mac since the list was cleared.")
                         .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -123,7 +123,7 @@ struct AutoSendSettingsRow: View {
         let where_ = (AutoSend.Scope(rawValue: scope) ?? .chats) == .chats
             ? "in chat and work apps such as Messages, Slack, and Teams"
             : "in every app, including email and terminals"
-        return "Verbatim presses \(k.title) after a dictation pastes \(where_). Never in a password field, and never when the paste didn't land."
+        return "Verbose presses \(k.title) after a dictation pastes \(where_). Never in a password field, and never when the paste didn't land."
     }
 }
 
@@ -298,7 +298,7 @@ struct DictionaryCSVMenu: View {
 
     private func exportCSV() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "Verbatim Dictionary.csv"
+        panel.nameFieldStringValue = "Verbose Dictionary.csv"
         panel.allowedContentTypes = [.commaSeparatedText]
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }

@@ -90,7 +90,7 @@ struct PhoneRoot: View {
             Button("Not Now", role: .cancel) {}
             Button("Open Settings") { app.openAppSettings() }
         } message: {
-            Text("To record, turn on Microphone for Verbatim in Settings.")
+            Text("To record, turn on Microphone for Verbose in Settings.")
         }
         .alert("New project", isPresented: Binding(get: { app.newProjectFor != nil }, set: { if !$0 { app.newProjectFor = nil } })) {
             TextField("Name", text: $newProjectName)

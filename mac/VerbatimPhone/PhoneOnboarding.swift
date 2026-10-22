@@ -15,7 +15,7 @@ struct PhoneOnboarding: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: ["Verbatim", "Microphone", "Last step"][step], color: Ink.dim)
+                Overline(text: ["Verbose", "Microphone", "Last step"][step], color: Ink.dim)
                 DottedRule().frame(height: 1)
                 Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
             }
@@ -46,8 +46,15 @@ struct PhoneOnboarding: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title("Words worth keeping.")
-            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbatim writes it down on this iPhone. Turn on iCloud sync to see your transcripts on your Mac too.")
+            // The lockup (DESIGN.md §4) and the tagline in the serif.
+            HStack(spacing: 10) {
+                BarsMark(color: Ink.persimmon).frame(width: 19, height: 20)
+                Ink.wordmark(22)
+            }
+            .padding(.top, 22)
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
+            title(Ink.tagline)
+            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Turn on iCloud sync to see your transcripts on your Mac too.")
             BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)
@@ -56,7 +63,7 @@ struct PhoneOnboarding: View {
 
     private var microphone: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title("Let Verbatim hear you.")
+            title("Let Verbose hear you.")
             para("Only while you record. Audio is transcribed on this iPhone and isn't uploaded anywhere except your own iCloud, when sync is on.")
             HStack(spacing: 14) {
                 IconGlyph(art: .capture, size: 22, color: Ink.ink)
@@ -122,7 +129,7 @@ struct PhoneOnboarding: View {
                     }
                 }
             }
-        default: bigButton("Start using Verbatim", fill: Ink.interactive, text: Ink.onInteractive) { done() }
+        default: bigButton("Start using Verbose", fill: Ink.interactive, text: Ink.onInteractive) { done() }
         }
     }
 

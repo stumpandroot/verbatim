@@ -169,7 +169,7 @@ extension Polish.Status {
 
     /// For dictation settings: what Verbatim does instead. Nil when the model is ready.
     var cleanupNotice: String? {
-        reason.map { "Clean and Polished need Apple Intelligence to remove fillers and reword. On this device, Verbatim formats lists and paragraphs by rules and keeps your words. " + $0 }
+        reason.map { "Clean and Polished need Apple Intelligence to remove fillers and reword. On this device, Verbose formats lists and paragraphs by rules and keeps your words. " + $0 }
     }
 
     /// For Clean up, Tone, and saved actions: why they can't run. Nil when the model is ready.

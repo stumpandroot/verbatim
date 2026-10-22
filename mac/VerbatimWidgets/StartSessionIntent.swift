@@ -10,7 +10,7 @@ import AppIntents
 /// `SessionStartSignal`. The start screen then says how to go back to your app.
 struct StartKeyboardSessionIntent: AppIntent {
     static var title: LocalizedStringResource = "Start dictation session"
-    static var description = IntentDescription("Opens Verbatim and turns on the microphone for the Verbatim keyboard, so you can dictate in any app.")
+    static var description = IntentDescription("Opens Verbose and turns on the microphone for the Verbose keyboard, so you can dictate in any app.")
     static var openAppWhenRun: Bool = true
 
     init() {}

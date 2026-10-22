@@ -32,7 +32,7 @@ extension LinkSignIn {
     }
 
     /// The privacy footnote, shared by the sheet and Settings.
-    static let privacyNote = "Verbatim reads cookies only for the link you're fetching and never stores them."
+    static let privacyNote = "Verbose reads cookies only for the link you're fetching and never stores them."
 }
 
 /// "This video needs you to be signed in": the browsers on this Mac, then Cancel. When Safari's cookies were out of
@@ -47,7 +47,7 @@ struct SignInSheet: View {
             if request.reason == .safariNeedsAccess {
                 Text("Safari's sign-in needs Full Disk Access").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
-                Text("macOS keeps Safari's cookies private. Turn on Verbatim in Privacy & Security › Full Disk Access, then choose Try again. If it still fails, quit and reopen Verbatim.")
+                Text("macOS keeps Safari's cookies private. Turn on Verbose in Privacy & Security › Full Disk Access, then choose Try again. If it still fails, quit and reopen Verbose.")
                     .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     Button("Open Full Disk Access") { NSWorkspace.shared.open(LinkSignIn.fullDiskAccessURL) }.buttonStyle(.brandSecondary)
@@ -63,7 +63,7 @@ struct SignInSheet: View {
                 Text("This video needs you to be signed in").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
                 if browsers.isEmpty {
-                    Text("Verbatim can use a sign-in from Safari, Chrome, Firefox, Brave, or Edge, and none of them is on this Mac. Download the video another way and import the file.")
+                    Text("Verbose can use a sign-in from Safari, Chrome, Firefox, Brave, or Edge, and none of them is on this Mac. Download the video another way and import the file.")
                         .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Use your sign-in from:").font(.system(size: 13)).foregroundStyle(Ink.dim)
@@ -123,7 +123,7 @@ struct LinkSignInSettingsRow: View {
     }
 
     private var detail: String {
-        var d = LinkSignIn.privacyNote + " When a video needs a sign-in, Verbatim uses this browser's instead of asking."
+        var d = LinkSignIn.privacyNote + " When a video needs a sign-in, Verbose uses this browser's instead of asking."
         switch LinkSignIn.Browser(rawValue: raw) {
         case .safari?: d += " Safari needs Full Disk Access."
         case let b? where b.usesKeychain: d += " \(b.name) asks for your Keychain password the first time."

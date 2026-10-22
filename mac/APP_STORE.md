@@ -2,6 +2,8 @@
 
 One build setting, `VERBATIM_APP_STORE`, decides whether an iPhone build uses features that App Review may reject. Your own builds (Debug, Release, CI, `build.sh`) keep it `NO` and keep every feature. App Store and TestFlight builds set it to `YES`.
 
+The app's public name is **Verbose** (Home Screen, App Store listing, keyboard list, share sheet, widgets, and permission prompts); "Verbatim" is the internal codename. Bundle IDs (`co.stumpandroot.verbatim*`), the App Group, the iCloud container, the SKU, targets, and schemes keep the codename. In App Store Connect, the app name is Verbose and the subtitle or promotional text can use the tagline "Go ahead. Be verbose."
+
 ## Make an App Store build
 
 1. Run `xcodegen generate` in `mac/`.
@@ -26,25 +28,25 @@ Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both w
 | Feature | Your builds | App Store builds |
 |---|---|---|
 | Keyboard reads the host app's bundle ID (`_hostBundleID`, `_hostApplicationBundleIdentifier` in `KeyboardViewController.hostBundleID()`) | On | Compiled out; returns nil. The format chip's Auto infers from the text field instead. |
-| Keyboard opens Verbatim to start a session (`openURL:options:completionHandler:` through the responder chain in `KeyboardViewController.openContainingApp`) | On | Compiled out; returns false. The keyboard shows "Start a session to dictate" with the ways to start one. |
+| Keyboard opens Verbose to start a session (`openURL:options:completionHandler:` through the responder chain in `KeyboardViewController.openContainingApp`) | On | Compiled out; returns false. The keyboard shows "Start a session to dictate" with the ways to start one. |
 | App switches back to the app you came from (`_systemNavigationAction` breadcrumb and `LSApplicationWorkspace.openApplicationWithBundleID:` in `KeyboardSession.returnToHostApp`) | On | Compiled out; returns "not available in App Store builds". The start screen tells you how to go back. |
 | YouTube audio on the iPhone (`YOUTUBE_ON_DEVICE`, YouTubeKit in `PhoneLinkFetcher`) | On | Not defined. YouTube links go to the Mac's Queue, like any site the iPhone can't fetch. YouTubeKit stays linked, but nothing calls it; remove the package dependency in `project.yml` to drop it from the binary. |
-| Settings › Keyboard › Start dictating when you come back | Shown | Hidden, because the keyboard can't open Verbatim. |
+| Settings › Keyboard › Start dictating when you come back | Shown | Hidden, because the keyboard can't open Verbose. |
 
 ## Starting a session in App Store builds
 
-The keyboard can't open Verbatim, and iOS doesn't let an app start recording from the background, so each of these opens Verbatim for a moment, turns on the microphone, and then shows "Your session is on" with how to go back to your app:
+The keyboard can't open Verbose, and iOS doesn't let an app start recording from the background, so each of these opens Verbose for a moment, turns on the microphone, and then shows "Your session is on" with how to go back to your app:
 
 - **Control Center** (iOS 18 and later): the Start dictation session control (`StartSessionControl`).
 - **Action button and Shortcuts:** the Start dictation session App Shortcut (`StartKeyboardSessionIntent`, `VerbatimAppShortcuts`).
-- **Lock Screen:** the Verbatim widget, which opens `verbatim://session?start=1&from=widget`.
-- **Verbatim:** Settings › Keyboard › Start keyboard session.
+- **Lock Screen:** the Verbose widget, which opens `verbatim://session?start=1&from=widget`.
+- **Verbose:** Settings › Keyboard › Start keyboard session.
 
 These work in your builds too.
 
 ## App privacy answers
 
-Verbatim has no account, no server, and no analytics or crash-reporting SDK. The Swift packages are WhisperKit (Argmax), FluidAudio, Sparkle (Mac direct download only), and YouTubeKit; none of them sends usage data. Use these answers in App Store Connect › App Privacy:
+Verbose has no account, no server, and no analytics or crash-reporting SDK. The Swift packages are WhisperKit (Argmax), FluidAudio, Sparkle (Mac direct download only), and YouTubeKit; none of them sends usage data. Use these answers in App Store Connect › App Privacy:
 
 - **Do you or your third-party partners collect data from this app?** No. The label reads **Data Not Collected**.
 - **Tracking:** none. No advertising identifier, no fingerprinting, and no data shared with data brokers.

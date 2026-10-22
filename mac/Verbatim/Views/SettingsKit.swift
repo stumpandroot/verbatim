@@ -44,15 +44,15 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     /// One line under the pane's title.
     var blurb: String {
         switch self {
-        case .general: return "How Verbatim looks, sounds, and stays up to date."
+        case .general: return "How Verbose looks, sounds, and stays up to date."
         case .dictate: return "Dictate into any app: the hotkey, cleanup, the tone for each kind of app, and snippets."
         case .floatingButton: return "The small button at the edge of your screen that starts and pastes a dictation."
         case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac."
         case .privacy: return "What leaves this Mac, and when. Local Only keeps everything here."
-        case .models: return "Which model transcribes your recordings, and what Verbatim does to a transcript when it's ready."
-        case .speakers: return "Who's talking in a recording, how Verbatim knows your voice, and which microphone records you."
+        case .models: return "Which model transcribes your recordings, and what Verbose does to a transcript when it's ready."
+        case .speakers: return "Who's talking in a recording, how Verbose knows your voice, and which microphone records you."
         case .captions: return "Live captions for whatever your Mac is playing or hearing."
-        case .watched: return "Drop audio or video into a watched folder and Verbatim transcribes it, then exports the results where you choose."
+        case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose."
         case .export: return "What goes into an export or a copy: which text, speaker names, and timecodes."
         case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."
         case .about: return "Version, help, and the fine print."
@@ -87,28 +87,28 @@ enum SettingsIndex {
         // General
         .init("general.appearance", .general, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
         .init("general.limitMotion", .general, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
-        .init("general.menuBar", .general, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbatim is running.", keywords: "menubar status item record shortcut"),
+        .init("general.menuBar", .general, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),
         .init("general.sounds", .general, "Sounds", "A short chime when recording or dictation starts, a tick when your words are ready, and a soft tone when you cancel.", keywords: "chime audio feedback"),
         .init("general.welcomeCard", .general, "Show the Method cards on Home", "Capture, Refine, and Understand, with your latest counts.", keywords: "welcome card hero intro method capture refine understand"),
-        .init("general.tourOnLaunch", .general, "Show the welcome tour when Verbatim opens", keywords: "onboarding launch"),
+        .init("general.tourOnLaunch", .general, "Show the welcome tour when Verbose opens", keywords: "onboarding launch"),
         .init("general.tour", .general, "Welcome tour", "Walk through the basics again.", keywords: "onboarding intro help"),
         .init("general.autoUpdate", .general, "Check for updates automatically", keywords: "sparkle update"),
-        .init("general.beta", .general, "Get beta builds", "Beta builds arrive with every change to Verbatim; leave this off for tested releases only.", keywords: "update prerelease"),
-        .init("general.version", .general, "Check for updates", "A check sends your IP address and Verbatim's version to GitHub, nothing else.", keywords: "version update check now"),
+        .init("general.beta", .general, "Get beta builds", "Beta builds arrive with every change to Verbose; leave this off for tested releases only.", keywords: "update prerelease"),
+        .init("general.version", .general, "Check for updates", "A check sends your IP address and Verbose's version to GitHub, nothing else.", keywords: "version update check now"),
         .init("general.name", .general, "Your name", "Shown on the You page.", keywords: "profile name you"),
-        .init("general.aboutMe", .general, "About me", "A few lines about you. Verbatim uses this to spell names and word titles and summaries.", keywords: "profile context bio titles summaries you"),
+        .init("general.aboutMe", .general, "About me", "A few lines about you. Verbose uses this to spell names and word titles and summaries.", keywords: "profile context bio titles summaries you"),
         .init("general.countSites", .general, "Count websites", "When you dictate into Safari, Chrome, Arc, Edge, or Brave, the You page shows which websites, by domain only, never full addresses. macOS asks once per browser.", keywords: "domains browser where you dictate activity stats privacy"),
 
         // Dictation
-        .init("dictate.enabled", .dictate, "Dictate anywhere", "Hold or press your hotkey in any app and Verbatim types what you say.", keywords: "dictation voice typing"),
+        .init("dictate.enabled", .dictate, "Dictate anywhere", "Hold or press your hotkey in any app and Verbose types what you say.", keywords: "dictation voice typing"),
         .init("dictate.hotkey", .dictate, "Hotkey", "The key that starts dictation.", keywords: "shortcut key fn option"),
         .init("dictate.mode", .dictate, "Mode", "Hold to talk, or press once to start and again to stop. Press Esc to cancel.", keywords: "push to talk toggle hands-free"),
         .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation, copy last dictation, and the Thought pad.", keywords: "paste again thought pad hotkey"),
         .init("dictate.recall", .dictate, "Recent dictations", "Shows your last 10 dictations in any app, so you can copy one or paste it again. Press 1–0 to copy, or hold ⇧ to paste. While it's set, the shortcut does nothing else, such as Paste Style (⌥⌘V) in Pages and TextEdit.", keywords: "history recent clipboard copy paste again missed failed lost shortcut hotkey panel"),
         .init("dictate.alwaysCopy", .dictate, "Also copy each dictation to the clipboard", "Each dictation stays on the clipboard after it's pasted, instead of what you copied before.", keywords: "clipboard copy keep paste pasteboard"),
-        .init("dictate.lowerAudio", .dictate, "Lower other audio while Verbatim listens", "Other sound drops to a whisper so it doesn't reach the microphone. Applies to dictation, voice notes, and Live captions from your microphone.", keywords: "duck music spotify youtube volume quiet mute background sound"),
+        .init("dictate.lowerAudio", .dictate, "Lower other audio while Verbose listens", "Other sound drops to a whisper so it doesn't reach the microphone. Applies to dictation, voice notes, and Live captions from your microphone.", keywords: "duck music spotify youtube volume quiet mute background sound"),
         .init("dictate.maxMinutes", .dictate, "Stop dictating after", "A minute before, the button says so. Your words up to the stop are pasted, never thrown away.", keywords: "limit time minutes"),
-        .init("dictate.cleanup", .dictate, "Cleanup", "How much Verbatim tidies what you say before it's pasted.", keywords: "polish clean literal filler punctuation"),
+        .init("dictate.cleanup", .dictate, "Cleanup", "How much Verbose tidies what you say before it's pasted.", keywords: "polish clean literal filler punctuation"),
         .init("dictate.cloud", .dictate, "Cloud cleanup", "Clean up dictation with Anthropic Claude or OpenAI, using your own API key. Off by default.", keywords: "claude anthropic openai chatgpt gpt api cloud grammar ai"),
         .init("dictate.cloudProvider", .dictate, "Provider", "Who cleans up your words when cloud cleanup is on.", keywords: "anthropic openai claude gpt cloud"),
         .init("dictate.cloudKey", .dictate, "API key", "Your own key, saved in your Keychain on this Mac only.", keywords: "api key keychain secret cloud"),
@@ -116,32 +116,32 @@ enum SettingsIndex {
         .init("dictate.spokenCorrections", .dictate, "Understand spoken corrections", "Say “scratch that,” “delete the last sentence,” or “let me start over” to fix what you said.", keywords: "scratch that actually no wait start over delete last sentence self-correction correction undo never mind"),
         .init("dictate.cleanupHelp", .dictate, "Punctuation, lists, and paragraphs by voice", "Say “comma,” “period,” “new line,” or “new paragraph.” Announce a list to get one.", keywords: "comma period list bullet numbered"),
         .init("dictate.styles", .dictate, "Style for each kind of app", "Formal, casual, very casual, or as spoken, by app.", keywords: "tone email chat messages code"),
-        .init("dictate.emailLines", .dictate, "Put the greeting and sign-off on their own lines", "In email, a greeting you say (“Hi Sarah”) and a sign-off (“Thanks, Tim”) each get a line of their own. Verbatim never adds one you didn't say.", keywords: "email greeting sign-off signature hi thanks gmail outlook layout"),
+        .init("dictate.emailLines", .dictate, "Put the greeting and sign-off on their own lines", "In email, a greeting you say (“Hi Sarah”) and a sign-off (“Thanks, Tim”) each get a line of their own. Verbose never adds one you didn't say.", keywords: "email greeting sign-off signature hi thanks gmail outlook layout"),
         .init("dictate.emailParagraphs", .dictate, "Paragraphs", "How long email paragraphs run: Short is 1 or 2 sentences, Normal is up to 4.", keywords: "email paragraph length short normal layout preview"),
-        .init("dictate.context", .dictate, "Use the text around your cursor", "Verbatim reads the app's name and the text near your cursor so names are spelled right and the tone matches. Password fields are never read, and nothing leaves this Mac.", keywords: "context privacy"),
+        .init("dictate.context", .dictate, "Use the text around your cursor", "Verbose reads the app's name and the text near your cursor so names are spelled right and the tone matches. Password fields are never read, and nothing leaves this Mac.", keywords: "context privacy"),
         .init("dictate.boost", .dictate, "Listen for my Dictionary words", "Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.", keywords: "vocabulary accuracy boost"),
         .init("dictate.autoLearn", .dictate, "Learn from my fixes", "When you correct a name or term right after it's pasted, the floating button asks whether to remember it. Nothing is learned unless you say yes.", keywords: "dictionary corrections learn"),
-        .init("dictate.snippets", .dictate, "Snippets", "Say a trigger like “my calendar link” and Verbatim pastes the saved text: a link, an address, a sign-off.", keywords: "text expansion shortcut"),
-        .init("dictate.accessibility", .dictate, "Accessibility access", "macOS requires this so Verbatim can notice the hotkey, see which app and text field you're in, and press ⌘V there.", keywords: "permission privacy system settings"),
+        .init("dictate.snippets", .dictate, "Snippets", "Say a trigger like “my calendar link” and Verbose pastes the saved text: a link, an address, a sign-off.", keywords: "text expansion shortcut"),
+        .init("dictate.accessibility", .dictate, "Accessibility access", "macOS requires this so Verbose can notice the hotkey, see which app and text field you're in, and press ⌘V there.", keywords: "permission privacy system settings"),
         .init("dictate.typeInstead", .dictate, "Type instead of paste", "For apps that block ⌘V or paste the wrong thing.", keywords: "paste clipboard typing apps"),
 
         // Floating button
         .init("float.show", .floatingButton, "Show the floating button", "Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.", keywords: "flow bar ribbon pill"),
         .init("float.style", .floatingButton, "Style", "Paper is a light tab with ink type. Ink is a dark tab with paper type.", keywords: "look paper ink appearance"),
         .init("float.mark", .floatingButton, "Voice mark", "Moves with your voice while you dictate.", keywords: "bars rings level meter"),
-        .init("float.liveWords", .floatingButton, "Show words as you speak", "A preview of your words in the floating button while you dictate, recognized on this Mac. What's pasted still comes from Verbatim's own transcription.", keywords: "live words preview streaming"),
+        .init("float.liveWords", .floatingButton, "Show words as you speak", "A preview of your words in the floating button while you dictate, recognized on this Mac. What's pasted still comes from Verbose's own transcription.", keywords: "live words preview streaming"),
 
         // Actions
         .init("actions.list", .actions, "Saved actions", "Name, instruction, and how long text is handled.", keywords: "prompt rewrite summarize instruction"),
         .init("actions.add", .actions, "Add an action", keywords: "new create"),
-        .init("actions.restore", .actions, "Restore built-in actions", "Replaces your actions with the eight that come with Verbatim.", keywords: "reset defaults"),
+        .init("actions.restore", .actions, "Restore built-in actions", "Replaces your actions with the eight that come with Verbose.", keywords: "reset defaults"),
 
         // Models and language
         .init("models.quality", .models, "Quality", "Parakeet is the default: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses.", keywords: "model engine whisper parakeet language accuracy speed"),
         .init("models.engine", .models, "Engine and model", "Shown when Quality is Advanced.", keywords: "whisper parakeet advanced"),
-        .init("models.detectLanguage", .models, "Detect the language", "Verbatim listens to the first 30 seconds of each recording. When it isn't English and Quality is English only, Parakeet v3 transcribes it; languages outside Parakeet v3's 25 use Apple's speech recognition on this Mac. To change one transcript's language, open its Details.", keywords: "language spanish french german japanese chinese multilingual detect automatic v3"),
+        .init("models.detectLanguage", .models, "Detect the language", "Verbose listens to the first 30 seconds of each recording. When it isn't English and Quality is English only, Parakeet v3 transcribes it; languages outside Parakeet v3's 25 use Apple's speech recognition on this Mac. To change one transcript's language, open its Details.", keywords: "language spanish french german japanese chinese multilingual detect automatic v3"),
         .init("models.applyDictionary", .models, "Apply Dictionary to new transcripts", "Only words listed under “Heard as” are replaced, and every fix shows on the transcript.", keywords: "vocabulary corrections replace"),
-        .init("models.builtInVocabulary", .models, "Built-in vocabulary", "Verbatim spells about 500 modern words right, like ChatGPT, GitHub, and macOS. Your Dictionary always wins. Turn off single terms on the Dictionary page.", keywords: "modern words brands apps tech terms spelling names chatgpt iphone youtube boost"),
+        .init("models.builtInVocabulary", .models, "Built-in vocabulary", "Verbose spells about 500 modern words right, like ChatGPT, GitHub, and macOS. Your Dictionary always wins. Turn off single terms on the Dictionary page.", keywords: "modern words brands apps tech terms spelling names chatgpt iphone youtube boost"),
         .init("models.projectVocab", .models, "Project vocabulary", "Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.", keywords: "dictionary project scope"),
         .init("models.nameSort", .models, "Name and sort recordings", "Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.", keywords: "auto label title tags kind"),
         .init("models.summary", .models, "Write a summary when a transcript finishes", "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.", keywords: "summary summaries overview key points recap"),
@@ -149,8 +149,8 @@ enum SettingsIndex {
         .init("models.offline", .models, "Where models run", "Models download once from Hugging Face and run on this Mac. Transcription never leaves your computer.", keywords: "privacy offline download hugging face"),
 
         // Speakers and your voice
-        .init("speakers.voiceProfile", .speakers, "Voice profile", "Teach Verbatim your voice so transcripts label you as You.", keywords: "enroll my voice recognize me you"),
-        .init("speakers.onlyMyVoice", .speakers, "Only keep my voice in dictation", "When someone nearby talks while you dictate, Verbatim pastes only your words.", keywords: "voice filter background people dictation me"),
+        .init("speakers.voiceProfile", .speakers, "Voice profile", "Teach Verbose your voice so transcripts label you as You.", keywords: "enroll my voice recognize me you"),
+        .init("speakers.onlyMyVoice", .speakers, "Only keep my voice in dictation", "When someone nearby talks while you dictate, Verbose pastes only your words.", keywords: "voice filter background people dictation me"),
         .init("speakers.identify", .speakers, "Identify speakers", "Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.", keywords: "diarization speaker labels who"),
         .init("speakers.mainOnly", .speakers, "Main speaker only", "Other voices fold into a Background voices section under the transcript.", keywords: "background voices"),
         .init("speakers.audioTracks", .speakers, "Files with several audio tracks", "Mix every track into one transcript, or transcribe each track on its own as a speaker you can rename. A track's title or language names it, such as Commentary or English.", keywords: "multiple audio tracks mkv video language commentary mix separate speakers import"),
@@ -186,7 +186,7 @@ enum SettingsIndex {
         .init("storage.icloud", .storage, "Sync with iCloud", "Transcripts, notes, projects, and the Dictionary match your iPhone.", keywords: "icloud sync iphone cloud"),
         .init("storage.library", .storage, "Transcripts and audio", "Your library on this Mac.", keywords: "finder reveal files location folder"),
         .init("storage.models", .storage, "Models", "Downloaded transcription models.", keywords: "finder reveal disk space"),
-        .init("links.signIn", .storage, "Sign-in for private videos", "Verbatim reads cookies only for the link you're fetching and never stores them.",
+        .init("links.signIn", .storage, "Sign-in for private videos", "Verbose reads cookies only for the link you're fetching and never stores them.",
               keywords: "cookies private age restricted members login signed in account browser safari chrome firefox brave edge youtube links dropbox google drive onedrive icloud"),
         .init("storage.keepFolder", .storage, "Keep folder", "Where kept video and audio from links go.", keywords: "keep download video folder"),
         .init("storage.keepVideo", .storage, "Keep the video of every link I transcribe", "Video is saved as MP4 (H.264, up to 1080p) with its sound; audio as M4A. Nothing is re-encoded.", keywords: "keep download youtube mp4"),
@@ -195,9 +195,9 @@ enum SettingsIndex {
         // About
         .init("about.version", .about, "Version", keywords: "build number"),
         .init("about.support", .about, "Help", "Write to support.", keywords: "contact email support help"),
-        .init("about.log", .about, "Diagnostic log", "A record of what Verbatim did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
+        .init("about.log", .about, "Diagnostic log", "A record of what Verbose did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
         .init("about.legal", .about, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
-        .init("about.acknowledgements", .about, "Acknowledgements", "Open-source software in Verbatim and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
+        .init("about.acknowledgements", .about, "Acknowledgements", "Open-source software in Verbose and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
     ]
 
     /// Every entry: the panes above, plus Privacy and the trust rows (Views/TrustViews.swift).

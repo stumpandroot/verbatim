@@ -42,7 +42,7 @@ struct UpdateSettingsSection: View {
                       footer: updater.isRunning ? nil : "Automatic updates are off in this build.") {
             SettingsToggleRow("general.autoUpdate", isOn: $updater.automaticallyChecksForUpdates, disabled: !updater.isRunning)
             SettingsToggleRow("general.beta", isOn: $updater.betaUpdates, disabled: !updater.isRunning)
-            SettingsRow("general.version", detail: "Version \(updater.version) (\(updater.build)). A check sends your IP address and Verbatim's version to GitHub, nothing else.") {
+            SettingsRow("general.version", detail: "Version \(updater.version) (\(updater.build)). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
                 Button("Check Now") { updater.checkForUpdates() }
                     .buttonStyle(.brandSecondary)
                     .disabled(!updater.isRunning || !updater.canCheckForUpdates)
@@ -114,7 +114,7 @@ struct DictationForm: View {
                 }
                 SettingsToggleRow("dictate.spokenCorrections", isOn: $spokenCorrections,
                                   detail: "Say “scratch that,” “delete the last sentence,” or “let me start over” to fix what you said. “At 2, actually 3” keeps 3. Works at Clean and Polished, with or without Apple Intelligence.")
-                SettingsRow("dictate.cleanupHelp", detail: "Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. At Clean and Polished, announce a list (“a few things,” “first… second…,” “step one,” or “bullet”) to get a numbered or bulleted list, and change topic (“also,” “one more thing”) to start a paragraph. Lists, paragraphs, filler removal, and fixes for capitals and “a” or “an” work without Apple Intelligence. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
+                SettingsRow("dictate.cleanupHelp", detail: "Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. At Clean and Polished, announce a list (“a few things,” “first… second…,” “step one,” or “bullet”) to get a numbered or bulleted list, and change topic (“also,” “one more thing”) to start a paragraph. Lists, paragraphs, filler removal, and fixes for capitals and “a” or “an” work without Apple Intelligence. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbose pastes your words instead.")
                 CloudCleanupSettingsRows()
             }
             SettingsGroup(title: "Style for each kind of app") {
@@ -366,7 +366,7 @@ struct ExportSettingsPane: View {
                 ExportPaneToggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote, note: "On Cleaned text the model touched: “\(Exporter.aiNoteText)”")
                 ExportPaneToggle("Summary", isOn: $options.summary, note: "Written with Apple Intelligence, when the transcript has one.")
                 ExportPaneToggle("One paragraph", isOn: $options.singleParagraph)
-                ExportPaneToggle("“Transcribed with Verbatim” footer", isOn: $options.provenance)
+                ExportPaneToggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
             }
             SettingsGroup(title: "Speakers and time") {
                 ExportPaneRow("Speaker names") {
@@ -554,7 +554,7 @@ struct CloudSyncSection: View {
             Button("Cancel", role: .cancel) {}
             Button("Turn Off") { turnOff() }
         } message: {
-            Text("Verbatim copies your library onto this Mac, then stops syncing the next time it opens. Your iPhone keeps what's already in iCloud.")
+            Text("Verbose copies your library onto this Mac, then stops syncing the next time it opens. Your iPhone keeps what's already in iCloud.")
         }
     }
 
@@ -562,7 +562,7 @@ struct CloudSyncSection: View {
         if copying { return "Copying your library to this Mac…" }
         if failed > 0 { return "\(failed) file\(failed == 1 ? "" : "s") couldn't be downloaded from iCloud, so sync is still on. Check your internet connection and try again." }
         if wanted != Cloud.enabled {
-            return wanted ? "Sync starts the next time you open Verbatim." : "Your library is on this Mac. Quit and reopen Verbatim to finish turning off sync."
+            return wanted ? "Sync starts the next time you open Verbose." : "Your library is on this Mac. Quit and reopen Verbose to finish turning off sync."
         }
         return wanted ? "Transcripts, notes, projects, and the Dictionary match your iPhone. Audio from the other device downloads when you play it."
                       : "Everything stays on this Mac."
@@ -621,12 +621,21 @@ struct AboutSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .about) {
+            // The lockup (DESIGN.md §4) and the tagline in the serif.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    BarsMark(color: Ink.persimmon).frame(width: 22, height: 23)
+                    Ink.wordmark(28)
+                }
+                Text(Ink.tagline).font(Ink.serif(19)).foregroundStyle(Ink.dim)
+            }
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Ink.tagline)")
             SettingsGroup {
-                SettingsRow("about.version", detail: "Verbatim \(updater.version) (\(updater.build))") {
+                SettingsRow("about.version", detail: "Verbose \(updater.version) (\(updater.build))") {
                     BarsMark(color: Ink.persimmon).frame(width: 18, height: 19)
                 }
                 SettingsRow("about.support") {
-                    if let u = Links.mail(subject: "Verbatim support") {
+                    if let u = Links.mail(subject: "Verbose support") {
                         Link("Contact Support", destination: u).font(.system(size: 13)).foregroundStyle(Ink.accentText)
                     }
                 }
@@ -668,7 +677,7 @@ struct AboutSettingsPane: View {
         Log.trimNow()
         if let mail = NSSharingService(named: .composeEmail) {
             mail.recipients = [Links.supportEmail]
-            mail.subject = "Verbatim diagnostic log"
+            mail.subject = "Verbose diagnostic log"
             if mail.canPerform(withItems: [Log.file]) { mail.perform(withItems: [Log.file]); return }
         }
         NSWorkspace.shared.activateFileViewerSelecting([Log.file])
@@ -689,7 +698,7 @@ struct CloudCleanupSettingsRows: View {
 
     var body: some View {
         SettingsToggleRow("dictate.cloud", isOn: $on,
-                          detail: on ? CloudCleanup.privacyNote(provider) + " Without a connection, or if the request fails, Verbatim cleans up on this Mac."
+                          detail: on ? CloudCleanup.privacyNote(provider) + " Without a connection, or if the request fails, Verbose cleans up on this Mac."
                                      : "Off. Cleanup runs on this Mac.")
             .onAppear(perform: load)
             .onChange(of: providerRaw) { _, _ in load() }

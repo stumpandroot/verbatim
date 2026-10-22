@@ -1,0 +1,3 @@
+/* The Mac app's public name. The bundle stays Verbatim.app; see the comment above CFBundleName in mac/project.yml. */
+"CFBundleDisplayName" = "Verbose";
+"CFBundleName" = "Verbose";

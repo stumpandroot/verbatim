@@ -213,7 +213,7 @@ struct ActionSettings: View {
         }
         .confirmationDialog("Restore the built-in actions?", isPresented: $confirmRestore) {
             Button("Restore", role: .destructive) { settings.actions = FlowAction.builtIn }
-        } message: { Text("Replaces your actions with the \(FlowAction.builtIn.count) that come with Verbatim, including Make a plan, Journal entry, Write a draft, Study notes, and Key points. Actions you added or changed are removed.") }
+        } message: { Text("Replaces your actions with the \(FlowAction.builtIn.count) that come with Verbose, including Make a plan, Journal entry, Write a draft, Study notes, and Key points. Actions you added or changed are removed.") }
     }
 
     private func move(_ id: UUID, by d: Int) {

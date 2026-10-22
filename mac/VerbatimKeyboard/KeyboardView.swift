@@ -61,7 +61,7 @@ struct KeyboardView: View {
             Chip(title: "Use as spoken") { model.useAsSpoken() }
                 .accessibilityHint("Replaces the corrected words with the words as you said them")
             Chip(title: "Turn off") { model.turnOffSpokenCorrections() }
-                .accessibilityHint("Stops Verbatim from acting on spoken corrections")
+                .accessibilityHint("Stops Verbose from acting on spoken corrections")
         }
         .padding(.horizontal, 6)
         .accessibilityElement(children: .contain)
@@ -79,7 +79,7 @@ struct KeyboardView: View {
                 Spacer(minLength: 6)
                 if model.stage == .starting {
                     Chip(title: "Cancel") { model.cancel() }
-                        .accessibilityHint("Stops waiting for Verbatim")
+                        .accessibilityHint("Stops waiting for Verbose")
                 }
             case .inserted:
                 if model.polishing {
@@ -242,7 +242,7 @@ struct KeyboardView: View {
                         .font(Ink.serif(24)).foregroundStyle(KB.ink)
                         .lineLimit(1).minimumScaleFactor(0.7)
                     if !model.sessionLive {
-                        Text("Verbatim opens for a second, then comes back")
+                        Text("Verbose opens for a second, then comes back")
                             .font(.system(size: 12)).foregroundStyle(KB.muted)
                             .lineLimit(1).minimumScaleFactor(0.8)
                     }
@@ -255,13 +255,13 @@ struct KeyboardView: View {
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
-        .accessibilityHint(model.sessionLive ? "Starts listening right away" : "Opens Verbatim for a second to turn on the microphone, then comes back here")
+        .accessibilityHint(model.sessionLive ? "Starts listening right away" : "Opens Verbose for a second to turn on the microphone, then comes back here")
     }
 
     private var startingCard: some View {
         HStack(spacing: 16) {
             VoiceBars(level: 0, color: KB.dictate, barWidth: 10, maxHeight: 44).frame(width: 50)
-            Text("Opening Verbatim…")
+            Text("Opening Verbose…")
                 .font(Ink.serif(24)).foregroundStyle(KB.ink)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 8)
@@ -360,7 +360,7 @@ private struct FormatChip: View {
         }
         .buttonStyle(PressFade())
         .accessibilityLabel("Format: \(label)")
-        .accessibilityHint("Changes how Verbatim cleans up this dictation: Auto, Email, Message, or Note")
+        .accessibilityHint("Changes how Verbose cleans up this dictation: Auto, Email, Message, or Note")
         .accessibilityAdjustableAction { direction in
             if direction == .increment || direction == .decrement { next() }
         }
@@ -382,9 +382,9 @@ private struct StartSessionCard: View {
                 Text("Start a session to dictate")
                     .font(Ink.serif(20)).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
-                way("square.grid.2x2", "Open Control Center and tap Verbatim")
-                way("button.horizontal.top.press", "Press the Action button, if you set it to Verbatim")
-                way("arrow.up.forward.app", "Or open Verbatim and tap Start keyboard session")
+                way("square.grid.2x2", "Open Control Center and tap Verbose")
+                way("button.horizontal.top.press", "Press the Action button, if you set it to Verbose")
+                way("arrow.up.forward.app", "Or open Verbose and tap Start keyboard session")
             }
             Spacer(minLength: 0)
         }

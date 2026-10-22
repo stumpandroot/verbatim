@@ -501,9 +501,9 @@ final class Recorder: ObservableObject {
     var onAutoPaused: ((String) -> Void)?
     /// A recording's audio can't be written (a full disk): it pauses with this, and Resume tries a fresh file.
     #if os(iOS)
-    static let cantSaveNotice = "Verbatim can't save audio. Free up space, then tap Resume."
+    static let cantSaveNotice = "Verbose can't save audio. Free up space, then tap Resume."
     #else
-    static let cantSaveNotice = "Verbatim can't save audio. Free up space, then click Resume."
+    static let cantSaveNotice = "Verbose can't save audio. Free up space, then click Resume."
     #endif
     /// A recording moved to another microphone on its own (the one it was using went away) and kept going.
     var onInputSwitched: ((String) -> Void)?
@@ -511,9 +511,9 @@ final class Recorder: ObservableObject {
     /// Shown when a call starts: the recording pauses, and what was said stays saved.
     static let interruptionBeganNotice = "Paused for a call or another app's audio."
     /// The call ended but the microphone couldn't start again (iOS often refuses from the background).
-    static let callPausedNotice = "Recording paused for a call. Open Verbatim and tap Resume."
+    static let callPausedNotice = "Recording paused for a call. Open Verbose and tap Resume."
     /// The interruption ended without iOS saying to resume (another app kept the audio).
-    static let audioPausedNotice = "Recording paused for another app's audio. Open Verbatim and tap Resume."
+    static let audioPausedNotice = "Recording paused for another app's audio. Open Verbose and tap Resume."
     /// iOS restarted its audio services: the engine was rebuilt and the recording paused.
     static let audioRestartedNotice = "Audio restarted. Tap Resume to keep recording."
     /// Called after an interruption when the recording stays paused and needs you (it didn't resume, or it

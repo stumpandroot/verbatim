@@ -92,7 +92,7 @@
       const xhr=new XMLHttpRequest();xhr.open('POST','/api/jobs/upload');
       xhr.upload.onprogress=(e)=>{if(e.lengthComputable)drawProgress(2+28*e.loaded/e.total,'Uploading file',`Sending ${file.name}… ${Math.round(100*e.loaded/e.total)}%`);};
       xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText||'{}');}catch{}if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(typeof data.detail==='string'?data.detail:'The file could not be uploaded.'));};
-      xhr.onerror=()=>reject(new Error('The file could not be uploaded. Check the connection to the Verbatim server.'));
+      xhr.onerror=()=>reject(new Error('The file could not be uploaded. Check the connection to the Verbose server.'));
       xhr.send(form);
     });
   }
@@ -101,7 +101,7 @@
     if(demoOnly){openSample();return;}
     if(caps&&caps.max_upload_mb&&file.size>caps.max_upload_mb*1048576){$('fileNote').textContent=`That file is larger than the ${caps.max_upload_mb} MB limit.`;return;}
     const ticket=++actionToken;current=null;jobId=null;navigate('processing');
-    $('processNotice').textContent='Your file is being sent to the computer running Verbatim, transcribed there, and deleted when done. Keep this screen open.';
+    $('processNotice').textContent='Your file is being sent to the computer running Verbose, transcribed there, and deleted when done. Keep this screen open.';
     drawProgress(2,'Uploading file',`Sending ${file.name}…`);
     try{const data=await uploadFile(file);if(ticket!==actionToken)return;jobId=data.job_id;rememberJob(jobId);await pollJob(jobId,ticket);}
     catch(error){if(ticket!==actionToken)return;rememberJob(null);showJobError(error.message);}
@@ -119,8 +119,8 @@
   function aiDestination(){
     if(!caps)return 'Creates an AI-edited version and key points. The original stays unchanged.';
     if(caps.ai_provider==='openai')return `Sends this transcript to OpenAI (${caps.ai_model||'model not set'}) to create the cleaned version and key points. The original stays unchanged.`;
-    if(caps.ai_provider==='ollama')return `Uses Ollama on the computer running Verbatim (${caps.ai_model||'model not set'}). Nothing leaves that computer. The original stays unchanged.`;
-    return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
+    if(caps.ai_provider==='ollama')return `Uses Ollama on the computer running Verbose (${caps.ai_model||'model not set'}). Nothing leaves that computer. The original stays unchanged.`;
+    return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbose.';
   }
   async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
   // Diagrams (mac/DESIGN.md §3): Capture, Refine, and Understand in ink, and the colophon rings on Home. Empty
@@ -264,14 +264,14 @@
     const isDemo=!!current.demo;const ai=activeTab!=='original';
     const lines=[`${current.title||'Untitled video'}`,
       `View: ${viewNames[activeTab]||activeTab}`,
-      `Source: ${isDemo?'Verbatim sample (not a real video)':(current.url||'unknown')}`,
+      `Source: ${isDemo?'Verbose sample (not a real video)':(current.url||'unknown')}`,
       `Transcript type: ${isDemo?'Example content':(sourceNames[current.source_type]||'Unknown')}`,
-      `Exported from Verbatim on ${new Date().toISOString().slice(0,10)}`,
+      `Exported from Verbose on ${new Date().toISOString().slice(0,10)}`,
       ai?'Note: AI-edited text. Check important phrases, names, and numbers against the original.':'Note: original transcript as retrieved. Captions and speech recognition can contain errors.'];
     return lines.join('\n')+'\n\n';
   }
   function textWithProvenance(){const body=currentText();return body?provenanceHeader()+body+'\n':'';}
-  function subtitle(mode){let out=mode==='vtt'?`WEBVTT\n\nNOTE\nOriginal transcript cues from Verbatim. Source: ${current?.demo?'sample':(current?.url||'unknown')}. Type: ${sourceNames[current?.source_type]||'Unknown'}.\n\n`:'';for(const [i,s] of (current?.segments||[]).entries()){const fmt=(sec)=>{let n=Math.max(0,Math.round(Number(sec||0)*1000));const milli=n%1000;n=Math.floor(n/1000);const ss=n%60;n=Math.floor(n/60);const mm=n%60;const hh=Math.floor(n/60);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}${mode==='vtt'?'.':','}${String(milli).padStart(3,'0')}`;};out+=(mode==='srt'?`${i+1}\n`:'')+`${fmt(s.start)} --> ${fmt(s.end||s.start+2)}\n${s.text}\n\n`;}return out;}
+  function subtitle(mode){let out=mode==='vtt'?`WEBVTT\n\nNOTE\nOriginal transcript cues from Verbose. Source: ${current?.demo?'sample':(current?.url||'unknown')}. Type: ${sourceNames[current?.source_type]||'Unknown'}.\n\n`:'';for(const [i,s] of (current?.segments||[]).entries()){const fmt=(sec)=>{let n=Math.max(0,Math.round(Number(sec||0)*1000));const milli=n%1000;n=Math.floor(n/1000);const ss=n%60;n=Math.floor(n/60);const mm=n%60;const hh=Math.floor(n/60);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}${mode==='vtt'?'.':','}${String(milli).padStart(3,'0')}`;};out+=(mode==='srt'?`${i+1}\n`:'')+`${fmt(s.start)} --> ${fmt(s.end||s.start+2)}\n${s.text}\n\n`;}return out;}
   function showExportPreview(filename,text){const d=$('exportDialog');$('exportName').textContent=filename;$('exportText').value=text;d.showModal();}
   function download(ext,text,mime){if(!current)return;if(demoOnly){showExportPreview(`${(current.title||'transcript').slice(0,40)}.${ext}`,text);return;}const filename=(current.title||'verbatim-transcript').normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').slice(0,58)||'transcript';const blob=new Blob([text],{type:mime});const name=`${filename}.${ext}`;shareOrSave(blob,name,mime).then(how=>{if(how==='shared')notify(`${ext.toUpperCase()} shared`);else if(how==='saved')notify(`${ext.toUpperCase()} exported`);}).catch(()=>notify('Export did not finish. Try again.'));}
   // On iPhone the share sheet is the only way to put a file in Files or another app; elsewhere a download is expected.
@@ -308,7 +308,7 @@
   // Drag and drop anywhere on the page (desktop). Names aren't readable before the drop, so the overlay says what will happen.
   (()=>{const zone=$('dropZone');if(!zone)return;let depth=0;
     const hasFiles=e=>e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files');
-    document.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();depth++;const n=e.dataTransfer.items?e.dataTransfer.items.length:1;$('dropTitle').textContent=n>1?`Drop ${n} files here to begin transcription`:'Drop your file here to begin transcription';$('dropNote').textContent=demoOnly?'Audio and video files. The file is sent to the computer running Verbatim, transcribed there, and deleted when done.':`Audio and video files${caps&&caps.max_upload_mb?` up to ${caps.max_upload_mb} MB`:''}. The file is transcribed on this computer and deleted when done.`;zone.classList.add('is-active');});
+    document.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();depth++;const n=e.dataTransfer.items?e.dataTransfer.items.length:1;$('dropTitle').textContent=n>1?`Drop ${n} files here to begin transcription`:'Drop your file here to begin transcription';$('dropNote').textContent=demoOnly?'Audio and video files. The file is sent to the computer running Verbose, transcribed there, and deleted when done.':`Audio and video files${caps&&caps.max_upload_mb?` up to ${caps.max_upload_mb} MB`:''}. The file is transcribed on this computer and deleted when done.`;zone.classList.add('is-active');});
     document.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault();});
     document.addEventListener('dragleave',e=>{if(!hasFiles(e))return;depth=Math.max(0,depth-1);if(depth===0)zone.classList.remove('is-active');});
     document.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();depth=0;zone.classList.remove('is-active');const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f){navigate('home');startUpload(f);}});

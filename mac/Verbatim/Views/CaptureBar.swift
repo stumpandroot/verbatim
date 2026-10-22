@@ -145,7 +145,7 @@ struct MicSourceMenu: View {
             .font(.system(size: 13)).foregroundStyle(Ink.dim)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-        .help("Which microphone Verbatim records from")
+        .help("Which microphone Verbose records from")
         .onAppear(perform: refresh)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
     }
@@ -179,7 +179,7 @@ struct DictateControls: View {
                     IconGlyph(art: .iconAccessibility, size: 20, color: Ink.danger)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Needs Accessibility access").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text("To hear the key and paste into other apps. Verbatim reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        Text("To hear the key and paste into other apps. Verbose reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                     Spacer()
                     Button("Allow") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }.buttonStyle(.brandPrimary)

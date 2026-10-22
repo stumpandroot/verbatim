@@ -54,7 +54,7 @@ struct PhonePrivacyScreen: View {
             }
             Section {
                 if model.events.isEmpty {
-                    Text("Nothing yet. Verbatim hasn't used the network on this iPhone since the list was cleared.")
+                    Text("Nothing yet. Verbose hasn't used the network on this iPhone since the list was cleared.")
                         .font(.system(size: 14)).foregroundStyle(Ink.mute)
                 } else {
                     ForEach(model.events) { e in PhoneNetworkEventRow(event: e) }
@@ -253,7 +253,7 @@ struct PhoneDictionaryCSVSection: View {
     }
 
     private func export() {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Verbatim Dictionary.csv")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Verbose Dictionary.csv")
         do {
             try app.store.dictionaryCSV().write(to: url, atomically: true, encoding: .utf8)
             shareURL = url

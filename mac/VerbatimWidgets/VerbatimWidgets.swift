@@ -34,7 +34,7 @@ struct SessionLiveActivity: Widget {
                     StateIcon(listening: context.state.listening).frame(width: 22, height: 22).padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.listening ? "Listening…" : "Verbatim is ready")
+                    Text(context.state.listening ? "Listening…" : "Verbose is ready")
                         .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
                         .lineLimit(1)
                 }
@@ -59,7 +59,7 @@ struct SessionLiveActivity: Widget {
 }
 
 private func subtitle(_ s: VerbatimSessionAttributes.ContentState) -> String {
-    s.listening ? "Tap ✓ on the keyboard when you're done" : "Tap the record button on the Verbatim keyboard"
+    s.listening ? "Tap ✓ on the keyboard when you're done" : "Tap the record button on the Verbose keyboard"
 }
 
 private struct LockScreenView: View {
@@ -68,7 +68,7 @@ private struct LockScreenView: View {
         HStack(spacing: 12) {
             BarsMark(color: Ink.persimmon).frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 2) {
-                Text(state.listening ? "Listening…" : "Verbatim is ready")
+                Text(state.listening ? "Listening…" : "Verbose is ready")
                     .font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.paperFixed)
                 if let ends = state.endsAt, !state.listening {
                     (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))

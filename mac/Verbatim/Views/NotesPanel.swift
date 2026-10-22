@@ -136,7 +136,7 @@ private struct TranscriptLanguageMenuMac: View {
             }
             Button("Cancel", role: .cancel) { pending = nil }
         } message: {
-            Text("Verbatim replaces this transcript's words, speakers, and Dictionary fixes. Your title, notes, and tags stay.")
+            Text("Verbose replaces this transcript's words, speakers, and Dictionary fixes. Your title, notes, and tags stay.")
         }
     }
 

@@ -139,7 +139,7 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 # hdiutil fails now and then on CI runners ("Resource busy"); retry a few times before giving up.
 for attempt in 1 2 3 4; do
-  if hdiutil create -volname "Verbatim" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"; then break; fi
+  if hdiutil create -volname "Verbose" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"; then break; fi
   echo "hdiutil failed (attempt $attempt); retrying" >&2
   if [ "$attempt" = 4 ]; then echo "error: couldn't create the DMG" >&2; exit 1; fi
   sleep $((attempt * 5))

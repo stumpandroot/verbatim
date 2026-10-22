@@ -17,7 +17,7 @@ struct VerbatimApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Verbatim") {
+        WindowGroup("Verbose") {
             ContentView()
                 .environmentObject(app)
                 .limitMotionRoot()
@@ -69,7 +69,7 @@ struct VerbatimApp: App {
         } label: {
             // The bars mark as a template image, so the menu bar tints it (DESIGN.md §3, §4).
             Image(nsImage: BrandArt.markBars.templateImage(size: 16, key: "menubar"))
-                .accessibilityLabel("Verbatim")
+                .accessibilityLabel("Verbose")
         }
         .menuBarExtraStyle(.window)
     }

@@ -146,7 +146,7 @@ extension AppState {
                 verbiePose = .listening
             } catch {
                 verbiePose = .interrupted
-                toast = Toast("Could not capture \(app.name): \(error.localizedDescription). Allow Verbatim under System Settings › Privacy & Security › Screen & System Audio Recording.")
+                toast = Toast("Could not capture \(app.name): \(error.localizedDescription). Allow Verbose under System Settings › Privacy & Security › Screen & System Audio Recording.")
             }
         }
     }

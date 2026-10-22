@@ -87,7 +87,7 @@ struct ContentView: View {
 
     private var title: String {
         switch app.screen {
-        case .home: return "Verbatim"
+        case .home: return "Verbose"
         case .library: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library"
         case .queue: return "Queue"
         case .links: return "Links"

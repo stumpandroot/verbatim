@@ -31,9 +31,9 @@ def sp(tag):
 def new_feed():
     rss = ET.Element("rss", {"version": "2.0"})
     channel = ET.SubElement(rss, "channel")
-    ET.SubElement(channel, "title").text = "Verbatim"
+    ET.SubElement(channel, "title").text = "Verbose"
     ET.SubElement(channel, "link").text = FEED_URL
-    ET.SubElement(channel, "description").text = "Verbatim for Mac: tagged releases, plus beta builds of main."
+    ET.SubElement(channel, "description").text = "Verbose for Mac: tagged releases, plus beta builds of main."
     ET.SubElement(channel, "language").text = "en"
     return ET.ElementTree(rss)
 
@@ -60,7 +60,7 @@ def item_version(item):
 
 def build_item(a):
     item = ET.Element("item")
-    ET.SubElement(item, "title").text = a.title or "Verbatim %s (%s)" % (a.short_version, a.version)
+    ET.SubElement(item, "title").text = a.title or "Verbose %s (%s)" % (a.short_version, a.version)
     ET.SubElement(item, "pubDate").text = email.utils.formatdate(usegmt=True)
     if a.channel != "stable":
         ET.SubElement(item, sp("channel")).text = a.channel
@@ -93,7 +93,7 @@ def main(argv=None):
     p.add_argument("--url", required=True, help="enclosure URL of the DMG")
     p.add_argument("--length", required=True, type=int, help="DMG size in bytes (from sign_update)")
     p.add_argument("--signature", required=True, help="sparkle:edSignature (from sign_update)")
-    p.add_argument("--title", default="", help="item title (default: Verbatim <short> (<version>))")
+    p.add_argument("--title", default="", help="item title (default: Verbose <short> (<version>))")
     p.add_argument("--notes", default="", help="one line of plain text for the update window")
     p.add_argument("--notes-link", default="", help="link shown under the notes, e.g. the GitHub release page")
     p.add_argument("--force", action="store_true", help="replace the channel's item even if it is newer")

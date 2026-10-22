@@ -76,7 +76,7 @@ enum MultitrackAudio {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         let stream = try PCMStream(url: url, sampleRate: workRate)
-        guard stream.duration > 0 else { throw err("“\(url.lastPathComponent)” has no audio Verbatim can read.") }
+        guard stream.duration > 0 else { throw err("“\(url.lastPathComponent)” has no audio Verbose can read.") }
         // One pass over the whole file at 16 kHz: the 100 Hz envelope, from which both the bars and the first
         // five minutes for lining up come.
         var env: [Float] = []
@@ -116,7 +116,7 @@ enum MultitrackAudio {
                 frames += block.count
             }
         }
-        guard frames > 0 else { throw err("“\(src.lastPathComponent)” has no audio Verbatim can read.") }
+        guard frames > 0 else { throw err("“\(src.lastPathComponent)” has no audio Verbose can read.") }
         return (env, Double(frames) / workRate)
     }
 

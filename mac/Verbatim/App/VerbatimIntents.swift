@@ -16,11 +16,11 @@ enum VerbatimIntentError: Error, CustomLocalizedStringResourceConvertible {
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
-        case .notRunning: return "Verbatim didn't finish opening. Try again."
+        case .notRunning: return "Verbose didn't finish opening. Try again."
         case .noMatch(let q): return "No transcript matches “\(q)”."
-        case .nothingYet: return "There's nothing in Verbatim yet."
+        case .nothingYet: return "There's nothing in Verbose yet."
         case .failed(let why): return "Transcription didn't finish: \(why)"
-        case .unreadableFile: return "Verbatim couldn't read that file."
+        case .unreadableFile: return "Verbose couldn't read that file."
         }
     }
 }
@@ -101,7 +101,7 @@ struct GetLastDictationIntent: AppIntent {
 /// Starts a voice memo recording.
 struct StartRecordingIntent: AppIntent {
     static let title: LocalizedStringResource = "Start recording"
-    static let description = IntentDescription("Opens Verbatim and starts recording a voice memo.")
+    static let description = IntentDescription("Opens Verbose and starts recording a voice memo.")
     static let openAppWhenRun: Bool = true
 
     init() {}

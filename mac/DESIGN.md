@@ -62,7 +62,8 @@ Rules:
 
 - **App icon:** the notation bars (B1). A paper mark on a persimmon field, flat, with glass off on the mark. Ink and reversed alternates. Masters are in `brand/`.
 - **Colophon:** the tangent rings (R3a), for the website, onboarding, About, and print. Never as the app icon.
-- **In-app wordmark:** the bars plus "Verbatim" in the serif, as in the sidebar.
+- Public name: Verbose. Wordmark: lowercase 'verbose.' in the serif, persimmon period. Tagline: 'Go ahead. Be verbose.' 'Verbatim' is the internal codename.
+- **In-app wordmark:** the bars plus lowercase "verbose." in the serif, as in the sidebar (`Ink.wordmark`). The period is a mark in the text-safe persimmon (`accentText`, 5.1:1 on paper); the bright `persimmon` measures 2.5:1 on paper, too low for a small mark. The tagline (`Ink.tagline`) sits under it in the serif on About and the first onboarding screen.
 - **Retired:** the V wing mark (`BrandArt.mark`). It must not appear anywhere.
 - One color per mark: persimmon, ink, or paper.
 

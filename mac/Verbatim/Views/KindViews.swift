@@ -83,7 +83,7 @@ struct KindChip: View {
 
     var body: some View {
         Menu {
-            Section(isAuto ? "Suggested by Verbatim. Pick another and it stays." : "You picked this. Verbatim won't change it.") {
+            Section(isAuto ? "Suggested by Verbose. Pick another and it stays." : "You picked this. Verbose won't change it.") {
                 ForEach(RecordingKind.pickable) { k in
                     Button { onPick(k) } label: {
                         if k == kind { Label(k.label, systemImage: "checkmark") } else { Text(k.label) }

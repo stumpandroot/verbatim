@@ -157,6 +157,13 @@ extension Ink {
     static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight, design: .serif) }
     /// Monospaced data: timestamps, durations, dates, indexes. Tabular digits.
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight, design: .monospaced).monospacedDigit() }
+    /// The wordmark (DESIGN.md §4): lowercase "verbose" in the serif with a persimmon period. The period is a mark,
+    /// so it uses the text-safe persimmon (`accentText`, 5.1:1 on paper); the bright fill measures 2.5:1 on paper.
+    static func wordmark(_ size: CGFloat, color: Color = Ink.ink) -> Text {
+        Text("\(Text("verbose").foregroundStyle(color))\(Text(".").foregroundStyle(accentText))").font(serif(size))
+    }
+    /// The tagline (DESIGN.md §4), set in the serif on About and the first onboarding screen.
+    static let tagline = "Go ahead. Be verbose."
 }
 
 extension View {

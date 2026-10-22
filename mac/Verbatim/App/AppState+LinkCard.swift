@@ -180,7 +180,7 @@ extension AppState {
         finishLinkTask(r.transcriptID)
         guard let imp = linkImports[r.transcriptID] ?? linkImportFor(r) else { return }
         failLink(r.transcriptID, imp: imp, message: r.reason == .safariNeedsAccess
-                 ? "Verbatim needs Full Disk Access to use your Safari sign-in."
+                 ? "Verbose needs Full Disk Access to use your Safari sign-in."
                  : "This video needs you to be signed in.")
     }
 

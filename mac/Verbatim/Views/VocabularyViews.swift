@@ -93,7 +93,7 @@ struct ContactNamesSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Names from Contacts").font(Ink.serif(26)).foregroundStyle(Ink.ink).accessibilityAddTraits(.isHeader)
-            Text("Pick the names Verbatim should spell your way. Unusual names start selected. Names stay on this Mac.")
+            Text("Pick the names Verbose should spell your way. Unusual names start selected. Names stay on this Mac.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
             switch phase {
             case .loading:
@@ -101,7 +101,7 @@ struct ContactNamesSheet: View {
                     .frame(maxWidth: .infinity, minHeight: 280)
             case .denied:
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Verbatim doesn't have access to Contacts. Turn it on in System Settings › Privacy & Security › Contacts, then try again.")
+                    Text("Verbose doesn't have access to Contacts. Turn it on in System Settings › Privacy & Security › Contacts, then try again.")
                         .font(.system(size: 13)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
                     Button("Open System Settings") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts") { NSWorkspace.shared.open(url) }
@@ -182,7 +182,7 @@ struct BuiltInVocabularySection: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Spell modern words right").font(.system(size: 14)).foregroundStyle(Ink.ink)
                         Text(on ? "\(active) of \(all.count) terms on, like ChatGPT, GitHub, and macOS. Your Dictionary always wins, and words like “zoom in” stay as you said them."
-                                : "Off. Verbatim spells only your Dictionary's words its own way.")
+                                : "Off. Verbose spells only your Dictionary's words its own way.")
                             .font(.system(size: 12.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

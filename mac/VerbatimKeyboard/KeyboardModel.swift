@@ -133,7 +133,7 @@ final class KeyboardModel: ObservableObject {
     /// The record button: dictates at once while a session is on; otherwise starts one.
     func record() {
         guard hasFullAccess, let defaults else {
-            notice = "Turn on Allow Full Access for Verbatim in Settings › General › Keyboard › Keyboards."
+            notice = "Turn on Allow Full Access for Verbose in Settings › General › Keyboard › Keyboards."
             return
         }
         insertion = nil
@@ -201,7 +201,7 @@ final class KeyboardModel: ObservableObject {
         }
         set(.starting)
         if controller?.openContainingApp(KeyboardBridge.sessionURL(request: r, host: host, dictation: d)) != true {
-            notice = "Couldn't open Verbatim. Open it yourself to start a session."
+            notice = "Couldn't open Verbose. Open it yourself to start a session."
             request = nil
             dropDictation()
             set(.idle)
@@ -434,7 +434,7 @@ final class KeyboardModel: ObservableObject {
     private func pollStarting(_ defaults: UserDefaults) {
         guard let r = request else { set(.idle); return }
         if KeyboardBridge.uuid(KeyboardBridge.Key.requestFailed) == r {
-            notice = defaults.string(forKey: KeyboardBridge.Key.requestMessage) ?? "Verbatim couldn't start a session."
+            notice = defaults.string(forKey: KeyboardBridge.Key.requestMessage) ?? "Verbose couldn't start a session."
             request = nil
             dropDictation()
             set(.idle)
@@ -452,7 +452,7 @@ final class KeyboardModel: ObservableObject {
                 set(.idle)
             }
         } else if Date().timeIntervalSince(stageSince) > 20 {
-            notice = "Verbatim didn't start. Tap to try again."
+            notice = "Verbose didn't start. Tap to try again."
             request = nil
             dropDictation()
             set(.idle)

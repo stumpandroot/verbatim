@@ -20,7 +20,7 @@ struct VerbatimSessionAttributes: ActivityAttributes {
 /// the intent in the widget's process. Neither path needs the widget to be in the App Group.
 struct EndVerbatimSessionIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "End session"
-    static var description = IntentDescription("Ends the Verbatim keyboard session and turns off the microphone.")
+    static var description = IntentDescription("Ends the Verbose keyboard session and turns off the microphone.")
 
     init() {}
 

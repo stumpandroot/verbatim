@@ -18,15 +18,15 @@ struct VoiceProfileSection: View {
                 HStack(spacing: 10) {
                     Button("Read More…") { VoiceEnrollmentSheet.present(readMore: true) }
                         .buttonStyle(.brandSecondary)
-                        .help("Read one more passage so Verbatim knows your voice better.")
+                        .help("Read one more passage so Verbose knows your voice better.")
                     Button("Start Over…") { VoiceEnrollmentSheet.present() }
                         .buttonStyle(.brandSecondary)
                         .help("Record your voice again from the beginning.")
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Teach Verbatim your voice.").font(Ink.serif(22)).foregroundStyle(Ink.ink)
-                    Text("Read three short passages aloud, about 30 seconds in all. Verbatim can then keep only your voice in dictation and mark your lines as “You” in transcripts. Your voice profile stays on this Mac.")
+                    Text("Teach Verbose your voice.").font(Ink.serif(22)).foregroundStyle(Ink.ink)
+                    Text("Read three short passages aloud, about 30 seconds in all. Verbose can then keep only your voice in dictation and mark your lines as “You” in transcripts. Your voice profile stays on this Mac.")
                         .font(.system(size: 13)).foregroundStyle(Ink.dim)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Set Up Your Voice…") { VoiceEnrollmentSheet.present() }
@@ -59,8 +59,8 @@ struct VoiceProfileControls: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Only keep my voice in dictation")
                         Text(status.isEnrolled
-                             ? "When someone nearby talks while you dictate, Verbatim pastes only your words."
-                             : "Available once Verbatim knows your voice.")
+                             ? "When someone nearby talks while you dictate, Verbose pastes only your words."
+                             : "Available once Verbose knows your voice.")
                             .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
                     }
                 }
@@ -211,7 +211,7 @@ struct VoiceEnrollmentView: View {
 
     private var title: String {
         switch model.step {
-        case .intro: return "Teach Verbatim your voice."
+        case .intro: return "Teach Verbose your voice."
         case .reading: return "Read this aloud."
         case .analyzing: return "Listening back…"
         case .result(let r): return r.hint == .good ? "All set." : (r.isEnrolled ? "Nearly there." : "Read a little more.")
@@ -222,11 +222,11 @@ struct VoiceEnrollmentView: View {
     private var detail: String? {
         switch model.step {
         case .intro:
-            return "Verbatim learns how you sound so it can keep only your voice in dictation and mark your lines as “You” in transcripts. You'll read three short passages, about 30 seconds in all."
+            return "Verbose learns how you sound so it can keep only your voice in dictation and mark your lines as “You” in transcripts. You'll read three short passages, about 30 seconds in all."
         case .reading:
             return "Read at your normal pace, as if you were dictating. The words darken as you go."
         case .analyzing:
-            return "Verbatim is learning your voice on this Mac. The first time, a small model downloads."
+            return "Verbose is learning your voice on this Mac. The first time, a small model downloads."
         case .result:
             return nil
         case .failed(let message):

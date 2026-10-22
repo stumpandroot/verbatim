@@ -75,7 +75,7 @@ struct PhoneContactNamesSheet: View {
                     HStack(spacing: 10) { ProgressView(); Text("Reading names…").foregroundStyle(Ink.mute) }
                 case .denied:
                     Section {
-                        Text("Verbatim doesn't have access to Contacts. Turn it on in Settings › Apps › Verbatim › Contacts, then try again.")
+                        Text("Verbose doesn't have access to Contacts. Turn it on in Settings › Apps › Verbose › Contacts, then try again.")
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                         }
@@ -167,7 +167,7 @@ struct PhoneBuiltInVocabularySection: View {
         } header: {
             Text("Built-in vocabulary")
         } footer: {
-            Text("Verbatim spells words like ChatGPT, GitHub, and macOS right. Your Dictionary always wins, and words like \u{201C}zoom in\u{201D} stay as you said them.")
+            Text("Verbose spells words like ChatGPT, GitHub, and macOS right. Your Dictionary always wins, and words like \u{201C}zoom in\u{201D} stay as you said them.")
         }
     }
 }

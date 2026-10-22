@@ -58,7 +58,7 @@ enum ModelFiles {
 
 /// Settings › Privacy's plain statement, the same on the Mac and the iPhone.
 enum PrivacyStatement {
-    static let text = "Verbatim has no account and no analytics. Audio and text stay on your devices unless you turn on cloud cleanup or fetch a link."
+    static let text = "Verbose has no account and no analytics. Audio and text stay on your devices unless you turn on cloud cleanup or fetch a link."
     static let localOnlyDetail = "Every network request except iCloud sync is refused before it starts: cloud cleanup, model downloads, links, and update checks. Models already on this device keep working."
     static let iCloudNote = "iCloud sync is Apple's and isn't listed here. Turn it on or off in Storage and iCloud."
 }

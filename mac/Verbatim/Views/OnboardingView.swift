@@ -49,15 +49,22 @@ struct OnboardingView: View {
     }
 
     private var label: String {
-        ["Welcome to Verbatim", "Permissions", "Try it", "The floating button", "Last step"][step]
+        ["Welcome to Verbose", "Permissions", "Try it", "The floating button", "Last step"][step]
     }
 
     // MARK: Steps
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 0) {
-            title("Words worth keeping.")
-            para("Record, import, or dictate. Verbatim turns it into text you can use, and it all stays on your Mac.")
+            // The lockup (DESIGN.md §4) and the tagline in the serif.
+            HStack(spacing: 10) {
+                BarsMark(color: Ink.persimmon).frame(width: 19, height: 20)
+                Ink.wordmark(22)
+            }
+            .padding(.top, 18)
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
+            title(Ink.tagline)
+            para("Record, import, or dictate. Verbose turns it into text you can use, and it all stays on your Mac.")
             HStack(spacing: 12) {
                 pillar("01", "Capture", "Record, import, a link", .capture, Ink.persimmon)
                 pillar("02", "Refine", "Clean up, original kept", .refine, Ink.petal)
@@ -200,7 +207,7 @@ struct OnboardingView: View {
         switch step {
         case 0: return "Get started"
         case 2: return practice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Continue" : "Nice, continue"
-        case total - 1: return "Start using Verbatim"
+        case total - 1: return "Start using Verbose"
         default: return "Continue"
         }
     }

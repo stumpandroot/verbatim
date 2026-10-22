@@ -23,7 +23,7 @@ struct VocabularySuggestion: Identifiable, Equatable {
 
     var detail: String {
         switch source {
-        case .aboutMe: return "From About me. Verbatim listens for it and spells it this way."
+        case .aboutMe: return "From About me. Verbose listens for it and spells it this way."
         case .edits: return "You made this change \(count) times."
         }
     }

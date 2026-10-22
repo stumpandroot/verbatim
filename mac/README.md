@@ -1,4 +1,6 @@
-# Verbatim for Mac and iPhone (SwiftUI)
+# Verbose for Mac and iPhone (SwiftUI)
+
+The public name is **Verbose** (tagline: "Go ahead. Be verbose."). "Verbatim" is the internal codename: it stays in bundle IDs, targets, schemes, folders on disk, `Verbatim.app`, and the DMG names. See `DESIGN.md` §4.
 
 The native app, built from the Listening Desk design and the Oct 13 research dossier. Capture: voice memos, files, links (bundled yt-dlp), app audio (ScreenCaptureKit). Transcription on this Mac: Parakeet via FluidAudio (default, word timings) or Whisper via WhisperKit; offline speaker diarization; Dictionary with reviewable fixes; projects; TXT/SRT/VTT/Markdown/JSON export; menu bar recorder.
 
@@ -19,11 +21,11 @@ Requires Xcode 16 and macOS 14 or later. Models download once into `~/Library/Ap
 
 How sync works:
 
-- Transcripts, notes, bookmarks, document edits, projects, the Dictionary, and stills live in Verbatim's private iCloud folder. Both apps read and write the same files.
+- Transcripts, notes, bookmarks, document edits, projects, the Dictionary, and stills live in Verbose's private iCloud folder. Both apps read and write the same files.
 - The first Mac launch with iCloud copies your existing library into iCloud and keeps the originals in `~/Library/Application Support/Verbatim/Before iCloud`.
 - Audio recorded on one device downloads on the other when you first play it.
 - Each device transcribes only what it recorded or imported. The other device shows "Transcribing on …".
-- Links added on the iPhone wait for a Mac running Verbatim, which fetches the audio and transcribes it.
+- Links added on the iPhone wait for a Mac running Verbose, which fetches the audio and transcribes it.
 - If both devices edit the same transcript while offline, the most recent edit wins. The original engine output is never edited.
 
 ## Layout

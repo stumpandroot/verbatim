@@ -191,7 +191,7 @@ enum MediaImport {
                 for w in writers { w.abandon() }
                 throw error
             }
-            guard mix.frames > 0 else { mix.abandon(); throw MediaImport.err("“\(src.lastPathComponent)” has no audio Verbatim can read.") }
+            guard mix.frames > 0 else { mix.abandon(); throw MediaImport.err("“\(src.lastPathComponent)” has no audio Verbose can read.") }
             var out = Prepared(url: mix.url, duration: mix.duration)
             if separate {
                 out.tracks = writers.enumerated().map { i, w in
@@ -255,7 +255,7 @@ enum MediaImport {
                 if let folder { try? FileManager.default.removeItem(at: folder) }
                 throw error
             }
-            guard mix.frames > 0 else { mix.abandon(); throw MediaImport.err("“\(src.lastPathComponent)” has no audio Verbatim can read.") }
+            guard mix.frames > 0 else { mix.abandon(); throw MediaImport.err("“\(src.lastPathComponent)” has no audio Verbose can read.") }
             var out = Prepared(url: mix.url, duration: mix.duration > 0 ? mix.duration : duration)
             if trackFiles.count >= 2 {
                 out.tracks = trackFiles

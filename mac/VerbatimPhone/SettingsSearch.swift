@@ -61,23 +61,23 @@ enum SettingsSearchIndex {
               description: "A preview of your words on the recorder"),
 
         // Keyboard (Settings › Keyboard)
-        .init(id: "keyboard", section: "Keyboard", label: "Set up the Verbatim keyboard", keywords: ["keyboard", "dictate", "add keyboard", "globe key", "extension"],
+        .init(id: "keyboard", section: "Keyboard", label: "Set up the Verbose keyboard", keywords: ["keyboard", "dictate", "add keyboard", "globe key", "extension"],
               description: "Dictate into any app", target: .page(.keyboard)),
         .init(id: "keyboardTimeout", section: "Keyboard", label: "End keyboard sessions after", keywords: ["session", "timeout", "idle", "microphone", "minutes"],
               description: "How long a session waits before it turns off the microphone", target: .page(.keyboard)),
         .init(id: "keyboardAutoStart", section: "Keyboard", label: "Start dictating when you come back",
               keywords: ["auto start", "listen", "first tap", "second tap", "dictate", "microphone", "return", "switch back"],
-              description: "The first tap opens Verbatim and starts listening; no second tap", target: .page(.keyboard)),
+              description: "The first tap opens Verbose and starts listening; no second tap", target: .page(.keyboard)),
         .init(id: "keyboardPolishAfter", section: "Keyboard", label: "Polish after inserting",
               keywords: ["polish", "cleanup", "clean up", "swap", "replace", "ums", "filler", "grammar", "faster", "speed", "insert"],
-              description: "Your words appear right away; Verbatim swaps in the cleaned-up version a moment later", target: .page(.keyboard)),
+              description: "Your words appear right away; Verbose swaps in the cleaned-up version a moment later", target: .page(.keyboard)),
         .init(id: "keyboardLiveWords", section: "Keyboard", label: "Show words as you speak",
               keywords: ["live words", "preview", "streaming", "real time", "transcript", "see words"],
               description: "The keyboard shows your words while you talk", target: .page(.keyboard)),
         .init(id: "keyboardAlwaysCopy", section: "Keyboard", label: "Also copy each dictation",
               keywords: ["clipboard", "copy", "paste", "pasteboard", "recent", "history", "missed", "keep"],
               description: "Each keyboard dictation also goes on the clipboard", target: .page(.keyboard)),
-        .init(id: "keyboardLowerAudio", section: "Keyboard", label: "Lower other audio while Verbatim listens",
+        .init(id: "keyboardLowerAudio", section: "Keyboard", label: "Lower other audio while Verbose listens",
               keywords: ["duck", "music", "spotify", "youtube", "podcast", "volume", "quiet", "background sound"],
               description: "Other sound drops to a whisper so it doesn't reach the microphone", target: .page(.keyboard)),
         .init(id: "keyboardFullAccess", section: "Keyboard", label: "Allow Full Access for the keyboard", keywords: ["full access", "permission", "privacy"],
@@ -120,12 +120,12 @@ enum SettingsSearchIndex {
               description: "7 days of app events, without links or folder names"),
         .init(id: "privacy", section: "Support", label: "Privacy policy", keywords: ["data", "legal"]),
         .init(id: "terms", section: "Support", label: "Terms of use", keywords: ["legal", "terms of service"]),
-        .init(id: "share", section: "Support", label: "Share Verbatim", keywords: ["invite", "recommend", "friend"]),
+        .init(id: "share", section: "Support", label: "Share Verbose", keywords: ["invite", "recommend", "friend"]),
         .init(id: "acknowledgements", section: "Support", label: "Acknowledgements", keywords: ["ffmpeg", "lgpl", "open source", "license", "credits"],
-              description: "Open-source software in Verbatim and its licenses"),
+              description: "Open-source software in Verbose and its licenses"),
 
         // Welcome tour
-        .init(id: "tourOnLaunch", section: "Welcome tour", label: "Show the tour when Verbatim opens", keywords: ["onboarding", "welcome", "launch", "intro"]),
+        .init(id: "tourOnLaunch", section: "Welcome tour", label: "Show the tour when Verbose opens", keywords: ["onboarding", "welcome", "launch", "intro"]),
         .init(id: "tour", section: "Welcome tour", label: "Show Tour", keywords: ["onboarding", "welcome", "intro", "walkthrough"]),
     ]
 

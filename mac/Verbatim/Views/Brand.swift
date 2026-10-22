@@ -538,7 +538,7 @@ extension BrandArt {
 /// The bars mark, flat, in one color. One color per mark; never pink or sage.
 struct BarsMark: View {
     var color: Color = Ink.persimmon
-    var body: some View { BrandGlyph(art: .markBars, color: color).aspectRatio(76.0 / 80.0, contentMode: .fit).accessibilityLabel("Verbatim") }
+    var body: some View { BrandGlyph(art: .markBars, color: color).aspectRatio(76.0 / 80.0, contentMode: .fit).accessibilityLabel("Verbose") }
 }
 
 // MARK: - Editorial structure

@@ -154,7 +154,7 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             return
         }
         let content = UNMutableNotificationContent()
-        content.title = "Verbatim"
+        content.title = "Verbose"
         content.body = reason
         content.sound = .default
         content.interruptionLevel = .active

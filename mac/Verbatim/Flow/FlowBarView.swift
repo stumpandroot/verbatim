@@ -267,7 +267,7 @@ struct FlowBarView: View {
 
     private var accessibilityLabel: String {
         switch model.phase {
-        case .idle: return "Verbatim dictation: " + model.hint
+        case .idle: return "Verbose dictation: " + model.hint
         case .listening:
             let base = model.handsFree ? "Listening. Click to stop and paste." : "Listening"
             if let a = model.alert { return "\(base). \(a.title). \(a.detail)." }

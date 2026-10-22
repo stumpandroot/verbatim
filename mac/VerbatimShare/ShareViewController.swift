@@ -76,7 +76,7 @@ private final class Collected {
 enum ShareIntake {
     static func run(_ providers: [NSItemProvider], done: @escaping (ShareOutcome) -> Void) {
         guard let inbox = VerbatimInbox.inbox else {
-            done(.failed("Verbatim can't reach its inbox. Open Verbatim once, then try again."))
+            done(.failed("Verbose can't reach its inbox. Open Verbose once, then try again."))
             return
         }
         let c = Collected()
@@ -107,13 +107,13 @@ enum ShareIntake {
                         ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
                         ?? (item as? String).flatMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
                     guard let url else {
-                        c.with { $0.errors.append(error?.localizedDescription ?? "Verbatim takes videos, audio files, and web links.") }
+                        c.with { $0.errors.append(error?.localizedDescription ?? "Verbose takes videos, audio files, and web links.") }
                         return
                     }
                     if url.isFileURL {
                         // A file shared by its location (the Files app): audio and video only.
                         guard VerbatimInbox.isMedia(url) else {
-                            c.with { $0.errors.append("Verbatim takes videos, audio files, and web links.") }
+                            c.with { $0.errors.append("Verbose takes videos, audio files, and web links.") }
                             return
                         }
                         let access = url.startAccessingSecurityScopedResource()
@@ -127,7 +127,7 @@ enum ShareIntake {
                         return
                     }
                     guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https", let host = url.host, host.contains(".") else {
-                        c.with { $0.errors.append("Verbatim takes videos, audio files, and web links.") }
+                        c.with { $0.errors.append("Verbose takes videos, audio files, and web links.") }
                         return
                     }
                     if VerbatimInbox.isTikTok(url) {
@@ -142,11 +142,11 @@ enum ShareIntake {
                     }
                 }
             } else {
-                c.with { $0.errors.append("Verbatim takes videos, audio files, and web links.") }
+                c.with { $0.errors.append("Verbose takes videos, audio files, and web links.") }
             }
         }
         group.notify(queue: .main) {
-            var outcome = ShareOutcome.failed("Verbatim takes videos, audio files, and web links.")
+            var outcome = ShareOutcome.failed("Verbose takes videos, audio files, and web links.")
             c.with { r in
                 if !r.names.isEmpty { outcome = .added(r.names) }
                 else if let host = r.links.first { outcome = .link(host) }
@@ -217,9 +217,9 @@ struct ShareCardView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                // The in-app wordmark: the bars and "Verbatim" in the serif (DESIGN.md §4).
+                // The in-app wordmark: the bars and lowercase "verbose." in the serif (DESIGN.md §4).
                 ShareBarsMark().fill(Ink.persimmon).frame(width: 14, height: 15)
-                Text("Verbatim").font(Ink.serif(17)).foregroundStyle(Ink.ink)
+                Ink.wordmark(17).accessibilityLabel("Verbose")
                 Spacer(minLength: 0)
                 ZStack {
                     Circle().fill(markFill)
@@ -274,8 +274,8 @@ struct ShareCardView: View {
 
     private var title: String {
         switch model.outcome {
-        case .working: return "Adding to Verbatim"
-        case .added, .link: return "Added to Verbatim"
+        case .working: return "Adding to Verbose"
+        case .added, .link: return "Added to Verbose"
         case .tiktok: return "Save the video first"
         case .failed: return "Couldn't add this"
         }
@@ -291,9 +291,9 @@ struct ShareCardView: View {
 
     private var detail: String {
         switch model.outcome {
-        case .working: return "Copying it to Verbatim on this iPhone."
-        case .added, .link: return "It transcribes the next time you open Verbatim."
-        case .tiktok: return "Verbatim can't download TikTok videos. In TikTok, tap Share › Save video, then share the saved video to Verbatim. Or use Transcribe what's playing in Verbatim."
+        case .working: return "Copying it to Verbose on this iPhone."
+        case .added, .link: return "It transcribes the next time you open Verbose."
+        case .tiktok: return "Verbose can't download TikTok videos. In TikTok, tap Share › Save video, then share the saved video to Verbose. Or use Transcribe what's playing in Verbose."
         case .failed(let reason): return reason
         }
     }

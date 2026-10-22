@@ -33,7 +33,7 @@ struct LinksView: View {
                         IconPlate(art: .iconLinks, size: 80)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(app.search.isEmpty ? "No links yet" : "No links match “\(app.search)”").font(Ink.serif(20, weight: .regular))
-                            Text("Paste a YouTube, Vimeo, or podcast link on Home. Verbatim keeps the page and transcribes the audio.")
+                            Text("Paste a YouTube, Vimeo, or podcast link on Home. Verbose keeps the page and transcribes the audio.")
                                 .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
                         }
                         Spacer()

@@ -28,7 +28,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
             broken = false
         }
         guard VerbatimInbox.broadcasts != nil else {
-            finishBroadcastWithError(NSError(domain: "Verbatim", code: 1, userInfo: [NSLocalizedDescriptionKey: "Verbatim can't save the sound on this iPhone. Open Verbatim, then try again."]))
+            finishBroadcastWithError(NSError(domain: "Verbatim", code: 1, userInfo: [NSLocalizedDescriptionKey: "Verbose can't save the sound on this iPhone. Open Verbose, then try again."]))
             return
         }
     }

@@ -48,7 +48,7 @@ struct ExportOptionRows: View {
             Toggle("Include hidden lines", isOn: $options.includeHidden)
             if showsText {
                 Toggle("One paragraph", isOn: $options.singleParagraph)
-                Toggle("“Transcribed with Verbatim” footer", isOn: $options.provenance)
+                Toggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
             }
             if showsSubtitles {
                 Stepper(value: $options.subtitles.charsPerLine, in: 16...80) {

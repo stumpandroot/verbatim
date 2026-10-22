@@ -152,7 +152,7 @@ extension AppState {
         guard audioOnly, (2...MultitrackDraft.maxTracks).contains(urls.count) else { importFiles(urls); return }
         let alert = NSAlert()
         alert.messageText = "Transcribe as separate files or as one multi-track recording?"
-        alert.informativeText = "A multi-track recording has one file per mic, all recorded at the same time. Verbatim weaves them into one transcript with a speaker for each file."
+        alert.informativeText = "A multi-track recording has one file per mic, all recorded at the same time. Verbose weaves them into one transcript with a speaker for each file."
         alert.addButton(withTitle: "Separate Files")
         alert.addButton(withTitle: "Multi-track Recording")
         alert.addButton(withTitle: "Cancel")

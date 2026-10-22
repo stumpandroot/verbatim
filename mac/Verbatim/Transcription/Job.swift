@@ -97,7 +97,7 @@ enum TranscriptionJob {
                 case .offerV3(let l): language = l; options.offerV3?(l)
                 case .apple(let l):
                     guard await AppleSpeech.ensureAuthorized() else {
-                        throw LanguageJobError.message("Turn on Speech Recognition for Verbatim in Settings to transcribe \(LanguageDetection.name(l)).")
+                        throw LanguageJobError.message("Turn on Speech Recognition for Verbose in Settings to transcribe \(LanguageDetection.name(l)).")
                     }
                     engine = "apple"; language = l
                 case .unsupported(let l): throw LanguageJobError.message(LanguageRoute.unsupportedMessage(l))

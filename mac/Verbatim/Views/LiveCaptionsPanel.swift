@@ -360,7 +360,7 @@ struct LiveCaptionsSettingsSection: View {
             }
             Toggle("Show the time in the header", isOn: $timecode)
             Toggle("Keep captions above full-screen apps", isOn: $above)
-            Text("Open live captions from Home, the menu bar, or ⌥⌘C while Verbatim is running. Captions are made on this Mac; Save as transcript uses your main engine.")
+            Text("Open live captions from Home, the menu bar, or ⌥⌘C while Verbose is running. Captions are made on this Mac; Save as transcript uses your main engine.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute)
         }
     }

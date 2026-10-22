@@ -269,7 +269,7 @@ final class PhoneState: ObservableObject {
         }
         if discard {
             if store.keepDiscarded(r) != nil { say("Moved to Recently Deleted.") }
-            else { say("Couldn't move the recording. Verbatim recovers it the next time it opens.") }
+            else { say("Couldn't move the recording. Verbose recovers it the next time it opens.") }
             return
         }
         if let target {
@@ -337,7 +337,7 @@ final class PhoneState: ObservableObject {
         showCaptions = false
         if PhoneUITest.enabled { captions.endScreenshots(); return }
         guard save else { captions.discard(); return }
-        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbatim will recover the recording the next time it opens."); return }
+        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); return }
         // A short one is kept too; only a recording with no audio at all is removed.
         guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
         guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
@@ -593,7 +593,7 @@ final class PhoneState: ObservableObject {
             imp.phase = .waitingForMac
             say(LinkFetchError.needsMac.localizedDescription)
         } else {
-            let message = "Verbatim can't fetch this link on iPhone yet."
+            let message = "Verbose can't fetch this link on iPhone yet."
             store.update(id) { x in
                 x.status = .failed; x.stage = nil; x.error = message
                 x.processingDevice = nil; x.processingDeviceName = nil
@@ -725,7 +725,7 @@ final class PhoneState: ObservableObject {
         let dictionary = (try? Store.enc.encode(store.dictionary)) ?? Data()
         let projects = (try? Store.enc.encode(store.projects)) ?? Data()
         let stamp = Formats.pattern("yyyy-MM-dd").string(from: Date())
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Verbatim Export \(stamp).zip")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Verbose Export \(stamp).zip")
         let written: Bool = await Task.detached(priority: .userInitiated) {
             var zip = ZipWriter()
             var used = Set<String>()

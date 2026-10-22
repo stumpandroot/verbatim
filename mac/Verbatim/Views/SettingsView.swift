@@ -262,7 +262,7 @@ struct MenuBarPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 BarsMark().frame(width: 16, height: 16)
-                Text("Verbatim").font(Ink.serif(17))
+                Ink.wordmark(17).accessibilityLabel("Verbose")
                 Spacer()
                 HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Ink.mute)
             }
@@ -322,7 +322,7 @@ struct MenuBarPanel: View {
                 .buttonStyle(.plain)
             }
             HStack {
-                Button("Open Verbatim") { NSApp.activate(ignoringOtherApps: true); app.go(.home) }.buttonStyle(.plain).foregroundStyle(Ink.iris).fontWeight(.medium)
+                Button("Open Verbose") { NSApp.activate(ignoringOtherApps: true); app.go(.home) }.buttonStyle(.plain).foregroundStyle(Ink.iris).fontWeight(.medium)
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }.buttonStyle(.plain).foregroundStyle(Ink.mute)
             }

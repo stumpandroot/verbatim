@@ -63,9 +63,9 @@ struct VoiceProfileScreen: View {
     }
 
     private var title: String {
-        if overview { return status.isEnrolled ? "Verbatim knows your voice." : "Teach Verbatim your voice." }
+        if overview { return status.isEnrolled ? "Verbose knows your voice." : "Teach Verbose your voice." }
         switch model.step {
-        case .intro: return "Teach Verbatim your voice."
+        case .intro: return "Teach Verbose your voice."
         case .reading: return "Read this aloud."
         case .analyzing: return "Listening back…"
         case .result(let r): return r.hint == .good ? "All set." : (r.isEnrolled ? "Nearly there." : "Read a little more.")
@@ -77,11 +77,11 @@ struct VoiceProfileScreen: View {
         if overview { return "Your voice profile stays on this iPhone. It isn't synced to iCloud or sent anywhere." }
         switch model.step {
         case .intro:
-            return "Verbatim learns how you sound so it keeps only your voice in dictation and marks your lines as “You” in transcripts. You'll read three short passages, about 30 seconds in all."
+            return "Verbose learns how you sound so it keeps only your voice in dictation and marks your lines as “You” in transcripts. You'll read three short passages, about 30 seconds in all."
         case .reading:
-            return "Verbatim learns how you sound so it keeps only your voice in dictation. Your voice profile stays on this iPhone."
+            return "Verbose learns how you sound so it keeps only your voice in dictation. Your voice profile stays on this iPhone."
         case .analyzing:
-            return "Verbatim is learning your voice on this iPhone. The first time, a small model downloads."
+            return "Verbose is learning your voice on this iPhone. The first time, a small model downloads."
         case .result: return nil
         case .failed(let message): return message
         }
@@ -137,7 +137,7 @@ struct VoiceProfileScreen: View {
     private var controls: some View {
         VStack(spacing: 0) {
             SettingsToggleRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Only keep my voice in dictation",
-                              subtitle: status.isEnrolled ? "Other voices nearby are left out." : "Available once Verbatim knows your voice.",
+                              subtitle: status.isEnrolled ? "Other voices nearby are left out." : "Available once Verbose knows your voice.",
                               isOn: $onlyMyVoice)
                 .disabled(!status.isEnrolled)
             SettingsDivider()

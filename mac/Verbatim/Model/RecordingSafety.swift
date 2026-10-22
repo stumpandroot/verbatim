@@ -8,7 +8,7 @@ extension Store {
     // MARK: Messages
 
     static let nothingRecordedNotice = "Nothing was recorded."
-    static let joinFailedNotice = "Couldn't finish saving. Verbatim recovers the recording the next time it opens."
+    static let joinFailedNotice = "Couldn't finish saving. Verbose recovers the recording the next time it opens."
     #if os(iOS)
     static let lowSpaceNotice = "Your iPhone is low on space. Recording may stop early."
     static let discardedError = "Not transcribed. Restore it, then tap Retry."

@@ -133,7 +133,7 @@ struct ExportSheet: View {
                     .disabled(options.source == .document && ts.first?.document != nil)
                     .help(options.source == .document && ts.first?.document != nil ? "The edited document has no hidden lines" : "Filler-only lines and background voices the transcript hides")
                 row("One paragraph", divider: true) { toggle($options.singleParagraph) }
-                row("“Transcribed with Verbatim” footer", divider: false) { toggle($options.provenance) }
+                row("“Transcribed with Verbose” footer", divider: false) { toggle($options.provenance) }
             }
         }
         .font(.system(size: 13.5))

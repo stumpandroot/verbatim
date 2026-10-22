@@ -354,7 +354,7 @@ enum PhoneLinkFetcher {
         let audio = streams.filterAudioOnly()
         guard let pick = audio.filter({ $0.fileExtension == .m4a }).highestAudioBitrateStream()
                 ?? streams.filterVideoAndAudio().filter({ $0.fileExtension == .mp4 }).lowestResolutionStream() else {
-            throw LinkFetchError.message("This YouTube video has no audio Verbatim can read.")
+            throw LinkFetchError.message("This YouTube video has no audio Verbose can read.")
         }
         let meta = try? await video.metadata
         return Resolved(media: pick.url, title: meta?.title, site: "YouTube", thumbnail: meta?.thumbnail?.url,
@@ -466,7 +466,7 @@ enum LinkFetchError: LocalizedError {
             }
         case .message(let s): return s
         case .unsupportedFormat(let f):
-            return "This link is \(f) audio, which Verbatim can't play or transcribe on iPhone. Ogg, Opus, and WebM aren't supported; links to MP3, M4A, WAV, AAC, FLAC, MP4, or MOV files work."
+            return "This link is \(f) audio, which Verbose can't play or transcribe on iPhone. Ogg, Opus, and WebM aren't supported; links to MP3, M4A, WAV, AAC, FLAC, MP4, or MOV files work."
         case .chooseEpisode: return "Choose an episode from this show."
         }
     }

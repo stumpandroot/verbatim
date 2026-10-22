@@ -19,10 +19,10 @@ struct Sidebar: View {
             // Compact lockup: the bars mark and the serif wordmark.
             HStack(spacing: 10) {
                 BarsMark(color: Ink.persimmon).frame(width: 19, height: 20)
-                Text("Verbatim").font(Ink.serif(21)).foregroundStyle(Ink.ink)
+                Ink.wordmark(21)
             }
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 22)
-            .accessibilityElement(children: .ignore).accessibilityLabel("Verbatim")
+            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
 
             // The main items, in your order (SidebarLayout): drag to move, right-click to hide or customize.
             ForEach(layout.visible) { id in
@@ -83,7 +83,7 @@ struct Sidebar: View {
             .padding(.horizontal, 12).padding(.vertical, 7)
             .help(Cloud.enabled
                   ? "Transcripts, notes, projects, and the Dictionary sync with your iPhone through your iCloud Drive. Models and recordings in progress stay on this Mac."
-                  : "iCloud is off for Verbatim, so everything stays in ~/Library/Application Support/Verbatim. Sign in to iCloud with iCloud Drive on, and run a build signed with your team, to sync with your iPhone.")
+                  : "iCloud is off for Verbose, so everything stays in ~/Library/Application Support/Verbatim. Sign in to iCloud with iCloud Drive on, and run a build signed with your team, to sync with your iPhone.")
             SettingsLink {
                 HStack(spacing: 12) { IconGlyph(art: .iconSettings, size: 19, color: Ink.dim); Text("Settings"); Spacer(); Text("⌘,").font(.system(size: 11)).foregroundStyle(Ink.mute) }
                     .font(.system(size: 13.5)).foregroundStyle(Ink.dim)

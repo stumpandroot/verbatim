@@ -90,9 +90,9 @@ enum VoiceProfile {
                 #else
                 return "Recognizing your voice isn't available on this device."
                 #endif
-            case .noSpeech: return "Verbatim didn't hear a voice in that recording. Read a little more, close to the microphone."
-            case .silent: return "Verbatim heard only silence. Check that your microphone isn't muted, then try again."
-            case .unreadable(let name): return "Verbatim couldn't read \(name)."
+            case .noSpeech: return "Verbose didn't hear a voice in that recording. Read a little more, close to the microphone."
+            case .silent: return "Verbose heard only silence. Check that your microphone isn't muted, then try again."
+            case .unreadable(let name): return "Verbose couldn't read \(name)."
             }
         }
     }
@@ -302,11 +302,11 @@ enum VoiceProfile {
         if heardNothing {
             hint = .noSpeech; message = Failure.noSpeech.errorDescription ?? ""
         } else if otherVoices && needsMore {
-            hint = .otherVoices; message = "Verbatim heard another voice. Read a little more somewhere quieter."
+            hint = .otherVoices; message = "Verbose heard another voice. Read a little more somewhere quieter."
         } else if needsMore {
-            hint = .readMore; message = "Read a little more so Verbatim knows your voice."
+            hint = .readMore; message = "Read a little more so Verbose knows your voice."
         } else {
-            hint = .good; message = "Verbatim knows your voice."
+            hint = .good; message = "Verbose knows your voice."
         }
         return Enrollment(quality: q, seconds: s.seconds, needsMore: needsMore, hint: hint, message: message,
                           isEnrolled: enough && isEnrolled)

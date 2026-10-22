@@ -82,8 +82,8 @@ final class VoiceProfileStatus: ObservableObject {
 
     /// The panel's sentence for the saved profile.
     var line: String {
-        guard let q = quality else { return "Verbatim doesn't know your voice yet." }
-        if !isEnrolled { return "Read a little more so Verbatim knows your voice." }
+        guard let q = quality else { return "Verbose doesn't know your voice yet." }
+        if !isEnrolled { return "Read a little more so Verbose knows your voice." }
         return q >= VoiceProfile.goodQuality ? VoiceEnrollment.greatLine : VoiceEnrollment.goodLine
     }
 }
@@ -109,7 +109,7 @@ final class VoiceEnrollment: ObservableObject {
     }
 
     static let goodLine = "Good. A little more makes it great."
-    static let greatLine = "Great — Verbatim knows your voice."
+    static let greatLine = "Great — Verbose knows your voice."
     static let quietLine = "Too many voices — try somewhere quieter."
 
     /// Average reading pace, for the time estimate and for following along when live words are off.
@@ -302,9 +302,9 @@ final class VoiceEnrollment: ObservableObject {
             }
             guard ok else {
                 #if os(macOS)
-                self.fail("Verbatim needs the microphone to learn your voice. Allow it in System Settings › Privacy & Security › Microphone, then try again.")
+                self.fail("Verbose needs the microphone to learn your voice. Allow it in System Settings › Privacy & Security › Microphone, then try again.")
                 #else
-                self.fail("Verbatim needs the microphone to learn your voice. Allow it in the Settings app › Verbatim, then try again.")
+                self.fail("Verbose needs the microphone to learn your voice. Allow it in the Settings app › Verbose, then try again.")
                 #endif
                 return
             }
@@ -415,7 +415,7 @@ final class VoiceEnrollment: ObservableObject {
         isPaused = false
         let heardSound = recorder.lastHeardSignal
         guard let stopped else {
-            fail("Couldn't record your voice. Verbatim couldn't keep that recording. Try again.")
+            fail("Couldn't record your voice. Verbose couldn't keep that recording. Try again.")
             return
         }
         let file = stopped.0, seconds = stopped.1
@@ -427,7 +427,7 @@ final class VoiceEnrollment: ObservableObject {
         }
         guard heardSound else {
             removeRecording()
-            fail("Couldn't record your voice. Verbatim heard only silence. Check that your microphone isn't muted, then try again.")
+            fail("Couldn't record your voice. Verbose heard only silence. Check that your microphone isn't muted, then try again.")
             return
         }
         step = .analyzing
@@ -567,7 +567,7 @@ struct VoiceQualityPanel: View {
         }
         .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("How well Verbatim knows your voice: \(line)")
+        .accessibilityLabel("How well Verbose knows your voice: \(line)")
     }
 }
 

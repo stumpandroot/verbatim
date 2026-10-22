@@ -114,6 +114,9 @@ select{appearance:none;-webkit-appearance:none;background:var(--card) url("data:
 .sidebar{padding:26px 16px;display:flex;flex-direction:column;gap:26px;position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--hairline)}
 .brand{display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--ink)}
 .brand-word{font-family:var(--serif);font-size:22px;font-weight:400;line-height:1.1}
+/* The wordmark's period (mac/DESIGN.md §4): text-safe persimmon, since the bright fill is 2.5:1 on paper. */
+.brand-dot{color:var(--accent-text)}
+.tagline{font-family:var(--serif);font-size:22px;line-height:1.25;color:var(--dim);margin:6px 0 0}
 .rail-nav{display:grid;gap:2px}
 .nav-link{position:relative;display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:var(--r-button);color:var(--dim);font-size:14px;font-weight:500;text-align:left;transition:background .18s var(--ease)}
 .nav-link:hover{background:var(--chip)}

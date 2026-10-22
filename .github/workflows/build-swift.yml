@@ -268,7 +268,7 @@ jobs:
           URL="https://github.com/${R}/releases/download/${TAG}/Verbatim-universal.dmg"
           bash Updates/publish-appcast.sh --channel beta --version "$BUNDLE" --short-version "$SHORT" \
             --url "$URL" --length "$LEN" --signature "$SIG" \
-            --title "Verbatim beta ${N}" --notes "Beta build ${N}: ${SUBJECT}" \
+            --title "Verbose beta ${N}" --notes "Beta build ${N}: ${SUBJECT}" \
             --notes-link "https://github.com/${R}/releases/tag/${TAG}"
           # Keep the newest 5 beta prereleases; delete older ones and their tags.
           gh release list -R "$R" --limit 200 --json tagName,isPrerelease \
@@ -598,5 +598,5 @@ jobs:
           TAG="$GITHUB_REF_NAME"; R="$GITHUB_REPOSITORY"
           bash src/mac/Updates/publish-appcast.sh --channel "$CHANNEL" --version "$BUNDLE" --short-version "$SHORT" \
             --url "https://github.com/${R}/releases/download/${TAG}/Verbatim-universal.dmg" \
-            --length "$LEN" --signature "$SIG" --title "Verbatim ${SHORT}" \
+            --length "$LEN" --signature "$SIG" --title "Verbose ${SHORT}" \
             --notes-link "https://github.com/${R}/releases/tag/${TAG}"

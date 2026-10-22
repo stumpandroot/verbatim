@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
-<title>Verbatim | Video transcripts and notes</title>
+<title>Verbose | Video transcripts and notes</title>
 <link href="/static/verbatim.css" rel="stylesheet"/>
 <script defer="" src="/static/app.js"></script>
 </head>
@@ -22,7 +22,7 @@
 
 <div class="app-shell">
   <aside class="sidebar" aria-label="Main navigation">
-    <button aria-label="Verbatim home" class="brand" data-view="home"><svg aria-hidden="true" class="brand-mark" viewBox="22 18 76 80"><rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/><path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/></svg><span aria-hidden="true" class="brand-word">Verbatim</span></button>
+    <button aria-label="Verbose home" class="brand" data-view="home"><svg aria-hidden="true" class="brand-mark" viewBox="22 18 76 80"><rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/><path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/></svg><span aria-hidden="true" class="brand-word">verbose<span class="brand-dot">.</span></span></button>
     <nav aria-label="Sections" class="rail-nav">
       <button class="nav-link selected" data-view="home"><img alt="" class="nav-icon" src="/static/icons/home.svg"/><span>Home</span></button>
       <button class="nav-link" data-view="library"><img alt="" class="nav-icon" src="/static/icons/library.svg"/><span>Library</span><span class="nav-count" id="libraryCount">0</span></button>
@@ -33,7 +33,7 @@
 
   <div class="main-column">
     <header class="topbar">
-      <div aria-label="Verbatim" class="mobile-brand" role="img"><svg aria-hidden="true" class="brand-mark" viewBox="22 18 76 80"><rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/><path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/></svg><span aria-hidden="true" class="brand-word">Verbatim</span></div>
+      <div aria-label="Verbose" class="mobile-brand" role="img"><svg aria-hidden="true" class="brand-mark" viewBox="22 18 76 80"><rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/><path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/></svg><span aria-hidden="true" class="brand-word">verbose<span class="brand-dot">.</span></span></div>
       <div class="topbar-right"><button aria-label="New transcript" class="icon-button" id="topNew" title="New transcript"><img alt="" class="ui-icon" src="/static/icons/add.svg"/></button></div>
     </header>
 
@@ -113,11 +113,11 @@
       </section>
 
       <section class="page" id="page-settings">
-        <div class="page-head"><svg aria-hidden="true" class="colophon colophon-about" viewBox="0 0 120 120"><g fill="none" stroke="currentColor" stroke-width="8"><circle cx="60" cy="60" r="42"/><circle cx="60" cy="72" r="30"/><circle cx="60" cy="84" r="18"/></g><g fill="currentColor"><rect x="57" y="2" width="6" height="116"/><rect x="48" y="2" width="24" height="6"/><rect x="48" y="112" width="24" height="6"/></g></svg><h1>About Verbatim</h1><p class="hero-description">Paste a link to an accessible video, or add a recording. Verbatim gets the captions or transcribes the audio, keeps the original, and can add AI notes on request.</p></div>
+        <div class="page-head"><svg aria-hidden="true" class="colophon colophon-about" viewBox="0 0 120 120"><g fill="none" stroke="currentColor" stroke-width="8"><circle cx="60" cy="60" r="42"/><circle cx="60" cy="72" r="30"/><circle cx="60" cy="84" r="18"/></g><g fill="currentColor"><rect x="57" y="2" width="6" height="116"/><rect x="48" y="2" width="24" height="6"/><rect x="48" y="112" width="24" height="6"/></g></svg><h1>About Verbose</h1><p class="tagline">Go ahead. Be verbose.</p><p class="hero-description">Paste a link to an accessible video, or add a recording. Verbose gets the captions or transcribes the audio, keeps the original, and can add AI notes on request.</p></div>
         <div class="principles">
-          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="capture"></span><div><h2>Captions first</h2><p>Verbatim looks for existing captions before transcribing audio. Availability varies by platform and video, and captions can contain errors.</p></div></section>
+          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="capture"></span><div><h2>Captions first</h2><p>Verbose looks for existing captions before transcribing audio. Availability varies by platform and video, and captions can contain errors.</p></div></section>
           <section class="principle"><span aria-hidden="true" class="diagram" data-pose="refine"></span><div><h2>Originals stay original</h2><p>Cleaning and summarizing never overwrite the source transcript. Exports say whether text is original or AI-edited.</p></div></section>
-          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="understand"></span><div><h2>Where your data goes</h2><p>Links and files you add are sent to the computer running Verbatim, transcribed there, and uploaded files are deleted when the job finishes. Nothing goes to a third party unless OpenAI is turned on for AI notes, and the app says so before you start. Saved transcripts stay in this browser only.</p></div></section>
+          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="understand"></span><div><h2>Where your data goes</h2><p>Links and files you add are sent to the computer running Verbose, transcribed there, and uploaded files are deleted when the job finishes. Nothing goes to a third party unless OpenAI is turned on for AI notes, and the app says so before you start. Saved transcripts stay in this browser only.</p></div></section>
         </div>
         <p class="note">This is a responsive web app, not a native iOS app. For iPhone access the backend must be reachable on a network. Safari's Add to Home Screen can place a shortcut on your device.</p>
         <div class="settings-tools"><button class="btn btn-soft danger" id="clearLibrary" type="button">Clear saved library</button><button class="btn btn-dark btn-sm" id="settingsSample" type="button">Try the sample</button></div>
@@ -135,7 +135,7 @@
 
 <dialog class="sheet" id="exportDialog"><div class="dialog-head"><h2>Export</h2><button aria-label="Close" class="icon-button" id="closeExport" type="button"><img alt="" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>This is the file that will be saved as <strong id="exportName">transcript.txt</strong>.</p><textarea aria-label="Export contents" id="exportText" readonly="" rows="12"></textarea><button class="btn btn-dark" id="copyExport" type="button">Copy contents</button></dialog>
 
-<dialog class="sheet" id="platformDialog"><div class="dialog-head"><h2>Platforms Verbatim can try</h2><button aria-label="Close" class="icon-button" id="closePlatforms" type="button"><img alt="" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>Links from these 15 platforms can work when the video has captions or audio Verbatim is allowed to read. Private, paywalled, or login-only videos usually don’t.</p><div class="platform-dialog-list" id="platformList"></div><button class="btn btn-dark" id="dialogDone" type="button">Done</button></dialog>
+<dialog class="sheet" id="platformDialog"><div class="dialog-head"><h2>Platforms Verbose can try</h2><button aria-label="Close" class="icon-button" id="closePlatforms" type="button"><img alt="" class="ui-icon" src="/static/icons/close.svg"/></button></div><p>Links from these 15 platforms can work when the video has captions or audio Verbose is allowed to read. Private, paywalled, or login-only videos usually don’t.</p><div class="platform-dialog-list" id="platformList"></div><button class="btn btn-dark" id="dialogDone" type="button">Done</button></dialog>
 
 </body>
 </html>

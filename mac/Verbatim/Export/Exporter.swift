@@ -62,7 +62,7 @@ enum Exporter {
 
     static func provenance(_ t: Transcript) -> String {
         let f = Formats.style(date: .medium, time: .short)
-        return "Transcribed with Verbatim (\(t.model.isEmpty ? "on-device" : t.model)) on \(f.string(from: t.createdAt))"
+        return "Transcribed with Verbose (\(t.model.isEmpty ? "on-device" : t.model)) on \(f.string(from: t.createdAt))"
     }
 
     /// The note on Cleaned text Apple Intelligence touched.

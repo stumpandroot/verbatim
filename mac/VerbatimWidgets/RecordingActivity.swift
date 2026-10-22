@@ -46,8 +46,8 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
         guard let full, !full.isEmpty else { return nil }
         let s = full.lowercased()
         if s.contains("audio restarted") { return "Audio restarted. Tap Resume." }
-        if s.contains("for a call") && s.contains("open verbatim") { return "Paused for a call. Open Verbatim." }
-        if s.contains("another app") && s.contains("open verbatim") { return "Paused for another app. Open Verbatim." }
+        if s.contains("for a call") && s.contains("open verbose") { return "Paused for a call. Open Verbose." }
+        if s.contains("another app") && s.contains("open verbose") { return "Paused for another app. Open Verbose." }
         if s.contains("call") || s.contains("another app") { return "Paused for a call" }
         if s.contains("can't save") { return "Can't save audio. Free up space." }
         if s.contains("microphone") { return "Microphone changed. Tap Resume." }
@@ -60,7 +60,7 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
 /// it does nothing and leftover recording activities are ended.
 struct ToggleRecordingPauseIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Pause or resume recording"
-    static var description = IntentDescription("Pauses or resumes the Verbatim recording.")
+    static var description = IntentDescription("Pauses or resumes the Verbose recording.")
 
     init() {}
 
@@ -73,7 +73,7 @@ struct ToggleRecordingPauseIntent: LiveActivityIntent {
 /// Stop from the Live Activity: the recording stops and is saved and transcribed, as Stop & transcribe does.
 struct StopRecordingIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Stop recording"
-    static var description = IntentDescription("Stops the Verbatim recording, saves it, and transcribes it.")
+    static var description = IntentDescription("Stops the Verbose recording, saves it, and transcribes it.")
 
     init() {}
 

@@ -219,6 +219,6 @@ enum AppleSpeechError: LocalizedError {
 extension LanguageRoute {
     /// The message when nothing on this device can transcribe a language.
     static func unsupportedMessage(_ language: String) -> String {
-        "Verbatim can't transcribe \(LanguageDetection.name(language)) on this device yet."
+        "Verbose can't transcribe \(LanguageDetection.name(language)) on this device yet."
     }
 }

@@ -98,22 +98,28 @@ targets:
     info:
       path: Verbatim/Info.plist
       properties:
-        CFBundleName: Verbatim
+        # Public name: Verbose ("Verbatim" is the internal codename; DESIGN.md §4). CFBundleName drives the menu bar
+        # ("About Verbose", "Hide Verbose", "Quit Verbose"). The bundle file stays Verbatim.app (build.sh, CI, the DMG,
+        # and Sparkle's in-place update all use that path), so the Dock, Finder, Launchpad, and Spotlight get "Verbose"
+        # from Verbatim/Resources/en.lproj/InfoPlist.strings: Finder shows a localized display name only when the
+        # unlocalized CFBundleDisplayName matches the bundle's file name, so this one stays "Verbatim" on purpose.
+        CFBundleName: Verbose
         CFBundleDisplayName: Verbatim
+        LSHasLocalizedDisplayName: true
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "14.0"
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: "© 2026 Stump & Root Co."
-        NSMicrophoneUsageDescription: "Verbatim records voice memos and dictation with your microphone and transcribes them on this Mac. Recordings stay on this Mac, or in your own iCloud if you turn on sync."
-        NSAudioCaptureUsageDescription: "Verbatim records the audio of the app you choose and transcribes it on this Mac. No video is kept."
+        NSMicrophoneUsageDescription: "Verbose records voice memos and dictation with your microphone and transcribes them on this Mac. Recordings stay on this Mac, or in your own iCloud if you turn on sync."
+        NSAudioCaptureUsageDescription: "Verbose records the audio of the app you choose and transcribes it on this Mac. No video is kept."
         # Live words (Audio/LiveTranscriber.swift): on-device only; asked for on systems before macOS 26. Also
         # languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
-        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, and transcribes languages its own models don't cover, on this Mac."
+        NSSpeechRecognitionUsageDescription: "Verbose shows your words as you speak, and transcribes languages its own models don't cover, on this Mac."
         # The You page's "Where you dictate" (App/SiteCapture.swift): the front tab's host only, asked once per browser.
-        NSAppleEventsUsageDescription: "Verbatim reads the website you're dictating into, by domain only, to show where you dictate."
+        NSAppleEventsUsageDescription: "Verbose reads the website you're dictating into, by domain only, to show where you dictate."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
-        NSContactsUsageDescription: "Verbatim suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
+        NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
         NSHighResolutionCapable: true
         # Sparkle (mac/Updates/README.md). The feed lives on the `updates` branch; CI rewrites it.
         SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbatim/updates/appcast.xml
@@ -128,7 +134,7 @@ targets:
         # App/SystemHooks.swift (ServiceProvider.transcribeFiles); Verbatim opens if it isn't running.
         NSServices:
           - NSMenuItem:
-              default: Transcribe with Verbatim
+              default: Transcribe with Verbose
             NSMessage: transcribeFiles
             NSPortName: Verbatim
             NSRequiredContext: {}
@@ -349,8 +355,8 @@ targets:
     info:
       path: VerbatimPhone/Info.plist
       properties:
-        CFBundleName: Verbatim
-        CFBundleDisplayName: Verbatim
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -358,12 +364,12 @@ targets:
         BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
-        NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this iPhone."
+        NSMicrophoneUsageDescription: "Verbose records voice memos with your microphone and transcribes them on this iPhone."
         # Live words (Audio/LiveTranscriber.swift), on device only; for the keyboard session's live words later.
         # Also languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
-        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, and transcribes languages its own models don't cover, on this iPhone."
+        NSSpeechRecognitionUsageDescription: "Verbose shows your words as you speak, and transcribes languages its own models don't cover, on this iPhone."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
-        NSContactsUsageDescription: "Verbatim suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
+        NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
         ITSAppUsesNonExemptEncryption: false
         # The keyboard session's Live Activity (KeyboardSession.swift, VerbatimWidgets).
         NSSupportsLiveActivities: true
@@ -424,8 +430,8 @@ targets:
     info:
       path: VerbatimKeyboard/Info.plist
       properties:
-        CFBundleName: Verbatim
-        CFBundleDisplayName: Verbatim
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
@@ -473,8 +479,8 @@ targets:
     info:
       path: VerbatimWidgets/Info.plist
       properties:
-        CFBundleName: Verbatim
-        CFBundleDisplayName: Verbatim
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
@@ -511,8 +517,8 @@ targets:
     info:
       path: VerbatimShare/Info.plist
       properties:
-        CFBundleName: Verbatim
-        CFBundleDisplayName: Verbatim
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
@@ -563,8 +569,8 @@ targets:
     info:
       path: VerbatimBroadcast/Info.plist
       properties:
-        CFBundleName: Verbatim
-        CFBundleDisplayName: Verbatim
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:

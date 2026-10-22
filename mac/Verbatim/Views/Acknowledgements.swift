@@ -25,7 +25,7 @@ struct AcknowledgementsView: View {
                     .font(.system(size: 13)).foregroundStyle(Ink.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
-                Text("Loaded in this copy of Verbatim")
+                Text("Loaded in this copy of Verbose")
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.top, 6)

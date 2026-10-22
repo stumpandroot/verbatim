@@ -19,7 +19,7 @@ enum Keep {
     static func destination(title: String, ext: String) throws -> URL {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var base = title.replacingOccurrences(of: "[/:\\\\?%*|\"<>]", with: "-", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-        if base.isEmpty { base = "Verbatim" }
+        if base.isEmpty { base = "Verbose" }
         if base.count > 120 { base = String(base.prefix(120)) }
         var name = base, n = 2
         while FileManager.default.fileExists(atPath: folder.appendingPathComponent("\(name).\(ext)").path) { name = "\(base) \(n)"; n += 1 }

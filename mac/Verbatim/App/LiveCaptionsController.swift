@@ -330,7 +330,7 @@ final class LiveCaptions: ObservableObject {
             capture.liveTap.set(nil)
             appWords.stop()
             Self.remove(url)
-            status = "Couldn't capture \(target.name). Allow Verbatim under System Settings › Privacy & Security › Screen & System Audio Recording."
+            status = "Couldn't capture \(target.name). Allow Verbose under System Settings › Privacy & Security › Screen & System Audio Recording."
         }
     }
 

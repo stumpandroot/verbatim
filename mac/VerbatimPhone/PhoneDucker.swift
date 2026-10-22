@@ -11,7 +11,7 @@ enum PhoneLowerAudio {
 struct PhoneLowerAudioRow: View {
     @AppStorage(PhoneLowerAudio.key) private var on = true
     var body: some View {
-        SettingsToggleRow(icon: "speaker.wave.1", tint: Ink.persimmonTint, art: .iconLowerAudio, title: "Lower other audio while Verbatim listens",
+        SettingsToggleRow(icon: "speaker.wave.1", tint: Ink.persimmonTint, art: .iconLowerAudio, title: "Lower other audio while Verbose listens",
                           subtitle: "Other sound drops to a whisper so it doesn't reach the microphone.", isOn: $on)
             .cardSurface(radius: Radius.row)
     }

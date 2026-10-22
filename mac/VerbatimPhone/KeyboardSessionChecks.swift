@@ -67,7 +67,7 @@ enum KeyboardSessionChecks {
         // The App Store switch: every private-API seam reports unavailable.
         let store = Distribution.abilities(appStore: true)
         check("App Store builds read no host app", !store.readsHostApp)
-        check("App Store builds' keyboard doesn't open Verbatim", !store.keyboardOpensVerbatim)
+        check("App Store builds' keyboard doesn't open Verbose", !store.keyboardOpensVerbatim)
         check("App Store builds don't switch back to your app", !store.returnsToHostApp)
         check("App Store builds don't fetch YouTube on the device", !store.youTubeOnDevice)
         check("the return seam is unavailable in App Store builds",

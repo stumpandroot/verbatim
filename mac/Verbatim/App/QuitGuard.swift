@@ -19,7 +19,7 @@ final class QuitGuard: NSObject, NSApplicationDelegate {
         }
         let alert = NSAlert()
         alert.messageText = "Stop and save the recording?"
-        alert.informativeText = "Verbatim saves what you recorded and transcribes it the next time it opens."
+        alert.informativeText = "Verbose saves what you recorded and transcribes it the next time it opens."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else {
