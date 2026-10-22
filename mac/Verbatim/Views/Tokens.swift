@@ -50,7 +50,19 @@ enum Ink {
     static let sageTint = dyn(0xE9EFE0, 0x26322A)
     /// A switch that's on: deep sage on paper, a lighter sage on dark, so the white knob always shows.
     static let switchOn = dyn(0x4F6440, 0x6E8A58)
-    static let danger = Color.red
+    /// Errors and destructive actions (DESIGN.md §1): always with an icon and a word, never persimmon.
+    static let danger = dyn(0xB23F24, 0xFF8A6B)
+    /// Butter's text color: small text and glyphs on butter tint (6.4:1 on #FCF0D2).
+    static let butterText = dyn(0x6B5320, 0xE5C77F)
+    /// The Record panel's fill: persimmon nudged lighter (#FB7350), so ink text on it reaches 4.7:1 at any size.
+    /// `persimmon` (#FA6B47) stays the brand and app-icon color.
+    static let recordFill = dyn(0xFB7350, 0xF27A57)
+    /// Neutral chips and tags (kinds, tags, speakers, projects, counts): ink at 6% behind `dim` text.
+    static let neutralChip = make { dark, _ in
+        dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.08) : PColor(hex: inkHex).withAlphaComponent(0.06)
+    }
+    /// The disc behind an icon on a colored tile: ink at 8%, never a white disc (DESIGN.md §3).
+    static let iconDisc = inkFixed.opacity(0.08)
     /// Always-ink and always-reader-white, for surfaces that stay dark or light in both modes (HUD pill, toasts,
     /// text on brand color fills).
     static let inkFixed = Color(hex: inkHex)
@@ -147,6 +159,18 @@ struct Overline: View {
     }
 }
 
+/// Corner radii (DESIGN.md §5.3). Don't round everything the same.
+enum Radius {
+    /// Buttons, fields, and menu rows.
+    static let button: CGFloat = 9
+    /// Rows, sheets, and small cards.
+    static let row: CGFloat = 13
+    /// Tiles and panels.
+    static let tile: CGFloat = 17
+    /// The Record panel.
+    static let record: CGFloat = 22
+}
+
 /// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.
 /// `snap`, `bounce`, and `hero` remain as names but no longer overshoot.
 enum Motion {
@@ -176,8 +200,8 @@ enum Motion {
     static let rise = gentle(0.9)
     /// Press: scale 0.97 in and out.
     static let pressSoft = gentle(0.32)
-    /// Switches settle with a small overshoot.
-    static let toggle = Animation.spring(duration: 0.52, bounce: 0.3)
+    /// Switches settle without overshoot (no bounce in productivity controls).
+    static let toggle = snap
     /// What replaces movement when motion is limited: a short crossfade.
     static let fade = Animation.easeOut(duration: 0.2)
 }
