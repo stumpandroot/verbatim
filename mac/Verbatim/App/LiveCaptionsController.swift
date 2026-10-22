@@ -347,11 +347,14 @@ final class LiveCaptions: ObservableObject {
         }
         if let url = appURL {
             stoppingApp = true
-            _ = await capture.stop()
+            // The capture may have ended on its own already; `stop` then hands back what that saved.
+            let stopped = await capture.stop()
             stoppingApp = false
             capture.liveTap.set(nil)
             appWords.stop()
-            if keep, let start = appStart, FileManager.default.fileExists(atPath: url.path) { tracks.append((url, start)) } else { Self.remove(url) }
+            let saved = stopped.map { $0.joinFailed ? nil : $0.url } ?? url
+            if keep, let start = appStart, let saved, FileManager.default.fileExists(atPath: saved.path) { tracks.append((saved, start)) }
+            else if stopped?.joinFailed != true { Self.remove(saved ?? url) }
             appStart = nil; appURL = nil
         }
         guard !tracks.isEmpty else { return }

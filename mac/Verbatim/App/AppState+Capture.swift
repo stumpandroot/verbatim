@@ -131,6 +131,15 @@ extension AppState {
 
     func startCapture(_ app: AppAudioCapture.RunningApp) {
         showAppPicker = false
+        capture.onNotice = { [weak self] note in self?.toast = Toast(note) }
+        // The stream can end on its own (the app quit, permission withdrawn): keep what was captured and say so.
+        capture.onStreamError = { [weak self] stopped, reason in
+            guard let self else { return }
+            let name = self.capture.appName.isEmpty ? "the app" : self.capture.appName
+            let kept = self.adoptCapture(stopped)
+            self.toast = Toast(kept ? "Capturing \(name) stopped (\(reason)). What was captured is saved and transcribing."
+                                    : "Capturing \(name) stopped (\(reason)).")
+        }
         Task {
             do {
                 try await capture.start(app: app, to: store.newRecordingURL())
@@ -147,11 +156,27 @@ extension AppState {
     }
 
     func finishCapture() async {
-        guard let (url, duration) = await capture.stop() else { return }
-        guard let name = store.adoptRecording(url) else { toast = Toast("Couldn't save the capture."); return }
-        let t = Transcript(title: capture.appName.isEmpty ? "App audio" : capture.appName, source: .app, sourceLabel: capture.appName,
-                           duration: duration, audioFileName: name, model: "")
+        guard let r = await capture.stop() else { return }
+        _ = adoptCapture(r)
+    }
+
+    /// Adopts a stopped capture and queues it. False when nothing was kept (a toast says why).
+    @discardableResult
+    private func adoptCapture(_ stopped: StoppedCapture?) -> Bool {
+        guard let r = stopped else { verbiePose = .ready; return false }
+        if r.joinFailed { toast = Toast(Store.joinFailedNotice); verbiePose = .ready; return false }
+        guard r.framesWritten > 0 else {
+            try? FileManager.default.removeItem(at: r.url)
+            toast = Toast(Store.nothingRecordedNotice)
+            verbiePose = .ready
+            return false
+        }
+        guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the capture."); return false }
+        var t = Transcript(title: capture.appName.isEmpty ? "App audio" : capture.appName, source: .app, sourceLabel: capture.appName,
+                           duration: r.duration, audioFileName: name, model: "")
+        t.notes = Store.skippedNotes(r.skipped)
         enqueue(t)
+        return true
     }
 
     // MARK: Quitting while recording

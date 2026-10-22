@@ -958,6 +958,7 @@ enum UITest {
               && !SidebarRules.canHide("gone", hidden: [], known: known))
         check("sidebar move", SidebarRules.move("you", to: "library", in: known) == ["home", "you", "library", "links"]
               && SidebarRules.move("home", to: "links", in: known) == ["library", "links", "home", "you"])
+        appAudioChecks(check)
         cleanupChecks(check)
         VocabularySelfTest.run(check)
         OriginalCleanedSelfTest.run(check)
@@ -965,6 +966,61 @@ enum UITest {
         HomeSelfTest.run(check)
         AudioDuckerSelfTest.run(check)
         check("settings search finds the Method cards", SettingsIndex.search("method cards").map(\.id).contains("general.welcomeCard"))
+    }
+
+    /// App audio capture: synthetic sample buffers go through the live capture's path (owned copy, then the
+    /// segmented writer). Each buffer's memory is overwritten right after it's consumed, as ScreenCaptureKit
+    /// releases it, so a write that still pointed into it would read garbage.
+    private static func appAudioChecks(_ check: (String, Bool) -> Void) {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("verbatim-app-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("app.wav")
+        let chunk = 1_024, count = 12
+        // A ramp that never repeats within the file, so a dropped, doubled, or garbled buffer shows.
+        func sample(_ i: Int) -> Float { Float((i * 37) % 2_001 - 1_000) / 1_250 }
+        var asbd = AudioStreamBasicDescription(mSampleRate: 16_000, mFormatID: kAudioFormatLinearPCM,
+                                               mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved,
+                                               mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1,
+                                               mBitsPerChannel: 32, mReserved: 0)
+        var desc: CMAudioFormatDescription?
+        CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &asbd, layoutSize: 0, layout: nil, magicCookieSize: 0,
+                                       magicCookie: nil, extensions: nil, formatDescriptionOut: &desc)
+        var buffers: [CMSampleBuffer] = []
+        for b in 0..<count {
+            let values = (0..<chunk).map { sample(b * chunk + $0) }
+            var block: CMBlockBuffer?
+            guard let desc, CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: chunk * 4,
+                                                               blockAllocator: kCFAllocatorDefault, customBlockSource: nil, offsetToData: 0,
+                                                               dataLength: chunk * 4, flags: kCMBlockBufferAssureMemoryNowFlag,
+                                                               blockBufferOut: &block) == noErr, let block else { break }
+            _ = values.withUnsafeBytes { CMBlockBufferReplaceDataBytes(with: $0.baseAddress!, blockBuffer: block, offsetIntoDestination: 0, dataLength: chunk * 4) }
+            var sb: CMSampleBuffer?
+            guard CMAudioSampleBufferCreateReadyWithPacketDescriptions(allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: desc,
+                                                                      sampleCount: chunk, presentationTimeStamp: CMTime(value: CMTimeValue(b * chunk), timescale: 16_000),
+                                                                      packetDescriptions: nil, sampleBufferOut: &sb) == noErr, let sb else { break }
+            buffers.append(sb)
+        }
+        check("app audio: synthetic sample buffers made", buffers.count == count)
+        let junk = [Float](repeating: 0.9, count: chunk)
+        let written = AppAudioCapture.selfTestWrite(buffers, to: url) { sb in
+            // What ScreenCaptureKit does once the callback returns: the block's memory is no longer ours.
+            guard let block = sb.dataBuffer else { return }
+            _ = junk.withUnsafeBytes { CMBlockBufferReplaceDataBytes(with: $0.baseAddress!, blockBuffer: block, offsetIntoDestination: 0, dataLength: chunk * 4) }
+        }
+        var got: [Int16] = []
+        if let f = try? AVAudioFile(forReading: url, commonFormat: .pcmFormatInt16, interleaved: true),
+           let b = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: AVAudioFrameCount(f.length)), (try? f.read(into: b)) != nil,
+           let ch = b.int16ChannelData?[0] {
+            got = Array(UnsafeBufferPointer(start: ch, count: Int(b.frameLength)))
+        }
+        let total = chunk * count
+        var worst = 0
+        for i in 0..<min(total, got.count) { worst = max(worst, abs(Int(got[i]) - Int((sample(i) * 32_767).rounded()))) }
+        Log.note("UITEST app audio frames written=\(written ?? -1) read=\(got.count) worst diff=\(worst)")
+        check("app audio: every frame is written", written == Int64(total) && got.count == total)
+        check("app audio: written samples match the input", got.count == total && worst <= 2)
     }
 
     /// Dictation cleanup rules (CleanupPrepass), Harper's grammar pass, and the guards. No model, no network.

@@ -174,7 +174,8 @@ final class RecordingWriter: @unchecked Sendable {
         guard !paused, !failed, converter != nil, file != nil || holding else { return 0 }
         // A route change (AirPods out, a new device) can change the format mid-stream: convert from the new one
         // instead of dropping it, so the file keeps one format and nothing is lost.
-        if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount {
+        if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount
+            || buffer.format.commonFormat != f.commonFormat || buffer.format.isInterleaved != f.isInterleaved {
             guard let c = AVAudioConverter(from: buffer.format, to: recordingFormat) else { return v }
             converter = c
             inputFormat = buffer.format
