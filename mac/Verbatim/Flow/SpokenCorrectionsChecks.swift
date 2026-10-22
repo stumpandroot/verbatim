@@ -118,6 +118,8 @@ enum SpokenCorrectionsChecks {
         out.append(Result(name: "live spans strike the old value and cue", ok: struck.contains("2") && struck.contains("actually") && !struck.contains("3"), detail: "\(r.spans)"))
         let wipe = SpokenCorrections.apply("One. Two. Let me start over. Three.")
         out.append(Result(name: "start over is a big correction", ok: SpokenCorrections.isBig(wipe.corrections) && wipe.text == "Three.", detail: "\(wipe)"))
+        let chained = SpokenCorrections.apply("Call the venue. Book the crew. Scratch that. Scratch that. Send the deck.")
+        out.append(Result(name: "two chained deletions are a big correction", ok: SpokenCorrections.isBig(chained.corrections) && chained.text == "Send the deck.", detail: "\(chained)"))
         let small = SpokenCorrections.apply("Meet at 2, actually 3.")
         out.append(Result(name: "a replacement is a small correction", ok: !SpokenCorrections.isBig(small.corrections), detail: "\(small.corrections)"))
         out.append(Result(name: "notice summary names the change", ok: SpokenCorrections.summary(small.corrections) == "Changed “2” to “3”",

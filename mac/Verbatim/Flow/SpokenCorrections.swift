@@ -96,7 +96,8 @@ enum SpokenCorrections {
     /// True when a correction is big enough that it should always be announced: a start over, or a deletion of
     /// two or more sentences.
     static func isBig(_ corrections: [Correction]) -> Bool {
-        corrections.contains { $0.kind == .startOver || ($0.kind == .delete && $0.sentences >= 2) }
+        corrections.contains { $0.kind == .startOver }
+            || corrections.filter { $0.kind == .delete }.reduce(0) { $0 + $1.sentences } >= 2
     }
 
     /// Whether to announce these corrections, counting small ones: big corrections always, small ones the first
