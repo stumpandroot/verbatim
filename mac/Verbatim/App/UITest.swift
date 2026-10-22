@@ -78,6 +78,11 @@ enum UITest {
 
             await settingsSteps(main: window)
             logicChecks()
+            // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
+            await DictationPolishChecks.run { name, ok in
+                if ok { pass += 1 } else { fail += 1 }
+                Log.note("UITEST \(ok ? "PASS" : "FAIL") dictation: \(name)")
+            }
             // No lost recordings: write failures, joins around a corrupt part, discard, and recovery.
             RecordingSafetyChecks.run(store: app.store) { name, ok in
                 if ok { pass += 1 } else { fail += 1 }

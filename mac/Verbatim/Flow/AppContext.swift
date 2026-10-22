@@ -82,6 +82,18 @@ struct AppContext {
         return isTextInput(el, strict: noFieldApps.contains(id))
     }
 
+    /// Whether the app with `pid` has a password field focused right now, checked just before a paste. Nil when it
+    /// can't be told (Accessibility is off, the app isn't in front, or it exposes no focused element).
+    static func focusedSecure(pid: pid_t) -> Bool? {
+        guard AXIsProcessTrusted(), NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return nil }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.1)
+        guard let el: AXUIElement = attr(app, kAXFocusedUIElementAttribute) else { return nil }
+        AXUIElementSetMessagingTimeout(el, 0.1)
+        let subrole: String = attr(el, kAXSubroleAttribute) ?? ""
+        return subrole == (kAXSecureTextFieldSubrole as String)
+    }
+
     /// Text fields, text areas, and anything editable. Web views report AXWebArea or AXGroup for rich editors,
     /// and some editors sit in a scroll area, so those count too. `strict` (Finder and the Dock, whose file lists
     /// and desktop report groups and scroll areas) counts only real text fields, such as a file name being renamed.

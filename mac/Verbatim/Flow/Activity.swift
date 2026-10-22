@@ -15,6 +15,7 @@ struct ActivityEvent: Codable, Identifiable, Equatable {
     var fillers: Int                // filler words removed ("um", "uh")
     var changed: Int                // words cleanup changed, added, or removed
     var vocabularyFixes: Int        // Dictionary replacements
+    var cleanupNote: String? = nil  // why cleanup fell back to the rules (FlowInfo.cleanupNote); nil when it didn't
 }
 
 @MainActor
@@ -66,7 +67,7 @@ final class ActivityLog: ObservableObject {
         let raw = Words.list(info.raw), out = Words.list(info.pasted)
         return ActivityEvent(id: id, date: date, words: out.count, seconds: seconds, transcribeSeconds: transcribe, cleanupSeconds: cleanup,
                              app: info.app, category: info.category, fillers: max(0, Words.fillers(raw) - Words.fillers(out)),
-                             changed: Words.changed(raw, out), vocabularyFixes: fixes)
+                             changed: Words.changed(raw, out), vocabularyFixes: fixes, cleanupNote: info.cleanupNote)
     }
 
     private func save() {

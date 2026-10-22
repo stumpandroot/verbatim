@@ -186,18 +186,38 @@ actor FluidEngine: TranscriptionEngine {
 
     /// The boosting session when one is already built for these terms. Otherwise starts building it in the
     /// background (unless boosting is backing off after a failure) and returns nil, so this dictation doesn't wait.
+    /// Terms that changed while a build was running go here and are built right after it.
     private func readyBoostSession(_ ranked: [(text: String, aliases: [String])]) -> VocabularyBoostingSession? {
         let vocab = BoostVocabulary.terms(ranked)
         guard !vocab.terms.isEmpty else { return nil }
-        if let b = boosting, vocab.key == boostedKey { return b }
-        if !boostBackingOff, !boostBuilding {
+        let d = BoostReadiness.decide(hasSession: boosting != nil, keyMatches: vocab.key == boostedKey,
+                                      backingOff: boostBackingOff, building: boostBuilding)
+        if d.use { return boosting }
+        if d.queue { boostPending = ranked }
+        if d.build {
             boostBuilding = true
-            Task { _ = await self.boostSession(ranked); self.boostBuilding = false }
+            Task {
+                var next: [(text: String, aliases: [String])]? = ranked
+                while let terms = next {
+                    _ = await self.boostSession(terms)
+                    next = self.boostPending
+                    self.boostPending = nil
+                }
+                self.boostBuilding = false
+            }
         }
         return nil
     }
 
     private var boostBuilding = false
+    private var boostPending: [(text: String, aliases: [String])]?
+
+    /// Builds the boosting session for your Dictionary in the background, so the next dictation can use it without
+    /// waiting. The Mac calls this at launch and whenever the Dictionary, the built-in vocabulary, or the active
+    /// project changes. Returns at once; does nothing when the session already matches.
+    func prepareBoost(dictionary: [DictionaryEntry], project: UUID?) {
+        _ = readyBoostSession(BoostVocabulary.rank(dictionary, project: project))
+    }
 
     /// Returns the work's result, or nil when `seconds` pass first. Unlike a task group, it doesn't wait for work
     /// that ignores cancellation: that work finishes in the background and its result is dropped.
@@ -215,6 +235,12 @@ actor FluidEngine: TranscriptionEngine {
             }
         }
         return box?.value
+    }
+
+    /// `race` with a limit, or the work's result whenever it comes with none.
+    private nonisolated static func race<T>(limit: Double?, _ work: @escaping () async -> T) async -> T? {
+        guard let limit else { return await work() }
+        return await race(seconds: limit, work)
     }
 
     /// Loads the model ahead of time so the first dictation doesn't wait for it. Load only; `prewarm` also runs
@@ -280,17 +306,19 @@ actor FluidEngine: TranscriptionEngine {
     /// under 2 minutes), returns no segments when there's no speech at all, then rescores against your Dictionary
     /// words with FluidAudio's CTC keyword spotter. `dictionary` is ranked with the active project's words first,
     /// then the newest. VAD and boosting failures fall back to the plain transcript: they must never break dictation.
+    /// The boost never makes the dictation wait (see `dictation`).
     func transcribeDictation(url: URL, model: String, dictionary: [DictionaryEntry], project: UUID?) async throws -> EngineResult {
-        try await dictation(url: url, model: model, ranked: BoostVocabulary.rank(dictionary, project: project))
+        try await dictation(url: url, model: model, ranked: BoostVocabulary.rank(dictionary, project: project), waitForBoost: false)
     }
 
     /// Same as `transcribeDictation`, for callers that pass bare terms (oldest first, as the Dictionary stores
-    /// them). Empty `terms` is fine: you still get speech detection, just no boosting.
+    /// them). Empty `terms` is fine: you still get speech detection, just no boosting. Waits for the boost to be
+    /// built and to finish rescoring, so the speech bench always measures it.
     func transcribeBoosted(url: URL, model: String, terms: [(text: String, aliases: [String])]) async throws -> EngineResult {
-        try await dictation(url: url, model: model, ranked: BoostVocabulary.rankByPosition(terms))
+        try await dictation(url: url, model: model, ranked: BoostVocabulary.rankByPosition(terms), waitForBoost: true)
     }
 
-    private func dictation(url: URL, model requested: String, ranked: [(text: String, aliases: [String])]) async throws -> EngineResult {
+    private func dictation(url: URL, model requested: String, ranked: [(text: String, aliases: [String])], waitForBoost: Bool) async throws -> EngineResult {
         let model = Engines.fluidModel(requested)
         let m = try await prepared(model, progress: { _ in })
         // Don't interleave with a warm-up inference on the same model; it finishes in about a second.
@@ -309,16 +337,38 @@ actor FluidEngine: TranscriptionEngine {
         var state = TdtDecoderState.make()
         let r = try await m.transcribe(samples, decoderState: &state)
         var text = r.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !ranked.isEmpty, !text.isEmpty, let timings = r.tokenTimings, !timings.isEmpty,
-           let session = await boostSession(ranked),
-           let out = await session.rescore(text: r.text, tokenTimings: timings, audioSamples: samples) {
-            if !out.detectedTerms.isEmpty { Log.note("vocabulary boost heard \(out.detectedTerms.count) term(s)") }
-            if out.wasModified {
-                // Keep only swaps that sound like the Dictionary word they bring in (bench 121–123: the rescorer
-                // turned "it to" into "Lititz" and "at all" / "last year." into "Castwell").
-                let guarded = BoostGuard.filter(original: r.text, boosted: out.text, terms: ranked)
-                if guarded.reverted > 0 { Log.note("vocabulary boost: kept \(guarded.kept), reverted \(guarded.reverted) unlikely swap(s)") }
-                text = guarded.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The boost never holds up a dictation: it runs only with a session already built for these terms (one is
+        // built in the background otherwise, for the next dictation), and a rescore past its budget is dropped.
+        // The bench (`waitForBoost`) builds the session and lets the rescore finish.
+        if !ranked.isEmpty, !text.isEmpty, let timings = r.tokenTimings, !timings.isEmpty {
+            let ready: VocabularyBoostingSession?
+            if waitForBoost { ready = await boostSession(ranked) } else { ready = readyBoostSession(ranked) }
+            if let session = ready {
+                let budget = DictationTiming.boostBudget(audioSeconds: Double(samples.count) / 16_000)
+                let t1 = Date()
+                let audio = samples
+                let raw = r.text
+                let box = BoostBox(session)
+                let out = await Self.race(limit: waitForBoost ? nil : budget) {
+                    await box.session.rescore(text: raw, tokenTimings: timings, audioSamples: audio)
+                }
+                switch out {
+                case .none:
+                    Log.note("vocabulary boost: skipped, took over \(Int(budget * 1000)) ms")
+                case .some(.none):
+                    break
+                case .some(.some(let o)):
+                    if !o.detectedTerms.isEmpty { Log.note("vocabulary boost heard \(o.detectedTerms.count) term(s) in \(Int(Date().timeIntervalSince(t1) * 1000)) ms") }
+                    if o.wasModified {
+                        // Keep only swaps that sound like the Dictionary word they bring in (bench 121–123: the rescorer
+                        // turned "it to" into "Lititz" and "at all" / "last year." into "Castwell").
+                        let guarded = BoostGuard.filter(original: r.text, boosted: o.text, terms: ranked)
+                        if guarded.reverted > 0 { Log.note("vocabulary boost: kept \(guarded.kept), reverted \(guarded.reverted) unlikely swap(s)") }
+                        text = guarded.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            } else {
+                Log.note("vocabulary boost: skipped, vocabulary model not ready yet")
             }
         }
         let segments: [Segment]

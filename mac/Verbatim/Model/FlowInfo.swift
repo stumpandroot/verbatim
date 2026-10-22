@@ -54,6 +54,9 @@ struct FlowInfo: Codable, Equatable {
     /// Set for command mode: the spoken instruction and the selected text it changed.
     var instruction: String? = nil
     var selection: String? = nil
+    /// Why cleanup used the rules instead of the model (a timeout, a guard, cloud failing), so fallbacks can be
+    /// counted. Nil when the model's text was used, and for dictations made before Verbatim kept it.
+    var cleanupNote: String? = nil
 }
 
 // MARK: Destination rules

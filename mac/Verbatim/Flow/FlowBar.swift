@@ -163,20 +163,22 @@ final class FlowBarController {
     ///
     /// Long enough to read: at least 6 s, plus 0.05 s per character, up to 12 s (never shorter than `seconds`).
     /// A notice with an action stays 12 s. The countdown pauses while the pointer is over the Ribbon, and a
-    /// click dismisses it (running the action, if it has one).
-    func flash(_ text: String, action: String? = nil, seconds: Double = 3.5, perform: (() -> Void)? = nil) {
+    /// click dismisses it (running the action, if it has one). `exact` keeps a short confirmation ("Cancelled")
+    /// to `seconds`.
+    func flash(_ text: String, action: String? = nil, seconds: Double = 3.5, exact: Bool = false, perform: (() -> Void)? = nil) {
         setPhase(.notice)
         model.notice = text
         model.noticeAction = action
         model.onNoticeAction = perform
-        noticeRemaining = Self.noticeSeconds(text, hasAction: action != nil, requested: seconds)
+        noticeRemaining = Self.noticeSeconds(text, hasAction: action != nil, requested: seconds, exact: exact)
         noticeTimer?.invalidate(); noticeTimer = nil
         noticeRunningSince = nil
         if !model.hover { runNoticeCountdown() }
     }
 
-    static func noticeSeconds(_ text: String, hasAction: Bool, requested: Double) -> TimeInterval {
+    static func noticeSeconds(_ text: String, hasAction: Bool, requested: Double, exact: Bool = false) -> TimeInterval {
         if hasAction { return 12 }
+        if exact { return requested }
         return max(requested, min(12, 6 + 0.05 * Double(text.count)))
     }
 
