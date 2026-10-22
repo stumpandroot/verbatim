@@ -169,7 +169,7 @@ enum SettingsIndex {
         .init("watched.notify", .watched, "When it's done", "A notification when a file is transcribed and exported.", keywords: "notification alert notify"),
 
         // Export
-        .init("export.source", .export, "Text", "Document is paragraphs with your edits and polish. Transcript is line by line, as transcribed.", keywords: "document transcript source"),
+        .init("export.source", .export, "Text", "Cleaned is paragraphs with your edits and cleanup. Original with corrections and Original (engine words) are line by line. Copy follows the tab you're on.", keywords: "document transcript source cleaned original engine words raw copy"),
         .init("export.speakers", .export, "Speaker names", "Each speaker's name before their words.", keywords: "labels speakers"),
         .init("export.timecodes", .export, "Include timecodes", "A timecode at the start of every line, like [00:12:04]. Subtitles always have them.", keywords: "timecode timestamps time"),
         .init("export.single", .export, "One paragraph", "Everything joined into a single paragraph.", keywords: "line breaks join"),

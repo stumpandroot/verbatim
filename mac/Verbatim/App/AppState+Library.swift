@@ -48,11 +48,8 @@ extension AppState {
 
     /// Replaces a word in one segment; with `remember`, teaches the Dictionary so future transcripts get it right.
     func correct(transcript id: UUID, segment sid: UUID, from: String, to: String, remember: Bool) {
-        store.update(id) { t in
-            guard let i = t.segments.firstIndex(where: { $0.id == sid }) else { return }
-            t.segments[i].text = t.segments[i].text.replacingOccurrences(of: from, with: to)
-            t.corrections.append(Correction(segmentId: sid, from: from, to: to, byDictionary: false))
-        }
+        // Whole words only, recorded with where each went, so Undo restores exactly them (Transcript.correct).
+        store.update(id) { $0.correct(segment: sid, from: from, to: to) }
         if remember, let t = store.transcript(id) {
             store.remember(preferred: to, heardAs: from, from: t.title, project: projectScopedVocabulary ? t.projectId : nil)
             toast = Toast("\(to) added to Dictionary" + (projectScopedVocabulary && t.projectId != nil ? " for this project" : ""))

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The Document view on iPhone: editable paragraphs (no timecodes), Harper's spelling and grammar
-/// suggestions, and Clean up and Tone with Apple's on-device model. Same data as the Mac's Document view,
-/// so edits and polish sync both ways.
+/// The Cleaned tab on iPhone: editable paragraphs (no timecodes), Harper's spelling and grammar suggestions, and
+/// Clean up and Tone with Apple's on-device model. Same data as the Mac's Cleaned tab, so edits and cleanup sync
+/// both ways. Clean up and Tone always start from the corrected lines, never from the cleaned text.
 struct PhoneDocument: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
@@ -12,6 +12,9 @@ struct PhoneDocument: View {
     @State private var showLints = false
     @State private var working: Double? = nil
     @State private var loaded = false
+    /// A Clean up or Tone waiting on "Re-running Clean up replaces your edits" (only asked when you've typed).
+    @State private var pendingRun: (level: Polish.Level, tone: Polish.Tone)? = nil
+    @State private var confirmReset = false
 
     private var level: Polish.Level { Polish.Level(rawValue: transcript.documentLevel) ?? .none }
     private var tone: Polish.Tone { Polish.Tone(rawValue: transcript.documentTone) ?? .spoken }
@@ -32,8 +35,16 @@ struct PhoneDocument: View {
                 Button { undo() } label: { Image(systemName: "arrow.uturn.backward") }
                     .disabled(transcript.documentHistory.isEmpty).foregroundStyle(transcript.documentHistory.isEmpty ? Ink.faint : Ink.ink)
                     .accessibilityLabel("Undo")
+                Button { confirmReset = true } label: { Image(systemName: "arrow.counterclockwise") }
+                    .disabled(transcript.document == nil).foregroundStyle(transcript.document == nil ? Ink.faint : Ink.ink)
+                    .accessibilityLabel("Reset to the corrected lines")
             }
-            if transcript.document != nil, level != .none { AIGeneratedNote() }
+            if let by = transcript.cleanedBy {
+                VStack(alignment: .leading, spacing: 4) {
+                    CleanedLabel(source: by)
+                    if by == .model { AIGeneratedNote() }
+                }
+            }
             if let w = working {
                 HStack(spacing: 10) { ProgressView(value: w).tint(Ink.persimmon); Text("Cleaning up \(Int(w * 100))%").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
             }
@@ -57,12 +68,15 @@ struct PhoneDocument: View {
                 .background(Ink.reader, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
                 .onChange(of: text) { _, v in
-                    guard loaded, v != transcript.documentText else { return }
-                    EditSessions.shared.typed(transcript.id, before: transcript.documentText, after: v)
-                    app.store.updateDeferred(transcript.id) { $0.document = v }
+                    // Compared with the stored text (not this view's copy), so a Clean up or Undo landing here isn't
+                    // mistaken for typing.
+                    let stored = app.store.transcript(transcript.id)?.documentText ?? transcript.documentText
+                    guard loaded, v != stored else { return }
+                    EditSessions.shared.typed(transcript.id, before: stored, after: v)
+                    app.store.updateDeferred(transcript.id) { $0.typeInCleaned(v) }
                     relint()
                 }
-            Text("The original transcript is kept. Clean up and Tone run on this iPhone with Apple Intelligence (iOS 26).")
+            Text("Clean up and Tone start from the corrected lines in Original, which stay as they are. They run on this iPhone with Apple Intelligence (iOS 26).")
                 .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
             if let notice = Polish.status.polishNotice {
                 Text(notice)
@@ -73,6 +87,18 @@ struct PhoneDocument: View {
         .onChange(of: transcript.document) { _, _ in
             // Another device (or a polish) changed the document: show it.
             if transcript.documentText != text { text = transcript.documentText; relint() }
+        }
+        .confirmationDialog("Replace your edits?", isPresented: Binding(get: { pendingRun != nil }, set: { if !$0 { pendingRun = nil } }), titleVisibility: .visible) {
+            Button("Clean up") { if let p = pendingRun { pendingRun = nil; start(level: p.level, tone: p.tone) } }
+            Button("Cancel", role: .cancel) { pendingRun = nil }
+        } message: {
+            Text("Re-running Clean up replaces your edits to the Cleaned text. Undo brings them back.")
+        }
+        .confirmationDialog("Reset the Cleaned text?", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("Reset") { reset() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The Cleaned text goes back to the corrected lines from Original. Undo brings it back.")
         }
         .sheet(isPresented: $showLints) {
             NavigationStack {
@@ -136,19 +162,20 @@ struct PhoneDocument: View {
         save(s)
     }
 
+    /// Harper's fixes: rules, kept in history.
     private func save(_ s: String) {
-        app.store.update(transcript.id) { t in
-            t.documentHistory.append(t.documentText); if t.documentHistory.count > 30 { t.documentHistory.removeFirst() }
-            t.document = s
-        }
+        app.store.update(transcript.id) { $0.applyRuleFixes(s) }
         text = s; relint()
     }
 
     private func undo() {
-        app.store.update(transcript.id) { t in
-            guard let last = t.documentHistory.popLast() else { return }
-            t.document = last
-        }
+        app.store.update(transcript.id) { $0.undoDocument() }
+        text = app.store.transcript(transcript.id)?.documentText ?? text
+        relint()
+    }
+
+    private func reset() {
+        app.store.update(transcript.id) { $0.resetCleaned() }
         text = app.store.transcript(transcript.id)?.documentText ?? text
         relint()
     }
@@ -156,16 +183,22 @@ struct PhoneDocument: View {
     private func run(level: Polish.Level, tone: Polish.Tone) {
         // Base iPhone 15, Apple Intelligence off, or the model still downloading: say why instead of doing nothing.
         if let notice = Polish.status.polishNotice { app.say(notice); return }
-        let paras = DocumentText.paragraphs(text)
+        guard working == nil else { return }
+        if transcript.documentEdited, transcript.document != nil { pendingRun = (level, tone); return }
+        start(level: level, tone: tone)
+    }
+
+    private func start(level: Polish.Level, tone: Polish.Tone) {
+        guard working == nil else { return }
+        // Always from the corrected lines, never from the cleaned text, so running it twice doesn't compound.
+        let paras = DocumentText.paragraphs(transcript.cleanupBase)
         working = 0
         Task {
             do {
                 let out = try await Polish.rewrite(paras, level: level, tone: tone) { p in Task { @MainActor in working = p } }
                 let joined = out.joined(separator: "\n\n")
-                app.store.update(transcript.id) { t in
-                    t.documentHistory.append(t.documentText); if t.documentHistory.count > 30 { t.documentHistory.removeFirst() }
-                    t.document = joined; t.documentLevel = level.rawValue; t.documentTone = tone.rawValue
-                }
+                // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
+                app.store.update(transcript.id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }
                 text = joined; relint()
             } catch {
                 app.say(error.localizedDescription)

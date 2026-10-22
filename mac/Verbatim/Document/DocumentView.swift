@@ -1,7 +1,8 @@
 import SwiftUI
 import AppKit
 
-/// The Document view: paragraphs, no timecodes, editable, with Harper underlines and Apple-model polish.
+/// The Cleaned tab: paragraphs, no timecodes, editable, with Harper underlines and Apple-model Clean up and Tone.
+/// Clean up and Tone always start from the corrected lines (Transcript.cleanupBase); the Original is never changed.
 struct DocumentView: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
@@ -10,6 +11,8 @@ struct DocumentView: View {
     @State private var working: Double? = nil
     @State private var proofread = true
     @State private var lintTask: Task<Void, Never>? = nil
+    /// A Clean up or Tone waiting on "Re-running Clean up replaces your edits" (only asked when you've typed).
+    @State private var pendingRun: (level: Polish.Level, tone: Polish.Tone)? = nil
 
     private var text: String { transcript.documentText }
     /// Lints computed for exactly this text. After Clean up, Accept all, Undo, or typing, the old lints are
@@ -25,13 +28,25 @@ struct DocumentView: View {
         let current = Self.matching(lints, text: text)
         VStack(alignment: .leading, spacing: 14) {
             toolbar(current)
-            if transcript.document != nil, level != .none { AIGeneratedNote().frame(maxWidth: 720, alignment: .leading) }
+            if let by = transcript.cleanedBy {
+                VStack(alignment: .leading, spacing: 4) {
+                    CleanedLabel(source: by)
+                    if by == .model { AIGeneratedNote() }
+                }
+                .frame(maxWidth: 720, alignment: .leading)
+            }
             DocumentEditor(text: text, lints: proofread ? current : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
                 .frame(maxWidth: 720)
         }
         .onAppear(perform: relint)
         .onChange(of: transcript.document) { _, _ in relint() }
         .onChange(of: proofread) { _, on in if on { relint() } }
+        .confirmationDialog("Replace your edits?", isPresented: Binding(get: { pendingRun != nil }, set: { if !$0 { pendingRun = nil } })) {
+            Button("Clean up") { if let p = pendingRun { pendingRun = nil; start(level: p.level, tone: p.tone) } }
+            Button("Cancel", role: .cancel) { pendingRun = nil }
+        } message: {
+            Text("Re-running Clean up replaces your edits to the Cleaned text. Undo brings them back.")
+        }
     }
 
     // MARK: Toolbar
@@ -54,7 +69,7 @@ struct DocumentView: View {
                 }
             } label: { Text(level == .none ? "Clean up" : "Clean up · \(level.rawValue)") }
             .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
-            .help("Rewrite with Apple's on-device model")
+            .help("Rewrite the corrected lines with Apple's on-device model. Your Original stays as it is.")
 
             Menu {
                 ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
@@ -73,7 +88,7 @@ struct DocumentView: View {
                 .keyboardShortcut("z", modifiers: [.command, .shift])
             if transcript.document != nil {
                 Button("Reset") { reset() }.buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
-                    .help("Back to the transcript as transcribed")
+                    .help("Back to the corrected lines from Original")
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
@@ -100,14 +115,12 @@ struct DocumentView: View {
     private func commit(_ new: String, history: Bool) {
         guard new != text else { return }
         if history {
-            app.store.update(transcript.id) { t in
-                t.documentHistory.append(t.documentText); if t.documentHistory.count > 30 { t.documentHistory.removeFirst() }
-                t.document = new
-            }
+            // Harper's fixes: rules, kept in history.
+            app.store.update(transcript.id) { $0.applyRuleFixes(new) }
         } else {
             // Typing: the fixes in it can become Dictionary suggestions (EditSessions).
             EditSessions.shared.typed(transcript.id, before: text, after: new)
-            app.store.updateDeferred(transcript.id) { $0.document = new }
+            app.store.updateDeferred(transcript.id) { $0.typeInCleaned(new) }
         }
     }
 
@@ -139,28 +152,28 @@ struct DocumentView: View {
     }
 
     private func undo() {
-        app.store.update(transcript.id) { t in
-            guard let last = t.documentHistory.popLast() else { return }
-            t.document = last
-        }
+        app.store.update(transcript.id) { $0.undoDocument() }
     }
 
     private func reset() {
-        app.store.update(transcript.id) { t in
-            t.documentHistory.append(t.documentText)
-            t.document = nil; t.documentLevel = "None"; t.documentTone = "As spoken"
-        }
+        app.store.update(transcript.id) { $0.resetCleaned() }
     }
 
     private func run(level: Polish.Level, tone: Polish.Tone) {
         guard working == nil else { return }   // one polish at a time
+        if transcript.documentEdited, transcript.document != nil { pendingRun = (level, tone); return }
+        start(level: level, tone: tone)
+    }
+
+    private func start(level: Polish.Level, tone: Polish.Tone) {
+        guard working == nil else { return }
         switch Polish.status {
         case .ready: break
         case .needsMacOS26: app.toast = Toast("Clean up and Tone use Apple's on-device model, which needs macOS 26."); return
         case .appleIntelligenceOff: app.toast = Toast("Turn on Apple Intelligence in System Settings to use Clean up and Tone."); return
         case .unavailable(let r): app.toast = Toast("Apple's model isn't available: \(r)"); return
         }
-        let base = DocumentText.build(from: transcript)   // always polish from the transcript, not from a previous polish
+        let base = transcript.cleanupBase   // always from the corrected lines, never from an earlier cleanup
         let paras = DocumentText.paragraphs(base)
         let id = transcript.id
         working = 0
@@ -168,10 +181,8 @@ struct DocumentView: View {
             do {
                 let out = try await Polish.rewrite(paras, level: level, tone: tone) { p in Task { @MainActor in working = p } }
                 let joined = out.joined(separator: "\n\n")
-                app.store.update(id) { t in
-                    t.documentHistory.append(t.documentText); if t.documentHistory.count > 30 { t.documentHistory.removeFirst() }
-                    t.document = joined; t.documentLevel = level.rawValue; t.documentTone = tone.rawValue
-                }
+                // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
+                app.store.update(id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }
                 Sounds.done()
             } catch {
                 app.toast = Toast(error.localizedDescription)

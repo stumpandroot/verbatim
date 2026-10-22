@@ -23,6 +23,9 @@ struct ExportOptionRows: View {
             if showsText {
                 Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.label).tag($0) } }
                 Toggle("Title and details header", isOn: $options.header)
+                if options.source == .document {
+                    Toggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote)
+                }
                 Toggle(isOn: $options.summary) {
                     HStack(spacing: 6) { Text("Summary"); Text("AI").font(Ink.mono(10, weight: .medium)).tracking(1).foregroundStyle(Ink.mute) }
                 }

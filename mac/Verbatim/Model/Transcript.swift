@@ -64,6 +64,8 @@ struct Correction: Codable, Identifiable, Equatable {
     var from: String
     var to: String
     var byDictionary: Bool
+    /// Where each replacement went (CorrectionEdits). nil for corrections from builds before this was kept.
+    var spans: [CorrectionSpan]? = nil
 }
 
 enum SourceKind: String, Codable {
@@ -192,7 +194,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
-             summary, summaryByModel, multitrack
+             summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited
     }
     /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
     enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
@@ -239,6 +241,12 @@ struct Transcript: Codable, Identifiable, Equatable {
     var documentHistory: [String] = []
     var documentLevel: String = "None"
     var documentTone: String = "As spoken"
+    /// What last cleaned the Cleaned text: Apple Intelligence or rules (Harper's fixes). nil when nothing has.
+    var documentCleanedBy: CleanupSource? = nil
+    /// `documentCleanedBy` for each entry in `documentHistory` ("" for none), so Undo restores the label too.
+    var documentMarkHistory: [String] = []
+    /// True once the person types in the Cleaned text after the last Clean up; Clean up warns before replacing it.
+    var documentEdited = false
     /// Set when moved to Recently Deleted; purged 30 days later.
     var deletedAt: Date? = nil
     /// What the source page said about itself (link imports only).
@@ -297,6 +305,14 @@ struct Transcript: Codable, Identifiable, Equatable {
         documentHistory = try c.decodeIfPresent([String].self, forKey: .documentHistory) ?? []
         documentLevel = try c.decodeIfPresent(String.self, forKey: .documentLevel) ?? "None"
         documentTone = try c.decodeIfPresent(String.self, forKey: .documentTone) ?? "As spoken"
+        // Files from before these fields: a cleaned document with a level or tone was Apple Intelligence's.
+        if c.contains(.documentCleanedBy) {
+            documentCleanedBy = try? c.decodeIfPresent(CleanupSource.self, forKey: .documentCleanedBy)
+        } else if document != nil, documentLevel != "None" || documentTone != "As spoken" {
+            documentCleanedBy = .model
+        }
+        documentMarkHistory = try c.decodeIfPresent([String].self, forKey: .documentMarkHistory) ?? []
+        documentEdited = try c.decodeIfPresent(Bool.self, forKey: .documentEdited) ?? false
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         link = try c.decodeIfPresent(LinkInfo.self, forKey: .link)
         // Paths: this device's local record first; older builds wrote them into the file itself, so those move

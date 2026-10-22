@@ -11,12 +11,10 @@ extension Store {
         return max(0, Self.trashDays - (Calendar.current.dateComponents([.day], from: d, to: Date()).day ?? 0))
     }
 
-    /// Undoes one correction: puts what was heard back into its passage and drops it from the list.
+    /// Undoes one correction: puts what was heard back exactly where the fix went (Transcript.undo) and drops it
+    /// from the list. Words that were in the passage before stay as they are.
     func undoCorrection(_ c: Correction, in id: UUID) {
-        update(id) { x in
-            if let i = x.segments.firstIndex(where: { $0.id == c.segmentId }) { x.segments[i].text = x.segments[i].text.replacingOccurrences(of: c.to, with: c.from) }
-            x.corrections.removeAll { $0.id == c.id }
-        }
+        update(id) { $0.undo(c) }
     }
 
     /// The passage playing at `time` (start inclusive, end exclusive), the one Bookmark attaches to.

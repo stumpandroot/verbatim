@@ -11,7 +11,7 @@ enum Polish {
         var id: String { rawValue }
         var note: String {
             switch self {
-            case .none: return "As transcribed"
+            case .none: return "Spelling and punctuation only"
             case .light: return "Fillers and grammar only"
             case .medium: return "Clearer and tighter"
             case .high: return "Rewritten for brevity"

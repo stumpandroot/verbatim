@@ -19,13 +19,29 @@ enum ExportFormat: String, CaseIterable, Identifiable {
     var timed: Bool { self == .srt || self == .vtt }
 }
 
-/// What goes into an export or the clipboard. The export sheet edits it; every copy and export reads the saved copy.
+/// What goes into an export. The export sheet and Settings › Export edit the saved copy; exports and watched folders
+/// read it. Copy doesn't: it follows the tab you're on (Exporter.copyOptions).
 /// Keys from earlier builds (`export.speakers`, `export.timecodes`) still read, and are still written for them.
 struct ExportOptions: Equatable {
+    /// Which version of the words. Raw values stay as earlier builds saved them.
     enum Source: String, CaseIterable, Identifiable {
-        case document = "Document", transcript = "Transcript"
+        case document = "Document", transcript = "Transcript", engine = "Engine"
         var id: String { rawValue }
-        var label: String { self == .document ? "Cleaned document" : "Raw transcript" }
+        var label: String {
+            switch self {
+            case .document: return "Cleaned"
+            case .transcript: return "Original with corrections"
+            case .engine: return "Original (engine words)"
+            }
+        }
+        /// One line for the export sheet: what this version is.
+        var hint: String {
+            switch self {
+            case .document: return "Paragraphs from the Cleaned tab, with your edits and any cleanup."
+            case .transcript: return "One line per passage, with your corrections and Dictionary fixes."
+            case .engine: return "One line per passage, exactly as the engine heard it, before any corrections."
+            }
+        }
     }
     enum SpeakerMode: String, CaseIterable, Identifiable {
         case off, onChange, everyParagraph
@@ -67,7 +83,12 @@ struct ExportOptions: Equatable {
     var singleParagraph = false
     /// The "Transcribed with Verbatim" footer.
     var provenance = false
+    /// "Cleaned by Apple Intelligence from the original transcript." at the top of Cleaned text the model touched.
+    var aiNote = true
     var subtitles = SubtitleSettings()
+    /// Copy only, never saved: the Original's lines joined into paragraphs (as the Cleaned tab builds them) instead of
+    /// one line per passage.
+    var groupLines = false
 
     /// Earlier builds' switches, kept for callers that think in on and off.
     var speakers: Bool {
@@ -96,6 +117,7 @@ struct ExportOptions: Equatable {
         o.includeHidden = d.bool(forKey: "export.hidden")
         o.singleParagraph = d.bool(forKey: "export.single")
         o.provenance = d.bool(forKey: "export.prov")
+        if d.object(forKey: "export.aiNote") != nil { o.aiNote = d.bool(forKey: "export.aiNote") }
         if d.object(forKey: "export.sub.chars") != nil { o.subtitles.charsPerLine = SubtitleSettings.clampChars(d.integer(forKey: "export.sub.chars")) }
         if d.object(forKey: "export.sub.lines") != nil { o.subtitles.linesPerCaption = SubtitleSettings.clampLines(d.integer(forKey: "export.sub.lines")) }
         if d.object(forKey: "export.sub.min") != nil { o.subtitles.minDuration = d.double(forKey: "export.sub.min") }
@@ -118,6 +140,7 @@ struct ExportOptions: Equatable {
         d.set(includeHidden, forKey: "export.hidden")
         d.set(singleParagraph, forKey: "export.single")
         d.set(provenance, forKey: "export.prov")
+        d.set(aiNote, forKey: "export.aiNote")
         d.set(subtitles.charsPerLine, forKey: "export.sub.chars")
         d.set(subtitles.linesPerCaption, forKey: "export.sub.lines")
         d.set(subtitles.minDuration, forKey: "export.sub.min")
@@ -257,6 +280,9 @@ struct ExportDocument {
     var paragraphs: [ExportParagraph]
     var moments: [ExportMoment]
     var footer: String
+    /// "Cleaned by Apple Intelligence from the original transcript." when the model touched the text (shown when
+    /// `ExportOptions.aiNote` is on).
+    var aiNote: String? = nil
     /// True for the raw transcript: one short line each, so stamped lines sit one per line.
     var lineByLine = false
     /// A page at a given second, for Markdown timecode links.
@@ -268,6 +294,8 @@ enum ExportBlock: Equatable {
     case title(String)
     case details(String)
     case source(String)
+    /// A one-line note about the text, such as who cleaned it.
+    case note(String)
     case heading(String)
     /// `lead` is the timecode before the speaker; `markdownLead` is the same as a link, when there is one.
     case paragraph(lead: String, markdownLead: String, speaker: String?, text: String)
@@ -289,6 +317,7 @@ enum ExportLayout {
             if !doc.details.isEmpty { out.append(.details(doc.details.joined(separator: " · "))) }
             if let s = doc.sourceLine { out.append(.source(s)) }
         }
+        if o.aiNote, let n = doc.aiNote { out.append(.note(n)) }
         let summary = o.summary ? doc.summary : nil
         if let s = summary {
             out.append(.heading(s.byModel ? "Summary (AI-generated)" : "Summary"))
@@ -388,6 +417,7 @@ enum ExportLayout {
             case .title(let s): out += md ? "# \(s)" : s
             case .details(let s): out += md ? "_\(s)_" : s
             case .source(let s): out += s
+            case .note(let s): out += md ? "_\(s)_" : s
             case .heading(let s): out += md ? "## \(s)" : s
             case let .paragraph(lead, mdLead, speaker, text):
                 var line = md ? mdLead : lead

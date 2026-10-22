@@ -594,9 +594,11 @@ final class PhoneState: ObservableObject {
     }
     func deleteNote(_ id: UUID, note: UUID) { store.update(id) { $0.notes.removeAll { $0.id == note } } }
 
-    func copyText(_ t: Transcript) {
-        UIPasteboard.general.string = Exporter.text(t, ExportOptions.saved)
-        say("Copied")
+    /// Copies one version with Copy's own defaults (the tab you're on; the Cleaned text from lists), never the export
+    /// sheet's options.
+    func copyText(_ t: Transcript, _ v: Exporter.CopyVersion = .cleaned, timestamps: Bool = false) {
+        UIPasteboard.general.string = Exporter.copyText(t, v, timestamps: timestamps)
+        say("Copied the \(v.name)" + (timestamps ? " with timestamps" : ""))
     }
 
     /// Writes an export to a temporary file for the share sheet, named "{title}.{ext}".

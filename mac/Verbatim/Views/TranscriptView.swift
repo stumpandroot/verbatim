@@ -26,11 +26,25 @@ struct TranscriptView: View {
     @State private var showFiller = false
     @AppStorage(Transcript.hideFillerKey) private var hideFillerSetting = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    /// Original tab: the engine's own words (`original`) instead of the corrected lines.
+    @State private var showEngine = false
+    /// Original tab: one selectable text, for selecting across lines.
+    @State private var selecting = false
     @Namespace private var segNS
 
-    enum Mode: String, CaseIterable { case original = "Transcript", document = "Document", review = "Review" }
-    /// Cleanup lives inside Document.
+    /// Raw values stay stable: UI tests and Home post them in `.verbatimShowMode`.
+    enum Mode: String, CaseIterable {
+        case original = "Transcript", document = "Document", review = "Review"
+        /// The tab's name on screen.
+        var title: String {
+            switch self { case .original: return "Original"; case .document: return "Cleaned"; case .review: return "Review" }
+        }
+    }
+    /// Clean up and Tone live inside Cleaned.
     static let visibleModes: [Mode] = [.original, .document, .review]
+
+    /// What Copy takes on this tab.
+    private var copyVersion: Exporter.CopyVersion { view == .document ? .cleaned : .original }
 
 
     private var transcript: Transcript? { app.store.transcript(id) }
@@ -139,7 +153,7 @@ struct TranscriptView: View {
             .background {
                 // Shortcuts live here once, not on the mode bar (which can exist twice while pinned).
                 ZStack {
-                    Button("") { ExportMenu.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
+                    Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
                     Button("") { textSize = min(22, textSize + 1) }.keyboardShortcut("=", modifiers: .command)
                     Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
                 }
@@ -218,30 +232,57 @@ struct TranscriptView: View {
         HStack(spacing: 12) {
             HStack(spacing: 2) {
                 ForEach(Self.visibleModes, id: \.self) { m in
-                    Text(m.rawValue).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
+                    Text(m.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
                         .padding(.horizontal, 13).padding(.vertical, 5)
                         .background { if view == m { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "mode", in: segNS) } }
                         .foregroundStyle(view == m ? Ink.onInteractive : Ink.ink)
                         .tapArea { withAnimation(Motion.snap) { view = m } }
+                        .accessibilityLabel(m.title).accessibilityAddTraits(view == m ? .isSelected : [])
                 }
             }
             .padding(3).background(Ink.track, in: Capsule()).fixedSize()
             Divider().frame(height: 18)
-            HStack(spacing: 5) {
-                Text(view == .document ? "Original kept" : "Original preserved").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1).layoutPriority(-1)
-                Image(systemName: "info.circle").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                    .help("The engine's output is stored untouched. The Document, corrections, and polish are separate layers you can always compare against it.")
-            }
-            .layoutPriority(-1)
+            versionControl(t).layoutPriority(-1)
             Spacer(minLength: 8)
             tools(t, notesOpen: notesOpen, compact: narrow)
+        }
+    }
+
+    /// Beside the tabs. Original: which words to show (with corrections, or the engine's) and Select text. Cleaned
+    /// and Review: a way to the engine's words, which are stored untouched.
+    @ViewBuilder private func versionControl(_ t: Transcript) -> some View {
+        if view == .original {
+            HStack(spacing: 6) {
+                Menu {
+                    Picker("Words", selection: $showEngine) {
+                        Text("With corrections").tag(false)
+                        Text("Show engine words").tag(true)
+                    }
+                    .pickerStyle(.inline).labelsHidden()
+                } label: {
+                    Text(showEngine ? "Engine words" : "With corrections").font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim).lineLimit(1)
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+                .help("With corrections shows your fixes and Dictionary fixes. Engine words shows exactly what the engine heard.")
+                .accessibilityIdentifier("original-words")
+                Button { selecting.toggle() } label: { ToolLabel(title: "Select text", symbol: "character.cursor.ibeam", compact: false, on: selecting) }
+                    .buttonStyle(.plain)
+                    .help(selecting ? "Back to lines (corrections, notes, Copy quote)" : "Select across lines and copy with ⌘C")
+                    .accessibilityIdentifier("original-select")
+            }
+        } else {
+            Button { withAnimation(Motion.snap) { view = .original; showEngine = true } } label: {
+                Text("Engine words kept · Show").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .help("The engine's words are stored untouched. Open them in Original.")
         }
     }
 
     /// Copy, Export, Notes, and text size, beside the modes they act on.
     private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
         HStack(spacing: 2) {
-            ExportMenu(transcript: t, compact: compact)
+            ExportMenu(transcript: t, compact: compact, version: copyVersion)
             Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Continue", symbol: "record.circle", compact: compact) }
                 .buttonStyle(.plain)
                 .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
@@ -292,8 +333,20 @@ struct TranscriptView: View {
     private func original(_ t: Transcript) -> some View {
         let hide = hideFillerSetting && !showFiller
         let background = mainSpeakerOnly ? t.backgroundSegments : []
+        let shown = t.displaySegments(hideFiller: hide, mainOnly: mainSpeakerOnly)
+        // Engine words: the same passages as the engine wrote them, read-only (corrections apply to the corrected lines).
+        let segs = showEngine ? t.engineLines(for: shown) : shown
         return VStack(alignment: .leading, spacing: 12) {
-            lines(t, segments: t.displaySegments(hideFiller: hide, mainOnly: mainSpeakerOnly), editable: true)
+            if showEngine {
+                Text(t.hasEngineWords ? "Engine words: exactly what the engine heard, before your corrections and Dictionary fixes."
+                                      : "This transcript has no separate engine words, so these are the lines as they are.")
+                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 62)
+            }
+            if selecting {
+                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: textSize)
+            } else {
+                lines(t, segments: segs, editable: !showEngine)
+            }
             if hideFillerSetting, t.fillerCount > 0 {
                 FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 60)
             }

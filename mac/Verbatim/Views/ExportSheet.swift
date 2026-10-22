@@ -86,7 +86,7 @@ struct ExportSheet: View {
 
     private var footnote: String? {
         switch format {
-        case .txt: return options.source == .document ? "Paragraphs with your edits and polish." : "Line by line, as transcribed."
+        case .txt: return options.source.hint
         case .md: return "Title as a heading, speaker names in bold. Opens in Notes, Obsidian, and Notion."
         case .docx: return "Title as a heading, speaker names in bold. Opens in Word, Pages, and Google Docs."
         case .srt, .vtt: return "Captions follow the word timings, break at speaker changes and pauses, and prefer sentence ends."
@@ -115,6 +115,10 @@ struct ExportSheet: View {
             case .txt, .md, .docx:
                 row("Text", divider: true) { menu(ExportOptions.Source.allCases, $options.source, \.label) }
                 row("Title and details header", divider: true) { toggle($options.header) }
+                if options.source == .document {
+                    row("Note when Apple Intelligence cleaned it", divider: true) { toggle($options.aiNote) }
+                        .help("Adds “\(Exporter.aiNoteText)” to Cleaned text Apple Intelligence touched")
+                }
                 row("Summary", badge: "AI", detail: hasSummary ? nil : "None yet", divider: true) { toggle($options.summary) }
                     .disabled(!hasSummary)
                     .help(hasSummary ? "Put the summary before the text" : "Summarize from the Actions menu first")

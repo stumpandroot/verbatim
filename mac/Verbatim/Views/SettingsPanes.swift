@@ -333,8 +333,8 @@ struct CaptionsSettingsPane: View {
 
 // MARK: - Files › Export
 
-/// The options Copy, Export, and watched folders use. Same keys as `ExportOptions.saved`, so a change here
-/// shows in the export popover and the other way round.
+/// The options Export and watched folders use (Copy follows the tab you're on instead). Same keys as
+/// `ExportOptions.saved`, so a change here shows in the export popover and the other way round.
 struct ExportSettingsPane: View {
     @State private var options = ExportOptions.saved
     @AppStorage("settingsTab") private var tab: SettingsTab = .export
@@ -349,6 +349,7 @@ struct ExportSettingsPane: View {
                 }
                 .settingsAnchor("export.source", radius: 12)
                 ExportPaneToggle("Title and details header", isOn: $options.header)
+                ExportPaneToggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote, note: "On Cleaned text the model touched: “\(Exporter.aiNoteText)”")
                 ExportPaneToggle("Summary", isOn: $options.summary, note: "Written with Apple Intelligence, when the transcript has one.")
                 ExportPaneToggle("One paragraph", isOn: $options.singleParagraph)
                 ExportPaneToggle("“Transcribed with Verbatim” footer", isOn: $options.provenance)

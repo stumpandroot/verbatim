@@ -165,14 +165,27 @@ enum BuiltInVocabulary {
     /// Fixes built-in terms in `segments`, after your Dictionary has run, and records each change so it shows on the
     /// transcript and can be undone. `user` is your whole Dictionary: its words and "heard as" forms are left alone.
     static func apply(to segments: inout [Segment], respecting user: [DictionaryEntry]) -> [Correction] {
+        var out: [Correction] = []
+        apply(to: &segments, respecting: user, into: &out)
+        return out
+    }
+
+    /// The same, recording into `corrections` (and moving the spans already there when it changes their passage).
+    static func apply(to segments: inout [Segment], respecting user: [DictionaryEntry], into corrections: inout [Correction]) {
         let active = activeTerms
-        guard !active.isEmpty else { return [] }
+        guard !active.isEmpty else { return }
         let on = Set(active.map(\.id))
-        return apply(to: &segments, rules: allRules.filter { on.contains($0.term) }, respecting: user)
+        apply(to: &segments, rules: allRules.filter { on.contains($0.term) }, respecting: user, into: &corrections)
     }
 
     /// The pass itself, with the rules given (the self-test passes its own).
     static func apply(to segments: inout [Segment], rules: [Rule], respecting user: [DictionaryEntry]) -> [Correction] {
+        var out: [Correction] = []
+        apply(to: &segments, rules: rules, respecting: user, into: &out)
+        return out
+    }
+
+    static func apply(to segments: inout [Segment], rules: [Rule], respecting user: [DictionaryEntry], into out: inout [Correction]) {
         var userTerms = Set<String>(), userForms = Set<String>()
         for e in user {
             userTerms.insert(e.preferred.lowercased())
@@ -180,23 +193,21 @@ enum BuiltInVocabulary {
             for h in e.heardAs { userForms.insert(h.lowercased()) }
         }
         let usable = rules.filter { !userTerms.contains($0.term.lowercased()) && !userForms.contains($0.form.lowercased()) }
-        guard !usable.isEmpty else { return [] }
+        guard !usable.isEmpty else { return }
         let byKey = Dictionary(grouping: usable, by: \.key)
-        var out: [Correction] = []
         for i in segments.indices {
-            let original = segments[i].text
-            var candidates = Set(words(original)).flatMap { byKey[$0] ?? [] }
+            var candidates = Set(words(segments[i].text)).flatMap { byKey[$0] ?? [] }
             guard !candidates.isEmpty else { continue }
             candidates.sort { $0.order < $1.order }
-            var text = original
             for r in candidates {
-                guard let fixed = replace(r, in: text) else { continue }
-                text = fixed.text
-                out.append(Correction(segmentId: segments[i].id, from: fixed.from, to: r.term, byDictionary: true))
+                let text = segments[i].text
+                let ranges = allowed(r, in: text)
+                guard let first = ranges.first else { continue }
+                // Recorded with where each fix went, so Undo restores exactly those words.
+                CorrectionEdits.apply(ranges, in: &segments, at: i, to: r.term, label: (text as NSString).substring(with: first),
+                                      byDictionary: true, corrections: &out)
             }
-            if text != original { segments[i].text = text }
         }
-        return out
     }
 
     /// Plain text through the same pass (self-tests and previews).
@@ -208,22 +219,27 @@ enum BuiltInVocabulary {
 
     /// `text` with every allowed match of `r` replaced, and the first form that was replaced; nil when nothing changed.
     static func replace(_ r: Rule, in text: String) -> (text: String, from: String)? {
+        let ranges = allowed(r, in: text)
+        guard let first = ranges.first else { return nil }
+        let ns = text as NSString
+        let out = NSMutableString(string: text)
+        for m in ranges.reversed() { out.replaceCharacters(in: m, with: r.term) }
+        return (out as String, ns.substring(with: first))
+    }
+
+    /// The matches of `r` in `text` that may change, in order: not already the term, not in a link, address, or
+    /// code, and (for a contextual form) with its context.
+    static func allowed(_ r: Rule, in text: String) -> [NSRange] {
         let ns = text as NSString
         let matches = r.re.matches(in: text, range: NSRange(location: 0, length: ns.length))
-        guard !matches.isEmpty else { return nil }
+        guard !matches.isEmpty else { return [] }
         let guarded = protectedRanges(text)
-        let out = NSMutableString(string: text)
-        var from: String?
-        for m in matches.reversed() {
-            let found = ns.substring(with: m.range)
-            if found == r.term { continue }
-            if guarded.contains(where: { NSIntersectionRange($0, m.range).length > 0 }) { continue }
-            if r.kind == .context, !contextAllows(ns, m.range, extra: r.after) { continue }
-            out.replaceCharacters(in: m.range, with: r.term)
-            from = found
+        return matches.map(\.range).filter { m in
+            if ns.substring(with: m) == r.term { return false }
+            if guarded.contains(where: { NSIntersectionRange($0, m).length > 0 }) { return false }
+            if r.kind == .context, !contextAllows(ns, m, extra: r.after) { return false }
+            return true
         }
-        guard let from else { return nil }
-        return (out as String, from)
     }
 
     /// A contextual form changes only when the engine capitalized it mid-sentence, or a context word sits right

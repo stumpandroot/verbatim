@@ -1,8 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// A transcript: title, source, modes (Transcript, Document, Review), the reading lines, and a floating glass
-/// player. Long-press a line to bookmark it, add a note, copy it, or open the video at that moment.
+/// A transcript: title, source, tabs (Original, Cleaned, Review), the reading lines, and a floating glass player.
+/// Long-press a line to bookmark it, add a note, copy it, or open the video at that moment. Copy takes the tab
+/// you're on.
 struct TranscriptScreen: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
@@ -23,6 +24,13 @@ struct TranscriptScreen: View {
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     /// Why Summarize can't run here (Apple Intelligence unavailable), shown when the action is chosen.
     @State private var summaryUnavailable: String? = nil
+    /// Original tab: the engine's own words instead of the corrected lines.
+    @State private var showEngine = false
+    /// Original tab: one selectable text, for selecting across lines.
+    @State private var selecting = false
+
+    /// What Copy takes on this tab.
+    private var copyVersion: Exporter.CopyVersion { mode == .document ? .cleaned : .original }
 
     private var t: Transcript? { app.store.transcript(id) }
 
@@ -36,7 +44,7 @@ struct TranscriptScreen: View {
                                 header(t)
                                     .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                 if t.status == .ready {
-                                    ModePicker(options: [(Mode.transcript, "Transcript"), (.document, "Document"), (.review, "Review")], selection: $mode)
+                                    ModePicker(options: [(Mode.transcript, "Original"), (.document, "Cleaned"), (.review, "Review")], selection: $mode)
                                         .padding(.top, 16)
                                         .riseIn("modes", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                 }
@@ -75,7 +83,15 @@ struct TranscriptScreen: View {
                             } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }
                             .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
                             Divider()
-                            Button { app.copyText(t) } label: { Label("Copy text", systemImage: "doc.on.doc") }
+                            Button { app.copyText(t, copyVersion) } label: { Label(copyVersion == .cleaned ? "Copy cleaned text" : "Copy text", systemImage: "doc.on.doc") }
+                            Menu {
+                                Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }
+                                Button { app.copyText(t, copyVersion.other) } label: {
+                                    Label(copyVersion == .cleaned ? "Copy the original" : "Copy the cleaned text", systemImage: "arrow.left.arrow.right")
+                                }
+                                Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }
+                                    .disabled(!t.hasEngineWords)
+                            } label: { Label("More ways to copy", systemImage: "doc.on.clipboard") }
                             Divider()
                             Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
                         } label: { Image(systemName: "square.and.arrow.up") }
@@ -182,9 +198,16 @@ struct TranscriptScreen: View {
                 switch mode {
                 case .transcript:
                     let background = mainSpeakerOnly ? t.backgroundSegments : []
+                    let shown = t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly)
+                    let segs = showEngine ? t.engineLines(for: shown) : shown
                     VStack(alignment: .leading, spacing: 10) {
-                        PhoneLines(transcript: t, segments: t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly),
-                                   clock: app.player.clock, onNote: { noteFor = $0 })
+                        originalBar(t)
+                        if selecting {
+                            PhoneSelectableText(text: PhoneSelectableText.joined(segs, in: t))
+                                .accessibilityIdentifier("original-selectable")
+                        } else {
+                            PhoneLines(transcript: t, segments: segs, clock: app.player.clock, onNote: { noteFor = $0 })
+                        }
                         if hideFillerSetting, t.fillerCount > 0 {
                             FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 62)
                         }
@@ -200,6 +223,45 @@ struct TranscriptScreen: View {
                 }
             }
         }
+    }
+
+    /// Original tab: which words (with corrections, or the engine's) and Select text.
+    private func originalBar(_ t: Transcript) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Menu {
+                    Picker("Words", selection: $showEngine) {
+                        Text("With corrections").tag(false)
+                        Text("Show engine words").tag(true)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showEngine ? "Engine words" : "With corrections").font(.system(size: 14, weight: .medium))
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundStyle(Ink.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(Ink.hairline))
+                }
+                .accessibilityLabel("Words: \(showEngine ? "engine words" : "with corrections")")
+                .accessibilityIdentifier("original-words")
+                Button { selecting.toggle() } label: {
+                    Label(selecting ? "Done selecting" : "Select text", systemImage: "character.cursor.ibeam")
+                        .font(.system(size: 14, weight: .medium)).foregroundStyle(selecting ? Ink.onInteractive : Ink.ink)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(selecting ? Ink.interactive : Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(Ink.hairline))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("original-select")
+                Spacer(minLength: 0)
+            }
+            if showEngine {
+                Text(t.hasEngineWords ? "Exactly what the engine heard, before your corrections and Dictionary fixes."
+                                      : "This transcript has no separate engine words, so these are the lines as they are.")
+                    .font(.system(size: 13)).foregroundStyle(Ink.mute)
+            }
+        }
+        .padding(.bottom, 4)
     }
 
     private func review(_ t: Transcript) -> some View {

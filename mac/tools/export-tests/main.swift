@@ -247,5 +247,26 @@ do {
     eq("existing files skipped", ExportNames.unique("Memo", ext: "srt", used: &used, exists: { $0 == "Memo.srt" }), "Memo 2.srt")
 }
 
+// MARK: Sources and the Apple Intelligence note
+
+do {
+    eq("source labels", ExportOptions.Source.allCases.map(\.label), ["Cleaned", "Original with corrections", "Original (engine words)"])
+    eq("source raw values stay", ExportOptions.Source.allCases.map(\.rawValue), ["Document", "Transcript", "Engine"])
+    let d = UserDefaults(suiteName: "export-tests-\(UUID().uuidString)")!
+    check("AI note is on by default", ExportOptions.load(d).aiNote)
+    var o = ExportOptions(); o.aiNote = false; o.source = .engine; o.save(to: d)
+    let back = ExportOptions.load(d)
+    check("AI note and engine source round trip", !back.aiNote && back.source == .engine)
+    var doc = ExportDocument(title: "T", details: [], summary: nil,
+                             paragraphs: [ExportParagraph(speaker: nil, pieces: [ExportPiece(start: 0, text: "Cleaned words.")])],
+                             moments: [], footer: "")
+    doc.aiNote = "Cleaned by Apple Intelligence from the original transcript."
+    var n = ExportOptions(); n.header = true
+    eq("AI note after the header", ExportLayout.text(doc, n), "T\n\nCleaned by Apple Intelligence from the original transcript.\n\nCleaned words.")
+    eq("AI note in Markdown", ExportLayout.markdown(doc, n), "# T\n\n_Cleaned by Apple Intelligence from the original transcript._\n\nCleaned words.")
+    n.aiNote = false
+    eq("AI note off", ExportLayout.text(doc, n), "T\n\nCleaned words.")
+}
+
 print("export tests: \(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

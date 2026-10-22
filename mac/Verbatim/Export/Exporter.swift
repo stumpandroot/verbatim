@@ -57,14 +57,21 @@ enum Exporter {
         return "Transcribed with Verbatim (\(t.model.isEmpty ? "on-device" : t.model)) on \(f.string(from: t.createdAt))"
     }
 
+    /// The note on Cleaned text Apple Intelligence touched.
+    static let aiNoteText = "Cleaned by Apple Intelligence from the original transcript."
+
     static func document(_ t: Transcript, _ o: ExportOptions, markdown: Bool = false) -> ExportDocument {
         let multi = t.speakers.count >= 2
         func name(_ s: Segment) -> String? { multi ? t.speakerName(s.speaker) : nil }
         var paragraphs: [ExportParagraph] = []
-        let segs = segments(t, o).filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
-        if o.source == .transcript {
+        var segs = segments(t, o)
+        // Original (engine words): the engine's own lines for the same passages, before any correction.
+        if o.source == .engine { segs = t.engineLines(for: segs) }
+        segs = segs.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+        let lineByLine = o.source != .document && !o.groupLines
+        if lineByLine {
             paragraphs = segs.map { ExportParagraph(speaker: name($0), pieces: [ExportPiece(start: $0.start, text: $0.text.trimmingCharacters(in: .whitespaces))]) }
-        } else if let edited = t.document {
+        } else if o.source == .document, let edited = t.document {
             paragraphs = editedParagraphs(t, edited)
         } else {
             // The same paragraphs DocumentText.build makes, keeping each line's time.
@@ -88,7 +95,8 @@ enum Exporter {
             if let c = cur { paragraphs.append(c) }
         }
         var doc = ExportDocument(title: t.title, details: details(t), summary: summary(t), paragraphs: paragraphs,
-                                 moments: moments(t), footer: provenance(t), lineByLine: o.source == .transcript)
+                                 moments: moments(t), footer: provenance(t), lineByLine: lineByLine)
+        if o.source == .document, t.cleanedByModel { doc.aiNote = aiNoteText }
         if let info = t.linkInfo {
             let label = [info.channel, info.site].compactMap { $0 }.joined(separator: " · ").ifEmpty(info.url)
             doc.sourceLine = (markdown ? "Source: [\(label)](\(info.url))" : "Source: \(info.url)") + (info.uploadDisplay.map { " · \($0)" } ?? "")
@@ -178,6 +186,8 @@ enum Exporter {
             "moments": moments(t).map { ["at": $0.at, "timecode": Timecode.digits($0.at, style: .bracketed), "text": $0.text, "bookmark": $0.bookmark] },
             "hiddenSegmentIds": t.hiddenSegmentIDs.map(\.uuidString).sorted(),
             "documentText": t.documentText,
+            "engineText": (t.hasEngineWords ? t.original : t.segments).map(\.text).joined(separator: " "),
+            "cleanedBy": t.cleanedBy?.rawValue ?? "none",
         ]
         if let s = summary(t) { export["summary"] = ["overview": s.overview, "keyPoints": s.keyPoints, "byModel": s.byModel] }
         else { export["summary"] = NSNull() }
@@ -207,6 +217,7 @@ enum Exporter {
             switch b {
             case .title(let s): paras += para(run(s, bold: true, size: 40), after: 120)
             case .details(let s), .source(let s): paras += para(run(s, color: "857D70"), after: 120)
+            case .note(let s): paras += para(run(s, color: "857D70"), after: 200)
             case .heading(let s), .bodyHeading(let s): paras += para(run(s, bold: true, size: 28), after: 120, before: 240)
             case .text(let s): paras += para(run(s))
             case let .paragraph(lead, _, speaker, text):
@@ -238,6 +249,36 @@ enum Exporter {
     static func write(_ t: Transcript, as f: ExportFormat, options o: ExportOptions, to url: URL) throws {
         if f == .docx { try writeDocx(t, options: o, to: url) }
         else { try render(t, as: f, options: o).write(to: url, atomically: true, encoding: .utf8) }
+    }
+
+    // MARK: Copy
+
+    /// The versions Copy can take: the Original with corrections, the Cleaned text, or the engine's own words.
+    enum CopyVersion {
+        case original, cleaned, engine
+        var name: String {
+            switch self { case .original: return "original"; case .cleaned: return "cleaned text"; case .engine: return "engine words" }
+        }
+        /// The other tab's version, for "Copy the other version".
+        var other: CopyVersion { self == .cleaned ? .original : .cleaned }
+    }
+
+    /// Copy's own options, never the export sheet's: no header, summary, or footer; speaker names when they change;
+    /// lines joined into paragraphs, or with timestamps one line per passage.
+    static func copyOptions(_ v: CopyVersion, timestamps: Bool = false) -> ExportOptions {
+        var o = ExportOptions()
+        o.source = v == .cleaned ? .document : v == .engine ? .engine : .transcript
+        o.header = false; o.summary = false; o.provenance = false; o.aiNote = false
+        o.speakerMode = .onChange; o.moments = .off; o.includeHidden = false; o.singleParagraph = false
+        o.timecodeMode = timestamps ? .everyParagraph : .off
+        o.timecodeStyle = .bracketed
+        o.groupLines = !timestamps
+        return o
+    }
+
+    /// The text Copy puts on the clipboard for one version.
+    static func copyText(_ t: Transcript, _ v: CopyVersion, timestamps: Bool = false) -> String {
+        text(t, copyOptions(v, timestamps: timestamps))
     }
 
     /// What Copy puts on the clipboard for a format: the text for text and Word, the file's contents otherwise.
@@ -293,6 +334,12 @@ enum Exporter {
     static func copy(_ t: Transcript, options o: ExportOptions = .saved) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text(t, o), forType: .string)
+    }
+
+    @MainActor
+    static func copy(_ t: Transcript, _ v: CopyVersion, timestamps: Bool = false) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(copyText(t, v, timestamps: timestamps), forType: .string)
     }
 #endif
 }

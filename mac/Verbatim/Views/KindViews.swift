@@ -257,6 +257,18 @@ struct AITitleNote: View {
     }
 }
 
+/// The Cleaned tab's persistent label: "Cleaned by Apple Intelligence" or "Cleaned with rules". Plain text on the
+/// page, never on a blur.
+struct CleanedLabel: View {
+    var source: CleanupSource
+    var body: some View {
+        Label { Text(source.label) } icon: { Image(systemName: source == .model ? "sparkles" : "checkmark.seal") }
+            .font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("cleaned-label")
+    }
+}
+
 // MARK: - Background voices
 
 /// Lines from voices other than the main speaker (Settings › Main speaker only), folded into one card.

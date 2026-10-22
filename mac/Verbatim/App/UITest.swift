@@ -920,6 +920,7 @@ enum UITest {
               && SidebarRules.move("home", to: "links", in: known) == ["library", "links", "home", "you"])
         cleanupChecks(check)
         VocabularySelfTest.run(check)
+        OriginalCleanedSelfTest.run(check)
         check("settings search finds built-in vocabulary", SettingsIndex.search("chatgpt spelling").map(\.id).contains("models.builtInVocabulary"))
         HomeSelfTest.run(check)
         check("settings search finds the Method cards", SettingsIndex.search("method cards").map(\.id).contains("general.welcomeCard"))
