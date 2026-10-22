@@ -72,6 +72,9 @@ enum SettingsSearchIndex {
         .init(id: "keyboardAlwaysCopy", section: "Keyboard", label: "Also copy each dictation",
               keywords: ["clipboard", "copy", "paste", "pasteboard", "recent", "history", "missed", "keep"],
               description: "Each keyboard dictation also goes on the clipboard", target: .page(.keyboard)),
+        .init(id: "keyboardLowerAudio", section: "Keyboard", label: "Lower other audio while Verbatim listens",
+              keywords: ["duck", "music", "spotify", "youtube", "podcast", "volume", "quiet", "background sound"],
+              description: "Other sound drops to a whisper so it doesn't reach the microphone", target: .page(.keyboard)),
         .init(id: "keyboardFullAccess", section: "Keyboard", label: "Allow Full Access for the keyboard", keywords: ["full access", "permission", "privacy"],
               description: "Lets the keyboard start a session and receive your words", target: .page(.keyboard)),
 

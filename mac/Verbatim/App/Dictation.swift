@@ -45,6 +45,7 @@ final class DictationController: ObservableObject {
     @Published private(set) var isListening = false {
         didSet {
             if isListening != oldValue { carbon.setEscape(secureSince != nil && isListening) }
+            if isListening != oldValue { AudioDucker.shared.set(.dictation, isListening) }   // Lower other audio while listening.
             // Live words are a preview of listening only; they end the moment listening does.
             if !isListening { liveWords.stop() }
         }

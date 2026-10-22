@@ -130,6 +130,7 @@ final class AppState: ObservableObject {
         recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
         recorder.onInputSwitched = { [weak self] note in self?.toast = Toast(note) }
         recorder.onResumed = { [weak self] in self?.verbiePose = .listening }
+        AudioDucker.shared.follow(.voiceNote, recorder.$isRecording.combineLatest(recorder.$isPaused, recorder.$isStarting).map { $0.0 && !$0.1 && !$0.2 })
         HangWatch.start()
         dictation.attach(self)
         mirrorSnippets()

@@ -147,6 +147,8 @@ struct KeyboardSetupScreen: View {
                                   subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
                     .cardSurface(radius: 14)
 
+                PhoneLowerAudioRow()
+
                 Text("The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbatim can't switch back by itself, tap ◀ and your app's name at the top left.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
