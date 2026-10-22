@@ -249,13 +249,14 @@ targets:
       - Verbatim/Document/Harper.swift
       - Verbatim/Document/Polish.swift
       - Verbatim/Sources/MediaImport.swift
-      # The bundled FFmpeg's C layer and Swift side, its notice and license, the import self-test and its files.
+      # The bundled FFmpeg's C layer and Swift side, its notice and license, and the import self-test. Its test
+      # files (Resources/TestFixtures) stay out of the iPhone app, so they never ship to the App Store; the
+      # iPhone self-test skips the import checks without them (the Mac's self-test runs them).
       - Verbatim/Sources/VBFFmpeg.c
       - Verbatim/Sources/VBFFmpeg.h
       - Verbatim/Sources/FFmpegAudio.swift
       - Verbatim/Sources/MediaImportSelfTest.swift
       - Verbatim/Resources/FFmpeg
-      - Verbatim/Resources/TestFixtures
       - Verbatim/Views/Acknowledgements.swift
       - Verbatim/Sources/LinkImport.swift
       # Cloud share links (Dropbox, Google Drive, OneDrive, SharePoint, iCloud Drive): the rules, their self-tests,

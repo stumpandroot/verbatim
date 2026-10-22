@@ -11,7 +11,12 @@ enum MediaImportSelfTest {
         guard let opus = Bundle.main.url(forResource: "tone-opus", withExtension: "mkv"),
               let mkv2 = Bundle.main.url(forResource: "two-tracks", withExtension: "mkv"),
               let mov2 = Bundle.main.url(forResource: "two-tracks", withExtension: "mov") else {
+            // The iPhone app leaves the test files out (they'd ship to the App Store); the Mac's self-test runs these.
+            #if os(macOS)
             check("test files are in the app", false)
+            #else
+            Log.note("UITEST SKIP import: the test files aren't in this build")
+            #endif
             return
         }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("import-selftest-\(UUID().uuidString)", isDirectory: true)

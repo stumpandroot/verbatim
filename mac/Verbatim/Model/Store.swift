@@ -31,6 +31,21 @@ enum Paths {
     /// Recordings are written here while they're made, then moved into `audio` when they stop, so a
     /// half-written file never syncs.
     static let recordings = local.appendingPathComponent("recordings", isDirectory: true)
+    /// FluidAudio's own model folder (voice activity, CTC), where it downloads when no folder is passed.
+    static let fluidAudioModels: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("FluidAudio", isDirectory: true).appendingPathComponent("Models", isDirectory: true)
+
+    /// Speech models are large and download again on demand, so they're kept out of iCloud and device backups
+    /// (and Time Machine). Setting it on the folder covers everything downloaded into it later.
+    static func excludeModelsFromBackup() {
+        for d in [models, fluidAudioModels] {
+            try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+            var u = d
+            var v = URLResourceValues()
+            v.isExcludedFromBackup = true
+            do { try u.setResourceValues(v) } catch { Log.note("backup: couldn't exclude \(d.lastPathComponent): \(error.localizedDescription)") }
+        }
+    }
 }
 
 /// Verbatim's iCloud container. `root` is nil when iCloud is off, signed out, or the build has no iCloud
@@ -439,6 +454,7 @@ final class Store: ObservableObject {
         for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads, Paths.thumbs, Paths.recordings] {
             try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         }
+        Paths.excludeModelsFromBackup()
         load()
         loading = false
         if Cloud.enabled { let s = CloudSync(store: self); sync = s; s.seed(loadedDates); s.start() }
@@ -839,6 +855,7 @@ final class Store: ObservableObject {
         TranscriptFiles.queue.async {
             local.forEach { try? fm.removeItem(at: $0) }
             for d in [Paths.downloads, Paths.models] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+            Paths.excludeModelsFromBackup()
         }
     }
 
