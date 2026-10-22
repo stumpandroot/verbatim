@@ -336,7 +336,7 @@ struct LinkAddedCard: View {
         HStack(spacing: 10) {
             Text(phaseText)
                 .font(Ink.mono(11.5)).tracking(1.15).lineLimit(1)
-                .foregroundStyle(failed ? Ink.accentText : Ink.mute)
+                .foregroundStyle(failed ? Ink.danger : Ink.mute)
                 .fixedSize()
             if !failed {
                 ProgressRail(value: fraction)

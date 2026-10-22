@@ -18,17 +18,17 @@ enum LiveWordsSetting {
 /// Views that use these also read the setting with @AppStorage, so they redraw when it changes.
 private enum RibbonInk {
     private static var dark: Bool { UserDefaults.standard.string(forKey: RibbonStyle.key) == RibbonStyle.ink.rawValue }
-    private static let inkHex: UInt32 = 0x26352E, paperHex: UInt32 = 0xF5F0E6
+    private static let inkHex = Ink.inkHex, paperHex = Ink.paperHex
     static var tab: Color { Color(hex: dark ? inkHex : paperHex) }
     static var edge: Color { dark ? Color(hex: paperHex).opacity(0.16) : Color(hex: inkHex).opacity(0.18) }
     static var text: Color { Color(hex: dark ? paperHex : inkHex) }
     static var raised: Color { (dark ? Color(hex: paperHex) : Color(hex: inkHex)).opacity(dark ? 0.12 : 0.08) }
     static var track: Color { (dark ? Color(hex: paperHex) : Color(hex: inkHex)).opacity(dark ? 0.16 : 0.12) }
-    static let persimmon = Color(hex: 0xFA6B47)
-    /// Accent for text: deep persimmon on paper (4.9:1), butter on ink.
-    static var persimmonText: Color { dark ? Color(hex: 0xF4C76B) : Color(hex: 0xB23F24) }
-    static let paper = Color(hex: paperHex)
-    static var muted: Color { dark ? Color(hex: 0xC9C2B3) : Color(hex: 0x5F6A62) }
+    static let persimmon = Ink.persimmonFixed
+    /// Accent for text: deep persimmon on paper (4.9:1), light persimmon on ink (butter means Dictate).
+    static var persimmonText: Color { dark ? Ink.accentTextOnInk : Ink.accentTextOnPaper }
+    static let paper = Ink.paperFixed
+    static var muted: Color { dark ? Ink.muteOnInk : Ink.muteOnPaper }
 }
 
 /// The voice mark at whatever size a state needs.
@@ -48,7 +48,7 @@ private struct RibbonMeter: View {
 struct RibbonRings: View {
     var levels: [Double]
     var size: CGFloat
-    var color: Color = Color(hex: 0xFA6B47)
+    var color: Color = Ink.persimmonFixed
     var body: some View {
         let base: [CGFloat] = [0.5, 0.36, 0.22]
         ZStack(alignment: .bottom) {
@@ -85,7 +85,7 @@ struct FlowBarView: View {
     /// Every state shares one paper tab. Between states the tab springs to its new size (0.38 s, a little bounce,
     /// tuned in the Ribbon prototype) and keeps its velocity if the state changes mid-move, while the contents
     /// fade in a beat after the shape starts moving. Reduce Motion turns the morph into a quick fade.
-    private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.38, bounce: 0.22) }
+    private var morph: Animation? { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
 
     /// Contents arrive just after the tab starts growing and leave at once, so text never squeezes into a tab
     /// that's still small.
@@ -105,7 +105,7 @@ struct FlowBarView: View {
     private var liveTail: LiveWords { words.words.tail(model.edge == .bottom ? 90 : 80) }
     /// The tab grows with the words on the same spring as the state morph; with Reduce Motion or Limit
     /// animation, a quick ease instead (no spring).
-    private var liveMorph: Animation { reduceMotion ? .easeOut(duration: 0.12) : .spring(duration: 0.38, bounce: 0.22) }
+    private var liveMorph: Animation { reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.3) }
     /// Keyed on the word count, not the text: a new word grows the tab on the spring, while a word that's revised
     /// in place (volatile to final) swaps without restarting the animation.
     private var liveKey: String { liveWordsShown ? "\(words.state)|\(liveTail.text.split(separator: " ").count)" : "" }
@@ -167,7 +167,7 @@ struct FlowBarView: View {
             .background(tab(r).fill(RibbonInk.tab))
             .overlay(tab(r).strokeBorder(model.command && model.phase == .listening ? RibbonInk.persimmon : RibbonInk.edge, lineWidth: model.command && model.phase == .listening ? 1.5 : 0.75))
             .clipShape(tab(r))
-            .shadow(color: .black.opacity(closed ? 0.12 : 0.16), radius: closed ? 4 : 12, x: 0, y: 0)
+            .shadow(color: .black.opacity(closed ? 0.1 : 0.12), radius: closed ? 2 : 4, x: 0, y: 1)
             .animation(liveMorph, value: liveKey)
     }
 
@@ -223,8 +223,8 @@ struct FlowBarView: View {
             edgeRow(spacing: 9) {
                 SweepBar(edge: model.edge, reduceMotion: reduceMotion)
             } rest: {
-                Text(model.appLabel.isEmpty ? (model.command ? "EDITING" : "WRITING") : model.appLabel)
-                    .font(.system(size: 11, design: .monospaced)).tracking(0.6).foregroundStyle(RibbonInk.text).fixedSize()
+                Text(model.appLabel.isEmpty ? (model.command ? "Editing…" : "Writing…") : model.appLabel)
+                    .font(.system(size: 12.5, weight: .medium)).foregroundStyle(RibbonInk.text).fixedSize()
             }
             .transition(contentTransition)
         case .notice:
@@ -295,14 +295,14 @@ private struct LiveWordsLine: View {
         Group {
             if words.isEmpty {
                 Text("Listening…")
-                    .font(Ink.serif(Self.size).italic())
+                    .font(.system(size: Self.size).italic())
                     .foregroundStyle(RibbonInk.muted)
                     .lineLimit(1)
                     .fixedSize()
             } else {
                 LiveFit(maxWidth: twoLines ? Self.maxWidth - 20 : Self.maxWidth, wrap: twoLines) {
                     styled
-                        .font(Ink.serif(Self.size))
+                        .font(.system(size: Self.size))
                         .lineLimit(twoLines ? 2 : nil)
                         .truncationMode(.head)
                         .multilineTextAlignment(.trailing)
@@ -381,7 +381,7 @@ struct RibbonBars: View {
     var levels: [Double]
     var thickness: CGFloat
     var length: CGFloat
-    var color: Color = Color(hex: 0xFA6B47)
+    var color: Color = Ink.persimmonFixed
 
     var body: some View {
         if edge == .bottom {
@@ -413,7 +413,7 @@ struct SweepBar: View {
         let vertical = edge == .bottom
         ZStack(alignment: vertical ? .top : .leading) {
             Capsule().fill(RibbonInk.track)
-            Capsule().fill(Color(hex: 0xFA6B47))
+            Capsule().fill(Ink.persimmonFixed)
                 .frame(width: vertical ? 6 : 14, height: vertical ? 10 : 6)
                 .offset(x: vertical ? 0 : (forward ? 24 : 0), y: vertical ? (forward ? 18 : 0) : 0)
         }
@@ -461,9 +461,9 @@ struct PromptCard: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .frame(width: 360)
-        .background(RibbonInk.tab, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(RibbonInk.edge, lineWidth: 0.75))
-        .shadow(color: .black.opacity(0.16), radius: 14)
+        .background(RibbonInk.tab, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(RibbonInk.edge, lineWidth: 0.75))
+        .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
         .onAppear { withAnimation(.linear(duration: prompt.seconds)) { progress = 0 } }
     }
 }
@@ -475,7 +475,7 @@ private struct PromptButton: ButtonStyle {
             .font(.system(size: 13, weight: filled ? .semibold : .regular))
             .foregroundStyle(filled ? RibbonInk.tab : RibbonInk.text)
             .padding(.horizontal, 14).padding(.vertical, 7)
-            .background(filled ? RibbonInk.text : RibbonInk.raised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(filled ? RibbonInk.text : RibbonInk.raised, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }

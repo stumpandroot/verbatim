@@ -109,7 +109,7 @@ struct DictationRow: View {
             .help("Drag onto a project")
             VStack(alignment: .leading, spacing: 6) {
                 if transcript.status == .failed {
-                    Text(transcript.error ?? "Transcription failed").font(.system(size: 14)).foregroundStyle(Ink.accentText)
+                    Text(transcript.error ?? "Transcription failed").font(.system(size: 14)).foregroundStyle(Ink.danger)
                 } else if let instruction = info?.instruction {
                     Text("“\(instruction)”").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.dim)
                     Text(pasted).font(.system(size: 14.5)).foregroundStyle(Ink.ink).lineLimit(hover ? 12 : 3).textSelection(.enabled)
@@ -134,7 +134,7 @@ struct DictationRow: View {
             Spacer(minLength: 8)
             HStack(spacing: 2) {
                 if working { ProgressView().controlSize(.small).padding(.horizontal, 6) }
-                Button { Paster.copy(pasted); app.toast = Toast("Copied") } label: { ToolLabel(title: "Copy", symbol: "doc.on.doc") }
+                Button { Paster.copy(pasted); app.toast = Toast("Copied") } label: { ToolLabel(title: "Copy", art: .iconCopy) }
                     .buttonStyle(.plain).help("Copy what was pasted")
                 Menu {
                     if info != nil, info?.instruction == nil {

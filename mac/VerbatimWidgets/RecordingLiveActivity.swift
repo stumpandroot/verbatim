@@ -90,7 +90,7 @@ private struct RecordingDot: View {
         if state.saved {
             Image(systemName: "checkmark").resizable().scaledToFit().foregroundStyle(Ink.persimmon).accessibilityLabel("Saved")
         } else if state.isPaused {
-            Image(systemName: "pause.fill").resizable().scaledToFit().foregroundStyle(.white.opacity(0.8)).accessibilityLabel("Paused")
+            Image(systemName: "pause.fill").resizable().scaledToFit().foregroundStyle(.white.opacity(0.8)).accessibilityLabel("Paused")   // brand: system surface
         } else {
             Circle().fill(Ink.persimmon).accessibilityLabel("Recording")
         }
@@ -112,14 +112,14 @@ private struct RecordingButtons: View {
     var body: some View {
         HStack(spacing: 8) {
             Button(intent: ToggleRecordingPauseIntent()) {
-                Image(systemName: state.isPaused ? "play.fill" : "pause.fill").font(.system(size: 15, weight: .semibold))
+                Image(systemName: state.isPaused ? "play.fill" : "pause.fill").font(.system(size: 15, weight: .semibold))   // brand: system surface
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.bordered)
             .tint(Color(hex: Ink.paperHex))
             .accessibilityLabel(state.isPaused ? "Resume" : "Pause")
             Button(intent: StopRecordingIntent()) {
-                Image(systemName: "stop.fill").font(.system(size: 15, weight: .semibold))
+                Image(systemName: "stop.fill").font(.system(size: 15, weight: .semibold))   // brand: system surface
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.borderedProminent)

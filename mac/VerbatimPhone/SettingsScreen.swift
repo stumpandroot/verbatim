@@ -517,10 +517,10 @@ struct SettingsLabel: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint)
                 if let art {
-                    IconGlyph(art: art, size: 20, color: danger ? Ink.accentText : Ink.ink)
+                    IconGlyph(art: art, size: 20, color: danger ? Ink.danger : Ink.ink)
                 } else {
                     Image(systemName: icon).font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(danger ? Ink.accentText : Ink.ink)
+                        .foregroundStyle(danger ? Ink.danger : Ink.ink)
                         .symbolEffect(.bounce, value: bounce)
                         .symbolEffectsRemoved(limitMotion)
                 }
@@ -528,7 +528,7 @@ struct SettingsLabel: View {
             .frame(width: 30, height: 30)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 17)).foregroundStyle(danger ? Ink.accentText : Ink.ink)
+                Text(title).font(.system(size: 17)).foregroundStyle(danger ? Ink.danger : Ink.ink)
                 if let subtitle {
                     Text(subtitle).font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .lineLimit(subtitleLines)

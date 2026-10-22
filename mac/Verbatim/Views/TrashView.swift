@@ -12,7 +12,7 @@ struct TrashView: View {
                     Spacer()
                     if !items.isEmpty {
                         Button("Restore all") { app.restore(items.map(\.id)) }.buttonStyle(.bordered)
-                        Button("Empty", role: .destructive) { confirmEmpty(items) }.buttonStyle(.bordered).tint(Ink.coral)
+                        Button("Empty", role: .destructive) { confirmEmpty(items) }.buttonStyle(.bordered).tint(Ink.danger)
                     }
                 }
                 Text("Transcripts stay here for 30 days, then they and their audio are deleted for good.")
@@ -30,7 +30,7 @@ struct TrashView: View {
                                 }
                                 Spacer()
                                 Button("Restore") { app.restore([t.id]) }.buttonStyle(.bordered).controlSize(.small)
-                                Button("Delete now", role: .destructive) { app.purge([t.id]) }.buttonStyle(.plain).foregroundStyle(Ink.coral).font(.system(size: 12.5))
+                                Button("Delete now", role: .destructive) { app.purge([t.id]) }.buttonStyle(.plain).foregroundStyle(Ink.danger).font(.system(size: 12.5))
                             }
                             .padding(.horizontal, 16).padding(.vertical, 12)
                             if i < items.count - 1 { Divider().opacity(0.5) }

@@ -29,7 +29,7 @@ struct SegmentLine: View {
         guard q.count >= 2 else { return a }
         var searchStart = a.startIndex
         while searchStart < a.endIndex, let r = a[searchStart...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
-            a[r].backgroundColor = Ink.coral.opacity(0.28)
+            a[r].backgroundColor = Ink.match
             searchStart = r.upperBound
         }
         return a
@@ -55,7 +55,7 @@ struct SegmentLine: View {
     }
 
     private var highlight: Color {
-        if current { return Ink.irisTint }
+        if current { return Ink.playing }
         if saved { return Ink.saved }
         if selected { return Ink.wash }
         if hover { return Ink.iris.opacity(0.045) }
@@ -136,14 +136,9 @@ struct SegmentLine: View {
         .animation(Motion.snap, value: selected)
     }
 
-    /// Speaker markers: brand hues as small markers only; the name is always written out.
-    /// Built once: each entry resolves for light or dark when drawn.
-    private static let palette: [Color] = [Ink.accentText, Ink.sageText, Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor(hex: 0xE3A3B8) : NSColor(hex: 0xA34D6B) }), Color(nsColor: NSColor(name: nil) { a in a.isDark ? NSColor(hex: 0xE8C27A) : NSColor(hex: 0x8A6414) }), Ink.dim]
-
-    private func speakerColor(_ id: String) -> Color {
-        let palette = Self.palette
-        return palette[max(0, (Int(id.dropFirst()) ?? 1) - 1) % palette.count]
-    }
+    /// Speakers are neutral (DESIGN.md §1): an ink dot and the name in ink, so they never borrow an action hue or
+    /// the saved and playing washes beside them.
+    private func speakerColor(_ id: String) -> Color { Ink.ink }
     private func commit() {
         guard let from = fixing else { return }
         let to = replacement.trimmingCharacters(in: .whitespaces)

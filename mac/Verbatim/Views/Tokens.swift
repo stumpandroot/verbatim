@@ -67,6 +67,14 @@ enum Ink {
     /// text on brand color fills).
     static let inkFixed = Color(hex: inkHex)
     static let readerFixed = Color(hex: readerHex)
+    static let paperFixed = Color(hex: paperHex)
+    static let persimmonFixed = Color(hex: persimmonHex)
+    /// Fixed text colors for surfaces that keep one look in both modes (the dictation bar's paper and ink tabs, the
+    /// keyboard's lock screen): deep persimmon and mute on paper; light persimmon and light mute on ink.
+    static let accentTextOnPaper = Color(hex: 0xB23F24)
+    static let accentTextOnInk = Color(hex: 0xFF8A6B)
+    static let muteOnPaper = Color(hex: 0x606962)
+    static let muteOnInk = Color(hex: 0xA1A29A)
 
     /// Reliable primary controls: ink fill with a reader-white label (cream with an ink label in dark).
     static let interactive = dyn(inkHex, 0xE9E3D6)
@@ -114,6 +122,12 @@ enum Ink {
     static let lime = butter
     static let limeTint = butterTint
     static let limeText = sageText
+
+    #if os(iOS)
+    /// Paper and ink as UIColors, for UIKit surfaces (the keyboard's background and its globe key).
+    static let paperUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0x18241F : paperHex) }
+    static let inkUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0xF5F0E6 : inkHex) }
+    #endif
 
     static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
         make { isDark, _ in isDark ? PColor(hex: dark) : PColor(hex: light) }
