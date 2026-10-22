@@ -227,6 +227,8 @@ final class LiveCaptions: ObservableObject {
             // The parts go once the mix is written; if it couldn't be, they stay in the recordings folder.
             if let mixed { for piece in pieces { for t in piece where t.url.standardizedFileURL != mixed.0.standardizedFileURL { Self.remove(t.url) } } }
             self.saving = false
+            // Read before it's handed to the Store: with iCloud the move into the audio folder finishes later.
+            let wave = mixed.map { Waveform.envelope(of: $0.0) } ?? []
             guard let (url, duration) = mixed, duration >= 0.5, let name = app.store.adoptRecording(url) else {
                 if let mixed { Self.remove(mixed.0) }
                 self.status = "Couldn't save the recording."
@@ -234,7 +236,7 @@ final class LiveCaptions: ObservableObject {
             }
             var t = Transcript(title: title, source: hadApp ? .app : .voiceMemo, sourceLabel: "Live captions",
                                duration: duration, audioFileName: name, model: "")
-            t.waveform = Waveform.envelope(of: Paths.audio.appendingPathComponent(name))
+            t.waveform = wave
             app.enqueue(t)
             app.toast = Toast("Saved. Transcribing in your Library.")
             self.status = "Saved. Transcribing in your Library."

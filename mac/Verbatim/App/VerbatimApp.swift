@@ -7,6 +7,8 @@ struct VerbatimApp: App {
     @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 
     init() {
+        // The iCloud container lookup starts on a background thread before the Store loads (Cloud.prefetchContainer).
+        Cloud.prefetchContainer()
         Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))")
         // `-bench <clips dir> -benchOut <report.json>`: run the accuracy and latency bench, then quit (Bench.swift).
         if Bench.isRequested { Bench.start() }

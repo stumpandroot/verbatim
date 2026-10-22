@@ -4,6 +4,8 @@ import SwiftUI
 struct VerbatimPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
     @StateObject private var app = PhoneState()
+    /// The iCloud container lookup starts on a background thread before the Store loads (Cloud.prefetchContainer).
+    init() { Cloud.prefetchContainer() }
     var body: some Scene {
         WindowGroup {
             PhoneRoot()

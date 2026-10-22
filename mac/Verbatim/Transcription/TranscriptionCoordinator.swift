@@ -333,6 +333,8 @@ final class TranscriptionCoordinator: ObservableObject {
         let options = jobOptions(id, t)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
+                // A recording just handed to iCloud is moved into the audio folder in the background first.
+                await self.store.waitForAdoption(of: url)
                 if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
                 let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
@@ -427,6 +429,8 @@ final class TranscriptionCoordinator: ObservableObject {
         let options = jobOptions(id, t)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
+                // A recording just handed to iCloud is moved into the audio folder in the background first.
+                await self.store.waitForAdoption(of: url)
                 if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
                 let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
@@ -491,6 +495,8 @@ final class TranscriptionCoordinator: ObservableObject {
         store.setStage(id, "Adding the new recording")
         runningTask = Task.detached(priority: .userInitiated) {
             do {
+                await self.store.waitForAdoption(of: url)
+                await self.store.waitForAdoption(of: part)
                 guard await Cloud.ensureDownloaded(url), await Cloud.ensureDownloaded(part) else {
                     throw NSError(domain: "Verbatim", code: 22, userInfo: [NSLocalizedDescriptionKey: "The recordings haven't finished downloading from iCloud."])
                 }

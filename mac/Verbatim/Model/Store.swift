@@ -37,13 +37,67 @@ enum Paths {
 /// entitlement (CI builds); everything then works locally exactly as before.
 enum Cloud {
     static let containerID = "iCloud.co.stumpandroot.verbatim"
-    /// Verbatim's folder in iCloud whenever this device could sync (signed in, entitled), on or off.
-    static let container: URL? = {
-        if ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" { return nil }
-        guard FileManager.default.ubiquityIdentityToken != nil,
-              let c = FileManager.default.url(forUbiquityContainerIdentifier: containerID) else { return nil }
-        return c.appendingPathComponent("Documents", isDirectory: true).appendingPathComponent("Verbatim", isDirectory: true)
-    }()
+    /// Verbatim's folder in iCloud whenever this device could sync (signed in, entitled), on or off. The same
+    /// value for the whole launch. `url(forUbiquityContainerIdentifier:)` can take seconds, so it's looked up on a
+    /// background thread (`prefetchContainer`, first thing at launch); the path it found last time is used meanwhile
+    /// so launch never waits on it, except the very first time.
+    static var container: URL? { ContainerLookup.shared.value }
+
+    /// Starts the iCloud container lookup on a background thread. Call first thing at launch.
+    static func prefetchContainer() { ContainerLookup.shared.start() }
+
+    /// The lookup behind `container`. Thread-safe.
+    final class ContainerLookup: @unchecked Sendable {
+        static let shared = ContainerLookup()
+        private let lock = NSCondition()
+        private var started = false
+        private var looked: URL?? = nil       // the background lookup's answer, once it has one
+        private var pinned: URL?? = nil       // what `value` answered first: every later call gets the same
+        private static let cacheKey = "cloud.containerPath"
+
+        func start() {
+            lock.lock(); defer { lock.unlock() }
+            guard !started else { return }
+            started = true
+            if ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" { looked = .some(nil); return }
+            Thread.detachNewThread { [self] in
+                let found = Self.lookUp()
+                lock.lock()
+                looked = .some(found)
+                let usedCache = pinned.map { $0 != found } ?? false
+                lock.broadcast()
+                lock.unlock()
+                if let found { UserDefaults.standard.set(found.path, forKey: Self.cacheKey) }
+                else { UserDefaults.standard.removeObject(forKey: Self.cacheKey) }
+                if usedCache { Log.note("iCloud container differs from the one used at launch; the next launch uses \(found?.path ?? "none")") }
+            }
+        }
+
+        var value: URL? {
+            start()
+            lock.lock(); defer { lock.unlock() }
+            if let p = pinned { return p }
+            if let l = looked { pinned = l; return l }
+            // Signed in, and the lookup found the folder before: use it now, without waiting.
+            if FileManager.default.ubiquityIdentityToken != nil, let path = UserDefaults.standard.string(forKey: Self.cacheKey),
+               FileManager.default.fileExists(atPath: path) {
+                let u = URL(fileURLWithPath: path, isDirectory: true)
+                pinned = .some(u)
+                return u
+            }
+            // First launch with iCloud (nothing cached): wait for the background lookup.
+            if Thread.isMainThread { Log.note("iCloud container: first lookup, waiting for it") }
+            while looked == nil { lock.wait() }
+            pinned = looked
+            return looked ?? nil
+        }
+
+        private static func lookUp() -> URL? {
+            guard FileManager.default.ubiquityIdentityToken != nil,
+                  let c = FileManager.default.url(forUbiquityContainerIdentifier: Cloud.containerID) else { return nil }
+            return c.appendingPathComponent("Documents", isDirectory: true).appendingPathComponent("Verbatim", isDirectory: true)
+        }
+    }
     /// Settings › iCloud sync. On unless the person turned it off. Read once at launch, like `root`.
     static let syncKey = "cloud.sync"
     static var wantsSync: Bool { UserDefaults.standard.object(forKey: syncKey) as? Bool ?? true }
@@ -475,8 +529,10 @@ final class Store: ObservableObject {
     /// continuing (RecordingSafety.swift). Orphans of a second or less are deleted once they're a week old.
     private func adoptOrphans(skipped: [String: [ClosedRange<Double>]] = [:]) {
         let fm = FileManager.default
-        let known = Set(transcripts.compactMap(\.audioFileName))
+        // Names a transcript points at (its audio, or a continued recording waiting to be joined).
+        let known = Set(transcripts.compactMap(\.audioFileName)).union(transcripts.compactMap(\.pendingAppend))
         let files = (try? fm.contentsOfDirectory(at: Paths.recordings, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        retryAdoptions(files, known: known)
         var recovered: [UUID] = []
         // Not a recording in progress (recovery may finish after a new one started), and not a leftover segment.
         for f in files where !known.contains(f.lastPathComponent) && !f.lastPathComponent.hasPrefix(".") && RecordingSegments.parse(f) == nil
@@ -629,7 +685,7 @@ final class Store: ObservableObject {
         var dest = Paths.audio.appendingPathComponent(url.lastPathComponent)
         guard url.standardizedFileURL != dest.standardizedFileURL else { return url.lastPathComponent }
         // Never two transcripts on one file: a name already in the audio folder (or in use) gets a fresh one.
-        let used = Set(transcripts.compactMap(\.audioFileName))
+        let used = Set(transcripts.compactMap(\.audioFileName)).union(adopting.keys)
         if FileManager.default.fileExists(atPath: url.path) {
             var n = 2
             let stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
@@ -637,15 +693,56 @@ final class Store: ObservableObject {
                 dest = Paths.audio.appendingPathComponent("\(stem) \(n).\(ext)"); n += 1
             }
         }
+        if Cloud.enabled {
+            // Moving into iCloud (`setUbiquitous`) can wait on the iCloud daemon, so it never runs on the main
+            // thread: the name is returned now and the move finishes in the background. Jobs that read the file
+            // wait for it (`waitForAdoption`). If the move fails, the recording stays in the recordings folder and
+            // the next launch moves it (`retryAdoptions`).
+            guard FileManager.default.fileExists(atPath: url.path) else { Log.note("adoptRecording: \(url.lastPathComponent) isn't there"); return nil }
+            moveIntoCloud(url, to: dest)
+            return dest.lastPathComponent
+        }
         do {
-            if Cloud.enabled { try FileManager.default.setUbiquitous(true, itemAt: url, destinationURL: dest) }
-            else { try FileManager.default.moveItem(at: url, to: dest) }
+            try FileManager.default.moveItem(at: url, to: dest)
             return dest.lastPathComponent
         } catch {
             Log.note("adoptRecording failed: \(error)")
             // The move didn't happen: the recording is still where it was, so say so rather than pointing at
             // some other file of the same name.
             return nil
+        }
+    }
+
+    /// Moves into iCloud in progress, by file name in the audio folder.
+    private var adopting: [String: Task<Void, Never>] = [:]
+
+    private func moveIntoCloud(_ url: URL, to dest: URL) {
+        let name = dest.lastPathComponent
+        let task = Task.detached(priority: .userInitiated) {
+            do { try FileManager.default.setUbiquitous(true, itemAt: url, destinationURL: dest) }
+            catch { Log.note("adoptRecording: couldn't move \(name) into iCloud (\(error)); the next launch tries again") }
+        }
+        adopting[name] = task
+        Task { [weak self] in
+            await task.value
+            self?.adopting[name] = nil
+        }
+    }
+
+    /// Waits until a recording handed to iCloud (`adoptRecording`) is in the audio folder. Returns at once otherwise.
+    func waitForAdoption(of url: URL) async {
+        if let t = adopting[url.lastPathComponent] { await t.value }
+    }
+
+    /// At launch: a recording a transcript points at that's still in the recordings folder (its move into iCloud
+    /// failed last time) is moved again.
+    private func retryAdoptions(_ files: [URL], known: Set<String>) {
+        let fm = FileManager.default
+        for f in files where known.contains(f.lastPathComponent) && !RecordingSegments.isActive(f) {
+            let dest = Paths.audio.appendingPathComponent(f.lastPathComponent)
+            guard !fm.fileExists(atPath: dest.path), adopting[dest.lastPathComponent] == nil else { continue }
+            Log.note("recovery: moving \(f.lastPathComponent) into the audio folder again")
+            if Cloud.enabled { moveIntoCloud(f, to: dest) } else { try? fm.moveItem(at: f, to: dest) }
         }
     }
 
