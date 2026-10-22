@@ -228,7 +228,7 @@ struct LibraryScreen: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(t.title).font(.system(size: 17, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(2)
                 Spacer(minLength: 4)
-                Text(Formats.pattern("h:mm a").string(from: t.createdAt)).font(Ink.mono(12.5)).foregroundStyle(Ink.mute)
+                Text(Formats.pattern("h:mm a").string(from: t.createdAt)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(2).lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)

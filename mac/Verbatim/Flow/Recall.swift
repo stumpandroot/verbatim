@@ -490,7 +490,7 @@ private struct RecallRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(Recall.when(item.date)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                    Text(Recall.when(item.date)).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
                     if !item.source.isEmpty {
                         Text(item.source).font(.system(size: 11.5)).foregroundStyle(Ink.mute).lineLimit(1)
                     }

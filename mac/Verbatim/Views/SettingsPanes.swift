@@ -460,7 +460,7 @@ private struct ExportPaneStepper<V: Strideable>: View {
     var body: some View {
         ExportPaneRow(title) {
             HStack(spacing: 8) {
-                Text(format(value)).font(Ink.mono(13)).foregroundStyle(Ink.ink).monospacedDigit()
+                Text(format(value)).font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.ink).monospacedDigit()
                 Stepper(title, value: $value, in: range, step: step).labelsHidden().controlSize(.small)
             }
         }

@@ -144,7 +144,7 @@ private struct TrackRow: View {
                 .frame(width: 34, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.fileName).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1).truncationMode(.middle)
-                Text(meta).font(Ink.mono(11)).foregroundStyle(track.problem == nil ? Ink.mute : Ink.accentText).lineLimit(1)
+                Text(meta).font(.system(size: 11)).monospacedDigit().foregroundStyle(track.problem == nil ? Ink.mute : Ink.danger).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {

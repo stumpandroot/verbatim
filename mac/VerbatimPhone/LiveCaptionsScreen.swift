@@ -224,7 +224,7 @@ struct LiveCaptionsScreen: View {
             Text("Live captions · in the room").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).lineLimit(1)
             Spacer(minLength: 8)
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(captionClock(captions.elapsed)).font(Ink.mono(11, weight: .medium)).tracking(1.2).foregroundStyle(Ink.mute)
+                Text(captionClock(captions.elapsed)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             .accessibilityLabel("Elapsed time")
         }

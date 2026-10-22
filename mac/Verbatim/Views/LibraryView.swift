@@ -174,7 +174,7 @@ struct LibraryView: View {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                                     Text(t.title).font(Ink.serif(22)).foregroundStyle(Ink.ink).lineLimit(1)
                                     Text("\(Formats.pattern("h:mm a").string(from: t.createdAt)) · \(t.duration.timecode)")
-                                        .font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+                                        .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
                                     Spacer(minLength: 0)
                                 }
                                 Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(3).lineLimit(2)

@@ -99,8 +99,8 @@ struct DictationRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(time).font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
-                Text(transcript.duration.timecode).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                Text(time).font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
+                Text(transcript.duration.timecode).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             .frame(width: 64, alignment: .leading)
             .contentShape(Rectangle())

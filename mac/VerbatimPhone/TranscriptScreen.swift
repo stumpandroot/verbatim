@@ -180,7 +180,7 @@ struct TranscriptScreen: View {
                 .font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1...3)
             HStack(spacing: 6) {
                 Text(t.sourceLabel)
-                if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(Ink.mono(13)) }
+                if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(.system(size: 13)).monospacedDigit() }
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
                 if let k = t.kind { Text("·"); Text(k.label) }
                 // The language it was transcribed in, and Transcribe again in… another one.

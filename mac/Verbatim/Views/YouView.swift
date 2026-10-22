@@ -346,7 +346,7 @@ struct YouView: View {
                             .rotationEffect(.degrees(open ? 90 : 0))
                     }
                     Spacer()
-                    Text(words.formatted()).font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+                    Text(words.formatted()).font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
                 }
                 .contentShape(Rectangle())
             }
@@ -377,7 +377,7 @@ struct YouView: View {
                 Capsule().fill(Ink.butter).frame(width: max(4, 90 * min(1, share)))
             }
             .frame(width: 90, height: 5)
-            Text(n.formatted()).font(Ink.mono(11)).foregroundStyle(Ink.mute).frame(width: 46, alignment: .trailing)
+            Text(n.formatted()).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute).frame(width: 46, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(host), \(n.formatted()) words")
@@ -480,7 +480,7 @@ struct DayBars: View {
         let radius: CGFloat = span == .week ? 6 : 3
         return VStack(spacing: 6) {
             Text(future ? "—" : (labeled ? n.formatted() : " "))
-                .font(Ink.mono(10.5)).foregroundStyle(future ? Ink.faint : Ink.mute)
+                .font(.system(size: 10.5)).monospacedDigit().foregroundStyle(future ? Ink.faint : Ink.mute)
                 .lineLimit(1).fixedSize()
                 .frame(height: 13)
             UnevenRoundedRectangle(topLeadingRadius: n == 0 || future ? 2 : radius, bottomLeadingRadius: 2, bottomTrailingRadius: 2, topTrailingRadius: n == 0 || future ? 2 : radius, style: .continuous)
@@ -640,7 +640,7 @@ struct AboutMeSheet: View {
             .frame(height: 140)
             .cardSurface(radius: Radius.row)
             HStack {
-                Text("\(aboutMe.count)/\(YouProfile.aboutMeLimit)").font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                Text("\(aboutMe.count)/\(YouProfile.aboutMeLimit)").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
                     .accessibilityLabel("\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters")
                 Spacer()
                 Button("Done") { dismiss() }

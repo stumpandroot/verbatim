@@ -17,7 +17,7 @@ struct DictationsCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text("Dictations").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
-                    Text("\(dictations.count)").font(Ink.mono(12.5)).foregroundStyle(Ink.mute)
+                    Text("\(dictations.count)").font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
                 }
                 if let latest = dictations.first {
                     Text(Self.firstWords(latest)).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(1)

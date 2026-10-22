@@ -662,7 +662,7 @@ struct AboutMeScreen: View {
                         .font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    Text("\(aboutMe.count)/\(Profile.aboutMeLimit)").font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                    Text("\(aboutMe.count)/\(Profile.aboutMeLimit)").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
                         .accessibilityLabel("\(aboutMe.count) of \(Profile.aboutMeLimit) characters")
                 }
                 .padding(.horizontal, 4)

@@ -46,7 +46,7 @@ struct PhoneDocument: View {
                 }
             }
             if let w = working {
-                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.persimmon); Text("Cleaning up \(Int(w * 100))%").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
+                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.ink); Text("Cleaning up \(Int(w * 100))%").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute) }
             }
             if !visibleLints.isEmpty {
                 Button { showLints = true } label: {

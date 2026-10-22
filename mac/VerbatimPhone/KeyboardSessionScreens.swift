@@ -132,7 +132,7 @@ struct KeyboardSetupScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("\(i + 1).").font(Ink.mono(15, weight: .medium)).foregroundStyle(Ink.accentText)
+                            Text("\(i + 1).").font(Ink.mono(15, weight: .medium)).foregroundStyle(Ink.mute)
                             Text(step).font(.system(size: 16)).foregroundStyle(Ink.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -223,9 +223,9 @@ private struct SessionCard: View {
                     if session.isOn {
                         if let ends = session.endsAt {
                             (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))
-                                .font(Ink.mono(13)).foregroundStyle(Ink.mute)
+                                .font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
                         } else {
-                            Text("Runs until you end it").font(Ink.mono(13)).foregroundStyle(Ink.mute)
+                            Text("Runs until you end it").font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
                         }
                     }
                 }

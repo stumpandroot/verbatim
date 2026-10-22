@@ -147,8 +147,8 @@ struct ExportSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Text(label).foregroundStyle(Ink.ink).lineLimit(1)
-                if let badge { Text(badge).font(Ink.mono(10, weight: .medium)).tracking(1).foregroundStyle(Ink.mute) }
-                if let detail { Text(detail).font(Ink.mono(11)).foregroundStyle(Ink.mute) }
+                if let badge { Text(badge).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute) }
+                if let detail { Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute) }
                 Spacer(minLength: 10)
                 control()
             }
@@ -191,7 +191,7 @@ struct ExportSheet: View {
 
     private func stepper<V: Strideable & Comparable>(_ b: Binding<V>, _ range: ClosedRange<V>, _ step: V.Stride, _ text: @escaping (V) -> String) -> some View {
         HStack(spacing: 8) {
-            Text(text(b.wrappedValue)).font(Ink.mono(12.5)).foregroundStyle(Ink.dim).frame(minWidth: 44, alignment: .trailing)
+            Text(text(b.wrappedValue)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.dim).frame(minWidth: 44, alignment: .trailing)
             Stepper("", value: b, in: range, step: step).labelsHidden().controlSize(.small)
         }
     }

@@ -343,7 +343,7 @@ struct WatchActivitySheet: View {
                 Text("\(e.folder) · \(e.detail)").font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(e.date, format: .dateTime.month(.abbreviated).day().hour().minute()).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+            Text(e.date, format: .dateTime.month(.abbreviated).day().hour().minute()).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
             if let id = e.transcriptID, app.store.transcript(id) != nil {
                 Button("Open") { done(); NSApp.activate(ignoringOtherApps: true); app.go(.transcript(id)) }
                     .buttonStyle(.plain).font(.system(size: 12.5)).foregroundStyle(Ink.accentText)
