@@ -36,7 +36,7 @@ struct AddFromLibrarySheet: View {
                 }
             }
             .padding(.horizontal, 12).frame(height: 36)
-            .cardSurface(radius: 10)
+            .cardSurface(radius: Radius.button)
             LibraryFilterBar(filter: $filter, items: candidates, searching: searching, wraps: true) { filter.save(LibraryFilter.addSheetKey) }
             list(shown)
             HStack(spacing: 8) {
@@ -78,8 +78,8 @@ struct AddFromLibrarySheet: View {
                 }
             }
         }
-        .cardSurface(radius: 14)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
     }
 
@@ -97,7 +97,7 @@ struct AddFromLibrarySheet: View {
                         Text(Formats.style(date: .medium, time: .none).string(from: t.createdAt))
                         if t.duration > 0 { Text("·"); Text(t.duration.timecode) }
                     }
-                    .font(Ink.mono(11.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                    .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name {

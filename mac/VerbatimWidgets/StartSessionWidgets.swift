@@ -13,7 +13,7 @@ struct StartSessionControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
             ControlWidgetButton(action: StartKeyboardSessionIntent()) {
-                Label("Start dictation session", systemImage: "mic.fill")
+                Label("Start dictation session", systemImage: "mic.fill")   // brand: system surface
             }
         }
         .displayName("Start dictation session")
@@ -62,7 +62,7 @@ private struct StartSessionAccessoryView: View {
             }
             .accessibilityLabel("Start a Verbatim dictation session")
         case .accessoryInline:
-            Label("Start dictating", systemImage: "mic.fill")
+            Label("Start dictating", systemImage: "mic.fill")   // brand: system surface
         default:
             HStack(spacing: 8) {
                 BarsMark(color: .white).frame(width: 26, height: 26)

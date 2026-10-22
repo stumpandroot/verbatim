@@ -387,8 +387,8 @@ struct RecallPanelView: View {
         }
         .frame(width: RecallPanelController.size.width, height: RecallPanelController.size.height)
         .background(Ink.paper)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.outlineStrong.opacity(0.6)))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.outlineStrong.opacity(0.6)))
         .opacity(model.shown ? 1 : 0)
         .offset(y: model.shown || limitMotion ? 0 : -8)
         .animation(limitMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.24, bounce: 0), value: model.shown)
@@ -407,7 +407,7 @@ struct RecallPanelView: View {
                 .foregroundStyle(Ink.ink)
                 .focused($searchFocused)
                 .accessibilityLabel("Search your dictations")
-            Text("RECENT DICTATIONS").font(Ink.mono(10.5, weight: .medium)).tracking(1.1).foregroundStyle(Ink.mute)
+            Text("Recent dictations").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 .lineLimit(1).fixedSize()
         }
         .padding(.horizontal, 16).frame(height: 52)
@@ -490,7 +490,7 @@ private struct RecallRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(Recall.when(item.date)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                    Text(Recall.when(item.date)).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
                     if !item.source.isEmpty {
                         Text(item.source).font(.system(size: 11.5)).foregroundStyle(Ink.mute).lineLimit(1)
                     }
@@ -507,7 +507,7 @@ private struct RecallRow: View {
                 .accessibilityHidden(!selected)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selected ? Ink.wash : Color.clear))
+        .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(selected ? Ink.wash : Color.clear))
         .contentShape(Rectangle())
         .onHover { if $0 { onHover() } }
         .onTapGesture(perform: onCopy)
@@ -615,7 +615,7 @@ struct RecallMenuSection: View {
             VStack(alignment: .leading, spacing: 0) {
                 Button { expanded.toggle() } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath").foregroundStyle(Ink.iris).frame(width: 26)
+                        ArtIcon(art: .iconRecent, size: 16).foregroundStyle(Ink.iris).frame(width: 26)
                         Text("Recent dictations").font(.system(size: 12.5, weight: .medium))
                         Spacer()
                         if RecallShortcut.current != .off {
@@ -649,7 +649,7 @@ struct RecallMenuSection: View {
                     .padding(.vertical, 4)
                 }
             }
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
     }
 

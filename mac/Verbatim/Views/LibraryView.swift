@@ -52,7 +52,7 @@ struct LibraryView: View {
                             .buttonStyle(.bordered).keyboardShortcut(selecting ? .cancelAction : .init("s", modifiers: [.command, .shift]))
                         }
                         if let p = app.projectFilter {
-                            Button { app.addFromLibrary = p } label: { Label("Add from Library…", systemImage: "tray.and.arrow.down") }
+                            Button { app.addFromLibrary = p } label: { Label("Add from Library…", art: .iconLibrary, size: 14) }
                                 .buttonStyle(.bordered).keyboardShortcut("l", modifiers: [.command, .shift])
                                 .help("Add transcripts you already have to this project (⇧⌘L)")
                                 .uiTarget("add-from-library")
@@ -167,22 +167,22 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 26) {
             ForEach(JournalDays.group(list)) { day in
                 VStack(alignment: .leading, spacing: 10) {
-                    EditorialSectionHeader(index: day.date.uppercased(), label: day.label)
+                    EditorialSectionHeader(index: day.date, label: day.label)
                     ForEach(day.entries) { t in
                         Button { click(t.id, order: order) } label: {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                                     Text(t.title).font(Ink.serif(22)).foregroundStyle(Ink.ink).lineLimit(1)
                                     Text("\(Formats.pattern("h:mm a").string(from: t.createdAt)) · \(t.duration.timecode)")
-                                        .font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+                                        .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
                                     Spacer(minLength: 0)
                                 }
                                 Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(3).lineLimit(2)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .padding(.horizontal, 16).padding(.vertical, 14)
-                            .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -239,7 +239,7 @@ struct LibraryView: View {
                 Button("No project") { app.move(Array(selection), to: nil) }
                 if !app.store.projects.isEmpty { Divider() }
                 ForEach(app.store.projects) { p in Button(p.name) { app.move(Array(selection), to: p.id) } }
-            } label: { Label("Move to", systemImage: "folder") }
+            } label: { Label("Move to", art: .iconProject, size: 15) }
             .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
             Menu {
                 Button(exportTitle + "…") { openExport() }
@@ -256,14 +256,14 @@ struct LibraryView: View {
                 app.delete(Array(selection)); selection = []
             } label: { Label("Delete", systemImage: "trash") }
             .help("Moves to Recently Deleted for 30 days")
-            .buttonStyle(.plain).foregroundStyle(selection.isEmpty ? Ink.mute : Ink.coral).disabled(selection.isEmpty)
+            .buttonStyle(.plain).foregroundStyle(selection.isEmpty ? Ink.mute : Ink.danger).disabled(selection.isEmpty)
         }
         .font(.system(size: 13))
         .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(Ink.glassTint, in: Capsule())
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(Ink.ink.opacity(0.08)))
-        .shadow(color: Ink.ink.opacity(0.12), radius: 16, y: 6)
+        // Opaque: text never sits on a blur (DESIGN.md §5.1).
+        .background(Ink.bar, in: Capsule())
+        .overlay(Capsule().strokeBorder(Ink.hairline))
+        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 3, y: 1)
     }
 }
 
@@ -331,7 +331,7 @@ struct PassageLine: View {
             }
             Spacer(minLength: 8)
             if let info = transcript.linkInfo, info.supportsTimestamps, hover {
-                Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { Image(systemName: "play.rectangle") }
+                Button { if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) } } label: { ArtIcon(art: .iconPlay, size: 15) }
                     .buttonStyle(.plain).foregroundStyle(Ink.iris).help("Open the video at \(segment.start.timecode)")
             }
         }
@@ -346,7 +346,7 @@ struct PassageLine: View {
         var a = AttributedString(segment.text)
         var start = a.startIndex
         while start < a.endIndex, let r = a[start...].range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) {
-            a[r].backgroundColor = Ink.coral.opacity(0.28); a[r].font = .system(size: 14, weight: .semibold)
+            a[r].backgroundColor = Ink.match; a[r].font = .system(size: 14, weight: .semibold)
             start = r.upperBound
         }
         return a

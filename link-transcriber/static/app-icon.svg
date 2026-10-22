@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Verbatim">
-  <rect width="1024" height="1024" fill="#1E2340"/>
-  <g stroke-linecap="round" fill="none">
-    <path d="M307 262v500" stroke="#6C5CE7" stroke-width="150"/>
-    <path d="M512 332v360" stroke="#FF8A6B" stroke-width="150"/>
-    <path d="M717 402v220" stroke="#B7E67E" stroke-width="150"/>
+  <!-- The app icon (brand/verbatim-icon-persimmon-1024.svg): the bars mark in paper on a persimmon field. -->
+  <rect width="1024" height="1024" fill="#FA6B47"/>
+  <g transform="translate(232 232) scale(4.6667)" fill="#F5F0E6">
+    <rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/>
+    <path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/>
   </g>
 </svg>

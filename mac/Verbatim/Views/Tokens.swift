@@ -50,11 +50,31 @@ enum Ink {
     static let sageTint = dyn(0xE9EFE0, 0x26322A)
     /// A switch that's on: deep sage on paper, a lighter sage on dark, so the white knob always shows.
     static let switchOn = dyn(0x4F6440, 0x6E8A58)
-    static let danger = Color.red
+    /// Errors and destructive actions (DESIGN.md §1): always with an icon and a word, never persimmon.
+    static let danger = dyn(0xB23F24, 0xFF8A6B)
+    /// Butter's text color: small text and glyphs on butter tint (6.4:1 on #FCF0D2).
+    static let butterText = dyn(0x6B5320, 0xE5C77F)
+    /// The Record panel's fill: persimmon nudged lighter (#FB7350), so ink text on it reaches 4.7:1 at any size.
+    /// `persimmon` (#FA6B47) stays the brand and app-icon color.
+    static let recordFill = dyn(0xFB7350, 0xF27A57)
+    /// Neutral chips and tags (kinds, tags, speakers, projects, counts): ink at 6% behind `dim` text.
+    static let neutralChip = make { dark, _ in
+        dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.08) : PColor(hex: inkHex).withAlphaComponent(0.06)
+    }
+    /// The disc behind an icon on a colored tile: ink at 8%, never a white disc (DESIGN.md §3).
+    static let iconDisc = inkFixed.opacity(0.08)
     /// Always-ink and always-reader-white, for surfaces that stay dark or light in both modes (HUD pill, toasts,
     /// text on brand color fills).
     static let inkFixed = Color(hex: inkHex)
     static let readerFixed = Color(hex: readerHex)
+    static let paperFixed = Color(hex: paperHex)
+    static let persimmonFixed = Color(hex: persimmonHex)
+    /// Fixed text colors for surfaces that keep one look in both modes (the dictation bar's paper and ink tabs, the
+    /// keyboard's lock screen): deep persimmon and mute on paper; light persimmon and light mute on ink.
+    static let accentTextOnPaper = Color(hex: 0xB23F24)
+    static let accentTextOnInk = Color(hex: 0xFF8A6B)
+    static let muteOnPaper = Color(hex: 0x606962)
+    static let muteOnInk = Color(hex: 0xA1A29A)
 
     /// Reliable primary controls: ink fill with a reader-white label (cream with an ink label in dark).
     static let interactive = dyn(inkHex, 0xE9E3D6)
@@ -68,6 +88,10 @@ enum Ink {
         dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.36) : PColor(hex: inkHex).withAlphaComponent(0.36)
     }
     static let track = dyn(0xE8E2D6, 0x2A3A33)                  // segmented tracks, progress rails
+    /// Placeholders while a link loads: the title bar, and the striped thumbnail's two stripes.
+    static let placeholder = dyn(0xEEE7DA, 0x26352E)
+    static let stripeA = dyn(0xE9E1D2, 0x24332C)
+    static let stripeB = dyn(0xE2D9C8, 0x2A3A33)
     static let wash = dyn(0xEFE9DD, 0x22312A)                   // selected rows on paper
     static let notes = dyn(0xF1EBDF, 0x1C2A24)                  // notes panel
     /// Saved passage: butter behind ink text, readable in both modes.
@@ -102,6 +126,12 @@ enum Ink {
     static let lime = butter
     static let limeTint = butterTint
     static let limeText = sageText
+
+    #if os(iOS)
+    /// Paper and ink as UIColors, for UIKit surfaces (the keyboard's background and its globe key).
+    static let paperUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0x18241F : paperHex) }
+    static let inkUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0xF5F0E6 : inkHex) }
+    #endif
 
     static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
         make { isDark, _ in isDark ? PColor(hex: dark) : PColor(hex: light) }
@@ -147,6 +177,18 @@ struct Overline: View {
     }
 }
 
+/// Corner radii (DESIGN.md §5.3). Don't round everything the same.
+enum Radius {
+    /// Buttons, fields, and menu rows.
+    static let button: CGFloat = 9
+    /// Rows, sheets, and small cards.
+    static let row: CGFloat = 13
+    /// Tiles and panels.
+    static let tile: CGFloat = 17
+    /// The Record panel.
+    static let record: CGFloat = 22
+}
+
 /// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.
 /// `snap`, `bounce`, and `hero` remain as names but no longer overshoot.
 enum Motion {
@@ -176,8 +218,8 @@ enum Motion {
     static let rise = gentle(0.9)
     /// Press: scale 0.97 in and out.
     static let pressSoft = gentle(0.32)
-    /// Switches settle with a small overshoot.
-    static let toggle = Animation.spring(duration: 0.52, bounce: 0.3)
+    /// Switches settle without overshoot (no bounce in productivity controls).
+    static let toggle = snap
     /// What replaces movement when motion is limited: a short crossfade.
     static let fade = Animation.easeOut(duration: 0.2)
 }

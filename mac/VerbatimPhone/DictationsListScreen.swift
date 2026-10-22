@@ -9,7 +9,7 @@ struct DictationsCard: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.persimmonTint)
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.persimmonTint)
                 IconGlyph(art: .iconDictations, size: 22, color: Ink.ink)
             }
             .frame(width: 40, height: 40)
@@ -17,7 +17,7 @@ struct DictationsCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text("Dictations").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
-                    Text("\(dictations.count)").font(Ink.mono(12.5)).foregroundStyle(Ink.mute)
+                    Text("\(dictations.count)").font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
                 }
                 if let latest = dictations.first {
                     Text(Self.firstWords(latest)).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(1)
@@ -27,8 +27,8 @@ struct DictationsCard: View {
             Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute)
         }
         .padding(12)
-        .cardSurface(radius: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Dictations, \(dictations.count)")
         .accessibilityHint("Opens every dictation")
@@ -73,7 +73,7 @@ struct DictationsListScreen: View {
                         Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
                     }
                     .swipeActions(edge: .leading) {
-                        Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)
+                        Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
                     }
             }
         }

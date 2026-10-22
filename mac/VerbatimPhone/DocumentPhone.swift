@@ -46,12 +46,12 @@ struct PhoneDocument: View {
                 }
             }
             if let w = working {
-                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.persimmon); Text("Cleaning up \(Int(w * 100))%").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
+                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.ink); Text("Cleaning up \(Int(w * 100))%").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute) }
             }
             if !visibleLints.isEmpty {
                 Button { showLints = true } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "text.badge.checkmark")
+                        ArtIcon(art: .iconApplyDictionary, size: 17)
                         Text("\(visibleLints.count) suggestion\(visibleLints.count == 1 ? "" : "s")").font(.system(size: 14, weight: .semibold))
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
@@ -65,8 +65,8 @@ struct PhoneDocument: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 420)
                 .padding(10)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                 .onChange(of: text) { _, v in
                     // Compared with the stored text (not this view's copy), so a Clean up or Undo landing here isn't
                     // mistaken for typing.

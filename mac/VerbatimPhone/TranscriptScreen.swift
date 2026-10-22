@@ -96,10 +96,10 @@ struct TranscriptScreen: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil {
-                            Button { app.player.stop(); app.continueRecording(t.id) } label: { Image(systemName: "record.circle") }
+                            Button { app.player.stop(); app.continueRecording(t.id) } label: { Image(uiImage: BrandArt.capture.templateImage(size: 22, key: "toolbar-continue")) }
                                 .accessibilityLabel("Continue recording")
                         }
-                        Button { showNotes = true } label: { Image(systemName: "note.text") }.accessibilityLabel("Notes")
+                        Button { showNotes = true } label: { Image(uiImage: BrandArt.iconNotes.templateImage(size: 22, key: "toolbar-notes")) }.accessibilityLabel("Notes")
                         Menu {
                             Section("From the original transcript") {
                                 PhoneActionItems { a in
@@ -109,25 +109,25 @@ struct TranscriptScreen: View {
                             Button {
                                 if let why = SummaryAction.unavailableReason { summaryUnavailable = why }
                                 else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
-                            } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }
+                            } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }   // brand: system surface (menu)
                             .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                        } label: { Image(systemName: "wand.and.stars") }
+                        } label: { Image(uiImage: BrandArt.refine.templateImage(size: 22, key: "toolbar-actions")) }
                         .accessibilityLabel("Actions")
                         .disabled(t.status != .ready)
                         Menu {
-                            Button { app.copyText(t, copyVersion) } label: { Label(copyVersion == .cleaned ? "Copy cleaned text" : "Copy text", systemImage: "doc.on.doc") }
+                            Button { app.copyText(t, copyVersion) } label: { Label(copyVersion == .cleaned ? "Copy cleaned text" : "Copy text", systemImage: "doc.on.doc") }   // brand: system surface (menu)
                             Menu {
-                                Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }
+                                Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }   // brand: system surface (menu)
                                 Button { app.copyText(t, copyVersion.other) } label: {
-                                    Label(copyVersion == .cleaned ? "Copy the original" : "Copy the cleaned text", systemImage: "arrow.left.arrow.right")
+                                    Label(copyVersion == .cleaned ? "Copy the original" : "Copy the cleaned text", systemImage: "arrow.left.arrow.right")   // brand: system surface (menu)
                                 }
-                                Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }
+                                Button { app.copyText(t, .engine) } label: { Label("Copy engine words", systemImage: "waveform") }   // brand: system surface (menu)
                                     .disabled(!t.hasEngineWords)
-                            } label: { Label("More ways to copy", systemImage: "doc.on.clipboard") }
+                            } label: { Label("More ways to copy", systemImage: "doc.on.clipboard") }   // brand: system surface (menu)
                             Divider()
                             Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
                             if let u = app.store.audioURL(for: t) {
-                                Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }
+                                Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }   // brand: system surface (menu)
                             }
                         } label: { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Copy and export")
@@ -180,7 +180,7 @@ struct TranscriptScreen: View {
                 .font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1...3)
             HStack(spacing: 6) {
                 Text(t.sourceLabel)
-                if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(Ink.mono(13)) }
+                if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(.system(size: 13)).monospacedDigit() }
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
                 if let k = t.kind { Text("·"); Text(k.label) }
                 // The language it was transcribed in, and Transcribe again in… another one.
@@ -200,12 +200,12 @@ struct TranscriptScreen: View {
             }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
-                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
+                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 18, color: Ink.accentText) }
                     Text(t.stageText).font(.system(size: 14)).foregroundStyle(Ink.dim).lineLimit(2)
                     Spacer(minLength: 4)
                     if t.processingDevice == nil {
                         Menu {
-                            Button { app.retry(t) } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                            Button { app.retry(t) } label: { Label("Try again", systemImage: "arrow.counterclockwise") }
                             Button(role: .destructive) { app.discardPendingAppend(t.id) } label: { Label("Discard new recording", systemImage: "trash") }
                         } label: { Text("Retry").font(.system(size: 14, weight: .semibold)) }
                     } else if t.processingDevice == Device.id {
@@ -213,7 +213,7 @@ struct TranscriptScreen: View {
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 6)
             } else if t.status == .ready, t.stage == "Finding speakers" {
                 HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
@@ -299,7 +299,7 @@ struct TranscriptScreen: View {
                 .accessibilityLabel("Words: \(showEngine ? "engine words" : "with corrections")")
                 .accessibilityIdentifier("original-words")
                 Button { selecting.toggle() } label: {
-                    Label(selecting ? "Done selecting" : "Select text", systemImage: "character.cursor.ibeam")
+                    Label(selecting ? "Done selecting" : "Select text", art: .iconSelect, size: 15)
                         .font(.system(size: 14, weight: .medium)).foregroundStyle(selecting ? Ink.onInteractive : Ink.ink)
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(selecting ? Ink.interactive : Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(Ink.hairline))
@@ -339,7 +339,7 @@ struct TranscriptScreen: View {
                     .buttonStyle(.brandSecondary)
                 }
                 .padding(12)
-                .cardSurface(radius: 12)
+                .cardSurface(radius: Radius.row)
             }
         }
     }
@@ -382,7 +382,7 @@ struct PhoneLines: View {
                         // Tap the name to rename the speaker or move this line to someone else.
                         Menu {
                             if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
-                                Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }
+                                Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }   // brand: system surface (menu)
                             }
                             Section("This line is") {
                                 ForEach(transcript.speakers) { sp in
@@ -390,7 +390,7 @@ struct PhoneLines: View {
                                         Label(sp.label, systemImage: sp.id == s.speaker ? "checkmark" : "person")
                                     }
                                 }
-                                Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }
+                                Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
                             }
                         } label: {
                             HStack(spacing: 4) {
@@ -413,20 +413,20 @@ struct PhoneLines: View {
                             .accessibilityAction(named: "Play from here") { play(s) }
                     }
                     .padding(.vertical, 6).padding(.horizontal, 6)
-                    .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 }
                 .id(s.id)
                 .contentShape(Rectangle())
                 .contextMenu {
                     if app.player.loadedURL != nil {
-                        Button { play(s) } label: { Label("Play from here", systemImage: "play") }
+                        Button { play(s) } label: { Label("Play from here", systemImage: "play") }   // brand: system surface (menu)
                     }
-                    Button { app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true) } label: { Label("Bookmark", systemImage: "bookmark") }
-                    Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }
-                    Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied") } label: { Label("Copy quote", systemImage: "quote.opening") }
+                    Button { app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true) } label: { Label("Bookmark", systemImage: "bookmark") }   // brand: system surface (menu)
+                    Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }   // brand: system surface (menu)
+                    Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied") } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
                     if let info = transcript.linkInfo, info.supportsTimestamps, let u = info.url(at: s.start) {
-                        Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied") } label: { Label("Copy quote with link", systemImage: "link") }
-                        Link(destination: u) { Label("Open video at \(s.start.timecode)", systemImage: "play.rectangle") }
+                        Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied") } label: { Label("Copy quote with link", systemImage: "link") }   // brand: system surface (menu)
+                        Link(destination: u) { Label("Open video at \(s.start.timecode)", systemImage: "play.rectangle") }   // brand: system surface (menu)
                     }
                 }
             }
@@ -488,7 +488,7 @@ struct PhoneDock: View {
                 }
                 .accessibilityLabel("Playback speed, \(PlaybackSync.speedLabel(app.player.rate))")
                 Button { follow.toggle() } label: {
-                    Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    Label("Follow", art: .iconFollow, size: 15)
                         .font(.system(size: 13, weight: .semibold)).labelStyle(.titleAndIcon)
                         .foregroundStyle(follow ? Ink.onInteractive : Ink.ink)
                         .padding(.horizontal, 10).padding(.vertical, 5)
@@ -501,35 +501,35 @@ struct PhoneDock: View {
                 .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
             }
             Slider(value: Binding(get: { min(clock.time, total) }, set: { app.player.seek(to: $0) }), in: 0...total)
-                .tint(Ink.persimmon)
+                .tint(Ink.sageText)
                 .accessibilityLabel("Playback position")
             HStack(spacing: 18) {
                 Color.clear.frame(width: 24, height: 1)
                 Spacer()
-                Button { app.player.seek(to: max(0, clock.time - 5)) } label: { Image(systemName: "gobackward.5") }.accessibilityLabel("Back 5 seconds")
+                Button { app.player.seek(to: max(0, clock.time - 5)) } label: { ArtIcon(art: .iconBack5, size: 24) }.accessibilityLabel("Back 5 seconds")
                 Button { app.player.toggle() } label: {
                     Group {
                         if downloading { ProgressView().tint(Ink.onInteractive) }
-                        else { Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 18, weight: .bold)) }
+                        else { ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 20, lineWidth: 2) }
                     }
                     .foregroundStyle(Ink.onInteractive).frame(width: 50, height: 50)
                 }
                 .buttonStyle(RaisedKeyStyle(fill: Ink.interactive))
                 .disabled(downloading)
                 .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
-                Button { app.player.seek(to: min(total, clock.time + 5)) } label: { Image(systemName: "goforward.5") }.accessibilityLabel("Forward 5 seconds")
+                Button { app.player.seek(to: min(total, clock.time + 5)) } label: { ArtIcon(art: .iconForward5, size: 24) }.accessibilityLabel("Forward 5 seconds")
                 Spacer()
                 Button {
                     let at = clock.time
                     let seg = transcript.segments.first { at >= $0.start && at < $0.end }
                     app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-                } label: { Image(systemName: "bookmark") }.accessibilityLabel("Bookmark this moment")
+                } label: { ArtIcon(art: .bookmark, size: 22) }.accessibilityLabel("Bookmark this moment")
                     .frame(width: 24)
             }
             .font(.system(size: 18)).foregroundStyle(Ink.ink)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .floatingGlass(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .floatingGlass(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
     }
 }
 
@@ -555,9 +555,9 @@ struct PhoneLinkCard: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.track)
-                if let f = info.thumbnailFile { StillImage(file: f).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
-                else { Image(systemName: "play.rectangle").foregroundStyle(Ink.mute) }
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
+                if let f = info.thumbnailFile { StillImage(file: f).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)) }
+                else { IconGlyph(art: .iconPlay, size: 18, color: Ink.mute) }
             }
             .frame(width: 72, height: 42)
             VStack(alignment: .leading, spacing: 2) {
@@ -566,11 +566,11 @@ struct PhoneLinkCard: View {
             }
             Spacer(minLength: 4)
             if let u = URL(string: info.url) {
-                Link(destination: u) { Image(systemName: "play.rectangle").font(.system(size: 18)) }.foregroundStyle(Ink.ink).accessibilityLabel("Open video")
+                Link(destination: u) { ArtIcon(art: .iconPlay, size: 20) }.foregroundStyle(Ink.ink).accessibilityLabel("Open video")
             }
         }
         .padding(8)
-        .cardSurface(radius: 12)
+        .cardSurface(radius: Radius.row)
     }
 }
 
@@ -597,19 +597,19 @@ struct NotesSheet: View {
                     ForEach(app.store.transcript(id)?.notes ?? []) { n in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 5) {
-                                if n.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 11)) }
+                                if n.isBookmark { ArtIcon(art: .bookmark, size: 13) }
                                 if let at = n.at { Text(at.timecode).font(Ink.mono(12)) }
                             }
-                            .foregroundStyle(n.isBookmark ? Ink.sageText : Ink.accentText)
-                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8)) }
+                            .foregroundStyle(n.isBookmark ? Ink.butterText : Ink.dim)
+                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: Radius.button)) }
                             if let action = n.aiAction {
                                 // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
-                                Label("\(action) · Made by Apple Intelligence", systemImage: "sparkles")
-                                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.accentText)
+                                Label("\(action) · Made by Apple Intelligence", art: .iconAI, size: 14)
+                                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim)
                             }
                             Text(n.text).font(.system(size: 15)).foregroundStyle(Ink.ink)
                         }
-                        .listRowBackground(n.isBookmark ? Ink.butterTint : n.segmentId != nil ? Ink.petalTint : Ink.persimmonTint)
+                        .listRowBackground(n.isBookmark ? Ink.butterTint : Ink.card)
                         .onTapGesture { if let at = n.at { app.player.seek(to: at) } }
                     }
                     .onDelete { idx in

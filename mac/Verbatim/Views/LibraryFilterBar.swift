@@ -64,7 +64,7 @@ struct LibraryFilterBar: View {
         return Button(action: action) {
             HStack(spacing: 6) {
                 Text(label)
-                Text("\(n)").font(Ink.mono(size - 1)).opacity(0.75)
+                Text("\(n)").font(.system(size: size - 1)).monospacedDigit().opacity(0.75)
             }
             .font(.system(size: size, weight: small ? .medium : .semibold))
             .foregroundStyle(on ? Ink.onInteractive : Ink.ink)

@@ -7,12 +7,13 @@ struct ContentView: View {
     @State private var sidebarOpen = true
     @State private var newProjectName = ""
     @ObservedObject private var rename = RenameCenter.shared
+    @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
         return HStack(spacing: 0) {
             if sidebarOpen {
-                Sidebar().frame(width: 244).transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .identity))
+                Sidebar().frame(width: 244).transition(.asymmetric(insertion: limitMotion ? .opacity : .move(edge: .leading).combined(with: .opacity), removal: .identity))
             }
             ZStack {
                 Ink.paper
@@ -136,6 +137,8 @@ struct ContentView: View {
     private var transition: AnyTransition {
         // Removal is instant on purpose: an outgoing screen that animates can get stuck on top, fully drawn,
         // until the next navigation (seen on macOS 26). The incoming screen still slides and fades in.
+        // Limit Motion: a crossfade, nothing moves.
+        if limitMotion { return .asymmetric(insertion: ScreenSlide.transition(), removal: .identity) }
         switch app.direction {
         case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 24), removal: .identity)
         case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -24), removal: .identity)

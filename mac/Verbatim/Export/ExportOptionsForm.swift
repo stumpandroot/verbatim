@@ -27,7 +27,7 @@ struct ExportOptionRows: View {
                     Toggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote)
                 }
                 Toggle(isOn: $options.summary) {
-                    HStack(spacing: 6) { Text("Summary"); Text("AI").font(Ink.mono(10, weight: .medium)).tracking(1).foregroundStyle(Ink.mute) }
+                    HStack(spacing: 6) { Text("Summary"); Text("AI").font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute) }
                 }
                 .disabled(!summaryAvailable)
             }
@@ -52,16 +52,16 @@ struct ExportOptionRows: View {
             }
             if showsSubtitles {
                 Stepper(value: $options.subtitles.charsPerLine, in: 16...80) {
-                    LabeledContent("Characters per line") { Text("\(options.subtitles.charsPerLine)").font(Ink.mono(13)) }
+                    LabeledContent("Characters per line") { Text("\(options.subtitles.charsPerLine)").font(.system(size: 13)).monospacedDigit() }
                 }
                 Stepper(value: $options.subtitles.linesPerCaption, in: 1...3) {
-                    LabeledContent("Lines per caption") { Text("\(options.subtitles.linesPerCaption)").font(Ink.mono(13)) }
+                    LabeledContent("Lines per caption") { Text("\(options.subtitles.linesPerCaption)").font(.system(size: 13)).monospacedDigit() }
                 }
                 Stepper(value: $options.subtitles.minDuration, in: 0.3...5, step: 0.1) {
-                    LabeledContent("Shortest caption") { Text(String(format: "%.1f s", options.subtitles.minDuration)).font(Ink.mono(13)) }
+                    LabeledContent("Shortest caption") { Text(String(format: "%.1f s", options.subtitles.minDuration)).font(.system(size: 13)).monospacedDigit() }
                 }
                 Stepper(value: $options.subtitles.maxDuration, in: 2...20, step: 0.5) {
-                    LabeledContent("Longest caption") { Text(ExportOptionRows.seconds(options.subtitles.maxDuration)).font(Ink.mono(13)) }
+                    LabeledContent("Longest caption") { Text(ExportOptionRows.seconds(options.subtitles.maxDuration)).font(.system(size: 13)).monospacedDigit() }
                 }
             }
         }

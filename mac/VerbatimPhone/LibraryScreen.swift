@@ -85,15 +85,15 @@ struct LibraryScreen: View {
                 Section {
                     Button { app.addFromLibrary = p } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: "tray.and.arrow.down").font(.system(size: 15, weight: .semibold))
+                            ArtIcon(art: .iconLibrary, size: 18)
                             Text("Add from Library").font(.system(size: 15, weight: .semibold))
                             Spacer()
                             Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                         }
                         .foregroundStyle(Ink.ink)
                         .padding(.horizontal, 14).frame(minHeight: 48)
-                        .cardSurface(radius: 14)
-                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .cardSurface(radius: Radius.row)
+                        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                     }
                     .buttonStyle(SoftPress())
                     .accessibilityHint("Adds transcripts you already have to this project")
@@ -131,7 +131,7 @@ struct LibraryScreen: View {
             if filter == .kind(.journal), !items.isEmpty {
                 ForEach(JournalDays.group(items)) { day in
                     Section {
-                        EditorialSectionHeader(index: day.date.uppercased(), label: day.label)
+                        EditorialSectionHeader(index: day.date, label: day.label)
                             .padding(.top, 10)
                             .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -168,7 +168,7 @@ struct LibraryScreen: View {
                             Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
                         }
                         .swipeActions(edge: .leading) {
-                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)
+                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
                         }
                 }
             }
@@ -228,14 +228,14 @@ struct LibraryScreen: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(t.title).font(.system(size: 17, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(2)
                 Spacer(minLength: 4)
-                Text(Formats.pattern("h:mm a").string(from: t.createdAt)).font(Ink.mono(12.5)).foregroundStyle(Ink.mute)
+                Text(Formats.pattern("h:mm a").string(from: t.createdAt)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(2).lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
-        .cardSurface(radius: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -289,7 +289,7 @@ struct PhonePassageCard: View {
             }
         }
         .padding(.bottom, 6)
-        .cardSurface(radius: 14)
+        .cardSurface(radius: Radius.row)
     }
 
     private func marked(_ text: String) -> AttributedString {

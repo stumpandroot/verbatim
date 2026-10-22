@@ -3,20 +3,14 @@ import UIKit
 
 // MARK: - Materials
 
-/// Glass for controls that float over content (iOS 26 Liquid Glass), with an opaque fallback under Reduce
-/// Transparency and a material fallback on iOS 17–18. See 01-design-system.md, "Materials ladder".
+/// The surface for controls that float over content and carry text (the player bar): opaque `Ink.bar` with a
+/// hairline, never glass, because text never sits on a blur (DESIGN.md §5.1). Glass stays with the system's own
+/// toolbars and tab bar.
 struct FloatingGlass<S: Shape>: ViewModifier {
     var shape: S
     var interactive = true
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     func body(content: Content) -> some View {
-        if reduceTransparency {
-            content.background(Ink.bar, in: shape).overlay(shape.stroke(Ink.hairline))
-        } else if #available(iOS 26, *) {
-            content.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
-        } else {
-            content.background(.regularMaterial, in: shape).overlay(shape.stroke(Ink.hairline))
-        }
+        content.background(Ink.bar, in: shape).overlay(shape.stroke(Ink.hairline))
     }
 }
 extension View {
@@ -47,8 +41,8 @@ struct TactileButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Ink.ink)
-            .background(configuration.isPressed ? Ink.wash : Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+            .background(configuration.isPressed ? Ink.wash : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
             .shadow(color: Ink.inkFixed.opacity(configuration.isPressed ? 0 : 0.05), radius: 3, y: 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
@@ -62,15 +56,16 @@ struct PhoneRow: View {
     var transcript: Transcript
     var body: some View {
         HStack(spacing: 12) {
-            if let k = transcript.kind, k != .dictation { KindTile(kind: k, size: 40) } else { SourceTile(source: transcript.source) }
+            // Colored by source, as on Home (DESIGN.md §1); the kind is a neutral word in the meta line.
+            SourceTile(transcript: transcript)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
-                    if transcript.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Ink.mute).accessibilityLabel("Pinned") }
+                    if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
                     Text(transcript.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
                 }
                 HStack(spacing: 5) {
                     Text(sourceName)
-                    if transcript.duration > 0 { Text("·"); Text(transcript.duration.timecode).font(Ink.mono(12.5)) }
+                    if transcript.duration > 0 { Text("·"); Text(HomeRecentStyle.length(transcript.duration)).monospacedDigit() }
                     if transcript.speakers.count >= 2 { Text("·"); Text("\(transcript.speakers.count) speakers") }
                     if let k = transcript.kind, k != .dictation { Text("·"); Text(k.label) }
                 }
@@ -78,11 +73,11 @@ struct PhoneRow: View {
                 stateLine
             }
             Spacer(minLength: 6)
-            Text(dateLine).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+            Text(dateLine).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
         }
         .padding(12)
-        .cardSurface(radius: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -98,7 +93,7 @@ struct PhoneRow: View {
             }
             .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
         } else if transcript.status == .failed {
-            HStack(spacing: 6) { IconGlyph(art: .iconAttention, size: 15, color: Ink.accentText); Text("Needs retry") }.font(.system(size: 12.5)).foregroundStyle(Ink.accentText)
+            HStack(spacing: 6) { IconGlyph(art: .iconAttention, size: 15, color: Ink.danger); Text("Needs retry") }.font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
         }
     }
 
@@ -110,25 +105,17 @@ struct PhoneRow: View {
     }
 }
 
+/// A row's source tile: the source's tint and brand icon (voice notes persimmon, files and links sage, app audio
+/// petal, dictation butter), as on Home.
 struct SourceTile: View {
-    var source: SourceKind
+    var transcript: Transcript
     var body: some View {
-        let (art, tint): (BrandArt?, Color) = {
-            switch source {
-            case .voiceMemo, .dictation: return (.capture, Ink.persimmonTint)
-            case .link: return (.play, Ink.sageTint)
-            case .app: return (nil, Ink.petalTint)
-            case .file: return (.document, Ink.butterTint)
-            }
-        }()
-        return ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint)
-            // Rows stay still: list rows don't animate (design system rule).
-            if let art { BrandGlyph(art: art, color: Ink.ink, minLineWidth: 1.3).padding(8) }
-            else { Image(systemName: source.symbol).font(.system(size: 15)).foregroundStyle(Ink.ink) }
-        }
-        .frame(width: 40, height: 40)
-        .accessibilityHidden(true)
+        let style = HomeRecentStyle(transcript)
+        // Rows stay still: list rows don't animate (design system rule).
+        return BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.3).padding(10)
+            .frame(width: 40, height: 40)
+            .background(style.tint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 

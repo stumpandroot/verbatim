@@ -62,8 +62,8 @@ struct QueueView: View {
         }
         .overlay {
             if dropping {
-                RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Ink.iris, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                    .background(Ink.irisTint.opacity(0.5), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.iris, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+                    .background(Ink.wash, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                     .overlay(Text("Drop to add to the queue").font(Ink.serif(22, weight: .regular)).foregroundStyle(Ink.irisDeep))
                     .padding(20).allowsHitTesting(false)
             }
@@ -99,11 +99,11 @@ struct QueueRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: transcript.source.symbol).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.iris)
-                .frame(width: 34, height: 34).background(Ink.irisTint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .frame(width: 34, height: 34).background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(transcript.title).font(.system(size: 14.5, weight: .medium)).foregroundStyle(Ink.ink).lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(status).foregroundStyle(state == .failed ? Ink.coral : Ink.mute)
+                    Text(status).foregroundStyle(state == .failed ? Ink.danger : Ink.mute)
                     if transcript.duration > 0 { Text("·").foregroundStyle(Ink.mute); Text(transcript.duration.timecode).foregroundStyle(Ink.mute) }
                 }
                 .font(.system(size: 12.5)).lineLimit(1)
@@ -132,7 +132,7 @@ struct QueueRow: View {
 
     private var cancelButton: some View {
         Button { app.cancel(transcript.id) } label: { Label("Cancel", systemImage: "xmark") }
-            .buttonStyle(.bordered).controlSize(.small).tint(Ink.coral)
+            .buttonStyle(.bordered).controlSize(.small).tint(Ink.danger)
     }
 
     private var status: String {

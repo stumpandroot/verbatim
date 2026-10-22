@@ -191,7 +191,7 @@ struct CustomizeSidebarSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("SIDEBAR").font(Ink.mono(11, weight: .medium)).tracking(2).foregroundStyle(Ink.mute)
+                Text("Sidebar").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 Text("Customize sidebar").font(Ink.serif(32)).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text("Drag to change the order, and switch off what you don't use. Settings always stays at the bottom.")
@@ -209,7 +209,7 @@ struct CustomizeSidebarSheet: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .frame(height: CGFloat(layout.order.count) * 40 + 8)
-            .cardSurface(radius: 16)
+            .cardSurface(radius: Radius.tile)
             HStack {
                 Button("Restore default order") {
                     withAnimation(limitMotion ? nil : .spring(duration: 0.3, bounce: 0)) { layout.restoreDefault() }

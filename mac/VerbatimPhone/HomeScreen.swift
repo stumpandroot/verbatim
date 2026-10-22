@@ -1,15 +1,13 @@
 import SwiftUI
 import AVFoundation
 
-/// Home (approved mockup "PhoneHome", October 2026): the greeting with your initial, a persimmon Record panel,
-/// four slim start tiles (Import, Link, What's playing, Live captions), the compact Method carousel, This week,
-/// Recent recordings, Recent dictations, and the keyboard's state. Brand icons only (HomeKit.swift); opaque paper.
-/// Whatever you record here shows up on your Mac.
+/// Home (approved mockup "PhoneHome", October 2026, with the Home D rules from mac/DESIGN.md): the greeting with
+/// your initial, the Record panel, four half-height start tiles (Import, Link, What's playing, Live captions), the
+/// compact Method cards on paper, This week, Recent recordings, Recent dictations, and the keyboard's state. Brand
+/// icons only (HomeKit.swift); opaque paper. Whatever you record here shows up on your Mac.
 struct HomeScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.colorSchemeContrast) private var contrast
-    @ObservedObject private var flow = FlowSettings.shared
     /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
     @AppStorage("profile.name") private var storedName = ""
     /// Entrances: the first screenful staggers in on launch and on each switch to Home; rows rise once.
@@ -18,6 +16,8 @@ struct HomeScreen: View {
     @State private var now = Date()
     @State private var micName = HomeScreen.currentMic()
     @State private var recordReplay = 0
+    /// Listens to the mic while a finger is on Record, so the meter shows your real level (DESIGN.md §7).
+    @StateObject private var monitor = HomeLevelMonitor()
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
 
     var body: some View {
@@ -50,6 +50,8 @@ struct HomeScreen: View {
         .background(Ink.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { now = Date(); micName = Self.currentMic() }
+        .onDisappear { monitor.stop() }
+        .onChange(of: app.recorder.isRecording) { _, on in if on { monitor.stop() } }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
             DispatchQueue.main.async { micName = Self.currentMic() }
@@ -69,7 +71,7 @@ struct HomeScreen: View {
         let line = HomeGreeting.line(name: firstName, hour: Calendar.current.component(.hour, from: now))
         return HStack(alignment: .bottom, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(HomeGreeting.dateLine(now)).font(Ink.mono(11)).tracking(2).foregroundStyle(Ink.mute)
+                Text(HomeGreeting.dateLine(now)).font(.system(size: 13 * k, weight: .medium)).foregroundStyle(Ink.mute)
                 // "Good afternoon," on one line and the name on the next, as in the mockup.
                 Text(line.replacingOccurrences(of: ", ", with: ",\n"))
                     .font(Ink.serif(34 * k)).foregroundStyle(Ink.ink)
@@ -82,12 +84,14 @@ struct HomeScreen: View {
                 SettingsPage.open("aboutMe")
                 app.tab = .settings
             } label: {
+                // Neutral: sage means Import, so the avatar is paper with a hairline.
                 ZStack {
-                    Circle().fill(Ink.sage)
+                    Circle().fill(Ink.card)
+                    Circle().strokeBorder(Ink.hairline)
                     if let name = firstName, let first = name.first {
-                        Text(String(first).uppercased()).font(Ink.serif(19)).foregroundStyle(Ink.inkFixed)
+                        Text(String(first).uppercased()).font(Ink.serif(19)).foregroundStyle(Ink.ink)
                     } else {
-                        IconGlyph(art: .iconAboutMe, size: 20, color: Ink.inkFixed)
+                        IconGlyph(art: .iconAboutMe, size: 20, color: Ink.ink)
                     }
                 }
                 .frame(width: 40, height: 40)
@@ -101,36 +105,49 @@ struct HomeScreen: View {
 
     // MARK: Record
 
-    /// Reader white on persimmon, as approved; ink under Increase Contrast (white on persimmon is 2.8:1).
-    private var onPersimmon: Color { Ink.inkFixed }   // ink on persimmon: 4.4:1, like the Method cards; white measured 2.8:1
+    /// Ink on the Record fill (#FB7350): 4.7:1, so every line passes at any size. White would be 2.8:1.
+    private var onRecord: Color { Ink.inkFixed }
 
     private var recordPanel: some View {
-        Button { app.requestRecord() } label: {
+        Button {
+            monitor.stop()
+            app.requestRecord()
+        } label: {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Ready · \(micName)".uppercased()).font(Ink.mono(10.5)).tracking(1.6).lineLimit(1)
-                HomeMeter(bars: 24, barWidth: 5, gap: 7, heights: HomeMeter.phoneHeights, color: onPersimmon)
-                    .frame(height: 44)
+                HStack(spacing: 7) {
+                    Circle().fill(onRecord).frame(width: 7, height: 7).accessibilityHidden(true)
+                    Text("Ready · \(micName)").font(.system(size: 13 * k, weight: .medium)).lineLimit(1)
+                }
+                Group {
+                    if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
+                    else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
+                    else { HomeMeter(barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
+                }
+                .frame(height: 44)
                 HStack(spacing: 14) {
                     ZStack {
-                        Circle().fill(Ink.readerFixed)
-                        DrawOnGlyph(art: .capture, color: Color(hex: Ink.persimmonHex), lineWidth: 1.6, replay: recordReplay)
+                        Circle().fill(Ink.iconDisc)
+                        DrawOnGlyph(art: .capture, color: onRecord, lineWidth: 1.6, replay: recordReplay)
                             .frame(width: 28, height: 28)
                     }
                     .frame(width: 58, height: 58)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Record").font(Ink.serif(30 * k))
-                        Text("A voice note, a meeting, or a thought.").font(.system(size: 13 * k)).opacity(0.9)
+                        Text("A voice note, a meeting, or a thought.").font(.system(size: 14 * k, weight: .semibold))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
-            .foregroundStyle(onPersimmon)
+            .foregroundStyle(onRecord)
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(Ink.recordFill, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
         }
-        .buttonStyle(HomePressStyle())
+        // Touch down listens (after a moment, so a quick tap doesn't open the mic); lifting the finger closes it.
+        .buttonStyle(HomePressStyle(onPress: { pressed in
+            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
+        }))
         .accessibilityLabel("Record")
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
@@ -146,7 +163,8 @@ struct HomeScreen: View {
                 } icon: { replay in
                     DrawOnGlyph(art: .document, color: Ink.inkFixed, lineWidth: 1.25, replay: replay)
                 }
-                HomeTile(title: "Link", fill: Ink.butter, metrics: .phone, hint: "Paste a YouTube, podcast, or file link to transcribe.") {
+                // Sage: a link is an import (butter means Dictate).
+                HomeTile(title: "Link", fill: Ink.sage, metrics: .phone, hint: "Paste a YouTube, podcast, or file link to transcribe.") {
                     app.showLinkSheet = true
                 } icon: { replay in
                     DrawOnGlyph(art: .iconLinks, color: Ink.inkFixed, lineWidth: 1.4, replay: replay)
@@ -155,14 +173,15 @@ struct HomeScreen: View {
             Group {
                 HomeTile(title: "What's playing", fill: Ink.petal, metrics: .phone, hint: "Transcribes sound from TikTok or any app.") {
                     app.showPlayingSheet = true
-                } icon: { _ in
-                    PulsingRingsGlyph(color: Ink.inkFixed, lineWidth: 1.4)
+                } icon: { replay in
+                    DrawOnGlyph(art: .iconVoice, color: Ink.inkFixed, lineWidth: 1.4, replay: replay)
                 }
-                HomeTile(title: "Live captions", fill: Ink.inkFixed, onFill: Color(hex: Ink.paperHex), disc: Ink.readerFixed.opacity(0.14),
-                         edge: Ink.hairline, metrics: .phone, hint: "Shows what's said in the room as captions.") {
+                // Paper with an ink outline, so it never outweighs Record.
+                HomeTile(title: "Live captions", fill: Ink.card, onFill: Ink.ink, disc: Ink.neutralChip,
+                         edge: Ink.ink, edgeWidth: 1.5, metrics: .phone, hint: "Shows what's said in the room as captions.") {
                     app.requestCaptions()
                 } icon: { replay in
-                    TwinkleRefineGlyph(color: Color(hex: Ink.paperHex), lineWidth: 1.25, replay: replay)
+                    DrawOnGlyph(art: .iconCaptions, color: Ink.ink, lineWidth: 1.4, replay: replay)
                 }
             }
         }
@@ -175,22 +194,22 @@ struct HomeScreen: View {
         let latest = HomeCounts.latestRefinable(live)
         let width = 196 * min(k, 1.5)
         return VStack(alignment: .leading, spacing: 10) {
-            EditorialSectionHeader(index: "01", label: "Method")
+            Text("Method").font(.system(size: 12.5 * k, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 10) {
                     CompactMethodCard(feature: .capture, line: "Record or import a file.",
                                       meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
-                                      animated: PhoneMotion.on, hint: "Starts a voice note.") { app.requestRecord() }
+                                      hint: "Starts a voice note.") { app.requestRecord() }
                         .frame(width: width)
                     CompactMethodCard(feature: .refine, line: "Clean up a transcript. The original stays.",
                                       meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
-                                      animated: PhoneMotion.on, hint: "Opens your latest transcript as a document.") {
+                                      hint: "Opens your latest transcript as a document.") {
                         if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
                     }
                     .frame(width: width)
                     CompactMethodCard(feature: .understand, line: "Search, moments, and summaries.",
                                       meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
-                                      animated: PhoneMotion.on, hint: "Opens your saved moments.") { app.tab = .moments }
+                                      hint: "Opens your saved moments.") { app.tab = .moments }
                         .frame(width: width)
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -206,7 +225,7 @@ struct HomeScreen: View {
 
     private var weekCard: some View {
         let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
-        return HomeWeekCard(week: week, saved: week.secondsSaved(typingWPM: flow.typingWPM), compact: true) { EmptyView() }
+        return HomeWeekCard(week: week, recordingsToday: HomeCounts.recordingsToday(app.store.live, now: now), compact: true) { EmptyView() }
     }
 
     // MARK: Recent
@@ -225,7 +244,7 @@ struct HomeScreen: View {
                     }
                 }
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .cardSurface(radius: 16)
+                .cardSurface(radius: Radius.row)
             } else {
                 ForEach(items) { t in
                     Button { app.open(t.id) } label: { HomeRecentRow(transcript: t, compact: true) }
@@ -264,8 +283,8 @@ struct HomeScreen: View {
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .cardSurface(radius: 16)
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .cardSurface(radius: Radius.row)
+                .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             }
             .buttonStyle(SoftPress())
             .accessibilityElement(children: .combine)
@@ -294,35 +313,8 @@ enum SettingsPage {
     }
 }
 
-/// Method cards tilt with their distance from the middle of the row (up to 14° around the vertical axis) and
-/// shrink a little (to 0.94), following the scroll without re-rendering. Flat when motion is limited.
-struct CarouselTilt: ViewModifier {
-    @Environment(\.limitMotion) private var limitMotion
-    func body(content: Content) -> some View {
-        let move = !limitMotion
-        content.visualEffect { c, proxy in
-            let d = move ? scrollDepth(proxy) : 0
-            return c
-                .rotation3DEffect(.degrees(Double(-d * 14)), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-                .scaleEffect(1 - abs(d) * 0.06)
-        }
-    }
-}
-
 /// Opens a transcript straight into its Document view.
 struct DocumentRoute: Hashable { let id: UUID }
-
-/// "Synced", "iCloud off": the state of sync, in one small label.
-struct SyncBadge: View {
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: Cloud.enabled ? "icloud" : "icloud.slash").font(.system(size: 11))
-            Text(Cloud.enabled ? "iCloud" : "On this iPhone").font(Ink.mono(10.5, weight: .medium)).textCase(.uppercase)
-        }
-        .foregroundStyle(Ink.mute)
-        .accessibilityLabel(Cloud.enabled ? "Syncing with iCloud" : "iCloud is off; saved on this iPhone")
-    }
-}
 
 /// Long-press actions shared by every list.
 struct RowActions: View {
@@ -330,7 +322,7 @@ struct RowActions: View {
     var transcript: Transcript
     var body: some View {
         Button { app.togglePin(transcript.id) } label: { Label(transcript.pinned ? "Unpin" : "Pin", systemImage: transcript.pinned ? "pin.slash" : "pin") }
-        Button { RenameCenter.shared.begin(transcript) } label: { Label("Rename…", systemImage: "pencil") }
+        Button { RenameCenter.shared.begin(transcript) } label: { Label("Rename…", systemImage: "pencil") }   // brand: system surface (context menu)
         Menu {
             // One project at a time: choosing another moves it there (the current one has a checkmark).
             ForEach(app.store.projects) { p in
@@ -342,13 +334,13 @@ struct RowActions: View {
             }
             if let current = transcript.projectId, let name = app.store.projects.first(where: { $0.id == current })?.name {
                 Divider()
-                Button { app.move(transcript.id, to: nil); app.say("Removed from \(name)") } label: { Label("Remove from \(name)", systemImage: "folder.badge.minus") }
+                Button { app.move(transcript.id, to: nil); app.say("Removed from \(name)") } label: { Label("Remove from \(name)", systemImage: "folder.badge.minus") }   // brand: system surface (context menu)
             }
             if !app.store.projects.isEmpty { Divider() }
-            Button { app.newProjectFor = transcript.id } label: { Label("New project…", systemImage: "folder.badge.plus") }
-        } label: { Label("Add to project", systemImage: "folder.badge.plus") }
-        if transcript.status == .ready { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }
-        if transcript.status == .failed { Button { app.retry(transcript) } label: { Label("Retry", systemImage: "arrow.clockwise") } }
+            Button { app.newProjectFor = transcript.id } label: { Label("New project…", systemImage: "folder.badge.plus") }   // brand: system surface (context menu)
+        } label: { Label("Add to project", systemImage: "folder.badge.plus") }   // brand: system surface (context menu)
+        if transcript.status == .ready { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }   // brand: system surface (context menu)
+        if transcript.status == .failed { Button { app.retry(transcript) } label: { Label("Retry", systemImage: "arrow.clockwise") } }   // brand: system surface (context menu)
         if transcript.status == .processing, transcript.processingDevice == Device.id { Button { app.cancel(transcript.id) } label: { Label("Cancel transcription", systemImage: "xmark") } }
         Divider()
         Button(role: .destructive) { app.delete([transcript.id]) } label: { Label("Delete", systemImage: "trash") }
@@ -391,10 +383,9 @@ struct RecordScreen: View {
                 .buttonStyle(SoftPress())
                 .accessibilityLabel("Minimize")
                 .accessibilityHint("Keeps recording. Use the bar above the tab bar to come back.")
-                Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: adding == nil ? "New recording" : "Continue recording", color: Ink.dim)
+                Text(adding == nil ? "New recording" : "Continue recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
                 DottedRule().frame(height: 1)
-                Overline(text: adding == nil ? "Voice note" : "Adds to \(adding!.duration.timecode)", color: Ink.mute)
+                Text(adding == nil ? "Voice note" : "Adds to \(HomeRecentStyle.length(adding!.duration))").font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             .padding(.top, 8)
             .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
@@ -415,36 +406,36 @@ struct RecordScreen: View {
                         }
                         ElapsedLabel(live: app.recorder.live, size: 54)
                         // The recording is written to disk as it goes, in 5-minute parts.
-                        Overline(text: "Saved as you go", color: Ink.mute)
+                        Text("Saved as you go").font(.system(size: 13)).foregroundStyle(Ink.mute)
                             .accessibilityLabel("Saved as you go. The recording is written to this iPhone while you talk.")
                     }
                     Spacer(minLength: 8)
                     LiveCaptureMark(live: app.recorder.live, paused: paused).frame(width: 78, height: 100)
                 }
                 RecordWave(live: app.recorder.live, paused: paused).frame(height: 84).padding(.top, 14)
-                Overline(text: "Transcribed on this iPhone", color: Ink.mute).padding(.top, 10)
+                Text("Transcribed on this iPhone").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.top, 10)
             }
             .padding(20)
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 20)
             .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             if paused, let reason = app.autoPauseReason {
                 // Paused by an interruption (a call, a microphone change): say so, and offer Resume right here.
                 HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "phone.arrow.down.left").font(.system(size: 17, weight: .medium)).foregroundStyle(Ink.accentText)
+                    IconGlyph(art: .iconAttention, size: 20, color: Ink.ink)
                         .accessibilityHidden(true)
                     Text(reason).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     Button("Resume") { app.togglePause() }.buttonStyle(.brandPrimary)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 14)
                 .accessibilityElement(children: .combine)
             } else {
-                Overline(text: "Keeps recording with the screen locked", color: Ink.mute)
+                Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(Ink.mute)
                     .frame(maxWidth: .infinity).padding(.top, 14)
                     .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
             }
@@ -467,7 +458,7 @@ struct RecordScreen: View {
                 .frame(maxWidth: .infinity)
                 RoundControl(label: saving ? "Saving…" : adding == nil ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
                     if saving { ProgressView().tint(Ink.readerFixed) }
-                    else { RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
+                    else { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
                 } action: { app.stopRecording() }
                 .frame(maxWidth: .infinity)
                 RoundControl(label: paused ? "Resume" : "Pause", size: 62) {
@@ -534,7 +525,6 @@ struct RoundControl<Icon: View>: View {
                     icon()
                 }
                 .frame(width: size, height: size)
-                .shadow(color: primary ? Ink.persimmon.opacity(0.32) : .clear, radius: 12, y: 6)
                 .frame(height: 100)   // labels line up whatever the circle size
                 Text(label).font(.system(size: 14, weight: primary ? .semibold : .regular)).foregroundStyle(Ink.ink).lineLimit(1).fixedSize()
             }
@@ -634,13 +624,12 @@ struct LinkSheet: View {
                 Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbatim downloads the audio and transcribes it on this iPhone.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                 HStack(spacing: 8) {
-                    Image(systemName: "link").foregroundStyle(Ink.mute)
+                    IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)
                     TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
                 }
                 .padding(12)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
-                .shadow(color: Ink.inkFixed.opacity(0.06), radius: 1, y: 1)
+                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
                 PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
                     .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
                 Spacer()

@@ -17,8 +17,8 @@ struct WhatsPlayingSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
-                        Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                        Overline(text: "App audio", color: Ink.accentText)
+                        Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
+                        Overline(text: "App audio", color: Ink.dim)
                         DottedRule().frame(height: 1)
                     }
                     .accessibilityHidden(true)
@@ -81,12 +81,12 @@ struct WhatsPlayingSheet: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: 16)
+        .cardSurface(radius: Radius.tile)
     }
 
     private func step(_ n: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(n).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.accentText).frame(width: 14, alignment: .leading)
+            Text(n).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.mute).frame(width: 14, alignment: .leading)
             Text(text).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -98,7 +98,7 @@ private struct PlayingStartStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Ink.onInteractive)
-            .background(Ink.interactive.opacity(configuration.isPressed ? 0.86 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Ink.interactive.opacity(configuration.isPressed ? 0.86 : 1), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

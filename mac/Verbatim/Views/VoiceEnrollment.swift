@@ -208,10 +208,10 @@ final class VoiceEnrollment: ObservableObject {
         return min(1, Double(done) / Double(total))
     }
 
-    /// "0:18 OF ABOUT 0:30 · SHURE MV7"
+    /// "0:18 of about 0:30 · Shure MV7"
     var progressLabel: String {
-        var s = "\(Self.clock(elapsed)) OF ABOUT \(Self.clock(Double(aboutSeconds)))"
-        if !micName.isEmpty { s += " · \(micName.uppercased())" }
+        var s = "\(Self.clock(elapsed)) of about \(Self.clock(Double(aboutSeconds)))"
+        if !micName.isEmpty { s += " · \(micName)" }
         return s
     }
 
@@ -556,7 +556,7 @@ struct VoiceQualityPanel: View {
                 .padding(.horizontal, 18).padding(.vertical, 16)
             } else {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("HOW WELL IT KNOWS YOU").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.inkFixed)
+                    Text("How well it knows you").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.inkFixed)
                     VoiceRingsMark().frame(width: 180, height: 120)
                     Text(line).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed)
                         .fixedSize(horizontal: false, vertical: true)
@@ -565,7 +565,7 @@ struct VoiceQualityPanel: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("How well Verbatim knows your voice: \(line)")
     }
@@ -599,7 +599,7 @@ struct VoicePassageCard: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, size > 22 ? 24 : 18).padding(.vertical, size > 22 ? 22 : 18)
-            .cardSurface(radius: 18, fill: Ink.reader)
+            .cardSurface(radius: Radius.tile, fill: Ink.reader)
             .animation(limitMotion ? nil : Motion.touch, value: model.wordsRead)
             .id(model.passageIndex)
             .transition(.opacity)
@@ -626,8 +626,8 @@ struct VoiceProgress: View {
                 }
             }
             .frame(height: 6)
-            Text(model.isStarting ? "STARTING THE MICROPHONE…" : model.progressLabel)
-                .font(Ink.mono(11)).tracking(1.2).foregroundStyle(Ink.mute)
+            Text(model.isStarting ? "Starting the microphone…" : model.progressLabel)
+                .font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
         .accessibilityElement(children: .ignore)
@@ -646,10 +646,10 @@ struct VoiceRecordButton: View {
             ZStack {
                 Circle().fill(Ink.persimmon)
                 if model.isPaused {
-                    Image(systemName: "play.fill").font(.system(size: size * 0.32, weight: .bold)).foregroundStyle(Color(hex: Ink.paperHex))
+                    IconGlyph(art: .iconPlay, size: size * 0.36, color: Ink.inkFixed)
                         .offset(x: size * 0.03)
                 } else {
-                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Color(hex: Ink.paperHex))
+                    RoundedRectangle(cornerRadius: size * 0.06, style: .continuous).fill(Ink.inkFixed)
                         .frame(width: size * 0.26, height: size * 0.26)
                 }
             }

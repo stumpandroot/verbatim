@@ -290,7 +290,7 @@ struct SettingsPaneHeader: View {
     var blurb: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(overline.uppercased()).font(Ink.mono(11, weight: .medium)).tracking(2).foregroundStyle(Ink.mute)
+            Text(overline).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             Text(title).font(Ink.serif(40)).foregroundStyle(Ink.ink).padding(.top, 8)
                 .accessibilityAddTraits(.isHeader)
             if let blurb {
@@ -345,14 +345,14 @@ struct SettingsGroup<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let title {
-                Text(title.uppercased()).font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).padding(.leading, 2)
+                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.leading, 2)
                     .accessibilityAddTraits(.isHeader)
             }
             VStack(alignment: .leading, spacing: 0) { content() }
                 // Each row draws a hairline above itself; the first one tucks under the card's edge.
                 .padding(.top, -1)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .cardSurface(radius: 16)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .cardSurface(radius: Radius.tile)
             if let footer {
                 Text(footer).font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
             }

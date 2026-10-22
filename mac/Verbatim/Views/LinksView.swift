@@ -79,19 +79,19 @@ struct LinkRow: View {
                 Text([info.channel, info.site, info.uploadDisplay, transcript.duration > 0 ? transcript.duration.timecode : nil].compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
                 if transcript.status == .processing { Text(transcript.stageText).font(.system(size: 12)).foregroundStyle(Ink.iris) }
-                if transcript.status == .failed { Text("Transcription failed").font(.system(size: 12)).foregroundStyle(Ink.coral) }
+                if transcript.status == .failed { Text("Transcription failed").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.danger) }
                 if let busy = app.keeping[transcript.id] {
                     Text(busy).font(.system(size: 12)).foregroundStyle(Ink.iris).monospacedDigit()
                 } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
-                    Label("Video kept", systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(Ink.limeText)
+                    Label("Video kept", systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(Ink.sageText)
                         .tapArea { app.showKept(v) }
                 }
             }
             Spacer(minLength: 12)
             HStack(spacing: 8) {
-                Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", systemImage: "play.rectangle") }
+                Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", art: .iconPlay, size: 13) }
                     .buttonStyle(.bordered).fixedSize()
-                Button { app.go(.transcript(transcript.id)) } label: { Label("Transcript", systemImage: "text.alignleft") }
+                Button { app.go(.transcript(transcript.id)) } label: { Label("Transcript", art: .iconTerms, size: 14) }
                     .buttonStyle(.brandPrimary).disabled(transcript.status != .ready).fixedSize()
                 Menu {
                     Button("Copy link") { copy(info.url) }
@@ -124,22 +124,22 @@ struct FrameImage: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 }
 
 struct Thumbnail: View {
     var info: LinkInfo
     var body: some View {
-        RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Ink.track)
+        RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
             .overlay {
                 if let f = info.thumbnailFile, let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(f)) {
                     Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    Image(systemName: "play.rectangle").font(.system(size: 22)).foregroundStyle(Ink.mute)
+                    IconGlyph(art: .iconPlay, size: 22, color: Ink.mute)
                 }
             }
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Ink.hairline))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
     }
 }

@@ -12,7 +12,7 @@ struct SessionStartScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: "Keyboard session", color: Ink.accentText)
+                Overline(text: "Keyboard session", color: Ink.dim)
             }
             .padding(.top, 24)
             .accessibilityElement(children: .combine)
@@ -37,7 +37,7 @@ struct SessionStartScreen: View {
             }
             .padding(22)
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
             .padding(.top, 26)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(session.dictating ? "Listening" : session.isOn ? "Session ready" : "Starting")
@@ -128,11 +128,11 @@ struct KeyboardSetupScreen: View {
                     .font(.system(size: 16)).foregroundStyle(Ink.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Overline(text: "Add the keyboard", color: Ink.mute).padding(.top, 6)
+                Text("Add the keyboard").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("\(i + 1).").font(Ink.mono(15, weight: .medium)).foregroundStyle(Ink.accentText)
+                            Text("\(i + 1).").font(Ink.mono(15, weight: .medium)).foregroundStyle(Ink.mute)
                             Text(step).font(.system(size: 16)).foregroundStyle(Ink.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -140,29 +140,29 @@ struct KeyboardSetupScreen: View {
                     }
                 }
                 .padding(16)
-                .cardSurface(radius: 14)
+                .cardSurface(radius: Radius.row)
 
-                Overline(text: "Sessions", color: Ink.mute).padding(.top, 6)
+                Text("Sessions").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 SessionCard(session: app.session)
 
                 // Only when the keyboard can open Verbatim (never in App Store builds).
                 if Distribution.current.keyboardOpensVerbatim {
                     SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
                                       subtitle: "The first tap opens Verbatim and starts listening; no second tap.", isOn: $autoStart)
-                        .cardSurface(radius: 14)
+                        .cardSurface(radius: Radius.row)
                 }
 
                 SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
                                   subtitle: "Your words appear right away; Verbatim swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
-                    .cardSurface(radius: 14)
+                    .cardSurface(radius: Radius.row)
 
                 SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
                                   subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
-                    .cardSurface(radius: 14)
+                    .cardSurface(radius: Radius.row)
 
                 SettingsToggleRow(icon: "doc.on.clipboard", tint: Ink.persimmonTint, title: "Also copy each dictation",
                                   subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
-                    .cardSurface(radius: 14)
+                    .cardSurface(radius: Radius.row)
 
                 PhoneLowerAudioRow()
 
@@ -172,7 +172,7 @@ struct KeyboardSetupScreen: View {
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Overline(text: "Start a session from anywhere", color: Ink.mute).padding(.top, 6)
+                Text("Start a session from anywhere").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(startWays.enumerated()), id: \.offset) { _, way in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -184,14 +184,14 @@ struct KeyboardSetupScreen: View {
                     }
                 }
                 .padding(16)
-                .cardSurface(radius: 14)
+                .cardSurface(radius: Radius.row)
 
-                Overline(text: "Privacy", color: Ink.mute).padding(.top, 6)
+                Text("Privacy").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 Text("While a session is on, Verbatim keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and never leaves this iPhone. Each dictation is saved in Library › Dictations.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Overline(text: "Why Full Access", color: Ink.mute).padding(.top, 6)
+                Text("Why Full Access").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 Text((Distribution.current.keyboardOpensVerbatim ? "Full Access lets the keyboard open Verbatim to start a session and receive your words from it." : "Full Access lets the keyboard receive your words from Verbatim and play haptics.") + " Listening and transcription happen in the Verbatim app on this iPhone; the keyboard never sends what you type or say anywhere else.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
@@ -223,9 +223,9 @@ private struct SessionCard: View {
                     if session.isOn {
                         if let ends = session.endsAt {
                             (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))
-                                .font(Ink.mono(13)).foregroundStyle(Ink.mute)
+                                .font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
                         } else {
-                            Text("Runs until you end it").font(Ink.mono(13)).foregroundStyle(Ink.mute)
+                            Text("Runs until you end it").font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
                         }
                     }
                 }
@@ -257,6 +257,6 @@ private struct SessionCard: View {
             }
         }
         .padding(16)
-        .cardSurface(radius: 14)
+        .cardSurface(radius: Radius.row)
     }
 }

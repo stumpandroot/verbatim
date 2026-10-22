@@ -132,12 +132,20 @@ extension View {
     func pressable() -> some View { buttonStyle(PressStyle()) }
 }
 
+/// Press: a slight scale; with Limit Motion, a brief dim instead (nothing changes size).
 struct PressStyle: ButtonStyle {
     var scale: CGFloat = 0.96
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? max(scale, 0.97) : 1)
-            .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
+    func makeBody(configuration: Configuration) -> some View { Pressed(configuration: configuration, scale: scale) }
+    private struct Pressed: View {
+        let configuration: ButtonStyleConfiguration
+        var scale: CGFloat
+        @Environment(\.limitMotion) private var limitMotion
+        var body: some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed && !limitMotion ? max(scale, 0.97) : 1)
+                .opacity(configuration.isPressed && limitMotion ? 0.75 : 1)
+                .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
+        }
     }
 }
 

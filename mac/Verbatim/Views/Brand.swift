@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Brand artwork (from Verbatim_Brand_Starter_Kit SVGs)
 //
@@ -103,15 +106,9 @@ struct BrandArt {
 }
 
 extension BrandArt {
-    // The V mark: two pairs of wings meeting in a V (logo SVG, traced and refined by Tim, October 2026).
     /// The app-icon mark: two bars and a last bar with a speech tail, on the 120-unit grid (brand/verbatim-mark-bars.svg).
     static let markBars = BrandArt(box: CGRect(x: 22, y: 18, width: 76, height: 80), fills: [
         .rect(22, 18, 76, 14, 0), .rect(22, 43, 58, 14, 0), .path("M22 68 L98 68 L98 82 L44 82 L22 98 Z")
-    ])
-    static let mark = BrandArt(box: CGRect(x: 363.25, y: 407.09, width: 456.83, height: 346.06), fills: [
-        .path("M569.72 558.55 C568.75 558.91 568.39 559.59 567.22 559.81 C562.43 560.72 551.77 555.03 549.12 551.09 L540.3 537.97 C528.45 520.34 518.57 503.48 497.48 495.66 C495.24 494.83 492.35 493.44 489.96 493.29 L470.22 492.01 L415.3 492.01 C410.73 492.0 403.7 486.59 401.54 482.73 L390.86 463.71 L364.01 413.92 C363.25 412.51 363.64 411.58 363.42 410.22 C364.11 409.83 364.18 409.26 365.08 409.26 L466.87 409.26 C482.71 410.13 497.11 418.71 505.42 432.22 L514.78 448.56 L549.24 516.88 L558.38 535.5 L569.72 558.55 Z"),
-        .path("M819.49 410.1 C819.56 410.81 820.08 411.21 819.67 411.96 L781.79 481.62 C779.92 485.06 771.7 491.97 767.66 492.01 L698.84 492.01 C675.09 492.28 656.97 516.03 645.16 533.76 C637.2 545.72 630.19 560.5 613.45 559.61 C613.42 558.64 612.85 557.77 613.36 556.76 L633.38 516.89 L676.34 434.0 C681.94 423.19 695.41 413.14 707.19 410.49 C722.35 407.09 762.19 409.0 779.87 409.0 C790.81 409.0 809.76 407.28 819.49 410.1 Z"),
-        .path("M768.88 517.05 C768.85 517.37 768.94 517.74 768.78 518.03 L738.31 577.03 C735.58 582.32 725.56 590.21 719.52 590.79 L697.91 592.87 C689.82 593.65 678.38 603.42 674.74 610.39 L664.16 630.68 L609.82 740.13 C608.99 741.82 607.25 743.34 605.89 744.6 C597.23 752.58 585.42 753.15 576.6 745.1 C575.54 744.13 573.82 742.78 573.15 741.5 L561.26 718.53 L506.56 609.08 C503.63 603.23 491.19 593.63 484.62 592.92 L462.08 590.48 C456.28 589.85 449.18 584.21 445.65 579.88 C439.17 571.93 428.63 547.03 423.3 536.66 C419.89 530.04 414.75 523.6 414.48 516.14 C424.84 512.12 437.81 514.0 448.91 514.0 C461.84 514.0 481.4 512.7 493.41 516.65 C516.41 524.22 525.56 545.71 535.69 565.39 L566.12 624.5 C567.93 628.03 571.3 630.6 574.32 632.99 C585.51 641.82 598.19 641.05 609.24 632.36 C612.27 629.97 615.35 627.19 617.19 623.7 L626.01 606.99 C633.1 593.54 640.27 580.01 646.84 566.32 C651.06 557.52 655.17 548.18 660.66 540.1 C666.59 531.37 675.38 523.08 685.0 518.61 C699.41 511.92 716.65 514.0 732.09 514.0 C738.86 514.0 759.82 512.76 764.99 514.55 C766.86 515.2 767.47 516.01 768.88 517.05 Z"),
     ])
 
     // Interface icons (icon_*.svg, 128 × 128, stroke 4.5, round caps and joins).
@@ -192,6 +189,32 @@ extension BrandArt {
     static let iconWaitingForMac = BrandArt(box: iconGrid, strokes: [.circle(4.5, 12, 2), .path("M15 8H21V14H15Z"), .path("M14 16.5H22")], strokeWidth: 1.5, dashes: [.init(elements: [.path("M7.5 12H13")], pattern: [0.8, 1.8])])
     static let iconAttention = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8.5), .path("M12 7V13")], fills: [.circle(12, 16.3, 1.1)], strokeWidth: 1.5)
     static let iconRecovered = BrandArt(box: iconGrid, strokes: [.path("M12.89 3.55 C15.91 3.87 18.53 5.77 19.77 8.54"), .path("M20.31 10.23 C20.95 13.2 19.95 16.29 17.69 18.32"), .path("M16.25 19.36 C13.62 20.88 10.38 20.88 7.75 19.36"), .path("M6.31 18.32 C4.05 16.29 3.05 13.2 3.69 10.23"), .path("M4.23 8.54 C5.47 5.77 8.09 3.87 11.11 3.55")], fills: [.circle(12, 12, 1.6)], strokeWidth: 1.5)
+    static let iconCaptions = BrandArt(box: iconGrid, strokes: [.path("M4 6.5C8.5 3.2 15.5 3.2 20 6.5"), .path("M4 11.5H20"), .path("M4 15.5H17"), .path("M4 19.5H12")], strokeWidth: 1.5)
+    static let iconCopy = BrandArt(box: iconGrid, strokes: [.path("M5.5 15.5V3.5H15.5"), .path("M8.5 6.5H18.5V20.5H8.5Z")], strokeWidth: 1.5)
+    static let iconPaste = BrandArt(box: iconGrid, strokes: [.path("M9 3.5H15V6.5H9Z"), .path("M9 5H6V20.5H18V5H15"), .path("M9 11H15"), .path("M9 15H13")], strokeWidth: 1.5)
+    static let iconNotes = BrandArt(box: iconGrid, strokes: [.path("M4.5 4.5H19.5V14.5L14.5 19.5H4.5Z"), .path("M14.5 19.5V14.5H19.5"), .path("M8 9H16"), .path("M8 12.5H12.5")], strokeWidth: 1.5)
+    static let iconTextSize = BrandArt(box: iconGrid, strokes: [.path("M3 19L7.5 6.5L12 19"), .path("M4.6 14.5H10.4"), .path("M13.5 19L16.75 10.5L20 19"), .path("M14.6 16H18.9")], strokeWidth: 1.5)
+    static let iconSelect = BrandArt(box: iconGrid, strokes: [.path("M12 5V19"), .path("M9.5 5H14.5"), .path("M9.5 19H14.5"), .path("M4.5 8V4.5H7"), .path("M4.5 16V19.5H7"), .path("M19.5 8V4.5H17"), .path("M19.5 16V19.5H17")], strokeWidth: 1.5)
+    static let iconPlay = BrandArt(box: iconGrid, strokes: [.path("M7.5 4.5L19 12L7.5 19.5Z")], strokeWidth: 1.5)
+    static let iconPause = BrandArt(box: iconGrid, strokes: [.path("M8.5 5V19"), .path("M15.5 5V19")], strokeWidth: 1.5)
+    static let iconStop = BrandArt(box: iconGrid, strokes: [.path("M6.5 6.5H17.5V17.5H6.5Z")], strokeWidth: 1.5)
+    static let iconBack5 = BrandArt(box: iconGrid, strokes: [.path("M12 5.5 C15.39 5.5 18.36 7.78 19.24 11.06 C20.12 14.34 18.68 17.8 15.74 19.5 C12.8 21.19 9.09 20.7 6.69 18.3 C4.29 15.9 3.8 12.19 5.5 9.25"), .path("M14 3.5L12 5.5L14 7.5"), .path("M13.6 10H10.6L10.3 13C11.9 12.3 13.9 12.9 13.9 14.7C13.9 16.5 11.6 17.1 10.1 16.2")], strokeWidth: 1.5)
+    static let iconForward5 = BrandArt(box: iconGrid, strokes: [.path("M18.5 9.25 C20.2 12.19 19.71 15.9 17.31 18.3 C14.91 20.7 11.2 21.19 8.26 19.5 C5.32 17.8 3.88 14.34 4.76 11.06 C5.64 7.78 8.61 5.5 12 5.5"), .path("M10 3.5L12 5.5L10 7.5"), .path("M13.6 10H10.6L10.3 13C11.9 12.3 13.9 12.9 13.9 14.7C13.9 16.5 11.6 17.1 10.1 16.2")], strokeWidth: 1.5)
+    static let iconPin = BrandArt(box: iconGrid, strokes: [.path("M8.5 3.5H15.5"), .path("M10 3.5V9.5L7 13.5H17L14 9.5V3.5"), .path("M12 13.5V20.5")], strokeWidth: 1.5)
+    static let iconProject = BrandArt(box: iconGrid, strokes: [.path("M3.5 5.5H9.5L11.5 7.5H20.5V18.5H3.5Z"), .path("M3.5 10.5H20.5")], strokeWidth: 1.5)
+    static let iconAI = BrandArt(box: iconGrid, strokes: [.path("M12 3.5L13.9 10.1L20.5 12L13.9 13.9L12 20.5L10.1 13.9L3.5 12L10.1 10.1Z")], strokeWidth: 1.5)
+    static let iconRecent = BrandArt(box: iconGrid, strokes: [.circle(10, 12, 6.5), .path("M10 8.5V12L12.5 13.5"), .path("M19 8.5H21"), .path("M19.5 12H21"), .path("M19 15.5H21")], strokeWidth: 1.5)
+    static let iconHide = BrandArt(box: iconGrid, strokes: [.path("M3.5 10.5C7.5 16 16.5 16 20.5 10.5"), .path("M6.5 13.8L5 16"), .path("M12 15.6V18.3"), .path("M17.5 13.8L19 16")], strokeWidth: 1.5)
+    static let iconMultitrack = BrandArt(box: iconGrid, strokes: [.path("M3 6.5H8C9 4.5 10 4.5 11 6.5S13 8.5 14 6.5H21"), .path("M3 12H6C7 10 8 10 9 12S11 14 12 12H21"), .path("M3 17.5H10C11 15.5 12 15.5 13 17.5S15 19.5 16 17.5H21")], strokeWidth: 1.5)
+    static let iconQuote = BrandArt(box: iconGrid, strokes: [.path("M4.5 12.5H9.5V17.5H4.5V12.5C4.5 9.5 5.8 7.5 8.5 6.5"), .path("M14.5 12.5H19.5V17.5H14.5V12.5C14.5 9.5 15.8 7.5 18.5 6.5")], strokeWidth: 1.5)
+    static let iconSwap = BrandArt(box: iconGrid, strokes: [.path("M4 8.5H19"), .path("M16 5.5L19 8.5L16 11.5"), .path("M20 15.5H5"), .path("M8 12.5L5 15.5L8 18.5")], strokeWidth: 1.5)
+    static let iconFollow = BrandArt(box: iconGrid, strokes: [.path("M4 7H13"), .path("M4 12H10"), .path("M4 17H13"), .path("M15.5 9L20.5 12L15.5 15Z")], strokeWidth: 1.5)
+    static let iconDetails = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8.5), .path("M12 11V16.5")], fills: [.circle(12, 7.8, 1.1)], strokeWidth: 1.5)
+    static let iconServer = BrandArt(box: iconGrid, strokes: [.path("M4.5 4.5H19.5V10.5H4.5Z"), .path("M4.5 13.5H19.5V19.5H4.5Z")], fills: [.circle(8, 7.5, 1), .circle(8, 16.5, 1)], strokeWidth: 1.5)
+    static let iconLowerAudio = BrandArt(box: iconGrid, strokes: [.path("M4 9.5H7.5L12 5.5V18.5L7.5 14.5H4Z"), .path("M15.5 9.5C16.8 10.8 16.8 13.2 15.5 14.5"), .path("M18.5 15.5L20 17L21.5 15.5")], strokeWidth: 1.5)
+    static let iconAccessibility = BrandArt(box: iconGrid, strokes: [.circle(12, 5, 1.8), .path("M5 8.5L12 10L19 8.5"), .path("M12 10V14.5"), .path("M12 14.5L9 20.5"), .path("M12 14.5L15 20.5")], strokeWidth: 1.5)
+    static let iconNoSpeaker = BrandArt(box: iconGrid, strokes: [.circle(12, 8.5, 3.5), .path("M5.5 19.5C5.5 15.5 8.4 13.5 12 13.5S18.5 15.5 18.5 19.5"), .path("M4 4L20 20")], strokeWidth: 1.5)
+    static let iconDownload = BrandArt(box: iconGrid, strokes: [.path("M12 3.5V15"), .path("M8 11L12 15L16 11"), .path("M5 20.5H19")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the
@@ -383,6 +406,55 @@ struct IconGlyph: View {
     }
 }
 
+/// A brand icon that takes the surrounding foreground style (a button's label color, a menu's tint), for `Label`
+/// icons and toolbar buttons in place of SF Symbols. Decorative; the label carries the meaning.
+struct ArtIcon: View {
+    var art: BrandArt
+    var size: CGFloat = 16
+    var lineWidth: CGFloat = 1.3
+    var body: some View {
+        Canvas { ctx, sz in
+            let sp = ArtSpace(box: art.box, size: sz)
+            let w = max(lineWidth, art.strokeWidth * sp.s)
+            let style = StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round)
+            if !art.fills.isEmpty { ctx.fill(Path(BrandArt.cgPath(art.fills)).applying(sp.transform), with: .foreground) }
+            if !art.strokes.isEmpty { ctx.stroke(Path(BrandArt.cgPath(art.strokes)).applying(sp.transform), with: .foreground, style: style) }
+            for group in art.dashes {
+                let dash = StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round, dash: group.pattern.map { $0 * sp.s })
+                ctx.stroke(Path(BrandArt.cgPath(group.elements)).applying(sp.transform), with: .foreground, style: dash)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+extension Label where Title == Text, Icon == ArtIcon {
+    /// A label with a brand icon: `Label("Copy", art: .iconCopy)`.
+    init(_ title: String, art: BrandArt, size: CGFloat = 16) {
+        self.init { Text(title) } icon: { ArtIcon(art: art, size: size) }
+    }
+}
+
+/// A keyboard shortcut as a keycap: mono inside an outlined capsule (DESIGN.md §2.3). Takes the foreground style.
+struct Keycap: View {
+    var keys: String
+    var size: CGFloat = 11
+    var body: some View {
+        Text(keys).font(Ink.mono(size))
+            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.25)
+            .overlay(Capsule().strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
+            .fixedSize()
+            .accessibilityLabel(Keycap.spoken(keys))
+    }
+
+    /// "⌥⇧R" → "Option Shift R", for VoiceOver.
+    static func spoken(_ keys: String) -> String {
+        let names: [Character: String] = ["⌘": "Command", "⌥": "Option", "⇧": "Shift", "⌃": "Control", "⏎": "Return", "⎋": "Escape", "⌫": "Delete", "␣": "Space"]
+        return keys.map { names[$0] ?? String($0) }.joined(separator: " ")
+    }
+}
+
 /// An empty state's illustration: the icon drawn large inside a thin dashed construction circle with four ticks,
 /// like a plate in a technical drawing.
 struct IconPlate: View {
@@ -437,6 +509,32 @@ extension BrandArt {
 }
 #endif
 
+#if os(macOS)
+extension BrandArt {
+    /// The art as a template image for places that only take an image (the menu bar item, toolbars), so the
+    /// system tints it for the menu bar, Dark mode, and selection. `size` is the image's points; the art fits inside.
+    @MainActor func templateImage(size: CGFloat, key: String, lineWidth: CGFloat = 1.5) -> NSImage {
+        if let img = BrandArt.nsImageCache[key + "@\(size)"] { return img }
+        let art = self
+        let img = NSImage(size: NSSize(width: size, height: size), flipped: true) { rect in
+            guard let c = NSGraphicsContext.current?.cgContext else { return false }
+            let s = min(rect.width / art.box.width, rect.height / art.box.height)
+            c.translateBy(x: (rect.width - art.box.width * s) / 2 - art.box.minX * s, y: (rect.height - art.box.height * s) / 2 - art.box.minY * s)
+            c.scaleBy(x: s, y: s)
+            c.setFillColor(NSColor.black.cgColor); c.setStrokeColor(NSColor.black.cgColor)
+            c.setLineCap(.round); c.setLineJoin(.round); c.setLineWidth(lineWidth / s)
+            if !art.fills.isEmpty { c.addPath(BrandArt.cgPath(art.fills)); c.fillPath() }
+            if !art.strokes.isEmpty { c.addPath(BrandArt.cgPath(art.strokes)); c.strokePath() }
+            return true
+        }
+        img.isTemplate = true
+        BrandArt.nsImageCache[key + "@\(size)"] = img
+        return img
+    }
+    @MainActor private static var nsImageCache: [String: NSImage] = [:]
+}
+#endif
+
 /// The bars mark, flat, in one color. One color per mark; never pink or sage.
 struct BarsMark: View {
     var color: Color = Ink.persimmon
@@ -445,7 +543,8 @@ struct BarsMark: View {
 
 // MARK: - Editorial structure
 
-/// "01 / RECENT ··········· trailing": a mono index, a dotted rule, an optional serif title below.
+/// "Recent ··········· 01": a sentence-case label, a dotted rule, and a mono index, with an optional serif title
+/// below. No uppercase tracked labels (DESIGN.md §2.1); the index is the only mono.
 struct EditorialSectionHeader<Trailing: View>: View {
     var index: String
     var label: String
@@ -455,10 +554,10 @@ struct EditorialSectionHeader<Trailing: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: label, color: Ink.dim)
+                Text(label).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim).lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
                 DottedRule().frame(height: 1)
-                Overline(text: index, color: Ink.mute)
+                Text(index).font(Ink.mono(11)).foregroundStyle(Ink.mute).accessibilityHidden(true)
             }
             if title != nil || Trailing.self != EmptyView.self {
                 HStack(alignment: .firstTextBaseline) {
@@ -521,91 +620,9 @@ enum BrandFeature: CaseIterable {
     case capture, refine, understand
     var index: String { switch self { case .capture: return "01"; case .refine: return "02"; case .understand: return "03" } }
     var title: String { switch self { case .capture: return "Capture"; case .refine: return "Refine"; case .understand: return "Understand" } }
-    var fill: Color { switch self { case .capture: return Ink.persimmon; case .refine: return Ink.petal; case .understand: return Ink.sage } }
     var art: BrandArt { switch self { case .capture: return .diagramCapture; case .refine: return .diagramRefine; case .understand: return .diagramUnderstand } }
 }
 
-/// A flat colored card with a diagram, an index, a serif title, and one line. Real action, keyboard focusable.
-/// Ink text on these fills: pink 7.5:1, sage 6.8:1, persimmon 4.45:1 (titles are large; descriptions semibold).
-struct BrandFeatureCard: View {
-    var feature: BrandFeature
-    var line: String
-    var meta: String
-    var enabled = true
-    /// iPhone Home: the diagram moves (`AnimatedFeatureArt`) and slides against the card's scroll (parallax).
-    var animated = false
-    var parallax = false
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            // Index and diagram share the top row, so three cards fit across a typical window.
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(feature.index).font(Ink.mono(11, weight: .medium)).foregroundStyle(Ink.inkFixed)
-                        Rectangle().fill(Ink.inkFixed.opacity(0.5)).frame(width: 14, height: 1)
-                    }
-                    Spacer(minLength: 8)
-                    Group {
-                        if animated { AnimatedFeatureArt(feature: feature, color: Ink.inkFixed, minLineWidth: 1) }
-                        else { BrandGlyph(art: feature.art, color: Ink.inkFixed, minLineWidth: 1) }
-                    }
-                    .frame(width: 62, height: 62)
-                    .modifier(ArtParallax(enabled: parallax, card: cardSpace))
-                    .padding(.trailing, 14)
-                }
-                Text(feature.title).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed).lineLimit(1).minimumScaleFactor(0.8).padding(.top, 2)
-                Text(line).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
-                Spacer(minLength: 8)
-                Text(meta.uppercased()).font(Ink.mono(10, weight: .medium)).tracking(0.9).foregroundStyle(Ink.inkFixed.opacity(0.85))
-                    .lineLimit(1).truncationMode(.tail)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 172, alignment: .topLeading)
-            .coordinateSpace(cardSpace)
-        }
-        .buttonStyle(FeatureCardStyle(fill: feature.fill))
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.6)
-        .accessibilityLabel("\(feature.title). \(line). \(meta)")
-    }
-
-    private var cardSpace: NamedCoordinateSpace { .named("featureCard-\(feature.index)") }
-}
-
-/// How far a view sits from the middle of its scroll view, from -1 (a full width left) to 1 (right); 0 outside a
-/// scroll view. `center` is the x to measure in the view's own coordinates (its middle by default). Read inside
-/// `visualEffect`, so it follows scrolling without re-rendering.
-func scrollDepth(_ proxy: GeometryProxy, center: CGFloat? = nil) -> CGFloat {
-    guard let viewport = proxy.bounds(of: .scrollView), viewport.width > 0 else { return 0 }
-    let mid = center ?? proxy.size.width / 2
-    return max(-1, min(1, (mid - viewport.midX) / viewport.width))
-}
-
-/// The diagram slides against the card's position in the row (18 pt at a full width from the middle), so it
-/// seems to sit a little deeper than the card. Nothing moves when motion is limited.
-struct ArtParallax: ViewModifier {
-    var enabled: Bool
-    var card: NamedCoordinateSpace
-    @Environment(\.limitMotion) private var limitMotion
-    func body(content: Content) -> some View {
-        if enabled && !limitMotion {
-            let space = card
-            content.visualEffect { c, proxy in
-                // The card's middle (in the diagram's coordinates) sets the depth, so card and diagram agree.
-                let cardMid = proxy.bounds(of: space)?.midX
-                return c.offset(x: -18 * scrollDepth(proxy, center: cardMid))
-            }
-        } else {
-            content
-        }
-    }
-}
-
-/// Feature cards keep the light-mode ink-on-color pairing in dark mode too (the fills are slightly muted there),
-/// so contrast holds. Hover: 1 pt rise and a firmer edge; press: slight compression; focus: a visible ring.
 // MARK: - Card motion (shared by Mac and iPhone)
 
 /// Pointer-driven card motion, shared by every card in the app family.
@@ -691,42 +708,6 @@ extension View {
     }
 }
 
-struct FeatureCardStyle: ButtonStyle {
-    var fill: Color
-    func makeBody(configuration: Configuration) -> some View { FeatureCardBody(configuration: configuration, fill: fill) }
-    /// Tilts toward the pointer with an edge light (`CardMotion`). The moving visuals don't take the pointer;
-    /// a flat layer on top does, so the Button keeps every click while the card is rotated.
-    private struct FeatureCardBody: View {
-        let configuration: ButtonStyleConfiguration
-        var fill: Color
-        @State private var hover: CGPoint? = nil
-        @State private var size: CGSize = .zero
-        @Environment(\.isFocused) private var focused
-        var body: some View {
-            let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
-            configuration.label
-                .background(fill, in: shape)
-                .overlay(alignment: .topTrailing) {
-                    CornerTick().stroke(Ink.inkFixed, lineWidth: 1.2).frame(width: 9, height: 9).padding(12)
-                }
-                .cardMotion(hover: hover, size: size, pressed: configuration.isPressed, radius: 18, tilt: 4, lift: 2)
-                .allowsHitTesting(false)
-                .overlay(RoundedRectangle(cornerRadius: 21, style: .continuous).strokeBorder(Color.accentColor, lineWidth: 3).padding(-3).opacity(focused ? 1 : 0))
-                .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
-                .overlay {
-                    shape.fill(Color.white.opacity(0.001)).contentShape(shape)
-                        .onContinuousHover { phase in
-                            switch phase {
-                            case .active(let p): hover = p
-                            case .ended: hover = nil
-                            }
-                        }
-                }
-                .contentShape(shape)
-        }
-    }
-}
-
 // MARK: - Buttons
 
 /// Ink fill, reader-white label (cream fill, ink label in dark). The reliable primary control.
@@ -743,9 +724,9 @@ struct BrandPrimaryButtonStyle: ButtonStyle {
                 .font(.system(size: large ? 14 : 13, weight: .semibold))
                 .foregroundStyle(Ink.onInteractive)
                 .padding(.horizontal, large ? 16 : 12).frame(minHeight: large ? 34 : 28)
-                .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : hover ? 0.92 : 1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : hover ? 0.92 : 1), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .onHover { hover = $0 }
                 .animation(.easeOut(duration: 0.14), value: hover)
         }
@@ -766,10 +747,10 @@ struct BrandSecondaryButtonStyle: ButtonStyle {
                 .font(.system(size: large ? 14 : 13, weight: .medium))
                 .foregroundStyle(Ink.ink)
                 .padding(.horizontal, large ? 16 : 12).frame(minHeight: large ? 34 : 28)
-                .background(configuration.isPressed ? Ink.wash : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(hover ? Ink.outlineStrong : Ink.hairline))
+                .background(configuration.isPressed ? Ink.wash : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(hover ? Ink.outlineStrong : Ink.hairline))
                 .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .onHover { hover = $0 }
                 .animation(.easeOut(duration: 0.14), value: hover)
         }
@@ -787,13 +768,11 @@ extension ButtonStyle where Self == BrandSecondaryButtonStyle {
 
 // MARK: - Status and empty states
 
-/// Concentric rings (the Capture diagram's language) for recording and processing. Pulses outward while
-/// active; a static set of rings under Reduce Motion.
+/// Concentric rings (the Capture diagram's language) for recording and processing. Still: movement on screen
+/// means a real level (DESIGN.md §7), so the rings don't pulse on a loop.
 struct SignalRings: View {
     var active = true
     var color: Color = Ink.persimmon
-    @Environment(\.limitMotion) private var reduce
-    @State private var phase = false
     var body: some View {
         GeometryReader { g in
             let d = min(g.size.width, g.size.height)
@@ -801,14 +780,11 @@ struct SignalRings: View {
                 ForEach(0..<3) { i in
                     Circle().stroke(color.opacity(0.7 - Double(i) * 0.2), lineWidth: max(1, d * 0.045))
                         .frame(width: d * (0.42 + CGFloat(i) * 0.29), height: d * (0.42 + CGFloat(i) * 0.29))
-                        .scaleEffect(active && !reduce && phase ? 1.06 : 1)
-                        .opacity(active && !reduce && phase && i == 2 ? 0.35 : 1)
                 }
                 Circle().fill(color).frame(width: d * 0.22, height: d * 0.22)
             }
             .frame(width: g.size.width, height: g.size.height)
         }
-        .onAppear { if active && !reduce { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { phase = true } } }
         .accessibilityHidden(true)
     }
 }
@@ -827,7 +803,7 @@ struct EmptyStateArt: View {
     }
 }
 
-// MARK: - Moving diagrams (iPhone Home)
+// MARK: - Drawing helpers
 
 /// Damped springs stepped once per frame (semi-implicit Euler). Each spring chases its own target, so several
 /// driven by one signal still move independently. A reference type kept in @State: stepping it while drawing
@@ -864,22 +840,6 @@ final class SpringBank {
     func value(_ i: Int) -> Double { springs[i].x }
 }
 
-/// A simulated voice for the Capture card: a slow phrase envelope times a syllable rhythm, split into four
-/// targets, one per ring (outer to inner: gain .12/.18/.24/.30, stiffer and quicker toward the middle).
-final class CaptureVoice {
-    let springs = SpringBank([(22, 5, 0.12), (34, 6, 0.18), (50, 7, 0.24), (70, 8, 0.30)])
-    private var ct = 0.0
-
-    func advance(_ now: Date) {
-        let dt = springs.tick(now)
-        ct += dt * 6
-        let phrase = 0.5 + 0.5 * sin(ct / 6)
-        let syll = 0.5 + 0.5 * sin(ct * 1.3 + sin(ct / 3))
-        let env = 0.15 + 0.85 * phrase * (0.5 + 0.5 * syll)
-        springs.step(dt, targets: [env * 0.9, env * (0.6 + 0.4 * syll), env * syll, env * (0.4 + 0.6 * abs(sin(ct * 2.1)))])
-    }
-}
-
 /// CSS-style cubic-bezier easing, for drawings that animate by the clock.
 enum CubicEase {
     /// cubic-bezier(x1, y1, x2, y2) at progress t (0…1).
@@ -912,140 +872,6 @@ struct ArtSpace {
     }
 }
 
-/// The method diagrams, moving (iPhone Home cards):
-/// - Capture: the four rings scale from their shared bottom point, each on its own spring, driven by a
-///   simulated voice. They never rotate.
-/// - Refine: strands flow into the bar as travelling dashes; the clean lines draw in one after another, hold,
-///   and clear (7 s).
-/// - Understand: the circles drift together and apart (7 s); only the region all three share is hatched.
-/// Runs only while on screen. With motion limited it's the still diagram.
-struct AnimatedFeatureArt: View {
-    var feature: BrandFeature
-    var color: Color = Ink.ink
-    var minLineWidth: CGFloat = 1.1
-    @Environment(\.limitMotion) private var limitMotion
-    @State private var onScreen = false
-    @State private var voice = CaptureVoice()
-    @Environment(\.scenePhase) private var scenePhase
-
-    var body: some View {
-        Group {
-            if limitMotion {
-                BrandGlyph(art: feature.art, color: color, minLineWidth: minLineWidth)
-            } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !onScreen || scenePhase != .active)) { timeline in
-                    let now = timeline.date
-                    Canvas { ctx, size in
-                        switch feature {
-                        case .capture: drawCapture(ctx, size, now)
-                        case .refine: drawRefine(ctx, size, now.timeIntervalSinceReferenceDate)
-                        case .understand: drawUnderstand(ctx, size, now.timeIntervalSinceReferenceDate)
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear { onScreen = true }
-        .onDisappear { onScreen = false }
-        .accessibilityHidden(true)
-    }
-
-    private func width(_ art: BrandArt, _ s: CGFloat) -> CGFloat { max(minLineWidth, art.strokeWidth * s) }
-
-    // Capture
-
-    private static let captureAxis = Path(SVGPathData.parse("M300 96 L300 421 M280 93h40 M282 425h36"))
-
-    private func drawCapture(_ ctx: GraphicsContext, _ size: CGSize, _ now: Date) {
-        voice.advance(now)
-        let art = BrandArt.diagramCapture
-        let sp = ArtSpace(box: art.box, size: size)
-        let style = StrokeStyle(lineWidth: width(art, sp.s), lineCap: .round, lineJoin: .round)
-        let shading = GraphicsContext.Shading.color(color)
-        // Each ring keeps touching the shared point (300, 383) as it scales: center = 383 − r.
-        var rings = Path()
-        for (i, r0) in [CGFloat(124), 102, 80, 58].enumerated() {
-            let r = r0 * voice.springs.scale(i)
-            rings.addPath(sp.circle(300, 383 - r, r))
-        }
-        ctx.stroke(rings, with: shading, style: style)
-        ctx.stroke(Self.captureAxis.applying(sp.transform), with: shading, style: style)
-        ctx.fill(sp.circle(300, 383, 6), with: shading)
-    }
-
-    // Refine
-
-    private static let strandPaths: [Path] = [
-        "M75 128 C155 150, 185 100, 246 196 Q258 214 270 247",
-        "M75 168 C155 133, 185 203, 246 213 Q258 225 270 247",
-        "M75 207 C155 229, 185 179, 246 230 Q258 236 270 247",
-        "M75 247 C155 212, 185 282, 246 247 Q258 247 270 247",
-        "M75 287 C155 309, 185 259, 246 264 Q258 258 270 247",
-        "M75 327 C155 292, 185 362, 246 281 Q258 269 270 247",
-        "M75 367 C155 389, 185 339, 246 298 Q258 280 270 247",
-    ].map { Path(SVGPathData.parse($0)) }
-    /// Seconds per dash cycle, varied so the strands don't move in step.
-    private static let strandPeriods: [Double] = [4.2, 5, 3.6, 5, 4.2, 3.6, 4.2]
-    private static let cleanLines: [(y: CGFloat, end: CGFloat)] = [(128, 490), (168, 465), (207, 440), (247, 490), (287, 465), (327, 440), (367, 490)]
-
-    private func drawRefine(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
-        let art = BrandArt.diagramRefine
-        let sp = ArtSpace(box: art.box, size: size)
-        let w = width(art, sp.s)
-        let shading = GraphicsContext.Shading.color(color)
-        // Long dashes (72 on, 14 off) travel along each strand toward the bar.
-        for (i, strand) in Self.strandPaths.enumerated() {
-            let period = Self.strandPeriods[i]
-            let f = t.truncatingRemainder(dividingBy: period) / period
-            let phase = CGFloat(86 * (1 - f)) * sp.s
-            ctx.stroke(strand.applying(sp.transform), with: shading,
-                       style: StrokeStyle(lineWidth: w, lineCap: .round, dash: [72 * sp.s, 14 * sp.s], dashPhase: phase))
-        }
-        let round = StrokeStyle(lineWidth: w, lineCap: .round)
-        var bar = Path()
-        bar.move(to: CGPoint(x: 299, y: 96)); bar.addLine(to: CGPoint(x: 299, y: 402))
-        ctx.stroke(bar.applying(sp.transform), with: shading, style: round)
-        // Clean lines: draw in over the first quarter (0.15 s apart), hold, clear from the left in the last quarter.
-        for (i, line) in Self.cleanLines.enumerated() {
-            let len = line.end - 325
-            var local = (t - Double(i) * 0.15).truncatingRemainder(dividingBy: 7)
-            if local < 0 { local += 7 }
-            let p = local / 7
-            var from: CGFloat = 0, to: CGFloat = 1
-            if p < 0.25 { to = min(1, 170 * CGFloat(CubicEase.gentle(p / 0.25)) / len) }
-            else if p >= 0.75 { from = min(1, 170 * CGFloat(CubicEase.gentle((p - 0.75) / 0.25)) / len) }
-            guard to > from else { continue }
-            var path = Path()
-            path.move(to: CGPoint(x: 325, y: line.y)); path.addLine(to: CGPoint(x: line.end, y: line.y))
-            ctx.stroke(path.trimmedPath(from: from, to: to).applying(sp.transform), with: shading, style: round)
-        }
-    }
-
-    // Understand
-
-    /// A little roomier than the still diagram's box, so the circles have space to drift.
-    private static let understandBox = CGRect(x: 80, y: 55, width: 440, height: 420)
-    private static let hatch = Path(BrandArt.cgPath(BrandArt.understandHatch))
-
-    private func drawUnderstand(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
-        let art = BrandArt.diagramUnderstand
-        let sp = ArtSpace(box: Self.understandBox, size: size)
-        let shading = GraphicsContext.Shading.color(color)
-        // Apart at the start of the cycle, together at the middle, apart again (ease-in-out each way).
-        let p = t.truncatingRemainder(dividingBy: 7) / 3.5
-        let apart = CGFloat(p < 1 ? 1 - CubicEase.inOut(p) : CubicEase.inOut(p - 1))
-        let centers: [(CGFloat, CGFloat)] = [(300, 205 - 22 * apart), (230 - 20 * apart, 327 + 12 * apart), (370 + 20 * apart, 327 + 12 * apart)]
-        let circles = centers.map { sp.circle($0.0, $0.1, 126) }
-        // Only the region all three share is hatched, so it grows as they meet.
-        var clipped = ctx
-        for circle in circles { clipped.clip(to: circle) }
-        clipped.stroke(Self.hatch.applying(sp.transform), with: shading, style: StrokeStyle(lineWidth: max(minLineWidth * 0.8, art.clippedWidth * sp.s)))
-        var outline = Path()
-        for circle in circles { outline.addPath(circle) }
-        ctx.stroke(outline, with: shading, style: StrokeStyle(lineWidth: width(art, sp.s)))
-    }
-}
-
 
 /// The AI label (privacy policy and App Store AI disclosure): shown wherever Verbatim shows text a language model
 /// rewrote, so nobody mistakes it for a word-for-word transcript.
@@ -1057,7 +883,7 @@ struct AIGeneratedNote: View {
         Label {
             Text(text)
         } icon: {
-            Image(systemName: "sparkles")
+            ArtIcon(art: .iconAI, size: 13)
         }
         .font(.system(size: 12))
         .foregroundStyle(Ink.mute)

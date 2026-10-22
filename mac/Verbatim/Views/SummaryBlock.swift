@@ -144,8 +144,8 @@ struct SummaryBlock: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: compact ? 160 : 130)
                 .padding(8)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
+                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
             HStack(spacing: compact ? 18 : 14) {
                 Button("Save") {
                     let parsed = TranscriptSummary.parse(draft)

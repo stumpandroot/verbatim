@@ -20,10 +20,10 @@ struct DictionarySuggestions: View {
         let list = Array(all.prefix(Self.shown))
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center) {
-                Text("SUGGESTIONS").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute)
+                Text("Suggestions").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Button { showContacts = true } label: { Label("Suggest names from Contacts", systemImage: "person.crop.circle") }
+                Button { showContacts = true } label: { Label("Suggest names from Contacts", art: .iconAboutMe) }
                     .buttonStyle(.brandSecondary)
                     .help("Pick names from your contacts. Names stay on this Mac.")
             }
@@ -37,7 +37,7 @@ struct DictionarySuggestions: View {
                         if s.id != list.last?.id { Divider().opacity(0.5) }
                     }
                 }
-                .cardSurface(radius: 12)
+                .cardSurface(radius: Radius.row)
                 if all.count > list.count {
                     Text("\(all.count - list.count) more after these.").font(.system(size: 12)).foregroundStyle(Ink.mute)
                 }
@@ -132,7 +132,7 @@ struct ContactNamesSheet: View {
                         }
                     }
                     .frame(height: 280)
-                    .cardSurface(radius: 10)
+                    .cardSurface(radius: Radius.button)
                 }
             }
             HStack {
@@ -175,7 +175,7 @@ struct BuiltInVocabularySection: View {
         let off = BuiltInVocabulary.disabled(disabledRaw)
         let active = all.filter { !off.contains($0.id) }.count
         VStack(alignment: .leading, spacing: 8) {
-            Text("BUILT-IN VOCABULARY").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute)
+            Text("Built-in vocabulary").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
@@ -212,7 +212,7 @@ struct BuiltInVocabularySection: View {
                     }
                 }
             }
-            .cardSurface(radius: 12)
+            .cardSurface(radius: Radius.row)
         }
         .padding(.top, 28)
     }

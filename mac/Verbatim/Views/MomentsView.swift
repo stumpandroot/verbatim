@@ -85,23 +85,24 @@ struct MomentCard: View {
                 Thumbnail(info: info).frame(height: 150).opacity(0.85)
             }
             HStack(spacing: 6) {
-                if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
+                if note.isBookmark { ArtIcon(art: .bookmark, size: 12) }
                 Text(at.timecode).font(.system(size: 11.5, design: .monospaced))
                 Spacer()
                 if let info = transcript.linkInfo, info.supportsTimestamps {
-                    Button { if let u = info.url(at: at) { NSWorkspace.shared.open(u) } } label: { Image(systemName: "play.rectangle") }
+                    Button { if let u = info.url(at: at) { NSWorkspace.shared.open(u) } } label: { ArtIcon(art: .iconPlay, size: 15) }
                         .buttonStyle(.plain).help("Open the video at \(at.timecode)").opacity(hover ? 1 : 0.5)
                 }
             }
-            .foregroundStyle(note.isBookmark ? Ink.limeText : Ink.iris)
+            .foregroundStyle(note.isBookmark ? Ink.butterText : Ink.iris)
             Text(note.text.isEmpty ? quote : note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).lineLimit(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(transcript.title).font(Ink.serif(14, weight: .regular)).foregroundStyle(Ink.mute).lineLimit(1)
         }
         .padding(12)
-        .background(note.isBookmark ? Ink.limeTint : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // Bookmarks on butter tint (saved); notes on neutral cards.
+        .background(note.isBookmark ? Ink.butterTint : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
         .onTapGesture { open() }

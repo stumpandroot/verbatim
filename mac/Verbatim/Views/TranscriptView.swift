@@ -214,7 +214,7 @@ struct TranscriptView: View {
             }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
-                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { Image(systemName: "waveform.badge.plus").foregroundStyle(Ink.accentText) }
+                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { ArtIcon(art: .capture, size: 16).foregroundStyle(Ink.accentText) }
                     Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim)
                     if t.processingDevice == nil {
                         Button("Retry") { app.retry(t) }.buttonStyle(.link)
@@ -224,7 +224,7 @@ struct TranscriptView: View {
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .padding(.top, 8)
             }
             if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 10) }
@@ -269,7 +269,7 @@ struct TranscriptView: View {
                 .menuStyle(.borderlessButton).fixedSize()
                 .help("With corrections shows your fixes and Dictionary fixes. Engine words shows exactly what the engine heard.")
                 .accessibilityIdentifier("original-words")
-                Button { selecting.toggle() } label: { ToolLabel(title: "Select text", symbol: "character.cursor.ibeam", compact: false, on: selecting) }
+                Button { selecting.toggle() } label: { ToolLabel(title: "Select text", art: .iconSelect, compact: false, on: selecting) }
                     .buttonStyle(.plain)
                     .help(selecting ? "Back to lines (corrections, notes, Copy quote)" : "Select across lines and copy with ⌘C")
                     .accessibilityIdentifier("original-select")
@@ -287,7 +287,7 @@ struct TranscriptView: View {
     private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
         HStack(spacing: 2) {
             ExportMenu(transcript: t, compact: compact, version: copyVersion)
-            Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Continue", symbol: "record.circle", compact: compact) }
+            Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Continue", art: .capture, compact: compact) }
                 .buttonStyle(.plain)
                 .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
                 .help("Record more and add it to the end of this transcript")
@@ -296,17 +296,17 @@ struct TranscriptView: View {
                 Divider()
                 Button(SummaryAction.title(t)) { summarize(t) }
                     .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-            } label: { ToolLabel(title: "Actions", symbol: "wand.and.stars", compact: compact) }
+            } label: { ToolLabel(title: "Actions", art: .refine, compact: compact) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(t.status != .ready)
                 .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
-            Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", symbol: "note.text", compact: compact, on: notesOpen) }
+            Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", art: .iconNotes, compact: compact, on: notesOpen) }
                 .buttonStyle(.plain).help(notesOpen ? "Hide notes" : "Show notes")
             Menu {
                 Button("Larger text") { textSize = min(22, textSize + 1) }
                 Button("Smaller text") { textSize = max(13, textSize - 1) }
                 Button("Default size") { textSize = 16 }
-            } label: { ToolLabel(title: "Text", symbol: "textformat.size", compact: true) }
+            } label: { ToolLabel(title: "Text", art: .iconTextSize, compact: true) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Text size (⌘+ and ⌘−)")
         }
         .fixedSize()
@@ -374,7 +374,7 @@ struct TranscriptView: View {
             } else {
                 ForEach(t.corrections) { c in
                     HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: c.byDictionary ? "book.closed.fill" : "pencil").foregroundStyle(Ink.iris).frame(width: 18)
+                        ArtIcon(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 15).foregroundStyle(Ink.iris).frame(width: 18)
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 8) { Text(c.from).strikethrough().foregroundStyle(Ink.mute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
                             if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
@@ -385,7 +385,7 @@ struct TranscriptView: View {
                         Spacer()
                         Button("Undo") { undo(t, c) }.buttonStyle(.bordered).controlSize(.small)
                     }
-                    .padding(12).cardSurface(radius: 12)
+                    .padding(12).cardSurface(radius: Radius.row)
                 }
             }
         }
@@ -403,7 +403,7 @@ struct TranscriptView: View {
                 Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
             }
         }
-        .padding(16).background(Ink.wash, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16).background(Ink.wash, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 
 

@@ -63,7 +63,9 @@ struct VerbatimApp: App {
             .frame(width: 320).background(Ink.paper)
             .environmentObject(app).limitMotionRoot()
         } label: {
-            Image(systemName: "waveform")
+            // The bars mark as a template image, so the menu bar tints it (DESIGN.md §3, §4).
+            Image(nsImage: BrandArt.markBars.templateImage(size: 16, key: "menubar"))
+                .accessibilityLabel("Verbatim")
         }
         .menuBarExtraStyle(.window)
     }

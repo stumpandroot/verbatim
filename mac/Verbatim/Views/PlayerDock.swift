@@ -15,13 +15,13 @@ struct PlayerDock: View {
                 ZStack {
                     Circle().fill(Ink.interactive)
                         .shadow(color: Ink.inkFixed.opacity(0.12), radius: 6, y: 2)
-                    Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(Ink.onInteractive).offset(x: app.player.isPlaying ? 0 : 1.5)
+                    ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 20, lineWidth: 2).foregroundStyle(Ink.onInteractive).offset(x: app.player.isPlaying ? 0 : 1.5)
                 }
                 .frame(width: 50, height: 50)
             }
             .buttonStyle(PressStyle(scale: 0.94)).help("Play or pause (Space)")
 
-            skip("gobackward.5", -5, "Back 5 seconds (←)")
+            skip(.iconBack5, -5, "Back 5 seconds (←)")
             HStack(spacing: 4) {
                 Text(app.player.time.timecode).font(.system(size: 13.5, weight: .semibold, design: .monospaced)).foregroundStyle(Ink.ink)
                 Text("/").foregroundStyle(Ink.mute)
@@ -34,7 +34,7 @@ struct PlayerDock: View {
                 app.player.seek(to: p * total)
             }
             .frame(height: 36)
-            skip("goforward.5", 5, "Forward 5 seconds (→)")
+            skip(.iconForward5, 5, "Forward 5 seconds (→)")
 
             Menu { ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } } } label: {
                 Text("\(String(format: "%g", app.player.rate))×").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
@@ -47,22 +47,21 @@ struct PlayerDock: View {
                 let seg = transcript.segments.first(where: { at >= $0.start && at < $0.end })
                 app.addNote(transcript: transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
             } label: {
-                Image(systemName: "bookmark.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.limeText)
-                    .frame(width: 38, height: 38).background(Ink.limeTint, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                IconGlyph(art: .bookmark, size: 17, color: Ink.butterText)
+                    .frame(width: 38, height: 38).background(Ink.butterTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             .buttonStyle(PressStyle(scale: 0.94)).help("Bookmark this moment (B)")
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Ink.hairline))
-        .shadow(color: Ink.inkFixed.opacity(0.08), radius: 10, y: 3)
+        // Opaque: text never sits on a blur (DESIGN.md §5.1).
+        .background(Ink.bar, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
         .frame(maxWidth: 760)
     }
 
-    private func skip(_ symbol: String, _ by: Double, _ help: String) -> some View {
+    private func skip(_ art: BrandArt, _ by: Double, _ help: String) -> some View {
         Button { app.player.seek(to: app.player.time + by) } label: {
-            Image(systemName: symbol).font(.system(size: 17, weight: .medium)).foregroundStyle(Ink.ink).frame(width: 32, height: 32)
+            IconGlyph(art: art, size: 21, color: Ink.ink).frame(width: 32, height: 32)
         }
         .buttonStyle(PressStyle(scale: 0.92)).help(help)
     }
@@ -84,7 +83,7 @@ struct WaveTrack: View {
                 WaveformThumb(values: vals).fill(Ink.iris)
                     .mask(alignment: .leading) { Rectangle().frame(width: max(0, w * progress)) }
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, m in
-                    Capsule().fill(Ink.persimmon).frame(width: 3, height: g.size.height).offset(x: w * m - 1.5)
+                    Capsule().fill(Ink.butter).frame(width: 3, height: g.size.height).offset(x: w * m - 1.5)
                 }
                 Rectangle().fill(Ink.ink).frame(width: 2, height: g.size.height + 6).offset(x: max(0, min(w - 2, w * progress - 1)), y: -3)
                 if let hx = hoverX { Rectangle().fill(Ink.iris.opacity(0.25)).frame(width: 1).offset(x: hx) }

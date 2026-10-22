@@ -69,7 +69,7 @@ struct DictationsView: View {
                     .padding(20).background(NoteCardBackground(hover: false)).padding(.top, 20)
                 } else {
                     ForEach(Self.days(shown), id: \.0) { day, items in
-                        Overline(text: day, color: Ink.mute).padding(.top, 24).padding(.bottom, 8)
+                        Text(day).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 24).padding(.bottom, 8)
                         VStack(spacing: 6) {
                             ForEach(items) { t in DictationRow(transcript: t) }
                         }
@@ -99,8 +99,8 @@ struct DictationRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(time).font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
-                Text(transcript.duration.timecode).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                Text(time).font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
+                Text(transcript.duration.timecode).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             .frame(width: 64, alignment: .leading)
             .contentShape(Rectangle())
@@ -109,7 +109,7 @@ struct DictationRow: View {
             .help("Drag onto a project")
             VStack(alignment: .leading, spacing: 6) {
                 if transcript.status == .failed {
-                    Text(transcript.error ?? "Transcription failed").font(.system(size: 14)).foregroundStyle(Ink.accentText)
+                    Text(transcript.error ?? "Transcription failed").font(.system(size: 14)).foregroundStyle(Ink.danger)
                 } else if let instruction = info?.instruction {
                     Text("“\(instruction)”").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.dim)
                     Text(pasted).font(.system(size: 14.5)).foregroundStyle(Ink.ink).lineLimit(hover ? 12 : 3).textSelection(.enabled)
@@ -134,7 +134,7 @@ struct DictationRow: View {
             Spacer(minLength: 8)
             HStack(spacing: 2) {
                 if working { ProgressView().controlSize(.small).padding(.horizontal, 6) }
-                Button { Paster.copy(pasted); app.toast = Toast("Copied") } label: { ToolLabel(title: "Copy", symbol: "doc.on.doc") }
+                Button { Paster.copy(pasted); app.toast = Toast("Copied") } label: { ToolLabel(title: "Copy", art: .iconCopy) }
                     .buttonStyle(.plain).help("Copy what was pasted")
                 Menu {
                     if info != nil, info?.instruction == nil {

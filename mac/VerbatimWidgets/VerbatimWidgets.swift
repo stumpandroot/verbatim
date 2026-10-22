@@ -23,8 +23,8 @@ struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
             LockScreenView(state: context.state)
-                .activityBackgroundTint(Color(hex: 0x26352E))
-                .activitySystemActionForegroundColor(Color(hex: 0xF5F0E6))
+                .activityBackgroundTint(Ink.inkFixed)
+                .activitySystemActionForegroundColor(Ink.paperFixed)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -69,13 +69,13 @@ private struct LockScreenView: View {
             BarsMark(color: Ink.persimmon).frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(state.listening ? "Listening…" : "Verbatim is ready")
-                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0xF5F0E6))
+                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.paperFixed)
                 if let ends = state.endsAt, !state.listening {
                     (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))
-                        .font(.system(size: 13).monospacedDigit()).foregroundStyle(Color(hex: 0xF5F0E6).opacity(0.7))
+                        .font(.system(size: 13).monospacedDigit()).foregroundStyle(Ink.paperFixed.opacity(0.7))
                 } else {
                     Text("Microphone on for the keyboard")
-                        .font(.system(size: 13)).foregroundStyle(Color(hex: 0xF5F0E6).opacity(0.7))
+                        .font(.system(size: 13)).foregroundStyle(Ink.paperFixed.opacity(0.7))
                 }
             }
             Spacer(minLength: 8)
@@ -85,19 +85,19 @@ private struct LockScreenView: View {
     }
 }
 
-/// A check when the session is ready; three persimmon bars while listening.
+/// A check when the session is ready; three butter bars while listening (butter means Dictate).
 private struct StateIcon: View {
     var listening: Bool
     var body: some View {
         if listening {
             HStack(spacing: 2) {
                 ForEach([0.6, 1.0, 0.8], id: \.self) { h in
-                    Capsule().fill(Ink.persimmon).frame(width: 3.5).frame(maxHeight: .infinity).scaleEffect(y: h)
+                    Capsule().fill(Ink.butter).frame(width: 3.5).frame(maxHeight: .infinity).scaleEffect(y: h)
                 }
             }
             .accessibilityLabel("Listening")
         } else {
-            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.persimmon)
+            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.butter)
                 .accessibilityLabel("Ready")
         }
     }

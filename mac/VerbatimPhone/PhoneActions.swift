@@ -36,7 +36,7 @@ struct PhoneActionSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.accentText)
-                        .frame(width: 34, height: 34).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .frame(width: 34, height: 34).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(action.name).font(Ink.serif(22)).foregroundStyle(Ink.ink)
                         Text("From the original transcript · \(words.formatted()) words").font(.system(size: 13)).foregroundStyle(Ink.mute)
@@ -55,7 +55,7 @@ struct PhoneActionSheet: View {
                         VStack(alignment: .leading, spacing: 0) {
                             // A solid marked strip, so the result never reads as the transcript.
                             HStack(spacing: 7) {
-                                Image(systemName: "sparkles").font(.system(size: 12, weight: .semibold))
+                                ArtIcon(art: .iconAI, size: 14)
                                 Text(TranscriptActions.madeByLabel).font(.system(size: 13, weight: .semibold)).lineLimit(2)
                                 Spacer(minLength: 0)
                             }
@@ -73,9 +73,9 @@ struct PhoneActionSheet: View {
                                 .padding(8)
                                 .accessibilityLabel("Result, editable. \(TranscriptActions.madeByLabel)")
                         }
-                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                     case .failed:
                         VStack(spacing: 8) {
                             Text("Couldn't run this action").font(Ink.serif(19)).foregroundStyle(Ink.ink)
@@ -92,7 +92,7 @@ struct PhoneActionSheet: View {
                         .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
                     HStack(spacing: 10) {
                         Button { UIPasteboard.general.string = result; app.say("Copied"); dismiss() } label: {
-                            Label("Copy", systemImage: "doc.on.doc").frame(maxWidth: .infinity)
+                            Label("Copy", art: .iconCopy).frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.brandPrimary)
                         ShareLink(item: result) { Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
@@ -100,7 +100,7 @@ struct PhoneActionSheet: View {
                         Button {
                             app.store.addNote(Note(text: result, aiAction: action.name), to: transcript.id)
                             app.say("Saved as a note"); dismiss()
-                        } label: { Label("Save as note", systemImage: "note.text.badge.plus").frame(maxWidth: .infinity) }
+                        } label: { Label("Save as note", art: .iconNotes).frame(maxWidth: .infinity) }
                         .buttonStyle(.brandSecondary)
                     }
                     .labelStyle(.titleAndIcon)

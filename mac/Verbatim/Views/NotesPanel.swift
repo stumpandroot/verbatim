@@ -26,7 +26,7 @@ struct NotesPanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 if let s = linked {
                     HStack(spacing: 6) {
-                        Image(systemName: "link").font(.system(size: 10, weight: .bold))
+                        ArtIcon(art: .iconLinks, size: 12)
                         Text("On the passage at \(s.start.timecode)").font(.system(size: 11.5, weight: .medium))
                     }
                     .foregroundStyle(Ink.iris)
@@ -36,8 +36,8 @@ struct NotesPanel: View {
                     TextField(linked == nil ? "Add note… (click a line to link it)" : "Add note on this passage…", text: $draft).textFieldStyle(.plain).font(.system(size: 13.5)).focused($focused).onSubmit(save)
                 }
                 .padding(.horizontal, 12).frame(height: 44)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Ink.hairline))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Ink.hairline))
             }
             ScrollView {
                 VStack(spacing: 10) {
@@ -83,7 +83,7 @@ struct NotesPanel: View {
                 } label: { Label("Delete transcript", systemImage: "trash") }
                 .buttonStyle(.plain).foregroundStyle(Ink.mute).font(.system(size: 12.5)).padding(.top, 8)
             } label: {
-                HStack(spacing: 8) { Image(systemName: "info.circle"); Text("Details") }.font(.system(size: 13.5, weight: .medium)).foregroundStyle(Ink.ink)
+                HStack(spacing: 8) { ArtIcon(art: .iconDetails, size: 15); Text("Details") }.font(.system(size: 13.5, weight: .medium)).foregroundStyle(Ink.ink)
             }
         }
         .padding(18)
@@ -159,19 +159,19 @@ struct NoteCard: View {
             }
             if let at = note.at {
                 HStack(spacing: 5) {
-                    if note.isBookmark { Image(systemName: "bookmark.fill").font(.system(size: 10)) }
+                    if note.isBookmark { ArtIcon(art: .bookmark, size: 12) }
                     Text(at.timecode).font(.system(size: 11.5, design: .monospaced))
                 }
-                .foregroundStyle(note.isBookmark ? Ink.limeText : Ink.iris)
+                .foregroundStyle(note.isBookmark ? Ink.butterText : Ink.iris)
                 .tapArea(onSeek)
             }
             if let action = note.aiAction {
                 // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
                 HStack(spacing: 5) {
-                    Image(systemName: "sparkles").font(.system(size: 10, weight: .semibold))
+                    ArtIcon(art: .iconAI, size: 12)
                     Text("\(action) · Made by Apple Intelligence").font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
                 }
-                .foregroundStyle(Ink.accentText)
+                .foregroundStyle(Ink.dim)
                 .accessibilityElement(children: .combine)
             }
             Text(note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).textSelection(.enabled)
@@ -185,9 +185,9 @@ struct NoteCard: View {
             .opacity(hover ? 1 : 0)
         }
         .padding(.vertical, 12).padding(.horizontal, 14)
-        // Solid tinted blocks by kind: coral for a loose note, lime for a bookmark, iris for a passage note.
-        .background(note.isBookmark ? Ink.limeTint : note.segmentId != nil ? Ink.irisTint : Ink.coralTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+        // Bookmarks on butter tint (saved); notes on neutral cards, so they never borrow an action hue.
+        .background(note.isBookmark ? Ink.butterTint : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
     }

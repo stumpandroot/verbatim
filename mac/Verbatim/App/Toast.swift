@@ -23,7 +23,7 @@ struct ToastView: View {
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .foregroundStyle(Ink.readerFixed)
             .frame(maxWidth: 520)
             .padding(.bottom, 24)

@@ -58,11 +58,11 @@ struct SelectableLines: View {
             out += tc
             out += AttributedString("   ")
             var line = AttributedString(s.text)
-            if playingIDs.contains(s.id) { line.backgroundColor = Ink.irisTint }
+            if playingIDs.contains(s.id) { line.backgroundColor = Ink.playing }
             if q.count >= 2 {
                 var from = line.startIndex
                 while from < line.endIndex, let r = line[from...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
-                    line[r].backgroundColor = Ink.coral.opacity(0.28)
+                    line[r].backgroundColor = Ink.match
                     from = r.upperBound
                 }
             }

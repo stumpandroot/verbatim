@@ -8,6 +8,7 @@ here.
     python3 mac/tools/gen_icons.py            prints the Swift
     python3 mac/tools/gen_icons.py --write    replaces the BEGIN/END ICONS block in Verbatim/Views/Brand.swift
     python3 mac/tools/gen_icons.py --svg out.svg   writes a contact sheet for checking the drawings
+    python3 mac/tools/gen_icons.py --web DIR   writes the web front end's icons (link-transcriber/static/icons)
 """
 import math
 import os
@@ -179,7 +180,91 @@ I = {
     'Attention': [s(C(12, 12, 8.5)), s('M12 7V13'), fl(C(12, 16.3, 1.1))],
     'Recovered': [s(A(12, 12, 8.5, 6, 66)), s(A(12, 12, 8.5, 78, 138)), s(A(12, 12, 8.5, 150, 210)), s(A(12, 12, 8.5, 222, 282)),
                   s(A(12, 12, 8.5, 294, 354)), fl(C(12, 12, 1.6))],
+    # Brand pass (October 22, 2026): glyphs that replace SF Symbols in the app (DESIGN.md §3), same grammar.
+    'Captions': [s('M4 6.5C8.5 3.2 15.5 3.2 20 6.5'), s('M4 11.5H20'), s('M4 15.5H17'), s('M4 19.5H12')],
+    'Copy': [s('M5.5 15.5V3.5H15.5'), s('M8.5 6.5H18.5V20.5H8.5Z')],
+    'Paste': [s('M9 3.5H15V6.5H9Z'), s('M9 5H6V20.5H18V5H15'), s('M9 11H15'), s('M9 15H13')],
+    'Notes': [s('M4.5 4.5H19.5V14.5L14.5 19.5H4.5Z'), s('M14.5 19.5V14.5H19.5'), s('M8 9H16'), s('M8 12.5H12.5')],
+    'TextSize': [s('M3 19L7.5 6.5L12 19'), s('M4.6 14.5H10.4'), s('M13.5 19L16.75 10.5L20 19'), s('M14.6 16H18.9')],
+    'Select': [s('M12 5V19'), s('M9.5 5H14.5'), s('M9.5 19H14.5'), s('M4.5 8V4.5H7'), s('M4.5 16V19.5H7'), s('M19.5 8V4.5H17'), s('M19.5 16V19.5H17')],
+    'Play': [s('M7.5 4.5L19 12L7.5 19.5Z')],
+    'Pause': [s('M8.5 5V19'), s('M15.5 5V19')],
+    'Stop': [s('M6.5 6.5H17.5V17.5H6.5Z')],
+    'Back5': [s(A(12, 13, 7.5, 0, 300)), s('M14 3.5L12 5.5L14 7.5'), s('M13.6 10H10.6L10.3 13C11.9 12.3 13.9 12.9 13.9 14.7C13.9 16.5 11.6 17.1 10.1 16.2')],
+    'Forward5': [s(A(12, 13, 7.5, 60, 360)), s('M10 3.5L12 5.5L10 7.5'), s('M13.6 10H10.6L10.3 13C11.9 12.3 13.9 12.9 13.9 14.7C13.9 16.5 11.6 17.1 10.1 16.2')],
+    'Pin': [s('M8.5 3.5H15.5'), s('M10 3.5V9.5L7 13.5H17L14 9.5V3.5'), s('M12 13.5V20.5')],
+    'Project': [s('M3.5 5.5H9.5L11.5 7.5H20.5V18.5H3.5Z'), s('M3.5 10.5H20.5')],
+    'AI': [s('M12 3.5L13.9 10.1L20.5 12L13.9 13.9L12 20.5L10.1 13.9L3.5 12L10.1 10.1Z')],
+    'Recent': [s(C(10, 12, 6.5)), s('M10 8.5V12L12.5 13.5'), s('M19 8.5H21'), s('M19.5 12H21'), s('M19 15.5H21')],
+    'Hide': [s('M3.5 10.5C7.5 16 16.5 16 20.5 10.5'), s('M6.5 13.8L5 16'), s('M12 15.6V18.3'), s('M17.5 13.8L19 16')],
+    'Multitrack': [s('M3 6.5H8C9 4.5 10 4.5 11 6.5S13 8.5 14 6.5H21'), s('M3 12H6C7 10 8 10 9 12S11 14 12 12H21'),
+                   s('M3 17.5H10C11 15.5 12 15.5 13 17.5S15 19.5 16 17.5H21')],
+    'Quote': [s('M4.5 12.5H9.5V17.5H4.5V12.5C4.5 9.5 5.8 7.5 8.5 6.5'), s('M14.5 12.5H19.5V17.5H14.5V12.5C14.5 9.5 15.8 7.5 18.5 6.5')],
+    'Swap': [s('M4 8.5H19'), s('M16 5.5L19 8.5L16 11.5'), s('M20 15.5H5'), s('M8 12.5L5 15.5L8 18.5')],
+    'Follow': [s('M4 7H13'), s('M4 12H10'), s('M4 17H13'), s('M15.5 9L20.5 12L15.5 15Z')],
+    'Details': [s(C(12, 12, 8.5)), s('M12 11V16.5'), fl(C(12, 7.8, 1.1))],
+    'Server': [s('M4.5 4.5H19.5V10.5H4.5Z'), s('M4.5 13.5H19.5V19.5H4.5Z'), fl(C(8, 7.5, 1)), fl(C(8, 16.5, 1))],
+    'LowerAudio': [s('M4 9.5H7.5L12 5.5V18.5L7.5 14.5H4Z'), s('M15.5 9.5C16.8 10.8 16.8 13.2 15.5 14.5'), s('M18.5 15.5L20 17L21.5 15.5')],
+    'Accessibility': [s(C(12, 5, 1.8)), s('M5 8.5L12 10L19 8.5'), s('M12 10V14.5'), s('M12 14.5L9 20.5'), s('M12 14.5L15 20.5')],
+    'NoSpeaker': [s(C(12, 8.5, 3.5)), s('M5.5 19.5C5.5 15.5 8.4 13.5 12 13.5S18.5 15.5 18.5 19.5'), s('M4 4L20 20')],
+    'Download': [s('M12 3.5V15'), s('M8 11L12 15L16 11'), s('M5 20.5H19')],
 }
+
+
+# The web front end's icons (link-transcriber/static/icons): the same glyphs as fine-line SVGs that take
+# currentColor, so the page can tint them. Each entry is an icon above by name, or raw elements on the 24 grid.
+WEB = {
+    'add': [s('M12 5V19'), s('M5 12H19')],
+    'arrow-left': [s('M19 12H5'), s('M11 6L5 12L11 18')],
+    'arrow-right': [s('M5 12H19'), s('M13 6L19 12L13 18')],
+    'arrow-ne': [s('M7 17L17 7'), s('M9 7H17V15')],
+    'arrow-se': [s('M7 7L17 17'), s('M17 9V17H9')],
+    'burst': 'AI',
+    'caption': 'Captions',
+    'check': [s('M5 12.5L10 17.5L19 7')],
+    'clean': 'AI',
+    'clock': 'Recent',
+    'close': [s('M6 6L18 18'), s('M18 6L6 18')],
+    'copy': 'Copy',
+    'download': 'Download',
+    'home': 'Home',
+    'library': 'Library',
+    'link': 'Links',
+    'mic': [s('M9.5 3.5H14.5V12.5A2.5 2.5 0 0 1 9.5 12.5Z'), s('M6 10.5C6 14.3 8.4 16.5 12 16.5S18 14.3 18 10.5'), s('M12 16.5V20'), s('M8.8 20.5H15.2')],
+    'processing': 'Transcribing',
+    'quote': 'Quote',
+    'review': 'Attention',
+    'save': [s('M6.5 3.5H17.5V20.5L12 16.6L6.5 20.5Z')],
+    'saved': [s('M6.5 3.5H17.5V20.5L12 16.6L6.5 20.5Z'), fl('M6.5 3.5H17.5V20.5L12 16.6L6.5 20.5Z')],
+    'search': [s(C(10.5, 10, 6)), s('M15 14.7L20.5 20.2')],
+    'settings': 'Settings',
+    'share': 'Share',
+    'summary': 'Summaries',
+    'transcribe': 'Dictations',
+    'transcript': 'Terms',
+    'upload': [s('M12 15V3.5'), s('M8 7.5L12 3.5L16 7.5'), s('M4 13V20H20V13')],
+}
+
+
+def svg_el(kind, el, dash):
+    k, data = el
+    if k == 'circle':
+        body = '<circle cx="%s" cy="%s" r="%s"' % tuple(f(x) for x in data)
+    else:
+        body = '<path d="%s"' % de_arc(data)
+    if kind == 'f':
+        return body + ' fill="currentColor" stroke="none"/>'
+    return body + ((' stroke-dasharray="%s %s"' % (f(dash[0]), f(dash[1]))) if dash else '') + '/>'
+
+
+def web_icons(folder):
+    for name, spec in WEB.items():
+        els = I[spec] if isinstance(spec, str) else spec
+        out = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+               'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="%s">' % name.replace('-', ' ')]
+        out += [svg_el(*e) for e in els]
+        out.append('</svg>')
+        open(os.path.join(folder, name + '.svg'), 'w').write(''.join(out) + '\n')
 
 
 def swift_el(el):
@@ -233,6 +318,9 @@ def svg_sheet(path):
 
 
 if __name__ == '__main__':
+    if '--web' in sys.argv:
+        web_icons(sys.argv[sys.argv.index('--web') + 1])
+        sys.exit(0)
     if '--svg' in sys.argv:
         svg_sheet(sys.argv[sys.argv.index('--svg') + 1])
     out = emit()

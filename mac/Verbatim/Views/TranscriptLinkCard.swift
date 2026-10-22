@@ -15,14 +15,14 @@ struct LinkCard: View {
                     .font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", systemImage: "play.rectangle") }
+            Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", art: .iconPlay, size: 13) }
                 .buttonStyle(.bordered).controlSize(.small).fixedSize()
             KeepButton(transcript: transcript)
-            Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(info.url, forType: .string); app.toast = Toast("Link copied") } label: { Image(systemName: "link") }
+            Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(info.url, forType: .string); app.toast = Toast("Link copied") } label: { ArtIcon(art: .iconLinks, size: 14) }
                 .buttonStyle(.bordered).controlSize(.small).help("Copy link")
         }
         .padding(8)
-        .cardSurface(radius: 12)
+        .cardSurface(radius: Radius.row)
         .frame(maxWidth: 640, alignment: .leading)
     }
 }
@@ -36,10 +36,10 @@ struct KeepButton: View {
             HStack(spacing: 6) { ProgressView().controlSize(.mini); Text(busy.replacingOccurrences(of: "Keeping video", with: "Keeping")).monospacedDigit() }
                 .font(.system(size: 12)).foregroundStyle(Ink.iris).fixedSize()
         } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
-            Button { app.showKept(v) } label: { Label("Kept", systemImage: "checkmark.circle") }
+            Button { app.showKept(v) } label: { Label("Kept", systemImage: "checkmark") }
                 .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Show the MP4 in Finder")
         } else {
-            Button { app.keepVideo(transcript.id) } label: { Label("Keep video", systemImage: "arrow.down.circle") }
+            Button { app.keepVideo(transcript.id) } label: { Label("Keep video", art: .iconDownload, size: 13) }
                 .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Save the video as an MP4 in your Keep folder")
         }
     }

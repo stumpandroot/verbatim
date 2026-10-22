@@ -1,29 +1,24 @@
 import SwiftUI
 import UIKit
 
-/// The keyboard's palette: paper in light (the approved mockup), ink in dark. Each color follows the keyboard's
-/// appearance, which `KeyboardViewController` sets from the host app (`keyboardAppearance`, else its light or dark
-/// mode). Dark: ink background (#1C2A24), paper text, persimmon marks, cards #22322B.
+/// The keyboard's palette: Verbatim's tokens (Tokens.swift is in this target), so it matches the app in light,
+/// dark, and Increase Contrast. Each color follows the keyboard's appearance, which `KeyboardViewController` sets
+/// from the host app. Dictation is butter (DESIGN.md §1: butter means Dictate); errors are `Ink.danger`.
 enum KB {
-    static let uiPaper = dynamic(0xF5F0E6, 0x1C2A24)
-    static let uiInk = dynamic(0x26352E, 0xF5F0E6)
+    static let uiPaper = Ink.paperUI
+    static let uiInk = Ink.inkUI
 
-    static let paper = Color(uiColor: uiPaper)
-    static let ink = Color(uiColor: uiInk)
-    static let persimmon = Color(hex: 0xFA6B47)
-    static let card = Color(uiColor: dynamic(0xFFFDF9, 0x22322B))
-    /// Notices (a failure, Full Access): deep persimmon on paper, a lighter one on ink.
-    static let deep = Color(uiColor: dynamic(0xB23F24, 0xFF9473))
-    static let muted = Color(uiColor: dynamic(0x5F6A62, 0xAEB6AD))
-    static let hairline = Color(uiColor: dynamic(0x26352E, 0xF5F0E6, alpha: 0.14))
-    /// Ink in both appearances: the glyph on the persimmon record button.
-    static let inkFixed = Color(hex: 0x26352E)
-
-    static func dynamic(_ light: UInt32, _ dark: UInt32, alpha: CGFloat = 1) -> UIColor {
-        UIColor { t in (t.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light)).withAlphaComponent(alpha) }
-    }
-
-    static func mono(_ size: CGFloat) -> Font { .system(size: size, weight: .medium, design: .monospaced) }
+    static let paper = Ink.paper
+    static let ink = Ink.ink
+    /// The keyboard's one action, dictation: butter fills, marks, and the listening edge.
+    static let dictate = Ink.butter
+    static let card = Ink.card
+    /// Notices (a failure, Full Access).
+    static let deep = Ink.danger
+    static let muted = Ink.mute
+    static let hairline = Ink.hairline
+    /// Ink in both appearances: the glyph on the butter dictate button.
+    static let inkFixed = Ink.inkFixed
 }
 
 /// Voice-first: no letter keys. A top strip for status, one big card for the action, and a bottom row with
@@ -78,8 +73,8 @@ struct KeyboardView: View {
         HStack(spacing: 8) {
             switch model.stage {
             case .listening, .starting, .writing:
-                RingsMark(color: KB.persimmon).frame(width: 15, height: 15)
-                Text(stripLabel).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1)
+                IconGlyph(art: .iconDictations, size: 16, color: KB.ink)
+                Text(stripLabel).font(.system(size: 12.5, weight: .medium)).monospacedDigit().foregroundStyle(KB.ink).lineLimit(1)
                     .accessibilityLabel(stripAccessibility)
                 Spacer(minLength: 6)
                 if model.stage == .starting {
@@ -90,13 +85,13 @@ struct KeyboardView: View {
                 if model.polishing {
                     // Polish after inserting: a soft pulse while the cleaned-up version is on its way.
                     PolishingMark()
-                    Text("POLISHING…")
-                        .font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.8)
+                    Text("Polishing…")
+                        .font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.8)
                         .accessibilityLabel("Inserted. Polishing your words")
                 } else {
                     SessionDot(on: model.sessionLive)
-                    Text("INSERTED · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "WORD" : "WORDS")")
-                        .font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
+                    Text("Inserted · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "word" : "words")")
+                        .font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 Spacer(minLength: 6)
                 Chip(title: "Undo") { model.undo() }
@@ -106,7 +101,7 @@ struct KeyboardView: View {
                         .accessibilityHint("Replaces the cleaned-up words with the words as you said them")
                 }
                 if !model.snippets.isEmpty {
-                    IconChip(systemName: "text.quote") { model.toggleSnippets() }
+                    IconChip(art: .iconQuote) { model.toggleSnippets() }
                         .accessibilityLabel("Snippets")
                         .accessibilityHint("Shows your snippets to insert")
                 }
@@ -126,11 +121,11 @@ struct KeyboardView: View {
 
     /// Idle: the session, the cleanup level, and the Snippets chip when you have snippets.
     @ViewBuilder private var idleStrip: some View {
-        BarsMark(color: KB.persimmon).frame(width: 14, height: 14)
-        Text(sessionLabel).font(KB.mono(11)).tracking(1.3).foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.7)
+        BarsMark(color: Ink.persimmon).frame(width: 14, height: 14)
+        Text(sessionLabel).font(.system(size: 12.5, weight: .medium)).monospacedDigit().foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.7)
             .accessibilityLabel(sessionAccessibility)
         Spacer(minLength: 6)
-        Text(model.levelLabel.uppercased()).font(KB.mono(10)).tracking(1.2).foregroundStyle(KB.muted).lineLimit(1)
+        Text(model.levelLabel).font(.system(size: 12)).foregroundStyle(KB.muted).lineLimit(1)
             .accessibilityLabel("Cleanup: \(model.levelLabel)")
         if !model.snippets.isEmpty {
             Chip(title: "Snippets") { model.toggleSnippets() }
@@ -142,7 +137,7 @@ struct KeyboardView: View {
     /// The clock button: shows your last few dictations in the top strip.
     @ViewBuilder private var recentButton: some View {
         if !model.recent.isEmpty {
-            IconChip(systemName: "clock.arrow.circlepath") { model.toggleRecent() }
+            IconChip(art: .iconRecent) { model.toggleRecent() }
                 .accessibilityLabel("Recent dictations")
                 .accessibilityHint("Shows your last dictations to insert again")
         }
@@ -158,7 +153,7 @@ struct KeyboardView: View {
                     }
                 }
             }
-            IconChip(systemName: "xmark") { model.toggleRecent() }
+            IconChip(symbol: "xmark") { model.toggleRecent() }
                 .accessibilityLabel("Close recent dictations")
         }
     }
@@ -174,16 +169,16 @@ struct KeyboardView: View {
                     }
                 }
             }
-            IconChip(systemName: "xmark") { model.toggleSnippets() }
+            IconChip(symbol: "xmark") { model.toggleSnippets() }
                 .accessibilityLabel("Close snippets")
         }
     }
 
-    /// "SESSION ON · 4:12 LEFT", "SESSION ON", or "TAP TO START A SESSION".
+    /// "Session on · 4:12 left", "Session on", or "Tap to start a session".
     private var sessionLabel: String {
-        guard model.sessionLive else { return model.needsSessionCard ? "NO SESSION" : "TAP TO START A SESSION" }
-        guard let ends = model.sessionEndsAt else { return "SESSION ON" }
-        return "SESSION ON · \(Self.clock(ends.timeIntervalSince(model.now))) LEFT"
+        guard model.sessionLive else { return model.needsSessionCard ? "No session" : "Tap to start a session" }
+        guard let ends = model.sessionEndsAt else { return "Session on" }
+        return "Session on · \(Self.clock(ends.timeIntervalSince(model.now))) left"
     }
 
     private var sessionAccessibility: String {
@@ -197,9 +192,9 @@ struct KeyboardView: View {
 
     private var stripLabel: String {
         switch model.stage {
-        case .starting: return "STARTING A SESSION"
-        case .writing: return "WRITING IT DOWN"
-        default: return "LISTENING · \(Self.clock(model.elapsed))"
+        case .starting: return "Starting a session"
+        case .writing: return "Writing it down"
+        default: return "Listening · \(Self.clock(model.elapsed))"
         }
     }
 
@@ -244,7 +239,7 @@ struct KeyboardView: View {
                 KeyboardRecordButton(size: 64)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(recordTitle)
-                        .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
+                        .font(Ink.serif(24)).foregroundStyle(KB.ink)
                         .lineLimit(1).minimumScaleFactor(0.7)
                     if !model.sessionLive {
                         Text("Verbatim opens for a second, then comes back")
@@ -254,9 +249,9 @@ struct KeyboardView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
@@ -265,16 +260,16 @@ struct KeyboardView: View {
 
     private var startingCard: some View {
         HStack(spacing: 16) {
-            VoiceBars(level: 0, color: KB.persimmon, barWidth: 10, maxHeight: 44).frame(width: 50)
+            VoiceBars(level: 0, color: KB.dictate, barWidth: 10, maxHeight: 44).frame(width: 50)
             Text("Opening Verbatim…")
-                .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
+                .font(Ink.serif(24)).foregroundStyle(KB.ink)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 8)
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.dictate.opacity(0.55)))
     }
 
     private var listeningCard: some View {
@@ -286,7 +281,7 @@ struct KeyboardView: View {
                 if model.stage == .writing {
                     ProgressView().tint(KB.ink).frame(height: 40).accessibilityLabel("Writing it down")
                 } else {
-                    ListeningDots(level: model.level, color: KB.persimmon).frame(height: hasLiveWords ? 28 : 40)
+                    ListeningDots(level: model.level, color: KB.dictate).frame(height: hasLiveWords ? 28 : 40)
                 }
                 if model.stage == .listening, hasLiveWords {
                     LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile, corrections: model.liveCorrections)
@@ -306,8 +301,8 @@ struct KeyboardView: View {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.dictate.opacity(0.55)))
         .accessibilityElement(children: .contain)
     }
 
@@ -325,8 +320,8 @@ struct KeyboardView: View {
             if model.showsGlobe {
                 GlobeKey(controller: model.controllerForGlobe)
                     .frame(width: 48)
-                    .background(KB.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(KB.hairline))
+                    .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
                     .accessibilityLabel("Next keyboard")
             }
             Key(label: { Text("space").font(.system(size: 15)).foregroundStyle(KB.muted) }, action: model.space)
@@ -355,12 +350,12 @@ private struct FormatChip: View {
     var body: some View {
         Button(action: next) {
             HStack(spacing: 5) {
-                Circle().fill(format == .auto ? KB.hairline : KB.persimmon).frame(width: 6, height: 6)
-                Text(label.uppercased()).font(KB.mono(10)).tracking(1.1).foregroundStyle(KB.ink).lineLimit(1)
+                Circle().fill(format == .auto ? KB.hairline : KB.dictate).frame(width: 6, height: 6)
+                Text(label).font(.system(size: 11.5, weight: .medium)).foregroundStyle(KB.ink).lineLimit(1)
             }
             .padding(.horizontal, 10).frame(height: 26)
             .background(KB.paper, in: Capsule())
-            .overlay(Capsule().strokeBorder(format == .auto ? KB.hairline : KB.persimmon.opacity(0.6)))
+            .overlay(Capsule().strokeBorder(format == .auto ? KB.hairline : KB.dictate.opacity(0.6)))
             .contentShape(Capsule())
         }
         .buttonStyle(PressFade())
@@ -378,14 +373,14 @@ private struct StartSessionCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             ZStack {
-                Circle().fill(KB.persimmon.opacity(0.18))
-                BrandGlyph(art: .capture, color: KB.persimmon, minLineWidth: 1.2).padding(11)
+                Circle().fill(Ink.butterTint)
+                BrandGlyph(art: .iconDictations, color: Ink.butterText, minLineWidth: 1.2).padding(11)
             }
             .frame(width: 44, height: 44)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Start a session to dictate")
-                    .font(.system(size: 20, design: .serif)).foregroundStyle(KB.ink)
+                    .font(Ink.serif(20)).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 way("square.grid.2x2", "Open Control Center and tap Verbatim")
                 way("button.horizontal.top.press", "Press the Action button, if you set it to Verbatim")
@@ -395,26 +390,26 @@ private struct StartSessionCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.hairline))
         .accessibilityElement(children: .combine)
     }
 
     private func way(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.persimmon).frame(width: 16)
+            Image(systemName: symbol).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.ink).frame(width: 16)
             Text(text).font(.system(size: 13)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
         }
     }
 }
 
-/// The app's record button: a persimmon circle with the Capture glyph in ink (same as the Mac's RecordButton).
+/// The dictate button: a butter circle with the Dictations glyph in ink (butter means Dictate).
 struct KeyboardRecordButton: View {
     var size: CGFloat
     var body: some View {
         ZStack {
-            Circle().fill(KB.persimmon)
-            BrandGlyph(art: .capture, color: KB.inkFixed, minLineWidth: 1.2).padding(size * 0.2)
+            Circle().fill(KB.dictate)
+            BrandGlyph(art: .iconDictations, color: KB.inkFixed, minLineWidth: 1.2).padding(size * 0.22)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -433,7 +428,7 @@ private struct LiveWordsLine: View {
     var body: some View {
         let joiner = settled.isEmpty || volatile.isEmpty ? "" : " "
         line(joiner)
-            .font(.system(size: 15, design: .serif))
+            .font(.system(size: 15))
             .lineLimit(2)
             .truncationMode(.head)
             .multilineTextAlignment(.center)
@@ -461,16 +456,11 @@ private struct LiveWordsLine: View {
     }
 }
 
-/// The session dot, pulsing softly while Verbatim polishes the inserted text. Still under Reduce Motion.
+/// The session dot, half-lit while Verbatim polishes the inserted text (still: nothing loops, DESIGN.md §7).
 private struct PolishingMark: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var dim = false
-
     var body: some View {
-        Circle().fill(KB.persimmon).frame(width: 8, height: 8)
-            .opacity(reduceMotion ? 0.7 : (dim ? 0.3 : 1))
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: dim)
-            .onAppear { dim = true }
+        Circle().fill(KB.dictate).frame(width: 8, height: 8).opacity(0.6)
+            .overlay(Circle().strokeBorder(KB.dictate, lineWidth: 1.5))
             .accessibilityHidden(true)
     }
 }
@@ -479,7 +469,7 @@ private struct PolishingMark: View {
 private struct SessionDot: View {
     var on: Bool
     var body: some View {
-        Circle().fill(on ? KB.persimmon : KB.hairline).frame(width: 8, height: 8)
+        Circle().fill(on ? KB.dictate : KB.hairline).frame(width: 8, height: 8)
             .accessibilityLabel(on ? "Session on" : "No session")
     }
 }
@@ -502,34 +492,28 @@ private struct RoundKey: View {
     }
 }
 
-/// A row of persimmon dots that rise with the voice level, with a slow travelling wave so the row looks alive
-/// even in a quiet room. Under Reduce Motion the dots follow the level only.
+/// A row of butter dots that rise with the voice level, taller in the middle. They follow the level only: still
+/// in a quiet room (DESIGN.md §7).
 private struct ListeningDots: View {
     var level: Double
     var color: Color
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private static let count = 9
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 5) {
-                ForEach(0..<Self.count, id: \.self) { i in
-                    Capsule().fill(color).frame(width: 6, height: height(i, t))
-                }
+        HStack(spacing: 5) {
+            ForEach(0..<Self.count, id: \.self) { i in
+                Capsule().fill(color).frame(width: 6, height: height(i))
             }
-            .frame(maxHeight: .infinity)
         }
+        .frame(maxHeight: .infinity)
         .accessibilityHidden(true)
     }
 
-    private func height(_ i: Int, _ t: TimeInterval) -> CGFloat {
+    private func height(_ i: Int) -> CGFloat {
         let l = pow(min(1, max(0, level)), 0.6)
         let center = Double(Self.count - 1) / 2
         let shape = 1 - abs(Double(i) - center) / (center + 1)      // taller in the middle
-        let wave = reduceMotion ? 0.5 : (sin(t * 5 + Double(i) * 0.8) + 1) / 2
-        let idle = 0.12 + 0.08 * wave
-        return 6 + CGFloat(max(idle, l * shape * (0.7 + 0.3 * wave))) * 34
+        return 6 + CGFloat(max(0.12, l * shape)) * 34
     }
 }
 
@@ -578,12 +562,18 @@ private struct RecentChip: View {
 }
 
 /// A round chip with a symbol (Snippets, Close).
+/// A round chip in the top strip: a brand glyph, or a standard control symbol (xmark).
 private struct IconChip: View {
-    var systemName: String
+    var art: BrandArt? = nil
+    var symbol: String? = nil
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName).font(.system(size: 12, weight: .semibold)).foregroundStyle(KB.ink)
+            Group {
+                if let art { ArtIcon(art: art, size: 15) }
+                else if let symbol { Image(systemName: symbol).font(.system(size: 12, weight: .semibold)) }
+            }
+            .foregroundStyle(KB.ink)
                 .frame(width: 28, height: 28)
                 .background(KB.card, in: Circle())
                 .overlay(Circle().strokeBorder(KB.hairline))
@@ -600,9 +590,9 @@ private struct Key<Label: View>: View {
         Button(action: action) {
             label()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(KB.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(KB.hairline))
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(PressFade())
     }
@@ -618,9 +608,9 @@ private struct RepeatKey<Label: View>: View {
     var body: some View {
         label()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(pressed ? KB.hairline : KB.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(KB.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(pressed ? KB.hairline : KB.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { _ in if !pressed { begin() } }
                 .onEnded { _ in end() })

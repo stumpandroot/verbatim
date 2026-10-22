@@ -89,16 +89,15 @@ final class FlowMenuPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// The menu's colors: Verbatim's tokens, so it follows Dark mode and Increase Contrast like the app.
 private enum Paper {
-    static let card = Color(hex: 0xFFFDF9)
-    static let line = Color(hex: 0xDCD3C2)
-    static let rule = Color(hex: 0xE6DECF)
-    static let hover = Color(hex: 0xF5F0E6)
-    static let ink = Color(hex: 0x26352E)
-    static let dim = Color(hex: 0x545E56)
-    static let mute = Color(hex: 0x606962)
-    static let persimmon = Color(hex: 0xFA6B47)
-    static let caution = Color(hex: 0x8A6414)
+    static let card = Ink.card
+    static let line = Ink.hairline
+    static let rule = Ink.hairline
+    static let hover = Ink.wash
+    static let ink = Ink.ink
+    static let dim = Ink.dim
+    static let mute = Ink.mute
 }
 
 struct FlowMenuView: View {
@@ -123,61 +122,60 @@ struct FlowMenuView: View {
                 if !opensLeft, sub != nil { submenu }
             }
         }
-        .environment(\.colorScheme, .light)
     }
 
     private var main: some View {
         VStack(alignment: .leading, spacing: 0) {
-            item("Hide for 1 hour", "eye.slash") { actions.hide(); close() }
-            item("Settings", "gearshape") { actions.settings(); close() }
+            item("Hide for 1 hour", .iconHide) { actions.hide(); close() }
+            item("Settings", .iconSettings) { actions.settings(); close() }
             rule
-            item("Project", "folder", trailing: (actions.projects.first { $0.id == settings.activeProject }?.name ?? "None").uppercased(), chevron: true, highlighted: sub == .project, tint: Paper.persimmon) { sub = sub == .project ? nil : .project }
+            item("Project", .iconProject, trailing: actions.projects.first { $0.id == settings.activeProject }?.name ?? "None", chevron: true, highlighted: sub == .project) { sub = sub == .project ? nil : .project }
                 .onHover { if $0 { sub = .project } }
-            item("Thought pad", "square.and.pencil", trailing: "⌃⌥P") { actions.thoughtPad(); close() }
+            item("Thought pad", .iconNotes, keys: "⌃⌥P") { actions.thoughtPad(); close() }
                 .onHover { if $0 { sub = nil } }
             rule
-            item("Microphone", "mic", chevron: true, highlighted: sub == .mic, tint: Paper.persimmon) { sub = sub == .mic ? nil : .mic }
+            item("Microphone", .capture, chevron: true, highlighted: sub == .mic) { sub = sub == .mic ? nil : .mic }
                 .onHover { if $0 { sub = .mic } }
-            item("Cleanup", "slider.horizontal.3", trailing: settings.cleanup.title.uppercased(), chevron: true, highlighted: sub == .cleanup) { sub = sub == .cleanup ? nil : .cleanup }
+            item("Cleanup", .iconQuality, trailing: settings.cleanup.title, chevron: true, highlighted: sub == .cleanup) { sub = sub == .cleanup ? nil : .cleanup }
                 .onHover { if $0 { sub = .cleanup } }
-            item("Actions", "wand.and.stars", chevron: true, highlighted: sub == .actions, tint: Paper.persimmon) { sub = sub == .actions ? nil : .actions }
+            item("Actions", .refine, chevron: true, highlighted: sub == .actions) { sub = sub == .actions ? nil : .actions }
                 .onHover { if $0 { sub = .actions } }
             rule
-            item("Edit selection by voice", "pencil.line", trailing: "⇧ + KEY") { actions.editByVoice(); close() }
+            item("Edit selection by voice", .iconFeedback, keys: "⇧ + key") { actions.editByVoice(); close() }
                 .onHover { if $0 { sub = nil } }
-            item("Dictation history", "clock.arrow.circlepath") { actions.history(); close() }
+            item("Dictation history", .iconRecent) { actions.history(); close() }
                 .onHover { if $0 { sub = nil } }
-            item("Paste last dictation", "doc.on.clipboard", trailing: "⌘⌃V") { actions.pasteLast(); close() }
+            item("Paste last dictation", .iconPaste, keys: "⌃⌘V") { actions.pasteLast(); close() }
                 .onHover { if $0 { sub = nil } }
-            item("Copy last dictation", "doc.on.doc") { actions.copyLast(); close() }
+            item("Copy last dictation", .iconCopy) { actions.copyLast(); close() }
                 .onHover { if $0 { sub = nil } }
         }
         .padding(6)
         .frame(width: 240)
-        .background(Paper.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Paper.line))
+        .background(Paper.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Paper.line))
     }
 
     @ViewBuilder private var submenu: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch sub {
             case .mic:
-                header("MICROPHONE")
+                header("Microphone")
                 choice("System default" + (AudioDevices.defaultInput().map { " (\($0.name))" } ?? ""), on: selectedUID == nil) { pickMic(nil) }
                 ForEach(devices) { d in
                     let uid = AudioDevices.deviceUID(d.id)
                     choice(d.name, on: selectedUID != nil && selectedUID == uid) { pickMic(uid) }
                     if d.transport == "Bluetooth" {
-                        Text("Bluetooth: call quality, slow start").font(.system(size: 11.5)).foregroundStyle(Paper.caution).padding(.leading, 37).padding(.bottom, 4)
+                        Text("Bluetooth: call quality, slow start").font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.leading, 37).padding(.bottom, 4)
                     }
                 }
             case .cleanup:
-                header("CLEANUP")
+                header("Cleanup")
                 ForEach(CleanupLevel.allCases) { l in
                     choice(l.title, on: settings.cleanup == l, note: l.shortNote) { settings.cleanup = l; close() }
                 }
             case .project:
-                header("DICTATE INTO")
+                header("Dictate into")
                 choice("No project", on: !actions.projects.contains { $0.id == settings.activeProject }) { settings.activeProject = nil; close() }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
@@ -191,7 +189,7 @@ struct FlowMenuView: View {
                     .font(.system(size: 11.5)).foregroundStyle(Paper.mute).padding(.horizontal, 10).padding(.vertical, 6)
                     .fixedSize(horizontal: false, vertical: true)
             case .actions:
-                header("ON SELECTED TEXT")
+                header("On selected text")
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(settings.actions) { a in
@@ -207,7 +205,7 @@ struct FlowMenuView: View {
                 .frame(maxHeight: min(CGFloat(settings.actions.count) * 31, 340))
                 Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5)
                 MenuRow(highlighted: false, action: { actions.editActions(); close() }) {
-                    Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)
+                    ArtIcon(art: .iconQuality, size: 16).foregroundStyle(Paper.dim).frame(width: 20)
                     Text("Edit actions…").font(.system(size: 13)).foregroundStyle(Paper.ink)
                     Spacer(minLength: 0)
                 }
@@ -217,8 +215,8 @@ struct FlowMenuView: View {
         }
         .padding(6)
         .frame(width: 236)
-        .background(Paper.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Paper.line))
+        .background(Paper.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Paper.line))
         .padding(.top, anchorTop ? (sub == .cleanup ? 201 : sub == .mic ? 165 : sub == .project ? 82 : 0) : 0)
     }
 
@@ -232,22 +230,23 @@ struct FlowMenuView: View {
     private var rule: some View { Rectangle().fill(Paper.rule).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 5) }
 
     private func header(_ s: String) -> some View {
-        Text(s).font(.system(size: 11, design: .monospaced)).tracking(0.8).foregroundStyle(Paper.mute).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
+        Text(s).font(.system(size: 12, weight: .semibold)).foregroundStyle(Paper.dim).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
     }
 
-    private func item(_ title: String, _ symbol: String, trailing: String? = nil, chevron: Bool = false, highlighted: Bool = false, tint: Color = Color(hex: 0x545E56), action: @escaping () -> Void) -> some View {
+    private func item(_ title: String, _ art: BrandArt, trailing: String? = nil, keys: String? = nil, chevron: Bool = false, highlighted: Bool = false, action: @escaping () -> Void) -> some View {
         MenuRow(highlighted: highlighted, action: action) {
-            Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(highlighted ? tint : Paper.dim).frame(width: 20)
+            ArtIcon(art: art, size: 16).foregroundStyle(highlighted ? Paper.ink : Paper.dim).frame(width: 20)
             Text(title).font(.system(size: 13)).foregroundStyle(Paper.ink)
             Spacer(minLength: 8)
-            if let trailing { Text(trailing).font(.system(size: 11, design: .monospaced)).foregroundStyle(Paper.mute) }
+            if let trailing { Text(trailing).font(.system(size: 12)).foregroundStyle(Paper.mute).lineLimit(1) }
+            if let keys { Keycap(keys: keys, size: 10.5).foregroundStyle(Paper.mute) }
             if chevron { Image(systemName: opensLeft ? "chevron.left" : "chevron.right").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Paper.mute) }
         }
     }
 
     private func choice(_ title: String, on: Bool, note: String? = nil, action: @escaping () -> Void) -> some View {
         MenuRow(highlighted: false, action: action) {
-            Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold)).foregroundStyle(Paper.persimmon).opacity(on ? 1 : 0).frame(width: 20)
+            Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold)).foregroundStyle(Paper.ink).opacity(on ? 1 : 0).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
                 if let note { Text(note).font(.system(size: 11)).foregroundStyle(Paper.mute) }
@@ -265,7 +264,7 @@ private struct MenuRow<Content: View>: View {
     var body: some View {
         HStack(spacing: 10) { content() }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background((hover || highlighted) ? Paper.hover : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background((hover || highlighted) ? Paper.hover : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .contentShape(Rectangle())
             .onHover { hover = $0 }
             .onTapGesture(perform: action)

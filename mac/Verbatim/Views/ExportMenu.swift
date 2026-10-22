@@ -13,7 +13,7 @@ struct ExportMenu: View {
     var body: some View {
         HStack(spacing: 2) {
             HStack(spacing: 0) {
-                Button { ExportMenu.copy(transcript, version, app: app) } label: { ToolLabel(title: "Copy", symbol: "doc.on.doc", compact: compact) }
+                Button { ExportMenu.copy(transcript, version, app: app) } label: { ToolLabel(title: "Copy", art: .iconCopy, compact: compact) }
                     .buttonStyle(.plain).help("Copy the \(version.name) (⌘⇧C)")
                     .accessibilityIdentifier("copy-tab")
                 Menu {
@@ -29,7 +29,7 @@ struct ExportMenu: View {
                 .help("More ways to copy")
                 .accessibilityLabel("More ways to copy")
             }
-            Button { app.exportRequest = ExportRequest(ids: [transcript.id]) } label: { ToolLabel(title: "Export", symbol: "square.and.arrow.up", compact: compact) }
+            Button { app.exportRequest = ExportRequest(ids: [transcript.id]) } label: { ToolLabel(title: "Export", art: .iconExport, compact: compact) }
                 .buttonStyle(.plain).help("Export as text, Markdown, Word, subtitles, or JSON")
         }
         .disabled(transcript.status != .ready)
@@ -45,19 +45,22 @@ struct ExportMenu: View {
 }
 
 /// A quiet text-and-icon tool button for the transcript's mode bar.
+/// Meaningful tools take a brand glyph (`art`); `symbol` is only for standard controls on the allowlist.
 struct ToolLabel: View {
     var title: String
-    var symbol: String
+    var art: BrandArt? = nil
+    var symbol: String? = nil
     var compact = false
     var on = false
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: symbol).font(.system(size: 12.5, weight: .medium))
+            if let art { ArtIcon(art: art, size: 15) }
+            else if let symbol { Image(systemName: symbol).font(.system(size: 12.5, weight: .medium)) }
             if !compact { Text(title).font(.system(size: 12.5, weight: .medium)).lineLimit(1).fixedSize() }
         }
         .foregroundStyle(on ? Ink.iris : Ink.dim)
         .padding(.horizontal, compact ? 7 : 9).frame(height: 28)
-        .background(on ? Ink.iris.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(on ? Ink.iris.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .contentShape(Rectangle())
         .hoverChip()
     }

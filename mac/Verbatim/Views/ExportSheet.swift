@@ -50,7 +50,7 @@ struct ExportSheet: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Export").font(Ink.serif(30)).foregroundStyle(Ink.ink)
                 Spacer(minLength: 12)
-                Overline(text: tag(ts), color: Ink.mute)
+                Text(tag(ts)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             FormatControl(selection: $format)
             // The card at its own height when it fits; scrolling when it doesn't.
@@ -137,8 +137,8 @@ struct ExportSheet: View {
             }
         }
         .font(.system(size: 13.5))
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
     }
 
     // MARK: Rows and controls
@@ -147,8 +147,8 @@ struct ExportSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Text(label).foregroundStyle(Ink.ink).lineLimit(1)
-                if let badge { Text(badge).font(Ink.mono(10, weight: .medium)).tracking(1).foregroundStyle(Ink.mute) }
-                if let detail { Text(detail).font(Ink.mono(11)).foregroundStyle(Ink.mute) }
+                if let badge { Text(badge).font(.system(size: 10, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute) }
+                if let detail { Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute) }
                 Spacer(minLength: 10)
                 control()
             }
@@ -191,7 +191,7 @@ struct ExportSheet: View {
 
     private func stepper<V: Strideable & Comparable>(_ b: Binding<V>, _ range: ClosedRange<V>, _ step: V.Stride, _ text: @escaping (V) -> String) -> some View {
         HStack(spacing: 8) {
-            Text(text(b.wrappedValue)).font(Ink.mono(12.5)).foregroundStyle(Ink.dim).frame(minWidth: 44, alignment: .trailing)
+            Text(text(b.wrappedValue)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.dim).frame(minWidth: 44, alignment: .trailing)
             Stepper("", value: b, in: range, step: step).labelsHidden().controlSize(.small)
         }
     }
@@ -283,7 +283,7 @@ struct FormatControl: View {
                         .frame(maxWidth: .infinity).frame(height: 30)
                         .background {
                             if on {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.reader)
+                                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.reader)
                                     .shadow(color: Ink.inkFixed.opacity(0.15), radius: 1, y: 1)
                             }
                         }
@@ -295,7 +295,7 @@ struct FormatControl: View {
             }
         }
         .padding(3)
-        .background(Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .animation(.easeOut(duration: 0.15), value: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Format")
@@ -316,9 +316,9 @@ struct SheetButtonStyle: ButtonStyle {
                 .font(.system(size: 14, weight: primary ? .semibold : .medium))
                 .foregroundStyle(primary ? Ink.onInteractive : Ink.ink)
                 .frame(maxWidth: .infinity).frame(height: 40)
-                .background(fill, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(fill, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .onHover { hover = $0 }
                 .animation(.easeOut(duration: 0.14), value: hover)
         }

@@ -107,8 +107,8 @@ struct SignInSheet: View {
                 .overlay(alignment: .top) { if i > 0 { RowRule() } }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .cardSurface(radius: 12)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .cardSurface(radius: Radius.row)
     }
 }
 

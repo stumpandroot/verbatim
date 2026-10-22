@@ -164,7 +164,7 @@ struct SettingsScreen: View {
         .settingsSearchTarget("dictionary", flash: searchFlash)
         SettingsDivider()
         Button { bump("snippets"); showSnippets = true } label: {
-            SettingsRow(icon: "text.badge.plus", tint: Ink.petalTint, title: "Snippets", subtitle: "Say a trigger, get your saved text", bounce: bumps["snippets", default: 0]) {
+            SettingsRow(icon: "text.badge.plus", tint: Ink.petalTint, art: .iconQuote, title: "Snippets", subtitle: "Say a trigger, get your saved text", bounce: bumps["snippets", default: 0]) {
                 SettingsValue("\(app.store.snippets.count)"); SettingsChevron()
             }
         }
@@ -221,7 +221,7 @@ struct SettingsScreen: View {
                 ForEach(CleanupLevel.allCases) { l in Text(l.title).tag(l) }
             }
         } label: {
-            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, title: "Cleanup", subtitle: cleanupSubtitle, subtitleLines: nil, bounce: flow.cleanup.rawValue) {
+            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, art: .refine, title: "Cleanup", subtitle: cleanupSubtitle, subtitleLines: nil, bounce: flow.cleanup.rawValue) {
                 SettingsValue(flow.cleanup.title); SettingsMenuMark()
             }
         }
@@ -245,7 +245,7 @@ struct SettingsScreen: View {
                           subtitle: "Suggests a title, kind, and tags when a transcript is ready", isOn: $autoLabels)
             .settingsSearchTarget("nameAndSort", flash: searchFlash)
         SettingsDivider()
-        SettingsToggleRow(icon: "text.quote", tint: Ink.butterTint, title: "Write a summary when a transcript finishes",
+        SettingsToggleRow(icon: "text.quote", tint: Ink.butterTint, art: .iconSummaries, title: "Write a summary when a transcript finishes",
                           subtitle: Summarizer.unavailableReason ?? "A short overview and key points at the top of the transcript", isOn: $autoSummary)
             .settingsSearchTarget("summaries", flash: searchFlash)
         SettingsDivider()
@@ -262,7 +262,7 @@ struct SettingsScreen: View {
                 ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
             }
         } label: {
-            SettingsRow(icon: "square.stack.3d.up", tint: Ink.petalTint, title: "Files with several audio tracks",
+            SettingsRow(icon: "square.stack.3d.up", tint: Ink.petalTint, art: .iconMultitrack, title: "Files with several audio tracks",
                         subtitle: audioTracks == AudioTracksPreference.separate.rawValue
                             ? "Each track is transcribed on its own as a speaker you can rename"
                             : "Every track is mixed into one transcript",
@@ -398,7 +398,7 @@ struct SettingsScreen: View {
         .settingsSearchTarget("share", flash: searchFlash)
         SettingsDivider()
         Button { bump("acknowledgements"); showAcknowledgements = true } label: {
-            SettingsRow(icon: "doc.plaintext", tint: Ink.sageTint, title: "Acknowledgements", subtitle: "Open-source software and its licenses",
+            SettingsRow(icon: "doc.plaintext", tint: Ink.sageTint, art: .iconTerms, title: "Acknowledgements", subtitle: "Open-source software and its licenses",
                         bounce: bumps["acknowledgements", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
@@ -425,8 +425,7 @@ struct SettingsScreen: View {
             Text("Version \(version) (\(build))")
             Text("Verbatim · Stump & Root Co.")
         }
-        .textCase(.uppercase)
-        .font(Ink.mono(12)).tracking(1).foregroundStyle(Ink.mute)
+        .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
@@ -435,13 +434,13 @@ struct SettingsScreen: View {
 
     private func group<Rows: View>(_ index: Int, _ title: String, footer: String? = nil, @ViewBuilder _ rows: () -> Rows) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased()).font(Ink.mono(12, weight: .medium)).tracking(2).foregroundStyle(Ink.dim)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
                 .padding(.horizontal, 4)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) { rows() }
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Ink.hairline))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             if let footer {
                 Text(footer).font(.system(size: 13)).foregroundStyle(Ink.mute)
                     .fixedSize(horizontal: false, vertical: true)
@@ -515,12 +514,13 @@ struct SettingsLabel: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint)
+                // Neutral tiles: hues mean actions (DESIGN.md §1), so a settings row never borrows one.
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip)
                 if let art {
-                    IconGlyph(art: art, size: 20, color: danger ? Ink.accentText : Ink.ink)
+                    IconGlyph(art: art, size: 20, color: danger ? Ink.danger : Ink.ink)
                 } else {
                     Image(systemName: icon).font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(danger ? Ink.accentText : Ink.ink)
+                        .foregroundStyle(danger ? Ink.danger : Ink.ink)
                         .symbolEffect(.bounce, value: bounce)
                         .symbolEffectsRemoved(limitMotion)
                 }
@@ -528,7 +528,7 @@ struct SettingsLabel: View {
             .frame(width: 30, height: 30)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 17)).foregroundStyle(danger ? Ink.accentText : Ink.ink)
+                Text(title).font(.system(size: 17)).foregroundStyle(danger ? Ink.danger : Ink.ink)
                 if let subtitle {
                     Text(subtitle).font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .lineLimit(subtitleLines)
@@ -628,15 +628,15 @@ struct AboutMeScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("YOUR NAME").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).padding(.horizontal, 4)
+                Text("Your name").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 4)
                 TextField("Your name", text: $name)
                     .textContentType(.name)
                     .font(.system(size: 16)).foregroundStyle(Ink.ink)
                     .padding(.horizontal, 14).frame(height: 48)
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                     .accessibilityLabel("Your name")
-                Text("ABOUT ME").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).padding(.horizontal, 4).padding(.top, 10)
+                Text("About me").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 4).padding(.top, 10)
                 ZStack(alignment: .topLeading) {
                     if aboutMe.isEmpty {
                         Text("For example: I'm a teacher. I record lessons and parent meetings, and often mention Room 12 and the spring fair.")
@@ -652,8 +652,8 @@ struct AboutMeScreen: View {
                         .accessibilityLabel("About me")
                 }
                 .padding(10)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                 .onChange(of: aboutMe) { _, v in
                     if v.count > Profile.aboutMeLimit { aboutMe = String(v.prefix(Profile.aboutMeLimit)) }
                 }
@@ -662,7 +662,7 @@ struct AboutMeScreen: View {
                         .font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    Text("\(aboutMe.count)/\(Profile.aboutMeLimit)").font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                    Text("\(aboutMe.count)/\(Profile.aboutMeLimit)").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
                         .accessibilityLabel("\(aboutMe.count) of \(Profile.aboutMeLimit) characters")
                 }
                 .padding(.horizontal, 4)
