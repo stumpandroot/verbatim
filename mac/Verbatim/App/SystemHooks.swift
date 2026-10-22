@@ -38,12 +38,13 @@ enum SystemHooks {
 /// Handles the "Transcribe with Verbatim" Service, which Finder shows for audio and video files (right-click ›
 /// Quick Actions or Services). The files are imported like the open panel's: each gets a Library entry and joins
 /// the queue.
+@MainActor
 final class ServiceProvider: NSObject {
-    @MainActor static let shared = ServiceProvider()
-    @MainActor private var pending: [URL] = []
+    static let shared = ServiceProvider()
+    private var pending: [URL] = []
 
-    /// NSMessage "transcribeFiles" in Info.plist.
-    @MainActor @objc func transcribeFiles(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+    /// NSMessage "transcribeFiles" in Info.plist. Services arrive on the main thread.
+    @objc func transcribeFiles(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
         let urls = (pboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
         guard !urls.isEmpty else {
             error.pointee = "Choose audio or video files to transcribe." as NSString
@@ -54,7 +55,7 @@ final class ServiceProvider: NSObject {
         deliverPending()
     }
 
-    @MainActor func deliverPending() {
+    func deliverPending() {
         guard let app = SystemHooks.app, !pending.isEmpty else { return }
         let urls = pending
         pending = []
@@ -85,7 +86,8 @@ final class SpotlightIndex {
     func attach(_ store: Store) {
         self.store = store
         guard !UITest.enabled, !Bench.isRequested else { return }
-        store.objectWillChange.sink { [weak self] _ in self?.schedule() }.store(in: &bag)
+        // Store publishes on the main thread.
+        store.objectWillChange.sink { [weak self] _ in MainActor.assumeIsolated { self?.schedule() } }.store(in: &bag)
         schedule(after: 3)
     }
 

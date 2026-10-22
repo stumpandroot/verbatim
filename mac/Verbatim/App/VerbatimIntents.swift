@@ -69,13 +69,14 @@ struct TranscribeFileIntent: AppIntent {
         }
         guard let id = app.importFiles([url], useLibraryProject: false, announce: false).first?.0 else { throw VerbatimIntentError.unreadableFile }
         Log.note("intent: transcribe a file")
-        // Waits for the queue: one transcription runs at a time.
-        while true {
+        // Waits for the queue (one transcription runs at a time), for up to 12 hours.
+        for _ in 0..<(12 * 3600) {
             try await Task.sleep(nanoseconds: 1_000_000_000)
             guard let t = app.store.transcript(id), t.deletedAt == nil else { throw VerbatimIntentError.failed("it was deleted.") }
             if t.status == .failed { throw VerbatimIntentError.failed(t.error ?? "unknown error.") }
             if t.status == .ready, t.pendingAppend == nil { return .result(value: IntentLookup.text(t)) }
         }
+        throw VerbatimIntentError.failed("it's still in the queue. It appears in your Library when it's done.")
     }
 }
 

@@ -6,11 +6,11 @@ import Carbon
 /// choose every app, only in chat and work apps (Messages, Slack, Teams…), where Return means Send.
 enum AutoSend {
     enum Key: String, CaseIterable, Identifiable {
-        case none, returnKey = "return", commandReturn = "commandReturn"
+        case nothing = "none", returnKey = "return", commandReturn = "commandReturn"
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .none: return "Nothing"
+            case .nothing: return "Nothing"
             case .returnKey: return "Return"
             case .commandReturn: return "⌘Return"
             }
@@ -26,12 +26,12 @@ enum AutoSend {
     static let keyKey = "flow.autoSend"
     static let scopeKey = "flow.autoSendScope"
 
-    static var key: Key { Key(rawValue: UserDefaults.standard.string(forKey: keyKey) ?? "") ?? .none }
+    static var key: Key { Key(rawValue: UserDefaults.standard.string(forKey: keyKey) ?? "") ?? .nothing }
     static var scope: Scope { Scope(rawValue: UserDefaults.standard.string(forKey: scopeKey) ?? "") ?? .chats }
 
     /// Whether to press the key after a dictation pasted into an app of this kind.
     static func applies(to category: AppCategory?, key: Key = key, scope: Scope = scope) -> Bool {
-        guard key != .none else { return false }
+        guard key != .nothing else { return false }
         if scope == .everywhere { return true }
         return category == .personal || category == .work
     }

@@ -97,7 +97,7 @@ struct NetworkEventRow: View {
 // MARK: - Settings › Dictation › After pasting
 
 struct AutoSendSettingsRow: View {
-    @AppStorage(AutoSend.keyKey) private var key = AutoSend.Key.none.rawValue
+    @AppStorage(AutoSend.keyKey) private var key = AutoSend.Key.nothing.rawValue
     @AppStorage(AutoSend.scopeKey) private var scope = AutoSend.Scope.chats.rawValue
 
     var body: some View {
@@ -107,7 +107,7 @@ struct AutoSendSettingsRow: View {
                     ForEach(AutoSend.Key.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 .labelsHidden().fixedSize()
-                if key != AutoSend.Key.none.rawValue {
+                if key != AutoSend.Key.nothing.rawValue {
                     Picker("In", selection: $scope) {
                         ForEach(AutoSend.Scope.allCases) { Text($0.title).tag($0.rawValue) }
                     }
@@ -118,8 +118,8 @@ struct AutoSendSettingsRow: View {
     }
 
     private var detail: String {
-        let k = AutoSend.Key(rawValue: key) ?? .none
-        guard k != .none else { return "Nothing is pressed: you send the message yourself." }
+        let k: AutoSend.Key = AutoSend.Key(rawValue: key) ?? .nothing
+        guard k != .nothing else { return "Nothing is pressed: you send the message yourself." }
         let where_ = (AutoSend.Scope(rawValue: scope) ?? .chats) == .chats
             ? "in chat and work apps such as Messages, Slack, and Teams"
             : "in every app, including email and terminals"
