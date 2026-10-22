@@ -550,15 +550,47 @@ final class KeyboardSession: ObservableObject {
                         self.save(dictation: id, samples: samples, duration: duration, original: original, fixed: fixed, corrections: corrections,
                                   engine: result.engine, model: result.model, info: info, cleaned: out.cleaned)
                     } else {
-                        self.endBackground()
+                        // As on the Mac: the audio stays in Dictations as "Nothing heard", with Retry.
+                        self.saveUnfinished(samples: samples, duration: duration, title: Self.nothingHeardTitle, error: Self.nothingHeardError)
                     }
                     if polishing, let polishJob { self.awaitPolish(id, inserted: text, started: t0, polishJob) }
                 }
             } catch {
+                Log.note("keyboard dictation: transcription failed: \(error)")
                 await MainActor.run {
                     self.write(.failed, for: id, message: "Transcription failed: \(error.localizedDescription)")
-                    self.endBackground()
+                    // The audio is kept in Dictations as a failed dictation, with Retry, like the Mac's.
+                    self.saveUnfinished(samples: samples, duration: duration, title: "Dictation", error: error.localizedDescription)
                 }
+            }
+        }
+    }
+
+    static let nothingHeardTitle = "Nothing heard"
+    static let nothingHeardError = "Nothing heard. Choose Retry to transcribe it anyway."
+
+    /// A dictation that didn't become text (transcription failed, or nothing was heard): its audio is written to a WAV
+    /// and kept in Dictations as failed, so Retry can transcribe it. Ends the background task when it's saved.
+    private func saveUnfinished(samples: [Float], duration: Double, title: String, error: String) {
+        guard let app, !samples.isEmpty else { endBackground(); return }
+        let url = app.store.newRecordingURL()
+        Task.detached(priority: .utility) {
+            let wave = Self.envelope(samples)
+            let ok = (try? Self.writeWAV(samples, to: url)) != nil
+            await MainActor.run {
+                defer { self.endBackground() }
+                guard ok, let name = app.store.adoptRecording(url) else {
+                    // Left in the recordings folder (if it was written), so launch recovery still finds it.
+                    Log.note("keyboard dictation: couldn't save the audio of a dictation that didn't finish"); return
+                }
+                var t = Transcript(title: title, source: .dictation, sourceLabel: "Dictation · Keyboard", duration: duration,
+                                   audioFileName: name, model: "")
+                t.kind = .dictation
+                t.waveform = wave
+                t.status = .failed
+                t.error = error
+                app.store.add(t)
+                Log.note("keyboard dictation: kept in Dictations as “\(title)” (\(String(format: "%.1f", duration)) s)")
             }
         }
     }
