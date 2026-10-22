@@ -24,9 +24,48 @@ packages:
     url: https://github.com/alexeichhorn/YouTubeKit
     exactVersion: 0.4.9
 
+# AppStore: a Release build with VERBATIM_APP_STORE=YES, for App Store and TestFlight archives (mac/APP_STORE.md).
+configs:
+  Debug: debug
+  Release: release
+  AppStore: release
+
 configFiles:
   Debug: Local.xcconfig
   Release: Local.xcconfig
+  AppStore: Local.xcconfig
+
+# The App Store switch (mac/APP_STORE.md): one setting, VERBATIM_APP_STORE. NO (Debug, Release, CI, Tim's own
+# builds) keeps every feature. YES (the AppStore configuration, or `VERBATIM_APP_STORE=YES` on the xcodebuild
+# command line) defines APP_STORE in every iPhone target, which compiles out the undocumented iOS interfaces
+# and YOUTUBE_ON_DEVICE. The iPhone targets pick their conditions with $(VERBATIM_*_CONDITIONS_$(VERBATIM_APP_STORE)).
+settings:
+  base:
+    VERBATIM_APP_STORE: "NO"
+    VERBATIM_PHONE_CONDITIONS_NO: YOUTUBE_ON_DEVICE
+    VERBATIM_PHONE_CONDITIONS_YES: APP_STORE
+    VERBATIM_EXTENSION_CONDITIONS_NO: ""
+    VERBATIM_EXTENSION_CONDITIONS_YES: APP_STORE
+  configs:
+    AppStore:
+      VERBATIM_APP_STORE: "YES"
+
+schemes:
+  # Product › Archive with this scheme makes an App Store build (the AppStore configuration).
+  VerbatimPhone App Store:
+    build:
+      targets:
+        VerbatimPhone: all
+    run:
+      config: AppStore
+    test:
+      config: AppStore
+    profile:
+      config: AppStore
+    analyze:
+      config: AppStore
+    archive:
+      config: AppStore
 
 targets:
   Verbatim:
@@ -171,9 +210,13 @@ targets:
       # keyboard extension), and the opt-in cloud cleanup with your own key.
       - Verbatim/Flow/GrammarPass.swift
       - Verbatim/Flow/CloudCleanup.swift
-      # Shared with the keyboard extension: the App Group channel and the voice bars.
+      # Shared with the keyboard extension: the App Group channel, the voice bars, and the format chip's rules
+      # and the App Store switch (KeyboardFormat.swift).
       - VerbatimKeyboard/KeyboardBridge.swift
       - VerbatimKeyboard/VoiceBars.swift
+      - VerbatimKeyboard/KeyboardFormat.swift
+      # Shared with the widget extension: the Start dictation session intent (Control Center, Action button).
+      - VerbatimWidgets/StartSessionIntent.swift
       # Shared with the widget extension: the keyboard session's Live Activity and its End session intent.
       - VerbatimWidgets/SessionActivity.swift
       # Shared with the widget extension: the recording's Live Activity and its Pause, Resume, and Stop intents.
@@ -237,10 +280,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios
         # YOUTUBE_ON_DEVICE: the iPhone fetches YouTube audio itself (PhoneLinkFetcher, YouTubeKit). App Store
         # guideline 5.2.3 bars apps that download media from third-party services such as YouTube without
-        # the service's permission, so App Review may reject a build with it. For an App Store build, remove
-        # YOUTUBE_ON_DEVICE here (and the YouTubeKit dependency above to drop the code entirely): YouTube links
-        # then go to the Mac, like any other site the iPhone can't fetch.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) YOUTUBE_ON_DEVICE"
+        # the service's permission, so App Review may reject a build with it. App Store builds
+        # (VERBATIM_APP_STORE=YES) define APP_STORE instead: YouTube links then go to the Mac, like any other
+        # site the iPhone can't fetch. YouTubeKit stays linked but nothing calls it; remove the dependency above
+        # to drop it from the binary too.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBATIM_PHONE_CONDITIONS_$(VERBATIM_APP_STORE))"
         PRODUCT_NAME: Verbatim
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
@@ -290,6 +334,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.keyboard
         PRODUCT_NAME: VerbatimKeyboard
+        # APP_STORE in App Store builds: no host bundle ID, no opening Verbatim from the keyboard.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBATIM_EXTENSION_CONDITIONS_$(VERBATIM_APP_STORE))"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
@@ -327,7 +373,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.widgets
         PRODUCT_NAME: VerbatimWidgets
         # RecordingActivity.swift leaves its app-only cleanup out of the extension.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VERBATIM_WIDGETS"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VERBATIM_WIDGETS $(VERBATIM_EXTENSION_CONDITIONS_$(VERBATIM_APP_STORE))"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"

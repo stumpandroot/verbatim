@@ -21,15 +21,21 @@ final class KeyboardSession: ObservableObject {
         case on
     }
 
-    /// Settings › Keyboard › End the session after. 0 = until you end it.
+    /// Settings › Keyboard › End keyboard sessions after. 0 = until you end it.
     static let timeoutKey = "keyboard.sessionTimeout"
-    static let timeoutChoices: [(seconds: Int, label: String)] = [(60, "1 minute"), (300, "5 minutes"), (900, "15 minutes"), (0, "Until I end it")]
+    static let timeoutChoices: [(seconds: Int, label: String)] = [
+        (60, "1 minute"), (300, "5 minutes"), (900, "15 minutes"), (1800, "30 minutes"), (3600, "60 minutes"), (0, "Until I end it"),
+    ]
 
     @Published private(set) var stage: Stage = .off
     /// The start screen over the app: shown while starting, and when switching back to your app didn't work.
     @Published var showScreen = false
     /// True when Verbatim couldn't switch back by itself, so the screen asks you to swipe back.
     @Published private(set) var needsManualReturn = false
+    /// Where this session was started when it wasn't the keyboard (Control Center, the Action button or
+    /// Shortcuts, the Lock Screen widget, Settings › Keyboard). Nil for a keyboard start. Such a session never
+    /// switches back by itself: there's no app to go back to, so the screen says what to do next.
+    @Published private(set) var startSource: KeyboardBridge.StartSource? = nil
     @Published private(set) var dictating = false {
         didSet { if dictating != oldValue { PhoneDucker.set(dictating) } }   // Lower other audio while listening.
     }
@@ -73,8 +79,11 @@ final class KeyboardSession: ObservableObject {
         endStaleActivities()
         if let d = defaults, d.bool(forKey: KeyboardBridge.Key.sessionActive) {
             d.set(false, forKey: KeyboardBridge.Key.sessionActive)
+            d.removeObject(forKey: KeyboardBridge.formatKey)
             KeyboardBridge.post(KeyboardBridge.Note.state)
         }
+        // Control Center, the Action button, and Shortcuts (StartKeyboardSessionIntent) start sessions here.
+        SessionStartSignal.attach { [weak self] source in self?.startFromOutside(source) }
     }
 
     private var defaults: UserDefaults? { KeyboardBridge.defaults }
@@ -86,18 +95,31 @@ final class KeyboardSession: ObservableObject {
     @discardableResult
     func handle(_ url: URL) -> Bool {
         guard let link = KeyboardBridge.sessionLink(in: url) else { return false }
-        start(request: link.request, host: link.host, dictation: link.dictation)
+        start(request: link.request, host: link.host, dictation: link.dictation, source: link.source)
         return true
     }
 
-    func start(request r: UUID?, host h: String?, dictation d: UUID? = nil) {
+    /// Starts a session from outside the keyboard: Control Center, the Action button or Shortcuts
+    /// (`StartKeyboardSessionIntent`), the Lock Screen widget, or Settings › Keyboard.
+    func startFromOutside(_ source: KeyboardBridge.StartSource) {
+        start(request: nil, host: nil, dictation: nil, source: source)
+    }
+
+    func start(request r: UUID?, host h: String?, dictation d: UUID? = nil, source: KeyboardBridge.StartSource? = nil) {
         guard let app else { return }
         request = r
         host = h
         firstTapDictation = d
+        startSource = source
         let hostNote = h.map { "names the host app " + $0 } ?? "names no host app (the keyboard couldn't read it)"
         let dictationNote = d == nil ? "" : ", starts a dictation"
-        Log.note("keyboard session: link " + hostNote + dictationNote)
+        if let source {
+            Log.note("keyboard session: started from " + source.rawValue)
+            // Already on: nothing to start, so the screen says what to do next.
+            if stage == .on { observe(); showManualReturn(); return }
+        } else {
+            Log.note("keyboard session: link " + hostNote + dictationNote)
+        }
         observe()
         if stage == .on {
             // Already on (a second tap, or a keyboard that missed the heartbeat): start the dictation, then go back.
@@ -227,6 +249,8 @@ final class KeyboardSession: ObservableObject {
     /// yourself. Never blocks. The breadcrumb iOS uses for "◀ <app>" can appear a moment after Verbatim comes
     /// forward, so a miss is retried a few times before the screen shows.
     private func goBack(attempt: Int = 1) {
+        // Started from Control Center, a shortcut, the widget, or Verbatim: no app to switch back to.
+        if startSource != nil { showManualReturn(); return }
         let result = Self.returnToHostApp(linkHost: host)
         switch result {
         case .opened(let id, let source):
@@ -283,7 +307,15 @@ final class KeyboardSession: ObservableObject {
     /// build under guideline 2.5.1 (public APIs only), and any iOS release can make them fail. Everything that
     /// depends on them goes through this one function: making it return `.failed("disabled", retry: false)` keeps
     /// the app working, with the manual screen ("Tap ◀ <app> at the top left").
-    static func returnToHostApp(linkHost: String?) -> ReturnResult {
+    ///
+    /// App Store builds (`APP_STORE`, mac/APP_STORE.md) compile both calls out and always return
+    /// `unavailableInAppStore`. `appStore` defaults to the build's flag; the self-tests pass `true` to check the
+    /// seam without calling anything private.
+    static func returnToHostApp(linkHost: String?, appStore: Bool = Distribution.isAppStore) -> ReturnResult {
+        guard Distribution.abilities(appStore: appStore).returnsToHostApp else { return unavailableInAppStore }
+        #if APP_STORE
+        return unavailableInAppStore
+        #else
         guard !PhoneUITest.enabled else { return .failed("UI test", retry: false) }
         var target: (id: String, source: String)?
         if let h = linkHost { target = (h, "the keyboard") }
@@ -301,8 +333,13 @@ final class KeyboardSession: ObservableObject {
             return .failed("iOS refused to open \(target.id) (host from \(target.source))", retry: false)
         }
         return .opened(bundleID: target.id, source: target.source)
+        #endif
     }
 
+    /// What the seam returns in App Store builds: the manual screen shows, with no retries.
+    static let unavailableInAppStore = ReturnResult.failed("not available in App Store builds", retry: false)
+
+    #if !APP_STORE
     /// The app the status bar's back breadcrumb leads to, and its title, when iOS shows one. Part of the seam above.
     private static func breadcrumbHostBundleID() -> (id: String, title: String?)? {
         let app = UIApplication.shared
@@ -332,6 +369,7 @@ final class KeyboardSession: ObservableObject {
         }
         return (id, title)
     }
+    #endif
 
     // MARK: Dictation (no app switch)
 
@@ -466,7 +504,8 @@ final class KeyboardSession: ObservableObject {
         let vocabulary = dictionary.filter { $0.enabled && $0.projectId == nil }.map(\.preferred)
         let snippets = app.store.snippets
         let level = PhoneDictation.level
-        let category = PhoneDictation.category(host: host)
+        // The keyboard's format chip (Auto, Email, Message, Note), as the keyboard resolved it for this dictation.
+        let category = PhoneDictation.category(host: host, chosen: KeyboardBridge.category(for: id))
         let polishAfter = KeyboardBridge.polishAfter
         let t0 = Date()
         Task.detached(priority: .userInitiated) {
@@ -761,9 +800,12 @@ final class KeyboardSession: ObservableObject {
         stage = .off
         showScreen = false
         needsManualReturn = false
+        startSource = nil
         endsAt = nil
         if let d = defaults {
             d.set(false, forKey: KeyboardBridge.Key.sessionActive)
+            // The format chip goes back to Auto for the next session.
+            d.removeObject(forKey: KeyboardBridge.formatKey)
             d.set(0.0, forKey: KeyboardBridge.Key.endsAt)
             if let reason { d.set(reason, forKey: KeyboardBridge.Key.endReason) } else { d.removeObject(forKey: KeyboardBridge.Key.endReason) }
         }

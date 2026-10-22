@@ -181,13 +181,15 @@ struct KeyboardView: View {
 
     /// "SESSION ON · 4:12 LEFT", "SESSION ON", or "TAP TO START A SESSION".
     private var sessionLabel: String {
-        guard model.sessionLive else { return "TAP TO START A SESSION" }
+        guard model.sessionLive else { return model.needsSessionCard ? "NO SESSION" : "TAP TO START A SESSION" }
         guard let ends = model.sessionEndsAt else { return "SESSION ON" }
         return "SESSION ON · \(Self.clock(ends.timeIntervalSince(model.now))) LEFT"
     }
 
     private var sessionAccessibility: String {
-        guard model.sessionLive else { return "No session. Tap the record button to start one." }
+        guard model.sessionLive else {
+            return model.needsSessionCard ? "No session" : "No session. Tap the record button to start one."
+        }
         guard let ends = model.sessionEndsAt else { return "Session on" }
         let m = max(0, Int(ends.timeIntervalSince(model.now)) / 60)
         return m >= 1 ? "Session on, \(m) minutes left" : "Session on, less than a minute left"
@@ -219,73 +221,94 @@ struct KeyboardView: View {
     @ViewBuilder private var card: some View {
         switch model.stage {
         case .idle, .inserted:
-            Button { model.record() } label: {
-                HStack(spacing: 16) {
-                    KeyboardRecordButton(size: 64)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(recordTitle)
-                            .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                        if !model.sessionLive {
-                            Text("Verbatim opens for a second, then comes back")
-                                .font(.system(size: 12)).foregroundStyle(KB.muted)
-                                .lineLimit(1).minimumScaleFactor(0.8)
-                        }
+            if model.needsSessionCard {
+                StartSessionCard()
+            } else {
+                recordCard
+                    .overlay(alignment: .topTrailing) {
+                        FormatChip(label: model.formatLabel, format: model.format) { model.cycleFormat() }
+                            .padding(10)
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .buttonStyle(PressFade())
-            .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
-            .accessibilityHint(model.sessionLive ? "Starts listening right away" : "Opens Verbatim for a second to turn on the microphone, then comes back here")
         case .starting:
-            HStack(spacing: 16) {
-                VoiceBars(level: 0, color: KB.persimmon, barWidth: 10, maxHeight: 44).frame(width: 50)
-                Text("Opening Verbatim…")
-                    .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Spacer(minLength: 8)
-            }
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
+            startingCard
         case .listening, .writing:
-            HStack(spacing: 12) {
-                RoundKey(systemName: "xmark", filled: false) { model.cancel() }
-                    .accessibilityLabel("Cancel")
-                    .accessibilityHint("Stops listening and inserts nothing")
-                VStack(spacing: 6) {
-                    if model.stage == .writing {
-                        ProgressView().tint(KB.ink).frame(height: 40).accessibilityLabel("Writing it down")
-                    } else {
-                        ListeningDots(level: model.level, color: KB.persimmon).frame(height: hasLiveWords ? 28 : 40)
-                    }
-                    if model.stage == .listening, hasLiveWords {
-                        LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile, corrections: model.liveCorrections)
-                    } else {
-                        Text(model.stage == .writing ? "Writing it down…" : "Listening · \(model.micName)")
-                            .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
-                            .lineLimit(1).minimumScaleFactor(0.75)
+            listeningCard
+        }
+    }
+
+    /// The record button: dictates at once with a session, or opens Verbatim for a second to start one.
+    private var recordCard: some View {
+        Button { model.record() } label: {
+            HStack(spacing: 16) {
+                KeyboardRecordButton(size: 64)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(recordTitle)
+                        .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    if !model.sessionLive {
+                        Text("Verbatim opens for a second, then comes back")
+                            .font(.system(size: 12)).foregroundStyle(KB.muted)
+                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .combine)
-                RoundKey(systemName: "checkmark", filled: true) { model.done() }
-                    .disabled(model.stage == .writing)
-                    .opacity(model.stage == .writing ? 0.4 : 1)
-                    .accessibilityLabel("Done")
-                    .accessibilityHint("Stops listening and inserts your words")
             }
-            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
-            .accessibilityElement(children: .contain)
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
+        .buttonStyle(PressFade())
+        .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
+        .accessibilityHint(model.sessionLive ? "Starts listening right away" : "Opens Verbatim for a second to turn on the microphone, then comes back here")
+    }
+
+    private var startingCard: some View {
+        HStack(spacing: 16) {
+            VoiceBars(level: 0, color: KB.persimmon, barWidth: 10, maxHeight: 44).frame(width: 50)
+            Text("Opening Verbatim…")
+                .font(.system(size: 24, design: .serif)).foregroundStyle(KB.ink)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
+    }
+
+    private var listeningCard: some View {
+        HStack(spacing: 12) {
+            RoundKey(systemName: "xmark", filled: false) { model.cancel() }
+                .accessibilityLabel("Cancel")
+                .accessibilityHint("Stops listening and inserts nothing")
+            VStack(spacing: 6) {
+                if model.stage == .writing {
+                    ProgressView().tint(KB.ink).frame(height: 40).accessibilityLabel("Writing it down")
+                } else {
+                    ListeningDots(level: model.level, color: KB.persimmon).frame(height: hasLiveWords ? 28 : 40)
+                }
+                if model.stage == .listening, hasLiveWords {
+                    LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile, corrections: model.liveCorrections)
+                } else {
+                    Text(model.stage == .writing ? "Writing it down…" : "Listening · \(model.micName)")
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            RoundKey(systemName: "checkmark", filled: true) { model.done() }
+                .disabled(model.stage == .writing)
+                .opacity(model.stage == .writing ? 0.4 : 1)
+                .accessibilityLabel("Done")
+                .accessibilityHint("Stops listening and inserts your words")
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.persimmon.opacity(0.55)))
+        .accessibilityElement(children: .contain)
     }
 
     private var hasLiveWords: Bool { !model.liveSettled.isEmpty || !model.liveVolatile.isEmpty }
@@ -321,6 +344,69 @@ struct KeyboardView: View {
 }
 
 // MARK: - Pieces
+
+/// The format chip on the record card: "Auto · Mail", "Auto · Message", "Email", "Message", or "Note". Tap it to
+/// move to the next format; VoiceOver can also swipe up or down on it.
+private struct FormatChip: View {
+    var label: String
+    var format: KeyboardFormat
+    var next: () -> Void
+
+    var body: some View {
+        Button(action: next) {
+            HStack(spacing: 5) {
+                Circle().fill(format == .auto ? KB.hairline : KB.persimmon).frame(width: 6, height: 6)
+                Text(label.uppercased()).font(KB.mono(10)).tracking(1.1).foregroundStyle(KB.ink).lineLimit(1)
+            }
+            .padding(.horizontal, 10).frame(height: 26)
+            .background(KB.paper, in: Capsule())
+            .overlay(Capsule().strokeBorder(format == .auto ? KB.hairline : KB.persimmon.opacity(0.6)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressFade())
+        .accessibilityLabel("Format: \(label)")
+        .accessibilityHint("Changes how Verbatim cleans up this dictation: Auto, Email, Message, or Note")
+        .accessibilityAdjustableAction { direction in
+            if direction == .increment || direction == .decrement { next() }
+        }
+    }
+}
+
+/// App Store builds with no session: the keyboard can't open Verbatim by itself, so this card says how to start
+/// a session instead of offering a record button.
+private struct StartSessionCard: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                Circle().fill(KB.persimmon.opacity(0.18))
+                BrandGlyph(art: .capture, color: KB.persimmon, minLineWidth: 1.2).padding(11)
+            }
+            .frame(width: 44, height: 44)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Start a session to dictate")
+                    .font(.system(size: 20, design: .serif)).foregroundStyle(KB.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                way("square.grid.2x2", "Open Control Center and tap Verbatim")
+                way("button.horizontal.top.press", "Press the Action button, if you set it to Verbatim")
+                way("arrow.up.forward.app", "Or open Verbatim and tap Start keyboard session")
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func way(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.persimmon).frame(width: 16)
+            Text(text).font(.system(size: 13)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
+        }
+    }
+}
 
 /// The app's record button: a persimmon circle with the Capture glyph in ink (same as the Mac's RecordButton).
 struct KeyboardRecordButton: View {
