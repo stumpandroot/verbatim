@@ -111,6 +111,7 @@ enum SettingsIndex {
         .init("dictate.cloudProvider", .dictate, "Provider", "Who cleans up your words when cloud cleanup is on.", keywords: "anthropic openai claude gpt cloud"),
         .init("dictate.cloudKey", .dictate, "API key", "Your own key, saved in your Keychain on this Mac only.", keywords: "api key keychain secret cloud"),
         .init("dictate.cloudModel", .dictate, "Model", "The model that cleans up your words.", keywords: "haiku gpt mini cloud model"),
+        .init("dictate.spokenCorrections", .dictate, "Understand spoken corrections", "Say “scratch that,” “delete the last sentence,” or “let me start over” to fix what you said.", keywords: "scratch that actually no wait start over delete last sentence self-correction correction undo never mind"),
         .init("dictate.cleanupHelp", .dictate, "Punctuation, lists, and paragraphs by voice", "Say “comma,” “period,” “new line,” or “new paragraph.” Announce a list to get one.", keywords: "comma period list bullet numbered"),
         .init("dictate.styles", .dictate, "Style for each kind of app", "Formal, casual, very casual, or as spoken, by app.", keywords: "tone email chat messages code"),
         .init("dictate.emailLines", .dictate, "Put the greeting and sign-off on their own lines", "In email, a greeting you say (“Hi Sarah”) and a sign-off (“Thanks, Tim”) each get a line of their own. Verbatim never adds one you didn't say.", keywords: "email greeting sign-off signature hi thanks gmail outlook layout"),

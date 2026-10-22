@@ -20,10 +20,20 @@ enum CleanupPrepass {
 
     /// Clean: Literal plus fillers, stutters, repeats, and simple false starts removed. This is also what Clean
     /// and Polished fall back to when Apple's model is missing, slow, or its output fails a guard.
-    static func clean(_ s: String) -> String {
-        let marked = punctuation(lineBreaks(s))
+    ///
+    /// Spoken corrections ("at 2, actually 3", "scratch that", `SpokenCorrections`) go first, before fillers, so
+    /// they apply whether or not the model runs. `corrections: false` keeps them as spoken (the setting is off, or
+    /// for "Use as spoken").
+    static func clean(_ s: String, corrections: Bool = SpokenCorrections.enabled) -> String {
+        var marked = punctuation(lineBreaks(s))
+        if corrections { marked = SpokenCorrections.text(marked) }
         let trimmed = falseStarts(collapseRepeats(stutters(removeFillers(marked))))
         return capitalizeFirst(tidy(trimmed))
+    }
+
+    /// The spoken corrections `clean` applies to `s`, for the notice after a paste.
+    static func spokenCorrections(in s: String) -> [SpokenCorrections.Correction] {
+        SpokenCorrections.apply(punctuation(lineBreaks(s))).corrections
     }
 
     /// Code apps: only "new line" and "new paragraph". "Period" or "comma" may be part of a command.

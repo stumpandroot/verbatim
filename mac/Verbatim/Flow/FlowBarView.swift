@@ -321,6 +321,19 @@ private struct LiveWordsLine: View {
 
     /// Settled words in ink, words that may still change a little lighter, the newest word in persimmon.
     private var styled: Text {
+        // A spoken correction ("scratch that", "at 2, actually 3"): the words it removes fade with a strikethrough,
+        // the replacement stays in ink. Style only, with no animation of its own.
+        if SpokenCorrections.enabled, FlowSettings.shared.cleanup != .literal {
+            let spans = SpokenCorrections.liveSpans(words.text)
+            if spans.contains(where: { $0.style != .kept }) {
+                return spans.reduce(Text("")) { t, s in
+                    switch s.style {
+                    case .removed: return t + Text(s.text).foregroundColor(RibbonInk.muted).strikethrough(true, color: RibbonInk.muted)
+                    case .kept, .inserted: return t + Text(s.text).foregroundColor(RibbonInk.text)
+                    }
+                }
+            }
+        }
         let d = words.display
         var t = Text(d.settled).foregroundColor(RibbonInk.text)
         if !d.volatile.isEmpty {

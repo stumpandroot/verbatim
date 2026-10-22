@@ -301,6 +301,14 @@ enum PhoneUITest {
               SettingsSearchIndex.search("api key").flatMap(\.entries).contains { $0.id == "cloudCleanup" })
         check("cloud cleanup is off by default", UserDefaults.standard.object(forKey: CloudCleanup.enabledKey) != nil || !CloudCleanup.enabled)
         check("cleanup removes fillers on the iPhone", CleanupPrepass.clean("Um, I think, you know, it works.") == "I think it works.")
+        // Spoken corrections, the same cases as the Mac (SpokenCorrectionsChecks), plus the keyboard's live words.
+        for r in SpokenCorrectionsChecks.run() { check("iPhone " + r.name, r.ok) }
+        check("keyboard live words strike a correction",
+              SpokenCorrections.liveSpans("meet at 2, actually 3", limit: 90).contains { $0.style == .removed && $0.text.contains("2") })
+        check("keyboard live words keep plain speech plain",
+              SpokenCorrections.liveSpans("I actually like it", limit: 90).allSatisfy { $0.style == .kept })
+        check("settings search finds spoken corrections",
+              SettingsSearchIndex.search("scratch that").flatMap(\.entries).contains { $0.id == "spokenCorrections" })
         check("grammar pass fixes a/an and capitals on the iPhone", GrammarPass.fix("i sent a email.") == "I sent an email.")
         check("switching back to the host app is off in UI tests", KeyboardSession.returnToHostApp(linkHost: "com.apple.MobileSMS") == .failed("UI test", retry: false))
         VocabularySelfTest.run(check)

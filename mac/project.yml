@@ -158,6 +158,9 @@ targets:
       - Verbatim/Views/SummaryBlock.swift
       - Verbatim/Views/VoiceEnrollment.swift
       - Verbatim/Flow/CleanupPrepass.swift
+      # Spoken corrections ("scratch that", "at 2, actually 3"), shared with the keyboard, and their self-tests.
+      - Verbatim/Flow/SpokenCorrections.swift
+      - Verbatim/Flow/SpokenCorrectionsChecks.swift
       - Verbatim/Flow/DictationFormatter.swift
       # Dictation cleanup with Apple's on-device model (iOS 26), its meaning guard, and the cleanup level and
       # snippet types (FlowSettings; on the iPhone only `cleanup` is read, under the Mac's key, per device).
@@ -259,6 +262,8 @@ targets:
         excludes: ["Info.plist", "VerbatimKeyboard.entitlements"]
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
+      # Pure string rules: strikes out spoken corrections in the live words, and the notice after inserting.
+      - Verbatim/Flow/SpokenCorrections.swift
     info:
       path: VerbatimKeyboard/Info.plist
       properties:

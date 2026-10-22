@@ -18,6 +18,8 @@ struct SettingsScreen: View {
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
+    @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true
     /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
     @ObservedObject private var flow = FlowSettings.shared
     /// Groups stagger in when you switch to Settings.
@@ -211,6 +213,11 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("cleanup", flash: searchFlash)
+        SettingsDivider()
+        SettingsToggleRow(icon: "arrow.uturn.backward", tint: Ink.butterTint, title: "Understand spoken corrections",
+                          subtitle: "Say \u{201C}scratch that,\u{201D} \u{201C}delete the last sentence,\u{201D} or \u{201C}let me start over\u{201D} to fix what you said.",
+                          isOn: $spokenCorrections)
+            .settingsSearchTarget("spokenCorrections", flash: searchFlash)
         SettingsDivider()
         CloudCleanupRows(searchFlash: searchFlash)
         SettingsDivider()

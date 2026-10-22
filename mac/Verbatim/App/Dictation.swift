@@ -646,6 +646,7 @@ final class DictationController: ObservableObject {
                 var final: String
                 var note: String?
                 var cleaned = false
+                var corrected: SpokenCorrectionNotice?
                 if isCommand, let selection = ctx?.selection {
                     // Saying a saved action's name ("client email") runs that action.
                     let n = FlowAction.norm(raw)
@@ -656,13 +657,15 @@ final class DictationController: ObservableObject {
                     }
                     else { final = selection; note = "Couldn't apply “\(named?.name ?? raw)”. Editing by voice needs Apple Intelligence on macOS 26." }
                 } else {
-                    let out = await FlowCleanup.run(.init(raw: raw, level: level, style: style, category: category, context: ctx,
-                                                      vocabulary: vocabulary, useContext: useContext, snippets: snippets))
+                    let request = FlowCleanup.Request(raw: raw, level: level, style: style, category: category, context: ctx,
+                                                      vocabulary: vocabulary, useContext: useContext, snippets: snippets)
+                    let out = await FlowCleanup.run(request)
                     final = out.text; note = out.note; cleaned = out.cleaned
+                    corrected = Self.correctionNotice(raw: raw, request: request)   // "Removed “…”" after the paste
                 }
                 let info = FlowInfo(app: targetName, bundleID: ctx?.bundleID, category: category, style: style, level: isCommand ? "Command" : level.rawValue,
                                     raw: raw, pasted: final, pastedOK: true, instruction: isCommand ? raw : nil, selection: isCommand ? ctx?.selection : nil)
-                let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs
+                let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs, correction = corrected
                 let cleanupTime = Date().timeIntervalSince(t1)
                 await MainActor.run {
                     let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned, project: project)
@@ -670,7 +673,7 @@ final class DictationController: ObservableObject {
                         ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: info, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
                         SiteLog.shared.attach(id, site)
                     }
-                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw)
+                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw, correction: correction)
                 }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
@@ -705,7 +708,7 @@ final class DictationController: ObservableObject {
         app.store.add(t)
     }
 
-    private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "") {
+    private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "", correction: SpokenCorrectionNotice? = nil) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             isWorking = false
             mistake(raw: raw, transcriptID: transcriptID)
@@ -755,6 +758,7 @@ final class DictationController: ObservableObject {
             case .pasted:
                 lastPasteConfirmed = true
                 if let note { bar?.flash(note, seconds: 4) }
+                else if let correction { showCorrectionNotice(correction) }
                 else if stoppedAtLimit { bar?.flash("Stopped at \(Self.limitText(FlowSettings.maxDictationMinutes))", seconds: 2) }
                 else { bar?.setPhase(.idle) }
                 stoppedAtLimit = false

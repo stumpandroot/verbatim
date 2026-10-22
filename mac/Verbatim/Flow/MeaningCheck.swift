@@ -197,6 +197,9 @@ enum MeaningCheck {
         }
     }
 
+    /// Delete and start-over cues (`SpokenCorrections`): anything said before them may go. Lowercase text.
+    static let wipePattern = #"\b(?:scratch (?:all )?that|never ?mind|forget that|strike that|delete (?:all )?that|skip that|cancel that|undo that|remove that|erase (?:all )?that|delete everything|erase everything|clear that|start over|start again|delete the (?:last|previous) (?:\w+ )?(?:sentences?|words?|paragraphs?)|remove the (?:last|previous) (?:\w+ )?(?:sentences?|words?|paragraphs?)|erase the (?:last|previous) (?:\w+ )?(?:sentences?|words?|paragraphs?))\b"#
+
     /// Correction phrases. Each one lets one earlier value of a kind be dropped; "scratch that" lets any go.
     private struct Cues {
         var budget = 0
@@ -206,15 +209,17 @@ enum MeaningCheck {
         var wipes = false
 
         init(_ raw: String) {
+            // Settings › Understand spoken corrections off: nothing said excuses a dropped value.
+            guard SpokenCorrections.enabled else { return }
             let l = raw.lowercased()
             func count(_ pattern: String) -> Int {
                 guard let re = try? NSRegularExpression(pattern: pattern) else { return 0 }
                 return re.numberOfMatches(in: l, range: NSRange(location: 0, length: (l as NSString).length))
             }
-            if count(#"\b(?:scratch that|never ?mind|forget that|strike that|delete that)\b"#) > 0 {
+            if count(MeaningCheck.wipePattern) > 0 {
                 budget = .max; negationBudget = .max; wipes = true; return
             }
-            let strong = count(#"\b(?:no,? wait|wait,? no|i mean|or rather|let me rephrase|correction)\b"#)
+            let strong = count(#"\b(?:no,? wait|wait,? no|no,? sorry|actually,? no|actually,? wait|i mean|or rather|let me rephrase|let me fix that|correction)\b"#)
             let soft = count(#"\b(?:actually|make that|make it|sorry|wait|instead)\b"#)
             budget = strong + soft
             negationBudget = strong
@@ -225,7 +230,7 @@ enum MeaningCheck {
 
     fileprivate static let negationWords: Set<String> = ["not", "no", "never", "nobody", "nothing", "none", "nor", "neither", "nowhere", "cannot", "nope", "nah"]
     /// Correction phrases that contain a negation word without negating anything ("no wait", "never mind").
-    fileprivate static let negationCuePattern = #"\b(?:no,?\s+(?:wait|sorry|actually|i mean|make that|scratch that)|wait,?\s+no|never\s?mind)\b"#
+    fileprivate static let negationCuePattern = #"\b(?:no,?\s+(?:wait|sorry|actually|i mean|make that|scratch that)|(?:wait|actually|sorry),?\s+no|never\s?mind)\b"#
     fileprivate static let fillers: Set<String> = ["um", "uh", "like", "so", "well", "okay", "ok", "yeah", "basically", "actually", "right", "hmm", "er", "ah", "oh"]
 
     fileprivate static let linkRegex = try! NSRegularExpression(pattern:

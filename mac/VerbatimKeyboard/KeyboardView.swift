@@ -37,14 +37,16 @@ struct KeyboardView: View {
         VStack(spacing: 8) {
             topStrip.frame(height: 30)
             card.frame(maxHeight: .infinity)
-            if let n = model.notice {
+            if let c = model.correction {
+                correctionStrip(c)
+            } else if let n = model.notice {
                 Text(n).font(.system(size: 12)).foregroundStyle(KB.deep)
                     .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .accessibilityAddTraits(.updatesFrequently)
             } else if let i = model.info {
                 Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
-                    .lineLimit(1).frame(maxWidth: .infinity)
+                    .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                     .accessibilityAddTraits(.updatesFrequently)
             }
             bottomRow.frame(height: 44)
@@ -53,6 +55,21 @@ struct KeyboardView: View {
         }
         .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 4)
         .background(KB.paper)
+    }
+
+    /// After a spoken correction changed the inserted words: what changed, Use as spoken, and Turn off.
+    private func correctionStrip(_ summary: String) -> some View {
+        HStack(spacing: 6) {
+            Text(summary).font(.system(size: 12)).foregroundStyle(KB.ink)
+                .lineLimit(1).truncationMode(.middle).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Chip(title: "Use as spoken") { model.useAsSpoken() }
+                .accessibilityHint("Replaces the corrected words with the words as you said them")
+            Chip(title: "Turn off") { model.turnOffSpokenCorrections() }
+                .accessibilityHint("Stops Verbatim from acting on spoken corrections")
+        }
+        .padding(.horizontal, 6)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Top strip
@@ -248,7 +265,7 @@ struct KeyboardView: View {
                         ListeningDots(level: model.level, color: KB.persimmon).frame(height: hasLiveWords ? 28 : 40)
                     }
                     if model.stage == .listening, hasLiveWords {
-                        LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile)
+                        LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile, corrections: model.liveCorrections)
                     } else {
                         Text(model.stage == .writing ? "Writing it down…" : "Listening · \(model.micName)")
                             .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
@@ -324,10 +341,12 @@ struct KeyboardRecordButton: View {
 private struct LiveWordsLine: View {
     var settled: String
     var volatile: String
+    /// Strike out what a spoken correction removes ("scratch that", "at 2, actually 3").
+    var corrections = false
 
     var body: some View {
         let joiner = settled.isEmpty || volatile.isEmpty ? "" : " "
-        (Text(settled).foregroundColor(KB.ink) + Text(joiner + volatile).foregroundColor(KB.muted))
+        line(joiner)
             .font(.system(size: 15, design: .serif))
             .lineLimit(2)
             .truncationMode(.head)
@@ -337,6 +356,22 @@ private struct LiveWordsLine: View {
             .frame(maxWidth: .infinity)
             .accessibilityLabel(settled + joiner + volatile)
             .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    /// Settled words in ink and the newest lighter; with a correction, removed words faded and struck through and
+    /// the replacement in ink. Style only, no animation (the line already swaps in place).
+    private func line(_ joiner: String) -> Text {
+        if corrections {
+            let spans = SpokenCorrections.liveSpans(settled + joiner + volatile, limit: 160)
+            if spans.contains(where: { $0.style != .kept }) {
+                return spans.reduce(Text("")) { t, s in
+                    s.style == .removed
+                        ? t + Text(s.text).foregroundColor(KB.muted.opacity(0.75)).strikethrough(true, color: KB.muted)
+                        : t + Text(s.text).foregroundColor(KB.ink)
+                }
+            }
+        }
+        return Text(settled).foregroundColor(KB.ink) + Text(joiner + volatile).foregroundColor(KB.muted)
     }
 }
 

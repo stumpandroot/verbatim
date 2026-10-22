@@ -374,5 +374,11 @@ for r in destination {
     if r.ok { passed += 1; print("PASS  \(r.name)") }
     else { failed += 1; print("FAIL  \(r.name)\n    " + r.detail.replacingOccurrences(of: "\n", with: "⏎\n    ")) }
 }
-print("\n\(passed) passed, \(failed) failed, \(cases.count + destination.count) cases")
+// Spoken corrections, shared with the Mac and iPhone self-tests.
+let spoken = SpokenCorrectionsChecks.run()
+for r in spoken {
+    if r.ok { passed += 1; print("PASS  \(r.name)") }
+    else { failed += 1; print("FAIL  \(r.name)\n    " + r.detail.replacingOccurrences(of: "\n", with: "⏎\n    ")) }
+}
+print("\n\(passed) passed, \(failed) failed, \(cases.count + destination.count + spoken.count) cases")
 exit(failed == 0 ? 0 : 1)
