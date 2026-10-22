@@ -3,49 +3,37 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
-<meta content="#faf8f2" name="theme-color"/>
+<meta content="#F5F0E6" name="theme-color" media="(prefers-color-scheme: light)"/>
+<meta content="#18241F" name="theme-color" media="(prefers-color-scheme: dark)"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="default" name="apple-mobile-web-app-status-bar-style"/>
 <meta content="Paste a video link or add a recording to get a searchable transcript, with optional AI notes. The original text is always kept." name="description"/>
 <link href="/static/app-icon.png" rel="apple-touch-icon"/>
 <link href="/static/app-icon.png" rel="icon" type="image/png"/>
 <link href="/static/manifest.webmanifest" rel="manifest"/>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <title>Verbatim | Video transcripts and notes</title>
 <link href="/static/verbatim.css" rel="stylesheet"/>
 <script defer="" src="/static/app.js"></script>
 </head>
 <body>
 
-<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
-  <defs>
-    <!-- Verbie parts. Poses are composed in app.js from these symbols. -->
-    <g id="v-body"><rect x="40" y="10" width="60" height="120" rx="30" fill="#6C5CE7"/></g>
-    <g id="v-eyes" class="v-eyes"><ellipse cx="60" cy="48" rx="3.5" ry="5" fill="#1E2340"/><ellipse cx="80" cy="48" rx="3.5" ry="5" fill="#1E2340"/></g>
-    <g id="v-eyes-closed" fill="none" stroke="#1E2340" stroke-width="3" stroke-linecap="round"><path d="M54 48q6-6 12 0"/><path d="M74 48q6-6 12 0"/></g>
-    <g id="v-smile"><path d="M63 62q7 6 14 0" fill="none" stroke="#1E2340" stroke-width="3" stroke-linecap="round"/></g>
-    <g id="v-flat"><path d="M64 63h12" fill="none" stroke="#1E2340" stroke-width="3" stroke-linecap="round"/></g>
-    <g id="v-legs" stroke="#1E2340" stroke-width="5" stroke-linecap="round"><path d="M58 130v20"/><path d="M82 130v20"/><ellipse cx="54" cy="152" rx="9" ry="4.5" fill="#1E2340" stroke="none"/><ellipse cx="86" cy="152" rx="9" ry="4.5" fill="#1E2340" stroke="none"/></g>
-    <g id="v-bar-coral"><rect x="0" y="0" width="16" height="48" rx="8" fill="#FF8A6B"/></g>
-    <g id="v-bar-lime"><rect x="0" y="0" width="16" height="34" rx="8" fill="#B7E67E"/></g>
-    <g id="v-phones"><path d="M38 40a32 32 0 0 1 64 0" fill="none" stroke="#1E2340" stroke-width="5"/><rect x="30" y="36" width="12" height="22" rx="6" fill="#1E2340"/><rect x="98" y="36" width="12" height="22" rx="6" fill="#1E2340"/></g>
-  </defs>
-</svg>
-
 <div class="app-shell">
   <aside class="sidebar" aria-label="Main navigation">
-    <button aria-label="Verbatim home" class="brand" data-view="home"><span aria-hidden="true" class="brand-word animated-word"><span class="brand-letter" style="--n:0">V</span><span class="brand-letter" style="--n:1">e</span><span class="brand-letter" style="--n:2">r</span><span class="brand-letter" style="--n:3">b</span><span class="brand-letter" style="--n:4">a</span><span class="brand-letter" style="--n:5">t</span><span class="brand-letter" style="--n:6">i</span><span class="brand-letter" style="--n:7">m</span></span><span aria-hidden="true" class="brand-bars"><i></i><i></i><i></i></span></button>
+    <button aria-label="Verbatim home" class="brand" data-view="home"><svg aria-hidden="true" class="brand-mark" viewBox="22 18 76 80"><rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/><path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/></svg><span aria-hidden="true" class="brand-word">Verbatim</span></button>
     <nav aria-label="Sections" class="rail-nav">
       <button class="nav-link selected" data-view="home"><img alt="" class="nav-icon" src="/static/icons/home.svg"/><span>Home</span></button>
       <button class="nav-link" data-view="library"><img alt="" class="nav-icon" src="/static/icons/library.svg"/><span>Library</span><span class="nav-count" id="libraryCount">0</span></button>
       <button class="nav-link" data-view="settings"><img alt="" class="nav-icon" src="/static/icons/settings.svg"/><span>About</span></button>
     </nav>
-    <p class="rail-note">Captions first. Originals stay original. Saved items stay in this browser.</p>
+    <div class="rail-foot"><svg aria-hidden="true" class="colophon" viewBox="0 0 120 120"><g fill="none" stroke="currentColor" stroke-width="8"><circle cx="60" cy="60" r="42"/><circle cx="60" cy="72" r="30"/><circle cx="60" cy="84" r="18"/></g><g fill="currentColor"><rect x="57" y="2" width="6" height="116"/><rect x="48" y="2" width="24" height="6"/><rect x="48" y="112" width="24" height="6"/></g></svg><p class="rail-note">Captions first. Originals stay original. Saved items stay in this browser.</p></div>
   </aside>
 
   <div class="main-column">
     <header class="topbar">
-      <div aria-label="Verbatim" class="mobile-brand" role="img"><span aria-hidden="true" class="brand-word animated-word"><span class="brand-letter" style="--n:0">V</span><span class="brand-letter" style="--n:1">e</span><span class="brand-letter" style="--n:2">r</span><span class="brand-letter" style="--n:3">b</span><span class="brand-letter" style="--n:4">a</span><span class="brand-letter" style="--n:5">t</span><span class="brand-letter" style="--n:6">i</span><span class="brand-letter" style="--n:7">m</span></span><span aria-hidden="true" class="brand-bars"><i></i><i></i><i></i></span></div>
+      <div aria-label="Verbatim" class="mobile-brand" role="img"><svg aria-hidden="true" class="brand-mark" viewBox="22 18 76 80"><rect x="22" y="18" width="76" height="14"/><rect x="22" y="43" width="58" height="14"/><path d="M22 68 L98 68 L98 82 L44 82 L22 98 Z"/></svg><span aria-hidden="true" class="brand-word">Verbatim</span></div>
       <div class="topbar-right"><button aria-label="New transcript" class="icon-button" id="topNew" title="New transcript"><img alt="" class="ui-icon" src="/static/icons/add.svg"/></button></div>
     </header>
 
@@ -53,8 +41,7 @@
 
       <section aria-labelledby="heroTitle" class="page active" id="page-home">
         <div class="home-stack">
-          <span aria-hidden="true" class="hand hand-home">paste a link, or add a file</span>
-          <h1 id="heroTitle">Turn videos into <span class="accent">searchable text.</span></h1>
+          <h1 id="heroTitle">Turn videos into <em class="accent">searchable text.</em></h1>
           <p class="hero-description">Search what was said and pull out key points without rewatching.</p>
 
           <form aria-labelledby="heroTitle" id="transcribeForm" novalidate="">
@@ -72,8 +59,7 @@
           </div>
 
           <div class="sample-row" id="sampleRow">
-            <span aria-hidden="true" class="verbie verbie-home" data-pose="wave"></span>
-            <button class="hand-btn" id="sampleButton" type="button">new here? try a sample →</button>
+            <button class="link-btn" id="sampleButton" type="button">New here? Try a sample →</button>
           </div>
         </div>
         <!-- kept for the JS hooks; not shown -->
@@ -84,9 +70,9 @@
       <section aria-label="Transcription progress" class="page" id="page-processing">
         <div class="process-stack">
           <div class="process-top"><button class="link-btn back" id="backDuring" type="button"><img alt="" class="ui-icon" src="/static/icons/arrow-left.svg"/> Home</button></div>
-          <span aria-hidden="true" class="hand hand-proc" id="processHand">working…</span>
-          <h1 class="process-title">Preparing your <span class="accent">transcript.</span></h1>
-          <span aria-hidden="true" class="verbie verbie-proc" data-pose="listen"></span>
+          <p class="process-kicker" id="processHand">Working…</p>
+          <h1 class="process-title">Preparing your <em class="accent">transcript.</em></h1>
+          <span aria-hidden="true" class="diagram diagram-proc" data-pose="refine"></span>
           <div aria-hidden="true" class="stage-bars" data-stage="0" id="stageBars"><span class="stage-bar"><i></i></span><span class="stage-bar"><i></i></span><span class="stage-bar"><i></i></span></div>
           <div class="step-list" id="stepList"><div class="step-item"><span class="step-marker current">1</span><span>Source</span></div><div class="step-item"><span class="step-marker">2</span><span>Text</span></div><div class="step-item"><span class="step-marker">3</span><span>Ready</span></div></div>
           <p class="process-stage"><span id="processStage">Looking for captions</span><span class="sr-only" id="processPercent">12%</span></p>
@@ -99,7 +85,7 @@
       <section aria-label="Transcript workspace" class="page" id="page-result">
         <div class="result-head"><button class="link-btn back" id="resultBack" type="button"><img alt="" class="ui-icon" src="/static/icons/arrow-left.svg"/> Home</button><div class="result-actions"><button class="btn btn-soft" id="saveButton" type="button"><img alt="" class="save-action-icon" src="/static/icons/save.svg"/> Save</button><button class="btn btn-dark btn-sm" id="copyButton" type="button"><img alt="" class="ui-icon" src="/static/icons/copy.svg"/> Copy text</button></div></div>
 
-        <div class="ready-block" id="readyBlock"><div class="ready-text"><span aria-hidden="true" class="hand">all yours</span><h2>Transcript ready.</h2></div><span aria-hidden="true" class="verbie verbie-ready" data-pose="cheer"></span></div>
+        <div class="ready-block" id="readyBlock"><div class="ready-text"><h2>Transcript ready.</h2></div><span aria-hidden="true" class="diagram diagram-ready" data-pose="understand"></span></div>
 
         <div class="result-intro">
           <h1 id="resultTitle">Transcript</h1>
@@ -115,23 +101,23 @@
             <div class="ai-bottom" id="aiBottom"><div><strong>Create a cleaned version and key points</strong><p id="aiStatusText">Creates an AI-edited version and key points. The original stays unchanged.</p></div><button class="btn btn-dark btn-sm" id="refineButton" type="button"><img alt="" class="ui-icon" src="/static/icons/clean.svg"/> Clean &amp; summarize</button></div>
           </div>
           <aside class="result-side">
-            <div class="side-card tint-mist"><span class="kicker">Details</span><div class="detail-row"><span>Source</span><strong id="detailPlatform">Video</strong></div><div class="detail-row"><span>Transcript type</span><strong id="detailSourceType">Captions</strong></div><div class="detail-row"><span>Duration</span><strong id="detailDuration">—</strong></div><div class="detail-row"><span>Language</span><strong id="detailLanguage">English</strong></div><a class="link-btn open-source" href="#" id="originalVideoLink" rel="noopener noreferrer" target="_blank">Open original video <img alt="" class="ui-icon" src="/static/icons/arrow-ne.svg"/></a></div>
-            <div class="side-card tint-iris"><span class="kicker">Export</span><p>Downloads include the title, source link, and whether the text is original or AI-edited.</p><div class="export-buttons"><button class="btn btn-soft" id="downloadTxt" type="button">TXT</button><button class="btn btn-soft" id="downloadSrt" type="button">SRT</button><button class="btn btn-soft" id="downloadVtt" type="button">VTT</button></div></div>
+            <div class="side-card"><span class="kicker">Details</span><div class="detail-row"><span>Source</span><strong id="detailPlatform">Video</strong></div><div class="detail-row"><span>Transcript type</span><strong id="detailSourceType">Captions</strong></div><div class="detail-row"><span>Duration</span><strong id="detailDuration">—</strong></div><div class="detail-row"><span>Language</span><strong id="detailLanguage">English</strong></div><a class="link-btn open-source" href="#" id="originalVideoLink" rel="noopener noreferrer" target="_blank">Open original video <img alt="" class="ui-icon" src="/static/icons/arrow-ne.svg"/></a></div>
+            <div class="side-card"><span class="kicker">Export</span><p>Downloads include the title, source link, and whether the text is original or AI-edited.</p><div class="export-buttons"><button class="btn btn-soft" id="downloadTxt" type="button">TXT</button><button class="btn btn-soft" id="downloadSrt" type="button">SRT</button><button class="btn btn-soft" id="downloadVtt" type="button">VTT</button></div></div>
           </aside>
         </div>
       </section>
 
       <section class="page" id="page-library">
-        <div class="page-head"><span aria-hidden="true" class="hand">saved for later</span><h1>Your library <span class="count" id="libraryLabelCount">0</span></h1><p class="hero-description">Saved transcripts live in this browser only. They do not sync to other devices or browsers.</p><button class="btn btn-dark btn-sm" id="libraryNew" type="button"><img alt="" class="ui-icon" src="/static/icons/add.svg"/> New transcript</button></div>
+        <div class="page-head"><h1>Your library <span class="count" id="libraryLabelCount">0</span></h1><p class="hero-description">Saved transcripts live in this browser only. They do not sync to other devices or browsers.</p><button class="btn btn-dark btn-sm" id="libraryNew" type="button"><img alt="" class="ui-icon" src="/static/icons/add.svg"/> New transcript</button></div>
         <div class="library-items" id="libraryItems"></div>
       </section>
 
       <section class="page" id="page-settings">
-        <div class="page-head"><span aria-hidden="true" class="hand">how it works</span><h1>About Verbatim</h1><p class="hero-description">Paste a link to an accessible video, or add a recording. Verbatim gets the captions or transcribes the audio, keeps the original, and can add AI notes on request.</p></div>
-        <div class="tiles">
-          <div class="tile tint-iris"><img alt="" class="tile-icon" src="/static/icons/caption.svg"/><h2>Captions first</h2><p>Verbatim looks for existing captions before transcribing audio. Availability varies by platform and video, and captions can contain errors.</p></div>
-          <div class="tile tint-coral"><img alt="" class="tile-icon" src="/static/icons/review.svg"/><h2>Originals stay original</h2><p>Cleaning and summarizing never overwrite the source transcript. Exports say whether text is original or AI-edited.</p></div>
-          <div class="tile tint-lime"><img alt="" class="tile-icon" src="/static/icons/processing.svg"/><h2>Where your data goes</h2><p>Links and files you add are sent to the computer running Verbatim, transcribed there, and uploaded files are deleted when the job finishes. Nothing goes to a third party unless OpenAI is turned on for AI notes, and the app says so before you start. Saved transcripts stay in this browser only.</p></div>
+        <div class="page-head"><svg aria-hidden="true" class="colophon colophon-about" viewBox="0 0 120 120"><g fill="none" stroke="currentColor" stroke-width="8"><circle cx="60" cy="60" r="42"/><circle cx="60" cy="72" r="30"/><circle cx="60" cy="84" r="18"/></g><g fill="currentColor"><rect x="57" y="2" width="6" height="116"/><rect x="48" y="2" width="24" height="6"/><rect x="48" y="112" width="24" height="6"/></g></svg><h1>About Verbatim</h1><p class="hero-description">Paste a link to an accessible video, or add a recording. Verbatim gets the captions or transcribes the audio, keeps the original, and can add AI notes on request.</p></div>
+        <div class="principles">
+          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="capture"></span><div><h2>Captions first</h2><p>Verbatim looks for existing captions before transcribing audio. Availability varies by platform and video, and captions can contain errors.</p></div></section>
+          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="refine"></span><div><h2>Originals stay original</h2><p>Cleaning and summarizing never overwrite the source transcript. Exports say whether text is original or AI-edited.</p></div></section>
+          <section class="principle"><span aria-hidden="true" class="diagram" data-pose="understand"></span><div><h2>Where your data goes</h2><p>Links and files you add are sent to the computer running Verbatim, transcribed there, and uploaded files are deleted when the job finishes. Nothing goes to a third party unless OpenAI is turned on for AI notes, and the app says so before you start. Saved transcripts stay in this browser only.</p></div></section>
         </div>
         <p class="note">This is a responsive web app, not a native iOS app. For iPhone access the backend must be reachable on a network. Safari's Add to Home Screen can place a shortcut on your device.</p>
         <div class="settings-tools"><button class="btn btn-soft danger" id="clearLibrary" type="button">Clear saved library</button><button class="btn btn-dark btn-sm" id="settingsSample" type="button">Try the sample</button></div>

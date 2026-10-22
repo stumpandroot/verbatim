@@ -79,7 +79,7 @@
       const j=await poll.json();
       if(j.status==='failed')throw new Error(j.error||'We could not access captions or audio for this video.');
       if(j.status==='completed'){rememberJob(null);current=j;activeTab='original';renderResult();showReady(true);navigate('result');return;}
-      drawProgress(j.progress||5,stages[j.status]||'Processing video',j.message||'This can take a little time.');$('processHand').textContent=j.status==='transcribing'?'listening…':j.status==='downloading'?'fetching audio…':'reading captions…';
+      drawProgress(j.progress||5,stages[j.status]||'Processing video',j.message||'This can take a little time.');$('processHand').textContent=j.status==='transcribing'?'Listening…':j.status==='downloading'?'Fetching audio…':'Reading captions…';
       await new Promise(resolve=>setTimeout(resolve,1250));
     }
   }
@@ -123,42 +123,32 @@
     return 'AI notes are not set up on this server. Start Ollama or set an OpenAI API key, then restart Verbatim.';
   }
   async function loadCapabilities(){if(demoOnly)return;try{const r=await fetch('/api/capabilities',{cache:'no-store'});if(r.ok)caps=await r.json();}catch{caps=null;}if(caps&&caps.ffmpeg===false)$('fileNote').textContent='Audio files only on this server: FFmpeg is not installed, so video files can’t be read.';if(current)renderResult();}
-  // Verbie. Poses are built from the <defs> symbols in index.html so he is identical on every screen.
+  // Diagrams (mac/DESIGN.md §3): Capture, Refine, and Understand in ink, and the colophon rings on Home. Empty
+  // and loading states use them; there is no mascot. Static: nothing loops.
   const NS='http://www.w3.org/2000/svg';
-  function vUse(id,attrs={}){const u=document.createElementNS(NS,'use');u.setAttribute('href','#'+id);for(const [k,v] of Object.entries(attrs))u.setAttribute(k,v);return u;}
-  function vPath(d,attrs={}){const p=document.createElementNS(NS,'path');p.setAttribute('d',d);p.setAttribute('stroke','#1E2340');p.setAttribute('stroke-width','5');p.setAttribute('stroke-linecap','round');p.setAttribute('fill','none');for(const [k,v] of Object.entries(attrs))p.setAttribute(k,v);return p;}
-  function vDot(cx,cy,rx=7,ry=4){const e=document.createElementNS(NS,'ellipse');e.setAttribute('cx',cx);e.setAttribute('cy',cy);e.setAttribute('rx',rx);e.setAttribute('ry',ry);e.setAttribute('fill','#1E2340');return e;}
-  function vGroup(cls,...kids){const g=document.createElementNS(NS,'g');if(cls)g.setAttribute('class',cls);for(const k of kids)g.append(k);return g;}
-  function verbie(pose){
-    const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox','0 0 140 170');svg.setAttribute('aria-hidden','true');svg.setAttribute('overflow','visible');svg.style.overflow='visible';
-    const eyes=()=>{const g=vGroup('v-eyes',vUse('v-eyes'));return g;};
-    const face=(closed=false,flat=false)=>vGroup('',closed?vUse('v-eyes-closed'):eyes(),vUse(flat?'v-flat':'v-smile'));
-    let body;
-    if(pose==='wave'){
-      body=vGroup('v-breathe',vUse('v-body'),face(),vUse('v-legs'),vGroup('v-arm-wave',vPath('M40 70 18 46'),vDot(16,43,6,6)),vPath('M100 80l16 10'),vUse('v-bar-coral',{x:110,y:66}));
-    }else if(pose==='listen'){
-      body=vGroup('v-nod',vUse('v-body'),face(true),vUse('v-legs'),vUse('v-phones'),vPath('M40 95 30 110'),vPath('M100 95l10 15'));
-      svg.append(body);
-      const l=vGroup('v-sidebar',vUse('v-bar-coral',{x:8,y:60}));const r=vGroup('v-sidebar',vUse('v-bar-lime',{x:118,y:66}));r.style.animationDelay='.3s';svg.append(l,r);return svg;
-    }else if(pose==='cheer'){
-      body=vGroup('v-cheer',vUse('v-body'),face(),vUse('v-legs'),vGroup('v-arm-l',vPath('M40 60 18 30'),vUse('v-bar-coral',{x:6,y:-8,transform:'rotate(-12 14 20)'})),vGroup('v-arm-r',vPath('M100 60l22-30'),vUse('v-bar-lime',{x:118,y:0,transform:'rotate(12 126 20)'})));
-    }else if(pose==='sit'){
-      body=vGroup('v-breathe',vUse('v-body',{transform:'translate(0 20)'}),vGroup('',vUse('v-eyes',{transform:'translate(0 20)'}),vUse('v-smile',{transform:'translate(0 20)'})),vPath('M56 148c0 8 8 10 20 10h22'),vPath('M84 148c0 8 8 10 20 10h14'),vDot(100,158,8,4.5),vDot(120,158,8,4.5),vPath('M40 102 22 120'),vDot(20,122,6,4),vUse('v-bar-coral',{x:6,y:100,transform:'rotate(-18 14 124)'}),vUse('v-bar-lime',{x:118,y:112,transform:'rotate(18 126 129)'}));
-    }else if(pose==='shrug'){
-      body=vGroup('',vUse('v-body'),face(false,true),vUse('v-legs'),vPath('M40 80 20 72'),vPath('M100 80l20-8'),vDot(17,70),vDot(123,70),vUse('v-bar-coral',{x:4,y:140,transform:'rotate(-80 12 152)'}));
-    }else{
-      body=vGroup('v-breathe',vUse('v-body'),face(),vUse('v-legs'),vPath('M40 80 22 100'),vPath('M100 80l18 20'),vDot(20,102,6,4),vDot(120,102,6,4),vUse('v-bar-coral',{x:112,y:104}),vUse('v-bar-lime',{x:128,y:118}));
-    }
-    svg.append(body);return svg;
+  let diagramCount=0;
+  const DIAGRAMS={
+    capture:{box:'160 80 280 358',body:()=>'<circle cx="300" cy="259" r="124"/><circle cx="300" cy="281" r="102"/><circle cx="300" cy="303" r="80"/><circle cx="300" cy="325" r="58"/><path d="M300 96 L300 421"/><path d="M280 93h40 M282 425h36"/><circle cx="300" cy="383" r="6" fill="currentColor" stroke="none"/>'},
+    refine:{box:'62 84 442 330',body:()=>'<path d="M75 128 C155 150, 185 100, 246 196 Q258 214 270 247"/><path d="M75 168 C155 133, 185 203, 246 213 Q258 225 270 247"/><path d="M75 207 C155 229, 185 179, 246 230 Q258 236 270 247"/><path d="M75 247 C155 212, 185 282, 246 247 Q258 247 270 247"/><path d="M75 287 C155 309, 185 259, 246 264 Q258 258 270 247"/><path d="M75 327 C155 292, 185 362, 246 281 Q258 269 270 247"/><path d="M75 367 C155 389, 185 339, 246 298 Q258 280 270 247"/><path d="M325 128H490"/><path d="M325 168H465"/><path d="M325 207H440"/><path d="M325 247H490"/><path d="M325 287H465"/><path d="M325 327H440"/><path d="M325 367H490"/><path d="M299 96 L299 402"/>'},
+    understand:{box:'92 67 416 398',body:n=>`<defs><clipPath id="u1-${n}"><circle cx="300" cy="205" r="126"/></clipPath><clipPath id="u2-${n}"><circle cx="230" cy="327" r="126"/></clipPath><clipPath id="u3-${n}"><circle cx="370" cy="327" r="126"/></clipPath></defs><circle cx="300" cy="205" r="126"/><circle cx="230" cy="327" r="126"/><circle cx="370" cy="327" r="126"/><g clip-path="url(#u1-${n})"><g clip-path="url(#u2-${n})"><g clip-path="url(#u3-${n})"><path d="M200 120l-200 290"/><path d="M222 120l-200 290"/><path d="M244 120l-200 290"/><path d="M266 120l-200 290"/><path d="M288 120l-200 290"/><path d="M310 120l-200 290"/><path d="M332 120l-200 290"/><path d="M354 120l-200 290"/><path d="M376 120l-200 290"/><path d="M398 120l-200 290"/><path d="M420 120l-200 290"/><path d="M442 120l-200 290"/><path d="M464 120l-200 290"/><path d="M486 120l-200 290"/><path d="M508 120l-200 290"/><path d="M530 120l-200 290"/><path d="M552 120l-200 290"/><path d="M574 120l-200 290"/><path d="M596 120l-200 290"/><path d="M618 120l-200 290"/><path d="M640 120l-200 290"/></g></g></g>`},
+    colophon:{box:'0 0 120 120',body:()=>'<g stroke-width="8"><circle cx="60" cy="60" r="42"/><circle cx="60" cy="72" r="30"/><circle cx="60" cy="84" r="18"/></g><g fill="currentColor" stroke="none"><rect x="57" y="2" width="6" height="116"/><rect x="48" y="2" width="24" height="6"/><rect x="48" y="112" width="24" height="6"/></g>'}
+  };
+  // Older pose names map onto the diagrams: processing is Refine, ready is Understand, the library is Capture.
+  const POSES={wave:'colophon',listen:'refine',cheer:'understand',sit:'capture',shrug:'understand',stand:'refine'};
+  function diagram(pose){
+    const d=DIAGRAMS[POSES[pose]||pose]||DIAGRAMS.refine;const n=++diagramCount;
+    const svg=document.createElementNS(NS,'svg');
+    for(const [k,v] of Object.entries({viewBox:d.box,'aria-hidden':'true',fill:'none',stroke:'currentColor','stroke-width':'1.4','stroke-linecap':'round','stroke-linejoin':'round',class:'diagram-svg'}))svg.setAttribute(k,v);
+    svg.innerHTML=d.body(n);return svg;
   }
-  function mountVerbies(root=document){for(const el of root.querySelectorAll('.verbie[data-pose]')){if(!el.firstChild)el.append(verbie(el.dataset.pose));}}
+  function mountDiagrams(root=document){for(const el of root.querySelectorAll('.diagram[data-pose]')){if(!el.firstChild)el.append(diagram(el.dataset.pose));}}
   // Wrap each control's contents so the container holds still while the inside springs.
-  function wrapInner(root=document){const sel='.btn,.chip,.link-btn,.hand-btn,.paste-btn,.timecode,.summary-time,.library-open,.library-remove,.mobile-link,.nav-link,.icon-button';for(const el of root.querySelectorAll(sel)){if(el.querySelector(':scope > .inner'))continue;const inner=elem('span','inner');while(el.firstChild)inner.append(el.firstChild);el.append(inner);}}
+  function wrapInner(root=document){const sel='.btn,.chip,.link-btn,.paste-btn,.timecode,.summary-time,.library-open,.library-remove,.mobile-link,.nav-link,.icon-button';for(const el of root.querySelectorAll(sel)){if(el.querySelector(':scope > .inner'))continue;const inner=elem('span','inner');while(el.firstChild)inner.append(el.firstChild);el.append(inner);}}
   new MutationObserver(muts=>{for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)wrapInner(n.parentNode||n);}).observe(document.body,{childList:true,subtree:true});
   // Stagger: each element of the active screen arrives on its own, in order; swipes set the direction.
   function staggerIn(section){const stack=section.querySelector('.home-stack,.process-stack,.page-head')?section:section;const kids=[];const top=[...section.children];for(const k of top){if(k.matches('.home-stack,.process-stack,.result-layout'))kids.push(...k.children);else kids.push(k);}let i=0;for(const k of kids){if(k.hidden||k.classList.contains('sr-only'))continue;k.classList.remove('vb-in');void k.offsetWidth;k.style.setProperty('--i',String(i++));k.classList.add('vb-in');}}
   // Press and release feel: squash on pointerdown, overshoot on release, on every control.
-  (()=>{const sel='.btn,.link-btn,.hand-btn,.icon-button,.paste-btn,.chip,.timecode,.summary-time,.library-open,.library-remove,.mobile-link,.nav-link,.platform-badge,.verbie-home';let cur=null;
+  (()=>{const sel='.btn,.link-btn,.icon-button,.paste-btn,.chip,.timecode,.summary-time,.library-open,.library-remove,.mobile-link,.nav-link,.platform-badge';let cur=null;
     document.addEventListener('pointerdown',e=>{const el=e.target.closest(sel);if(!el||el.disabled)return;cur=el;el.classList.remove('vb-release');el.classList.add('is-pressed');},{passive:true});
     const release=()=>{if(!cur)return;const el=cur;cur=null;el.classList.remove('is-pressed');void el.offsetWidth;el.classList.add('vb-release');el.addEventListener('animationend',()=>el.classList.remove('vb-release'),{once:true});};
     document.addEventListener('pointerup',release,{passive:true});document.addEventListener('pointercancel',release,{passive:true});
@@ -249,7 +239,7 @@
   function pop(el){if(!el)return;el.classList.remove('vb-pop');void el.offsetWidth;el.classList.add('vb-pop');}
   new MutationObserver(muts=>{for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)inlineIcons(n.matches&&n.matches('img')?n.parentNode:n);}).observe(document.body,{childList:true,subtree:true});
   function iconSrc(name){return (window.VERBATIM_EMBEDDED_ICONS||{})[name] || '/static/icons/'+name;}
-  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const v=elem('span','verbie');v.setAttribute('aria-hidden','true');v.append(verbie(kind==='library'?'sit':kind==='search'?'shrug':'stand'));div.append(v,elem('strong','',title),elem('p','',message));return div;}
+  function emptyNote(title,message,kind='transcript'){const div=elem('div','empty-note');const v=elem('span','diagram');v.setAttribute('aria-hidden','true');v.append(diagram(kind==='library'?'capture':kind==='search'?'understand':'refine'));div.append(v,elem('strong','',title),elem('p','',message));return div;}
   const copyLabels={original:'Copy original',cleaned:'Copy cleaned text',summary:'Copy summary',review:'Copy review notes'};
   function setCopyLabel(){const cb=$('copyButton');const lab=(cb.querySelector('.inner')||cb).lastChild;if(lab&&lab.nodeType===3)lab.textContent=' '+(copyLabels[activeTab]||'Copy text');}
   function renderBody(){if(!current)return;setCopyLabel();const body=$('workspaceBody');body.replaceChildren();const isReady=current.refine_status==='completed';$('searchWrap').hidden=activeTab!=='original';$('transcriptSearch').value=activeTab==='original' ? $('transcriptSearch').value : '';
@@ -260,7 +250,7 @@
     if(activeTab==='review'){if(!isReady){body.append(emptyNote('Phrases to double-check','Use “Clean & summarize” to identify uncertain phrases for review.','review'));return;}const flags=current.review_flags||[];body.append(elem('p','state-explain','These phrases may need review. They are not confirmed errors.'));if(!flags.length){body.append(emptyNote('Nothing flagged','No phrases were identified for manual checking.','review'));return;}for(const flag of flags){const div=elem('div','review-item');div.append(elem('strong','',`“${flag.phrase}”`),elem('p','',flag.reason));if(flag.time_seconds!=null){const wrap=elem('div');wrap.style.marginTop='10px';wrap.append(linkedTime(flag.time_seconds));div.append(wrap);}body.append(div);}}
   }
   let readyTimer=null;
-  function showReady(fresh){const b=$('readyBlock');clearTimeout(readyTimer);if(!fresh){b.hidden=true;return;}b.hidden=false;b.classList.remove('is-collapsed');const v=b.querySelector('.verbie');v.replaceChildren(verbie('cheer'));readyTimer=setTimeout(()=>b.classList.add('is-collapsed'),3200);}
+  function showReady(fresh){const b=$('readyBlock');clearTimeout(readyTimer);if(!fresh){b.hidden=true;return;}b.hidden=false;b.classList.remove('is-collapsed');const v=b.querySelector('.diagram');v.replaceChildren(diagram('understand'));readyTimer=setTimeout(()=>b.classList.add('is-collapsed'),3200);}
   function renderResult(){if(!current)return;const isDemo=!!current.demo;const txt=getText(current.segments);$('resultTitle').textContent=current.title||'Untitled video';$('resultPlatform').textContent=current.platform||'Video';$('resultSource').textContent=sourceNames[current.source_type]||'Transcript';$('resultSource').title=`Source: ${sourceNames[current.source_type]||'Unknown'}. Check against the video before quoting.`;$('resultDuration').textContent=shortTime(current.duration||0);$('resultWords').textContent=`${words(txt).toLocaleString()} words`;$('resultLanguage').textContent=langNames[(current.detected_language||'').split('-')[0]]||current.detected_language||'Unknown';$('demoBadge').hidden=!isDemo;
     $('detailPlatform').textContent=current.platform||'Video';$('detailSourceType').textContent=sourceNames[current.source_type]||'Unknown';$('detailDuration').textContent=shortTime(current.duration||0);$('detailLanguage').textContent=$('resultLanguage').textContent;const source=$('originalVideoLink');const okUrl=!isDemo&&safePlatform(current.url||'');source.hidden=isDemo||!okUrl;source.href=okUrl?current.url:'#';
     setSaveLabel(saved.some(i=>i.id===current.id));const ready=current.refine_status==='completed';const processing=current.refine_status==='processing';const noAi=!isDemo&&caps&&caps.ai_provider==='none';const savedOnly=!isDemo&&!jobId&&!ready;$('refineButton').disabled=ready||processing||noAi||savedOnly;$('refineButton').classList.toggle('is-ready',ready);$('refineButton').classList.toggle('is-processing',processing);($('refineButton').querySelector('.inner')||$('refineButton')).lastChild.textContent=ready?' Notes ready':processing?' Creating notes…':' Clean & summarize';
@@ -345,5 +335,5 @@
   $('closePlatforms').addEventListener('click',()=>$('platformDialog').close());
   $('dialogDone').addEventListener('click',()=>$('platformDialog').close());
   $('platformDialog').addEventListener('click',e=>{if(e.target===$('platformDialog'))$('platformDialog').close();});
-  wrapInner();updateSavedCount();mountVerbies();navigate('home');requestAnimationFrame(moveNavPill);window.addEventListener('resize',moveNavPill);inlineIcons();loadCapabilities();resumeJob();
+  wrapInner();updateSavedCount();mountDiagrams();navigate('home');requestAnimationFrame(moveNavPill);window.addEventListener('resize',moveNavPill);inlineIcons();loadCapabilities();resumeJob();
 })();

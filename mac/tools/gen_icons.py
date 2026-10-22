@@ -8,6 +8,7 @@ here.
     python3 mac/tools/gen_icons.py            prints the Swift
     python3 mac/tools/gen_icons.py --write    replaces the BEGIN/END ICONS block in Verbatim/Views/Brand.swift
     python3 mac/tools/gen_icons.py --svg out.svg   writes a contact sheet for checking the drawings
+    python3 mac/tools/gen_icons.py --web DIR   writes the web front end's icons (link-transcriber/static/icons)
 """
 import math
 import os
@@ -210,6 +211,62 @@ I = {
 }
 
 
+# The web front end's icons (link-transcriber/static/icons): the same glyphs as fine-line SVGs that take
+# currentColor, so the page can tint them. Each entry is an icon above by name, or raw elements on the 24 grid.
+WEB = {
+    'add': [s('M12 5V19'), s('M5 12H19')],
+    'arrow-left': [s('M19 12H5'), s('M11 6L5 12L11 18')],
+    'arrow-right': [s('M5 12H19'), s('M13 6L19 12L13 18')],
+    'arrow-ne': [s('M7 17L17 7'), s('M9 7H17V15')],
+    'arrow-se': [s('M7 7L17 17'), s('M17 9V17H9')],
+    'burst': 'AI',
+    'caption': 'Captions',
+    'check': [s('M5 12.5L10 17.5L19 7')],
+    'clean': 'AI',
+    'clock': 'Recent',
+    'close': [s('M6 6L18 18'), s('M18 6L6 18')],
+    'copy': 'Copy',
+    'download': 'Download',
+    'home': 'Home',
+    'library': 'Library',
+    'link': 'Links',
+    'mic': [s('M9.5 3.5H14.5V12.5A2.5 2.5 0 0 1 9.5 12.5Z'), s('M6 10.5C6 14.3 8.4 16.5 12 16.5S18 14.3 18 10.5'), s('M12 16.5V20'), s('M8.8 20.5H15.2')],
+    'processing': 'Transcribing',
+    'quote': 'Quote',
+    'review': 'Attention',
+    'save': [s('M6.5 3.5H17.5V20.5L12 16.6L6.5 20.5Z')],
+    'saved': [s('M6.5 3.5H17.5V20.5L12 16.6L6.5 20.5Z'), fl('M6.5 3.5H17.5V20.5L12 16.6L6.5 20.5Z')],
+    'search': [s(C(10.5, 10, 6)), s('M15 14.7L20.5 20.2')],
+    'settings': 'Settings',
+    'share': 'Share',
+    'summary': 'Summaries',
+    'transcribe': 'Dictations',
+    'transcript': 'Terms',
+    'upload': [s('M12 15V3.5'), s('M8 7.5L12 3.5L16 7.5'), s('M4 13V20H20V13')],
+}
+
+
+def svg_el(kind, el, dash):
+    k, data = el
+    if k == 'circle':
+        body = '<circle cx="%s" cy="%s" r="%s"' % tuple(f(x) for x in data)
+    else:
+        body = '<path d="%s"' % de_arc(data)
+    if kind == 'f':
+        return body + ' fill="currentColor" stroke="none"/>'
+    return body + ((' stroke-dasharray="%s %s"' % (f(dash[0]), f(dash[1]))) if dash else '') + '/>'
+
+
+def web_icons(folder):
+    for name, spec in WEB.items():
+        els = I[spec] if isinstance(spec, str) else spec
+        out = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+               'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="%s">' % name.replace('-', ' ')]
+        out += [svg_el(*e) for e in els]
+        out.append('</svg>')
+        open(os.path.join(folder, name + '.svg'), 'w').write(''.join(out) + '\n')
+
+
 def swift_el(el):
     kind, data = el
     if kind == 'circle':
@@ -261,6 +318,9 @@ def svg_sheet(path):
 
 
 if __name__ == '__main__':
+    if '--web' in sys.argv:
+        web_icons(sys.argv[sys.argv.index('--web') + 1])
+        sys.exit(0)
     if '--svg' in sys.argv:
         svg_sheet(sys.argv[sys.argv.index('--svg') + 1])
     out = emit()
