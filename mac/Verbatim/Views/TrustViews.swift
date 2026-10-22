@@ -215,6 +215,7 @@ struct AllowDownloadButton: View {
 
 // MARK: - Copy for AI
 
+@MainActor
 enum CopyForAI {
     /// ⌥⇧⌘C on a transcript (⌥⌘C is Live captions).
     static func copy(_ t: Transcript, app: AppState) {
