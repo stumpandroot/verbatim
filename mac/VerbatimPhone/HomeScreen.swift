@@ -362,6 +362,10 @@ struct RecordScreen: View {
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
     /// The system cover slides up; its content staggers in behind it.
     @State private var seen = SeenRows()
+    /// Discard asks first: the recording moves to Recently Deleted.
+    @State private var confirmDiscard = false
+    @State private var discardLength = ""
+    private var saving: Bool { app.savingRecording }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -427,10 +431,14 @@ struct RecordScreen: View {
             HStack(alignment: .top, spacing: 0) {
                 RoundControl(label: "Discard", size: 62) {
                     Image(systemName: "xmark").font(.system(size: 20, weight: .semibold)).foregroundStyle(Ink.dim)
-                } action: { app.discardRecording() }
+                } action: {
+                    discardLength = app.recorder.elapsed.timecode
+                    confirmDiscard = true
+                }
                 .frame(maxWidth: .infinity)
-                RoundControl(label: adding == nil ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32)
+                RoundControl(label: saving ? "Saving…" : adding == nil ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
+                    if saving { ProgressView().tint(Ink.readerFixed) }
+                    else { RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
                 } action: { app.stopRecording() }
                 .frame(maxWidth: .infinity)
                 RoundControl(label: paused ? "Resume" : "Pause", size: 62) {
@@ -438,6 +446,7 @@ struct RecordScreen: View {
                 } action: { app.togglePause() }
                 .frame(maxWidth: .infinity)
             }
+            .disabled(saving)
             .padding(.bottom, 18)
             .riseIn("controls", index: 4, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
         }
@@ -446,9 +455,16 @@ struct RecordScreen: View {
         .interactiveDismissDisabled()
         .sensoryFeedback(.impact(weight: .light), trigger: paused)
         .accessibilityElement(children: .contain)
+        .confirmationDialog("Move this recording to Recently Deleted?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Move to Recently Deleted", role: .destructive) { app.discardRecording() }
+            Button("Keep recording", role: .cancel) {}
+        } message: {
+            Text("\(discardLength) recorded. You can restore it for 30 days.")
+        }
     }
 
     private var headline: String {
+        if saving { return "Saving your recording…" }
         if paused, app.autoPauseReason != nil { return "Paused. What you said is saved." }
         if paused { return "Paused. Pick up when you're ready." }
         if let t = adding { return "Keep going. This adds to “\(t.title)”." }

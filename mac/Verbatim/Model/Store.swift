@@ -352,6 +352,9 @@ final class Store: ObservableObject {
     private var loadedDates: [UUID: Date] = [:]
     /// Called after a transcript arrives or changes from the other device (Mac: claim pending links).
     var onRemoteChange: ((Transcript) -> Void)?
+    /// Recordings recovered after launch (queued to transcribe, or added to the transcript they continued): the
+    /// app queues these IDs. Recovery that finishes during `init` is picked up by the queue's own resume instead.
+    var onRecovered: (([UUID]) -> Void)?
     private var sync: CloudSync?
 
     init() {
@@ -433,35 +436,48 @@ final class Store: ObservableObject {
         let taken = Set(transcripts.compactMap(\.audioFileName))
         let folder = Paths.recordings, audio = Paths.audio
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            RecordingSegments.joinLeftovers(in: folder) { name in
+            let skipped = RecordingSegments.joinLeftovers(in: folder) { name in
                 taken.contains(name) || FileManager.default.fileExists(atPath: audio.appendingPathComponent(name).path)
             }
-            DispatchQueue.main.async { MainActor.assumeIsolated { self?.adoptOrphans() } }
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.adoptOrphans(skipped: skipped) } }
         }
     }
 
-    private func adoptOrphans() {
+    /// Each orphan is queued to transcribe as "Recovered recording · <date>", or added to the transcript it was
+    /// continuing (RecordingSafety.swift). Orphans of a second or less are deleted once they're a week old.
+    private func adoptOrphans(skipped: [String: [ClosedRange<Double>]] = [:]) {
         let fm = FileManager.default
         let known = Set(transcripts.compactMap(\.audioFileName))
         let files = (try? fm.contentsOfDirectory(at: Paths.recordings, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        var recovered: [UUID] = []
         // Not a recording in progress (recovery may finish after a new one started), and not a leftover segment.
         for f in files where !known.contains(f.lastPathComponent) && !f.lastPathComponent.hasPrefix(".") && RecordingSegments.parse(f) == nil
             && !RecordingSegments.isActive(f)
             && ["wav", "m4a", "mp3", "mp4", "mov", "aiff"].contains(f.pathExtension.lowercased()) {
             WavRepair.fixHeader(f)   // the app quit before the recording was closed
             let dur = Player.duration(of: f)
-            guard dur > 1 else { continue }
             let when = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date()
+            guard dur > 1 else {
+                if Self.isStaleTinyOrphan(duration: dur, bytes: Self.fileSize(f), modified: when) {
+                    try? fm.removeItem(at: f); Self.clearContinuation(f)
+                    Log.note("recovery: deleted \(f.lastPathComponent), \(String(format: "%.1f", dur)) s and over a week old")
+                }
+                continue
+            }
+            if let id = recoverContinuation(f) { recovered.append(id); continue }
             guard let name = adoptRecording(f) else { continue }
-            var t = Transcript(title: "Recovered recording", source: .voiceMemo, sourceLabel: "Recovered", duration: dur, audioFileName: name, model: "")
-            t.createdAt = when
-            t.status = .failed
-            t.error = "This recording was saved but never transcribed. Choose Retry to transcribe it."
+            let t = Self.recoveredTranscript(audioFileName: name, duration: dur, recordedAt: when, skipped: skipped[f.lastPathComponent] ?? [])
             searchCache[t.id] = nil
             transcripts.append(t)
             save(t)
+            recovered.append(t.id)
         }
         transcripts.sort { $0.createdAt > $1.createdAt }
+        if !recovered.isEmpty {
+            Log.note("recovery: \(recovered.count) recording\(recovered.count == 1 ? "" : "s") queued")
+            waitForWrites()
+            onRecovered?(recovered)
+        }
     }
 
     // MARK: Transcripts

@@ -74,6 +74,10 @@ final class PhoneState: ObservableObject {
     /// Continue recording: the transcript the current recording will be added to.
     @Published var continuing: UUID? = nil
     private var pendingContinue: UUID? = nil
+    /// Stop or Discard was tapped and the recording is being saved: the record screen says "Saving…" until it's done.
+    @Published var savingRecording = false
+    /// Microphone access is off: an alert with Open Settings.
+    @Published var showMicDenied = false
     /// A passage to land on when the next transcript opens (from Moments or search).
     var focusSegment: UUID? = nil
 
@@ -102,6 +106,8 @@ final class PhoneState: ObservableObject {
         }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
+        // Recordings recovered once launch recovery finishes in the background: transcribe them too.
+        store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
         if !PhoneUITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         // Files and links shared to Verbatim, and sound from Transcribe what's playing (PhoneInbox.swift). PhoneRoot
@@ -150,7 +156,7 @@ final class PhoneState: ObservableObject {
     private func askMicAndRecord() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.startRecording() } else { self.pendingContinue = nil; self.say("Microphone access is off. Turn it on in Settings › Verbatim.") }
+                if ok { self.startRecording() } else { self.pendingContinue = nil; self.showMicDenied = true }
             }
         }
     }
@@ -158,13 +164,18 @@ final class PhoneState: ObservableObject {
     func startRecording() {
         // The microphone can serve one of them: a voice memo ends the keyboard session.
         if session.isOn { session.end(reason: "The session ended for a voice memo. Tap to start a new one.") }
+        guard !savingRecording else { say("Saving the last recording. Try again in a moment."); return }
         do {
-            try recorder.start(to: store.newRecordingURL())
+            let url = store.newRecordingURL()
+            try recorder.start(to: url)
             continuing = pendingContinue
             pendingContinue = nil
+            // If Verbatim is closed mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
+            if let target = continuing { Store.markContinuation(url, to: target) }
             showRecorder = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             warmModel()
+            if let warning = Store.lowSpaceWarning() { say(warning) }
         } catch {
             say("Couldn't start recording: \(error.localizedDescription)")
         }
@@ -196,36 +207,70 @@ final class PhoneState: ObservableObject {
         if !recorder.isPaused { autoPauseReason = nil }
     }
 
+    /// Stop & transcribe (or Stop & add): capture ends at once, the record screen says "Saving…" while a long
+    /// recording's parts are joined off the main thread, then it joins the queue. Nothing that reached the disk
+    /// is thrown away: only a recording with no audio at all is removed, with a message saying so.
     func stopRecording() {
-        showRecorder = false
+        guard !savingRecording else { return }
+        Task { await finishRecording(discard: false) }
+    }
+
+    /// Discard: after you confirm, the recording goes to Recently Deleted (not transcribed, restorable for 30 days).
+    func discardRecording() {
+        guard !savingRecording else { return }
+        Task { await finishRecording(discard: true) }
+    }
+
+    private func finishRecording(discard: Bool) async {
         autoPauseReason = nil
-        guard let (url, duration, env) = recorder.stop() else { continuing = nil; return }
-        if recorder.lastJoinFailed {
-            // Every part stays in the recordings folder; launch recovery joins it into one recording.
-            continuing = nil
-            say("Couldn't finish saving. Verbatim will recover the recording the next time it opens.")
+        let target = continuing
+        continuing = nil
+        savingRecording = true
+        let stopped = await recorder.stopAndSave()
+        savingRecording = false
+        showRecorder = false
+        guard let r = stopped else { return }
+        if r.joinFailed {
+            // Every part stays in the recordings folder; launch recovery joins it into one recording (and the
+            // continuation marker sends it to the right transcript).
+            say(Store.joinFailedNotice)
             return
         }
-        if let target = continuing {
-            continuing = nil
-            guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
-            guard coordinator.queueAppend(recording: url, to: target) else { say("Couldn't save the recording."); return }
+        Store.clearContinuation(r.startedAs ?? r.url)
+        guard r.framesWritten > 0 else {
+            try? FileManager.default.removeItem(at: r.url)
+            say(Store.nothingRecordedNotice)
+            return
+        }
+        if discard {
+            if store.keepDiscarded(r) != nil { say("Moved to Recently Deleted.") }
+            else { say("Couldn't move the recording. Verbatim recovers it the next time it opens.") }
+            return
+        }
+        if let target {
+            let offset = store.transcript(target)?.duration ?? 0
+            guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); return }
+            for n in Store.skippedNotes(r.skipped, offset: offset) { store.addNote(n, to: target) }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             return
         }
-        guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
-        guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
-        var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: duration, audioFileName: name, model: "")
-        t.waveform = env
+        guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); return }
+        var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
+        t.waveform = r.envelope
+        t.notes = Store.skippedNotes(r.skipped)
         enqueue(t)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
-    func discardRecording() {
-        showRecorder = false
-        autoPauseReason = nil
-        continuing = nil
-        recorder.discard()
+    /// Recordings recovered after launch: transcribed now (or added to the transcript they continued).
+    func queueRecovered(_ ids: [UUID]) {
+        for id in ids where !queue.contains(id) && runningID != id { coordinator.enqueueExisting(id) }
+        say(ids.count == 1 ? "Recovered a recording. Transcribing it now." : "Recovered \(ids.count) recordings. Transcribing them now.")
+    }
+
+    /// Settings › Microphone access: opens Verbatim's page in the Settings app.
+    func openAppSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
     }
 
     // MARK: Live captions
@@ -240,7 +285,7 @@ final class PhoneState: ObservableObject {
     private func askMicAndOpenCaptions() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.openCaptions() } else { self.say("Microphone access is off. Turn it on in Settings › Verbatim.") }
+                if ok { self.openCaptions() } else { self.showMicDenied = true }
             }
         }
     }
@@ -267,7 +312,8 @@ final class PhoneState: ObservableObject {
         if PhoneUITest.enabled { captions.endScreenshots(); return }
         guard save else { captions.discard(); return }
         guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbatim will recover the recording the next time it opens."); return }
-        guard duration >= 0.5 else { try? FileManager.default.removeItem(at: url); return }
+        // A short one is kept too; only a recording with no audio at all is removed.
+        guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
         guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
         var t = Transcript(title: "Live captions", source: .voiceMemo, sourceLabel: "Live captions", duration: duration, audioFileName: name, model: "")
         t.waveform = env
@@ -649,7 +695,11 @@ final class PhoneState: ObservableObject {
     /// project, the Dictionary, snippets, About me, and the downloaded speech models. Uses the Store's own delete paths, so iCloud removes the files on
     /// every device, then waits until the deletes are on disk.
     func deleteAllData() {
-        if recorder.isRecording { discardRecording() }
+        // Everything goes, so a recording in progress is deleted outright here, not kept in Recently Deleted.
+        if recorder.isRecording {
+            showRecorder = false; autoPauseReason = nil; continuing = nil
+            recorder.discard()
+        }
         session.end(reason: nil)
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()

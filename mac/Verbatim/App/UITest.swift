@@ -78,6 +78,11 @@ enum UITest {
 
             await settingsSteps(main: window)
             logicChecks()
+            // No lost recordings: write failures, joins around a corrupt part, discard, and recovery.
+            RecordingSafetyChecks.run(store: app.store) { name, ok in
+                if ok { pass += 1 } else { fail += 1 }
+                Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)")
+            }
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             await tour(app: app, window: window)
@@ -853,17 +858,18 @@ enum UITest {
         rest = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
         Log.note("UITEST join roll-back frames=\(frameCount(base)) leftover=\(rest)")
         check("interrupted join rolls back and rejoins", abs(frameCount(base) - 32_000) <= 200 && rest.isEmpty)
-        // An unreadable middle segment: nothing is touched.
+        // An unreadable middle segment no longer strands the parts after it: both readable parts are joined (the
+        // 14-byte file stands for no time at all) and the bad one is set aside, not deleted.
         clean()
         write(base, seconds: 1)
         try? Data("not a wav file".utf8).write(to: seg2)
         let seg3 = RecordingSegments.url(for: base, index: 3)
         write(seg3, seconds: 1)
-        func sizes() -> [Int] { [base, seg2, seg3].map { ((try? fm.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? -1 } }
-        let before = sizes()
         RecordingSegments.joinLeftovers(in: dir)
-        Log.note("UITEST join abort sizes before=\(before) after=\(sizes())")
-        check("join with an unreadable segment touches nothing", before == sizes() && !before.contains(-1))
+        rest = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0 != base.lastPathComponent }
+        Log.note("UITEST join around unreadable frames=\(frameCount(base)) leftover=\(rest)")
+        check("join with an unreadable segment keeps every readable part", abs(frameCount(base) - 32_000) <= 200
+              && rest.count == 1 && rest[0].hasPrefix("Unreadable "))
         check("segment numbers past 999 parse", RecordingSegments.parse(RecordingSegments.url(for: base, index: 1000))?.index == 1000)
 
         // Filler rules: answers and questions stay.

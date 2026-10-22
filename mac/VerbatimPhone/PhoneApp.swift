@@ -59,6 +59,12 @@ struct PhoneRoot: View {
         } message: {
             Text("Many places require everyone's consent to record a conversation. Let people know before you record them.")
         }
+        .alert("Microphone access is off", isPresented: $app.showMicDenied) {
+            Button("Not Now", role: .cancel) {}
+            Button("Open Settings") { app.openAppSettings() }
+        } message: {
+            Text("To record, turn on Microphone for Verbatim in Settings.")
+        }
         .alert("New project", isPresented: Binding(get: { app.newProjectFor != nil }, set: { if !$0 { app.newProjectFor = nil } })) {
             TextField("Name", text: $newProjectName)
             Button("Cancel", role: .cancel) { newProjectName = "" }
