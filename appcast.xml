@@ -6,14 +6,14 @@
     <description>Verbose for Mac: tagged releases, plus beta builds of main.</description>
     <language>en</language>
     <item>
-      <title>Verbose beta 172</title>
-      <pubDate>Thu, 22 Oct 2026 20:18:57 GMT</pubDate>
+      <title>Verbose beta 173</title>
+      <pubDate>Thu, 22 Oct 2026 21:00:08 GMT</pubDate>
       <sparkle:channel>beta</sparkle:channel>
-      <sparkle:version>172</sparkle:version>
+      <sparkle:version>173</sparkle:version>
       <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description>&lt;p&gt;Beta build 172: Self-test: settings search &amp;#x27;sync icloud&amp;#x27; also finds Local Only (it mentions iCloud sync); test every-word matching with &amp;#x27;sync iphone&amp;#x27;&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-172"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
-      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-172/Verbatim-universal.dmg" length="95437300" type="application/octet-stream" sparkle:edSignature="h6WG/X4m+OsYSGPVjmhwV070lFngJjVdusbiHJKEnEAK98nxRsrV9D+s9Tc6CM0NRTq4DMjR6+soJJM+Fbu3DQ==" />
+      <description>&lt;p&gt;Beta build 173: Merge remote-tracking branch &amp;#x27;origin/keyboard-basic&amp;#x27; into integrate&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-173"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-173/Verbatim-universal.dmg" length="95439177" type="application/octet-stream" sparkle:edSignature="i8HgYCBn0IyztqifLJ7ptHpDPkKgsFWq4iaTC7JlM87QJ4h00SGQW/i4OCza9iQSACzXVzx4CHmYjaz3tOgOBw==" />
     </item>
   </channel>
 </rss>
