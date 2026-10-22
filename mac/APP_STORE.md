@@ -44,6 +44,18 @@ The keyboard can't open Verbose, and iOS doesn't let an app start recording from
 
 These work in your builds too.
 
+## Notes for App Review
+
+Paste this into App Store Connect › App Review Information › Notes, so the reviewer can check guideline 4.4.1 (keyboards must work without full network access and without Full Access):
+
+> The Verbose keyboard types without Full Access: it has a full QWERTY layout with shift, caps lock, numbers, symbols, space, return, delete, and the globe key, and it opens in that layout when Full Access is off. Full Access is needed only for dictation, because the Verbose app passes your words to the keyboard through a shared App Group container. Without it, the keyboard's Dictate key explains this and shows where to turn it on (Settings › Verbose › Keyboards › Allow Full Access). The keyboard makes no network requests.
+
+What changes without Full Access, in code:
+
+- `KeyboardModel.defaults` returns nil, so nothing reads or writes the App Group. Snippets, Recent (insert your last transcript), the session, and the format chip are hidden.
+- The keyboard opens in typing (`KeyboardSurface.initial`). With Full Access it opens in the view you used last, dictation the first time.
+- Key presses play the system input click. Haptics play only with Full Access.
+
 ## App privacy answers
 
 Verbose has no account, no server, and no analytics or crash-reporting SDK. The Swift packages are WhisperKit (Argmax), FluidAudio, Sparkle (Mac direct download only), and YouTubeKit; none of them sends usage data. Use these answers in App Store Connect › App Privacy:

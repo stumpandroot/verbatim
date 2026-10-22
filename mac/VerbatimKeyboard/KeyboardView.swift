@@ -21,14 +21,57 @@ enum KB {
     static let inkFixed = Ink.inkFixed
 }
 
-/// Voice-first: no letter keys. A top strip for status, one big card for the action, and a bottom row with
-/// globe, space, delete, and return.
+/// Two views behind a compact toggle. Dictation: a top strip for status, one big card for the action, and a
+/// bottom row with globe, letter keys, space, delete, and return. Typing: a strip with the Dictate key (and Recent
+/// with Full Access) over QWERTY keys. Typing works without Allow Full Access; dictation explains why it needs it.
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
     private var busy: Bool { model.stage == .listening || model.stage == .writing || model.stage == .starting }
 
+    /// A dictation in progress always shows the dictation view.
+    private var showsTyping: Bool { model.surface == .typing && !busy }
+
     var body: some View {
+        Group {
+            if showsTyping { typingSurface } else { dictationSurface }
+        }
+        .background(KB.paper)
+    }
+
+    // MARK: Typing
+
+    private var typingSurface: some View {
+        VStack(spacing: 0) {
+            typingStrip
+                .frame(height: 40)
+                .padding(.horizontal, 8).padding(.top, 4)
+            TypingKeysView(typing: model.typing)
+        }
+    }
+
+    /// The Dictate key on the left (always there, so you can find dictation); with Full Access, Recent on the
+    /// right to insert your last transcript. Without Full Access, Recent is hidden rather than broken.
+    private var typingStrip: some View {
+        HStack(spacing: 8) {
+            if model.hasFullAccess && model.showingRecent {
+                recentRow
+            } else {
+                DictateKey(fullAccess: model.hasFullAccess) { model.toggleSurface() }
+                if let i = model.info {
+                    Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+                Spacer(minLength: 6)
+                if model.hasFullAccess { recentButton }
+            }
+        }
+    }
+
+    // MARK: Dictation
+
+    private var dictationSurface: some View {
         VStack(spacing: 8) {
             topStrip.frame(height: 30)
             card.frame(maxHeight: .infinity)
@@ -49,7 +92,6 @@ struct KeyboardView: View {
                 .disabled(busy)
         }
         .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 4)
-        .background(KB.paper)
     }
 
     /// After a spoken correction changed the inserted words: what changed, Use as spoken, and Turn off.
@@ -121,6 +163,17 @@ struct KeyboardView: View {
 
     /// Idle: the session, the cleanup level, and the Snippets chip when you have snippets.
     @ViewBuilder private var idleStrip: some View {
+        if !model.hasFullAccess {
+            // No session or cleanup level to show without Full Access.
+            BarsMark(color: Ink.persimmon).frame(width: 14, height: 14)
+            Ink.wordmark(16).accessibilityHidden(true)
+            Spacer(minLength: 6)
+        } else {
+            sessionStrip
+        }
+    }
+
+    @ViewBuilder private var sessionStrip: some View {
         BarsMark(color: Ink.persimmon).frame(width: 14, height: 14)
         Text(sessionLabel).font(.system(size: 12.5, weight: .medium)).monospacedDigit().foregroundStyle(KB.ink).lineLimit(1).minimumScaleFactor(0.7)
             .accessibilityLabel(sessionAccessibility)
@@ -216,7 +269,9 @@ struct KeyboardView: View {
     @ViewBuilder private var card: some View {
         switch model.stage {
         case .idle, .inserted:
-            if model.needsSessionCard {
+            if !model.hasFullAccess {
+                FullAccessCard()
+            } else if model.needsSessionCard {
                 StartSessionCard()
             } else {
                 recordCard
@@ -324,6 +379,11 @@ struct KeyboardView: View {
                     .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
                     .accessibilityLabel("Next keyboard")
             }
+            Key(label: { Image(systemName: "keyboard").font(.system(size: 17, weight: .regular)).foregroundStyle(KB.ink) },
+                action: model.toggleSurface)
+                .frame(width: 48)
+                .accessibilityLabel("Letter keys")
+                .accessibilityHint("Shows the typing keyboard")
             Key(label: { Text("space").font(.system(size: 15)).foregroundStyle(KB.muted) }, action: model.space)
                 .accessibilityLabel("Space")
             RepeatKey(action: model.deleteOne) {
@@ -364,6 +424,66 @@ private struct FormatChip: View {
         .accessibilityAdjustableAction { direction in
             if direction == .increment || direction == .decrement { next() }
         }
+    }
+}
+
+/// Dictation without Allow Full Access: why it needs it, and where to turn it on. Inline in the keyboard, not a
+/// modal. A keyboard can't open Settings without private API, so the path shows as text.
+private struct FullAccessCard: View {
+    @State private var showsPath = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                Circle().fill(Ink.butterTint)
+                BrandGlyph(art: .iconDictations, color: Ink.butterText, minLineWidth: 1.2).padding(11)
+            }
+            .frame(width: 44, height: 44)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Dictation needs Full Access, so the Verbose app can pass your words to this keyboard. Typing works without it.")
+                    .font(.system(size: 14)).foregroundStyle(KB.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.8)
+                if showsPath {
+                    Text("Settings › Verbose › Keyboards › Allow Full Access")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(KB.ink)
+                        .lineLimit(2).minimumScaleFactor(0.75)
+                        .accessibilityLabel("Open Settings, then Verbose, then Keyboards, and turn on Allow Full Access")
+                } else {
+                    Chip(title: "Show me where") { showsPath = true }
+                        .accessibilityHint("Shows where to turn on Full Access in Settings")
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.hairline))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// The Dictate key in the typing view's strip. With Full Access it shows the dictation view; without it, the
+/// dictation view explains Full Access.
+private struct DictateKey: View {
+    var fullAccess: Bool
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                IconGlyph(art: .iconDictations, size: 15, color: KB.ink)
+                Text("Dictate").font(.system(size: 13, weight: .medium)).foregroundStyle(KB.ink).lineLimit(1)
+            }
+            .padding(.horizontal, 12).frame(height: 30)
+            .background(KB.card, in: Capsule())
+            .overlay(Capsule().strokeBorder(KB.hairline))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressFade())
+        .accessibilityLabel("Dictate")
+        .accessibilityHint(fullAccess ? "Shows the dictation view" : "Explains how to turn on dictation")
     }
 }
 

@@ -12,7 +12,7 @@ SRC=$(for d in $DIRS; do [ -d "$d" ] && echo "$d"; done)
 fail=0
 report() { echo "brand-check: $1"; echo "$2" | sed 's/^/  /'; echo; fail=1; }
 
-ALLOWED='^(xmark|xmark\.circle\.fill|plus|plus\.circle|minus\.circle|chevron\..*|checkmark|checkmark\.circle\.fill|ellipsis|ellipsis\.circle|square\.and\.arrow\.up|trash|magnifyingglass|sidebar\.left|line\.3\.horizontal|arrow\.right|arrow\.up\.arrow\.down|arrow\.uturn\.backward|arrow\.counterclockwise|return|delete\.left|globe|keyboard)$'
+ALLOWED='^(xmark|xmark\.circle\.fill|plus|plus\.circle|minus\.circle|chevron\..*|checkmark|checkmark\.circle\.fill|ellipsis|ellipsis\.circle|square\.and\.arrow\.up|trash|magnifyingglass|sidebar\.left|line\.3\.horizontal|arrow\.right|arrow\.up\.arrow\.down|arrow\.uturn\.backward|arrow\.counterclockwise|return|delete\.left|globe|keyboard|shift|shift\.fill|capslock\.fill)$'
 syms=$(grep -rnoE --include=*.swift '(systemName|systemImage): *"[^"]+"' $SRC \
   | awk -F: '{ n=$0; sub(/.*: *"/, "", n); sub(/"$/, "", n); print $1 ":" $2 "  " n }' \
   | while IFS= read -r l; do echo "${l##*  }" | grep -qE "$ALLOWED" && continue; f=${l%%:*}; n=${l#*:}; n=${n%%  *}; sed -n "${n}p" "$f" | grep -q 'brand: system surface' || echo "$l"; done)

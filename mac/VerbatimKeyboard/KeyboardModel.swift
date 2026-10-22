@@ -42,7 +42,14 @@ final class KeyboardModel: ObservableObject {
     /// A short line shown under the record card (a failure, or how to turn on Full Access).
     @Published private(set) var notice: String? = nil
     @Published var showsGlobe = true
-    @Published var hasFullAccess = true
+    /// Allow Full Access. Off until the controller reads it: nothing touches the App Group without it.
+    @Published var hasFullAccess = false {
+        didSet { typing.hasFullAccess = hasFullAccess }
+    }
+    /// Which view shows: dictation (the record card) or typing (letter keys). Typing works without Full Access.
+    @Published private(set) var surface: KeyboardSurface = .typing
+    /// The letter keys.
+    let typing = TypingModel()
     /// Whether the app holds a session (heartbeat fresh), and when its idle timeout ends it (nil: until you end it).
     @Published private(set) var sessionLive = false
     @Published private(set) var sessionEndsAt: Date? = nil
@@ -74,7 +81,7 @@ final class KeyboardModel: ObservableObject {
     var needsSessionCard: Bool { !sessionLive && !Distribution.current.keyboardOpensVerbatim }
 
     /// The cleanup level the app applies, for the top strip.
-    var levelLabel: String { KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
+    var levelLabel: String { defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
 
     private weak var controller: KeyboardViewController?
     /// The dictation this keyboard started, or the session request it sent.
@@ -90,11 +97,42 @@ final class KeyboardModel: ObservableObject {
 
     init(controller: KeyboardViewController) {
         self.controller = controller
+        typing.controller = controller
+        typing.onEdit = { [weak self] in self?.didType() }
     }
 
     var controllerForGlobe: UIInputViewController? { controller }
     private var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
-    private var defaults: UserDefaults? { KeyboardBridge.defaults }
+    /// The App Group, only with Allow Full Access. Without it the keyboard never reads or writes the shared
+    /// container (App Store guideline 4.4.1: typing must work without Full Access).
+    private var defaults: UserDefaults? { hasFullAccess ? KeyboardBridge.defaults : nil }
+
+    // MARK: Surfaces
+
+    /// Picks the view for this appearance: typing without Full Access, otherwise the last view you used
+    /// (dictation the first time). Stored in the extension's own defaults, which need no Full Access.
+    func chooseSurface() {
+        let remembered = UserDefaults.standard.string(forKey: KeyboardSurface.rememberedKey)
+        let s = KeyboardSurface.initial(remembered: remembered, hasFullAccess: hasFullAccess, field: typing.field)
+        if s != surface { surface = s }
+    }
+
+    /// The compact toggle: the keyboard key in the dictation view, the Dictate key in the typing view.
+    func toggleSurface() {
+        surface = surface.toggled
+        UserDefaults.standard.set(surface.rawValue, forKey: KeyboardSurface.rememberedKey)
+        notice = nil
+        showingSnippets = false
+        showingRecent = false
+    }
+
+    /// A key in the typing view changed the text: an Undo for words inserted earlier no longer lines up.
+    private func didType() {
+        guard stage == .inserted else { return }
+        insertion = nil
+        polishing = false
+        set(.idle)
+    }
 
     // MARK: Lifecycle
 
@@ -102,6 +140,15 @@ final class KeyboardModel: ObservableObject {
     /// session and the dictation live in the App Group, not only in memory.
     func resume() {
         visible = true
+        // Without Full Access there's no App Group: no session, no snippets, no recent dictations.
+        guard hasFullAccess else {
+            snippets = []
+            recent = []
+            showingSnippets = false
+            showingRecent = false
+            sessionLive = false
+            return
+        }
         reloadSnippets()
         reloadRecent()
         refreshFormat()
@@ -114,6 +161,7 @@ final class KeyboardModel: ObservableObject {
         if dictation == nil, let running = KeyboardBridge.currentRunningDictation {
             dictation = running.id
             set(running.phase == .listening ? .listening : .writing)
+            surface = .dictation
         }
         // A session request sent by an earlier keyboard process.
         if request == nil, stage == .idle, let r = KeyboardBridge.uuid(KeyboardBridge.Key.request),
@@ -121,6 +169,7 @@ final class KeyboardModel: ObservableObject {
            !KeyboardBridge.sessionLive {
             request = r
             set(.starting)
+            surface = .dictation
         }
         poll()
         retime()
@@ -133,7 +182,7 @@ final class KeyboardModel: ObservableObject {
     /// The record button: dictates at once while a session is on; otherwise starts one.
     func record() {
         guard hasFullAccess, let defaults else {
-            notice = "Turn on Allow Full Access for Verbose in Settings › General › Keyboard › Keyboards."
+            notice = "Dictation needs Full Access. Turn it on in Settings › Verbose › Keyboards › Allow Full Access."
             return
         }
         insertion = nil
@@ -151,6 +200,7 @@ final class KeyboardModel: ObservableObject {
 
     /// Tapping the chip moves to the next format: Auto, Email, Message, Note. Kept for the session.
     func cycleFormat() {
+        guard hasFullAccess else { return }
         KeyboardBridge.format = format.next
         refreshFormat()
         UISelectionFeedbackGenerator().selectionChanged()
@@ -159,6 +209,7 @@ final class KeyboardModel: ObservableObject {
     /// Re-reads the choice (the app resets it to Auto when a session ends) and works out Auto again from the
     /// host and the field.
     func refreshFormat() {
+        guard hasFullAccess else { return }
         let choice = KeyboardBridge.format
         let traits = controller?.fieldTraits() ?? KeyboardFormat.FieldTraits()
         let resolved = KeyboardFormat.resolve(choice, host: host, traits: traits)
@@ -336,7 +387,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func reloadRecent() {
-        let list = KeyboardBridge.readRecent()
+        let list = hasFullAccess ? KeyboardBridge.readRecent() : []
         if list != recent { recent = list }
         if list.isEmpty { showingRecent = false }
     }
@@ -354,7 +405,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func reloadSnippets() {
-        let list = KeyboardBridge.readSnippets()
+        let list = hasFullAccess ? KeyboardBridge.readSnippets() : []
         if list != snippets { snippets = list }
         if list.isEmpty { showingSnippets = false }
     }
@@ -387,7 +438,7 @@ final class KeyboardModel: ObservableObject {
     // MARK: Spoken corrections
 
     /// Live words strike out spoken corrections when Understand spoken corrections is on and cleanup isn't Literal.
-    var liveCorrections: Bool { SpokenCorrections.enabled && levelLabel != "Literal" }
+    var liveCorrections: Bool { hasFullAccess && SpokenCorrections.enabled && levelLabel != "Literal" }
 
     /// After inserting: says what a spoken correction changed, so you learn it and can opt out. Start over and
     /// multi-sentence deletions always; small fixes the first few times (`SpokenCorrections.takeNotice`).
@@ -419,7 +470,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func readSession(_ defaults: UserDefaults) {
-        let live = KeyboardBridge.sessionLive
+        let live = hasFullAccess && KeyboardBridge.sessionLive
         if live != sessionLive {
             sessionLive = live
             // A session that ended reset the format chip to Auto.

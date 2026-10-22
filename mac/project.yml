@@ -414,9 +414,10 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: false
         DEAD_CODE_STRIPPING: true
 
-  # The Verbatim keyboard: voice-first, no letter keys. It hands recording and transcription to the app through
-  # the App Group (VerbatimKeyboard/KeyboardBridge.swift). Kept small for the keyboard memory limit: no speech
-  # engines, no Harper, only the shared palette and brand drawing.
+  # The Verbatim keyboard: dictation plus a basic typing layout (QWERTY, 123, #+=). Typing works without Allow Full
+  # Access (App Store guideline 4.4.1). Dictation hands recording and transcription to the app through the App
+  # Group (VerbatimKeyboard/KeyboardBridge.swift), so it needs Full Access. Kept small for the keyboard memory
+  # limit: no speech engines, no Harper, only the shared palette and brand drawing.
   VerbatimKeyboard:
     type: app-extension
     platform: iOS
@@ -441,7 +442,8 @@ targets:
             IsASCIICapable: false
             PrefersRightToLeft: false
             PrimaryLanguage: en-US
-            # Needed for the App Group (the words come back through it) and for opening the app.
+            # Asks for Allow Full Access, which dictation needs for the App Group (the words come back through it)
+            # and for opening the app. Typing works without it.
             RequestsOpenAccess: true
     entitlements:
       path: VerbatimKeyboard/VerbatimKeyboard.entitlements
