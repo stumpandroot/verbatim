@@ -923,6 +923,7 @@ enum UITest {
         OriginalCleanedSelfTest.run(check)
         check("settings search finds built-in vocabulary", SettingsIndex.search("chatgpt spelling").map(\.id).contains("models.builtInVocabulary"))
         HomeSelfTest.run(check)
+        AudioDuckerSelfTest.run(check)
         check("settings search finds the Method cards", SettingsIndex.search("method cards").map(\.id).contains("general.welcomeCard"))
     }
 

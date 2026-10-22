@@ -289,6 +289,8 @@ enum PhoneUITest {
         check("settings search finds also copy each dictation",
               SettingsSearchIndex.search("clipboard").flatMap(\.entries).contains { $0.id == "keyboardAlwaysCopy" })
 
+        check("settings search finds lower other audio",
+              SettingsSearchIndex.search("music").flatMap(\.entries).contains { $0.id == "keyboardLowerAudio" })
         check("settings search finds polish after inserting",
               SettingsSearchIndex.search("polish").flatMap(\.entries).contains { $0.id == "keyboardPolishAfter" })
         check("settings search finds keyboard live words",

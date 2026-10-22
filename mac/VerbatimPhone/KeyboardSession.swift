@@ -30,7 +30,9 @@ final class KeyboardSession: ObservableObject {
     @Published var showScreen = false
     /// True when Verbatim couldn't switch back by itself, so the screen asks you to swipe back.
     @Published private(set) var needsManualReturn = false
-    @Published private(set) var dictating = false
+    @Published private(set) var dictating = false {
+        didSet { if dictating != oldValue { PhoneDucker.set(dictating) } }   // Lower other audio while listening.
+    }
     @Published private(set) var endsAt: Date? = nil
     @Published var timeoutSeconds: Int = UserDefaults.standard.object(forKey: KeyboardSession.timeoutKey) as? Int ?? 300 {
         didSet {

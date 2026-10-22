@@ -84,6 +84,8 @@ final class LiveCaptions: ObservableObject {
     private init() {
         feed.maxLineLength = 140
         feed.onFinished = { CaptionPermission.announce($0) }
+        // Lower other audio only when captioning the microphone: never with app audio, which is what's being captioned.
+        AudioDucker.shared.follow(.captions, recorder.$isRecording.combineLatest(recorder.$isPaused, recorder.$isStarting, $source).map { $0.0 && !$0.1 && !$0.2 && $0.3 == Source.mic })
         recorder.onInputSwitched = { [weak self] note in self?.status = note }
         micWords.$words.sink { [weak self] w in self?.feed.update("mic", words: w) }.store(in: &bag)
         appWords.$words.sink { [weak self] w in self?.feed.update("app", words: w) }.store(in: &bag)
