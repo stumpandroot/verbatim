@@ -124,6 +124,15 @@ targets:
         SUScheduledCheckInterval: 86400
         # Never send Sparkle's anonymous system profile; a check sends only the IP address and app version.
         SUEnableSystemProfiling: false
+        # Finder › Quick Actions (or Services) › Transcribe with Verbatim, for audio and video files. Handled by
+        # App/SystemHooks.swift (ServiceProvider.transcribeFiles); Verbatim opens if it isn't running.
+        NSServices:
+          - NSMenuItem:
+              default: Transcribe with Verbatim
+            NSMessage: transcribeFiles
+            NSPortName: Verbatim
+            NSRequiredContext: {}
+            NSSendFileTypes: [public.audio, public.movie]
         # Containers the bundled FFmpeg reads (Sources/FFmpegAudio.swift), declared so the open panel and drag and drop
         # know them as video or audio. Imported, not exported: a system or app declaration wins.
         UTImportedTypeDeclarations: &importedMediaTypes

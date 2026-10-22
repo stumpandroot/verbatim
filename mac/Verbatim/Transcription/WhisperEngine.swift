@@ -15,15 +15,25 @@ actor WhisperEngine: TranscriptionEngine {
         let name = Engines.displayName(engine: "whisper", model: model)
         progress(.downloading(name, nil))
         Log.note("WhisperKit load model=\(model)")
+        // Settings › Privacy. With Local Only on, a model already on this Mac loads from its folder with no download
+        // (WhisperKit's download step asks Hugging Face for the file list even when the files are here); one that
+        // isn't here is a download, which Local Only refuses unless you allowed it.
+        let local = LocalOnly.isOn ? Self.localFolder(model) : nil
+        let downloads = local == nil && (LocalOnly.isOn || !LocalOnly.modelReady("whisper-" + model))
+        var download: UUID?
+        if downloads { download = try NetworkGate.begin(.modelDownload, host: "huggingface.co") }
         let p = try await WhisperKit(
             model: model,
             downloadBase: Paths.models,
+            modelFolder: local?.path,
             verbose: false,
             logLevel: .error,
             prewarm: false,
             load: true,
-            download: true
+            download: local == nil
         )
+        LocalOnly.markModelReady("whisper-" + model)
+        if downloads, let folder = p.modelFolder { NetworkGate.addBytes(download, ModelFiles.bytes(in: folder)) }
         pipe = p
         loadedModel = model
         return p
@@ -51,6 +61,21 @@ actor WhisperEngine: TranscriptionEngine {
     /// with invented words. Other thresholds stay at WhisperKit's defaults.
     private static var options: DecodingOptions {
         DecodingOptions(skipSpecialTokens: true, wordTimestamps: true, chunkingStrategy: .vad)
+    }
+
+    /// A complete WhisperKit model for `model` already in Paths.models (models/argmaxinc/whisperkit-coreml/
+    /// openai_whisper-<model>), or nil.
+    nonisolated static func localFolder(_ model: String) -> URL? {
+        let fm = FileManager.default
+        let repo = Paths.models.appendingPathComponent("models/argmaxinc/whisperkit-coreml", isDirectory: true)
+        guard let names = try? fm.contentsOfDirectory(atPath: repo.path) else { return nil }
+        let match = names.filter { $0 == model || $0.hasSuffix("-" + model) || $0.hasSuffix("_" + model) }.sorted { $0.count < $1.count }
+        for n in match {
+            let dir = repo.appendingPathComponent(n, isDirectory: true)
+            if fm.fileExists(atPath: dir.appendingPathComponent("AudioEncoder.mlmodelc").path),
+               fm.fileExists(atPath: dir.appendingPathComponent("TextDecoder.mlmodelc").path) { return dir }
+        }
+        return nil
     }
 
     /// Whisper emits control tokens such as <|en|> and <|0.00|> inside segment text; strip them.

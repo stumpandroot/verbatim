@@ -56,7 +56,7 @@ struct NotesPanel: View {
             Spacer(minLength: 0)
             DisclosureGroup(isExpanded: $detailsOpen) {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                    row("Source", transcript.sourceLabel)
+                    row("Source", transcript.provenanceSource)
                     row("Engine", transcript.model.isEmpty ? "—" : transcript.model)
                     GridRow {
                         Text("Language").foregroundStyle(Ink.mute)
@@ -70,6 +70,9 @@ struct NotesPanel: View {
                     row("Words", "\(transcript.segments.reduce(0) { $0 + $1.text.split(separator: " ").count })")
                     row("Dictionary", "\(transcript.corrections.filter(\.byDictionary).count) fixes")
                     row("Kept", "On this Mac")
+                    row("Created", Formats.style(date: .medium, time: .short).string(from: transcript.createdAt))
+                    // Where the data went: local audio and text, a link's host, or cloud cleanup (Views/TrustViews.swift).
+                    GridRow(alignment: .top) { Text("Data").foregroundStyle(Ink.mute); DataPathBadge(transcript: transcript) }
                 }
                 .font(.system(size: 12.5)).padding(.top, 6)
                 Picker("Project", selection: Binding(get: { transcript.projectId }, set: { v in app.store.update(transcript.id) { $0.projectId = v } })) {

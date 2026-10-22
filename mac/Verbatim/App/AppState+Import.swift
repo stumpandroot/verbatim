@@ -94,6 +94,11 @@ extension AppState {
         let link = link.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LinkFetcher.looksLikeLink(link), let u = URL(string: link) else { toast = Toast("That doesn't look like a link."); return }
         guard LinkFetcher.canFetch(link) else { toast = Toast("Links need the yt-dlp helper, which this build is missing."); return }
+        // Settings › Privacy › Local Only: refused before anything loads, the thumbnail included.
+        guard NetworkGate.permits(.linkDownload) else {
+            NetworkGate.log?.add(.linkDownload, host: NetworkHost.of(link), refused: true)
+            toast = Toast(LocalOnly.message(.linkDownload)); return
+        }
         verbiePose = .working
         var t = Transcript(title: link, source: .link, sourceLabel: u.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
                            duration: 0, audioFileName: nil, model: "")
@@ -113,6 +118,8 @@ extension AppState {
     func claimIfPendingLink(_ t: Transcript) {
         guard t.pendingLink, t.deletedAt == nil, t.audioFileName == nil,
               let link = t.sourceURL ?? t.link?.url, LinkFetcher.canFetch(link), !claiming.contains(t.id) else { return }
+        // Local Only: the link waits for the iPhone or for Local Only to be turned off.
+        guard NetworkGate.permits(.linkDownload) else { return }
         claiming.insert(t.id)
         let id = t.id
         store.update(id) { $0.pendingLink = false; $0.stage = "Fetching audio"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }

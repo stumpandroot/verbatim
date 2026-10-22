@@ -43,6 +43,10 @@ struct VerbatimApp: App {
                 Button("Live Captions") { app.toggleLiveCaptions() }
                     .keyboardShortcut("c", modifiers: [.option, .command])
             }
+            CommandGroup(after: .importExport) {
+                // Every Library transcript as a Markdown note with properties (Views/TrustViews.swift).
+                Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
+            }
             CommandGroup(after: .textEditing) {
                 Button("Find in Transcripts") { app.goHome() }
                     .keyboardShortcut("f", modifiers: .command)

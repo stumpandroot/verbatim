@@ -21,6 +21,10 @@ struct ExportMenu: View {
                     Button(version == .cleaned ? "Copy the original" : "Copy the cleaned text") { ExportMenu.copy(transcript, version.other, app: app) }
                     Button("Copy engine words") { ExportMenu.copy(transcript, .engine, app: app) }
                         .disabled(!transcript.hasEngineWords)
+                    Divider()
+                    // The text with a header (title, date, duration, speakers, source, language) for an AI assistant.
+                    // ⌥⇧⌘C on the transcript screen (TranscriptView); ⌥⌘C is Live captions.
+                    Button("Copy for AI (⌥⇧⌘C)") { CopyForAI.copy(transcript, app: app) }
                 } label: {
                     Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.dim)
                         .frame(width: 16, height: 28).contentShape(Rectangle())

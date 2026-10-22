@@ -63,6 +63,9 @@ struct FlowInfo: Codable, Equatable {
     /// Why cleanup used the rules instead of the model (a timeout, a guard, cloud failing), so fallbacks can be
     /// counted. Nil when the model's text was used, and for dictations made before Verbatim kept it.
     var cleanupNote: String? = nil
+    /// The company the words were sent to for cloud cleanup ("Anthropic", "OpenAI"), whether or not its text was
+    /// used, for the transcript's data path badge. Nil when nothing left the device.
+    var cloudCleanup: String? = nil
 }
 
 // MARK: Destination rules

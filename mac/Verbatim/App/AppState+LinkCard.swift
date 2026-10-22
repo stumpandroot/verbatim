@@ -70,6 +70,11 @@ extension AppState {
     func startLinkFetch(_ id: UUID, link: String, keepVideo: Bool, signIn: LinkSignIn.Browser? = nil) {
         guard let imp = linkImports[id] else { return }
         linkTasks[id]?.cancel()
+        // Settings › Privacy: logged by host, and refused before it starts while Local Only is on.
+        let netEvent: UUID?
+        do { netEvent = try NetworkGate.begin(.linkDownload, host: NetworkHost.of(link)) } catch {
+            failLink(id, imp: imp, message: LocalOnly.message(.linkDownload)); return
+        }
         imp.phase = .resolving
         imp.progress = nil
         let gate = PercentStep()
@@ -79,6 +84,7 @@ extension AppState {
                 let f = try await LinkFetcher.fetch(link, signIn: signIn, progress: { _ in }) { event in
                     Task { @MainActor in self.linkEvent(id, imp: imp, link: link, event, gate: gate) }
                 }
+                NetworkGate.addBytes(netEvent, ModelFiles.bytes(of: f.url))
                 guard linkStillWanted(id) else { try? FileManager.default.removeItem(at: f.url); finishLinkTask(id); return }
                 let dest = store.newAudioURL(ext: f.url.pathExtension.isEmpty ? "m4a" : f.url.pathExtension)
                 try FileManager.default.moveItem(at: f.url, to: dest)
@@ -101,7 +107,9 @@ extension AppState {
                 if keepVideo, !CloudShareLink.isCloudLink(link) { self.keepVideo(id) }
                 finishLinkTask(id)
                 // The thumbnail goes with the transcript, so Library and Links rows show it.
-                if let thumb = f.thumbnail, let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
+                // The thumbnail is its own request (often another host), logged like the link.
+                if let thumb = f.thumbnail, (try? NetworkGate.begin(.linkDownload, host: NetworkHost.of(thumb))) != nil,
+                   let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
                     store.update(id) { $0.link?.thumbnailFile = file }
                 } else if let file = await LinkImport.saveFrameThumbnail(from: dest, as: id.uuidString) {
                     store.update(id) { $0.link?.thumbnailFile = file }

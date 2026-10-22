@@ -9,7 +9,7 @@ import AppKit
 /// A Settings pane. Raw values persist in "settingsTab"; `general`, `dictate`, `actions`, and `storage` keep the
 /// values the old tabbed window used, so links from the floating button and the welcome tour still land.
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, dictate, floatingButton, actions
+    case general, dictate, floatingButton, actions, privacy
     case models = "transcription", speakers, captions
     case watched, export, storage, about
 
@@ -21,6 +21,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .dictate: return "Dictation"
         case .floatingButton: return "Floating button"
         case .actions: return "Actions"
+        case .privacy: return "Privacy"
         case .models: return "Models and language"
         case .speakers: return "Speakers and your voice"
         case .captions: return "Live captions"
@@ -34,7 +35,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     /// The sidebar group, also the pane's overline.
     var group: String {
         switch self {
-        case .general, .dictate, .floatingButton, .actions: return "App"
+        case .general, .dictate, .floatingButton, .actions, .privacy: return "App"
         case .models, .speakers, .captions: return "Transcription"
         case .watched, .export, .storage, .about: return "Files"
         }
@@ -47,6 +48,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .dictate: return "Dictate into any app: the hotkey, cleanup, the tone for each kind of app, and snippets."
         case .floatingButton: return "The small button at the edge of your screen that starts and pastes a dictation."
         case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac."
+        case .privacy: return "What leaves this Mac, and when. Local Only keeps everything here."
         case .models: return "Which model transcribes your recordings, and what Verbatim does to a transcript when it's ready."
         case .speakers: return "Who's talking in a recording, how Verbatim knows your voice, and which microphone records you."
         case .captions: return "Live captions for whatever your Mac is playing or hearing."
@@ -58,7 +60,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     }
 
     static let groups: [(title: String, tabs: [SettingsTab])] = [
-        ("App", [.general, .dictate, .floatingButton, .actions]),
+        ("App", [.general, .dictate, .floatingButton, .actions, .privacy]),
         ("Transcription", [.models, .speakers, .captions]),
         ("Files", [.watched, .export, .storage, .about]),
     ]
@@ -81,7 +83,7 @@ struct SettingsEntry: Identifiable, Hashable {
 }
 
 enum SettingsIndex {
-    static let all: [SettingsEntry] = [
+    private static let base: [SettingsEntry] = [
         // General
         .init("general.appearance", .general, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
         .init("general.limitMotion", .general, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
@@ -197,6 +199,9 @@ enum SettingsIndex {
         .init("about.legal", .about, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
         .init("about.acknowledgements", .about, "Acknowledgements", "Open-source software in Verbatim and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
     ]
+
+    /// Every entry: the panes above, plus Privacy and the trust rows (Views/TrustViews.swift).
+    static let all: [SettingsEntry] = base + trustEntries
 
     private static let byID: [String: SettingsEntry] = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
 

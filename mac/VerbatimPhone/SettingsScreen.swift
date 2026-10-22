@@ -38,6 +38,8 @@ struct SettingsScreen: View {
     @State private var showAboutMe = false
     @State private var showKeyboard = false
     @State private var showVoice = false
+    /// Settings › Privacy (PhoneTrust.swift).
+    @State private var showPrivacy = false
     @State private var voicePreview = false
     @ObservedObject private var voice = VoiceProfileStatus.shared
     @State private var exporting = false
@@ -94,6 +96,7 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
+        .navigationDestination(isPresented: $showPrivacy) { PhonePrivacyScreen() }
         .navigationDestination(isPresented: $showAcknowledgements) { AcknowledgementsView().navigationTitle("Acknowledgements") }
         // Home's avatar opens About me, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
         .onAppear { openRequestedPage() }
@@ -275,6 +278,9 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var syncAndData: some View {
+        // Local Only, Network activity, and what leaves this iPhone (PhoneTrust.swift).
+        PhonePrivacyRow(bounce: bumps["privacyScreen", default: 0]) { bump("privacyScreen"); showPrivacy = true }
+        SettingsDivider()
         if Cloud.available {
             Toggle(isOn: Binding(get: { syncWanted }, set: { on in
                 if on { syncWanted = true; Cloud.setWantsSync(true) } else { confirmSyncOff = true }

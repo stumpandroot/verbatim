@@ -32,6 +32,8 @@ struct DictionaryScreen: View {
                 .onDelete { idx in app.store.dictionary.remove(atOffsets: idx) }
             }
             PhoneBuiltInVocabularySection()
+            // Import CSV… and Export CSV… (PhoneTrust.swift).
+            PhoneDictionaryCSVSection()
         }
         .scrollContentBackground(.hidden)
         .background(Ink.paper.ignoresSafeArea())

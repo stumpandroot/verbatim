@@ -50,6 +50,8 @@ extension AppState {
     func correct(transcript id: UUID, segment sid: UUID, from: String, to: String, remember: Bool) {
         // Whole words only, recorded with where each went, so Undo restores exactly them (Transcript.correct).
         store.update(id) { $0.correct(segment: sid, from: from, to: to) }
+        // The same word elsewhere in the transcript: offer Fix all (Views/TrustViews.swift).
+        if let t = store.transcript(id) { FixAllOffer.shared.consider(t, heard: from, fix: to, remembered: remember) }
         if remember, let t = store.transcript(id) {
             store.remember(preferred: to, heardAs: from, from: t.title, project: projectScopedVocabulary ? t.projectId : nil)
             toast = Toast("\(to) added to Dictionary" + (projectScopedVocabulary && t.projectId != nil ? " for this project" : ""))

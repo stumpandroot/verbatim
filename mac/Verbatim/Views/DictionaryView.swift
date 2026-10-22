@@ -31,6 +31,8 @@ struct DictionaryView: View {
                 HStack(spacing: 8) {
                     TextField("Search \(app.store.dictionary.count) words", text: $filter).textFieldStyle(.roundedBorder)
                     Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.brandPrimary)
+                    // Import CSV… and Export CSV… (Views/TrustViews.swift).
+                    DictionaryCSVMenu()
                 }
                 .padding(.bottom, 10)
 

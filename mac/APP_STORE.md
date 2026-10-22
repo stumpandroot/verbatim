@@ -41,3 +41,22 @@ The keyboard can't open Verbatim, and iOS doesn't let an app start recording fro
 - **Verbatim:** Settings › Keyboard › Start keyboard session.
 
 These work in your builds too.
+
+## App privacy answers
+
+Verbatim has no account, no server, and no analytics or crash-reporting SDK. The Swift packages are WhisperKit (Argmax), FluidAudio, Sparkle (Mac direct download only), and YouTubeKit; none of them sends usage data. Use these answers in App Store Connect › App Privacy:
+
+- **Do you or your third-party partners collect data from this app?** No. The label reads **Data Not Collected**.
+- **Tracking:** none. No advertising identifier, no fingerprinting, and no data shared with data brokers.
+
+Why each network use isn't collection. Settings › Privacy lists every one by host, and Local Only refuses all of them:
+
+| What | Where it goes | Why it isn't collected |
+|---|---|---|
+| Model downloads | huggingface.co (Parakeet, Whisper, speaker and speech-detection models); Apple (speech assets, through the system) | A download. Nothing about you or your recordings is sent. |
+| Link downloads | The site you paste (YouTube, Vimeo, Dropbox, and others) and its thumbnail host | You asked for that page's audio. Nothing is sent to the developer. |
+| Cloud cleanup (opt-in, off by default) | api.anthropic.com or api.openai.com, with your own API key | Your words go to your own account with that provider, at your request. The developer never receives them and has no agreement with the provider about your data. |
+| Update checks (Mac direct download only) | raw.githubusercontent.com (the appcast) | Sparkle sends the app version; system profiling is off. Not part of App Store builds. |
+| iCloud sync | Your own iCloud container | Apple's service. The developer can't read it. |
+
+If App Review asks about cloud cleanup, the conservative alternative is to declare **User Content › Other User Content**: not linked to the user, not used for tracking, purpose App Functionality. Tim decides; the default answer is accurate because the data goes only to the person's own provider account.
