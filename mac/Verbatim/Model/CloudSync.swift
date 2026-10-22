@@ -66,9 +66,9 @@ final class CloudSync: NSObject {
                 } else {
                     transcriptsChanged.append(url)
                 }
-            case (_, "projects.json"): projects = true
-            case (_, "dictionary.json"): dictionary = true
-            case (_, "snippets.json"): snippets = true
+            case (_, "projects.json"), (_, "projects-deleted.json"): projects = true
+            case (_, "dictionary.json"), (_, "dictionary-deleted.json"): dictionary = true
+            case (_, "snippets.json"), (_, "snippets-deleted.json"): snippets = true
             case (_, "profile.json"): profile = true
             default: break
             }

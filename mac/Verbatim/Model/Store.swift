@@ -124,7 +124,7 @@ enum Cloud {
                 try? fm.removeItem(at: f)
             }
         }
-        for name in ["projects.json", "dictionary.json", "snippets.json"] {
+        for name in Store.syncedListFiles {
             let src = cloud.appendingPathComponent(name)
             if fm.fileExists(atPath: src.path) || fm.fileExists(atPath: cloud.appendingPathComponent(".\(name).icloud").path) {
                 copy(src, Paths.local.appendingPathComponent(name))
@@ -236,7 +236,7 @@ enum Cloud {
             backup = old.appendingPathComponent("Before iCloud \(Formats.pattern("yyyy-MM-dd HH.mm").string(from: Date()))", isDirectory: true)
         }
         try? fm.createDirectory(at: backup, withIntermediateDirectories: true)
-        for name in ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json", "snippets.json"] {
+        for name in ["transcripts", "audio", "thumbs"] + Store.syncedListFiles {
             let src = old.appendingPathComponent(name)
             if fm.fileExists(atPath: src.path) { try? fm.moveItem(at: src, to: backup.appendingPathComponent(name)) }
         }
@@ -331,10 +331,32 @@ private final class LoadSlots: @unchecked Sendable {
 @MainActor
 final class Store: ObservableObject {
     @Published private(set) var transcripts: [Transcript] = []
-    @Published var projects: [Project] = [] { didSet { saveProjects() } }
-    @Published var dictionary: [DictionaryEntry] = [] { didSet { saveDictionary() } }
+    @Published var projects: [Project] = [] { didSet { listEdited(old: oldValue, list: \.projects, sync: \.projectSync) } }
+    @Published var dictionary: [DictionaryEntry] = [] { didSet { listEdited(old: oldValue, list: \.dictionary, sync: \.dictionarySync) } }
     /// Snippets for dictation. Synced like the Dictionary; the Mac mirrors them into `FlowSettings.snippets`.
-    @Published var snippets: [Snippet] = [] { didSet { saveSnippets() } }
+    @Published var snippets: [Snippet] = [] { didSet { listEdited(old: oldValue, list: \.snippets, sync: \.snippetSync) } }
+
+    /// A synced list's file, its deletes, and whether this device may write it (SyncMerge).
+    struct ListSync {
+        let file: URL
+        /// "<name>-deleted.json" beside the list: its tombstones.
+        var tombFile: URL { file.deletingLastPathComponent().appendingPathComponent(file.deletingPathExtension().lastPathComponent + "-deleted.json") }
+        var tombstones: [Tombstone] = []
+        /// The file read cleanly, or there is none: writes are allowed. False while it isn't downloaded or can't be
+        /// decoded, so a device that hasn't seen the list never replaces it.
+        var writable = false
+        /// Edited while not writable: merged and written once the file reads cleanly.
+        var dirty = false
+        init(file: URL) { self.file = file }
+    }
+    private var projectSync = ListSync(file: Paths.projectsFile)
+    private var dictionarySync = ListSync(file: Paths.dictionaryFile)
+    private var snippetSync = ListSync(file: Paths.snippetsFile)
+    /// The synced list files and their tombstone files, at the root of the library.
+    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json",
+                                              "projects-deleted.json", "dictionary-deleted.json", "snippets-deleted.json"]
+    /// Snippets read cleanly from the synced file (or there is none yet), so they can be mirrored over local ones.
+    var snippetsReadable: Bool { snippetSync.writable }
 
     static let enc: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.prettyPrinted, .sortedKeys]; return e }()
     static let dec: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
@@ -405,9 +427,9 @@ final class Store: ObservableObject {
         // Files from older builds that still hold absolute paths: rewritten once without them.
         for id in LocalMedia.takeLegacy() { if let t = transcript(id) { loadedDates[id] = nil; save(t) } }
         sync?.seed(dates)
-        projects = Cloud.read(Paths.projectsFile).flatMap { try? Self.dec.decode([Project].self, from: $0) } ?? []
-        dictionary = Cloud.read(Paths.dictionaryFile).flatMap { try? Self.dec.decode([DictionaryEntry].self, from: $0) } ?? []
-        snippets = Cloud.read(Paths.snippetsFile).flatMap { try? Self.dec.decode([Snippet].self, from: $0) } ?? []
+        loadList(list: \.projects, sync: \.projectSync)
+        loadList(list: \.dictionary, sync: \.dictionarySync)
+        loadList(list: \.snippets, sync: \.snippetSync)
         recoverOrphans()
         purgeExpired()
         startProfileSync()
@@ -536,15 +558,8 @@ final class Store: ObservableObject {
         transcripts.removeAll { $0.id == id }
     }
 
-    func ingestProjects() {
-        guard let d = Cloud.read(Paths.projectsFile), let p = try? Self.dec.decode([Project].self, from: d), p != projects else { return }
-        loading = true; projects = p; loading = false
-    }
-
-    func ingestDictionary() {
-        guard let d = Cloud.read(Paths.dictionaryFile), let x = try? Self.dec.decode([DictionaryEntry].self, from: d), x != dictionary else { return }
-        loading = true; dictionary = x; loading = false
-    }
+    func ingestProjects() { ingestList(list: \.projects, sync: \.projectSync) }
+    func ingestDictionary() { ingestList(list: \.dictionary, sync: \.dictionarySync) }
 
     // MARK: Profile (name and About me), synced as one small file
 
@@ -592,9 +607,13 @@ final class Store: ObservableObject {
         apply(p)
     }
 
-    func ingestSnippets() {
-        guard let d = Cloud.read(Paths.snippetsFile), let x = try? Self.dec.decode([Snippet].self, from: d), x != snippets else { return }
-        loading = true; snippets = x; loading = false
+    func ingestSnippets() { ingestList(list: \.snippets, sync: \.snippetSync) }
+
+    /// Snippets saved on this device (the Mac's settings) while the synced file can't be read yet: shown and used
+    /// as they are, without counting as edits, and merged with the file once it reads.
+    func seedSnippetsWhileUnreadable(_ local: [Snippet]) {
+        guard !snippetSync.writable, snippets.isEmpty, !local.isEmpty else { return }
+        loading = true; snippets = local; loading = false
     }
 
     /// Moves a finished recording from the local recordings folder into the synced audio folder.
@@ -711,7 +730,7 @@ final class Store: ObservableObject {
             .filter { $0.lastPathComponent.hasPrefix("Before iCloud") }
         var local = backups + [Paths.downloads, Paths.models]
         if Cloud.enabled {
-            local += ["transcripts", "audio", "thumbs", "projects.json", "dictionary.json", "snippets.json"].map { Paths.local.appendingPathComponent($0) }
+            local += (["transcripts", "audio", "thumbs"] + Self.syncedListFiles).map { Paths.local.appendingPathComponent($0) }
         }
         LocalMedia.removeAll()
         TranscriptFiles.queue.async {
@@ -779,19 +798,109 @@ final class Store: ObservableObject {
 
     // MARK: Projects and dictionary
 
-    private func saveProjects() {
-        guard !loading, let d = try? Self.enc.encode(projects) else { return }
-        Cloud.write(d, to: Paths.projectsFile)
+    /// Reads a synced list file: missing, unavailable (not downloaded, unreadable, or not a list), or its entries.
+    nonisolated static func readList<T: SyncEntry>(_ type: T.Type, at url: URL) -> ListRead<[T]> {
+        let fm = FileManager.default
+        let placeholder = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
+        guard fm.fileExists(atPath: url.path) else {
+            if fm.fileExists(atPath: placeholder.path) {
+                try? fm.startDownloadingUbiquitousItem(at: url)
+                return .unavailable("not downloaded yet")
+            }
+            return .missing
+        }
+        guard Cloud.isDownloaded(url) else {
+            try? fm.startDownloadingUbiquitousItem(at: url)
+            return .unavailable("not downloaded yet")
+        }
+        guard let data = Cloud.read(url) else { return .unavailable("couldn't be read") }
+        // Same date format as `Store.dec` (ISO 8601); TranscriptFiles' decoder isn't tied to the main actor.
+        guard let items = SyncMerge.decode(T.self, from: data, decoder: TranscriptFiles.dec) else { return .unavailable("couldn't be decoded") }
+        return .ok(items)
     }
 
-    private func saveDictionary() {
-        guard !loading, let d = try? Self.enc.encode(dictionary) else { return }
-        Cloud.write(d, to: Paths.dictionaryFile)
+    nonisolated static func readTombstones(_ url: URL) -> [Tombstone] {
+        guard let d = Cloud.read(url) else { return [] }
+        return (try? TranscriptFiles.dec.decode([Tombstone].self, from: d)) ?? []
     }
 
-    private func saveSnippets() {
-        guard !loading, let d = try? Self.enc.encode(snippets) else { return }
-        Cloud.write(d, to: Paths.snippetsFile)
+    private func loadList<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+        var s = self[keyPath: skp]
+        s.tombstones = Self.readTombstones(s.tombFile)
+        let wasLoading = loading
+        loading = true
+        let read = Self.readList(T.self, at: s.file)
+        s.writable = SyncMerge.mayWrite(after: read)
+        switch read {
+        case .missing:
+            self[keyPath: kp] = []
+        case .unavailable(let why):
+            self[keyPath: kp] = []
+            Log.note("sync: \(s.file.lastPathComponent) \(why); not writing it until it reads")
+        case .ok(let items):
+            self[keyPath: kp] = items
+        }
+        loading = wasLoading
+        self[keyPath: skp] = s
+    }
+
+    /// The list changed here: new and changed entries are stamped, removed ones get tombstones, then it's written
+    /// (or held until the file can be read).
+    private func listEdited<T: SyncEntry>(old: [T], list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+        guard !loading else { return }
+        let s = SyncMerge.stamp(old: old, new: self[keyPath: kp])
+        if s.items != self[keyPath: kp] { loading = true; self[keyPath: kp] = s.items; loading = false }
+        if !s.deleted.isEmpty { self[keyPath: skp].tombstones = SyncMerge.mergeTombstones(self[keyPath: skp].tombstones, s.deleted) }
+        writeList(list: kp, sync: skp)
+    }
+
+    private func writeList<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+        let s = self[keyPath: skp]
+        guard s.writable else {
+            if !s.dirty { Log.note("sync: \(s.file.lastPathComponent) can't be read yet; this change is merged in once it can") }
+            self[keyPath: skp].dirty = true
+            return
+        }
+        if let d = try? Self.enc.encode(self[keyPath: kp]) { Cloud.write(d, to: s.file) }
+        if !s.tombstones.isEmpty || FileManager.default.fileExists(atPath: s.tombFile.path), let d = try? Self.enc.encode(s.tombstones) {
+            Cloud.write(d, to: s.tombFile)
+        }
+        self[keyPath: skp].dirty = false
+    }
+
+    /// The list's file changed (usually on the other device): merged entry by entry with this device's copy, along
+    /// with any conflicting versions iCloud kept. Written back only when the merge has something the file lacks.
+    private func ingestList<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+        var s = self[keyPath: skp]
+        switch Self.readList(T.self, at: s.file) {
+        case .missing:
+            // Nothing to merge with: a device that was waiting writes what it has.
+            guard !s.writable else { return }
+            s.writable = true
+            self[keyPath: skp] = s
+            if s.dirty || !self[keyPath: kp].isEmpty { writeList(list: kp, sync: skp) }
+        case .unavailable(let why):
+            if s.writable { Log.note("sync: \(s.file.lastPathComponent) \(why); not writing it until it reads") }
+            self[keyPath: skp].writable = false
+        case .ok(let fileContent):
+            let remoteTombs = Self.readTombstones(s.tombFile)
+            // Versions iCloud kept from a conflict: every one is merged in, then they're resolved.
+            let conflicts = (NSFileVersion.unresolvedConflictVersionsOfItem(at: s.file) ?? []).compactMap { v -> [T]? in
+                (try? Data(contentsOf: v.url)).flatMap { SyncMerge.decode(T.self, from: $0, decoder: TranscriptFiles.dec) }
+            }
+            var remote = fileContent
+            for c in conflicts {
+                remote = SyncMerge.merge(local: remote, remote: c, localTombstones: remoteTombs, remoteTombstones: []).items
+            }
+            let m = SyncMerge.merge(local: self[keyPath: kp], remote: remote, localTombstones: s.tombstones, remoteTombstones: remoteTombs)
+            s.tombstones = m.tombstones
+            s.writable = true
+            let needsWrite = s.dirty || !conflicts.isEmpty || m.items != fileContent || m.tombstones != remoteTombs
+            self[keyPath: skp] = s
+            if m.items != self[keyPath: kp] { loading = true; self[keyPath: kp] = m.items; loading = false }
+            if needsWrite { writeList(list: kp, sync: skp) }
+            if !conflicts.isEmpty { CloudSync.resolveConflicts(s.file) }
+        }
     }
 
     func addProject(_ name: String) -> Project {

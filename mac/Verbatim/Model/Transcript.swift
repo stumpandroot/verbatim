@@ -119,11 +119,13 @@ struct LinkInfo: Codable, Equatable, Hashable {
     }
 }
 
-struct Project: Codable, Identifiable, Equatable, Hashable {
+struct Project: Codable, Identifiable, Equatable, Hashable, SyncEntry {
     var id = UUID()
     var name: String
     var createdAt = Date()
     var colorIndex: Int = 0     // coral, lime, iris, …
+    /// When this project last changed on any device (SyncMerge). Nil in files from older builds.
+    var updatedAt: Date? = nil
 }
 
 /// A short summary of a transcript: a 2–4 sentence overview and up to 5 key points.

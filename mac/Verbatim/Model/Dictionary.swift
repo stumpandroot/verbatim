@@ -1,7 +1,7 @@
 import Foundation
 
 /// A word Verbatim spells your way. "heardAs" lists what the engine tends to produce instead.
-struct DictionaryEntry: Codable, Identifiable, Equatable {
+struct DictionaryEntry: Codable, Identifiable, Equatable, SyncEntry {
     var id = UUID()
     var preferred: String
     var heardAs: [String]
@@ -9,6 +9,8 @@ struct DictionaryEntry: Codable, Identifiable, Equatable {
     var learnedFrom: String      // transcript title or "Added by you"
     var projectId: UUID? = nil   // nil = every transcript; otherwise only that project's
     var createdAt = Date()
+    /// When this entry last changed on any device (SyncMerge). Nil in files from older builds.
+    var updatedAt: Date? = nil
 }
 
 enum DictionaryApplier {

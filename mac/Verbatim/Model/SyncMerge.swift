@@ -1,0 +1,112 @@
+import Foundation
+
+/// An entry of a list synced through iCloud as one JSON file (projects, the Dictionary, snippets). Each entry
+/// carries when it last changed, so two devices' copies merge entry by entry instead of one file replacing the
+/// other.
+protocol SyncEntry: Codable, Equatable, Identifiable where ID == UUID {
+    /// When this entry last changed on any device. Nil in files written before merging existed.
+    var updatedAt: Date? { get set }
+}
+
+/// A deleted entry, remembered so a merge with a copy that still has it doesn't bring it back.
+struct Tombstone: Codable, Equatable {
+    var id: UUID
+    var deletedAt: Date
+}
+
+/// How a synced list's file read went.
+enum ListRead<T> {
+    /// No file (and no iCloud placeholder): a list that was never written. Safe to write.
+    case missing
+    /// The file is there but its bytes aren't on this device yet, or it couldn't be read or decoded. Never
+    /// written over until it reads cleanly.
+    case unavailable(String)
+    case ok(T)
+}
+
+/// The merge rules, pure so mac/tools/test-sync.sh checks them on Linux.
+enum SyncMerge {
+    /// Tombstones older than this are dropped: by then every device has seen the delete.
+    static let tombstoneDays: Double = 90
+
+    /// Merges two copies of a list. For an entry in both, the one changed last wins (ties go to the larger
+    /// encoding, so both devices pick the same one). An entry deleted (a tombstone) at or after its last change is
+    /// dropped; one changed after its delete comes back. Order: `local`'s, then entries only `remote` has, in its
+    /// order.
+    static func merge<T: SyncEntry>(local: [T], remote: [T], localTombstones: [Tombstone], remoteTombstones: [Tombstone],
+                                    now: Date = Date()) -> (items: [T], tombstones: [Tombstone]) {
+        let tombstones = mergeTombstones(localTombstones, remoteTombstones, now: now)
+        let deleted = Dictionary(tombstones.map { ($0.id, $0.deletedAt) }, uniquingKeysWith: max)
+        let remoteByID = Dictionary(remote.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var out: [T] = []
+        var seen = Set<UUID>()
+        for l in local where !seen.contains(l.id) {
+            seen.insert(l.id)
+            out.append(remoteByID[l.id].map { pick(l, $0) } ?? l)
+        }
+        for r in remote where !seen.contains(r.id) {
+            seen.insert(r.id)
+            out.append(r)
+        }
+        out.removeAll { e in
+            guard let d = deleted[e.id] else { return false }
+            return (e.updatedAt ?? .distantPast) <= d
+        }
+        return (out, tombstones)
+    }
+
+    /// Of two versions of one entry, the one changed last; a tie goes to the larger encoding (deterministic).
+    static func pick<T: SyncEntry>(_ a: T, _ b: T) -> T {
+        if a == b { return a }
+        let ta = a.updatedAt ?? .distantPast, tb = b.updatedAt ?? .distantPast
+        if ta != tb { return ta > tb ? a : b }
+        return encoded(a) >= encoded(b) ? a : b
+    }
+
+    private static let encoder: JSONEncoder = {
+        let e = JSONEncoder(); e.outputFormatting = [.sortedKeys]; e.dateEncodingStrategy = .iso8601; return e
+    }()
+
+    private static func encoded<T: Encodable>(_ x: T) -> String {
+        (try? encoder.encode(x)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+    }
+
+    /// Union by ID, keeping the latest delete; ones older than `tombstoneDays` are dropped. Sorted by ID, so both
+    /// devices write the same file.
+    static func mergeTombstones(_ a: [Tombstone], _ b: [Tombstone], now: Date = Date()) -> [Tombstone] {
+        let cutoff = now.addingTimeInterval(-tombstoneDays * 86_400)
+        var byID: [UUID: Date] = [:]
+        for t in a + b where t.deletedAt >= cutoff { byID[t.id] = max(byID[t.id] ?? .distantPast, t.deletedAt) }
+        return byID.map { Tombstone(id: $0.key, deletedAt: $0.value) }.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    /// A local edit: entries that are new or changed since `old` get `updatedAt = now` (unless the edit set it
+    /// already), and entries that are gone get a tombstone.
+    static func stamp<T: SyncEntry>(old: [T], new: [T], now: Date = Date()) -> (items: [T], deleted: [Tombstone]) {
+        let before = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var items = new
+        for i in items.indices {
+            if let o = before[items[i].id] {
+                guard o != items[i], o.updatedAt == items[i].updatedAt else { continue }
+                items[i].updatedAt = now
+            } else if items[i].updatedAt == nil {
+                items[i].updatedAt = now
+            }
+        }
+        let kept = Set(new.map(\.id))
+        let deleted = old.filter { !kept.contains($0.id) }.map { Tombstone(id: $0.id, deletedAt: now) }
+        return (items, deleted)
+    }
+
+    /// Whether this device may write the list after reading its file: never while the file is there but not
+    /// downloaded or not decodable, so a device that hasn't seen the list can't replace it with an empty one.
+    static func mayWrite<T>(after read: ListRead<T>) -> Bool {
+        if case .unavailable = read { return false }
+        return true
+    }
+
+    /// Decodes a list file. Nil when the data isn't a list of `T` (the caller then never writes over the file).
+    static func decode<T: Decodable>(_ type: T.Type, from data: Data, decoder: JSONDecoder) -> [T]? {
+        try? decoder.decode([T].self, from: data)
+    }
+}

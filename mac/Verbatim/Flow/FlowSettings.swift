@@ -77,10 +77,12 @@ enum CleanupLevel: String, CaseIterable, Identifiable {
 }
 
 /// A spoken shortcut: say the trigger, get the saved text.
-struct Snippet: Codable, Identifiable, Equatable {
+struct Snippet: Codable, Identifiable, Equatable, SyncEntry {
     var id = UUID()
     var trigger: String
     var expansion: String
+    /// When this snippet last changed on any device (SyncMerge). Nil in files from older builds.
+    var updatedAt: Date? = nil
 }
 
 /// A saved action: a named instruction that rewrites text or pulls something out of it.

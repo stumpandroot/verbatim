@@ -162,7 +162,11 @@ final class AppState: ObservableObject {
     private func mirrorSnippets() {
         let flow = FlowSettings.shared
         let migratedKey = "flow.snippetsSynced"
-        if !UserDefaults.standard.bool(forKey: migratedKey) {
+        if !store.snippetsReadable {
+            // The synced file is there but can't be read yet (not downloaded, or damaged): this Mac's own snippets
+            // stay as they are and are used meanwhile; the Store merges them with the file once it reads.
+            store.seedSnippetsWhileUnreadable(flow.snippets)
+        } else if !UserDefaults.standard.bool(forKey: migratedKey) {
             var all = store.snippets
             for s in flow.snippets where !all.contains(where: { $0.id == s.id }) { all.append(s) }
             if all != store.snippets { store.snippets = all }
