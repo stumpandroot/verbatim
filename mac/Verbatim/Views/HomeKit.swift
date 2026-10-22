@@ -1,17 +1,15 @@
 import SwiftUI
+import AVFoundation
 
-// Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps: the greeting and counts (pure, self-tested),
-// the brand icons that draw themselves on, the Record panel's meter, the start tiles, This week, the compact Method
-// cards, and the Recent rows. Everything is drawn from BrandArt; nothing here uses SF Symbols.
+// Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps (approved mockup Home D, October 22, 2026): the
+// greeting and counts (pure, self-tested), the brand icons that draw themselves on, the Record panel's meter and its
+// level monitor, the start tiles, This week, the Method band, and the Recent rows. Everything is drawn from BrandArt;
+// nothing here uses SF Symbols.
 //
-// Motion (design system rules): draw-ons play once on appear and again on hover (Mac); rings, meter bars, and the
-// sparkle loop slowly; tiles lift 2 pt on hover. Springs never bounce. With Reduce Motion or Limit animation
-// everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still so captures repeat.
-
-extension Ink {
-    /// Butter's text color: small text and glyphs on butter tint (6.3:1 on #FCF0D2), from the approved Home mockup.
-    static let butterText = dyn(0x6B5320, 0xE5C77F)
-}
+// Motion (DESIGN.md §7): nothing loops. Draw-ons play once on appear and again on hover (Mac); tiles lift 2 pt on
+// hover. The meter is still at rest and moves only with a real microphone level. Springs never bounce. With Reduce
+// Motion or Limit animation everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still so
+// captures repeat.
 
 enum HomeMotion {
     /// Off in the screenshot tour, so Home captures are the same every run.
@@ -48,9 +46,9 @@ enum HomeGreeting {
         return "Good \(part)."
     }
 
-    /// The overline: "WEDNESDAY, OCT 21".
+    /// The date line above the greeting, sentence case: "Thursday, October 22".
     static func dateLine(_ date: Date) -> String {
-        Formats.pattern("EEEE, MMM d").string(from: date).uppercased()
+        Formats.pattern("EEEE, MMMM d").string(from: date)
     }
 }
 
@@ -141,12 +139,14 @@ enum HomeCounts {
 
 // MARK: - Recent rows
 
-/// How a recent recording looks: a tinted tile with its brand icon, a chip, and a mono meta line.
-/// Voice notes persimmon, links and imported files sage, app audio petal, dictation butter.
+/// How a recent recording looks: its source's tinted chip and brand icon, a neutral tag, and a sentence-case meta
+/// line. Colored by source only (DESIGN.md §1): voice notes persimmon, links and imported files sage, app audio
+/// petal, dictation butter. Kinds and tags stay neutral.
 struct HomeRecentStyle {
     var tint: Color
     var onTint: Color
     var art: BrandArt
+    /// The neutral tag at the end of the row: the kind ("Idea") or what it is ("Video").
     var chip: String
     var source: String
 
@@ -156,7 +156,7 @@ struct HomeRecentStyle {
         } else if LibrarySource.isLink(t) {
             let platform = Platform.of(t)
             tint = Ink.sageTint; onTint = Ink.sageText; art = .iconLinks
-            chip = platform.map { Platform.video.contains($0) } == true ? "Video" : (platform == Platform.applePodcasts || platform == Platform.spotify ? "Podcast" : "Link")
+            chip = t.kind?.label ?? (platform.map { Platform.video.contains($0) } == true ? "Video" : (platform == Platform.applePodcasts || platform == Platform.spotify ? "Podcast" : "Link"))
             source = (platform == nil || platform == Platform.otherWeb) ? "Link" : platform!
         } else {
             switch t.source {
@@ -173,17 +173,31 @@ struct HomeRecentStyle {
         }
     }
 
-    /// "VOICE NOTE · 07:27 · TODAY". `compact` leaves out "VOICE NOTE" (iPhone).
-    static func meta(_ t: Transcript, style: HomeRecentStyle, compact: Bool, now: Date = Date(), calendar: Calendar = .current) -> String {
-        var parts: [String] = []
-        if !(compact && style.source == "Voice note") { parts.append(style.source) }
+    /// One piece of the meta line; `failed` pieces show in `Ink.danger`.
+    struct MetaPart: Equatable { var text: String; var failed = false }
+
+    /// "Voice note · 7:50 · Today". `compact` leaves out "Voice note" (iPhone).
+    static func metaParts(_ t: Transcript, style: HomeRecentStyle, compact: Bool, now: Date = Date(), calendar: Calendar = .current) -> [MetaPart] {
+        var parts: [MetaPart] = []
+        if !(compact && style.source == "Voice note") { parts.append(MetaPart(text: style.source)) }
         switch t.status {
-        case .processing: parts.append(t.stage ?? "Transcribing")
-        case .failed: parts.append("Didn't finish")
-        case .ready: if t.duration > 0 { parts.append(t.duration.timecode) }
+        case .processing: parts.append(MetaPart(text: t.stage ?? "Transcribing"))
+        case .failed: parts.append(MetaPart(text: "Didn't finish", failed: true))
+        case .ready: if t.duration > 0 { parts.append(MetaPart(text: length(t.duration))) }
         }
-        parts.append(day(t.createdAt, now: now, calendar: calendar))
-        return parts.joined(separator: " · ").uppercased()
+        parts.append(MetaPart(text: day(t.createdAt, now: now, calendar: calendar)))
+        return parts
+    }
+
+    static func meta(_ t: Transcript, style: HomeRecentStyle, compact: Bool, now: Date = Date(), calendar: Calendar = .current) -> String {
+        metaParts(t, style: style, compact: compact, now: now, calendar: calendar).map(\.text).joined(separator: " · ")
+    }
+
+    /// "7:50", "1:02:05": a length without a leading zero (metadata is sans, DESIGN.md §2.2).
+    static func length(_ s: Double) -> String {
+        let t = Int(s.rounded())
+        let h = t / 3600, m = (t % 3600) / 60, sec = t % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
     }
 
     static func day(_ d: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
@@ -196,11 +210,12 @@ struct HomeRecentStyle {
 /// A dictation on Home: time and where it went, and the words as pasted.
 enum HomeDictationText {
     static func pasted(_ t: Transcript) -> String { t.flow?.pasted ?? t.text }
+    /// "10:16 AM · Keyboard", sentence case.
     static func overline(_ t: Transcript, place: String?, now: Date = Date(), calendar: Calendar = .current) -> String {
         let d = t.createdAt
         let when = calendar.isDate(d, inSameDayAs: now) ? Formats.style(date: .none, time: .short).string(from: d) : HomeRecentStyle.day(d, now: now, calendar: calendar)
-        guard let place, !place.isEmpty else { return when.uppercased() }
-        return "\(when) · \(place)".uppercased()
+        guard let place, !place.isEmpty else { return when }
+        return "\(when) · \(place)"
     }
     static func body(_ t: Transcript) -> String {
         if t.status == .failed { return t.error ?? "Transcription failed" }
@@ -256,8 +271,9 @@ enum HomeSelfTest {
         check("home: count labels", HomeCounts.countLabel(1, "transcript", "transcripts") == "1 transcript"
               && HomeCounts.countLabel(81, "transcript", "transcripts") == "81 transcripts")
         let style = HomeRecentStyle(memo)
-        check("home: voice note row", style.chip == "Voice note" && HomeRecentStyle.meta(memo, style: style, compact: false, now: wed, calendar: cal) == "VOICE NOTE · 01:07 · TODAY"
-              && HomeRecentStyle.meta(memo, style: style, compact: true, now: wed, calendar: cal) == "01:07 · TODAY")
+        check("home: voice note row", style.chip == "Voice note" && HomeRecentStyle.meta(memo, style: style, compact: false, now: wed, calendar: cal) == "Voice note · 1:07 · Today"
+              && HomeRecentStyle.meta(memo, style: style, compact: true, now: wed, calendar: cal) == "1:07 · Today")
+        check("home: lengths", HomeRecentStyle.length(470) == "7:50" && HomeRecentStyle.length(3725) == "1:02:05" && HomeRecentStyle.length(9) == "0:09")
         var tiktok = Transcript(title: "t", source: .link, sourceLabel: "tiktok.com", duration: 64, audioFileName: nil, model: "")
         tiktok.sourceURL = "https://www.tiktok.com/@a/video/1"
         check("home: video link row", HomeRecentStyle(tiktok).chip == "Video" && HomeRecentStyle(tiktok).source == "TikTok")
@@ -277,8 +293,9 @@ struct BrandArtShape: Shape {
     }
 }
 
-/// A brand icon whose strokes draw on (1.1 s, ease-out, all strokes at once) when it appears and each time
-/// `replay` changes. Fills fade in with the line. Still, fully drawn, with motion limited.
+/// A brand icon or diagram whose strokes draw on (1.1 s, ease-out, all strokes at once) when it appears and each
+/// time `replay` changes. Fills and the Understand diagram's hatch fade in with the line. Never loops. Still, fully
+/// drawn, with motion limited.
 struct DrawOnGlyph: View {
     var art: BrandArt
     var color: Color
@@ -297,6 +314,11 @@ struct DrawOnGlyph: View {
             if !art.fills.isEmpty {
                 BrandArtShape(box: art.box, elements: art.fills).fill(color).opacity(Double(p))
             }
+            if !art.clipped.isEmpty {
+                BrandGlyph(art: BrandArt(box: art.box, strokeWidth: art.strokeWidth, clipped: art.clipped, clip: art.clip, clippedWidth: art.clippedWidth),
+                           color: color, minLineWidth: lineWidth * 0.75)
+                    .opacity(Double(p))
+            }
         }
         .onAppear { play(delay: 0.2) }
         .onChange(of: replay) { _, _ in play(delay: 0) }
@@ -314,177 +336,211 @@ struct DrawOnGlyph: View {
     }
 }
 
-/// Runs a clock for ambient loops only while on screen, the app is active, and motion isn't limited.
-private struct AmbientClock<Content: View>: View {
-    var interval: Double = 1.0 / 30
-    @ViewBuilder var content: (_ t: Double?) -> Content
-    @Environment(\.limitMotion) private var limitMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var onScreen = false
-    var body: some View {
-        Group {
-            if limitMotion || !HomeMotion.enabled {
-                content(nil)
-            } else {
-                TimelineView(.animation(minimumInterval: interval, paused: !onScreen || scenePhase == .background)) { timeline in
-                    content(timeline.date.timeIntervalSinceReferenceDate)
-                }
-            }
-        }
-        .onAppear { onScreen = true }
-        .onDisappear { onScreen = false }
-    }
-}
+// MARK: - Record meter
 
-/// The Voice icon (three nested rings) breathing: each ring's opacity goes .35 → 1 → .35 over 2.4 s, 0.3 s apart.
-struct PulsingRingsGlyph: View {
-    var color: Color
-    var lineWidth: CGFloat
-    private static let rings: [(CGFloat, CGFloat, CGFloat)] = [(12, 12, 8), (15, 12, 5), (18, 12, 2)]
-
-    var body: some View {
-        AmbientClock { t in
-            Canvas { ctx, size in
-                let sp = ArtSpace(box: BrandArt.iconVoice.box, size: size)
-                for (i, r) in Self.rings.enumerated() {
-                    ctx.stroke(sp.circle(r.0, r.1, r.2), with: .color(color.opacity(Self.opacity(t, delay: 0.3 * Double(i)))), lineWidth: lineWidth)
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// Ease-out up to full at 40% of the cycle, then back down.
-    static func opacity(_ t: Double?, delay: Double) -> Double {
-        guard let t else { return 1 }
-        var f = (t - delay).truncatingRemainder(dividingBy: 2.4) / 2.4
-        if f < 0 { f += 1 }
-        if f < 0.4 { return 0.35 + 0.65 * CubicEase.value(0, 0, 0.58, 1, f / 0.4) }
-        return 1 - 0.65 * CubicEase.value(0, 0, 0.58, 1, (f - 0.4) / 0.6)
-    }
-}
-
-/// Live captions: the Refine icon's lines draw on, and its sparkle twinkles (1.25× and 20° at 80% of 2.8 s).
-struct TwinkleRefineGlyph: View {
-    var color: Color
-    var lineWidth: CGFloat
-    var replay: Int = 0
-    private static let lines = BrandArt(box: BrandArt.iconBox, strokes: [.path("M24 83h49 M24 69h59 M24 55h39 M27 41h54")])
-    private static let spark = BrandArt(box: BrandArt.iconBox, strokes: [.path("M92 16l5.1 15.9L113 37l-15.9 5.1L92 58l-5.1-15.9L71 37l15.9-5.1z")])
-    /// The sparkle's center (92, 37) as a unit point of the icon box.
-    private static let center = UnitPoint(x: (92 - 8) / 112.0, y: (37 - 8) / 112.0)
-
-    var body: some View {
-        ZStack {
-            DrawOnGlyph(art: Self.lines, color: color, lineWidth: lineWidth, replay: replay)
-            AmbientClock { t in
-                let k = Self.twinkle(t)
-                BrandArtShape(box: Self.spark.box, elements: Self.spark.strokes)
-                    .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-                    .rotationEffect(.degrees(k.angle), anchor: Self.center)
-                    .scaleEffect(k.scale, anchor: Self.center)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    static func twinkle(_ t: Double?) -> (scale: CGFloat, angle: Double) {
-        guard let t else { return (1, 0) }
-        let f = t.truncatingRemainder(dividingBy: 2.8) / 2.8
-        let amount: Double
-        if f < 0.7 { amount = 0 }
-        else if f < 0.8 { amount = CubicEase.inOut((f - 0.7) / 0.1) }
-        else { amount = 1 - CubicEase.inOut((f - 0.8) / 0.2) }
-        return (1 + 0.25 * CGFloat(amount), 20 * amount)
-    }
-}
-
-/// The Record panel's level bars. Live levels while recording; otherwise a gentle idle sway (the microphone is
-/// never opened just to animate). Still bars with motion limited.
+/// The Record panel's level bars. Still at rest (the `heights` pattern); with `levels` they show the real
+/// microphone level, newest on the right: while recording, and while the level monitor listens (hover on Mac,
+/// touch on iPhone). Bars fill the width at `barWidth` with at least `gap` between them.
 struct HomeMeter: View {
-    var bars: Int
     var barWidth: CGFloat
     var gap: CGFloat
     /// Resting heights, 0…1 of the meter's height, repeated across the bars.
     var heights: [CGFloat]
-    var color: Color = Ink.readerFixed
+    var color: Color = Ink.inkFixed
     var levels: [Float]? = nil
 
     var body: some View {
-        Group {
-            if let levels {
-                canvas(t: nil, levels: levels)
-                    .animation(.easeOut(duration: 0.12), value: levels)
-            } else {
-                AmbientClock { t in canvas(t: t, levels: nil) }
+        Canvas { ctx, size in
+            let n = max(1, Int((size.width + gap) / (barWidth + gap)))
+            let step = n > 1 ? (size.width - barWidth) / CGFloat(n - 1) : 0
+            let h = size.height
+            for i in 0..<n {
+                var v = heights[i % heights.count]
+                if let levels, !levels.isEmpty {
+                    let l = levels[min(levels.count - 1, i * levels.count / n)]
+                    v = max(0.1, min(1, CGFloat(l) * 1.6))
+                }
+                let bh = max(barWidth, v * h)
+                let rect = CGRect(x: CGFloat(i) * step, y: (h - bh) / 2, width: barWidth, height: bh)
+                ctx.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(color.opacity(0.8)))
             }
         }
         .accessibilityHidden(true)
     }
 
-    private func canvas(t: Double?, levels: [Float]?) -> some View {
-        Canvas { ctx, size in
-            let h = size.height
-            for i in 0..<bars {
-                let v: CGFloat
-                if let levels, !levels.isEmpty {
-                    let l = levels[max(0, levels.count - bars + i) % levels.count]
-                    v = max(0.1, min(1, CGFloat(l) * 1.6))
-                } else {
-                    v = heights[i % heights.count] * Self.sway(t, index: i)
-                }
-                let bh = max(barWidth, v * h)
-                let x = CGFloat(i) * (barWidth + gap)
-                guard x + barWidth <= size.width + 0.5 else { break }
-                let rect = CGRect(x: x, y: (h - bh) / 2, width: barWidth, height: bh)
-                ctx.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(color.opacity(0.85)))
+    /// Home D's resting shape (72-pt meter, 35 bars).
+    static let macHeights: [CGFloat] = [8, 24, 48, 28, 60, 32, 16, 44, 20, 8, 28, 52, 22, 36, 12, 32, 56, 24, 14, 40, 8, 22, 48, 18, 34, 6, 24, 44, 18, 32, 12, 40, 20, 28, 10].map { $0 / 72 }
+    static let phoneHeights: [CGFloat] = [6, 14, 28, 16, 36, 20, 8, 24, 12, 6, 16, 30, 12, 22, 8, 18, 32, 14, 8, 24, 6, 12, 28, 10].map { $0 / 44 }
+}
+
+/// Live levels for the meter, observed on their own so only the meter re-renders while it listens.
+struct LiveHomeMeter: View {
+    @ObservedObject var live: LiveMeter
+    var barWidth: CGFloat
+    var gap: CGFloat
+    var heights: [CGFloat]
+    var color: Color = Ink.inkFixed
+    var body: some View {
+        HomeMeter(barWidth: barWidth, gap: gap, heights: heights, color: color, levels: live.levels)
+    }
+}
+
+/// The level as the recorder shows it (`RecordingWriter.write`): the first channel's RMS, mapped so speech fills
+/// most of the bar height.
+enum HomeLevel {
+    static func of(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let ch = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
+        let n = Int(buffer.frameLength)
+        var sum: Float = 0
+        for i in 0..<n { sum += ch[i] * ch[i] }
+        let rms = (sum / Float(n)).squareRoot()
+        return min(1, (max(0, rms - 0.004) * 6).squareRoot())
+    }
+}
+
+/// Listens to the microphone for the Record panel's meter while the pointer is over it (Mac) or a finger is on it
+/// (iPhone). Levels only: nothing is written to disk, and the mic closes within a second of leaving. It never asks
+/// for permission: without it, the meter stays still. The system's mic indicator shows while it listens.
+@MainActor
+final class HomeLevelMonitor: ObservableObject {
+    let live = LiveMeter()
+    @Published private(set) var listening = false
+    private let tap = HomeMicTap()
+    private var pending: Task<Void, Never>?
+
+    /// Opens the mic after `delay` (so a pointer passing over, or a quick tap, doesn't open it).
+    func listen(after delay: TimeInterval) {
+        pending?.cancel(); pending = nil
+        guard !listening, HomeMotion.enabled, HomeMicTap.permitted else { return }
+        pending = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.open()
+        }
+    }
+
+    /// Closes the mic after `delay` (well under a second), unless `listen` is called again first.
+    func stop(after delay: TimeInterval = 0) {
+        pending?.cancel(); pending = nil
+        guard listening else { return }
+        guard delay > 0 else { close(); return }
+        pending = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.close()
+        }
+    }
+
+    private func open() {
+        pending = nil
+        listening = true
+        live.reset()
+        let live = self.live
+        let start = Date()
+        tap.open { v in
+            Task { @MainActor in live.push(v, seconds: Date().timeIntervalSince(start), paused: false) }
+        }
+    }
+
+    private func close() {
+        pending = nil
+        listening = false
+        tap.close()
+        live.reset()
+    }
+}
+
+/// The monitor's microphone, opened and closed on its own queue. Mac: the chosen input through `InputUnit`, the
+/// same unit recording uses, so no other device is ever opened. iPhone: an `AVAudioEngine` input tap that mixes
+/// with other audio.
+final class HomeMicTap: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.home-level")
+    #if os(macOS)
+    private var unit: InputUnit?
+
+    /// Only when access is already granted; hover never prompts.
+    static var permitted: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
+
+    func open(_ onLevel: @escaping @Sendable (Float) -> Void) {
+        queue.async {
+            guard self.unit == nil, let device = AudioDevices.current() else { return }
+            do {
+                let u = try InputUnit(device: device.id) { buffer in onLevel(HomeLevel.of(buffer)) }
+                try u.start()
+                self.unit = u
+            } catch {
+                Log.note("home meter: couldn't open the microphone: \(error.localizedDescription)")
             }
         }
     }
 
-    /// 0.3 → 1 → 0.3: odd bars every 0.9 s, the rest every 1.2 s; every third bar 0.3 s late, every fourth 0.6 s.
-    static func sway(_ t: Double?, index i: Int) -> CGFloat {
-        guard let t else { return 1 }
-        let n = i + 1
-        let period = n % 2 == 1 ? 0.9 : 1.2
-        let delay = n % 4 == 0 ? 0.6 : (n % 3 == 0 ? 0.3 : 0)
-        let phase = (t - delay) / period * 2 * .pi
-        return CGFloat(0.3 + 0.7 * (0.5 - 0.5 * cos(phase)))
+    func close() {
+        queue.async {
+            self.unit?.dispose()
+            self.unit = nil
+        }
+    }
+    #else
+    private var engine: AVAudioEngine?
+
+    /// Only when access is already granted; a touch never prompts.
+    static var permitted: Bool { AVAudioApplication.shared.recordPermission == .granted }
+
+    func open(_ onLevel: @escaping @Sendable (Float) -> Void) {
+        queue.async {
+            guard self.engine == nil else { return }
+            let s = AVAudioSession.sharedInstance()
+            do {
+                // Mixes with whatever is playing; the recorder sets its own category when it starts.
+                if s.category != .playAndRecord && s.category != .record {
+                    try s.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
+                }
+                try s.setActive(true)
+                let e = AVAudioEngine()
+                let format = e.inputNode.outputFormat(forBus: 0)
+                guard format.sampleRate > 0, format.channelCount > 0 else { return }
+                e.inputNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in onLevel(HomeLevel.of(buffer)) }
+                try e.start()
+                self.engine = e
+            } catch {
+                Log.note("home meter: couldn't open the microphone: \(error.localizedDescription)")
+            }
+        }
     }
 
-    static let macHeights: [CGFloat] = [8, 20, 40, 24, 52, 28, 12, 36, 16, 8, 22, 44, 18, 30, 10, 26, 48, 20, 12, 34, 8, 18, 40, 14, 28, 6, 20, 36].map { $0 / 64 }
-    static let phoneHeights: [CGFloat] = [6, 14, 28, 16, 36, 20, 8, 24, 12, 6, 16, 30, 12, 22, 8, 18, 32, 14, 8, 24, 6, 12, 28, 10].map { $0 / 44 }
-}
-
-/// Live levels for the meter, observed on their own so only the meter re-renders while recording.
-struct LiveHomeMeter: View {
-    @ObservedObject var live: LiveMeter
-    var bars: Int
-    var barWidth: CGFloat
-    var gap: CGFloat
-    var body: some View {
-        HomeMeter(bars: bars, barWidth: barWidth, gap: gap, heights: HomeMeter.macHeights, levels: live.levels)
+    func close() {
+        queue.async {
+            guard let e = self.engine else { return }
+            e.inputNode.removeTap(onBus: 0)
+            e.stop()
+            self.engine = nil
+        }
     }
+    #endif
 }
 
 // MARK: - Tiles
 
-/// Press: 0.98 over a no-bounce spring; a brief dim instead with motion limited.
+/// Press: 0.98 over a no-bounce spring; a brief dim instead with motion limited. `onPress` hears the finger or
+/// pointer go down and up (the iPhone Record panel listens while it's pressed).
 struct HomePressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { PressBody(configuration: configuration) }
+    var onPress: ((Bool) -> Void)? = nil
+    func makeBody(configuration: Configuration) -> some View { PressBody(configuration: configuration, onPress: onPress) }
     private struct PressBody: View {
         let configuration: ButtonStyleConfiguration
+        var onPress: ((Bool) -> Void)?
         @Environment(\.limitMotion) private var limitMotion
         var body: some View {
             configuration.label
                 .scaleEffect(configuration.isPressed && !limitMotion ? 0.98 : 1)
                 .opacity(configuration.isPressed && limitMotion ? 0.75 : 1)
                 .animation(limitMotion ? Motion.fade : HomeMotion.lift, value: configuration.isPressed)
+                .onChange(of: configuration.isPressed) { _, pressed in onPress?(pressed) }
         }
     }
 }
 
-/// Sizes for the start tiles: the Mac's two-line tiles and the iPhone's slim 54-pt tiles.
+/// Sizes for the start tiles: the Mac's 92-pt tiles (Home D) and the iPhone's slim 54-pt tiles.
 struct HomeTileMetrics {
     var minHeight: CGFloat
     var radius: CGFloat
@@ -494,22 +550,23 @@ struct HomeTileMetrics {
     var disc: CGFloat
     var icon: CGFloat
     var title: CGFloat
-    static let mac = HomeTileMetrics(minHeight: 72, radius: 18, hPad: 16, vPad: 14, gap: 12, disc: 44, icon: 30, title: 15)
-    static let macCompact = HomeTileMetrics(minHeight: 72, radius: 18, hPad: 12, vPad: 12, gap: 10, disc: 36, icon: 24, title: 14.5)
-    static let phone = HomeTileMetrics(minHeight: 54, radius: 16, hPad: 12, vPad: 8, gap: 10, disc: 32, icon: 20, title: 14.5)
+    static let mac = HomeTileMetrics(minHeight: 92, radius: Radius.tile, hPad: 14, vPad: 10, gap: 11, disc: 40, icon: 26, title: 15)
+    static let macCompact = HomeTileMetrics(minHeight: 92, radius: Radius.tile, hPad: 12, vPad: 10, gap: 9, disc: 34, icon: 22, title: 14.5)
+    static let phone = HomeTileMetrics(minHeight: 54, radius: Radius.tile, hPad: 12, vPad: 8, gap: 10, disc: 32, icon: 20, title: 14.5)
 }
 
-/// A start tile: a flat brand color, the icon on a soft disc, a title, and (Mac) a mono detail line.
-/// Lifts 2 pt on hover and replays its icon's draw-on. `icon` gets the replay count.
+/// A start tile: a flat brand color, the icon in an ink 8% disc (never white, DESIGN.md §3), a semibold title, and
+/// a sentence-case detail with an optional keycap. Lifts 2 pt on hover and replays its icon's draw-on.
 struct HomeTile<Icon: View>: View {
     var title: String
     var detail: String? = nil
+    var keycap: String? = nil
     var fill: Color
     var onFill: Color = Ink.inkFixed
-    /// The disc behind the icon: reader white at 60% on light fills, a faint light disc on ink.
-    var disc: Color = Ink.readerFixed.opacity(0.6)
-    /// A hairline for fills that sit close to the page (the ink tile in dark mode).
+    var disc: Color = Ink.iconDisc
+    /// An outline: Live captions is a paper tile with a 1.5 pt ink edge.
     var edge: Color = .clear
+    var edgeWidth: CGFloat = 1
     var metrics: HomeTileMetrics
     var hint: String
     var action: () -> Void
@@ -531,12 +588,15 @@ struct HomeTile<Icon: View>: View {
                     icon(replay).frame(width: metrics.icon, height: metrics.icon)
                 }
                 .frame(width: metrics.disc, height: metrics.disc)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.system(size: metrics.title * k, weight: .semibold))
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    if let detail {
-                        Text(detail.uppercased()).font(Ink.mono(10.5 * k)).tracking(1).opacity(0.85)
-                            .lineLimit(2).minimumScaleFactor(0.85).fixedSize(horizontal: false, vertical: true)
+                    if detail != nil || keycap != nil {
+                        HStack(spacing: 5) {
+                            if let detail { Text(detail).font(.system(size: 12.5 * k)).lineLimit(1).minimumScaleFactor(0.85) }
+                            if let keycap { Keycap(keys: keycap, size: 10.5 * k) }
+                        }
+                        .opacity(0.8)
                     }
                 }
                 Spacer(minLength: 0)
@@ -545,7 +605,7 @@ struct HomeTile<Icon: View>: View {
             .padding(.horizontal, metrics.hPad).padding(.vertical, metrics.vPad)
             .frame(maxWidth: .infinity, minHeight: metrics.minHeight * max(1, k), alignment: .leading)
             .background(fill, in: RoundedRectangle(cornerRadius: metrics.radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: metrics.radius, style: .continuous).strokeBorder(edge))
+            .overlay(RoundedRectangle(cornerRadius: metrics.radius, style: .continuous).strokeBorder(edge, lineWidth: edgeWidth))
             .contentShape(RoundedRectangle(cornerRadius: metrics.radius, style: .continuous))
         }
         .buttonStyle(HomePressStyle())
@@ -559,57 +619,58 @@ struct HomeTile<Icon: View>: View {
         .sensoryFeedback(.selection, trigger: taps)
         #endif
         .accessibilityLabel(title)
-        .accessibilityValue(detail ?? "")
+        .accessibilityValue([detail, keycap.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
         .accessibilityHint(hint)
     }
 }
 
 // MARK: - This week
 
-/// Words this week, time saved, and seven daily bars (today persimmon, days to come as short hairlines).
+/// The only stats on Home: words this week, today's recordings, and seven daily bars (today butter, because the
+/// bars count dictated words; days to come as short hairlines).
 struct HomeWeekCard<Trailing: View>: View {
     var week: HomeWeek
-    var saved: Double
+    var recordingsToday: Int
     var compact: Bool
     @ViewBuilder var trailing: () -> Trailing
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 12) {
+        HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("THIS WEEK").font(Ink.mono(10.5)).tracking(1.6).foregroundStyle(Ink.mute)
-                Text(HomeCounts.countLabel(week.words, "word", "words")).font(Ink.serif((compact ? 26 : 30) * k)).foregroundStyle(Ink.ink)
-                    .lineLimit(1).minimumScaleFactor(0.7).padding(.top, 6)
+                Text("This week").font(.system(size: 12.5 * k, weight: .medium)).foregroundStyle(Ink.mute)
+                Text(HomeCounts.countLabel(week.words, "word", "words")).font(Ink.serif((compact ? 26 : 28) * k)).monospacedDigit()
+                    .foregroundStyle(Ink.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7).padding(.top, 4)
                 HStack(spacing: 4) {
-                    Text("\(HomeWeek.durationLabel(saved)) saved").foregroundStyle(Ink.mute)
+                    Text("Today: \(HomeCounts.countLabel(recordingsToday, "recording", "recordings"))").foregroundStyle(Ink.mute)
                     trailing()
                 }
-                .font(.system(size: 12 * k)).padding(.top, 4)
+                .font(.system(size: 12 * k)).lineLimit(1).padding(.top, 5)
             }
             .accessibilityElement(children: .contain)
             Spacer(minLength: 8)
             bars
         }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Ink.hairline))
+        .padding(.horizontal, 18).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .cardSurface(radius: Radius.tile)
     }
 
     private var bars: some View {
-        let w: CGFloat = compact ? 14 : 18
-        let maxH: CGFloat = compact ? 44 : 62
+        let w: CGFloat = compact ? 12 : 11
+        let maxH: CGFloat = compact ? 44 : 52
         let peak = max(1, week.peak)
-        return HStack(alignment: .bottom, spacing: compact ? 5 : 6) {
+        return HStack(alignment: .bottom, spacing: 5) {
             ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
                 let empty = day.isFuture || day.words == 0
-                VStack(spacing: compact ? 4 : 5) {
-                    UnevenRoundedRectangle(topLeadingRadius: empty ? 1.5 : (compact ? 4 : 5), bottomLeadingRadius: 2, bottomTrailingRadius: 2,
-                                           topTrailingRadius: empty ? 1.5 : (compact ? 4 : 5), style: .continuous)
-                        .fill(empty ? Ink.hairline : (day.isToday ? Ink.persimmon : Ink.ink))
-                        .frame(width: w, height: empty ? 3 : max(6, maxH * CGFloat(day.words) / CGFloat(peak)))
-                    Text(Formats.pattern("EEEEE").string(from: day.start)).font(Ink.mono(compact ? 9.5 : 10))
-                        .foregroundStyle(day.isToday ? Ink.ink : Ink.dim)
+                VStack(spacing: 4) {
+                    UnevenRoundedRectangle(topLeadingRadius: empty ? 1.5 : 4, bottomLeadingRadius: 2, bottomTrailingRadius: 2,
+                                           topTrailingRadius: empty ? 1.5 : 4, style: .continuous)
+                        .fill(empty ? Ink.hairline : (day.isToday ? Ink.butter : Ink.ink))
+                        .frame(width: w, height: empty ? 3 : max(4, maxH * CGFloat(day.words) / CGFloat(peak)))
+                    Text(Formats.pattern("EEEEE").string(from: day.start)).font(.system(size: 10.5, weight: day.isToday ? .semibold : .regular))
+                        .foregroundStyle(day.isToday ? Ink.ink : Ink.mute)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Formats.pattern("EEEE").string(from: day.start))
@@ -622,55 +683,100 @@ struct HomeWeekCard<Trailing: View>: View {
 
 // MARK: - Method
 
-/// A compact Method card: index and illustration on top, the serif title right under it, one line, and a live
-/// count. Flat brand fill with ink text in both appearances (ink on persimmon 4.4:1 at 24 pt, petal 7.5:1, sage 6.8:1).
+/// One step of the Method band (Mac, Home D): the diagram in ink, the index, the serif title, one line, and a live
+/// count. No fills; the band is one paper panel, so it adds no colors (DESIGN.md §6.4).
+struct MethodBandCell: View {
+    var feature: BrandFeature
+    var line: String
+    var meta: String
+    var enabled = true
+    var hint: String
+    var action: () -> Void
+    @State private var hover = false
+    @State private var replay = 0
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                DrawOnGlyph(art: feature.art, color: Ink.ink, lineWidth: 1.3, replay: replay)
+                    .frame(width: 72, height: 72)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(feature.index).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                    Text(feature.title).font(Ink.serif(24)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8).padding(.top, 2)
+                    Text(line).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+                    Text(meta).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1).truncationMode(.tail).padding(.top, 4)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(hover && enabled ? Ink.cardHover : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(HomePressStyle())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.6)
+        .onHover { h in hover = h; if h { replay += 1 } }
+        .animation(Motion.touch, value: hover)
+        .accessibilityLabel("\(feature.title). \(line)")
+        .accessibilityValue(meta)
+        .accessibilityHint(hint)
+    }
+}
+
+/// The Method band: three cells side by side in one paper panel, split by hairlines, across all 12 columns.
+struct MethodBand<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        HStack(spacing: 0) { content() }
+            .fixedSize(horizontal: false, vertical: true)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .cardSurface(radius: Radius.tile)
+    }
+}
+
+/// The hairline between Method cells.
+struct MethodDivider: View {
+    var body: some View { Rectangle().fill(Ink.hairline).frame(width: 1) }
+}
+
+/// A compact Method card (iPhone carousel, approved earlier): index and diagram on top, the serif title, one line,
+/// and a live count, on a paper card with a hairline. Ink diagrams, no fills.
 struct CompactMethodCard: View {
     var feature: BrandFeature
     var line: String
     var meta: String
     var enabled = true
-    var animated: Bool
     var hint: String
     var action: () -> Void
-    @Environment(\.limitMotion) private var limitMotion
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
-    @State private var hover = false
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(feature.index).font(Ink.mono(11, weight: .medium))
-                        Rectangle().fill(Ink.inkFixed).frame(width: 16, height: 1)
-                    }
+                    Text(feature.index).font(Ink.mono(11)).foregroundStyle(Ink.mute)
                     Spacer(minLength: 8)
-                    Group {
-                        if animated && HomeMotion.enabled { AnimatedFeatureArt(feature: feature, color: Ink.inkFixed, minLineWidth: 0.9) }
-                        else { BrandGlyph(art: feature.art, color: Ink.inkFixed, minLineWidth: 0.9) }
-                    }
-                    .frame(width: 52, height: 52)
-                    .padding(.top, -4)
+                    DrawOnGlyph(art: feature.art, color: Ink.ink, lineWidth: 1.1)
+                        .frame(width: 52, height: 52)
+                        .padding(.top, -4)
                 }
-                Text(feature.title).font(Ink.serif(24 * k)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(line).font(.system(size: 12.5 * k, weight: .semibold)).lineLimit(3)
+                Text(feature.title).font(Ink.serif(24 * k)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8)
+                Text(line).font(.system(size: 13 * k)).foregroundStyle(Ink.dim).lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
-                Text(meta.uppercased()).font(Ink.mono(10.5 * k, weight: .medium)).tracking(1.2)
+                Text(meta).font(.system(size: 12 * k)).monospacedDigit().foregroundStyle(Ink.mute)
                     .lineLimit(1).truncationMode(.tail).padding(.top, 6)
             }
-            .foregroundStyle(Ink.inkFixed)
             .padding(.horizontal, 14).padding(.vertical, 12)
             // Fills the row's height, so cards side by side line up (callers fix the row's height to its tallest card).
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(feature.fill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .cardSurface(radius: Radius.tile)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         }
         .buttonStyle(HomePressStyle())
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.6)
-        .offset(y: hover && !limitMotion ? -2 : 0)
-        .onHover { hover = $0 }
-        .animation(HomeMotion.lift, value: hover)
         .accessibilityLabel("\(feature.title). \(line)")
         .accessibilityValue(meta)
         .accessibilityHint(hint)
@@ -704,7 +810,8 @@ struct HomeSectionTitle: View {
     }
 }
 
-/// A recent recording: its kind's tinted tile and brand icon, the title, a mono meta line, and a kind chip.
+/// A recent recording, 60 pt tall: its source's tinted chip and brand icon, the title, a sentence-case meta line,
+/// and a neutral tag.
 struct HomeRecentRow: View {
     var transcript: Transcript
     var compact: Bool
@@ -715,32 +822,43 @@ struct HomeRecentRow: View {
         let style = HomeRecentStyle(transcript)
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(style.tint)
-                BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.3).frame(width: compact ? 18 : 20, height: compact ? 18 : 20)
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(style.tint)
+                BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.4).frame(width: 18, height: 18)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 36, height: 36)
             .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(transcript.title).font(.system(size: (compact ? 15 : 14) * k, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                Text(HomeRecentStyle.meta(transcript, style: style, compact: compact)).font(Ink.mono(11 * k)).foregroundStyle(Ink.mute).lineLimit(1)
+                metaText(style).font(.system(size: 12 * k)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(style.chip).font(.system(size: 11.5 * k)).foregroundStyle(style.onTint)
-                .padding(.horizontal, compact ? 8 : 9).padding(.vertical, 3)
-                .background(style.tint, in: Capsule())
+            Text(style.chip).font(.system(size: 11.5 * k)).foregroundStyle(Ink.dim)
+                .padding(.horizontal, 9).padding(.vertical, 3)
+                .background(Ink.neutralChip, in: Capsule())
                 .lineLimit(1).fixedSize()
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: compact ? 16 : 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: compact ? 16 : 14, style: .continuous).strokeBorder(Ink.hairline.opacity(0.7)))
-        .contentShape(RoundedRectangle(cornerRadius: compact ? 16 : 14, style: .continuous))
+        .padding(.horizontal, 12)
+        .frame(minHeight: 60 * max(1, k))
+        .background(hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline.opacity(0.7)))
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
         .accessibilityElement(children: .combine)
     }
+
+    private func metaText(_ style: HomeRecentStyle) -> Text {
+        var out = Text(verbatim: "")
+        for (i, part) in HomeRecentStyle.metaParts(transcript, style: style, compact: compact).enumerated() {
+            if i > 0 { out = out + Text(verbatim: " · ") }
+            out = out + (part.failed ? Text(part.text).foregroundStyle(Ink.danger).fontWeight(.semibold) : Text(part.text))
+        }
+        return out
+    }
 }
 
-/// Recent dictations on a butter-tint panel: time and where it went, two lines of what you said, and Copy.
+/// Recent dictations on a butter-tint panel (butter means Dictate): time and where it went, what you said, and
+/// Copy. On Mac each row is 66 pt, so four of them end level with four 60-pt recording rows and their gaps.
 struct HomeDictationsPanel: View {
     var items: [Transcript]
     var compact: Bool
@@ -763,8 +881,8 @@ struct HomeDictationsPanel: View {
                 if i < items.count - 1 { Rectangle().fill(Ink.hairline.opacity(0.6)).frame(height: 1) }
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, compact ? 4 : 6)
-        .background(Ink.butterTint, in: RoundedRectangle(cornerRadius: compact ? 18 : 16, style: .continuous))
+        .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, compact ? 4 : 0)
+        .background(Ink.butterTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 }
 
@@ -781,12 +899,12 @@ struct HomeDictationItem: View {
         let failed = transcript.status == .failed
         let text = HomeDictationText.pasted(transcript)
         HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(HomeDictationText.overline(transcript, place: place)).font(Ink.mono(10.5 * k)).tracking(compact ? 0.8 : 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(HomeDictationText.overline(transcript, place: place)).font(.system(size: 12 * k)).monospacedDigit()
                     .foregroundStyle(Ink.butterText).lineLimit(1)
                 Text(HomeDictationText.body(transcript)).font(.system(size: (compact ? 14 : 13.5) * k))
-                    .foregroundStyle(failed ? Ink.accentText : Ink.ink)
-                    .lineLimit(2).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(failed ? Ink.danger : Ink.ink)
+                    .lineLimit(compact ? 2 : 1).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
@@ -795,9 +913,9 @@ struct HomeDictationItem: View {
                 withAnimation(limitMotion ? nil : Motion.snap) { copied = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { withAnimation(limitMotion ? nil : Motion.snap) { copied = false } }
             } label: {
-                Text(copied ? "Copied" : "Copy").font(.system(size: (compact ? 12.5 : 12) * k, weight: copied ? .semibold : .regular))
+                Text(copied ? "Copied" : "Copy").font(.system(size: 12.5 * k, weight: .semibold))
                     .foregroundStyle(Ink.butterText)
-                    .padding(.vertical, 6).padding(.leading, 6)
+                    .padding(.vertical, 6).padding(.horizontal, 8)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -805,6 +923,7 @@ struct HomeDictationItem: View {
             .opacity(failed || text.isEmpty ? 0.4 : 1)
             .accessibilityLabel(copied ? "Copied" : "Copy dictation")
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, compact ? 10 : 0)
+        .frame(minHeight: compact ? 0 : 66 * max(1, k))
     }
 }
