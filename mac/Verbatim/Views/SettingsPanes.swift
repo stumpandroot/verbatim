@@ -248,6 +248,7 @@ struct ModelsSettingsPane: View {
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
+    @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
 
     var body: some View {
         SettingsPane(tab: .models) {
@@ -269,6 +270,7 @@ struct ModelsSettingsPane: View {
                         .labelsHidden().fixedSize()
                     }
                 }
+                SettingsToggleRow("models.detectLanguage", isOn: $detectLanguage)
                 SettingsRow("models.offline", detail: "Models download once from Hugging Face into Application Support and run on this Mac. Transcription never leaves your computer; fetching a link does need the internet.")
             }
             SettingsGroup(title: "Dictionary") {

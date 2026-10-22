@@ -86,4 +86,14 @@ extension AppState: TranscriptionHost {
     }
 
     func notify(_ message: String) { toast = Toast(message) }
+
+    /// A recording in a language the English-only model can't hear: a toast with Download, which transcribes it
+    /// again with Parakeet v3 (v3 downloads as part of that job).
+    func offerParakeetV3(_ id: UUID, language: String?) {
+        let message = language.map { "This recording sounds like \(LanguageDetection.name($0)). Parakeet v3 can transcribe it (about 480 MB)." }
+            ?? "This recording might not be in English. Parakeet v3 can check the language and transcribe it (about 480 MB)."
+        toast = Toast(message, action: "Download") { [weak self] in
+            self?.coordinator.rerun(id, language: language, checkWithV3: language == nil)
+        }
+    }
 }

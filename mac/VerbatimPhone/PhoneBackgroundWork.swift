@@ -14,7 +14,7 @@ final class PhoneBackgroundWork {
     }
 
     /// Asks iOS for extra time so a transcript can finish after you leave the app. Long jobs pause when
-    /// iOS suspends Verbatim and pick up again the next time it opens.
+    /// iOS suspends Verbatim and pick up again the next time it opens, after the last finished section.
     func begin() {
         guard background == .invalid else { return }
         background = UIApplication.shared.beginBackgroundTask(withName: "Transcribe") { [weak self] in self?.end() }
@@ -58,19 +58,36 @@ final class PhoneBackgroundWork {
         task.progress.totalUnitCount = 100
         task.progress.completedUnitCount = 5
         task.expirationHandler = { [weak self, weak task] in
-            // iOS needs the time back. The job stops where it is and starts again the next time Verbatim opens.
+            // iOS needs the time back. The job stops where it is; the next time Verbatim opens, a long recording
+            // picks up after its last finished section (SectionCheckpoint), a short one starts again.
             task?.setTaskCompleted(success: false)
             Task { @MainActor in self?.bgTask = nil; self?.bgSubmitted = false; self?.bgTicker?.invalidate() }
         }
-        // The system banner expects steady progress; the engine doesn't report a fraction while transcribing.
+        // The system banner expects steady progress. Long recordings report their share done after each section
+        // (`fraction`); in between, and for short ones, the bar creeps toward 95%.
         bgTicker?.invalidate()
         bgTicker = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let task = self?.bgTask as? BGContinuedProcessingTask else { return }
+                guard let self, let task = self.bgTask as? BGContinuedProcessingTask else { return }
                 let p = task.progress
-                p.completedUnitCount = min(95, p.completedUnitCount + max(1, (95 - p.completedUnitCount) / 12))
+                let ceiling = self.reported.map { min(95, $0 + 3) } ?? 95
+                if p.completedUnitCount < ceiling {
+                    p.completedUnitCount = min(ceiling, p.completedUnitCount + max(1, (ceiling - p.completedUnitCount) / 12))
+                }
             }
         }
+    }
+
+    /// The running job's share done (0…1, nil when unknown), as a percentage the banner never goes back from.
+    private var reported: Int64? = nil
+
+    /// Moves the system's progress bar to the job's real progress: a long recording reports after each section.
+    func fraction(_ f: Double?) {
+        guard let f else { return }
+        let percent = Int64(max(0, min(1, f)) * 95)
+        reported = percent
+        guard #available(iOS 26, *), let task = bgTask as? BGContinuedProcessingTask else { return }
+        if percent > task.progress.completedUnitCount { task.progress.completedUnitCount = percent }
     }
 
     /// Moves the system's progress banner along with the job's stage.
@@ -88,5 +105,6 @@ final class PhoneBackgroundWork {
         }
         bgTask = nil; bgSubmitted = false
         bgTicker?.invalidate(); bgTicker = nil
+        reported = nil
     }
 }

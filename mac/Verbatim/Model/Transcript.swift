@@ -196,7 +196,7 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Every stored field except the local-only paths, so those never reach the synced file.
     enum CodingKeys: String, CodingKey {
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
-             corrections, projectId, tags, pinned, notes, waveform, model, engine, language, status, stage, error,
+             corrections, projectId, tags, pinned, notes, waveform, model, engine, language, languageChoice, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited
@@ -236,7 +236,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     var waveform: [Float] = []       // 120 RMS buckets in 0…1
     var model: String
     var engine: String = ""
+    /// The language the engine transcribed (ISO 639-1, such as "es"); nil when unknown.
     var language: String? = nil
+    /// The language you picked with Transcribe again in…; nil means Verbatim checks the language itself.
+    var languageChoice: String? = nil
     var status: Status = .ready
     var stage: String? = nil      // "Downloading model 42%", "Transcribing", "Finding speakers"
     var error: String?
@@ -303,6 +306,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         model = try c.decodeIfPresent(String.self, forKey: .model) ?? ""
         engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? ""
         language = try c.decodeIfPresent(String.self, forKey: .language)
+        languageChoice = try c.decodeIfPresent(String.self, forKey: .languageChoice)
         status = try c.decodeIfPresent(Status.self, forKey: .status) ?? .ready
         stage = try c.decodeIfPresent(String.self, forKey: .stage)
         error = try c.decodeIfPresent(String.self, forKey: .error)

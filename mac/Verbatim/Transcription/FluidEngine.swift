@@ -55,11 +55,16 @@ actor FluidEngine: TranscriptionEngine {
     }
 
     func transcribe(url: URL, model requested: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
+        try await transcribe(url: url, model: requested, language: nil, progress: progress)
+    }
+
+    /// `language` (an ISO 639-1 code) keeps v3-family models to that language's alphabet; v2 ignores it.
+    func transcribe(url: URL, model requested: String, language: String?, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
         let model = Engines.fluidModel(requested)
         let m = try await prepared(model, progress: progress)
         progress(.transcribing(nil))
         var state = TdtDecoderState.make()
-        let r = try await m.transcribe(url, decoderState: &state)
+        let r = try await m.transcribe(url, decoderState: &state, language: Self.hint(language, model: model))
         let words: [WordSpan] = buildWordTimings(from: r.tokenTimings ?? []).map {
             WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: $0.startTime, end: $0.endTime)
         }.filter { !$0.text.isEmpty }
@@ -70,7 +75,38 @@ actor FluidEngine: TranscriptionEngine {
         } else {
             segments = Engines.segments(fromWords: words)
         }
-        return EngineResult(segments: segments, language: nil, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
+        return EngineResult(segments: segments, language: language, engine: "fluid", model: Engines.displayName(engine: "fluid", model: model))
+    }
+
+    /// FluidAudio's language hint: v3-family models only, and only for languages it lists.
+    private static func hint(_ language: String?, model: String) -> Language? {
+        guard let language, LanguageRules.isMultilingual(model) else { return nil }
+        return Language(rawValue: LanguageRules.base(language))
+    }
+
+    /// Whether a Parakeet model's files are already on this device (no download needed to use it).
+    nonisolated static func isDownloaded(_ model: String) -> Bool {
+        let model = Engines.fluidModel(model)
+        let dir = Paths.models.appendingPathComponent("parakeet-\(model)", isDirectory: true)
+        return AsrModels.modelsExist(at: dir, version: version(model))
+    }
+
+    /// One section of a long recording (or the first seconds, for the language check): 16 kHz mono samples in
+    /// memory, words timed from the samples' start. Downloads and loads the model when needed.
+    func sectionWords(samples: [Float], model requested: String, language: String?,
+                      progress: @escaping @Sendable (EngineProgress) -> Void = { _ in }) async throws -> [SectionWord] {
+        let model = Engines.fluidModel(requested)
+        let m = try await prepared(model, progress: progress)
+        if let p = prewarming, p.model == model { await p.task.value }
+        var input = samples
+        // FluidAudio rejects clips under 0.3 s: pad very short audio with trailing silence.
+        if input.count < 16_000 { input += [Float](repeating: 0, count: 16_000 - input.count) }
+        var state = TdtDecoderState.make()
+        let r = try await m.transcribe(input, decoderState: &state, language: Self.hint(language, model: model))
+        return buildWordTimings(from: r.tokenTimings ?? []).compactMap { w -> SectionWord? in
+            let text = w.word.trimmingCharacters(in: .whitespaces)
+            return text.isEmpty ? nil : SectionWord(text: text, start: w.startTime, end: w.endTime)
+        }
     }
 
     /// Transcribes 16 kHz mono samples already in memory, with nothing else: no file read, no speech detection,

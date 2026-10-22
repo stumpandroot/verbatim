@@ -35,8 +35,8 @@ struct SettingsSearchGroup: Identifiable {
 enum SettingsSearchIndex {
     static let all: [SettingsSearchEntry] = [
         // Personalization
-        .init(id: "language", section: "Personalization", label: "Language", keywords: ["english", "automatic", "locale", "multilingual"],
-              description: "English or automatic"),
+        .init(id: "language", section: "Personalization", label: "Detect the language", keywords: ["language", "english", "spanish", "automatic", "locale", "multilingual", "parakeet v3"],
+              description: "Use a model that knows each recording's language"),
         .init(id: "voice", section: "Personalization", label: "Your voice", keywords: ["speaker", "recognize", "me", "voice print"],
               description: "Recognize you in recordings"),
         .init(id: "aboutMe", section: "Personalization", label: "About me", keywords: ["profile", "context", "titles", "summaries", "bio"],
@@ -158,7 +158,7 @@ enum SettingsSearchIndex {
         let d = UserDefaults.standard
         func onOff(_ on: Bool) -> String { on ? "On" : "Off" }
         switch id {
-        case "language": return app.preset == .english ? "English" : "Automatic"
+        case "language": return onOff(LanguageDetection.isEnabled)
         case "voice": return VoiceProfileStatus.shared.isEnrolled ? "On" : "Set up"
         case "summaries": return onOff(d.object(forKey: Summarizer.autoKey) as? Bool ?? true)
         case "aboutMe": return (d.string(forKey: Profile.aboutMeKey) ?? "").isEmpty ? "Add" : "Added"
