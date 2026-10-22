@@ -134,7 +134,7 @@ struct ThoughtPadView: View {
                     Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
                     Overline(text: "Thought pad", color: Ink.dim)
                     DottedRule().frame(height: 1)
-                    Overline(text: pad.pieces.count == 1 ? "1 piece" : "\(pad.pieces.count) pieces", color: Ink.mute)
+                    Text(pad.pieces.count == 1 ? "1 piece" : "\(pad.pieces.count) pieces").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
                 }
                 HStack {
                     TextField("Untitled", text: $pad.title).textFieldStyle(.plain).font(Ink.serif(22)).foregroundStyle(Ink.ink)
@@ -255,12 +255,12 @@ private struct PadRow: View {
                         .contentShape(Rectangle())
                         .onTapGesture { editing = piece.id }
                 }
-                Text(meta).font(Ink.mono(10.5)).tracking(0.6).foregroundStyle(Ink.mute)
+                Text(meta).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 11)
-        .background(Ink.reader, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(editing == piece.id ? Ink.outlineStrong : Ink.hairline))
+        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(editing == piece.id ? Ink.outlineStrong : Ink.hairline))
         .contextMenu {
             Button("Edit") { editing = piece.id }
             Button("Copy") { Paster.copy(piece.text) }
@@ -272,6 +272,7 @@ private struct PadRow: View {
 
     private var meta: String {
         let len = piece.seconds > 0 ? String(format: "%d:%02d · ", Int(piece.seconds) / 60, Int(piece.seconds) % 60) : ""
-        return (len + (piece.missed ? "from a paste that missed" : "dictated")).uppercased()
+        let what = len + (piece.missed ? "from a paste that missed" : "dictated")
+        return what.prefix(1).uppercased() + what.dropFirst()
     }
 }

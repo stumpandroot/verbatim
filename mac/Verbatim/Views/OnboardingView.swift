@@ -23,7 +23,7 @@ struct OnboardingView: View {
                 Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
                 Overline(text: label, color: Ink.dim)
                 DottedRule().frame(height: 1)
-                Overline(text: String(format: "%02d / %02d", step + 1, total), color: Ink.mute)
+                Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
             }
             Group {
                 switch step {
@@ -82,8 +82,8 @@ struct OnboardingView: View {
                 permissionRow(symbol: "accessibility", tint: Ink.sageTint, name: "Accessibility", why: "To hear your hotkey and paste into other apps",
                               ok: trusted, action: "Allow…") { app.dictation.openAccessibilitySettings() }
             }
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 18)
             Text("This page notices when you switch them on. No restart needed.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.top, 10)
@@ -107,8 +107,8 @@ struct OnboardingView: View {
             TextEditor(text: $practice)
                 .font(.system(size: 15)).scrollContentBackground(.hidden).padding(10)
                 .frame(height: 104)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(practiceFocused ? Ink.outlineStrong : Ink.hairline))
+                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(practiceFocused ? Ink.outlineStrong : Ink.hairline))
                 .focused($practiceFocused)
                 .padding(.top, 16)
                 .accessibilityLabel("Practice dictation")
@@ -162,9 +162,9 @@ struct OnboardingView: View {
                     if p != .accurate { Divider().overlay(Ink.hairline) }
                 }
             }
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 16)
             Label(Cloud.enabled ? "Syncing with iCloud" : "iCloud is off, so everything stays on this Mac",
                   systemImage: Cloud.enabled ? "icloud" : "icloud.slash")
@@ -232,14 +232,14 @@ struct OnboardingView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 130, maxHeight: 130, alignment: .leading)
-        .background(fill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(fill, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
     private func permissionRow(symbol: String, tint: Color, name: String, why: String, ok: Bool, action: String, perform: @escaping () -> Void) -> some View {
         HStack(spacing: 14) {
             Image(systemName: symbol).font(.system(size: 16)).foregroundStyle(Ink.ink)
-                .frame(width: 36, height: 36).background(tint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 36, height: 36).background(tint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Ink.ink)
                 Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
@@ -261,8 +261,8 @@ struct OnboardingView: View {
         Button { edge = e; app.dictation.bar?.moveTo(edge: e) } label: {
             VStack(spacing: 8) {
                 ZStack(alignment: e == .bottom ? .bottom : (e == .left ? .leading : .trailing)) {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Ink.reader)
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(edge == e ? Ink.ink : Ink.hairline, lineWidth: edge == e ? 2 : 1)
+                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(Ink.reader)
+                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(edge == e ? Ink.ink : Ink.hairline, lineWidth: edge == e ? 2 : 1)
                     UnevenRoundedRectangle(topLeadingRadius: e == .right ? 3 : (e == .bottom ? 3 : 0), bottomLeadingRadius: e == .right ? 3 : 0,
                                            bottomTrailingRadius: e == .left ? 3 : 0, topTrailingRadius: e == .left || e == .bottom ? 3 : 0, style: .continuous)
                         .fill(Ink.inkFixed)

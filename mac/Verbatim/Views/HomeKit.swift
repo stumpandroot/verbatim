@@ -822,7 +822,7 @@ struct HomeRecentRow: View {
         let style = HomeRecentStyle(transcript)
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(style.tint)
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(style.tint)
                 BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.4).frame(width: 18, height: 18)
             }
             .frame(width: 36, height: 36)

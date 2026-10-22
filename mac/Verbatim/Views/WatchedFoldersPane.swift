@@ -34,9 +34,9 @@ struct WatchedFoldersPane: View {
                         }
                     }
                     .padding(.top, -1)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .cardSurface(radius: 16)
-                    .settingsAnchor("watched.folders", radius: 16)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                    .cardSurface(radius: Radius.tile)
+                    .settingsAnchor("watched.folders", radius: Radius.tile)
                     .uiTarget("watched-list")
                 }
                 HStack(spacing: 8) {
@@ -45,11 +45,11 @@ struct WatchedFoldersPane: View {
                         if let last = watcher.folders.last { selectedRaw = last.id.uuidString }
                     }
                     .buttonStyle(.brandPrimaryLarge)
-                    .settingsAnchor("watched.add", radius: 9)
+                    .settingsAnchor("watched.add", radius: Radius.button)
                     .uiTarget("watched-add")
                     Button("Open activity") { showActivity = true }
                         .buttonStyle(.brandSecondaryLarge)
-                        .settingsAnchor("watched.activity", radius: 9)
+                        .settingsAnchor("watched.activity", radius: Radius.button)
                 }
             }
             if let f = selected {
@@ -71,8 +71,8 @@ struct WatchedFoldersPane: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: 16)
-        .settingsAnchor("watched.folders", radius: 16)
+        .cardSurface(radius: Radius.tile)
+        .settingsAnchor("watched.folders", radius: Radius.tile)
     }
 }
 
@@ -90,7 +90,7 @@ struct WatchedFolderRow: View {
         HStack(spacing: 14) {
             IconGlyph(art: .iconFolder, size: 18, color: Ink.ink)
                 .frame(width: 34, height: 34)
-                .background(tileColor, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(tileColor, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(folder.name).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                 Text(WatchedFolder.display(folder.path) + (folder.includeSubfolders ? " · subfolders included" : ""))
@@ -166,7 +166,7 @@ struct WatchedFolderDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("AUTO-EXPORT FOR \(folder.name.uppercased())").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute)
+            Text("Auto-export for \(folder.name)").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 .lineLimit(1).accessibilityAddTraits(.isHeader)
             HStack(alignment: .top, spacing: 16) {
                 formatsCard
@@ -201,7 +201,7 @@ struct WatchedFolderDetail: View {
                     }
                 }
             }
-            .settingsAnchor("watched.formats", radius: 8)
+            .settingsAnchor("watched.formats", radius: Radius.button)
             VStack(alignment: .leading, spacing: 4) {
                 Text(folder.formats.isEmpty ? "None chosen: transcripts stay in your Library." : "Uses the options from Settings › Export (which text, speaker names, timecodes).")
                     .font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
@@ -212,7 +212,7 @@ struct WatchedFolderDetail: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .cardSurface(radius: 16)
+        .cardSurface(radius: Radius.tile)
         .uiTarget("watched-formats")
     }
 
@@ -258,11 +258,11 @@ struct WatchedFolderDetail: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .cardSurface(radius: 16)
+        .cardSurface(radius: Radius.tile)
     }
 
     private func cardOverline(_ s: String) -> some View {
-        Text(s.uppercased()).font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
+        Text(s).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
     }
 
     private func savePattern() {
@@ -321,8 +321,8 @@ struct WatchActivitySheet: View {
                         ForEach(watcher.events) { e in row(e) }
                     }
                     .padding(.top, -1)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .cardSurface(radius: 16)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                    .cardSurface(radius: Radius.tile)
                 }
             }
             HStack {

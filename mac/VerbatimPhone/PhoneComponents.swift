@@ -41,8 +41,8 @@ struct TactileButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Ink.ink)
-            .background(configuration.isPressed ? Ink.wash : Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+            .background(configuration.isPressed ? Ink.wash : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
             .shadow(color: Ink.inkFixed.opacity(configuration.isPressed ? 0 : 0.05), radius: 3, y: 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
@@ -114,7 +114,7 @@ struct SourceTile: View {
         // Rows stay still: list rows don't animate (design system rule).
         return BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.3).padding(10)
             .frame(width: 40, height: 40)
-            .background(style.tint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(style.tint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .accessibilityHidden(true)
     }
 }

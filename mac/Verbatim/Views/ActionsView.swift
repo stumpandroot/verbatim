@@ -43,7 +43,7 @@ struct ActionSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: action.symbol).font(.system(size: 15)).foregroundStyle(Ink.persimmon)
-                    .frame(width: 30, height: 30).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: 30, height: 30).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(action.name).font(Ink.serif(20)).foregroundStyle(Ink.ink)
                     Text("On \(sourceLabel) · \(source.split(whereSeparator: \.isWhitespace).count.formatted()) words").font(.system(size: 12)).foregroundStyle(Ink.mute)
@@ -80,9 +80,9 @@ struct ActionSheet: View {
                             .padding(10)
                             .accessibilityLabel("Result, editable. \(aiLabel)")
                     }
-                    .background(Ink.reader, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
+                    .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
                 case .failed:
                     VStack(spacing: 6) {
                         Text("Couldn't run this action").font(Ink.serif(18)).foregroundStyle(Ink.ink)

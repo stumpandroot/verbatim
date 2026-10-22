@@ -62,7 +62,7 @@ struct QueueView: View {
         }
         .overlay {
             if dropping {
-                RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Ink.iris, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+                RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.iris, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
                     .background(Ink.wash, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                     .overlay(Text("Drop to add to the queue").font(Ink.serif(22, weight: .regular)).foregroundStyle(Ink.irisDeep))
                     .padding(20).allowsHitTesting(false)

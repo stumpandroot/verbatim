@@ -213,7 +213,7 @@ struct TranscriptScreen: View {
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 6)
             } else if t.status == .ready, t.stage == "Finding speakers" {
                 HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
@@ -339,7 +339,7 @@ struct TranscriptScreen: View {
                     .buttonStyle(.brandSecondary)
                 }
                 .padding(12)
-                .cardSurface(radius: 12)
+                .cardSurface(radius: Radius.row)
             }
         }
     }
@@ -413,7 +413,7 @@ struct PhoneLines: View {
                             .accessibilityAction(named: "Play from here") { play(s) }
                     }
                     .padding(.vertical, 6).padding(.horizontal, 6)
-                    .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 }
                 .id(s.id)
                 .contentShape(Rectangle())
@@ -555,8 +555,8 @@ struct PhoneLinkCard: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.track)
-                if let f = info.thumbnailFile { StillImage(file: f).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
+                if let f = info.thumbnailFile { StillImage(file: f).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)) }
                 else { IconGlyph(art: .iconPlay, size: 18, color: Ink.mute) }
             }
             .frame(width: 72, height: 42)
@@ -570,7 +570,7 @@ struct PhoneLinkCard: View {
             }
         }
         .padding(8)
-        .cardSurface(radius: 12)
+        .cardSurface(radius: Radius.row)
     }
 }
 
@@ -601,7 +601,7 @@ struct NotesSheet: View {
                                 if let at = n.at { Text(at.timecode).font(Ink.mono(12)) }
                             }
                             .foregroundStyle(n.isBookmark ? Ink.butterText : Ink.dim)
-                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8)) }
+                            if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: Radius.button)) }
                             if let action = n.aiAction {
                                 // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
                                 Label("\(action) · Made by Apple Intelligence", art: .iconAI, size: 14)

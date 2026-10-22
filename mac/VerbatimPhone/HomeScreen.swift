@@ -383,10 +383,9 @@ struct RecordScreen: View {
                 .buttonStyle(SoftPress())
                 .accessibilityLabel("Minimize")
                 .accessibilityHint("Keeps recording. Use the bar above the tab bar to come back.")
-                Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: adding == nil ? "New recording" : "Continue recording", color: Ink.dim)
+                Text(adding == nil ? "New recording" : "Continue recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
                 DottedRule().frame(height: 1)
-                Overline(text: adding == nil ? "Voice note" : "Adds to \(adding!.duration.timecode)", color: Ink.mute)
+                Text(adding == nil ? "Voice note" : "Adds to \(HomeRecentStyle.length(adding!.duration))").font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             .padding(.top, 8)
             .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
@@ -407,18 +406,18 @@ struct RecordScreen: View {
                         }
                         ElapsedLabel(live: app.recorder.live, size: 54)
                         // The recording is written to disk as it goes, in 5-minute parts.
-                        Overline(text: "Saved as you go", color: Ink.mute)
+                        Text("Saved as you go").font(.system(size: 13)).foregroundStyle(Ink.mute)
                             .accessibilityLabel("Saved as you go. The recording is written to this iPhone while you talk.")
                     }
                     Spacer(minLength: 8)
                     LiveCaptureMark(live: app.recorder.live, paused: paused).frame(width: 78, height: 100)
                 }
                 RecordWave(live: app.recorder.live, paused: paused).frame(height: 84).padding(.top, 14)
-                Overline(text: "Transcribed on this iPhone", color: Ink.mute).padding(.top, 10)
+                Text("Transcribed on this iPhone").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.top, 10)
             }
             .padding(20)
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 20)
             .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
@@ -432,11 +431,11 @@ struct RecordScreen: View {
                     Button("Resume") { app.togglePause() }.buttonStyle(.brandPrimary)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 14)
                 .accessibilityElement(children: .combine)
             } else {
-                Overline(text: "Keeps recording with the screen locked", color: Ink.mute)
+                Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(Ink.mute)
                     .frame(maxWidth: .infinity).padding(.top, 14)
                     .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
             }
@@ -459,7 +458,7 @@ struct RecordScreen: View {
                 .frame(maxWidth: .infinity)
                 RoundControl(label: saving ? "Saving…" : adding == nil ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
                     if saving { ProgressView().tint(Ink.readerFixed) }
-                    else { RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
+                    else { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
                 } action: { app.stopRecording() }
                 .frame(maxWidth: .infinity)
                 RoundControl(label: paused ? "Resume" : "Pause", size: 62) {
@@ -526,7 +525,6 @@ struct RoundControl<Icon: View>: View {
                     icon()
                 }
                 .frame(width: size, height: size)
-                .shadow(color: primary ? Ink.persimmon.opacity(0.32) : .clear, radius: 12, y: 6)
                 .frame(height: 100)   // labels line up whatever the circle size
                 Text(label).font(.system(size: 14, weight: primary ? .semibold : .regular)).foregroundStyle(Ink.ink).lineLimit(1).fixedSize()
             }
@@ -630,9 +628,8 @@ struct LinkSheet: View {
                     TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
                 }
                 .padding(12)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
-                .shadow(color: Ink.inkFixed.opacity(0.06), radius: 1, y: 1)
+                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
                 PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
                     .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
                 Spacer()

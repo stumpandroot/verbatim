@@ -21,7 +21,7 @@ struct MomentsScreen: View {
                     let t = m.t, n = m.n
                     Button { app.open(t.id, segment: n.segmentId ?? t.segments.last { $0.start <= (n.at ?? 0) }?.id) } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            if let f = n.frameFile { StillImage(file: f).frame(height: 96).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                            if let f = n.frameFile { StillImage(file: f).frame(height: 96).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)) }
                             HStack(spacing: 4) {
                                 if n.isBookmark { ArtIcon(art: .bookmark, size: 12) }
                                 Text((n.at ?? 0).timecode).font(Ink.mono(11.5))

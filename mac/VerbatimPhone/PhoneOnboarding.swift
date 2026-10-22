@@ -17,7 +17,7 @@ struct PhoneOnboarding: View {
                 Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
                 Overline(text: ["Verbatim", "Microphone", "Last step"][step], color: Ink.dim)
                 DottedRule().frame(height: 1)
-                Overline(text: String(format: "%02d / %02d", step + 1, total), color: Ink.mute)
+                Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
             }
             .padding(.top, 16)
             Group {
@@ -69,8 +69,8 @@ struct PhoneOnboarding: View {
                 if micAllowed { Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(Ink.sageText) }
             }
             .padding(16)
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 28)
         }
     }
@@ -100,9 +100,9 @@ struct PhoneOnboarding: View {
                     if p != .accurate { Divider().overlay(Ink.hairline) }
                 }
             }
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 22)
             Label(Cloud.enabled ? "Syncing with iCloud" : "iCloud is off, so everything stays on this iPhone",
                   systemImage: Cloud.enabled ? "icloud" : "icloud.slash")
@@ -138,7 +138,7 @@ struct PhoneOnboarding: View {
         Button(action: action) {
             Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(text)
                 .frame(maxWidth: .infinity).padding(.vertical, 16)
-                .background(fill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(fill, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         }
         .buttonStyle(PressScale())
     }

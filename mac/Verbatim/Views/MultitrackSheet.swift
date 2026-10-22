@@ -29,7 +29,7 @@ struct MultitrackSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("IMPORT · ONE FILE PER MIC").font(Ink.mono(11)).tracking(2).foregroundStyle(Ink.mute)
+            Text("Import · one file per mic").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             Text("Each mic is one speaker.").font(Ink.serif(34)).foregroundStyle(Ink.ink)
             Text("Verbatim transcribes each track on its own and weaves them into one transcript by time. Speaker names come from the track names, and you can change them here.")
                 .font(.system(size: 14)).lineSpacing(3).foregroundStyle(Ink.dim)
@@ -52,9 +52,9 @@ struct MultitrackSheet: View {
             .fixedSize(horizontal: false, vertical: true)
             addRow
         }
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(dropping ? Ink.persimmon : Ink.hairline, lineWidth: dropping ? 1.5 : 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(dropping ? Ink.persimmon : Ink.hairline, lineWidth: dropping ? 1.5 : 1))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .onDrop(of: [.fileURL], isTargeted: $dropping) { providers in
             let ps = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
             guard !ps.isEmpty else { return false }
@@ -216,9 +216,9 @@ private struct MultitrackFooterButton: ButtonStyle {
                 .foregroundStyle(primary ? Ink.onInteractive : Ink.ink)
                 .padding(.horizontal, 18).frame(height: 40)
                 .background(primary ? Ink.interactive.opacity(configuration.isPressed ? 0.85 : 1) : Ink.ink.opacity(configuration.isPressed ? 0.14 : 0.08),
-                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         }
     }
 }
@@ -231,7 +231,7 @@ private extension View {
     func optionCard() -> some View {
         padding(.horizontal, 14).padding(.vertical, 12)
             .frame(maxWidth: .infinity)
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
     }
 }

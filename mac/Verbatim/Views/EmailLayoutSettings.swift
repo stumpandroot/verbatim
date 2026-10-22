@@ -48,13 +48,13 @@ struct EmailLayoutRows: View {
 
     private func pane(_ title: String, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased()).font(Ink.mono(10.5, weight: .medium)).tracking(1.4).foregroundStyle(Ink.mute)
+            Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             Text(text).font(.system(size: 12)).foregroundStyle(Ink.ink).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Ink.wash))
+        .background(RoundedRectangle(cornerRadius: Radius.button).fill(Ink.wash))
     }
 }

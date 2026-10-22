@@ -91,8 +91,8 @@ struct PhoneAddFromLibrarySheet: View {
                 Text(Formats.style(date: .short, time: .none).string(from: t.createdAt)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
             }
             .padding(12)
-            .cardSurface(radius: 14, fill: on ? Ink.ink.opacity(0.06) : Ink.card)
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .cardSurface(radius: Radius.row, fill: on ? Ink.ink.opacity(0.06) : Ink.card)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

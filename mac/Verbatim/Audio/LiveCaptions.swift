@@ -306,7 +306,7 @@ struct CaptionLinesView: View {
         let text = highlight ? CaptionFeed.tail(line.text, limit: currentLimit) : line.text
         var out = Text("")
         if showSpeakers, let who = line.speaker {
-            out = Text(who.uppercased()).font(Ink.mono(11, weight: .medium)).tracking(1.4).foregroundColor(Ink.mute) + Text("  ")
+            out = Text(who).font(.system(size: 12, weight: .semibold)).foregroundColor(Ink.mute) + Text("  ")
         }
         if highlight, let space = text.lastIndex(of: " ") {
             out = out + Text(String(text[..<space]) + " ").foregroundColor(color)

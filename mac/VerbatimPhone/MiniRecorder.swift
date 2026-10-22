@@ -287,8 +287,8 @@ struct MiniRecorderBar: View {
         }
         .disabled(saving)
         .frame(height: 56)
-        .background(Ink.reader, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Ink.hairline))
+        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
         .shadow(color: Ink.inkFixed.opacity(0.10), radius: 12, y: 4)
         .modifier(RecorderZoomSource(zoom: zoom, active: isZoomSource))
         .padding(.horizontal, 12)

@@ -9,7 +9,7 @@ struct DictationsCard: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Ink.persimmonTint)
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.persimmonTint)
                 IconGlyph(art: .iconDictations, size: 22, color: Ink.ink)
             }
             .frame(width: 40, height: 40)
@@ -27,8 +27,8 @@ struct DictationsCard: View {
             Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute)
         }
         .padding(12)
-        .cardSurface(radius: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Dictations, \(dictations.count)")
         .accessibilityHint("Opens every dictation")

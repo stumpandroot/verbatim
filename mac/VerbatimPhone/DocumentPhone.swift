@@ -65,8 +65,8 @@ struct PhoneDocument: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 420)
                 .padding(10)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                 .onChange(of: text) { _, v in
                     // Compared with the stored text (not this view's copy), so a Clean up or Undo landing here isn't
                     // mistaken for typing.

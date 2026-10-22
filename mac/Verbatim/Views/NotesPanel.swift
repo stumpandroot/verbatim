@@ -36,8 +36,8 @@ struct NotesPanel: View {
                     TextField(linked == nil ? "Add note… (click a line to link it)" : "Add note on this passage…", text: $draft).textFieldStyle(.plain).font(.system(size: 13.5)).focused($focused).onSubmit(save)
                 }
                 .padding(.horizontal, 12).frame(height: 44)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Ink.hairline))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(focused ? Ink.iris.opacity(0.5) : Ink.hairline))
             }
             ScrollView {
                 VStack(spacing: 10) {

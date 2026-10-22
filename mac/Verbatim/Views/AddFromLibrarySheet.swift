@@ -36,7 +36,7 @@ struct AddFromLibrarySheet: View {
                 }
             }
             .padding(.horizontal, 12).frame(height: 36)
-            .cardSurface(radius: 10)
+            .cardSurface(radius: Radius.button)
             LibraryFilterBar(filter: $filter, items: candidates, searching: searching, wraps: true) { filter.save(LibraryFilter.addSheetKey) }
             list(shown)
             HStack(spacing: 8) {
@@ -78,8 +78,8 @@ struct AddFromLibrarySheet: View {
                 }
             }
         }
-        .cardSurface(radius: 14)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
     }
 

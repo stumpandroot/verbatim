@@ -60,7 +60,7 @@ struct DictionaryView: View {
                         .buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
                         Button("Cancel") { adding = false }
                     }
-                    .padding(12).cardSurface(radius: 10)
+                    .padding(12).cardSurface(radius: Radius.button)
                     .padding(.bottom, 12)
                     .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
                 }
@@ -91,8 +91,8 @@ struct DictionaryView: View {
                             Divider().opacity(0.5)
                         }
                     }
-                    .cardSurface(radius: 12)
-                    .tiltCard(lift: 1, radius: 12, rotates: false)
+                    .cardSurface(radius: Radius.row)
+                    .tiltCard(lift: 1, radius: Radius.row, rotates: false)
                 }
 
                 BuiltInVocabularySection()

@@ -249,9 +249,9 @@ struct KeyboardView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
@@ -268,8 +268,8 @@ struct KeyboardView: View {
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.dictate.opacity(0.55)))
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.dictate.opacity(0.55)))
     }
 
     private var listeningCard: some View {
@@ -301,8 +301,8 @@ struct KeyboardView: View {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.dictate.opacity(0.55)))
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.dictate.opacity(0.55)))
         .accessibilityElement(children: .contain)
     }
 
@@ -320,8 +320,8 @@ struct KeyboardView: View {
             if model.showsGlobe {
                 GlobeKey(controller: model.controllerForGlobe)
                     .frame(width: 48)
-                    .background(KB.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(KB.hairline))
+                    .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
                     .accessibilityLabel("Next keyboard")
             }
             Key(label: { Text("space").font(.system(size: 15)).foregroundStyle(KB.muted) }, action: model.space)
@@ -390,8 +390,8 @@ private struct StartSessionCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(KB.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(KB.hairline))
+        .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(KB.hairline))
         .accessibilityElement(children: .combine)
     }
 
@@ -590,9 +590,9 @@ private struct Key<Label: View>: View {
         Button(action: action) {
             label()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(KB.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(KB.hairline))
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(KB.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(PressFade())
     }
@@ -608,9 +608,9 @@ private struct RepeatKey<Label: View>: View {
     var body: some View {
         label()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(pressed ? KB.hairline : KB.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(KB.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(pressed ? KB.hairline : KB.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(KB.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { _ in if !pressed { begin() } }
                 .onEnded { _ in end() })

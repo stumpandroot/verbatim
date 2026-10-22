@@ -5,8 +5,8 @@ import AppKit
 struct NoteCardBackground: View {
     var hover: Bool
     var body: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous).fill(hover ? Ink.cardHover : Ink.card)
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(hover ? Ink.outlineStrong.opacity(0.7) : Ink.hairline))
+        RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(hover ? Ink.cardHover : Ink.card)
+            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(hover ? Ink.outlineStrong.opacity(0.7) : Ink.hairline))
     }
 }
 

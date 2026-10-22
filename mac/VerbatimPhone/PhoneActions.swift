@@ -36,7 +36,7 @@ struct PhoneActionSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.accentText)
-                        .frame(width: 34, height: 34).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .frame(width: 34, height: 34).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(action.name).font(Ink.serif(22)).foregroundStyle(Ink.ink)
                         Text("From the original transcript · \(words.formatted()) words").font(.system(size: 13)).foregroundStyle(Ink.mute)
@@ -73,9 +73,9 @@ struct PhoneActionSheet: View {
                                 .padding(8)
                                 .accessibilityLabel("Result, editable. \(TranscriptActions.madeByLabel)")
                         }
-                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                     case .failed:
                         VStack(spacing: 8) {
                             Text("Couldn't run this action").font(Ink.serif(19)).foregroundStyle(Ink.ink)

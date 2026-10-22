@@ -124,14 +124,14 @@ struct FrameImage: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 }
 
 struct Thumbnail: View {
     var info: LinkInfo
     var body: some View {
-        RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Ink.track)
+        RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
             .overlay {
                 if let f = info.thumbnailFile, let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(f)) {
                     Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
@@ -139,7 +139,7 @@ struct Thumbnail: View {
                     IconGlyph(art: .iconPlay, size: 22, color: Ink.mute)
                 }
             }
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Ink.hairline))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
     }
 }

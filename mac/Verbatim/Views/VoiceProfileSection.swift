@@ -35,7 +35,7 @@ struct VoiceProfileSection: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .cardSurface(radius: 16)
+                .cardSurface(radius: Radius.tile)
             }
             if showsControls { VoiceProfileControls() }
         }
@@ -114,7 +114,7 @@ struct VoiceProfileControls: View {
         .font(.system(size: 13.5))
         .toggleStyle(.switch)
         .tint(Ink.switchOn)
-        .cardSurface(radius: 16)
+        .cardSurface(radius: Radius.tile)
     }
 
     private func row<C: View>(@ViewBuilder _ content: () -> C) -> some View {
@@ -191,8 +191,8 @@ struct VoiceEnrollmentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("YOUR VOICE · STEP \(model.step.number) OF 3")
-                    .font(Ink.mono(11, weight: .medium)).tracking(2).foregroundStyle(Ink.mute)
+                Text("Your voice · step \(model.step.number) of 3")
+                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
                 Text(title).font(Ink.serif(40)).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
                 if let detail {
@@ -257,10 +257,10 @@ struct VoiceEnrollmentView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface(radius: 16)
+            .cardSurface(radius: Radius.tile)
             if !model.micName.isEmpty {
-                Text("MICROPHONE · \(model.micName.uppercased())")
-                    .font(Ink.mono(11)).tracking(1.2).foregroundStyle(Ink.mute)
+                Text("Microphone · \(model.micName)")
+                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
             }
             HStack {
                 Spacer()

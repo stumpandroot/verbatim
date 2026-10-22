@@ -92,8 +92,8 @@ struct LibraryScreen: View {
                         }
                         .foregroundStyle(Ink.ink)
                         .padding(.horizontal, 14).frame(minHeight: 48)
-                        .cardSurface(radius: 14)
-                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .cardSurface(radius: Radius.row)
+                        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                     }
                     .buttonStyle(SoftPress())
                     .accessibilityHint("Adds transcripts you already have to this project")
@@ -131,7 +131,7 @@ struct LibraryScreen: View {
             if filter == .kind(.journal), !items.isEmpty {
                 ForEach(JournalDays.group(items)) { day in
                     Section {
-                        EditorialSectionHeader(index: day.date.uppercased(), label: day.label)
+                        EditorialSectionHeader(index: day.date, label: day.label)
                             .padding(.top, 10)
                             .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -234,8 +234,8 @@ struct LibraryScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
-        .cardSurface(radius: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .cardSurface(radius: Radius.row)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -289,7 +289,7 @@ struct PhonePassageCard: View {
             }
         }
         .padding(.bottom, 6)
-        .cardSurface(radius: 14)
+        .cardSurface(radius: Radius.row)
     }
 
     private func marked(_ text: String) -> AttributedString {

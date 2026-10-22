@@ -150,7 +150,7 @@ struct LinkCardOverlay: View {
     private func enter() {
         DispatchQueue.main.asyncAfter(deadline: .now() + metrics.appearDelay) {
             guard stage == .entering else { return }
-            withAnimation(limitMotion ? Motion.fade : .spring(duration: 0.38, bounce: 0.22)) { stage = .shown }
+            withAnimation(limitMotion ? Motion.fade : .smooth(duration: 0.3)) { stage = .shown }
             react(to: imp.phase)
         }
     }
@@ -184,12 +184,12 @@ struct LinkCardOverlay: View {
             }
             return
         }
-        withAnimation(.spring(duration: 0.42, bounce: 0.18), completionCriteria: .logicallyComplete) { stage = .folded } completion: {
+        withAnimation(.smooth(duration: 0.4), completionCriteria: .logicallyComplete) { stage = .folded } completion: {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
                 if target == nil {
                     withAnimation(Motion.fade, completionCriteria: .logicallyComplete) { stage = .faded } completion: { onLanded(); onClosed() }
                 } else {
-                    withAnimation(.spring(duration: 0.48, bounce: 0.08), completionCriteria: .logicallyComplete) { stage = .flying } completion: {
+                    withAnimation(.smooth(duration: 0.45), completionCriteria: .logicallyComplete) { stage = .flying } completion: {
                         onLanded(); onClosed()
                     }
                 }
@@ -265,7 +265,7 @@ struct LinkAddedCard: View {
     // MARK: Thumbnail
 
     private var thumbnail: some View {
-        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
         return ZStack {
             StripedPaper()
             BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1)
@@ -286,8 +286,8 @@ struct LinkAddedCard: View {
         .clipShape(shape)
         .overlay(alignment: .topLeading) {
             if let site = imp.site, !site.isEmpty {
-                Text(site.uppercased())
-                    .font(Ink.mono(10.5, weight: .medium)).tracking(1.4).lineLimit(1)
+                Text(site)
+                    .font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
                     .foregroundStyle(Color(hex: Ink.paperHex))
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -335,13 +335,13 @@ struct LinkAddedCard: View {
     private var status: some View {
         HStack(spacing: 10) {
             Text(phaseText)
-                .font(Ink.mono(11.5)).tracking(1.15).lineLimit(1)
+                .font(.system(size: 12.5, weight: .medium)).lineLimit(1)
                 .foregroundStyle(failed ? Ink.danger : Ink.mute)
                 .fixedSize()
             if !failed {
                 ProgressRail(value: fraction)
                 Text(percentText)
-                    .font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
                     .frame(minWidth: 34, alignment: .trailing)
             } else {
                 Spacer(minLength: 0)
@@ -378,7 +378,7 @@ struct LinkCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(text)
-            .background(fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .opacity(configuration.isPressed ? 0.8 : 1)
             .animation(Motion.press, value: configuration.isPressed)
     }
@@ -489,6 +489,6 @@ struct CountPill: View {
         guard !limitMotion else { return }
         var t = Transaction(); t.disablesAnimations = true
         withTransaction(t) { scale = 1.6 }
-        DispatchQueue.main.async { withAnimation(.spring(duration: 0.45, bounce: 0.45)) { scale = 1 } }
+        DispatchQueue.main.async { withAnimation(.smooth(duration: 0.3)) { scale = 1 } }
     }
 }

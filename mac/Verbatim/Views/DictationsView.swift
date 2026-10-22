@@ -69,7 +69,7 @@ struct DictationsView: View {
                     .padding(20).background(NoteCardBackground(hover: false)).padding(.top, 20)
                 } else {
                     ForEach(Self.days(shown), id: \.0) { day, items in
-                        Overline(text: day, color: Ink.mute).padding(.top, 24).padding(.bottom, 8)
+                        Text(day).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 24).padding(.bottom, 8)
                         VStack(spacing: 6) {
                             ForEach(items) { t in DictationRow(transcript: t) }
                         }

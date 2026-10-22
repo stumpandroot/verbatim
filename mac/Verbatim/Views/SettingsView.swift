@@ -113,7 +113,7 @@ struct SettingsSidebar: View {
     }
 
     private func overline(_ text: String, first: Bool) -> some View {
-        Text(text.uppercased()).font(Ink.mono(10.5, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute)
+        Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
             .padding(.horizontal, 10).padding(.top, first ? 6 : 12).padding(.bottom, 6)
             .accessibilityAddTraits(.isHeader)
     }
@@ -134,8 +134,8 @@ struct SettingsSidebar: View {
             }
         }
         .padding(.horizontal, 10).frame(height: 32)
-        .background(active ? Ink.card : Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Ink.persimmon, lineWidth: active ? 1.5 : 0))
+        .background(active ? Ink.card : Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.persimmon, lineWidth: active ? 1.5 : 0))
         .animation(Motion.touch, value: active)
         .uiTarget("settings-search")
     }
@@ -200,7 +200,7 @@ struct SettingsSearchResults: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Diamond().stroke(Ink.mute, lineWidth: 1).frame(width: 7, height: 7)
-                            Text(c.tab.title.uppercased()).font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute)
+                            Text(c.tab.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                         }
                         .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
                         SettingsGroup {
@@ -273,7 +273,7 @@ struct MenuBarPanel: View {
                     Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }
                     Button("Stop") { app.stopRecording() }.buttonStyle(.brandPrimary)
                 }
-                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             } else if app.capture.isCapturing {
                 HStack(spacing: 10) {
                     ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris)
@@ -281,11 +281,11 @@ struct MenuBarPanel: View {
                     Spacer()
                     Button("Stop") { app.stopCapture() }.buttonStyle(.brandPrimary)
                 }
-                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             } else {
                 Button { NSApp.activate(ignoringOtherApps: true); app.requestRecord() } label: {
                     HStack(spacing: 10) { RecordButton(size: 26); Text("Record voice memo").font(.system(size: 13, weight: .medium)); Spacer() }
-                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
                 Button { NSApp.activate(ignoringOtherApps: true); app.pickApp() } label: {
@@ -293,7 +293,7 @@ struct MenuBarPanel: View {
                         ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris).frame(width: 26)
                         Text("Capture an app's audio").font(.system(size: 13, weight: .medium)); Spacer()
                     }
-                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
             }
@@ -309,14 +309,14 @@ struct MenuBarPanel: View {
                         }
                         Spacer()
                     }
-                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                    .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
             if let last = app.dictation.lastResult, !last.isEmpty {
                 Button { app.dictation.copyLast() } label: {
                     HStack(spacing: 8) { ArtIcon(art: .iconCopy, size: 16).foregroundStyle(Ink.iris).frame(width: 26); Text("Copy last dictation").font(.system(size: 12.5, weight: .medium)); Spacer() }
-                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+                        .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

@@ -119,7 +119,7 @@ struct YouView: View {
                 .background(Color(hex: Ink.sageHex), in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text("YOU").font(Ink.mono(11)).tracking(2).foregroundStyle(Ink.mute)
+                Text("You").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 if editingName {
                     TextField("Your name", text: $nameDraft)
                         .textFieldStyle(.plain).font(Ink.serif(40)).foregroundStyle(Ink.ink)
@@ -218,7 +218,7 @@ struct YouView: View {
     private var voiceCard: some View {
         let known = voice.isEnrolled || voice.isPartial
         return VStack(alignment: .leading, spacing: 6) {
-            Text("YOUR VOICE").font(Ink.mono(10.5)).tracking(1.8).foregroundStyle(Ink.inkFixed)
+            Text("Your voice").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.inkFixed)
             VoiceRingsMark(lineWidth: 2, color: Ink.inkFixed).frame(width: 96, height: 64)
             Text(voice.line).font(Ink.serif(19)).foregroundStyle(Ink.inkFixed).lineSpacing(1)
                 .fixedSize(horizontal: false, vertical: true)
@@ -228,7 +228,7 @@ struct YouView: View {
         }
         .padding(.horizontal, 18).padding(.vertical, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(hex: Ink.sageHex), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
     }
 
     // MARK: Your week
@@ -238,7 +238,7 @@ struct YouView: View {
         return YouCard(spacing: 14, padding: 20) {
             HStack(spacing: 12) {
                 Text(span == .week ? "Your week" : "Your month").font(Ink.serif(22)).foregroundStyle(Ink.ink)
-                Text(Self.rangeLabel(range, span, cal)).font(Ink.mono(11)).tracking(1.2).foregroundStyle(Ink.mute)
+                Text(Self.rangeLabel(range, span, cal)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
                 Spacer(minLength: 8)
                 arrow("chevron.left", span == .week ? "Previous week" : "Previous month", enabled: true) { step(-1) }
                 arrow("chevron.right", span == .week ? "Next week" : "Next month", enabled: !current) { step(1) }
@@ -311,7 +311,7 @@ struct YouView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Where you dictate").font(Ink.serif(22)).foregroundStyle(Ink.ink)
                 Spacer()
-                Text(Self.whereLabel(range, span)).font(Ink.mono(10.5)).tracking(1.2).foregroundStyle(Ink.mute)
+                Text(Self.whereLabel(range, span)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             if apps.isEmpty {
                 Text(span == .week ? "Nothing dictated this week." : "Nothing dictated this month.")
@@ -425,18 +425,18 @@ struct YouView: View {
         return m % 60 == 0 ? "\(m / 60) h" : "\(m / 60) h \(m % 60) min"
     }
 
-    /// "OCT 19 – 25", "SEP 28 – OCT 4", or "OCTOBER 2026".
+    /// "Oct 19 – 25", "Sep 28 – Oct 4", or "October 2026".
     static func rangeLabel(_ r: DateInterval, _ span: YouRange.Span, _ cal: Calendar) -> String {
-        if span == .month { return Formats.pattern("MMMM yyyy").string(from: r.start).uppercased() }
+        if span == .month { return Formats.pattern("MMMM yyyy").string(from: r.start) }
         let last = r.end.addingTimeInterval(-1)
         let a = Formats.pattern("MMM d").string(from: r.start)
         let b = cal.isDate(r.start, equalTo: last, toGranularity: .month) ? Formats.pattern("d").string(from: last) : Formats.pattern("MMM d").string(from: last)
-        return "\(a) – \(b)".uppercased()
+        return "\(a) – \(b)"
     }
 
     static func whereLabel(_ r: DateInterval, _ span: YouRange.Span) -> String {
-        if YouRange.isCurrent(r) { return span == .week ? "THIS WEEK" : "THIS MONTH" }
-        return span == .week ? rangeLabel(r, span, .current) : Formats.pattern("MMMM").string(from: r.start).uppercased()
+        if YouRange.isCurrent(r) { return span == .week ? "This week" : "This month" }
+        return span == .week ? rangeLabel(r, span, .current) : Formats.pattern("MMMM").string(from: r.start)
     }
 }
 
@@ -516,7 +516,7 @@ struct YouCard<Content: View>: View {
         VStack(alignment: .leading, spacing: spacing) { content() }
             .padding(.horizontal, padding).padding(.vertical, padding - 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .cardSurface(radius: 16)
+            .cardSurface(radius: Radius.tile)
     }
 }
 
@@ -588,7 +588,7 @@ struct InkSegmented<T: Hashable>: View {
                         .frame(maxWidth: fill ? .infinity : nil)
                         .frame(height: height)
                         .background {
-                            if on { RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Ink.interactive).matchedGeometryEffect(id: "on", in: ns) }
+                            if on { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.interactive).matchedGeometryEffect(id: "on", in: ns) }
                         }
                         .contentShape(Rectangle())
                 }
@@ -598,7 +598,7 @@ struct InkSegmented<T: Hashable>: View {
             }
         }
         .padding(3)
-        .background(Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
     }
@@ -615,7 +615,7 @@ struct AboutMeSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("YOU").font(Ink.mono(11, weight: .medium)).tracking(2).foregroundStyle(Ink.mute)
+                Text("You").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 Text("About me").font(Ink.serif(32)).foregroundStyle(Ink.ink).accessibilityAddTraits(.isHeader)
                 Text("A few lines about you and your work. Verbatim uses this to spell names and word titles and summaries. It stays on this Mac.")
                     .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
@@ -636,7 +636,7 @@ struct AboutMeSheet: View {
                 }
             }
             .frame(height: 140)
-            .cardSurface(radius: 12)
+            .cardSurface(radius: Radius.row)
             HStack {
                 Text("\(aboutMe.count)/\(YouProfile.aboutMeLimit)").font(Ink.mono(12)).foregroundStyle(Ink.mute)
                     .accessibilityLabel("\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters")

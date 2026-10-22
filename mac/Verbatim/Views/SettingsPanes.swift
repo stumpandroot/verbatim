@@ -298,8 +298,8 @@ struct SpeakersSettingsPane: View {
         SettingsPane(tab: .speakers) {
             // The voice profile (VoiceProfileSection.swift): setup or quality, plus its switches and Delete.
             VoiceProfileSection()
-                .settingsAnchor("speakers.voiceProfile", radius: 16)
-                .settingsAnchor("speakers.onlyMyVoice", radius: 16)
+                .settingsAnchor("speakers.voiceProfile", radius: Radius.tile)
+                .settingsAnchor("speakers.onlyMyVoice", radius: Radius.tile)
             SettingsGroup(title: "Speakers") {
                 if FluidDiarizer.isSupported {
                     SettingsToggleRow("speakers.identify", isOn: $app.identifySpeakers)
@@ -360,7 +360,7 @@ struct ExportSettingsPane: View {
                     Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.label).tag($0) } }
                         .pickerStyle(.menu).labelsHidden().fixedSize()
                 }
-                .settingsAnchor("export.source", radius: 12)
+                .settingsAnchor("export.source", radius: Radius.row)
                 ExportPaneToggle("Title and details header", isOn: $options.header)
                 ExportPaneToggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote, note: "On Cleaned text the model touched: “\(Exporter.aiNoteText)”")
                 ExportPaneToggle("Summary", isOn: $options.summary, note: "Written with Apple Intelligence, when the transcript has one.")

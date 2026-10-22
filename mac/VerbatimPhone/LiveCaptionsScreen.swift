@@ -190,7 +190,7 @@ struct LiveCaptionsScreen: View {
                 Button { stopTapped() } label: {
                     Text("Stop").font(.system(size: 16, weight: .medium)).foregroundStyle(Ink.ink)
                         .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(Ink.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(Ink.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
                 .buttonStyle(SoftPress())
                 Button { app.stopCaptions(save: true) } label: {
@@ -200,7 +200,7 @@ struct LiveCaptionsScreen: View {
                     }
                     .foregroundStyle(Ink.onInteractive)
                     .frame(maxWidth: .infinity).frame(height: 52)
-                    .background(Ink.interactive, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(Ink.interactive, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
                 .buttonStyle(SoftPress())
                 .disabled(!captions.running)
@@ -220,8 +220,8 @@ struct LiveCaptionsScreen: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            CaptionRingsMark().frame(width: 16, height: 16)
-            Text("LIVE CAPTIONS · IN THE ROOM").font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).lineLimit(1)
+            IconGlyph(art: .iconCaptions, size: 16, color: Ink.mute)
+            Text("Live captions · in the room").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).lineLimit(1)
             Spacer(minLength: 8)
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 Text(captionClock(captions.elapsed)).font(Ink.mono(11, weight: .medium)).tracking(1.2).foregroundStyle(Ink.mute)

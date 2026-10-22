@@ -224,7 +224,7 @@ struct TranscriptView: View {
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .padding(.top, 8)
             }
             if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 10) }
@@ -385,7 +385,7 @@ struct TranscriptView: View {
                         Spacer()
                         Button("Undo") { undo(t, c) }.buttonStyle(.bordered).controlSize(.small)
                     }
-                    .padding(12).cardSurface(radius: 12)
+                    .padding(12).cardSurface(radius: Radius.row)
                 }
             }
         }
@@ -403,7 +403,7 @@ struct TranscriptView: View {
                 Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
             }
         }
-        .padding(16).background(Ink.wash, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16).background(Ink.wash, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 
 

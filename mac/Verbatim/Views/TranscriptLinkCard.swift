@@ -22,7 +22,7 @@ struct LinkCard: View {
                 .buttonStyle(.bordered).controlSize(.small).help("Copy link")
         }
         .padding(8)
-        .cardSurface(radius: 12)
+        .cardSurface(radius: Radius.row)
         .frame(maxWidth: 640, alignment: .leading)
     }
 }

@@ -724,9 +724,9 @@ struct BrandPrimaryButtonStyle: ButtonStyle {
                 .font(.system(size: large ? 14 : 13, weight: .semibold))
                 .foregroundStyle(Ink.onInteractive)
                 .padding(.horizontal, large ? 16 : 12).frame(minHeight: large ? 34 : 28)
-                .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : hover ? 0.92 : 1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : hover ? 0.92 : 1), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .onHover { hover = $0 }
                 .animation(.easeOut(duration: 0.14), value: hover)
         }
@@ -747,10 +747,10 @@ struct BrandSecondaryButtonStyle: ButtonStyle {
                 .font(.system(size: large ? 14 : 13, weight: .medium))
                 .foregroundStyle(Ink.ink)
                 .padding(.horizontal, large ? 16 : 12).frame(minHeight: large ? 34 : 28)
-                .background(configuration.isPressed ? Ink.wash : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(hover ? Ink.outlineStrong : Ink.hairline))
+                .background(configuration.isPressed ? Ink.wash : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(hover ? Ink.outlineStrong : Ink.hairline))
                 .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .onHover { hover = $0 }
                 .animation(.easeOut(duration: 0.14), value: hover)
         }

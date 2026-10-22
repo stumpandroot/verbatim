@@ -81,7 +81,7 @@ struct WhatsPlayingSheet: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(radius: 16)
+        .cardSurface(radius: Radius.tile)
     }
 
     private func step(_ n: String, _ text: String) -> some View {
@@ -98,7 +98,7 @@ private struct PlayingStartStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(Ink.onInteractive)
-            .background(Ink.interactive.opacity(configuration.isPressed ? 0.86 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Ink.interactive.opacity(configuration.isPressed ? 0.86 : 1), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

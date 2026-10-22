@@ -174,13 +174,13 @@ struct LiveCaptionsView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            CaptionRingsMark().frame(width: 16, height: 16)
-            Text("LIVE CAPTIONS · \(controller.source.title.uppercased())")
-                .font(Ink.mono(11, weight: .medium)).tracking(1.8).foregroundStyle(Ink.mute).lineLimit(1)
+            IconGlyph(art: .iconCaptions, size: 16, color: Ink.mute)
+            Text("Live captions · \(controller.source.title)")
+                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute).lineLimit(1)
             DottedRule().frame(height: 1)
             if showTimecode {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(captionClock(controller.elapsed)).font(Ink.mono(11, weight: .medium)).tracking(1.2).foregroundStyle(Ink.mute)
+                    Text(captionClock(controller.elapsed)).font(Ink.mono(11, weight: .medium)).foregroundStyle(Ink.mute)
                 }
                 .accessibilityLabel("Elapsed time")
             }
@@ -337,12 +337,12 @@ struct LiveCaptionsMenuRow: View {
     var body: some View {
         Button { app.toggleLiveCaptions() } label: {
             HStack(spacing: 10) {
-                CaptionRingsMark().frame(width: 18, height: 18).frame(width: 26)
+                IconGlyph(art: .iconCaptions, size: 18, color: Ink.ink).frame(width: 26)
                 Text(captions.isOpen ? "Close live captions" : "Live captions").font(.system(size: 13, weight: .medium))
                 Spacer()
                 Text("⌥⌘C").font(.system(size: 11)).foregroundStyle(Ink.mute)
             }
-            .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous)).contentShape(Rectangle())
+            .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

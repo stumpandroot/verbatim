@@ -167,7 +167,7 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 26) {
             ForEach(JournalDays.group(list)) { day in
                 VStack(alignment: .leading, spacing: 10) {
-                    EditorialSectionHeader(index: day.date.uppercased(), label: day.label)
+                    EditorialSectionHeader(index: day.date, label: day.label)
                     ForEach(day.entries) { t in
                         Button { click(t.id, order: order) } label: {
                             VStack(alignment: .leading, spacing: 6) {
@@ -181,8 +181,8 @@ struct LibraryView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .padding(.horizontal, 16).padding(.vertical, 14)
-                            .background(Ink.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+                            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)

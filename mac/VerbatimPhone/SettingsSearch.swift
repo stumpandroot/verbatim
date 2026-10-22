@@ -242,9 +242,9 @@ struct SettingsSearchField: View {
         }
         .padding(.leading, 12).padding(.trailing, text.isEmpty ? 12 : 0)
         .frame(minHeight: height)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                 .strokeBorder(focused ? Ink.persimmon : Ink.hairline, lineWidth: focused ? 1.5 : 1)
         )
         .animation(Motion.fade, value: focused)
@@ -273,8 +273,8 @@ struct SettingsSearchResults: View {
             }
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("\u{25C7} \(group.section.uppercased()) \u{00B7} \(group.entries.count)")
-                        .font(Ink.mono(overline, weight: .medium)).tracking(1.8).foregroundStyle(Ink.dim)
+                    Text("\(group.section) \u{00B7} \(group.entries.count)")
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
                         .padding(.horizontal, 4)
                         .accessibilityLabel("\(group.section), \(group.entries.count) \(group.entries.count == 1 ? "result" : "results")")
                         .accessibilityAddTraits(.isHeader)
@@ -287,8 +287,8 @@ struct SettingsSearchResults: View {
                             .buttonStyle(SettingsRowPress())
                         }
                     }
-                    .cardSurface(radius: 14)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .cardSurface(radius: Radius.row)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 }
                 .padding(.top, 22)
             }
