@@ -380,5 +380,11 @@ for r in spoken {
     if r.ok { passed += 1; print("PASS  \(r.name)") }
     else { failed += 1; print("FAIL  \(r.name)\n    " + r.detail.replacingOccurrences(of: "\n", with: "⏎\n    ")) }
 }
-print("\n\(passed) passed, \(failed) failed, \(cases.count + destination.count + spoken.count) cases")
+// Dictation timing, pause hints, and paste decisions, shared with the Mac self-test.
+let timing = DictationTimingChecks.run()
+for r in timing {
+    if r.ok { passed += 1; print("PASS  \(r.name)") }
+    else { failed += 1; print("FAIL  \(r.name)\n    " + r.detail.replacingOccurrences(of: "\n", with: "⏎\n    ")) }
+}
+print("\n\(passed) passed, \(failed) failed, \(cases.count + destination.count + spoken.count + timing.count) cases")
 exit(failed == 0 ? 0 : 1)

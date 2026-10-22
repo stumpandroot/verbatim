@@ -86,13 +86,17 @@ enum CloudCleanup {
     /// The longest dictation sent in one request; longer text uses Apple's model in parts, or the rules.
     static let maxCharacters = 12_000
 
-    /// Sends one cleanup. `seconds` bounds the whole request.
+    /// Sends one cleanup. `seconds` bounds the whole request, the retry included.
     static func complete(system: String, prompt: String, config: Config, seconds: Double) async -> Outcome {
         guard seconds > 0.2 else { return .failed("no time left") }
+        let started = Date()
         let first = await send(system: system, prompt: prompt, config: config, seconds: seconds, tuned: true)
-        // An older or different model may refuse the speed settings (effort, thinking); try once without them.
+        // An older or different model may refuse the speed settings (effort, thinking); try once without them, in
+        // the time that's left rather than a fresh full limit.
         if case .failed(let why) = first, why == "HTTP 400" {
-            return await send(system: system, prompt: prompt, config: config, seconds: seconds, tuned: false)
+            let left = seconds - Date().timeIntervalSince(started)
+            guard left > 0.3 else { return .failed("HTTP 400, no time left to retry") }
+            return await send(system: system, prompt: prompt, config: config, seconds: left, tuned: false)
         }
         return first
     }

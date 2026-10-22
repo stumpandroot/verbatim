@@ -258,11 +258,7 @@ struct FlowBarView: View {
     }
 
     /// "Click or hold ⌥ to dictate", or the setup or secure-input hint when that's what applies.
-    private var hintLine: String {
-        let h = model.hint
-        if h.hasSuffix(" or click") { return "Click or hold \(h.dropLast(" or click".count)) to dictate" }
-        return h.prefix(1).uppercased() + h.dropFirst()
-    }
+    private var hintLine: String { DictationTiming.hintLine(model.hint) }
 
     private var elapsed: String {
         let s = Int(live.elapsed)

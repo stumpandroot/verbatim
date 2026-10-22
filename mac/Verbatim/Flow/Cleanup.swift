@@ -44,7 +44,7 @@ enum FlowCleanup {
         /// bullets, since iOS text fields show "- " as typed.
         var format: DictationFormatter.Options? = nil
         /// The most time the model may take, in seconds, across every part. Past it, the rest is the rule-based
-        /// text. Nil uses the per-part limits only (Mac).
+        /// text. Mac dictation passes `DictationTiming.cleanupBudget`; nil (History's Redo) uses the per-part limits only.
         var timeBudget: Double? = nil
         /// Harper's grammar pass on the result (`GrammarPass`). Off for tests that compare the rules alone.
         var grammar: Bool = true
@@ -53,6 +53,9 @@ enum FlowCleanup {
         /// Settings › Understand spoken corrections ("scratch that", "at 2, actually 3"). False also gives the
         /// text as spoken for the notice's "Copy as spoken".
         var spokenCorrections: Bool = SpokenCorrections.enabled
+        /// The text's sentence and paragraph breaks include ones added at long pauses (`PauseBreaks`, Mac); the
+        /// prompt tells the model so.
+        var pauseHints: Bool = false
     }
 
     struct Result {
@@ -150,8 +153,15 @@ enum FlowCleanup {
             case .success(let result): return result
             case .failure(let why): cloudNote = why
             }
-            // Apple's model gets whatever time is left.
-            if let budget = r.timeBudget { r.timeBudget = budget - Date().timeIntervalSince(started) }
+            // Apple's model gets whatever time is left, and none when too little is left to finish.
+            if let budget = r.timeBudget {
+                let left = budget - Date().timeIntervalSince(started)
+                if left < 0.3 {
+                    Log.note("cleanup: no time left for Apple's model after cloud cleanup")
+                    return Result(text: layout(pre, r), cleaned: false, note: (cloudNote ?? "Cloud cleanup didn't answer") + "; pasted without cleanup")
+                }
+                r.timeBudget = left
+            }
         }
         guard available else {
             return Result(text: layout(pre, r), cleaned: false, note: cloudNote ?? ("Cleaned with rules only: " + (Polish.status.reason ?? "Apple Intelligence isn't available.")))
@@ -178,7 +188,12 @@ enum FlowCleanup {
         if let budget = r.timeBudget { seconds = min(seconds, budget) }
         // No app context: only the words, destination, tone, and Dictionary terms leave the device.
         let prompt = userPrompt(r, text: pre, withContext: false)
-        switch await CloudCleanup.complete(system: instructions(level: r.level, corrections: r.spokenCorrections), prompt: prompt, config: config, seconds: seconds) {
+        let system = instructions(level: r.level, corrections: r.spokenCorrections)
+        // URLSession's own limits can run a little long; the race ends the wait at the limit regardless.
+        let reply = await withTimeout(seconds: seconds + 0.2) { () -> CloudCleanup.Outcome? in
+            await CloudCleanup.complete(system: system, prompt: prompt, config: config, seconds: seconds)
+        } ?? .failed("timed out")
+        switch reply {
         case .failed(let why):
             Log.note("cloud cleanup (\(config.provider.rawValue)): \(why)")
             return .failure("Cloud cleanup didn't answer (\(why))")
@@ -689,6 +704,9 @@ enum FlowCleanup {
         if !r.vocabulary.isEmpty {
             lines.append("Spell these names and terms exactly like this when they appear: " + r.vocabulary.prefix(80).joined(separator: ", "))
         }
+        if r.pauseHints {
+            lines.append("Pauses: some sentence ends and blank lines mark where the user paused. Keep them as sentence and paragraph breaks unless one clearly splits a single sentence.")
+        }
         var p = lines.joined(separator: "\n") + "\n\n"
         #if os(macOS)
         if withContext, r.useContext, let c = r.context {
@@ -768,13 +786,11 @@ enum FlowCleanup {
 
     // MARK: Timeout
 
-    private static func withTimeout<T: Sendable>(seconds: Double, _ work: @escaping @Sendable () async -> T?) async -> T? {
-        await withTaskGroup(of: T?.self) { g in
-            g.addTask { await work() }
-            g.addTask { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)); return nil }
-            let first = await g.next() ?? nil
-            g.cancelAll()
-            return first
-        }
+    /// The work's result, or nil once `seconds` pass. Returns at the deadline even when the work ignores
+    /// cancellation (a model call can): `FluidEngine.race` lets it finish in the background and drops its result.
+    /// A task group would wait for every child, so a stalled call could run far past the limit.
+    static func withTimeout<T: Sendable>(seconds: Double, _ work: @escaping @Sendable () async -> T?) async -> T? {
+        let out: T?? = await FluidEngine.race(seconds: seconds, work)
+        return out ?? nil
     }
 }

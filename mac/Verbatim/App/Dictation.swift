@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import AVFoundation
 import ApplicationServices
 import Carbon
@@ -44,13 +45,18 @@ final class DictationController: ObservableObject {
 
     @Published private(set) var isListening = false {
         didSet {
-            if isListening != oldValue { carbon.setEscape(secureSince != nil && isListening) }
+            if isListening != oldValue { carbon.setEscape(secureSince != nil && escapeCancels) }
             if isListening != oldValue { AudioDucker.shared.set(.dictation, isListening) }   // Lower other audio while listening.
             // Live words are a preview of listening only; they end the moment listening does.
             if !isListening { liveWords.stop() }
         }
     }
-    @Published private(set) var isWorking = false
+    /// Transcribing and cleaning up (or running an action), until the text is handed to the paster.
+    @Published private(set) var isWorking = false {
+        didSet { if isWorking != oldValue { carbon.setEscape(secureSince != nil && escapeCancels) } }
+    }
+    /// Esc cancels while listening, and while a dictation's words are being written.
+    private var escapeCancels: Bool { isListening || writingSession != nil }
     @Published private(set) var handsFree = false
     @Published private(set) var targetAppName = ""
     /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or the thought pad's
@@ -94,13 +100,25 @@ final class DictationController: ObservableObject {
     private var lastDuration: Double = 0
     /// Whether this dictation goes to the thought pad, decided when it starts (not when the text arrives).
     private var toPad = false
+    /// The mic is running its short tail after you let go (`DictationTiming.tail`).
+    private var tailing = false
+    /// When you let go of the hotkey or clicked stop, for the release-to-paste log line.
+    private var releasedAt: Date?
+    /// A dictation started while the last one was being written. It starts when that one is handed to the paster.
+    private var queuedStart: (handsFree: Bool, command: Bool)?
+    /// The session whose words are being written (transcription and cleanup); Esc cancels it.
+    private var writingSession: Int?
+    /// Sessions cancelled with Esc while being written: kept in Dictations, never pasted.
+    private let abandoned = SessionSet()
+    /// Pastes handed to the paster that haven't finished.
+    private var pastesInFlight = 0
     func showPendingLearn() { learner.showPending() }
 
     /// Live words, between dictations (the Ribbon went idle) or when the setting is turned on: gets the on-device
     /// recognizer ready, and on systems that use the older recognizer asks for speech recognition permission once.
     /// Never while listening or writing, so a permission dialog can't take focus from the paste.
     func prepareLiveWords() {
-        guard LiveWordsSetting.isOn, !isListening, !isWorking else { return }
+        guard LiveWordsSetting.isOn, !isListening, !isWorking, pastesInFlight == 0 else { return }
         liveWords.prepare(allowPermissionPrompt: true)
     }
     var projects: [Project] { app?.store.projects ?? [] }
@@ -162,12 +180,49 @@ final class DictationController: ObservableObject {
         }
     }
 
-    /// A real (tiny) inference on the model dictation uses, so loading and first-run compilation happen now.
+    /// A real (tiny) inference on the model dictation uses, so loading and first-run compilation happen now. Then
+    /// the Dictionary boost's session, so the first dictation can use it.
     private func prewarmModel(reason: String) {
         guard enabled, let choice = app?.engineChoice, choice.engine == "fluid" else { return }
         let model = choice.model
         Log.note("dictation prewarm \(model) (\(reason))")
-        Task.detached(priority: .utility) { await FluidEngine.shared.prewarm(model: model) }
+        let boost = boostEntries()
+        Task.detached(priority: .utility) {
+            await FluidEngine.shared.prewarm(model: model)
+            if let boost { await FluidEngine.shared.prepareBoost(dictionary: boost.entries, project: boost.project) }
+        }
+        watchVocabulary()
+    }
+
+    /// The active project, when it still exists.
+    private var activeProject: UUID? {
+        FlowSettings.shared.activeProject.flatMap { p in app?.store.projects.contains(where: { $0.id == p }) == true ? p : nil }
+    }
+
+    /// The words the boost listens for: your enabled Dictionary words (everywhere, plus the active project's) and the
+    /// built-in vocabulary. Nil when boosting is off.
+    private func boostEntries() -> (entries: [DictionaryEntry], project: UUID?)? {
+        guard FlowSettings.shared.boostVocabulary else { return nil }
+        let project = activeProject
+        let dict = (app?.store.dictionary ?? []).filter { $0.projectId == nil || $0.projectId == project }
+        return (dict.filter(\.enabled) + BuiltInVocabulary.boostEntries(excluding: dict), project)
+    }
+
+    private var vocabularyWatch: AnyCancellable?
+
+    /// Rebuilds the boost's session in the background soon after the Dictionary, the built-in vocabulary, or the
+    /// active project changes (the last two live in UserDefaults), so no dictation waits for a rebuild.
+    private func watchVocabulary() {
+        guard vocabularyWatch == nil, let store = app?.store else { return }
+        let defaults = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).map { _ in () }
+        vocabularyWatch = store.$dictionary.map { _ in () }.merge(with: defaults)
+            .debounce(for: .seconds(1.5), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.enabled, self.app?.engineChoice.engine == "fluid", let boost = self.boostEntries() else { return }
+                    Task.detached(priority: .utility) { await FluidEngine.shared.prepareBoost(dictionary: boost.entries, project: boost.project) }
+                }
+            }
     }
 
     /// Keeps the recorder's input prepared while dictation is on and the mic is allowed; releases it otherwise.
@@ -182,7 +237,7 @@ final class DictationController: ObservableObject {
     private func inputInterrupted() {
         guard isListening else { return }
         Log.note("dictation: input device changed mid-dictation, finishing")
-        finish()
+        finish(.interrupted)
         if isWorking { bar?.model.warning = "Mic changed, so listening stopped" }
     }
 
@@ -208,7 +263,7 @@ final class DictationController: ObservableObject {
 
     /// Back to idle after listening ended without a recording to transcribe.
     private func resetListening() {
-        isListening = false; handsFree = false; command = false; toPad = false
+        isListening = false; handsFree = false; command = false; toPad = false; tailing = false
     }
 
     /// "Couldn't hear the Shure MV7 mic. Check Settings › General › Microphone.", with a button that opens it.
@@ -303,7 +358,7 @@ final class DictationController: ObservableObject {
         if secureSince == nil {
             secureSince = now
             carbon.activate(hotkey: hotkey)
-            carbon.setEscape(isListening)
+            carbon.setEscape(escapeCancels)
         }
         // A password field gaining focus turns it on for a moment; only a sustained stretch is worth a notice.
         guard !secureInputOn, now - (secureSince ?? now) >= 3 else { return }
@@ -352,7 +407,7 @@ final class DictationController: ObservableObject {
         case .pasteLast: if down { pasteLast() }
         case .copyLast: if down { copyLast() }
         case .thoughtPad: if down { ThoughtPadController.shared.toggle() }
-        case .escape: if down, isListening { cancel() }
+        case .escape: if down { if isListening { cancel() } else if writingSession != nil { cancelWriting() } }
         }
     }
 
@@ -368,9 +423,10 @@ final class DictationController: ObservableObject {
     }
 
     private func handle(_ e: NSEvent) {
-        // Esc cancels a dictation in progress; ⌘⌃V pastes the last one again.
+        // Esc cancels a dictation in progress, or while its words are being written; ⌘⌃V pastes the last one again.
         if e.type == .keyDown {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
+            if e.keyCode == UInt16(kVK_Escape), writingSession != nil { cancelWriting(); return }
             // Esc closes the didn't-paste notice (the words stay on the clipboard and in the thought pad).
             if e.keyCode == UInt16(kVK_Escape), rescuing, bar?.model.phase == .prompt { rescuing = false; bar?.dismissPrompt(); return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -423,6 +479,11 @@ final class DictationController: ObservableObject {
 
     private func released(at ts: TimeInterval) {
         keyDown = false
+        // Tap to talk hands-free while the last dictation is being written: the queued one starts hands-free.
+        if !isListening, queuedStart != nil, FlowSettings.shared.mode == .hybrid, let at = pressedTS, ts - at < 0.5 {
+            queuedStart?.handsFree = true
+            return
+        }
         guard isListening, let at = pressedTS else { return }
         switch FlowSettings.shared.mode {
         case .hold: finish()
@@ -441,7 +502,7 @@ final class DictationController: ObservableObject {
     }
 
     func startFromBar(command: Bool) {
-        guard !isListening, !isWorking else { return }
+        guard !isListening else { return }
         guard accessibilityTrusted else {
             bar?.flash("Allow Accessibility to dictate", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
             return
@@ -452,7 +513,10 @@ final class DictationController: ObservableObject {
     // MARK: Session
 
     private func begin(handsFree: Bool, command wantCommand: Bool) {
-        guard !isListening, !isWorking else { return }
+        guard !isListening else { return }
+        // Still writing the last one: this one waits, with a sound and a word in the Ribbon, and starts as soon as
+        // that text is handed to the paster (`startQueued`). Pastes run one at a time, so nothing lands on top.
+        if isWorking { queueStart(handsFree: handsFree, command: wantCommand); return }
         // Ask for the microphone once, the first time; if it's off, say where to turn it on.
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: break
@@ -538,7 +602,7 @@ final class DictationController: ObservableObject {
             Log.note("dictation: reached the \(Self.limitText(minutes)) limit; finishing")
             // Like letting go of the key: transcribed and pasted, never discarded.
             self.stoppedAtLimit = true
-            self.finish()
+            self.finish(.timeLimit)
         }
     }
 
@@ -561,17 +625,84 @@ final class DictationController: ObservableObject {
         return "\(d.name) mic: lower quality. Pick another in Settings."
     }
 
-    /// Stops listening without pasting. The recording is discarded.
+    /// Stops listening without pasting, at once, even during the tail after you let go. The recording is discarded.
     func cancel(quiet: Bool = false) {
         guard isListening else { return }
+        tailing = false
         // The recorder already stopped on its own: still end listening, so the Ribbon never stays stuck.
         guard let stopped = recorder.stop() else { resetListening(); bar?.setPhase(.idle); return }
         isListening = false; handsFree = false; command = false
         try? FileManager.default.removeItem(at: stopped.0)
-        if quiet { bar?.setPhase(.idle) } else { bar?.flash("Cancelled", seconds: 1.5) }
+        if quiet { bar?.setPhase(.idle) } else { Sounds.cancel(); bar?.flash("Cancelled", seconds: 1.5, exact: true) }
     }
 
-    private func finish() {
+    /// Esc while the words are being written: nothing is pasted, and the dictation is kept in Dictations. A
+    /// dictation waiting to start is dropped too.
+    private func cancelWriting() {
+        guard let s = writingSession else { return }
+        abandoned.insert(s)
+        queuedStart = nil
+        writingSession = nil
+        isWorking = false
+        Sounds.cancel()
+        bar?.flash("Cancelled. It's saved in Dictations.", seconds: 2.5, exact: true)
+        Log.note("dictation: cancelled while writing; kept in Dictations, not pasted")
+    }
+
+    /// The writing phase of `mine` is over (its text went to the paster, the thought pad, or nowhere). A dictation
+    /// that was waiting starts now.
+    private func endWriting(_ mine: Int) {
+        guard writingSession == mine else { return }
+        writingSession = nil
+        isWorking = false
+        startQueued()
+    }
+
+    /// Ends an action's working phase (`apply`), then starts a dictation that was waiting.
+    private func endAction() {
+        isWorking = false
+        startQueued()
+    }
+
+    private func queueStart(handsFree: Bool, command: Bool) {
+        if queuedStart == nil {
+            Sounds.queued()
+            bar?.model.appLabel = "NEXT UP"
+            Log.note("dictation: started while writing the last one; waiting for its paste")
+        }
+        queuedStart = (handsFree, command)
+    }
+
+    private func startQueued() {
+        guard let q = queuedStart else { return }
+        queuedStart = nil
+        // Hold to talk, and the key was let go before the last dictation was handed off: there's nothing to record.
+        if !q.handsFree && !keyDown {
+            bar?.flash("Your last dictation was still being written, so this one didn't start. Dictate again.", seconds: 4)
+            return
+        }
+        begin(handsFree: q.handsFree, command: q.command)
+    }
+
+    /// Letting go keeps the mic on for `DictationTiming.tail` so the last syllable isn't clipped, while the Ribbon
+    /// already shows it's writing. A mic change or the time limit stops at once, even mid-tail.
+    private func finish(_ stop: DictationTiming.Stop = .release) {
+        guard isListening else { return }
+        let delay = DictationTiming.tailDelay(for: stop)
+        if tailing && delay > 0 { return }
+        if !tailing { releasedAt = Date() }
+        guard delay > 0 else { tailing = false; finishNow(tail: 0); return }
+        tailing = true
+        bar?.setPhase(.working)
+        let mine = session
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.tailing, self.session == mine, self.isListening else { return }
+            self.tailing = false
+            self.finishNow(tail: delay)
+        }
+    }
+
+    private func finishNow(tail: Double) {
         guard isListening else { return }
         let warned = recorder.micWarning
         guard let stopped = recorder.stop() else {
@@ -579,6 +710,7 @@ final class DictationController: ObservableObject {
             resetListening(); showMicProblem("Couldn't hear"); return
         }
         let (url, duration, env) = stopped
+        let wasHandsFree = handsFree
         isListening = false; handsFree = false
         // A second or more without a single non-silent sample: the mic isn't delivering (shorter is a stray tap).
         if !recorder.lastHeardSignal, Date().timeIntervalSince(startedAt ?? Date()) >= 1 {
@@ -587,7 +719,7 @@ final class DictationController: ObservableObject {
             showMicProblem("Couldn't hear", warned: warned)
             return
         }
-        guard duration >= 0.4 else {                      // too short: discard, like Wispr Flow
+        guard !DictationTiming.isStrayTap(duration: duration, tail: tail) else {   // too short: discard, like Wispr Flow
             try? FileManager.default.removeItem(at: url); bar?.setPhase(.idle); return
         }
         // Nothing but silence: don't run the models (Whisper in particular invents words in silence).
@@ -599,14 +731,18 @@ final class DictationController: ObservableObject {
             bar?.flash("Didn't hear anything. Check your mic in Settings.", seconds: 3)
             return
         }
+        let mine = session
+        writingSession = mine
         isWorking = true
         lastDuration = duration
         bar?.setPhase(.working)
         let s = FlowSettings.shared
         let (engineId, model) = app?.engineChoice ?? ("fluid", "v3")
         // Words that apply everywhere, plus the active project's.
-        let project = s.activeProject.flatMap { p in app?.store.projects.contains(where: { $0.id == p }) == true ? p : nil }
+        let project = activeProject
         let dict = (app?.store.dictionary ?? []).filter { $0.projectId == nil || $0.projectId == project }
+        let released = releasedAt ?? Date()
+        let cancelled = abandoned
         let ctx = context
         let site = siteProbe
         let isCommand = command
@@ -642,7 +778,11 @@ final class DictationController: ObservableObject {
                 let original = r.segments
                 var segs = r.segments
                 let fixes = DictionaryApplier.apply(dict, to: &segs, project: project)
-                let raw = segs.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                // Long pauses become sentence breaks (and, hands-free, paragraph breaks) for the rules and the model.
+                // Not in Literal, which keeps your words as spoken, or in code apps.
+                let pauseHints = !isCommand && level != .literal && category != .code
+                let raw = (pauseHints ? PauseBreaks.join(segs.map { ($0.text, $0.start, $0.end) }, handsFree: wasHandsFree)
+                                      : segs.map(\.text).joined(separator: " ")).trimmingCharacters(in: .whitespacesAndNewlines)
                 var final: String
                 var note: String?
                 var cleaned = false
@@ -657,33 +797,68 @@ final class DictationController: ObservableObject {
                     }
                     else { final = selection; note = "Couldn't apply “\(named?.name ?? raw)”. Editing by voice needs Apple Intelligence on macOS 26." }
                 } else {
-                    let request = FlowCleanup.Request(raw: raw, level: level, style: style, category: category, context: ctx,
+                    var request = FlowCleanup.Request(raw: raw, level: level, style: style, category: category, context: ctx,
                                                       vocabulary: vocabulary, useContext: useContext, snippets: snippets)
-                    let out = await FlowCleanup.run(request)
+                    // One budget for the model step, cloud and Apple's model together; past it, the rules' text.
+                    let budget = DictationTiming.cleanupBudget(characters: raw.count)
+                    request.timeBudget = budget
+                    request.pauseHints = pauseHints
+                    let req = request
+                    let out: FlowCleanup.Result
+                    if cancelled.contains(mine) {
+                        out = FlowCleanup.Result(text: FlowCleanup.rulesOnly(req), cleaned: false, note: "Cancelled before cleanup")
+                    } else if let o = await FluidEngine.race(seconds: budget + DictationTiming.cleanupBackstop, { await FlowCleanup.run(req) }) {
+                        out = o
+                    } else {
+                        // A backstop: FlowCleanup keeps to its budget itself, but the paste never waits past this.
+                        Log.note("dictation cleanup: over \(String(format: "%.1f", budget + DictationTiming.cleanupBackstop)) s; pasting the rule-based text")
+                        out = FlowCleanup.Result(text: FlowCleanup.rulesOnly(req), cleaned: false, note: "Cleanup took too long; pasted without it")
+                    }
                     final = out.text; note = out.note; cleaned = out.cleaned
                     corrected = Self.correctionNotice(raw: raw, request: request)   // "Removed “…”" after the paste
                 }
-                let info = FlowInfo(app: targetName, bundleID: ctx?.bundleID, category: category, style: style, level: isCommand ? "Command" : level.rawValue,
+                var info = FlowInfo(app: targetName, bundleID: ctx?.bundleID, category: category, style: style, level: isCommand ? "Command" : level.rawValue,
                                     raw: raw, pasted: final, pastedOK: true, instruction: isCommand ? raw : nil, selection: isCommand ? ctx?.selection : nil)
+                // Why the rules' text was used, so fallbacks can be counted (History and Activity).
+                if !isCommand { info.cleanupNote = note }
                 let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs, correction = corrected
                 let cleanupTime = Date().timeIntervalSince(t1)
+                let timing = DeliveryTiming(released: released, tail: tail, transcribe: transcribeTime, cleanup: cleanupTime, cleaned: wasCleaned, note: note)
+                let flowInfo = info
                 await MainActor.run {
-                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: info, cleaned: wasCleaned, project: project)
+                    // Cancelled with Esc while writing: kept in Dictations as not pasted, and nothing is pasted.
+                    if cancelled.remove(mine) {
+                        var kept = flowInfo; kept.pastedOK = false
+                        _ = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: kept, cleaned: wasCleaned, project: project)
+                        return
+                    }
+                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: flowInfo, cleaned: wasCleaned, project: project)
                     if let id, !isCommand, !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: info, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
+                        ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: flowInfo, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
                         SiteLog.shared.attach(id, site)
                     }
-                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw, correction: correction)
+                    self?.deliver(finalText, transcriptID: id, note: isCommand ? keepNote : nil, raw: raw, correction: correction, session: mine, timing: timing)
                 }
             } catch {
                 Log.note("dictation transcribe failed: \(error)")
                 await MainActor.run {
-                    self?.isWorking = false
-                    self?.bar?.flash("Dictation failed. It's saved in Dictations.", seconds: 4)
                     self?.keepFailed(url: url, duration: duration, env: env, error: error.localizedDescription)
+                    if cancelled.remove(mine) { return }
+                    self?.endWriting(mine)
+                    if self?.isListening != true { self?.bar?.flash("Dictation failed. It's saved in Dictations.", seconds: 4) }
                 }
             }
         }
+    }
+
+    /// One dictation's times, from letting go to the paste, for the log.
+    private struct DeliveryTiming {
+        var released: Date
+        var tail: Double
+        var transcribe: Double
+        var cleanup: Double
+        var cleaned: Bool
+        var note: String?
     }
 
     private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool, project: UUID? = nil) -> UUID? {
@@ -720,68 +895,94 @@ final class DictationController: ObservableObject {
         app.store.add(t)
     }
 
-    private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "", correction: SpokenCorrectionNotice? = nil) {
+    private func deliver(_ text: String, transcriptID: UUID?, note: String?, raw: String = "", correction: SpokenCorrectionNotice? = nil,
+                         session mine: Int, timing: DeliveryTiming) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            isWorking = false
             mistake(raw: raw, transcriptID: transcriptID)
+            endWriting(mine)
             return
         }
         lastResult = text
         let ctx = context, tgt = target
         let wasCommand = command
+        let duration = lastDuration
+        let atLimit = stoppedAtLimit
         command = false
         // With the thought pad open, a dictation becomes a piece of the pad instead of a paste.
         if !wasCommand, toPad {
             toPad = false
-            ThoughtPad.shared.add(text, seconds: lastDuration)
+            ThoughtPad.shared.add(text, seconds: duration)
             if !ThoughtPadController.shared.isOpen { ThoughtPadController.shared.open() }   // closed meanwhile: show where it went
-            isWorking = false
             Sounds.done()
             bar?.flash("Added to the thought pad", seconds: 1.8)
             if let id = transcriptID { app?.store.update(id) { $0.flow?.app = "Thought pad" } }
+            endWriting(mine)
             return
         }
         toPad = false
+        // Never into a password field: the field focused now decides, or the one focused when dictation started.
+        let secureNow = tgt.flatMap { AppContext.focusedSecure(pid: $0.processIdentifier) }
+        if DictationTiming.blocksPaste(secureAtStart: ctx?.secureField ?? false, secureNow: secureNow) {
+            Paster.copy(text)
+            lastPasteConfirmed = false
+            if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+            stoppedAtLimit = false
+            Sounds.done()
+            bar?.flash(DictationTiming.securePasteNotice, seconds: 4)
+            Log.note("dictation: a password field has focus; copied, not pasted")
+            endWriting(mine)
+            return
+        }
         // The pad may hold keyboard focus; hand it back to the app the text is for, or ⌘V lands in the pad.
         ThoughtPadController.shared.yieldKeyboard(to: tgt)
         let spaced = (ctx?.selection.isEmpty ?? true) && !wasCommand && needsLeadingSpace(ctx) ? " " + text : text
-        // Stays "working" until the paste and clipboard restore finish (up to a few seconds for slow apps),
-        // so a new dictation can't start mid-paste and have this one's result land on top of it.
         lastPasteConfirmed = false
         let appName = tgt?.localizedName ?? targetAppName
+        // Hand-off: the text goes to the paster, and a new dictation may start now. Pastes run one at a time
+        // (Paster's chain), so the next dictation's paste and clipboard restore wait for this one's.
+        pastesInFlight += 1
+        endWriting(mine)
         Task { @MainActor in
+            let pasteStarted = Date()
             // A paste that doesn't land leaves the words on the clipboard (unless you copied something else
             // meanwhile) and, for a dictation, in the thought pad too. With Also copy each dictation to the
             // clipboard on, a paste that lands leaves them on the clipboard as well.
             let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true,
                                              onFailure: .leaveOnClipboard, keepOnClipboard: !wasCommand && AlwaysCopy.isOn)
-            isWorking = false
-            Sounds.done()
+            pastesInFlight -= 1
+            let now = Date()
+            Log.note(DictationTiming.timingLine(total: now.timeIntervalSince(timing.released), tail: timing.tail, transcribe: timing.transcribe,
+                                                cleanup: timing.cleanup, paste: now.timeIntervalSince(pasteStarted), cleaned: timing.cleaned, note: timing.note))
+            // A newer dictation is listening or being written: its Ribbon and sounds win. This one's text still
+            // lands in Dictations, and in the thought pad when the paste missed.
+            let current = session == mine && !isListening && !isWorking
+            if current { Sounds.done(); stoppedAtLimit = false }
             if let rescue = Recall.rescue(for: outcome, command: wasCommand) {
                 // No text field, or the app never read the paste: the Ribbon holds the words with Copy and Paste again.
-                ThoughtPad.shared.add(text, seconds: lastDuration, missed: true)
+                ThoughtPad.shared.add(text, seconds: duration, missed: true)
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
-                stoppedAtLimit = false
-                offerRescue(text, title: Recall.rescueTitle(rescue, app: appName, onClipboard: Paster.leftTextOnClipboard))
-                Log.note("dictation not pasted (\(rescue)); kept in the Ribbon, clipboard=\(Paster.leftTextOnClipboard)")
+                if current { offerRescue(text, title: Recall.rescueTitle(rescue, app: appName, onClipboard: Paster.leftTextOnClipboard)) }
+                Log.note("dictation not pasted (\(rescue)); kept in the \(current ? "Ribbon" : "thought pad"), clipboard=\(Paster.leftTextOnClipboard)")
                 return
             }
             switch outcome {
             case .pasted:
                 lastPasteConfirmed = true
+                guard current else { return }
                 if let note { bar?.flash(note, seconds: 4) }
                 else if let correction { showCorrectionNotice(correction) }
-                else if stoppedAtLimit { bar?.flash("Stopped at \(Self.limitText(FlowSettings.maxDictationMinutes))", seconds: 2) }
+                else if atLimit { bar?.flash("Stopped at \(Self.limitText(FlowSettings.maxDictationMinutes))", seconds: 2) }
                 else { bar?.setPhase(.idle) }
-                stoppedAtLimit = false
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
             case .copiedOnly:
                 // Nowhere to paste: it's on the clipboard, and kept in the thought pad too.
-                if !wasCommand { ThoughtPad.shared.add(text, seconds: lastDuration, missed: true) }
-                bar?.flash(wasCommand ? "Copied. Click a text field and press ⌘V." : "Copied, and saved to the thought pad.", seconds: 5)
+                if !wasCommand { ThoughtPad.shared.add(text, seconds: duration, missed: true) }
+                if current { bar?.flash(wasCommand ? "Copied. Click a text field and press ⌘V." : "Copied, and saved to the thought pad.", seconds: 5) }
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
             case .failed(let why):
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
+                if !wasCommand { ThoughtPad.shared.add(text, seconds: duration, missed: true) }
+                guard current else { return }
                 if wasCommand {
                     if why == .notTrusted {
                         bar?.flash("Allow Accessibility to edit by voice. The result is on your clipboard.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
@@ -789,7 +990,6 @@ final class DictationController: ObservableObject {
                         bar?.flash("Couldn't confirm the edit. The result is on your clipboard.", seconds: 5)
                     }
                 } else {
-                    ThoughtPad.shared.add(text, seconds: lastDuration, missed: true)
                     switch why {
                     case .notTrusted:
                         bar?.flash("Saved to the thought pad. Allow Accessibility to paste.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
@@ -892,8 +1092,8 @@ final class DictationController: ObservableObject {
         bar?.setPhase(.working)
         Task { @MainActor in
             guard let out = await FlowCleanup.apply(instruction: action.instruction, to: selection, kind: action.kind) else {
-                isWorking = false
                 bar?.flash(FlowCleanup.available ? "Couldn't run “\(action.name)”. Try a shorter selection." : "Actions need Apple Intelligence on macOS 26.", seconds: 4)
+                endAction()
                 return
             }
             let result = Self.keepingEdges(of: selection, out)
@@ -904,11 +1104,11 @@ final class DictationController: ObservableObject {
             let outcome: Paster.Outcome
             if same { outcome = await Paster.paste(result, into: tgt, focusedField: ctx.hasFocusedField) }
             else { Paster.copy(result); outcome = .copiedOnly }
-            isWorking = false
             lastResult = result
             Sounds.done()
             bar?.flash(outcome == .pasted ? "“\(action.name)” applied. Press ⌘Z to undo."
                        : same ? "Copied. Click a text field and press ⌘V." : "The selection changed, so the result is on your clipboard.", seconds: 4)
+            endAction()
             Log.note("action \(action.name) applied, \(out.count) chars")
         }
     }
@@ -1030,6 +1230,16 @@ final class DictationController: ObservableObject {
         bar?.setPhase(.listening)
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.bar?.setPhase(.idle) }
     }
+}
+
+/// Dictation session numbers, shared by the main actor and the background work that writes each dictation.
+private final class SessionSet: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ids: Set<Int> = []
+    func insert(_ id: Int) { lock.lock(); ids.insert(id); lock.unlock() }
+    func contains(_ id: Int) -> Bool { lock.lock(); defer { lock.unlock() }; return ids.contains(id) }
+    /// Removes it, and says whether it was there.
+    func remove(_ id: Int) -> Bool { lock.lock(); defer { lock.unlock() }; return ids.remove(id) != nil }
 }
 
 // MARK: - Carbon fallback for keyed shortcuts

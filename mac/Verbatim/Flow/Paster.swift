@@ -90,8 +90,9 @@ enum Paster {
         }
 
         if typesInstead(for: target) {
+            let wait = activationWait(target)
             if let target, !target.isActive { target.activate() }
-            try? await Task.sleep(nanoseconds: 120_000_000)
+            if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
             if !fieldStillFocused(target) {
                 writeMarked(text, to: pb)
                 Log.note("paste: focus left the text field, left on clipboard")
@@ -120,8 +121,9 @@ enum Paster {
         current = receipt
         defer { current = nil }
 
+        let wait = activationWait(target)
         if let target, !target.isActive { target.activate() }
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
         if !fieldStillFocused(target) {
             writeMarked(text, to: pb)
             Log.note("paste: focus left the text field, left on clipboard")
@@ -184,6 +186,14 @@ enum Paster {
         }
         Log.note("paste: no read within \(limit)s in \(target?.bundleIdentifier ?? "front app"); treated as failed")
         return .failed(.notRead)
+    }
+
+    /// Time for the target to come forward before ⌘V; none when it's already the active, frontmost app (or no
+    /// target was given, so ⌘V goes to the front app as it is).
+    private static func activationWait(_ target: NSRunningApplication?) -> Double {
+        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let alreadyFront = target.map { $0.isActive && $0.processIdentifier == front } ?? true
+        return DictationTiming.activationWait(alreadyFront: alreadyFront)
     }
 
     /// The field may have changed since the dictation started. Unknown (another app in front, no element
