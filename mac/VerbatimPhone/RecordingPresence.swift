@@ -198,10 +198,7 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
 extension PhoneState {
     /// Brings up the recorder while a recording runs (from the paused notification, the Live Activity, or coming
     /// back to Verbatim).
-    func openRecorder() {
-        guard recorder.isRecording else { return }
-        showRecorder = true
-    }
+    // openRecorder() lives in MiniRecorder.swift (it also handles the minimized bar and Reduce Motion).
 
     /// verbatim://record, from the recording's Live Activity. True when it was that link.
     func handleRecorderLink(_ url: URL) -> Bool {
