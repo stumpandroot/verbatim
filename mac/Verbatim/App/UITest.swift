@@ -88,6 +88,11 @@ enum UITest {
                 if ok { pass += 1 } else { fail += 1 }
                 Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)")
             }
+            // Imports through the bundled FFmpeg (MKV) and files with several audio tracks, mixed and kept apart.
+            await MediaImportSelfTest.run { name, ok in
+                if ok { pass += 1 } else { fail += 1 }
+                Log.note("UITEST \(ok ? "PASS" : "FAIL") import: \(name)")
+            }
 
             Log.note("UITEST DONE pass=\(pass) fail=\(fail)")
             await tour(app: app, window: window)

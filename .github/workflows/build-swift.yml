@@ -97,6 +97,13 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh). build.sh builds it when the cache doesn't have this version.
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: mac/Vendor/ffmpeg
+          key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
+
       - name: Import signing certificate
         if: ${{ env.MACOS_CERTIFICATE != '' }}
         run: |
@@ -426,6 +433,13 @@ jobs:
             ~/.cargo/git
             mac/harper-ffi/target
           key: cargo-ios-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: mac/Vendor/ffmpeg
+          key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
+      - name: Build FFmpeg (audio only, LGPL)
+        run: bash ffmpeg/build.sh
       - name: Generate the project
         run: |
           brew install xcodegen
@@ -463,6 +477,9 @@ jobs:
           cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/" 2>/dev/null || true
           xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/z-device-last.png" > /dev/null 2>&1 || true
           cp "$DATA/Library/Logs/Verbatim/native.log" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || true
+          # The import self-test (MKV through FFmpeg, files with two audio tracks): show it here, warn on a failure.
+          grep "UITEST .*import" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || echo "::warning::no iPhone import self-test lines in the log"
+          grep "UITEST FAIL import" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null | while IFS= read -r l; do echo "::warning::iPhone $l"; done
           (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
           xcrun simctl shutdown "$UDID" || true
 

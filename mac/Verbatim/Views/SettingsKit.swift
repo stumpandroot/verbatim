@@ -151,6 +151,7 @@ enum SettingsIndex {
         .init("speakers.onlyMyVoice", .speakers, "Only keep my voice in dictation", "When someone nearby talks while you dictate, Verbatim pastes only your words.", keywords: "voice filter background people dictation me"),
         .init("speakers.identify", .speakers, "Identify speakers", "Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.", keywords: "diarization speaker labels who"),
         .init("speakers.mainOnly", .speakers, "Main speaker only", "Other voices fold into a Background voices section under the transcript.", keywords: "background voices"),
+        .init("speakers.audioTracks", .speakers, "Files with several audio tracks", "Mix every track into one transcript, or transcribe each track on its own as a speaker you can rename. A track's title or language names it, such as Commentary or English.", keywords: "multiple audio tracks mkv video language commentary mix separate speakers import"),
         .init("speakers.mic", .speakers, "Record from", "Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.", keywords: "microphone input device airpods"),
 
         // Live captions
@@ -194,6 +195,7 @@ enum SettingsIndex {
         .init("about.support", .about, "Help", "Write to support.", keywords: "contact email support help"),
         .init("about.log", .about, "Diagnostic log", "A record of what Verbatim did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
         .init("about.legal", .about, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
+        .init("about.acknowledgements", .about, "Acknowledgements", "Open-source software in Verbatim and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
     ]
 
     private static let byID: [String: SettingsEntry] = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })

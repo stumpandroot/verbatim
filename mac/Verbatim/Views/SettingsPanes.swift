@@ -292,6 +292,7 @@ struct ModelsSettingsPane: View {
 struct SpeakersSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
 
     var body: some View {
         SettingsPane(tab: .speakers) {
@@ -306,6 +307,12 @@ struct SpeakersSettingsPane: View {
                     SettingsToggleRow("speakers.identify", isOn: .constant(false), detail: "Speaker labels need macOS 15 or later.", disabled: true)
                 }
                 SettingsToggleRow("speakers.mainOnly", isOn: $mainSpeakerOnly)
+                SettingsRow("speakers.audioTracks") {
+                    Picker("Files with several audio tracks", selection: $audioTracks) {
+                        ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
             }
             SettingsGroup(title: "Your microphone") {
                 SettingsRow("speakers.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
@@ -609,6 +616,7 @@ struct DeleteAllDataSection: View {
 
 struct AboutSettingsPane: View {
     @ObservedObject private var updater = Updater.shared
+    @State private var showAcknowledgements = false
 
     var body: some View {
         SettingsPane(tab: .about) {
@@ -635,7 +643,22 @@ struct AboutSettingsPane: View {
                     }
                     .font(.system(size: 13)).foregroundStyle(Ink.accentText)
                 }
+                SettingsRow("about.acknowledgements") {
+                    Button("Acknowledgements…") { showAcknowledgements = true }.buttonStyle(.brandSecondary)
+                }
             }
+        }
+        .sheet(isPresented: $showAcknowledgements) {
+            VStack(spacing: 0) {
+                AcknowledgementsView()
+                Divider()
+                HStack {
+                    Spacer()
+                    Button("Done") { showAcknowledgements = false }.keyboardShortcut(.defaultAction)
+                }
+                .padding(12)
+            }
+            .frame(minWidth: 560, idealWidth: 620, minHeight: 520, idealHeight: 640)
         }
     }
 

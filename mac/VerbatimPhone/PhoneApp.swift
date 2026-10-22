@@ -118,7 +118,7 @@ struct PhoneRoot: View {
             }
             .presentationDetents([.large])
         }
-        .fileImporter(isPresented: $app.showImporter, allowedContentTypes: [.audio, .movie, .audiovisualContent], allowsMultipleSelection: true) { r in
+        .fileImporter(isPresented: $app.showImporter, allowedContentTypes: MediaImport.pickerTypes, allowsMultipleSelection: true) { r in
             if case .success(let urls) = r { app.importFiles(urls) }
         }
         .overlay(alignment: .top) {

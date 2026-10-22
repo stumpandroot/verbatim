@@ -8,7 +8,7 @@ extension AppState {
     /// The open panel: any number of audio or video files, or whole folders.
     func chooseFiles() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.audio, .movie, .audiovisualContent, .mpeg4Movie, .mp3, .wav, .aiff, .quickTimeMovie, UTType("public.mpeg-4-audio") ?? .audio]
+        panel.allowedContentTypes = MediaImport.pickerTypes
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
         panel.prompt = "Transcribe"
@@ -41,11 +41,17 @@ extension AppState {
                 guard store.transcript(id)?.status == .processing else { continue }   // cancelled while waiting
                 do {
                     let dest = store.newAudioURL(ext: "m4a")
-                    let prepared = try await MediaImport.prepare(src, into: dest)
+                    // Several audio tracks: mixed, or kept apart as speakers (Settings › Speakers › Files with several audio tracks).
+                    let folder = AudioTracksPreference.current == .separate ? Paths.tracks(id) : nil
+                    let store = self.store
+                    let prepared = try await MediaImport.prepare(src, into: dest, separateTracksInto: folder) { s in
+                        Task { @MainActor in store.setStage(id, s) }
+                    }
                     let isVideo = MediaImport.videoExts.contains(src.pathExtension.lowercased())
                     store.update(id) {
                         $0.audioFileName = prepared.url.lastPathComponent; $0.duration = prepared.duration; $0.stage = "Queued"
                         if isVideo { $0.originalMedia = src.path }
+                        if let mt = prepared.multitrack { $0.multitrack = mt; $0.waveform = prepared.wave }
                     }
                     coordinator.enqueueExisting(id)
                 } catch {

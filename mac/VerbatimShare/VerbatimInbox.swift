@@ -114,9 +114,16 @@ enum VerbatimInbox {
         return host == "tiktok.com" || host.hasSuffix(".tiktok.com")
     }
 
+    /// Containers iOS doesn't know as audio or video that the app reads with its bundled FFmpeg
+    /// (MediaImport.ffmpegExts and otherAudioExts).
+    static let extraMediaExts: Set<String> = ["mkv", "mka", "webm", "avi", "flv", "wmv", "wma", "asf", "ogg", "oga", "ogv", "opus",
+                                              "ts", "mts", "m2ts", "vob", "amr", "spx"]
+
     /// Audio or video, by file extension or type.
     static func isMedia(_ u: URL) -> Bool {
-        guard let t = UTType(filenameExtension: u.pathExtension.lowercased()) else { return false }
+        let e = u.pathExtension.lowercased()
+        if extraMediaExts.contains(e) { return true }
+        guard let t = UTType(filenameExtension: e) else { return false }
         return t.conforms(to: .audio) || t.conforms(to: .movie) || t.conforms(to: .audiovisualContent)
     }
 

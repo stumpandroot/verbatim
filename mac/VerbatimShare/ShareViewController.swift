@@ -157,11 +157,20 @@ enum ShareIntake {
         }
     }
 
-    /// The attachment's first registered type that's a movie or audio, so the copy keeps its real extension.
+    /// The attachment's first registered type that's a movie or audio, so the copy keeps its real extension. An
+    /// MKV, WebM, or other file iOS doesn't know as media counts too, by its extension (the app reads it with FFmpeg).
     private static func mediaType(_ p: NSItemProvider) -> String? {
-        p.registeredTypeIdentifiers.first { id in
+        if let id = p.registeredTypeIdentifiers.first(where: { id in
             guard let t = UTType(id) else { return false }
             return t.conforms(to: .movie) || t.conforms(to: .audio)
+        }) { return id }
+        return p.registeredTypeIdentifiers.first { id in
+            guard let e = UTType(id)?.preferredFilenameExtension?.lowercased() else { return false }
+            return VerbatimInbox.extraMediaExts.contains(e)
+        } ?? p.suggestedName.flatMap { name in
+            let e = (name as NSString).pathExtension.lowercased()
+            guard VerbatimInbox.extraMediaExts.contains(e) else { return nil }
+            return p.registeredTypeIdentifiers.first { $0 != UTType.url.identifier && $0 != UTType.fileURL.identifier && $0 != UTType.plainText.identifier }
         }
     }
 
@@ -170,6 +179,7 @@ enum ShareIntake {
         let id = UUID()
         var ext = url.pathExtension
         if ext.isEmpty, let typeID, let e = UTType(typeID)?.preferredFilenameExtension { ext = e }
+        if ext.isEmpty, let suggested { ext = (suggested as NSString).pathExtension }
         if ext.isEmpty { ext = "mov" }
         ext = ext.lowercased()
         let fileName = id.uuidString + "." + ext

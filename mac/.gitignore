@@ -4,3 +4,4 @@ dist/
 Helpers/
 harper-ffi/target/
 Verbatim.xcodeproj/
+Vendor/ffmpeg/

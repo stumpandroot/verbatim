@@ -20,6 +20,8 @@ struct SettingsScreen: View {
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     /// Check each recording's language and pick a model that knows it (LanguageCheck.swift). On by default.
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
+    @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
+    @State private var showAcknowledgements = false
     /// Show words while you record (MiniRecorder.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
@@ -92,6 +94,7 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
+        .navigationDestination(isPresented: $showAcknowledgements) { AcknowledgementsView().navigationTitle("Acknowledgements") }
         // Home's avatar opens About me, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
         .onAppear { openRequestedPage() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettingsPage)) { _ in openRequestedPage() }
@@ -253,6 +256,22 @@ struct SettingsScreen: View {
         SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
                           subtitle: "Other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
             .settingsSearchTarget("mainSpeaker", flash: searchFlash)
+        SettingsDivider()
+        Menu {
+            Picker("Files with several audio tracks", selection: $audioTracks) {
+                ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+        } label: {
+            SettingsRow(icon: "square.stack.3d.up", tint: Ink.petalTint, title: "Files with several audio tracks",
+                        subtitle: audioTracks == AudioTracksPreference.separate.rawValue
+                            ? "Each track is transcribed on its own as a speaker you can rename"
+                            : "Every track is mixed into one transcript",
+                        subtitleLines: nil, bounce: audioTracks) {
+                SettingsValue(audioTracks == AudioTracksPreference.separate.rawValue ? "Separate" : "Mix"); SettingsMenuMark()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("audioTracks", flash: searchFlash)
     }
 
     @ViewBuilder private var syncAndData: some View {
@@ -377,6 +396,13 @@ struct SettingsScreen: View {
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("share") })
         .settingsSearchTarget("share", flash: searchFlash)
+        SettingsDivider()
+        Button { bump("acknowledgements"); showAcknowledgements = true } label: {
+            SettingsRow(icon: "doc.plaintext", tint: Ink.sageTint, title: "Acknowledgements", subtitle: "Open-source software and its licenses",
+                        bounce: bumps["acknowledgements", default: 0]) { SettingsChevron() }
+        }
+        .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("acknowledgements", flash: searchFlash)
     }
 
     @ViewBuilder private var tour: some View {
