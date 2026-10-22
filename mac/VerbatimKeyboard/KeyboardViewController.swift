@@ -1,14 +1,36 @@
 import UIKit
 import SwiftUI
 
+/// The keyboard's root view. It adopts `UIInputViewAudioFeedback` so key presses can play the system input click
+/// (`UIDevice.playInputClick`), which works without Allow Full Access and follows Settings › Sounds › Keyboard Clicks.
+final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
+    var enableInputClicksWhenVisible: Bool { true }
+}
+
 /// The keyboard extension's principal class (Info.plist NSExtensionPrincipalClass). Hosts the SwiftUI keyboard
 /// and gives it the text proxy, the globe key, and the hand-off to the app.
+///
+/// Typing works without Allow Full Access (App Store guideline 4.4.1); only dictation, snippets, and recent
+/// dictations need it, because they go through the App Group. Nothing reads the App Group before `hasFullAccess`
+/// is checked (`KeyboardModel.defaults`).
 final class KeyboardViewController: UIInputViewController {
     private lazy var model = KeyboardModel(controller: self)
     private var host: UIHostingController<AnyView>?
 
+    override func loadView() {
+        let v = KeyboardInputView(frame: .zero, inputViewStyle: .default)
+        view = v
+        if inputView !== v { inputView = v }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        // Before the first frame: which view to show, and the field's traits for the letter keys.
+        model.hasFullAccess = hasFullAccess
+        model.showsGlobe = needsInputModeSwitchKey
+        model.typing.showsGlobe = needsInputModeSwitchKey
+        model.typing.refreshTraits(reset: true)
+        model.chooseSurface()
         let root = KeyboardView(model: model)
         let host = UIHostingController(rootView: AnyView(root))
         host.view.backgroundColor = .clear
@@ -51,6 +73,9 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         model.showsGlobe = needsInputModeSwitchKey
         model.hasFullAccess = hasFullAccess
+        model.typing.showsGlobe = needsInputModeSwitchKey
+        model.typing.refreshTraits(reset: true)
+        model.chooseSurface()
         // Read once per appearance: nil in App Store builds and on recent iOS releases.
         model.host = hostBundleID()
         applyAppearance()
@@ -68,13 +93,22 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.pause()
+        model.typing.reset()
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         model.showsGlobe = needsInputModeSwitchKey
+        model.typing.showsGlobe = needsInputModeSwitchKey
+        model.typing.refreshTraits(reset: false)
         applyAppearance()
         model.refreshFormat()
+    }
+
+    override func selectionDidChange(_ textInput: UITextInput?) {
+        super.selectionDidChange(textInput)
+        // The cursor moved: shift follows auto-capitalization for the new place.
+        model.typing.refreshTraits(reset: false)
     }
 
     // MARK: The host app
