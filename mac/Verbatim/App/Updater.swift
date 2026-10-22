@@ -89,4 +89,14 @@ final class UpdaterChannels: NSObject, SPUUpdaterDelegate {
     func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         UserDefaults.standard.bool(forKey: betaUpdatesKey) ? ["beta"] : []
     }
+
+    /// Settings › Privacy: every check (automatic or Check for Updates…) is logged by host, and refused while Local
+    /// Only is on. Throwing tells Sparkle not to check; it shows the message only for a check you asked for.
+    func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
+        let host = NetworkHost.of((Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String) ?? "raw.githubusercontent.com")
+        do { try NetworkGate.begin(.updateCheck, host: host) } catch {
+            throw NSError(domain: "co.stumpandroot.verbatim.privacy", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: LocalOnly.message(.updateCheck)])
+        }
+    }
 }

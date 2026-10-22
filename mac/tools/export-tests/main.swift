@@ -268,5 +268,68 @@ do {
     eq("AI note off", ExportLayout.text(doc, n), "T\n\nCleaned words.")
 }
 
+// MARK: Copy for AI
+
+do {
+    let h = AICopy.Header(title: "Weekly\nsync", date: "Oct 22, 2026 at 2:03 PM", duration: "42 min", speakers: ["Tim", "", "Sarah"],
+                          source: "Team call.m4a", language: "English", version: "Cleaned transcript")
+    eq("AI copy header and body", AICopy.text(h, body: "  Hello there.\n\nNext steps.\n"),
+       "# Weekly sync\n\n- Date: Oct 22, 2026 at 2:03 PM\n- Duration: 42 min\n- Speakers: Tim, Sarah\n- Source: Team call.m4a\n- Language: English\n- Text: Cleaned transcript\n\n---\n\nHello there.\n\nNext steps.\n")
+    let bare = AICopy.Header(title: "", date: "Today", duration: "38 s", source: "Voice memo", version: "Original transcript")
+    eq("AI copy leaves out empty details", AICopy.text(bare, body: "Hi."),
+       "# Transcript\n\n- Date: Today\n- Duration: 38 s\n- Source: Voice memo\n- Text: Original transcript\n\n---\n\nHi.\n")
+}
+
+// MARK: Markdown notes (bulk export)
+
+do {
+    let utc = TimeZone(identifier: "UTC")!
+    let date = Date(timeIntervalSince1970: 1_792_677_780)   // 2026-10-22 14:03:00 UTC
+    var p = MarkdownNotes.Properties(title: "Q3: \"plan\" #review", date: date, duration: 3734, speakers: ["Tim", "Sarah"],
+                                     tags: ["client work", "#urgent", "2026", "a/b"], project: "Star Quality", source: "youtube.com",
+                                     language: "English", id: "ABC")
+    eq("front matter", MarkdownNotes.frontMatter(p, timeZone: utc), """
+    ---
+    title: "Q3: \\"plan\\" #review"
+    date: 2026-10-22T14:03:00
+    duration: "1:02:14"
+    speakers:
+      - "Tim"
+      - "Sarah"
+    tags:
+      - "client-work"
+      - "urgent"
+      - "a/b"
+    project: "Star Quality"
+    source: "youtube.com"
+    language: "English"
+    id: "ABC"
+    ---
+
+    """)
+    p.speakers = []; p.tags = []; p.project = nil; p.language = nil; p.title = "Line\none\\two"
+    eq("front matter: empty lists, no project or language", MarkdownNotes.frontMatter(p, timeZone: utc), """
+    ---
+    title: "Line one\\\\two"
+    date: 2026-10-22T14:03:00
+    duration: "1:02:14"
+    speakers: []
+    tags: []
+    source: "youtube.com"
+    id: "ABC"
+    ---
+
+    """)
+    eq("note body after a blank line", MarkdownNotes.note(p, body: "\nWords.\n\n", timeZone: utc).hasSuffix("---\n\nWords.\n"), true)
+    eq("tag keeps letters, digits, _ - /", MarkdownNotes.tag("  #Café notes!  "), "Café-notes")
+    eq("tag of digits only is dropped", MarkdownNotes.tag("2026"), "")
+    eq("quote drops control characters", MarkdownNotes.quote("a\u{07}b\tc"), "\"ab c\"")
+    var used = Set<String>()
+    eq("file name: slashes and colons", MarkdownNotes.fileName("Q3: plan/review", used: &used), "Q3- plan-review.md")
+    eq("file name: wiki-link characters", MarkdownNotes.fileName("#1 [draft] ^x", used: &used), "-1 -draft- -x.md")
+    eq("file name: unique", MarkdownNotes.fileName("Q3: plan/review", used: &used), "Q3- plan-review 2.md")
+    eq("file name: existing file", MarkdownNotes.fileName("Memo", used: &used, exists: { $0 == "Memo.md" }), "Memo 2.md")
+}
+
 print("export tests: \(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

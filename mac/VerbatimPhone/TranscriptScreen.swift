@@ -116,6 +116,8 @@ struct TranscriptScreen: View {
                         .disabled(t.status != .ready)
                         Menu {
                             Button { app.copyText(t, copyVersion) } label: { Label(copyVersion == .cleaned ? "Copy cleaned text" : "Copy text", systemImage: "doc.on.doc") }
+                            // The text with a header (title, date, duration, speakers, source, language) for an AI assistant.
+                            Button { app.copyForAI(t) } label: { Label("Copy for AI", systemImage: "doc.on.clipboard") }   // brand: system surface
                             Menu {
                                 Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }
                                 Button { app.copyText(t, copyVersion.other) } label: {
@@ -191,6 +193,8 @@ struct TranscriptScreen: View {
                 }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            // Source, engine, language, date, and where the data went (PhoneTrust.swift).
+            if t.status == .ready { PhoneProvenanceLine(transcript: t) }
             if t.titleIsAuto && t.titleByModel { AITitleNote() }
             if t.status == .ready {
                 KindAndTags(transcript: t,
@@ -238,7 +242,11 @@ struct TranscriptScreen: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) { IconGlyph(art: .iconAttention, size: 20, color: Ink.accentText); Text("Transcription did not finish") }.font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.accentText)
                 Text(t.error ?? "").font(.system(size: 14)).foregroundStyle(Ink.mute)
-                Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
+                HStack(spacing: 8) {
+                    Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
+                    // Local Only refused this transcript's model download (PhoneTrust.swift).
+                    PhoneAllowDownloadButton(transcript: t)
+                }
             }
             .padding(.top, 20)
         } else {
@@ -254,6 +262,8 @@ struct TranscriptScreen: View {
                     let shown = t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly)
                     let segs = showEngine ? t.engineLines(for: shown) : shown
                     VStack(alignment: .leading, spacing: 10) {
+                        // Fix all, after Fix a word… (PhoneTrust.swift).
+                        PhoneFixAllBanner(transcriptID: t.id)
                         originalBar(t)
                         if selecting {
                             PhoneSelectableText(text: PhoneSelectableText.joined(segs, in: t))
@@ -356,6 +366,8 @@ struct PhoneLines: View {
     var onNote: (Segment) -> Void
     @State private var renaming: Speaker? = nil
     @State private var newName = ""
+    /// Fix a word… on a line (PhoneTrust.swift).
+    @State private var fixing: Segment? = nil
     /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the tint
     /// itself is worked out from the clock in `body`.
     @State private var playingIDs: Set<UUID> = []
@@ -423,6 +435,7 @@ struct PhoneLines: View {
                     }
                     Button { app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true) } label: { Label("Bookmark", systemImage: "bookmark") }
                     Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }
+                    Button { fixing = s } label: { Label("Fix a word…", systemImage: "pencil") }   // brand: system surface
                     Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied") } label: { Label("Copy quote", systemImage: "quote.opening") }
                     if let info = transcript.linkInfo, info.supportsTimestamps, let u = info.url(at: s.start) {
                         Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied") } label: { Label("Copy quote with link", systemImage: "link") }
@@ -436,6 +449,7 @@ struct PhoneLines: View {
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Save") { if let sp = renaming { app.renameSpeaker(transcript.id, speaker: sp.id, to: newName) }; renaming = nil }
         } message: { Text("Changes every line from this speaker, on this iPhone and your Mac.") }
+        .phoneFixWord($fixing, transcriptID: transcript.id)
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
         .onChange(of: app.player.isPlaying) { _, _ in syncPlaying(at: clock.time) }
         .onChange(of: transcript.segments) { _, _ in syncPlaying(at: clock.time) }

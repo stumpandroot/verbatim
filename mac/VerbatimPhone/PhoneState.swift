@@ -98,6 +98,8 @@ final class PhoneState: ObservableObject {
     private var bag = Set<AnyCancellable>()
 
     init() {
+        // Settings › Privacy: the network activity log, before anything can use the network.
+        NetworkActivityLog.install()
         for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(), player.objectWillChange.eraseToAnyPublisher(),
                   coordinator.objectWillChange.eraseToAnyPublisher()] {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
@@ -458,6 +460,13 @@ final class PhoneState: ObservableObject {
         latestLinkImport = imp
         // The screenshot tour never touches the network.
         guard !PhoneUITest.enabled else { return }
+        // Settings › Privacy: logged by host, and refused before it starts while Local Only is on.
+        let netEvent: UUID?
+        do { netEvent = try NetworkGate.begin(.linkDownload, host: NetworkHost.of(link)) } catch {
+            store.update(id) { x in x.status = .failed; x.stage = nil; x.error = LocalOnly.message(.linkDownload); x.processingDevice = nil; x.processingDeviceName = nil }
+            imp.phase = .failed(LocalOnly.message(.linkDownload))
+            return
+        }
         let bg = BackgroundTime("Download link")
         linkTasks[id] = Task { [weak self] in
             guard let self else { return }
@@ -498,6 +507,7 @@ final class PhoneState: ObservableObject {
                     file = try await PhoneLinkFetcher.download(resolved, id: id, progress: report)
                 }
                 downloaded = file
+                NetworkGate.addBytes(netEvent, ModelFiles.bytes(of: file))
                 // A direct link to a video file has no thumbnail of its own: use a frame from it.
                 if r?.thumbnail == nil, imp.thumbnailURL == nil, self.store.transcript(id)?.link?.thumbnailFile == nil, let name = await LinkImport.saveFrameThumbnail(from: file, as: id.uuidString) {
                     self.store.update(id) { $0.link?.thumbnailFile = name }

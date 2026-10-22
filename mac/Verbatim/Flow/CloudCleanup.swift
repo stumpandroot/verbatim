@@ -16,6 +16,8 @@ enum CloudCleanup {
         var title: String { self == .anthropic ? "Anthropic Claude" : "OpenAI" }
         /// Short name for the privacy line.
         var company: String { self == .anthropic ? "Anthropic" : "OpenAI" }
+        /// The API's host, for Settings › Privacy › Network activity.
+        var host: String { self == .anthropic ? "api.anthropic.com" : "api.openai.com" }
         /// Fast, low-cost defaults (Oct 2026): Claude Haiku 5.5 (platform.claude.com models overview) and
         /// GPT-5.4 mini (developers.openai.com/api/docs/models/gpt-5.4-mini).
         var defaultModel: String { self == .anthropic ? "claude-haiku-5-5" : "gpt-5.4-mini" }
@@ -129,6 +131,9 @@ enum CloudCleanup {
         req.cachePolicy = .reloadIgnoringLocalCacheData
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return .failed("encoding") }
         req.httpBody = data
+        // Local Only refuses it here too, before anything is sent; otherwise the request is logged (host only).
+        let event: UUID?
+        do { event = try NetworkGate.begin(.cloudCleanup, host: config.provider.host) } catch { return .failed("Local Only is on") }
 
         let sc = URLSessionConfiguration.ephemeral
         sc.timeoutIntervalForRequest = seconds
@@ -139,6 +144,7 @@ enum CloudCleanup {
         defer { session.finishTasksAndInvalidate() }
         do {
             let (reply, response) = try await session.data(for: req)
+            NetworkGate.addBytes(event, Int64(data.count + reply.count))
             guard let http = response as? HTTPURLResponse else { return .failed("no response") }
             guard http.statusCode == 200 else { return .failed("HTTP \(http.statusCode)") }
             guard let json = try? JSONSerialization.jsonObject(with: reply) as? [String: Any] else { return .failed("unreadable reply") }

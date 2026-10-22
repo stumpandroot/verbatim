@@ -787,6 +787,7 @@ final class DictationController: ObservableObject {
                 var note: String?
                 var cleaned = false
                 var corrected: SpokenCorrectionNotice?
+                var cloudSent: String?   // FlowInfo.cloudCleanup: who the words went to, if anyone
                 if isCommand, let selection = ctx?.selection {
                     // Saying a saved action's name ("client email") runs that action.
                     let n = FlowAction.norm(raw)
@@ -815,12 +816,14 @@ final class DictationController: ObservableObject {
                         out = FlowCleanup.Result(text: FlowCleanup.rulesOnly(req), cleaned: false, note: "Cleanup took too long; pasted without it")
                     }
                     final = out.text; note = out.note; cleaned = out.cleaned
+                    cloudSent = out.cloud
                     corrected = Self.correctionNotice(raw: raw, request: request)   // "Removed “…”" after the paste
                 }
                 var info = FlowInfo(app: targetName, bundleID: ctx?.bundleID, category: category, style: style, level: isCommand ? "Command" : level.rawValue,
                                     raw: raw, pasted: final, pastedOK: true, instruction: isCommand ? raw : nil, selection: isCommand ? ctx?.selection : nil)
                 // Why the rules' text was used, so fallbacks can be counted (History and Activity).
                 if !isCommand { info.cleanupNote = note }
+                info.cloudCleanup = cloudSent
                 let keepNote = note, wasCleaned = cleaned, finalText = final, keptSegs = segs, correction = corrected
                 let cleanupTime = Date().timeIntervalSince(t1)
                 let timing = DeliveryTiming(released: released, tail: tail, transcribe: transcribeTime, cleanup: cleanupTime, cleaned: wasCleaned, note: note)
@@ -974,6 +977,8 @@ final class DictationController: ObservableObject {
                 else if atLimit { bar?.flash("Stopped at \(Self.limitText(FlowSettings.maxDictationMinutes))", seconds: 2) }
                 else { bar?.setPhase(.idle) }
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
+                // Settings › Dictation › After pasting: Return or ⌘Return to send (Flow/AutoSend.swift).
+                if !wasCommand { await AutoSend.afterPaste(target: tgt, category: ctx?.category, secureAtStart: ctx?.secureField ?? false) }
             case .copiedOnly:
                 // Nowhere to paste: it's on the clipboard, and kept in the thought pad too.
                 if !wasCommand { ThoughtPad.shared.add(text, seconds: duration, missed: true) }
@@ -1207,6 +1212,7 @@ final class DictationController: ObservableObject {
                                           vocabulary: app?.store.dictionary.filter(\.enabled).map(\.preferred) ?? [], useContext: false, snippets: FlowSettings.shared.snippets))
         app?.store.update(id) { x in
             x.flow?.pasted = out.text; x.flow?.level = level.rawValue
+            if let sent = out.cloud { x.flow?.cloudCleanup = sent }
             x.document = out.text == raw ? nil : out.text
         }
         return out.text

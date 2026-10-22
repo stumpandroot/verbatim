@@ -44,6 +44,7 @@ struct SettingsView: View {
         case .dictate: DictationSettings()
         case .floatingButton: FloatingButtonSettingsPane()
         case .actions: ActionSettings()
+        case .privacy: PrivacySettingsPane()
         case .models: ModelsSettingsPane()
         case .speakers: SpeakersSettingsPane()
         case .captions: CaptionsSettingsPane()

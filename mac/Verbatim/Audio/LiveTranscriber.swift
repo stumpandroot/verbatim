@@ -354,6 +354,8 @@ final class AnalyzerBackend: LiveBackend, @unchecked Sendable {
         defer { installLock.lock(); installing.remove(tag); installLock.unlock() }
         do {
             if let request = try await AssetInventory.assetInstallationRequest(supporting: [makeTranscriber(locale)]) {
+                // A system download from Apple: logged, and refused while Local Only is on (Settings › Privacy).
+                try NetworkGate.begin(.modelDownload, host: "Apple")
                 Log.note("live words: installing the speech model for \(tag)")
                 try await request.downloadAndInstall()
                 Log.note("live words: speech model for \(tag) installed")

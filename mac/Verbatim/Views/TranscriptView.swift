@@ -158,6 +158,7 @@ struct TranscriptView: View {
                 // Shortcuts live here once, not on the mode bar (which can exist twice while pinned).
                 ZStack {
                     Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
+                    Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
                     Button("") { textSize = min(22, textSize + 1) }.keyboardShortcut("=", modifiers: .command)
                     Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
                 }
@@ -341,6 +342,8 @@ struct TranscriptView: View {
         // Engine words: the same passages as the engine wrote them, read-only (corrections apply to the corrected lines).
         let segs = showEngine ? t.engineLines(for: shown) : shown
         return VStack(alignment: .leading, spacing: 12) {
+            // Fix all, after a correction (Views/TrustViews.swift).
+            FixAllBanner(transcriptID: t.id)
             if showEngine {
                 Text(t.hasEngineWords ? "Engine words: exactly what the engine heard, before your corrections and Dictionary fixes."
                                       : "This transcript has no separate engine words, so these are the lines as they are.")
@@ -428,7 +431,10 @@ struct TranscriptView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Transcription did not finish").font(.system(size: 14, weight: .semibold))
                 Text(t.error ?? "").font(.system(size: 13)).foregroundStyle(Ink.mute)
-                Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
+                HStack(spacing: 8) {
+                    Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
+                    AllowDownloadButton(transcript: t)
+                }
             }
         }
     }

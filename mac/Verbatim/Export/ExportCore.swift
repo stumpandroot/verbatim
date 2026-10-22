@@ -680,3 +680,124 @@ enum ExportNames {
         return name + "." + ext
     }
 }
+
+// MARK: - Copy for AI
+
+/// Copy for AI: the transcript's text under a short header an assistant can read, so a pasted transcript arrives
+/// with what it is, when, how long, who spoke, where it came from, and its language.
+enum AICopy {
+    struct Header: Equatable {
+        var title: String
+        var date: String
+        var duration: String
+        var speakers: [String] = []
+        var source: String
+        var language: String? = nil
+        /// "Cleaned transcript" or "Original transcript".
+        var version: String
+    }
+
+    /// "# Title", one "- Name: value" line per detail that has a value, a rule, then the text.
+    static func text(_ h: Header, body: String) -> String {
+        var lines = ["# " + oneLine(h.title.isEmpty ? "Transcript" : h.title), ""]
+        func add(_ k: String, _ v: String?) {
+            guard let v = v.map(oneLine), !v.isEmpty else { return }
+            lines.append("- \(k): \(v)")
+        }
+        add("Date", h.date)
+        add("Duration", h.duration)
+        add("Speakers", h.speakers.map(oneLine).filter { !$0.isEmpty }.joined(separator: ", "))
+        add("Source", h.source)
+        add("Language", h.language)
+        add("Text", h.version)
+        lines += ["", "---", "", body.trimmingCharacters(in: .whitespacesAndNewlines)]
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    private static func oneLine(_ s: String) -> String {
+        s.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+    }
+}
+
+// MARK: - Markdown notes with properties (bulk export)
+
+/// One Markdown file per transcript with YAML front matter that Obsidian reads as properties (title, date, duration,
+/// speakers, tags, project, source, language, id). Strings are always double-quoted, so a colon or a # in a title
+/// never breaks the YAML.
+enum MarkdownNotes {
+    struct Properties: Equatable {
+        var title: String
+        var date: Date
+        var duration: Double
+        var speakers: [String] = []
+        var tags: [String] = []
+        var project: String? = nil
+        var source: String
+        var language: String? = nil
+        var id: String
+    }
+
+    static func frontMatter(_ p: Properties, timeZone: TimeZone = .current) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        var y = ["---"]
+        y.append("title: " + quote(p.title))
+        y.append("date: " + f.string(from: p.date))
+        y.append("duration: " + quote(Timecode.format(p.duration, style: .plain)))
+        y += list("speakers", p.speakers.map(quote))
+        y += list("tags", p.tags.map(tag).filter { !$0.isEmpty }.map(quote))
+        if let pr = p.project, !pr.trimmingCharacters(in: .whitespaces).isEmpty { y.append("project: " + quote(pr)) }
+        y.append("source: " + quote(p.source))
+        if let l = p.language, !l.isEmpty { y.append("language: " + quote(l)) }
+        y.append("id: " + quote(p.id))
+        y.append("---")
+        return y.joined(separator: "\n") + "\n"
+    }
+
+    /// The whole note: front matter, a blank line, then the Markdown body.
+    static func note(_ p: Properties, body: String, timeZone: TimeZone = .current) -> String {
+        frontMatter(p, timeZone: timeZone) + "\n" + body.trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    }
+
+    private static func list(_ key: String, _ items: [String]) -> [String] {
+        items.isEmpty ? [key + ": []"] : [key + ":"] + items.map { "  - " + $0 }
+    }
+
+    /// A YAML double-quoted string: backslashes and quotes escaped, line breaks and tabs folded to spaces, and other
+    /// control characters dropped.
+    static func quote(_ s: String) -> String {
+        var out = ""
+        for u in s.unicodeScalars {
+            switch u {
+            case "\\": out += "\\\\"
+            case "\"": out += "\\\""
+            case "\n", "\r", "\t": out += " "
+            default: if u.value >= 0x20, u.value != 0x7F { out.unicodeScalars.append(u) }
+            }
+        }
+        return "\"" + out.trimmingCharacters(in: .whitespaces) + "\""
+    }
+
+    /// An Obsidian tag: no leading #, spaces become hyphens, and only letters, digits, _, -, and / stay. A tag of
+    /// digits alone isn't a tag in Obsidian, so it's dropped.
+    static func tag(_ s: String) -> String {
+        var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        while t.hasPrefix("#") { t.removeFirst() }
+        t = t.split(whereSeparator: { $0.isWhitespace }).joined(separator: "-")
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-/"))
+        var kept = String.UnicodeScalarView()
+        for u in t.unicodeScalars where allowed.contains(u) { kept.append(u) }
+        t = String(kept)
+        if t.allSatisfy(\.isNumber) { return "" }
+        return t
+    }
+
+    /// A file name Obsidian accepts and links to: ExportNames' rules (no / \ : * ? " < > |), plus # ^ [ ] which
+    /// break wiki links, then unique in the folder.
+    static func fileName(_ title: String, used: inout Set<String>, exists: (String) -> Bool = { _ in false }) -> String {
+        let safe = title.replacingOccurrences(of: "[#^\\[\\]]", with: "-", options: .regularExpression)
+        return ExportNames.unique(safe, ext: "md", used: &used, exists: exists)
+    }
+}

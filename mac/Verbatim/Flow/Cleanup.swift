@@ -62,6 +62,8 @@ enum FlowCleanup {
         var text: String
         var cleaned: Bool       // false when the model's output wasn't used (Literal, code, unavailable, short, or a guard tripped)
         var note: String?       // why the model's output wasn't used, for History
+        /// The company the words went to for cloud cleanup, even when its answer wasn't used (FlowInfo.cloudCleanup).
+        var cloud: String? = nil
     }
 
     static var available: Bool { Polish.status.isReady }
@@ -147,10 +149,16 @@ enum FlowCleanup {
 
         var r = r
         var cloudNote: String?
-        if r.allowCloud, let cloud = CloudCleanup.current {
+        // Who the words went to, when they went out (Settings › Privacy shows each request).
+        var sentTo: String?
+        if r.allowCloud, let cloud = CloudCleanup.current, !NetworkGate.permits(.cloudCleanup) {
+            // Local Only: cloud cleanup is set up but refused before anything is sent; Apple's model cleans instead.
+            NetworkGate.log?.add(.cloudCleanup, host: cloud.provider.host, refused: true)
+        } else if r.allowCloud, let cloud = CloudCleanup.current {
             let started = Date()
+            if pre.count <= CloudCleanup.maxCharacters { sentTo = cloud.provider.company }
             switch await cleanWithCloud(r, pre: pre, config: cloud) {
-            case .success(let result): return result
+            case .success(var result): result.cloud = sentTo; return result
             case .failure(let why): cloudNote = why
             }
             // Apple's model gets whatever time is left, and none when too little is left to finish.
@@ -158,23 +166,24 @@ enum FlowCleanup {
                 let left = budget - Date().timeIntervalSince(started)
                 if left < 0.3 {
                     Log.note("cleanup: no time left for Apple's model after cloud cleanup")
-                    return Result(text: layout(pre, r), cleaned: false, note: (cloudNote ?? "Cloud cleanup didn't answer") + "; pasted without cleanup")
+                    return Result(text: layout(pre, r), cleaned: false, note: (cloudNote ?? "Cloud cleanup didn't answer") + "; pasted without cleanup", cloud: sentTo)
                 }
                 r.timeBudget = left
             }
         }
         guard available else {
-            return Result(text: layout(pre, r), cleaned: false, note: cloudNote ?? ("Cleaned with rules only: " + (Polish.status.reason ?? "Apple Intelligence isn't available.")))
+            return Result(text: layout(pre, r), cleaned: false, note: cloudNote ?? ("Cleaned with rules only: " + (Polish.status.reason ?? "Apple Intelligence isn't available.")), cloud: sentTo)
         }
 
         #if canImport(FoundationModels)
         if #available(macOS 26, iOS 26, *) {
             var out = await cleanWithModel(r, pre: pre)
             if let cloudNote, out.note == nil { out.note = cloudNote + "; cleaned on this device" }
+            out.cloud = sentTo
             return out
         }
         #endif
-        return Result(text: layout(pre, r), cleaned: false, note: cloudNote)
+        return Result(text: layout(pre, r), cleaned: false, note: cloudNote, cloud: sentTo)
     }
 
     private enum CloudAttempt { case success(Result), failure(String) }

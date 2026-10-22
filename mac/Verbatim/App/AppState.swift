@@ -124,6 +124,8 @@ final class AppState: ObservableObject {
 
     init() {
         Sounds.enabled = sounds
+        // Settings › Privacy: the network activity log, before anything can use the network.
+        NetworkActivityLog.install()
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
         for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
                   player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher(),
@@ -148,6 +150,8 @@ final class AppState: ObservableObject {
         // Recordings recovered once launch recovery finishes in the background: transcribe them too.
         store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
         QuitGuard.app = self
+        // Services, Spotlight, and Shortcuts (App/SystemHooks.swift).
+        SystemHooks.attach(self)
         // Links added on the iPhone wait for a Mac: claim them now and whenever more arrive.
         store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }

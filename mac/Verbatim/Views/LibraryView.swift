@@ -249,6 +249,10 @@ struct LibraryView: View {
                     NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
                     app.toast = Toast("Copied \(chosen.count) transcripts")
                 }
+                Divider()
+                // One Markdown note per transcript, with properties Obsidian reads (Views/TrustViews.swift).
+                Button("Export as Markdown files…") { MarkdownBulkExport.run(chosen, app: app) }
+                Button("Export all as Markdown files…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
             } label: { Label(exportTitle + "…", systemImage: "square.and.arrow.up") } primaryAction: { openExport() }
             .menuStyle(.borderlessButton).fixedSize().disabled(selection.isEmpty)
             .help("Choose a format and options, then a folder: one file per transcript")

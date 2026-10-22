@@ -44,9 +44,14 @@ actor FluidEngine: TranscriptionEngine {
         let dir = Paths.models.appendingPathComponent("parakeet-\(model)", isDirectory: true)
         progress(.loading(name))
         Log.note("Fluid load \(model)")
+        // Settings › Privacy: a model that isn't on this device yet is a download, which Local Only refuses.
+        let downloads = !AsrModels.modelsExist(at: dir, version: Self.version(model))
+        var download: UUID?
+        if downloads { download = try NetworkGate.begin(.modelDownload, host: "huggingface.co") }
         let models = try await AsrModels.downloadAndLoad(to: dir, version: Self.version(model)) { p in
             progress(.downloading(name, p.fractionCompleted))
         }
+        if downloads { NetworkGate.addBytes(download, ModelFiles.bytes(in: dir)) }
         let m = AsrManager(config: .default)
         try await m.loadModels(models)
         manager = m
@@ -465,7 +470,10 @@ actor FluidEngine: TranscriptionEngine {
 
     private func loadVad() async {
         do {
+            // The first load downloads the model: logged, and refused while Local Only is on (Settings › Privacy).
+            if !LocalOnly.modelReady("vad") { try NetworkGate.begin(.modelDownload, host: "huggingface.co") }
             vad = try await VadManager(config: VadConfig(defaultThreshold: Self.vadThreshold))
+            LocalOnly.markModelReady("vad")
             vadRetryAt = nil
         } catch {
             vadRetryAt = Date().addingTimeInterval(60)
@@ -521,10 +529,13 @@ actor FluidEngine: TranscriptionEngine {
     private func ctcModels() async throws -> CtcModels {
         if let c = ctc { return c }
         if let t = ctcLoading { return try await t.value }
+        // The first load downloads the model: logged, and refused while Local Only is on (Settings › Privacy).
+        if !LocalOnly.modelReady("ctc") { try NetworkGate.begin(.modelDownload, host: "huggingface.co") }
         let t = Task { try await CtcModels.downloadAndLoad() }
         ctcLoading = t
         defer { ctcLoading = nil }
         let c = try await t.value
+        LocalOnly.markModelReady("ctc")
         ctc = c
         return c
     }
@@ -638,7 +649,14 @@ actor FluidDiarizer: DiarizationEngine {
         config.exposeChunkEmbeddings = true
         let d = OfflineDiarizerManager(config: config)
         progress(.downloading("speaker models", nil))
-        try await d.prepareModels(directory: Paths.models.appendingPathComponent("diarizer", isDirectory: true))
+        let dir = Paths.models.appendingPathComponent("diarizer", isDirectory: true)
+        // The first run downloads the speaker models: logged, and refused while Local Only is on (Settings › Privacy).
+        let downloads = !LocalOnly.modelReady("diarizer")
+        var download: UUID?
+        if downloads { download = try NetworkGate.begin(.modelDownload, host: "huggingface.co") }
+        try await d.prepareModels(directory: dir)
+        LocalOnly.markModelReady("diarizer")
+        if downloads { NetworkGate.addBytes(download, ModelFiles.bytes(in: dir)) }
         manager = d
         return d
     }
