@@ -89,8 +89,18 @@ jobs:
             tail -n 30 "$LOG"
             exit 1
           fi
-          grep -q -- "-D APP_STORE" "$LOG" || { echo "::error::The App Store build didn't define APP_STORE"; exit 1; }
-          if grep -q -- "-D YOUTUBE_ON_DEVICE" "$LOG"; then echo "::error::The App Store build still defines YOUTUBE_ON_DEVICE"; exit 1; fi
+          echo "Swift compiles in the App Store pass: $(grep -c '^SwiftCompile\|^SwiftDriver\|^CompileSwift' "$LOG" || true); lines naming APP_STORE: $(grep -c 'APP_STORE' "$LOG" || true)"
+          # The conditions each target resolves with the flag on (cheap, and doesn't depend on the log's format).
+          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -sdk iphonesimulator -configuration Debug \
+              VERBATIM_APP_STORE=YES -showBuildSettings 2>/dev/null \
+            | grep -E "^Build settings for action|^ *TARGET_NAME =|^ *SWIFT_ACTIVE_COMPILATION_CONDITIONS =" > "$RUNNER_TEMP/conditions.txt" || true
+          cat "$RUNNER_TEMP/conditions.txt"
+          for t in VerbatimPhone VerbatimKeyboard VerbatimWidgets; do
+            c=$(grep -B1 "TARGET_NAME = $t\$" "$RUNNER_TEMP/conditions.txt" | grep SWIFT_ACTIVE || grep -A1 "TARGET_NAME = $t\$" "$RUNNER_TEMP/conditions.txt" | grep SWIFT_ACTIVE || true)
+            echo "$t: $c"
+            echo "$c" | grep -qw APP_STORE || { echo "::error::$t doesn't define APP_STORE in the App Store build"; exit 1; }
+            if echo "$c" | grep -qw YOUTUBE_ON_DEVICE; then echo "::error::$t still defines YOUTUBE_ON_DEVICE"; exit 1; fi
+          done
           APP=build/dd/Build/Products/Debug-iphonesimulator/Verbatim.app
           for s in _hostBundleID _hostApplicationBundleIdentifier _systemNavigationAction LSApplicationWorkspace openApplicationWithBundleID; do
             if grep -r -a -l -- "$s" "$APP" | grep -v '\.swiftmodule\|\.swiftdoc\|\.abi\.json' | grep .; then
