@@ -92,9 +92,9 @@ struct DocumentView: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(Ink.glassTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.hairline))
+        // Opaque: text never sits on a blur (DESIGN.md §5.1).
+        .background(Ink.bar, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
         .frame(maxWidth: 720)
     }
 
@@ -199,7 +199,7 @@ struct ToolChip: ToggleStyle {
             configuration.label.font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(configuration.isOn ? Ink.irisDeep : Ink.ink)
                 .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(configuration.isOn ? Ink.irisTint : .clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(configuration.isOn ? Ink.wash : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -292,7 +292,7 @@ struct DocumentEditor: NSViewRepresentable {
             for l in lints {
                 let r = l.nsRange
                 guard r.location >= 0, NSMaxRange(r) <= ns.length else { continue }
-                let color = l.isSpelling ? NSColor(Ink.coral) : NSColor(Ink.iris)
+                let color = l.isSpelling ? NSColor(Ink.danger) : NSColor(Ink.iris)
                 attr.addAttributes([.underlineStyle: NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue, .underlineColor: color,
                                     .link: URL(string: "verbatim-lint://\(l.id)")!, .cursor: NSCursor.pointingHand], range: r)
             }
