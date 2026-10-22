@@ -3,7 +3,7 @@ import AVFoundation
 
 /// Import checks for the UI self-tests (Mac UITest, iPhone PhoneUITest), on the tiny files in
 /// Resources/TestFixtures: an Opus MKV (1 s, 440 Hz), and an MKV and a MOV with two AAC tracks (track 1: English,
-/// 440 Hz for the first half second; track 2: "Commentary" in the MKV, untitled in the MOV, 660 Hz for the second
+/// 440 Hz for the first half second; track 2: titled "Commentary" in both, 660 Hz for the second
 /// half). Made with FFmpeg's sine and aevalsrc sources; no recordings of anyone.
 enum MediaImportSelfTest {
     @MainActor
@@ -39,7 +39,7 @@ enum MediaImportSelfTest {
         }
 
         // The import path: MKV goes to FFmpeg; both formats with two tracks are mixed, or kept apart.
-        for (name, src, secondLabel) in [("MKV", mkv2, "Commentary"), ("MOV", mov2, "Track 2")] {
+        for (name, src, secondLabel) in [("MKV", mkv2, "Commentary"), ("MOV", mov2, "Commentary")] {
             do {
                 let p = try await MediaImport.prepare(src, into: dir.appendingPathComponent("mix-\(name).m4a"))
                 let first = rms(p.url, from: 0.05, to: 0.45), second = rms(p.url, from: 0.6, to: 0.95)
