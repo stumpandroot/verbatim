@@ -1,7 +1,10 @@
 import Foundation
 
 /// What cleaned the Cleaned text.
-enum CleanupSource: String, Codable {
+enum CleanupSource: String, Codable, TolerantEnum {
+    /// A source a newer build added reads as Apple Intelligence's (the more careful label).
+    static var fallback: CleanupSource { .model }
+    init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     /// Apple Intelligence rewrote it (Clean up or Tone), at any level, None included.
     case model
     /// Only rules changed it: Harper's spelling and grammar fixes.

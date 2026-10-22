@@ -11,5 +11,6 @@ trap 'rm -rf "$out"' EXIT
 swiftc -O -o "$out/formatter-tests" \
   "$flow/DictationFormatter.swift" "$flow/CleanupPrepass.swift" "$flow/MeaningCheck.swift" "$flow/DestinationChecks.swift" \
   "$flow/SpokenCorrections.swift" "$flow/SpokenCorrectionsChecks.swift" \
-  "$here/../Verbatim/Model/FlowInfo.swift" "$here/../Verbatim/Model/DictationTiming.swift" "$here/formatter-tests/main.swift"
+  "$here/../Verbatim/Model/FlowInfo.swift" "$here/../Verbatim/Model/TolerantCoding.swift" \
+  "$here/../Verbatim/Model/DictationTiming.swift" "$here/formatter-tests/main.swift"
 "$out/formatter-tests"

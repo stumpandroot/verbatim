@@ -34,8 +34,10 @@ struct Segment: Codable, Identifiable, Equatable {
 }
 
 /// What a recording is, for filtering the library. Suggested automatically (`Transcript.kindIsAuto`), changeable later.
-enum RecordingKind: String, Codable, CaseIterable, Identifiable {
+enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
     case journal, idea, meeting, note, dictation
+    static var fallback: RecordingKind { .note }
+    init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -68,8 +70,11 @@ struct Correction: Codable, Identifiable, Equatable {
     var spans: [CorrectionSpan]? = nil
 }
 
-enum SourceKind: String, Codable {
+enum SourceKind: String, Codable, TolerantEnum {
     case voiceMemo, file, link, app, dictation
+    /// A source a newer build added reads as a file.
+    static var fallback: SourceKind { .file }
+    init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
 
     var symbol: String {
         switch self {
@@ -194,17 +199,28 @@ struct Note: Codable, Identifiable, Equatable {
 }
 
 struct Transcript: Codable, Identifiable, Equatable {
-    enum Status: String, Codable { case processing, ready, failed }
+    enum Status: String, Codable, TolerantEnum {
+        case processing, ready, failed
+        /// A status a newer build added reads as ready (its text and audio are shown as they are).
+        static var fallback: Status { .ready }
+        init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
+    }
     /// Every stored field except the local-only paths, so those never reach the synced file.
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, languageChoice, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
-             summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited
+             summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion
     }
+    /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
+    static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
+
+    /// The file format this build writes. A file from a newer build keeps its higher number when saved here.
+    /// 1: files before this field. 2: unknown keys and enum values are kept and written back.
+    static let currentSchema = 2
     /// Keys older builds wrote; read once to move the paths into `LocalMedia`.
-    enum LegacyKeys: String, CodingKey { case keptVideo, keptAudio, originalMedia }
+    enum LegacyKeys: String, CodingKey, CaseIterable { case keptVideo, keptAudio, originalMedia }
 
     var id = UUID()
     var title: String
@@ -279,6 +295,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     var pendingAppend: String? = nil
     /// Multi-track recordings: one file per mic, each transcribed on its own and woven together by time.
     var multitrack: MultitrackInfo? = nil
+    /// The file format of the file this was read from (`currentSchema` for new transcripts).
+    var schemaVersion = Transcript.currentSchema
+    /// What a newer build wrote that this one doesn't understand, written back unchanged on save.
+    var unknown = UnknownFields()
 
     init(title: String, source: SourceKind, sourceLabel: String, duration: Double, audioFileName: String?, model: String) {
         self.title = title; self.source = source; self.sourceLabel = sourceLabel; self.duration = duration; self.audioFileName = audioFileName; self.model = model
@@ -291,7 +311,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Untitled"
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
-        source = try c.decodeIfPresent(SourceKind.self, forKey: .source) ?? .voiceMemo
+        var unknown = UnknownFields()
+        source = SourceKind.decodeTolerantly(c, forKey: .source, field: "source", unknown: &unknown) ?? .voiceMemo
         sourceLabel = try c.decodeIfPresent(String.self, forKey: .sourceLabel) ?? ""
         sourceURL = try c.decodeIfPresent(String.self, forKey: .sourceURL)
         duration = try c.decodeIfPresent(Double.self, forKey: .duration) ?? 0
@@ -309,7 +330,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? ""
         language = try c.decodeIfPresent(String.self, forKey: .language)
         languageChoice = try c.decodeIfPresent(String.self, forKey: .languageChoice)
-        status = try c.decodeIfPresent(Status.self, forKey: .status) ?? .ready
+        status = Status.decodeTolerantly(c, forKey: .status, field: "status", unknown: &unknown) ?? .ready
         stage = try c.decodeIfPresent(String.self, forKey: .stage)
         error = try c.decodeIfPresent(String.self, forKey: .error)
         document = try c.decodeIfPresent(String.self, forKey: .document)
@@ -318,7 +339,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         documentTone = try c.decodeIfPresent(String.self, forKey: .documentTone) ?? "As spoken"
         // Files from before these fields: a cleaned document with a level or tone was Apple Intelligence's.
         if c.contains(.documentCleanedBy) {
-            documentCleanedBy = try? c.decodeIfPresent(CleanupSource.self, forKey: .documentCleanedBy)
+            documentCleanedBy = CleanupSource.decodeTolerantly(c, forKey: .documentCleanedBy, field: "documentCleanedBy", unknown: &unknown)
         } else if document != nil, documentLevel != "None" || documentTone != "As spoken" {
             documentCleanedBy = .model
         }
@@ -351,7 +372,14 @@ struct Transcript: Codable, Identifiable, Equatable {
         pendingAppend = try c.decodeIfPresent(String.self, forKey: .pendingAppend)
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
         // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
-        kind = (try? c.decodeIfPresent(RecordingKind.self, forKey: .kind)) ?? (source == .dictation ? .dictation : nil)
+        let rawKind = try? c.decodeIfPresent(String.self, forKey: .kind)
+        if let rawKind, let k = RecordingKind(rawValue: rawKind) {
+            kind = k
+        } else {
+            kind = source == .dictation ? .dictation : nil
+            // Kept to write back while the kind stays as read ("" stands for unlabeled).
+            if let rawKind { unknown.rawEnums["kind"] = .init(raw: rawKind, readAs: kind?.rawValue ?? "") }
+        }
         kindIsAuto = try c.decodeIfPresent(Bool.self, forKey: .kindIsAuto) ?? true
         // Files from before this field: automatic only if the title is still one Verbatim made (the first words or a
         // placeholder). Anything else was named by the person, so automatic titles leave it alone.
@@ -364,6 +392,62 @@ struct Transcript: Codable, Identifiable, Equatable {
         // A summary a newer build wrote in a shape this one can't read is dropped, never the whole file.
         summary = (try? c.decodeIfPresent(TranscriptSummary.self, forKey: .summary)) ?? nil
         summaryByModel = try c.decodeIfPresent(Bool.self, forKey: .summaryByModel) ?? false
+        schemaVersion = (try? c.decodeIfPresent(Int.self, forKey: .schemaVersion)) ?? 1
+        unknown.keys = UnknownFields.collect(from: d, known: Self.knownKeys)
+        self.unknown = unknown
+    }
+
+    /// Every field in `CodingKeys` (optional ones only when set), then what a newer build wrote that this one keeps.
+    func encode(to e: Encoder) throws {
+        var c = e.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(unknown.raw(for: "source", current: source.rawValue), forKey: .source)
+        try c.encode(sourceLabel, forKey: .sourceLabel)
+        try c.encodeIfPresent(sourceURL, forKey: .sourceURL)
+        try c.encode(duration, forKey: .duration)
+        try c.encodeIfPresent(audioFileName, forKey: .audioFileName)
+        try c.encode(original, forKey: .original)
+        try c.encode(segments, forKey: .segments)
+        try c.encode(speakers, forKey: .speakers)
+        try c.encode(corrections, forKey: .corrections)
+        try c.encodeIfPresent(projectId, forKey: .projectId)
+        try c.encode(tags, forKey: .tags)
+        try c.encode(pinned, forKey: .pinned)
+        try c.encode(notes, forKey: .notes)
+        try c.encode(waveform, forKey: .waveform)
+        try c.encode(model, forKey: .model)
+        try c.encode(engine, forKey: .engine)
+        try c.encodeIfPresent(language, forKey: .language)
+        try c.encodeIfPresent(languageChoice, forKey: .languageChoice)
+        try c.encode(unknown.raw(for: "status", current: status.rawValue), forKey: .status)
+        try c.encodeIfPresent(stage, forKey: .stage)
+        try c.encodeIfPresent(error, forKey: .error)
+        try c.encodeIfPresent(document, forKey: .document)
+        try c.encode(documentHistory, forKey: .documentHistory)
+        try c.encode(documentLevel, forKey: .documentLevel)
+        try c.encode(documentTone, forKey: .documentTone)
+        try c.encodeIfPresent(deletedAt, forKey: .deletedAt)
+        try c.encodeIfPresent(link, forKey: .link)
+        try c.encodeIfPresent(processingDevice, forKey: .processingDevice)
+        try c.encodeIfPresent(processingDeviceName, forKey: .processingDeviceName)
+        try c.encode(pendingLink, forKey: .pendingLink)
+        try c.encodeIfPresent(flow, forKey: .flow)
+        try c.encodeIfPresent(pendingAppend, forKey: .pendingAppend)
+        let kindRaw = unknown.raw(for: "kind", current: kind?.rawValue ?? "")
+        if !kindRaw.isEmpty { try c.encode(kindRaw, forKey: .kind) }
+        try c.encode(kindIsAuto, forKey: .kindIsAuto)
+        try c.encode(titleIsAuto, forKey: .titleIsAuto)
+        try c.encode(titleByModel, forKey: .titleByModel)
+        try c.encodeIfPresent(summary, forKey: .summary)
+        try c.encode(summaryByModel, forKey: .summaryByModel)
+        try c.encodeIfPresent(multitrack, forKey: .multitrack)
+        if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }
+        try c.encode(documentMarkHistory, forKey: .documentMarkHistory)
+        try c.encode(documentEdited, forKey: .documentEdited)
+        try c.encode(max(schemaVersion, Self.currentSchema), forKey: .schemaVersion)
+        try unknown.encodeKeys(to: e, known: Self.knownKeys)
     }
 
     /// A summary the person wrote or edited: automatic summaries leave it alone.

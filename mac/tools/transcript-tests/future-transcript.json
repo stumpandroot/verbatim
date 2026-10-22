@@ -1,0 +1,53 @@
+{
+  "id": "5C2E9C1A-7B3D-4E8F-9A10-2B3C4D5E6F70",
+  "schemaVersion": 3,
+  "title": "Crew call from a newer build",
+  "createdAt": "2026-10-20T14:03:07Z",
+  "source": "screenRecording",
+  "sourceLabel": "Screen recording",
+  "duration": 42.5,
+  "audioFileName": "2026-10-20 14.03.07 k3f9.m4a",
+  "original": [],
+  "segments": [
+    { "id": "11111111-2222-3333-4444-555555555555", "start": 0, "end": 4.2, "text": "The crew call is at seven.", "speaker": "S1" }
+  ],
+  "speakers": [{ "id": "S1", "name": "Ana" }],
+  "corrections": [],
+  "tags": ["shoot"],
+  "pinned": true,
+  "notes": [],
+  "waveform": [0.1, 0.4, 0.2],
+  "model": "Parakeet TDT v4",
+  "engine": "fluid",
+  "status": "archived",
+  "documentHistory": [],
+  "documentLevel": "None",
+  "documentTone": "As spoken",
+  "documentCleanedBy": "cloudModel",
+  "documentMarkHistory": [],
+  "documentEdited": false,
+  "pendingLink": false,
+  "kind": "podcast",
+  "kindIsAuto": false,
+  "titleIsAuto": false,
+  "titleByModel": false,
+  "summaryByModel": false,
+  "flow": {
+    "app": "Arcade",
+    "bundleID": "com.example.arcade",
+    "category": "games",
+    "style": "pirate",
+    "level": "Light",
+    "raw": "ahoy",
+    "pasted": "Ahoy.",
+    "pastedOK": true
+  },
+  "chapters": [
+    { "title": "Call times", "start": 0, "end": 30 },
+    { "title": "Locations", "start": 30, "end": 42.5 }
+  ],
+  "translation": { "language": "es", "text": "La llamada es a las siete.", "reviewed": null },
+  "rating": 4.5,
+  "starred": true,
+  "colorLabel": "coral"
+}

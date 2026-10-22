@@ -408,7 +408,13 @@ final class Store: ObservableObject {
         let slots = LoadSlots(files.count)
         DispatchQueue.concurrentPerform(iterations: files.count) { i in
             let u = files[i]
-            guard let data = Cloud.read(u), let t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return }
+            guard let data = Cloud.read(u) else { return }
+            let t: Transcript
+            do { t = try TranscriptFiles.dec.decode(Transcript.self, from: data) } catch {
+                // Left on disk untouched (never rewritten), so a newer build still has it.
+                Log.note("load: couldn't read \(u.lastPathComponent): \(error)")
+                return
+            }
             let mod = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
             slots.set(i, (t, mod))
         }

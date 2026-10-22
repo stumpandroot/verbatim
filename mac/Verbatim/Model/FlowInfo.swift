@@ -3,8 +3,11 @@ import Foundation
 // Shared by the Mac and iPhone apps: dictation records sync through iCloud with the rest of a transcript.
 
 /// The kind of app you're writing into; decides the style.
-enum AppCategory: String, CaseIterable, Identifiable, Codable {
+enum AppCategory: String, CaseIterable, Identifiable, Codable, TolerantEnum {
     case email, work, personal, code, other
+    /// A category a newer build added reads as Everything else, so the dictation still loads.
+    static var fallback: AppCategory { .other }
+    init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -27,8 +30,11 @@ enum AppCategory: String, CaseIterable, Identifiable, Codable {
 }
 
 /// The tone for a category.
-enum FlowStyle: String, CaseIterable, Identifiable, Codable {
+enum FlowStyle: String, CaseIterable, Identifiable, Codable, TolerantEnum {
     case formal, casual, veryCasual, verbatim
+    /// A style a newer build added reads as Casual, so the dictation still loads.
+    static var fallback: FlowStyle { .casual }
+    init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
     var title: String {
         switch self {
