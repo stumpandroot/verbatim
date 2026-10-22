@@ -57,7 +57,7 @@ struct PhoneRoot: View {
         // The "link added" card and the Library tab's count badge, above the tab bar (PhoneLinkCard.swift).
         .overlay { PhoneLinkCardLayer() }
         .overlay { SessionStartLayer(session: app.session) }
-        .onOpenURL { url in _ = app.session.handle(url) }
+        .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {

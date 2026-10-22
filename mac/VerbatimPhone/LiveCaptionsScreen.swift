@@ -35,6 +35,12 @@ final class PhoneCaptions: ObservableObject {
             self?.paused = true
             self?.pauseReason = reason
         }
+        // The recording resumed on its own after a call (or moved to another mic): show it running again.
+        recorder.onInputSwitched = { [weak self] _ in
+            guard let self else { return }
+            self.paused = self.recorder.isPaused
+            if !self.paused { self.pauseReason = nil }
+        }
     }
 
     var elapsed: TimeInterval { Date().timeIntervalSince(startedAt) }

@@ -3,11 +3,12 @@ import WidgetKit
 import ActivityKit
 import AppIntents
 
-/// The VerbatimWidgets extension: only the keyboard session's Live Activity.
+/// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities.
 @main
 struct VerbatimWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
+        RecordingLiveActivity()
     }
 }
 

@@ -679,6 +679,25 @@ enum UITest {
               && MicRecovery.plan(lostGone: false, onBuiltIn: false, recentlyReopened: true, builtIn: mbp) == .pause(micLost: false)
               && MicRecovery.plan(lostGone: false, onBuiltIn: true, recentlyReopened: false, builtIn: mbp) == .builtIn(mbp))
 
+        // After a call (iPhone): resume only when iOS says so, on the input the recording was using.
+        check("an interruption resumes only with shouldResume",
+              InterruptionPolicy.shouldResume(pausedForInterruption: true, isRecording: true, isPaused: true, systemSaysResume: true)
+              && !InterruptionPolicy.shouldResume(pausedForInterruption: true, isRecording: true, isPaused: true, systemSaysResume: false))
+        check("an interruption never resumes a pause you made, a stopped recording, or one already running",
+              !InterruptionPolicy.shouldResume(pausedForInterruption: false, isRecording: true, isPaused: true, systemSaysResume: true)
+              && !InterruptionPolicy.shouldResume(pausedForInterruption: true, isRecording: false, isPaused: true, systemSaysResume: true)
+              && !InterruptionPolicy.shouldResume(pausedForInterruption: true, isRecording: true, isPaused: false, systemSaysResume: true))
+        check("resuming keeps the recording's input while it's there",
+              InterruptionPolicy.input(pinned: "airpods", available: ["mic", "airpods"], builtIn: "mic") == "airpods")
+        check("resuming falls back to the built-in mic only when the input is gone",
+              InterruptionPolicy.input(pinned: "airpods", available: ["mic"], builtIn: "mic") == "mic"
+              && InterruptionPolicy.input(pinned: nil, available: ["mic"], builtIn: "mic") == "mic"
+              && InterruptionPolicy.input(pinned: "airpods", available: [], builtIn: nil) == nil)
+        check("a resume counts only audio that arrives after it",
+              InterruptionPolicy.delivering(resumedAt: 10, latestBuffer: 10.5)
+              && !InterruptionPolicy.delivering(resumedAt: 10, latestBuffer: 9.9)
+              && !InterruptionPolicy.delivering(resumedAt: 10, latestBuffer: nil))
+
         // Voice enrollment without a microphone: following along, passage rotation, and the audio guard before the
         // speaker models run.
         check("voice: passage words normalize", VoicePassages.normalized("Grandfather's wheel, by hand.") == ["grandfathers", "wheel", "by", "hand"]

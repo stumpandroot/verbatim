@@ -33,6 +33,8 @@ final class RecordingWriter: @unchecked Sendable {
     private static let preRollCap = Int64(recordingFormat.sampleRate * 10)
     private let createdAt = ProcessInfo.processInfo.systemUptime
     private var firstBufferAt: TimeInterval?
+    /// Uptime of the latest buffer from the microphone, paused or not: proof the input is delivering.
+    private var lastBufferAt: TimeInterval?
     /// Any sample that wasn't exact digital silence. A quiet room still has some noise; a mic that's asleep,
     /// muted in hardware, or switching profiles delivers zeros.
     private var signal = false
@@ -167,6 +169,7 @@ final class RecordingWriter: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let now = ProcessInfo.processInfo.systemUptime
         if firstBufferAt == nil { firstBufferAt = now }
+        lastBufferAt = now
         if rms > 0 { signal = true; lastSignal = now }
         guard !paused, !failed, converter != nil, file != nil || holding else { return 0 }
         // A route change (AirPods out, a new device) can change the format mid-stream: convert from the new one
@@ -239,6 +242,9 @@ final class RecordingWriter: @unchecked Sendable {
 
     /// When (system uptime) the last sound that wasn't exact digital silence arrived, or nil if none has.
     var lastSignalAt: TimeInterval? { lock.lock(); defer { lock.unlock() }; return lastSignal }
+
+    /// When (system uptime) the latest buffer arrived from the microphone, or nil if none has.
+    var latestBufferAt: TimeInterval? { lock.lock(); defer { lock.unlock() }; return lastBufferAt }
 
     /// Milliseconds from creating the writer to the first buffer (how long the mic took to wake), if any arrived.
     var firstBufferDelay: Int? {
@@ -450,6 +456,32 @@ enum MicRecovery: Equatable {
 }
 #endif
 
+/// What a recording does when an interruption (a call, Siri, an alarm, another app's audio) ends, and which input
+/// it carries on with. Pure, so the self-tests check it on any platform.
+enum InterruptionPolicy {
+    /// Resume on its own only when the recording paused itself for this interruption, is still recording and
+    /// paused, and iOS says resuming is appropriate (`.shouldResume`). Otherwise it stays paused for you.
+    static func shouldResume(pausedForInterruption: Bool, isRecording: Bool, isPaused: Bool, systemSaysResume: Bool) -> Bool {
+        pausedForInterruption && isRecording && isPaused && systemSaysResume
+    }
+
+    /// The input to pin when capture restarts: the one the recording was using, if it's still available (AirPods
+    /// stay AirPods after a call); otherwise the built-in mic. Nil lets iOS choose.
+    static func input(pinned: String?, available: [String], builtIn: String?) -> String? {
+        if let pinned, available.contains(pinned) { return pinned }
+        return builtIn
+    }
+
+    /// Whether the microphone is delivering after a resume: a buffer arrived after the resume began.
+    static func delivering(resumedAt: TimeInterval, latestBuffer: TimeInterval?) -> Bool {
+        guard let latestBuffer else { return false }
+        return latestBuffer > resumedAt
+    }
+
+    /// How long a resumed recording may go without a buffer before it pauses again and says so.
+    static let resumeCheckDelay: TimeInterval = 1.2
+}
+
 @MainActor
 final class Recorder: ObservableObject {
     @Published private(set) var isRecording = false
@@ -474,6 +506,21 @@ final class Recorder: ObservableObject {
     #endif
     /// A recording moved to another microphone on its own (the one it was using went away) and kept going.
     var onInputSwitched: ((String) -> Void)?
+    #if os(iOS)
+    /// Shown when a call starts: the recording pauses, and what was said stays saved.
+    static let interruptionBeganNotice = "Paused for a call or another app's audio."
+    /// The call ended but the microphone couldn't start again (iOS often refuses from the background).
+    static let callPausedNotice = "Recording paused for a call. Open Verbatim and tap Resume."
+    /// The interruption ended without iOS saying to resume (another app kept the audio).
+    static let audioPausedNotice = "Recording paused for another app's audio. Open Verbatim and tap Resume."
+    /// iOS restarted its audio services: the engine was rebuilt and the recording paused.
+    static let audioRestartedNotice = "Audio restarted. Tap Resume to keep recording."
+    /// Called after an interruption when the recording stays paused and needs you (it didn't resume, or it
+    /// couldn't), with the notice to show. The iPhone app posts a local notification when it's in the background.
+    var onNeedsAttention: ((String) -> Void)?
+    /// The recording paused for an interruption or an audio restart and is waiting for you to tap Resume.
+    private(set) var awaitingResume = false
+    #endif
     var elapsed: TimeInterval { live.elapsed }
 
     /// Called when the input device changes or drops out mid-recording. The recording isn't moved to another
@@ -515,8 +562,11 @@ final class Recorder: ObservableObject {
     private var configObserver: NSObjectProtocol?
     #if os(iOS)
     private var interruptionObserver: NSObjectProtocol?
-    /// The recording paused itself for a call or another app's audio, so it resumes when that ends.
+    private var resetObserver: NSObjectProtocol?
+    /// The recording paused itself for a call or another app's audio, so it may resume when that ends.
     private var pausedForInterruption = false
+    /// The UID of the input the recording uses. Capture restarts on it while it's available.
+    private var pinnedInputUID: String?
     #endif
     /// The tap's format on a normal recording's engine.
     private var tapFormat: AVAudioFormat?
@@ -643,13 +693,39 @@ final class Recorder: ObservableObject {
         guard let cur = s.currentRoute.inputs.first,
               let port = s.availableInputs?.first(where: { $0.uid == cur.uid }) else { return }
         try? s.setPreferredInput(port)
+        pinnedInputUID = port.uid
+        Log.note("recorder: recording on \(port.portName) (\(port.portType.rawValue))")
     }
 
     /// After the pinned input went away: the iPhone's own microphone, pinned in its place.
     private func pinBuiltInMic() {
         let s = AVAudioSession.sharedInstance()
-        if let mic = s.availableInputs?.first(where: { $0.portType == .builtInMic }) { try? s.setPreferredInput(mic) }
-        else { try? s.setPreferredInput(nil) }
+        if let mic = s.availableInputs?.first(where: { $0.portType == .builtInMic }) {
+            try? s.setPreferredInput(mic)
+            pinnedInputUID = mic.uid
+        } else {
+            try? s.setPreferredInput(nil)
+            pinnedInputUID = nil
+        }
+        Log.note("recorder: pinned the built-in mic")
+    }
+
+    /// Resuming after an interruption: the input the recording was using (AirPods stay AirPods), or the built-in
+    /// mic only when that input is gone.
+    private func pinRecordingInput() {
+        let s = AVAudioSession.sharedInstance()
+        let available = s.availableInputs ?? []
+        let builtIn = available.first(where: { $0.portType == .builtInMic })
+        let choice = InterruptionPolicy.input(pinned: pinnedInputUID, available: available.map(\.uid), builtIn: builtIn?.uid)
+        guard let choice, let port = available.first(where: { $0.uid == choice }) else {
+            try? s.setPreferredInput(nil)
+            Log.note("recorder: no input to pin; iOS chooses")
+            pinnedInputUID = nil
+            return
+        }
+        try? s.setPreferredInput(port)
+        Log.note(choice == pinnedInputUID ? "recorder: keeping \(port.portName)" : "recorder: the recording's input is gone; using \(port.portName)")
+        pinnedInputUID = choice
     }
 
     private var currentInputName: String {
@@ -703,9 +779,10 @@ final class Recorder: ObservableObject {
             if isPaused, input == nil { reopen(resuming: true); return }
         }
         #endif
-        // Resuming after the recorder paused itself (a call, a device change): the engine stopped, start it again.
+        // Resuming after the recorder paused itself (a call, a device change): the engine stopped, start it again
+        // on the input the recording was using, if it's still there.
         if isPaused, !keepWarm, let engine, !engine.isRunning {
-            guard restartCapture() else {
+            guard restartCapture(keepInput: true) else {
                 Log.note("recorder: couldn't resume; still paused")
                 onAutoPaused?("Couldn't restart the microphone. Stop to keep what was recorded.")
                 return
@@ -714,6 +791,9 @@ final class Recorder: ObservableObject {
         isPaused.toggle()
         writer?.paused = isPaused
         if isPaused { live.reset(); live.setElapsed(writer?.seconds ?? 0) }
+        #if os(iOS)
+        if !isPaused, awaitingResume { awaitingResume = false; Log.note("recorder: resumed by you after an interruption") }
+        #endif
     }
 
     /// Pauses a normal recording on the recorder's own initiative; what was recorded stays, Resume continues it.
@@ -730,11 +810,15 @@ final class Recorder: ObservableObject {
 
     /// Normal recordings: points the tap at the input's current format (a new device, a new sample rate) and
     /// starts the engine again. The writer converts whatever arrives, so the file keeps one format.
-    private func restartCapture() -> Bool {
+    /// `keepInput`: stay on the input the recording was using while it's available (resuming after a call). False
+    /// after a route change, which moves to the built-in mic.
+    private func restartCapture(keepInput: Bool = false) -> Bool {
         guard !keepWarm, var engine, let w = writer else { return false }
         #if os(iOS)
-        pinBuiltInMic()
-        try? AVAudioSession.sharedInstance().setActive(true)
+        do { try AVAudioSession.sharedInstance().setActive(true) } catch {
+            Log.note("recorder: couldn't activate the audio session: \(error.localizedDescription)")
+        }
+        if keepInput { pinRecordingInput() } else { pinBuiltInMic() }
         // A fresh engine after a route change: the old one can keep the departed device's format.
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -756,6 +840,7 @@ final class Recorder: ObservableObject {
         do { try engine.start() } catch {
             Log.note("recorder: restart failed: \(error.localizedDescription)"); return false
         }
+        guard engine.isRunning else { Log.note("recorder: restart returned but the engine isn't running"); return false }
         Log.note("recorder: capture restarted at \(Int(format.sampleRate)) Hz")
         return true
     }
@@ -881,6 +966,9 @@ final class Recorder: ObservableObject {
         live.reset()
         self.url = nil
         #if os(iOS)
+        pausedForInterruption = false
+        awaitingResume = false
+        pinnedInputUID = nil
         try? AVAudioSession.sharedInstance().setPreferredInput(nil)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
@@ -1597,28 +1685,31 @@ final class Recorder: ObservableObject {
     // MARK: Interruptions (iPhone)
 
     /// A phone call or another app taking the audio session stops the engine. The recording pauses (it never
-    /// silently stops while it says it's recording) and Resume continues it in the same file.
+    /// silently stops while it says it's recording) and keeps what was said.
+    ///
+    /// When the interruption ends, the recording resumes on its own only if iOS says to (`.shouldResume`), on the
+    /// input it was using. If it can't (no `.shouldResume`, the engine won't start, or no audio arrives within a
+    /// second, as when iOS refuses the microphone in the background), it stays paused, says so, and calls
+    /// `onNeedsAttention`, so the iPhone app can post a notification. Every step is logged for device diagnosis.
     private func observeInterruptions() {
         #if os(iOS)
         removeInterruptionObserver()
-        interruptionObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(), queue: .main) { [weak self] note in
+        let session = AVAudioSession.sharedInstance()
+        interruptionObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: .main) { [weak self] note in
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let reasonRaw = note.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
             Task { @MainActor in
                 guard let self, let raw, let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
                 if type == .began {
-                    let wasPaused = self.isPaused
-                    self.autoPause("Paused for a call or another app's audio. It resumes when that ends.")
-                    self.pausedForInterruption = !wasPaused && self.isPaused
-                } else if type == .ended, self.pausedForInterruption {
-                    // The call ended: resume on our own, unless the person already resumed or stopped.
-                    self.pausedForInterruption = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                        guard let self, self.isRecording, self.isPaused else { return }
-                        self.togglePause()
-                        if !self.isPaused { self.onInputSwitched?("Recording resumed.") }
-                    }
+                    self.interruptionBegan(reason: reasonRaw)
+                } else if type == .ended {
+                    self.interruptionEnded(options: AVAudioSession.InterruptionOptions(rawValue: optionsRaw))
                 }
             }
+        }
+        resetObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: session, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.mediaServicesReset() }
         }
         #endif
     }
@@ -1626,9 +1717,111 @@ final class Recorder: ObservableObject {
     private func removeInterruptionObserver() {
         #if os(iOS)
         if let o = interruptionObserver { NotificationCenter.default.removeObserver(o) }
+        if let o = resetObserver { NotificationCenter.default.removeObserver(o) }
         interruptionObserver = nil
+        resetObserver = nil
         #endif
     }
+
+    #if os(iOS)
+    private func interruptionBegan(reason: UInt?) {
+        let wasPaused = isPaused
+        Log.note("recorder: interruption began (recording \(isRecording), paused \(wasPaused), reason \(reason.map { String($0) } ?? "none"))")
+        guard isRecording, !keepWarm else { return }
+        autoPause(Self.interruptionBeganNotice)
+        pausedForInterruption = !wasPaused && isPaused
+    }
+
+    private func interruptionEnded(options: AVAudioSession.InterruptionOptions) {
+        let systemSaysResume = options.contains(.shouldResume)
+        Log.note("recorder: interruption ended (shouldResume \(systemSaysResume), paused for it \(pausedForInterruption), recording \(isRecording), paused \(isPaused))")
+        guard pausedForInterruption else { return }
+        let resume = InterruptionPolicy.shouldResume(pausedForInterruption: pausedForInterruption, isRecording: isRecording,
+                                                     isPaused: isPaused, systemSaysResume: systemSaysResume)
+        pausedForInterruption = false
+        guard resume else {
+            Log.note("recorder: staying paused; iOS didn't say to resume")
+            needsAttention(Self.audioPausedNotice)
+            return
+        }
+        // Let the call's audio route settle first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            guard self.isRecording, self.isPaused else {
+                Log.note("recorder: not resuming; already resumed or stopped")
+                return
+            }
+            self.resumeAfterInterruption()
+        }
+    }
+
+    /// Restarts capture on the recording's own input, then checks that audio arrives. Stays paused, says so, and
+    /// asks for attention when either fails.
+    private func resumeAfterInterruption() {
+        Log.note("recorder: resuming after the interruption")
+        if let w = writer, w.writeFailed, !w.retryAfterFailure() {
+            autoPause(Self.cantSaveNotice); return
+        }
+        let began = ProcessInfo.processInfo.systemUptime
+        guard engine != nil, restartCapture(keepInput: true) else {
+            Log.note("recorder: couldn't restart capture after the interruption; staying paused")
+            needsAttention(Self.callPausedNotice)
+            return
+        }
+        isPaused = false
+        writer?.paused = false
+        awaitingResume = false
+        Log.note("recorder: resumed; waiting for audio")
+        let w = writer
+        DispatchQueue.main.asyncAfter(deadline: .now() + InterruptionPolicy.resumeCheckDelay) { [weak self] in
+            guard let self, let w, self.isRecording, !self.isPaused, self.writer === w else { return }
+            if InterruptionPolicy.delivering(resumedAt: began, latestBuffer: w.latestBufferAt) {
+                Log.note("recorder: audio is arriving after the resume")
+                self.onInputSwitched?("Recording resumed.")
+            } else {
+                Log.note("recorder: no audio within \(InterruptionPolicy.resumeCheckDelay) s of the resume; pausing")
+                self.engine?.stop()
+                self.needsAttention(Self.callPausedNotice)
+            }
+        }
+    }
+
+    /// iOS restarted its audio services (rare: the media server crashed). Every audio object is invalid: the
+    /// engine is rebuilt and the session set up again. A recording pauses with its segments intact; Resume
+    /// continues it on the fresh engine.
+    private func mediaServicesReset() {
+        Log.note("recorder: media services were reset (recording \(isRecording), paused \(isPaused))")
+        guard !keepWarm else { return }
+        if let old = engine {
+            old.inputNode.removeTap(onBus: 0)
+            old.stop()
+        }
+        removeConfigObserver()
+        guard isRecording, writer != nil else { engine = nil; tapFormat = nil; return }
+        let s = AVAudioSession.sharedInstance()
+        do {
+            try s.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth])
+            try s.setActive(true)
+            Log.note("recorder: audio session set up again")
+        } catch {
+            Log.note("recorder: couldn't set up the audio session again: \(error.localizedDescription)")
+        }
+        let fresh = AVAudioEngine()
+        engine = fresh
+        observeConfiguration(of: fresh)
+        pausedForInterruption = false
+        needsAttention(Self.audioRestartedNotice)
+    }
+
+    /// The recording stays paused and needs you: it pauses (if it isn't already) with this reason, and the
+    /// owner is told so it can notify you.
+    private func needsAttention(_ reason: String) {
+        guard isRecording else { return }
+        awaitingResume = true
+        autoPause(reason)
+        onNeedsAttention?(reason)
+    }
+    #endif
 
     // MARK: Device changes
 

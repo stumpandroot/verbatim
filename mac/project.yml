@@ -176,6 +176,8 @@ targets:
       - VerbatimKeyboard/VoiceBars.swift
       # Shared with the widget extension: the keyboard session's Live Activity and its End session intent.
       - VerbatimWidgets/SessionActivity.swift
+      # Shared with the widget extension: the recording's Live Activity and its Pause, Resume, and Stop intents.
+      - VerbatimWidgets/RecordingActivity.swift
       # Shared with the share and broadcast extensions: the App Group inbox they fill and the app imports.
       - VerbatimShare/VerbatimInbox.swift
     dependencies:
@@ -324,6 +326,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.widgets
         PRODUCT_NAME: VerbatimWidgets
+        # RecordingActivity.swift leaves its app-only cleanup out of the extension.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VERBATIM_WIDGETS"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
