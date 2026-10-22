@@ -67,6 +67,7 @@ struct DictationForm: View {
     @State private var newTrigger = ""
     @State private var newExpansion = ""
     @AppStorage(FlowSettings.maxDictationMinutesKey) private var maxMinutes: Double = 10
+    @AppStorage(SpokenCorrections.enabledKey) private var spokenCorrections = true
 
     var body: some View {
         SettingsPane(tab: .dictate) {
@@ -109,6 +110,8 @@ struct DictationForm: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                SettingsToggleRow("dictate.spokenCorrections", isOn: $spokenCorrections,
+                                  detail: "Say “scratch that,” “delete the last sentence,” or “let me start over” to fix what you said. “At 2, actually 3” keeps 3. Works at Clean and Polished, with or without Apple Intelligence.")
                 SettingsRow("dictate.cleanupHelp", detail: "Say “comma,” “period,” “question mark,” “new line,” or “new paragraph” at any level. At Clean and Polished, announce a list (“a few things,” “first… second…,” “step one,” or “bullet”) to get a numbered or bulleted list, and change topic (“also,” “one more thing”) to start a paragraph. Lists, paragraphs, filler removal, and fixes for capitals and “a” or “an” work without Apple Intelligence. Cleanup keeps the language you speak and never answers what you dictate. If it would change a number, a name, or a “not,” Verbatim pastes your words instead.")
                 CloudCleanupSettingsRows()
             }

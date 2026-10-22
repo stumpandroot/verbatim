@@ -57,6 +57,9 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var showingRecent = false
     /// A short confirmation under the card ("Copied."), cleared after a moment.
     @Published private(set) var info: String? = nil
+    /// What a spoken correction changed in the words just inserted ("Removed “meet at 2”"), with Use as spoken
+    /// and Turn off. Cleared when the inserted state ends.
+    @Published private(set) var correction: String? = nil
 
     /// The cleanup level the app applies, for the top strip.
     var levelLabel: String { KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
@@ -219,6 +222,7 @@ final class KeyboardModel: ObservableObject {
         insertion = ins
         // You chose your own words: a polished version arriving later doesn't replace them.
         polishing = false
+        correction = nil
     }
 
     // MARK: Snippets
@@ -324,6 +328,28 @@ final class KeyboardModel: ObservableObject {
 
     private func set(_ s: Stage) {
         if s != stage { stage = s; stageSince = Date() }
+        if s != .inserted, correction != nil { correction = nil }
+    }
+
+    // MARK: Spoken corrections
+
+    /// Live words strike out spoken corrections when Understand spoken corrections is on and cleanup isn't Literal.
+    var liveCorrections: Bool { SpokenCorrections.enabled && levelLabel != "Literal" }
+
+    /// After inserting: says what a spoken correction changed, so you learn it and can opt out. Start over and
+    /// multi-sentence deletions always; small fixes the first few times (`SpokenCorrections.takeNotice`).
+    private func noticeCorrections(raw: String, inserted text: String) {
+        guard liveCorrections, !raw.isEmpty, raw != text else { return }
+        let found = SpokenCorrections.apply(raw).corrections
+        guard SpokenCorrections.takeNotice(for: found) else { return }
+        correction = SpokenCorrections.summary(found)
+    }
+
+    /// The strip's Turn off: Settings › Understand spoken corrections off, in the App Group the app reads.
+    func turnOffSpokenCorrections() {
+        SpokenCorrections.enabled = false
+        correction = nil
+        flashInfo("Spoken corrections are off. Turn them back on in Settings.")
     }
 
     private func poll() {
@@ -452,6 +478,7 @@ final class KeyboardModel: ObservableObject {
         polishing = final == text && defaults.string(forKey: KeyboardBridge.Key.polishing) == d.uuidString
         set(.inserted)
         notice = nil
+        noticeCorrections(raw: raw, inserted: final)
         reloadRecent()
         // Also copy each dictation: the app copies it; when it couldn't, the keyboard does (Full Access only).
         if KeyboardBridge.alwaysCopy, hasFullAccess, defaults.string(forKey: KeyboardBridge.copiedKey) != d.uuidString {

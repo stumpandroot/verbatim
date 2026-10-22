@@ -965,8 +965,9 @@ enum UITest {
         clean("I mean, it's fine.", "It's fine.")
         clean("I mean it.", "I mean it.")
         clean("I mean what I say.", "I mean what I say.")
-        clean("Let's meet Tuesday. I mean, Wednesday.", "Let's meet Tuesday. I mean, Wednesday.")
-        clean("It costs 50, I mean, 60 dollars.", "It costs 50, I mean, 60 dollars.")
+        // A correction after "I mean" keeps the final value (SpokenCorrections).
+        clean("Let's meet Tuesday. I mean, Wednesday.", "Let's meet Wednesday.")
+        clean("It costs 50, I mean, 60 dollars.", "It costs 60 dollars.")
         // "Like"
         clean("I like it.", "I like it.")
         clean("It was, like, really good.", "It was really good.")
@@ -1022,6 +1023,16 @@ enum UITest {
             if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
         }
         check("settings search finds the email layout", SettingsIndex.search("greeting sign-off").map(\.id).contains("dictate.emailLines"))
+
+        // Spoken corrections: every rule, chaining, start over, commands, and the keep-cases
+        // (SpokenCorrectionsChecks, also run by mac/tools/test-formatter.sh and the iPhone self-test).
+        for r in SpokenCorrectionsChecks.run() {
+            check(r.name, r.ok)
+            if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
+        }
+        check("settings search finds spoken corrections", SettingsIndex.search("scratch that").map(\.id).contains("dictate.spokenCorrections"))
+        check("spoken corrections stay off the prompt when off",
+              !FlowCleanup.instructions(level: .clean, corrections: false).contains("scratch that") && FlowCleanup.instructions(level: .clean, corrections: true).contains("scratch that"))
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
