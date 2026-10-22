@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import AVFoundation
 import ApplicationServices
 import Carbon
