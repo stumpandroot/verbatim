@@ -23,7 +23,7 @@ extension Store {
     static let lowSpaceBytes: Int64 = 500 * 1_000_000
 
     /// Free space for new recordings, or nil when the system won't say.
-    static func freeSpace(at folder: URL = Paths.recordings) -> Int64? {
+    nonisolated static func freeSpace(at folder: URL = Paths.recordings) -> Int64? {
         let v = try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
         if let n = v?.volumeAvailableCapacityForImportantUsage, n > 0 { return n }
         return v?.volumeAvailableCapacity.map(Int64.init)
