@@ -132,3 +132,40 @@ jobs:
             echo "::error::The App Store keyboard still opens URLs by selector"; exit 1
           fi
           echo "The App Store build compiles, with no undocumented interfaces."
+
+  # The pure-logic tests (mac/tools/test-*.sh): no Xcode, so they run on Linux with Swift 6.1.2 from swift.org.
+  logic:
+    name: Logic tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Swift 6.1.2
+        id: swiftcache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/swift-6.1.2-RELEASE-ubuntu24.04
+          key: swift-6.1.2-RELEASE-ubuntu24.04
+      - name: Install Swift 6.1.2
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.swiftcache.outputs.cache-hit }}" != "true" ]; then
+            curl -fsSL --retry 5 -o "$RUNNER_TEMP/swift.tar.gz" \
+              "https://download.swift.org/swift-6.1.2-release/ubuntu2404/swift-6.1.2-RELEASE/swift-6.1.2-RELEASE-ubuntu24.04.tar.gz"
+            tar -xzf "$RUNNER_TEMP/swift.tar.gz" -C "$RUNNER_TEMP"
+          fi
+          echo "$RUNNER_TEMP/swift-6.1.2-RELEASE-ubuntu24.04/usr/bin" >> "$GITHUB_PATH"
+      - name: Run every mac/tools/test-*.sh
+        run: |
+          swiftc --version
+          failed=()
+          for t in mac/tools/test-*.sh; do
+            echo "::group::$t"
+            if bash "$t"; then echo "$t passed"; else failed+=("$t"); fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            for t in "${failed[@]}"; do echo "::error::$t failed"; done
+            exit 1
+          fi
+          echo "All logic tests passed."
