@@ -117,6 +117,12 @@ final class PhoneState: ObservableObject {
         // Recordings recovered once launch recovery finishes in the background: transcribe them too.
         store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
+        // Picked files the app quit in the middle of importing start again (their placeholders are still "Importing").
+        let resumable = store.takeResumableImports().compactMap { id, url -> (UUID, ImportSource)? in
+            guard let t = store.transcript(id) else { return nil }
+            return (id, ImportSource(url: url, title: t.title, label: t.sourceLabel, source: t.source))
+        }
+        if !resumable.isEmpty { DispatchQueue.main.async { self.runImportSources(resumable) } }
         if !PhoneUITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         // Files and links shared to Verbatim, and sound from Transcribe what's playing (PhoneInbox.swift). PhoneRoot
         // imports again each time the app becomes active; the broadcast extension's notification covers an open app.
@@ -371,19 +377,32 @@ final class PhoneState: ObservableObject {
         for s in sources {
             var t = Transcript(title: s.title, source: s.source, sourceLabel: s.label, duration: 0, audioFileName: nil, model: "")
             if let d = s.createdAt { t.createdAt = d }
-            t.status = .processing; t.stage = "Importing"; t.processingDevice = Device.id; t.processingDeviceName = Device.name
+            t.status = .processing; t.stage = PendingImports.stage; t.processingDevice = Device.id; t.processingDeviceName = Device.name
             store.add(t)
+            // Picked files: if the app quits before the audio is ready, launch imports the file again when it's still
+            // there (Store.cleanUpStuckImports). The inbox imports its staged copies again itself.
+            if s.finished == nil { PendingImports.record(t.id, source: s.url) }
             pending.append((t.id, s))
         }
+        runImportSources(pending)
+        return pending.map { $0.0 }
+    }
+
+    /// Prepares each placeholder's audio in turn and queues it. Also resumes imports the app quit in the middle of.
+    func runImportSources(_ pending: [(UUID, ImportSource)]) {
+        guard !pending.isEmpty else { return }
         Task {
             for (id, s) in pending {
                 let src = s.url
                 let access = src.startAccessingSecurityScopedResource()
+                defer { PendingImports.clear(id) }
                 do {
                     // Several audio tracks: mixed, or kept apart as speakers (Settings › Files with several audio tracks).
                     let folder = AudioTracksPreference.current == .separate ? Paths.tracks(id) : nil
                     let store = self.store
-                    let prepared = try await MediaImport.prepare(src, into: store.newAudioURL(ext: "m4a"), separateTracksInto: folder) { s in
+                    let dest = store.newAudioURL(ext: "m4a")
+                    PendingImports.writing(id, to: dest)
+                    let prepared = try await MediaImport.prepare(src, into: dest, separateTracksInto: folder) { s in
                         Task { @MainActor in store.setStage(id, s) }
                     }
                     if store.transcript(id) == nil {
@@ -405,7 +424,6 @@ final class PhoneState: ObservableObject {
                 s.finished?()
             }
         }
-        return pending.map { $0.0 }
     }
 
     /// Adds a link: the transcript appears in Library right away, then this iPhone resolves the link, downloads

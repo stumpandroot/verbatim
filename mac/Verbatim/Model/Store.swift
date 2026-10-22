@@ -489,9 +489,11 @@ final class Store: ObservableObject {
             slots.set(i, (t, mod))
         }
         var list: [Transcript] = [], dates: [UUID: Date] = [:]
+        var stuck: [UUID] = []
         for case let slot? in slots.items {
             var t = slot.t
-            if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
+            if Self.isStuckImport(t) { stuck.append(t.id) }
+            else if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
             if t.status == .ready, t.pendingAppend == nil, t.stage != nil { t.stage = nil }   // a speaker pass that didn't finish
             // Only files that match memory exactly may be skipped by CloudSync's first pass; the rest are read again.
             if t == slot.t, let mod = slot.mod { dates[t.id] = mod }
@@ -506,9 +508,74 @@ final class Store: ObservableObject {
         loadList(list: \.projects, sync: \.projectSync)
         loadList(list: \.dictionary, sync: \.dictionarySync)
         loadList(list: \.snippets, sync: \.snippetSync)
+        cleanUpStuckImports(stuck)
+        cleanDownloads()
         recoverOrphans()
         purgeExpired()
         startProfileSync()
+    }
+
+    // MARK: Launch cleanup
+
+    /// An import placeholder this device left when the app quit before the file's audio was ready: no audio, still
+    /// "Importing". (Links and multi-track recordings have their own resume paths.)
+    nonisolated static func isStuckImport(_ t: Transcript) -> Bool {
+        t.status == .processing && t.audioFileName == nil && t.stage == PendingImports.stage && t.source != .link
+            && t.multitrack == nil && t.pendingAppend == nil
+            // This device's own: another device's import may still be running there.
+            && (t.processingDevice == Device.id || (t.processingDevice == nil && PendingImports.entry(t.id) != nil))
+    }
+
+    /// Stuck imports whose file is still here, for the app to import again (`takeResumableImports`).
+    private var resumableImports: [(UUID, URL)] = []
+
+    /// The app (Mac: AppState, iPhone: PhoneState) takes these once at launch and imports each file again into its
+    /// placeholder.
+    func takeResumableImports() -> [(UUID, URL)] {
+        defer { resumableImports = [] }
+        return resumableImports
+    }
+
+    /// At launch: each stuck import's half-written audio (and track copies) is removed. Its placeholder is imported
+    /// again when its file is still here, and removed otherwise.
+    private func cleanUpStuckImports(_ ids: [UUID]) {
+        let fm = FileManager.default
+        for id in ids {
+            guard let t = transcript(id) else { continue }
+            let entry = PendingImports.entry(id)
+            if let dest = entry?.dest {
+                let base = Paths.audio.appendingPathComponent(dest).deletingPathExtension()
+                for ext in Set([URL(fileURLWithPath: dest).pathExtension, "m4a", "wav", URL(fileURLWithPath: entry?.source ?? "").pathExtension]) where !ext.isEmpty {
+                    let u = base.appendingPathExtension(ext)
+                    if fm.fileExists(atPath: u.path) { try? fm.removeItem(at: u); Log.note("launch: removed half-written \(u.lastPathComponent)") }
+                }
+            }
+            try? fm.removeItem(at: Paths.tracks(id))
+            if let src = entry.map({ URL(fileURLWithPath: $0.source) }), fm.fileExists(atPath: src.path) {
+                resumableImports.append((id, src))
+                Log.note("launch: importing \(src.lastPathComponent) again (the app quit before it was ready)")
+            } else {
+                PendingImports.clear(id)
+                delete(t)
+                Log.note("launch: removed an import placeholder whose file is gone")
+            }
+        }
+        PendingImports.keep(only: Set(transcripts.map(\.id)))
+    }
+
+    /// At launch: link downloads and their partial files older than a day are removed from `Paths.downloads` (a
+    /// finished download moves out of it at once).
+    private func cleanDownloads() {
+        let fm = FileManager.default
+        let cutoff = Date().addingTimeInterval(-86_400)
+        let items = (try? fm.contentsOfDirectory(at: Paths.downloads, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        var removed = 0
+        for u in items {
+            let m = (try? u.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+            guard m < cutoff else { continue }
+            if (try? fm.removeItem(at: u)) != nil { removed += 1 }
+        }
+        if removed > 0 { Log.note("launch: removed \(removed) old file\(removed == 1 ? "" : "s") from downloads") }
     }
 
     /// Transcripts that aren't in Recently Deleted.

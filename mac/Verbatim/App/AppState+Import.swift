@@ -29,18 +29,29 @@ extension AppState {
         for src in files {
             var t = Transcript(title: src.deletingPathExtension().lastPathComponent, source: .file,
                                sourceLabel: src.pathExtension.uppercased() + " file", duration: 0, audioFileName: nil, model: "")
-            t.status = .processing; t.stage = "Importing"
+            t.status = .processing; t.stage = PendingImports.stage; t.processingDevice = Device.id; t.processingDeviceName = Device.name
             if let p = projectId { t.projectId = p }
             store.add(t)
+            // If the app quits before the audio is ready, launch imports the file again (Store.cleanUpStuckImports).
+            PendingImports.record(t.id, source: src)
             pending.append((t.id, src))
         }
         if announce && files.count > 1 { toast = Toast("Added \(files.count) files to the queue", action: "View") { [weak self] in self?.go(.queue) } }
         verbiePose = .receiving
+        runImports(pending)
+        return pending
+    }
+
+    /// Prepares each placeholder's audio in turn and queues it. Also resumes imports the app quit in the middle of.
+    func runImports(_ pending: [(UUID, URL)]) {
+        guard !pending.isEmpty else { return }
         Task {
             for (id, src) in pending {
-                guard store.transcript(id)?.status == .processing else { continue }   // cancelled while waiting
+                guard store.transcript(id)?.status == .processing else { PendingImports.clear(id); continue }   // cancelled while waiting
+                defer { PendingImports.clear(id) }
                 do {
                     let dest = store.newAudioURL(ext: "m4a")
+                    PendingImports.writing(id, to: dest)
                     // Several audio tracks: mixed, or kept apart as speakers (Settings › Speakers › Files with several audio tracks).
                     let folder = AudioTracksPreference.current == .separate ? Paths.tracks(id) : nil
                     let store = self.store
@@ -60,7 +71,6 @@ extension AppState {
                 }
             }
         }
-        return pending
     }
 
     /// Accepts files and folders dropped from Finder, any number at once. Two to eight audio files ask whether

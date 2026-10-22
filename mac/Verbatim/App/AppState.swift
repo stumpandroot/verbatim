@@ -153,6 +153,9 @@ final class AppState: ObservableObject {
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
         if !UITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
+        // Imports the app quit in the middle of start again (their placeholders are still "Importing").
+        let resumable = store.takeResumableImports()
+        if !resumable.isEmpty { DispatchQueue.main.async { self.runImports(resumable) } }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.backfillFrames() }
     }
 
