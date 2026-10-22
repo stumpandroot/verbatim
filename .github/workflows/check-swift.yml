@@ -72,3 +72,39 @@ jobs:
             exit 1
           fi
           echo "${{ matrix.target }} compiles."
+
+      # The App Store switch (mac/APP_STORE.md): the iPhone app again with VERBATIM_APP_STORE=YES, in the same
+      # derived data, so only Verbatim's own targets recompile. Then proves the flag took effect: APP_STORE was
+      # passed, YOUTUBE_ON_DEVICE wasn't, and no undocumented selector or class name is left in the app.
+      - name: Compile the App Store build
+        if: matrix.target == 'iPhone'
+        run: |
+          set -o pipefail
+          LOG="$RUNNER_TEMP/appstore.log"
+          if ! xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+              ARCHS=arm64 ONLY_ACTIVE_ARCH=YES -configuration Debug -derivedDataPath build/dd \
+              -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+              CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO VERBATIM_APP_STORE=YES build > "$LOG" 2>&1; then
+            grep -E "error:" "$LOG" | sort -u | head -n 20 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+            tail -n 30 "$LOG"
+            exit 1
+          fi
+          echo "Swift compiles in the App Store pass: $(grep -c '^SwiftCompile\|^SwiftDriver\|^CompileSwift' "$LOG" || true); lines naming APP_STORE: $(grep -c 'APP_STORE' "$LOG" || true)"
+          # The conditions each target resolves with the flag on (cheap, and doesn't depend on the log's format).
+          for t in VerbatimPhone VerbatimKeyboard VerbatimWidgets; do
+            c=$(xcodebuild -project Verbatim.xcodeproj -target "$t" -sdk iphonesimulator -configuration Debug \
+                  VERBATIM_APP_STORE=YES -showBuildSettings 2>/dev/null | grep -E "^ *SWIFT_ACTIVE_COMPILATION_CONDITIONS =" || true)
+            echo "$t: $c"
+            echo "$c" | grep -qw APP_STORE || { echo "::error::$t doesn't define APP_STORE in the App Store build"; exit 1; }
+            if echo "$c" | grep -qw YOUTUBE_ON_DEVICE; then echo "::error::$t still defines YOUTUBE_ON_DEVICE"; exit 1; fi
+          done
+          APP=build/dd/Build/Products/Debug-iphonesimulator/Verbatim.app
+          for s in _hostBundleID _hostApplicationBundleIdentifier _systemNavigationAction LSApplicationWorkspace openApplicationWithBundleID; do
+            if grep -r -a -l -- "$s" "$APP" | grep -v '\.swiftmodule\|\.swiftdoc\|\.abi\.json' | grep .; then
+              echo "::error::The App Store build still contains $s"; exit 1
+            fi
+          done
+          if grep -r -a -l -- "openURL:options:completionHandler:" "$APP/PlugIns/VerbatimKeyboard.appex" | grep .; then
+            echo "::error::The App Store keyboard still opens URLs by selector"; exit 1
+          fi
+          echo "The App Store build compiles, with no undocumented interfaces."

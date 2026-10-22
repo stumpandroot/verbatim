@@ -63,6 +63,7 @@ struct SessionStartScreen: View {
 
     private var title: String {
         if !session.isOn { return "Turning on the microphone…" }
+        if session.startSource != nil { return "Your session is on." }
         if session.needsManualReturn { return session.dictating ? "Listening. Go back to talk." : "You're set." }
         return "Going back…"
     }
@@ -70,6 +71,11 @@ struct SessionStartScreen: View {
     /// The manual way back names the system's "◀ <app>" link at the top left first: it's one tap, and iOS shows
     /// it whenever another app opened Verbatim.
     private var detail: String {
+        // Started from Control Center, the Action button, Shortcuts, the widget, or Settings: no app to go back to.
+        if session.startSource != nil {
+            if !session.isOn { return "Verbatim turns on the microphone for the Verbatim keyboard." }
+            return "Go to the app you want to type in: swipe right along the bottom edge, or swipe up and choose it. Then tap the record button on the Verbatim keyboard and talk."
+        }
         if session.needsManualReturn {
             if session.dictating {
                 return "Tap ◀ and your app's name at the top left, or swipe right along the bottom edge. Verbatim is already listening: talk, then tap the check on the keyboard."
@@ -107,6 +113,14 @@ struct KeyboardSetupScreen: View {
         "In any app, touch and hold the globe key, and then choose Verbatim.",
     ]
 
+    /// Ways to start a session without the keyboard opening Verbatim (the only ways in App Store builds).
+    private let startWays: [(symbol: String, text: String)] = [
+        ("square.grid.2x2", "Control Center: tap Edit, then Add a Control, and choose Start dictation session."),
+        ("button.horizontal.top.press", "Action button: in Settings › Action Button, choose Shortcut, then Verbatim › Start dictation session."),
+        ("lock", "Lock Screen: touch and hold the Lock Screen, tap Customize, and add the Verbatim widget."),
+        ("mic", "Here: tap Start keyboard session above."),
+    ]
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -131,9 +145,12 @@ struct KeyboardSetupScreen: View {
                 Overline(text: "Sessions", color: Ink.mute).padding(.top, 6)
                 SessionCard(session: app.session)
 
-                SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
-                                  subtitle: "The first tap opens Verbatim and starts listening; no second tap.", isOn: $autoStart)
-                    .cardSurface(radius: 14)
+                // Only when the keyboard can open Verbatim (never in App Store builds).
+                if Distribution.current.keyboardOpensVerbatim {
+                    SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
+                                      subtitle: "The first tap opens Verbatim and starts listening; no second tap.", isOn: $autoStart)
+                        .cardSurface(radius: 14)
+                }
 
                 SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
                                   subtitle: "Your words appear right away; Verbatim swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
@@ -149,9 +166,25 @@ struct KeyboardSetupScreen: View {
 
                 PhoneLowerAudioRow()
 
-                Text("The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbatim can't switch back by itself, tap ◀ and your app's name at the top left.")
+                Text(Distribution.current.keyboardOpensVerbatim
+                     ? "The first time you tap the record button, Verbatim opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbatim can't switch back by itself, tap ◀ and your app's name at the top left."
+                     : "A session keeps the microphone ready for the keyboard: while it's on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
+
+                Overline(text: "Start a session from anywhere", color: Ink.mute).padding(.top, 6)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(startWays.enumerated()), id: \.offset) { _, way in
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Image(systemName: way.symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(Ink.accentText).frame(width: 20)
+                            Text(way.text).font(.system(size: 16)).foregroundStyle(Ink.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .padding(16)
+                .cardSurface(radius: 14)
 
                 Overline(text: "Privacy", color: Ink.mute).padding(.top, 6)
                 Text("While a session is on, Verbatim keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and never leaves this iPhone. Each dictation is saved in Library › Dictations.")
@@ -159,7 +192,7 @@ struct KeyboardSetupScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Overline(text: "Why Full Access", color: Ink.mute).padding(.top, 6)
-                Text("Full Access lets the keyboard open Verbatim to start a session and receive your words from it. Listening and transcription happen in the Verbatim app on this iPhone; the keyboard never sends what you type or say anywhere else.")
+                Text((Distribution.current.keyboardOpensVerbatim ? "Full Access lets the keyboard open Verbatim to start a session and receive your words from it." : "Full Access lets the keyboard receive your words from Verbatim and play haptics.") + " Listening and transcription happen in the Verbatim app on this iPhone; the keyboard never sends what you type or say anywhere else.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -205,11 +238,16 @@ private struct SessionCard: View {
                         .accessibilityHint("Turns off the microphone")
                 }
             }
+            if !session.isOn {
+                Button("Start keyboard session") { session.startFromOutside(.app) }
+                    .buttonStyle(.brandPrimaryLarge)
+                    .accessibilityHint("Turns on the microphone for the Verbatim keyboard")
+            }
             Divider()
             HStack {
-                Text("End the session after").font(.system(size: 16)).foregroundStyle(Ink.ink)
+                Text("End keyboard sessions after").font(.system(size: 16)).foregroundStyle(Ink.ink)
                 Spacer(minLength: 8)
-                Picker("End the session after", selection: $session.timeoutSeconds) {
+                Picker("End keyboard sessions after", selection: $session.timeoutSeconds) {
                     ForEach(KeyboardSession.timeoutChoices, id: \.seconds) { c in
                         Text(c.seconds == 0 ? c.label : "\(c.label) idle").tag(c.seconds)
                     }

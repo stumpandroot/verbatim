@@ -12,6 +12,7 @@ enum PhoneUITest {
     static func run(_ app: PhoneState) {
         seed(app)
         keyboardChecks()
+        KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
         libraryChecks()
         homeChecks()
         recorderChecks(app)

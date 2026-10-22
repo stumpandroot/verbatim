@@ -3,12 +3,17 @@ import WidgetKit
 import ActivityKit
 import AppIntents
 
-/// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities.
+/// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities, the Lock Screen
+/// widget, and (iOS 18) the Control Center control that start a keyboard session.
 @main
 struct VerbatimWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
         RecordingLiveActivity()
+        StartSessionWidget()
+        if #available(iOS 18.0, *) {
+            StartSessionControl()
+        }
     }
 }
 

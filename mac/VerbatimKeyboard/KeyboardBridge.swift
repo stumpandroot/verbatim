@@ -37,7 +37,9 @@ enum KeyboardBridge {
     /// A session whose heartbeat is older than this is gone (the app was closed or crashed).
     static let heartbeatStale: TimeInterval = 6
 
-    static var defaults: UserDefaults? { UserDefaults(suiteName: appGroup) }
+    /// The App Group's shared defaults, made once per process: each `UserDefaults(suiteName:)` is a new object,
+    /// and the keyboard reads these about 10 times a second.
+    static let defaults: UserDefaults? = UserDefaults(suiteName: appGroup)
 
     enum Key {
         // Session (written by the app)
@@ -223,7 +225,7 @@ enum KeyboardBridge {
         return c.url!
     }
 
-    struct SessionLink: Equatable { var request: UUID?; var host: String?; var dictation: UUID? = nil }
+    struct SessionLink: Equatable { var request: UUID?; var host: String?; var dictation: UUID? = nil; var source: StartSource? = nil }
 
     /// The request in a `verbatim://session?…` link (or the first keyboard's `verbatim://dictate?…`), or nil for any other link.
     static func sessionLink(in url: URL) -> SessionLink? {
@@ -232,7 +234,22 @@ enum KeyboardBridge {
         let request = items.first(where: { $0.name == "request" || $0.name == "session" })?.value.flatMap(UUID.init(uuidString:))
         let host = items.first(where: { $0.name == "host" })?.value
         let dictation = items.first(where: { $0.name == "dictate" })?.value.flatMap(UUID.init(uuidString:))
-        return SessionLink(request: request, host: host?.isEmpty == false ? host : nil, dictation: dictation)
+        let source = items.first(where: { $0.name == "from" })?.value.flatMap(StartSource.init(rawValue:))
+        return SessionLink(request: request, host: host?.isEmpty == false ? host : nil, dictation: dictation, source: source)
+    }
+
+    /// Where a session start came from when it wasn't the keyboard: Control Center, the Action button or
+    /// Shortcuts, the Lock Screen widget, or a button in Verbatim.
+    enum StartSource: String { case control, shortcut, widget, app }
+
+    /// `verbatim://session?start=1&from=<source>`: a session with no keyboard request, so nothing switches back
+    /// and the start screen tells you how to go back to your app.
+    static func sessionURL(from source: StartSource) -> URL {
+        var c = URLComponents()
+        c.scheme = scheme
+        c.host = sessionHost
+        c.queryItems = [URLQueryItem(name: "start", value: "1"), URLQueryItem(name: "from", value: source.rawValue)]
+        return c.url!
     }
 
     // MARK: Reading

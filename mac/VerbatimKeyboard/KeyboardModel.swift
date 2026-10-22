@@ -61,6 +61,18 @@ final class KeyboardModel: ObservableObject {
     /// and Turn off. Cleared when the inserted state ends.
     @Published private(set) var correction: String? = nil
 
+    /// The format chip: your choice for this session (Auto unless you change it), what the chip says ("Auto ·
+    /// Mail", "Email"), and the cleanup category it sends with each dictation.
+    @Published private(set) var format: KeyboardFormat = .auto
+    @Published private(set) var formatLabel = "Auto"
+    private var formatCategory = "personal"
+    /// The app you're typing in, when the build can read it (never in App Store builds). Set on each appearance.
+    var host: String?
+
+    /// True when there's no session and this build's keyboard can't open Verbatim to start one (App Store
+    /// builds): the card says how to start one instead of offering a record button.
+    var needsSessionCard: Bool { !sessionLive && !Distribution.current.keyboardOpensVerbatim }
+
     /// The cleanup level the app applies, for the top strip.
     var levelLabel: String { KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
 
@@ -92,6 +104,7 @@ final class KeyboardModel: ObservableObject {
         visible = true
         reloadSnippets()
         reloadRecent()
+        refreshFormat()
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
@@ -129,7 +142,44 @@ final class KeyboardModel: ObservableObject {
         showingSnippets = false
         showingRecent = false
         clearLive()
-        if KeyboardBridge.sessionLive { startDictation(defaults) } else { startSession(defaults) }
+        if KeyboardBridge.sessionLive { startDictation(defaults) }
+        else if needsSessionCard { return }   // The card shows the ways to start one.
+        else { startSession(defaults) }
+    }
+
+    // MARK: Format chip
+
+    /// Tapping the chip moves to the next format: Auto, Email, Message, Note. Kept for the session.
+    func cycleFormat() {
+        KeyboardBridge.format = format.next
+        refreshFormat()
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    /// Re-reads the choice (the app resets it to Auto when a session ends) and works out Auto again from the
+    /// host and the field.
+    func refreshFormat() {
+        let choice = KeyboardBridge.format
+        let traits = controller?.fieldTraits() ?? KeyboardFormat.FieldTraits()
+        let resolved = KeyboardFormat.resolve(choice, host: host, traits: traits)
+        if choice != format { format = choice }
+        if resolved.label != formatLabel { formatLabel = resolved.label }
+        formatCategory = resolved.category
+    }
+
+    /// Tells the app which cleanup category this dictation is for. Written before the start command.
+    private func sendCategory(for d: UUID) {
+        refreshFormat()
+        KeyboardBridge.writeCategory(formatCategory, for: d)
+    }
+
+    // MARK: Haptics
+
+    /// A tap you can feel when dictation starts and when you tap Done. Keyboards can play haptics only with
+    /// Allow Full Access; without it, nothing plays.
+    private func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        guard hasFullAccess else { return }
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
     }
 
     /// Step 1: a session request, then Verbatim opens for a moment and switches back here. With Start dictating
@@ -146,10 +196,10 @@ final class KeyboardModel: ObservableObject {
             dictation = id
             level = 0
             elapsed = 0
+            sendCategory(for: id)
             defaults.set(id.uuidString, forKey: KeyboardBridge.Key.startID)
         }
         set(.starting)
-        let host = controller?.hostBundleID()
         if controller?.openContainingApp(KeyboardBridge.sessionURL(request: r, host: host, dictation: d)) != true {
             notice = "Couldn't open Verbatim. Open it yourself to start a session."
             request = nil
@@ -175,9 +225,11 @@ final class KeyboardModel: ObservableObject {
         dictation = d
         level = 0
         elapsed = 0
+        sendCategory(for: d)
         defaults.set(d.uuidString, forKey: KeyboardBridge.Key.startID)
         KeyboardBridge.post(KeyboardBridge.Note.command)
         set(.listening)
+        haptic(.medium)
         retime()
     }
 
@@ -185,6 +237,7 @@ final class KeyboardModel: ObservableObject {
         guard let d = dictation, stage == .listening else { return }
         defaults?.set(d.uuidString, forKey: KeyboardBridge.Key.doneID)
         KeyboardBridge.post(KeyboardBridge.Note.command)
+        haptic(.light)
         level = 0
         set(.writing)
     }
@@ -367,7 +420,11 @@ final class KeyboardModel: ObservableObject {
 
     private func readSession(_ defaults: UserDefaults) {
         let live = KeyboardBridge.sessionLive
-        if live != sessionLive { sessionLive = live }
+        if live != sessionLive {
+            sessionLive = live
+            // A session that ended reset the format chip to Auto.
+            refreshFormat()
+        }
         let ends = defaults.double(forKey: KeyboardBridge.Key.endsAt)
         let endsAt = live && ends > 0 ? Date(timeIntervalSince1970: ends) : nil
         if endsAt != sessionEndsAt { sessionEndsAt = endsAt }
@@ -389,6 +446,7 @@ final class KeyboardModel: ObservableObject {
             if dictation == nil, let running = KeyboardBridge.currentRunningDictation { dictation = running.id }
             if dictation != nil {
                 set(.listening)
+                haptic(.medium)
                 pollDictation(defaults)
             } else {
                 set(.idle)

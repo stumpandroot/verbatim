@@ -51,8 +51,18 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         model.showsGlobe = needsInputModeSwitchKey
         model.hasFullAccess = hasFullAccess
+        // Read once per appearance: nil in App Store builds and on recent iOS releases.
+        model.host = hostBundleID()
         applyAppearance()
         model.resume()
+    }
+
+    /// What the text field tells every keyboard, for the format chip's Auto (`KeyboardFormat.infer`).
+    func fieldTraits() -> KeyboardFormat.FieldTraits {
+        let p = textDocumentProxy
+        let contentType: UITextContentType? = p.textContentType ?? nil
+        return KeyboardFormat.FieldTraits(keyboardType: p.keyboardType, textContentType: contentType,
+                                          returnKeyType: p.returnKeyType, before: p.documentContextBeforeInput)
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -64,6 +74,7 @@ final class KeyboardViewController: UIInputViewController {
         super.textDidChange(textInput)
         model.showsGlobe = needsInputModeSwitchKey
         applyAppearance()
+        model.refreshFormat()
     }
 
     // MARK: The host app
@@ -78,7 +89,14 @@ final class KeyboardViewController: UIInputViewController {
     /// nil or the string `<null>` for every known key on iOS 26.4 and later; those are ignored. When this returns
     /// nil, the app reads the host from its back breadcrumb instead (`KeyboardSession.returnToHostApp`), which is
     /// the path modern iOS relies on.
+    ///
+    /// App Store builds (`APP_STORE`) compile this out and return nil; the format chip's Auto then infers from
+    /// the text field instead (`KeyboardFormat.infer`).
     func hostBundleID() -> String? {
+        guard Distribution.current.readsHostApp else { return nil }
+        #if APP_STORE
+        return nil
+        #else
         let candidates: [(NSObject?, String)] = [
             (self as NSObject?, "_hostBundleID"),
             (parent as NSObject?, "_hostBundleID"),
@@ -95,6 +113,7 @@ final class KeyboardViewController: UIInputViewController {
             return id
         }
         return nil
+        #endif
     }
 
     // MARK: Opening the app
@@ -111,8 +130,15 @@ final class KeyboardViewController: UIInputViewController {
     /// 2.5.1 (public APIs only), and an iOS release can break it without notice (iOS 18 stopped honoring the old
     /// one-argument `openURL:`). Everything that depends on it goes through this one function, so it can be
     /// swapped for a documented route, such as asking you to open Verbatim yourself, without touching the rest.
+    ///
+    /// App Store builds (`APP_STORE`) compile this out and return false; the keyboard then shows how to start a
+    /// session from Control Center, the Action button, or Verbatim (`KeyboardModel.needsSessionCard`).
     @discardableResult
     func openContainingApp(_ url: URL) -> Bool {
+        guard Distribution.current.keyboardOpensVerbatim else { return false }
+        #if APP_STORE
+        return false
+        #else
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
         var responder: UIResponder? = self
         while let r = responder {
@@ -126,5 +152,6 @@ final class KeyboardViewController: UIInputViewController {
             responder = r.next
         }
         return false
+        #endif
     }
 }
