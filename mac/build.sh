@@ -34,15 +34,11 @@ fi
 # 1. Project from project.yml (Local.xcconfig holds your team ID for Xcode builds; empty is fine here)
 [ -f Local.xcconfig ] || : > Local.xcconfig
 xcodegen generate --quiet
+# Swift package versions pinned by mac/Package.resolved (the generated project is git-ignored).
+bash tools/package-resolved.sh install
 
-# 1b. Link helper: yt-dlp standalone macOS binary (universal). Pinned release; checksum verified.
-YTDLP_VERSION="${YTDLP_VERSION:-2026.08.19}"
-mkdir -p Helpers
-if [ ! -x Helpers/yt-dlp ] || ! grep -q "$YTDLP_VERSION" Helpers/yt-dlp.version 2>/dev/null; then
-  curl -fsSL -o Helpers/yt-dlp "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_macos"
-  chmod +x Helpers/yt-dlp
-  echo "$YTDLP_VERSION" > Helpers/yt-dlp.version
-fi
+# 1b. Link helper: yt-dlp standalone macOS binary (universal). Pinned release; SHA-256 checked (fetch-yt-dlp.sh).
+bash fetch-yt-dlp.sh
 
 # 1c. Harper grammar engine (Rust staticlib, universal). Skipped if cargo is missing and a prebuilt lib exists.
 # A library built before harper_fix (dictation grammar pass) existed is rebuilt too.

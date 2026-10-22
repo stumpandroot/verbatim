@@ -57,7 +57,12 @@ final class Updater: ObservableObject {
     /// Starts the updater when it's configured. Safe to call more than once.
     func start() {
         guard !isRunning else { return }
-        guard !publicKey.isEmpty else { Log.note("updates: off (no SUPublicEDKey)"); return }
+        guard !publicKey.isEmpty else {
+            // Release builds ship with SUPublicEDKey empty until the EdDSA key is added (mac/Updates/README.md).
+            Log.note("updates: OFF. This build has no Sparkle public key (SUPublicEDKey is empty in Info.plist), so it never checks for or installs updates. Add the key printed by Sparkle's generate_keys to project.yml to turn updates on.")
+            NSLog("Verbatim: automatic updates are off; SUPublicEDKey is empty in this build.")
+            return
+        }
         guard !UITest.enabled, !Bench.isRequested else {
             Log.note("updates: off (UI test or bench)"); return
         }

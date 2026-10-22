@@ -52,14 +52,12 @@ bash ffmpeg/build.sh
 echo "✓ FFmpeg ready"
 
 # The link helper (yt-dlp) for the Mac app's link fetching. The iPhone hands links to the Mac.
-YTDLP_VERSION="2026.08.19"
-mkdir -p Helpers
-if [ ! -x Helpers/yt-dlp ]; then
-  curl -fsSL -o Helpers/yt-dlp "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_macos" && chmod +x Helpers/yt-dlp && echo "$YTDLP_VERSION" > Helpers/yt-dlp.version
-fi
+# Pinned release, SHA-256 checked against yt-dlp's published SHA2-256SUMS (fetch-yt-dlp.sh).
+bash fetch-yt-dlp.sh
 echo "✓ Link helper ready"
 
 xcodegen generate --quiet
+bash tools/package-resolved.sh install
 echo "✓ Verbatim.xcodeproj generated"
 echo
 echo "Next, in Xcode:"

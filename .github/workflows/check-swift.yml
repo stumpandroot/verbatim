@@ -69,6 +69,7 @@ jobs:
           brew install xcodegen
           [ -f Local.xcconfig ] || : > Local.xcconfig
           xcodegen generate --quiet
+          bash tools/package-resolved.sh install
           if [ "${{ matrix.target }}" = "Mac" ]; then bash Vendor/harper/build.sh; else bash Vendor/harper/build-ios.sh; fi
 
       - name: Compile
@@ -91,6 +92,10 @@ jobs:
           FW="$APP/Contents/Frameworks"; [ -d "$FW" ] || FW="$APP/Frameworks"
           ls -d "$FW"/libav*.framework "$FW"/libswresample.framework || { echo "::error::FFmpeg's frameworks aren't embedded in $APP"; exit 1; }
           echo "FFmpeg frameworks in the ${{ matrix.target }} app: $(du -sch "$FW"/libav*.framework "$FW"/libswresample.framework | tail -1 | cut -f1)"
+
+      # Every Swift package version comes from mac/Package.resolved; a build that resolved anything else fails.
+      - name: Swift package versions match Package.resolved
+        run: bash tools/package-resolved.sh check
 
       # The App Store switch (mac/APP_STORE.md): the iPhone app again with VERBATIM_APP_STORE=YES, in the same
       # derived data, so only Verbatim's own targets recompile. Then proves the flag took effect: APP_STORE was
