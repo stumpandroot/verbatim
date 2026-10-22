@@ -176,6 +176,11 @@ targets:
       - Verbatim/Document/Polish.swift
       - Verbatim/Sources/MediaImport.swift
       - Verbatim/Sources/LinkImport.swift
+      # Cloud share links (Dropbox, Google Drive, OneDrive, SharePoint, iCloud Drive): the rules, their self-tests,
+      # and the probe that confirms a direct download. Shared with the Mac.
+      - Verbatim/Sources/CloudShareLink.swift
+      - Verbatim/Sources/CloudShareLinkChecks.swift
+      - Verbatim/Sources/CloudShareFetch.swift
       - Verbatim/App/Changed.swift
       - Verbatim/App/Log.swift
       - Verbatim/App/Links.swift

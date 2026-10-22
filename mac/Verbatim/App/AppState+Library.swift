@@ -90,6 +90,7 @@ extension AppState {
     func keepVideo(_ id: UUID) {
         guard let t = store.transcript(id), keeping[id] == nil else { return }
         guard let url = t.linkInfo?.url ?? t.sourceURL else { toast = Toast("Only link transcripts have a video to keep."); return }
+        guard !CloudShareLink.isCloudLink(url) else { toast = Toast("Keep works with video sites. Download a cloud file from where it's shared."); return }
         guard LinkFetcher.helperURL != nil else { toast = Toast("Keeping video needs the yt-dlp helper, which this build is missing."); return }
         keeping[id] = "Keeping video"
         let gate = ProgressGate()

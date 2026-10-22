@@ -77,7 +77,7 @@ extension AppState {
         let alsoKeep = keepVideo ?? keepVideoByDefault
         let link = link.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LinkFetcher.looksLikeLink(link), let u = URL(string: link) else { toast = Toast("That doesn't look like a link."); return }
-        guard LinkFetcher.helperURL != nil else { toast = Toast("Links need the yt-dlp helper, which this build is missing."); return }
+        guard LinkFetcher.canFetch(link) else { toast = Toast("Links need the yt-dlp helper, which this build is missing."); return }
         verbiePose = .working
         var t = Transcript(title: link, source: .link, sourceLabel: u.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
                            duration: 0, audioFileName: nil, model: "")
@@ -95,8 +95,8 @@ extension AppState {
 
     /// A link added on the iPhone: this Mac fetches its audio into the same transcript and transcribes it.
     func claimIfPendingLink(_ t: Transcript) {
-        guard t.pendingLink, t.deletedAt == nil, t.audioFileName == nil, LinkFetcher.helperURL != nil,
-              let link = t.sourceURL ?? t.link?.url, !claiming.contains(t.id) else { return }
+        guard t.pendingLink, t.deletedAt == nil, t.audioFileName == nil,
+              let link = t.sourceURL ?? t.link?.url, LinkFetcher.canFetch(link), !claiming.contains(t.id) else { return }
         claiming.insert(t.id)
         let id = t.id
         store.update(id) { $0.pendingLink = false; $0.stage = "Fetching audio"; $0.processingDevice = Device.id; $0.processingDeviceName = Device.name }
@@ -104,7 +104,15 @@ extension AppState {
         Task {
             defer { claiming.remove(id) }
             do {
-                let f = try await LinkFetcher.fetch(link) { s in Task { @MainActor in self.store.setStage(id, s) } }
+                let stage: @Sendable (String) -> Void = { s in Task { @MainActor in self.store.setStage(id, s) } }
+                let f: LinkFetcher.Fetched
+                do {
+                    f = try await LinkFetcher.fetch(link, progress: stage)
+                } catch let e as LinkFetcher.HelperError where e.needsSignIn {
+                    // No sheet for links from the iPhone; the browser chosen in Settings is used when there is one.
+                    guard let saved = LinkSignIn.saved(), LinkSignIn.isInstalled(saved) else { throw e }
+                    f = try await LinkFetcher.fetch(link, signIn: saved, progress: stage)
+                }
                 let dest = store.newAudioURL(ext: f.url.pathExtension.isEmpty ? "m4a" : f.url.pathExtension)
                 try FileManager.default.moveItem(at: f.url, to: dest)
                 let duration = Player.duration(of: dest)

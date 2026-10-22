@@ -57,6 +57,9 @@ struct ContentView: View {
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
         .sheet(item: $app.multitrackDraft) { d in MultitrackSheet(draft: d).environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in ExportSheet(ids: r.ids).environmentObject(app) }
+        .sheet(item: Binding(get: { app.signInRequest }, set: { if $0 == nil, app.signInRequest != nil { app.cancelSignIn() } })) { r in
+            SignInSheet(request: r).environmentObject(app)
+        }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
             if let p = app.addFromLibrary { AddFromLibrarySheet(project: p).environmentObject(app) }
         }

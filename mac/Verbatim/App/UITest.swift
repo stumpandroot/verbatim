@@ -1068,6 +1068,15 @@ enum UITest {
             if !r.ok { Log.note("UITEST detail: " + r.detail.replacingOccurrences(of: "\n", with: "⏎")) }
         }
         check("settings search finds spoken corrections", SettingsIndex.search("scratch that").map(\.id).contains("dictate.spokenCorrections"))
+
+        // Cloud share links and private-video sign-in (CloudShareLinkChecks and LinkSignInChecks, also run by
+        // mac/tools/test-cloudlinks.sh; the iPhone self-test runs the cloud links too).
+        for r in CloudShareLinkChecks.run() + LinkSignInChecks.run() {
+            check(r.name, r.ok)
+            if !r.ok { Log.note("UITEST detail: " + r.detail) }
+        }
+        check("settings search finds sign-in for private videos", SettingsIndex.search("cookies").map(\.id).contains("links.signIn"))
+        check("cloud links don't need the yt-dlp helper", LinkFetcher.canFetch("https://www.dropbox.com/s/abc123/talk.mp4?dl=0"))
         check("spoken corrections stay off the prompt when off",
               !FlowCleanup.instructions(level: .clean, corrections: false).contains("scratch that") && FlowCleanup.instructions(level: .clean, corrections: true).contains("scratch that"))
     }

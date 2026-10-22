@@ -14,6 +14,8 @@ import YouTubeKit
 /// - Vimeo, when the public player config offers a progressive MP4.
 /// - YouTube (watch, youtu.be, Shorts, Live, YouTube Music) through YouTubeKit, only in builds with the
 ///   YOUTUBE_ON_DEVICE flag (project.yml explains why it can be switched off).
+/// - Cloud share links: Dropbox, Google Drive, OneDrive, SharePoint, and iCloud Drive (CloudShareLink.swift), in
+///   every build including the App Store's. Only public web endpoints; no private APIs.
 ///
 /// Anything else throws `LinkFetchError.needsMac`; the app then hands the link to the Mac (yt-dlp) when one syncs.
 /// Ogg, Opus, and WebM audio throw `LinkFetchError.unsupportedFormat`: AVFoundation on iPhone can't decode them.
@@ -32,11 +34,14 @@ enum PhoneLinkFetcher {
         var ext: String?
         /// Download in ranged chunks (YouTube's servers throttle one long request).
         var chunked = false
+        /// A cloud share link's service: the finished download is checked for a web page in place of the file.
+        var cloud: CloudShareLink.Service? = nil
     }
 
     // MARK: Resolving
 
     static func resolve(_ link: URL) async throws -> Resolved {
+        if let plan = try CloudShareLink.plan(link) { return try await resolveCloud(link, plan: plan) }
         let host = (link.host ?? "").lowercased()
         if youTubeID(link) != nil {
             #if YOUTUBE_ON_DEVICE
@@ -87,6 +92,24 @@ enum PhoneLinkFetcher {
         }
         if mime.contains("html"), let r = try resolvePage(data, page: final, site: site) { return r }
         throw LinkFetchError.needsMac
+    }
+
+    // MARK: Cloud share links
+
+    /// A Dropbox, Google Drive, OneDrive, SharePoint, or iCloud Drive file: CloudShareFetch confirms the direct
+    /// download (following Drive's virus-scan page), and the background session downloads it like any file.
+    private static func resolveCloud(_ link: URL, plan: CloudShareLink.Plan) async throws -> Resolved {
+        let target = try await CloudShareFetch.resolve(plan)
+        let ext = target.ext
+        if let f = unsupportedFormat(ext: ext ?? "", mime: target.mime) { throw LinkFetchError.unsupportedFormat(f) }
+        let mime = (target.mime ?? "").lowercased()
+        let isMedia = ext.map { mediaExts.contains($0) || MediaImport.isMedia(URL(fileURLWithPath: "file.\($0)")) }
+            ?? (mime.hasPrefix("audio/") || mime.hasPrefix("video/") || mime.isEmpty || mime.contains("octet-stream"))
+        guard isMedia else {
+            throw LinkFetchError.message("“\(target.fileName ?? "This file")” isn't audio or video. Share an audio or video file.")
+        }
+        return Resolved(media: target.url, title: target.title, site: plan.service.name, pageURL: link.absoluteString,
+                        ext: ext ?? extFor(mime: mime) ?? "mp4", cloud: plan.service)
     }
 
     // MARK: Podcasts
@@ -165,7 +188,7 @@ enum PhoneLinkFetcher {
     /// Whether a link looks like a whole podcast (an Apple Podcasts show, or a feed) rather than one episode, so the
     /// link sheet offers the episode picker before adding anything. A guess from the URL; `episodes(_:)` confirms it.
     static func isShowLink(_ u: URL) -> Bool {
-        if episodeFragment(u) != nil { return false }
+        if episodeFragment(u) != nil || CloudShareLink.isCloudLink(u) { return false }
         let host = (u.host ?? "").lowercased()
         if host == "podcasts.apple.com" || host == "itunes.apple.com" {
             let hasEpisode = URLComponents(url: u, resolvingAgainstBaseURL: false)?.queryItems?.contains { $0.name == "i" } ?? false
@@ -349,8 +372,11 @@ enum PhoneLinkFetcher {
         let ext = r.ext ?? (mediaExts.contains(urlExt) ? urlExt : "mp4")
         // YouTube's servers throttle one long request, so its audio comes in ranged chunks (no browser User-Agent,
         // as before).
-        return try await LinkDownloads.shared.download(id: id, url: r.media, ext: ext, chunked: r.chunked,
-                                                       userAgent: r.chunked ? nil : userAgent, progress: { gate.send($0) })
+        let file = try await LinkDownloads.shared.download(id: id, url: r.media, ext: ext, chunked: r.chunked,
+                                                           userAgent: r.chunked ? nil : userAgent, progress: { gate.send($0) })
+        // A share link that answered with a page (it stopped being public, or hit a quota) instead of the file.
+        if let service = r.cloud { try CloudShareFetch.checkDownloadedFile(file, service: service) }
+        return file
     }
 
     /// A download for transcript `id` that outlived the app: its file if it finished while Verbatim was closed, or

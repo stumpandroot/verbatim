@@ -3,6 +3,8 @@ import AppKit
 import AVFoundation
 
 /// Fetches the audio track of a video link with the bundled yt-dlp (Contents/Helpers/yt-dlp).
+/// Cloud share links (Dropbox, Google Drive, OneDrive, SharePoint, iCloud Drive) skip yt-dlp: CloudShareFetch
+/// resolves and downloads them, and MediaImport prepares the audio.
 /// Internet is required for this step; transcription afterwards runs on this Mac.
 enum LinkFetcher {
     struct Fetched {
@@ -13,6 +15,37 @@ enum LinkFetcher {
     static var helperURL: URL? {
         let u = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yt-dlp")
         return FileManager.default.isExecutableFile(atPath: u.path) ? u : nil
+    }
+
+    /// Whether this build can fetch a link: cloud share links need no helper; everything else needs yt-dlp.
+    static func canFetch(_ link: String) -> Bool { helperURL != nil || CloudShareLink.isCloudLink(link) }
+
+    /// yt-dlp failed. `message` is its last ERROR line, shown as is; `output` is the rest of what it printed, kept
+    /// only to recognize sign-in and permission errors (LinkSignIn). Neither is logged in full, and neither holds
+    /// cookie values: yt-dlp never prints them.
+    struct HelperError: LocalizedError, CustomStringConvertible {
+        let message: String
+        let output: String
+        let status: Int32
+        var errorDescription: String? { message }
+        var description: String { "yt-dlp status \(status): \(message)" }
+
+        /// The video needs a signed-in viewer (private, members-only, age-restricted, login required).
+        var needsSignIn: Bool { LinkSignIn.needsSignIn(message + "\n" + output) }
+        /// yt-dlp couldn't read Safari's cookies without Full Disk Access.
+        var safariAccessDenied: Bool { LinkSignIn.safariAccessDenied(message + "\n" + output) }
+    }
+
+    /// The browser whose sign-in fetched a link, so keeping its video later uses the same sign-in. Browser names
+    /// only, never cookies; in memory for this session.
+    private static let signInByLink = SignInMemory()
+    private final class SignInMemory: @unchecked Sendable {
+        private let lock = NSLock()
+        private var map: [String: LinkSignIn.Browser] = [:]
+        subscript(_ link: String) -> LinkSignIn.Browser? {
+            get { lock.lock(); defer { lock.unlock() }; return map[link] }
+            set { lock.lock(); map[link] = newValue; lock.unlock() }
+        }
     }
 
     static func looksLikeLink(_ s: String) -> Bool {
@@ -29,8 +62,12 @@ enum LinkFetcher {
     }
 
     /// Downloads a link's audio. Cancelling the calling Task stops yt-dlp and removes its partial files.
-    static func fetch(_ link: String, progress: @escaping @Sendable (String) -> Void,
+    /// `signIn` borrows that browser's sign-in for this one link (`--cookies-from-browser`).
+    static func fetch(_ link: String, signIn: LinkSignIn.Browser? = nil, progress: @escaping @Sendable (String) -> Void,
                       events: (@Sendable (Event) -> Void)? = nil) async throws -> Fetched {
+        if let u = URL(string: link.trimmingCharacters(in: .whitespacesAndNewlines)), let plan = try CloudShareLink.plan(u) {
+            return try await fetchCloud(link, plan: plan, progress: progress, events: events)
+        }
         guard let helper = helperURL else {
             throw NSError(domain: "Verbatim", code: 10, userInfo: [NSLocalizedDescriptionKey: "The link helper is missing from this build."])
         }
@@ -38,10 +75,10 @@ enum LinkFetcher {
         let stamp = "\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
         let template = Paths.downloads.appendingPathComponent("\(stamp).%(ext)s").path
         progress("Fetching audio")
-        Log.note("yt-dlp fetch \(link)")
+        Log.note("yt-dlp fetch \(link)" + (signIn.map { " with the \($0.name) sign-in" } ?? ""))
         let out: String
         do {
-            out = try await run(helper, [
+            out = try await run(helper, LinkSignIn.arguments(signIn) + [
                 "--no-playlist", "--no-warnings", "--newline", "--progress",
                 "-f", "bestaudio[ext=m4a]/bestaudio/best",
                 // Printed once the video's details are known, before the download starts.
@@ -68,8 +105,51 @@ enum LinkFetcher {
             throw NSError(domain: "Verbatim", code: 12, userInfo: [NSLocalizedDescriptionKey: "The download finished but the file is missing."])
         }
         func part(_ i: Int) -> String? { parts.count > i && parts[i] != "NA" && !parts[i].isEmpty ? parts[i] : nil }
+        if let signIn { signInByLink[link] = signIn }
         return Fetched(url: URL(fileURLWithPath: path), title: parts[0], uploader: part(1),
                        pageURL: part(3), site: part(4).map(siteName), uploadDate: part(5), thumbnail: part(6))
+    }
+
+    /// A cloud share link: resolve it, download the file with progress, and prepare its audio (video files keep
+    /// only their sound). The title is the original file name, without its extension.
+    private static func fetchCloud(_ link: String, plan: CloudShareLink.Plan, progress: @escaping @Sendable (String) -> Void,
+                                   events: (@Sendable (Event) -> Void)?) async throws -> Fetched {
+        try FileManager.default.createDirectory(at: Paths.downloads, withIntermediateDirectories: true)
+        let stamp = "\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
+        progress("Finding the file")
+        Log.note("cloud link fetch (\(plan.service.name))")
+        let target = try await CloudShareFetch.resolve(plan)
+        events?(.meta(title: target.title, uploader: nil, site: plan.service.name, thumbnail: nil, duration: nil))
+        if let ext = target.ext, !MediaImport.isMedia(URL(fileURLWithPath: "file.\(ext)")) {
+            throw NSError(domain: "Verbatim", code: 14, userInfo: [NSLocalizedDescriptionKey: "“\(target.fileName ?? "This file")” isn't audio or video. Share an audio or video file."])
+        }
+        progress("Downloading")
+        let downloaded: (file: URL, fileName: String?)
+        do {
+            downloaded = try await CloudShareFetch.download(target, into: Paths.downloads, stamp: stamp) { fraction in
+                guard let fraction else { return }
+                progress("Downloading \(Int(fraction * 100))%")
+                events?(.progress(fraction))
+            }
+        } catch {
+            let fm = FileManager.default
+            for f in (try? fm.contentsOfDirectory(atPath: Paths.downloads.path)) ?? [] where f.hasPrefix(stamp) {
+                try? fm.removeItem(at: Paths.downloads.appendingPathComponent(f))
+            }
+            throw error
+        }
+        let name = downloaded.fileName ?? target.fileName
+        progress("Preparing the audio")
+        let prepared: MediaImport.Prepared
+        do {
+            prepared = try await MediaImport.prepare(downloaded.file, into: Paths.downloads.appendingPathComponent("\(stamp)-audio.m4a"))
+        } catch {
+            try? FileManager.default.removeItem(at: downloaded.file)
+            throw error
+        }
+        if prepared.url != downloaded.file { try? FileManager.default.removeItem(at: downloaded.file) }
+        let title = name.map(CloudShareLink.title(fromFileName:)) ?? plan.service.name
+        return Fetched(url: prepared.url, title: title, uploader: nil, pageURL: link, site: plan.service.name)
     }
 
     /// yt-dlp's extractor key ("Youtube", "Vimeo", "TwitchVod") as people say it (the shared `Platform` mapping).
@@ -94,7 +174,7 @@ enum LinkFetcher {
         Log.note("yt-dlp keep \(link)")
         // "," downloads each format separately (no merging needed). Falls back to one combined MP4.
         let format = "bv*[ext=mp4][vcodec^=avc1][height<=1080],ba[ext=m4a]/b[ext=mp4][height<=1080]/b[ext=mp4]"
-        let out = try await run(helper, [
+        let out = try await run(helper, LinkSignIn.arguments(signInByLink[link]) + [
             "--no-playlist", "--no-warnings", "--newline",
             "-f", format,
             "--print", "after_move:%(filepath)s\t%(vcodec)s\t%(acodec)s",
@@ -193,7 +273,8 @@ enum LinkFetcher {
                     cont.resume(returning: String(data: collected, encoding: .utf8) ?? "")
                 } else {
                     let msg = errText.split(separator: "\n").last(where: { $0.contains("ERROR") }).map(String.init) ?? "yt-dlp exited with status \(proc.terminationStatus)."
-                    cont.resume(throwing: NSError(domain: "Verbatim", code: Int(proc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: msg.replacingOccurrences(of: "ERROR: ", with: "")]))
+                    cont.resume(throwing: HelperError(message: msg.replacingOccurrences(of: "ERROR: ", with: ""),
+                                                      output: String(errText.suffix(8000)), status: proc.terminationStatus))
                 }
             }
             do { try p.run(); running.attach(p) } catch { cont.resume(throwing: error) }

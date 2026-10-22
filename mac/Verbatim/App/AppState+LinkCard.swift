@@ -65,8 +65,9 @@ extension AppState {
 
     // MARK: Fetching
 
-    /// Fetches a link's audio into transcript `id`, reporting to its `LinkImport`, then queues it.
-    func startLinkFetch(_ id: UUID, link: String, keepVideo: Bool) {
+    /// Fetches a link's audio into transcript `id`, reporting to its `LinkImport`, then queues it. `signIn` borrows
+    /// a browser's sign-in for a private video (LinkSignIn); without one, a video that needs it asks which browser.
+    func startLinkFetch(_ id: UUID, link: String, keepVideo: Bool, signIn: LinkSignIn.Browser? = nil) {
         guard let imp = linkImports[id] else { return }
         linkTasks[id]?.cancel()
         imp.phase = .resolving
@@ -75,7 +76,7 @@ extension AppState {
         let task = Task { [weak self] in
             guard let self else { return }
             do {
-                let f = try await LinkFetcher.fetch(link, progress: { _ in }) { event in
+                let f = try await LinkFetcher.fetch(link, signIn: signIn, progress: { _ in }) { event in
                     Task { @MainActor in self.linkEvent(id, imp: imp, link: link, event, gate: gate) }
                 }
                 guard linkStillWanted(id) else { try? FileManager.default.removeItem(at: f.url); finishLinkTask(id); return }
@@ -96,7 +97,8 @@ extension AppState {
                 imp.phase = .queued
                 coordinator.enqueueExisting(id)
                 verbiePose = .ready
-                if keepVideo { self.keepVideo(id) }
+                // A cloud file is already the original; Keep is for video sites.
+                if keepVideo, !CloudShareLink.isCloudLink(link) { self.keepVideo(id) }
                 finishLinkTask(id)
                 // The thumbnail goes with the transcript, so Library and Links rows show it.
                 if let thumb = f.thumbnail, let file = await LinkFetcher.saveThumbnail(thumb, as: id.uuidString) {
@@ -107,21 +109,78 @@ extension AppState {
                 }
             } catch is CancellationError {
                 finishLinkTask(id)
+            } catch let helper as LinkFetcher.HelperError where helper.needsSignIn || (signIn == .safari && helper.safariAccessDenied) {
+                guard linkStillWanted(id) else { finishLinkTask(id); return }
+                Log.note("link needs a sign-in: \(helper)")
+                if signIn == .safari, helper.safariAccessDenied {
+                    // yt-dlp couldn't read Safari's cookies: Verbatim needs Full Disk Access.
+                    askForSignIn(id, link: link, keepVideo: keepVideo, reason: .safariNeedsAccess)
+                } else if signIn == nil, let saved = LinkSignIn.saved(), LinkSignIn.isInstalled(saved) {
+                    // Settings names a browser: try its sign-in without asking.
+                    startLinkFetch(id, link: link, keepVideo: keepVideo, signIn: saved)
+                } else if let signIn {
+                    finishLinkTask(id)
+                    failLink(id, imp: imp, message: "Your \(signIn.name) sign-in didn't open this video. Sign in to the site in \(signIn.name), then choose Retry.")
+                } else {
+                    askForSignIn(id, link: link, keepVideo: keepVideo, reason: .needsSignIn)
+                }
             } catch {
                 finishLinkTask(id)
                 guard linkStillWanted(id) else { return }
                 Log.note("link fetch failed: \(error)")
-                let message = error.localizedDescription
-                store.update(id) { x in
-                    x.status = .failed; x.stage = nil; x.error = "Couldn't fetch that link: \(message)"
-                    x.processingDevice = nil; x.processingDeviceName = nil
-                }
-                imp.phase = .failed(message)
-                verbiePose = .interrupted
-                if linkCardID != id { toast = Toast("Couldn't fetch that link: \(message)") }
+                failLink(id, imp: imp, message: error.localizedDescription)
             }
         }
         linkTasks[id] = task
+    }
+
+    /// Stops a link with a message on its card, its transcript, and (when the card isn't showing) a toast.
+    private func failLink(_ id: UUID, imp: LinkImport, message: String) {
+        store.update(id) { x in
+            x.status = .failed; x.stage = nil; x.error = "Couldn't fetch that link: \(message)"
+            x.processingDevice = nil; x.processingDeviceName = nil
+        }
+        imp.phase = .failed(message)
+        verbiePose = .interrupted
+        if linkCardID != id { toast = Toast("Couldn't fetch that link: \(message)") }
+    }
+
+    // MARK: Private videos
+
+    /// Pauses a link that needs a sign-in and shows the sheet that asks which browser's to use (SignInSheet).
+    private func askForSignIn(_ id: UUID, link: String, keepVideo: Bool, reason: LinkSignInRequest.Reason) {
+        // One sheet at a time: a link already waiting stops with its message (Retry asks again).
+        if let waiting = signInRequest, waiting.transcriptID != id { cancelSignIn() }
+        store.setStage(id, "Waiting for you to sign in")
+        signInRequest = LinkSignInRequest(transcriptID: id, link: link, keepVideo: keepVideo, reason: reason)
+    }
+
+    /// The sheet's choice: remember the browser and fetch the link again with its sign-in.
+    func useSignIn(_ browser: LinkSignIn.Browser) {
+        guard let r = signInRequest else { return }
+        signInRequest = nil
+        LinkSignIn.save(browser)
+        guard store.transcript(r.transcriptID) != nil, linkImports[r.transcriptID] != nil else { return }
+        store.setStage(r.transcriptID, "Finding the audio")
+        startLinkFetch(r.transcriptID, link: r.link, keepVideo: r.keepVideo, signIn: browser)
+    }
+
+    /// The sheet's Cancel: the link stops with a message, and Retry on its card asks again.
+    func cancelSignIn() {
+        guard let r = signInRequest else { return }
+        signInRequest = nil
+        finishLinkTask(r.transcriptID)
+        guard let imp = linkImports[r.transcriptID] ?? linkImportFor(r) else { return }
+        failLink(r.transcriptID, imp: imp, message: r.reason == .safariNeedsAccess
+                 ? "Verbatim needs Full Disk Access to use your Safari sign-in."
+                 : "This video needs you to be signed in.")
+    }
+
+    private func linkImportFor(_ r: LinkSignInRequest) -> LinkImport? {
+        guard let u = URL(string: r.link) else { return nil }
+        let imp = LinkImport(id: r.transcriptID, url: r.link, site: LinkImport.siteName(u))
+        linkImports[r.transcriptID] = imp
+        return imp
     }
 
     private func linkEvent(_ id: UUID, imp: LinkImport, link: String, _ event: LinkFetcher.Event, gate: PercentStep) {

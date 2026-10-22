@@ -492,6 +492,9 @@ struct StorageSettingsPane: View {
                     Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }.buttonStyle(.brandSecondary)
                 }
             }
+            SettingsGroup(title: "Links", footer: "Share links from Dropbox, Google Drive, OneDrive, SharePoint, and iCloud Drive download directly when they're shared with anyone who has the link.") {
+                LinkSignInSettingsRow()
+            }
             SettingsGroup(title: "Keep", footer: "Keep only what you have the right to save: your own uploads, Creative Commons, or with permission. Some sites' terms don't allow downloading.") {
                 SettingsRow("storage.keepFolder", detail: keepFolder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")) {
                     HStack(spacing: 8) {

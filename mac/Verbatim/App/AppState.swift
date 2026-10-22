@@ -103,6 +103,8 @@ final class AppState: ObservableObject {
     var focusSegment: UUID? = nil
     /// iPhone links this Mac is fetching right now.
     var claiming: Set<UUID> = []
+    /// A private or signed-in video waiting for you to choose a browser's sign-in (Views/SignInSheet.swift).
+    @Changed var signInRequest: LinkSignInRequest? = nil
 
     // The "link added" card (AppState+LinkCard).
     /// Links this Mac is fetching, by transcript; the card observes one of them.

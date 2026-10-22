@@ -52,7 +52,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .captions: return "Live captions for whatever your Mac is playing or hearing."
         case .watched: return "Drop audio or video into a watched folder and Verbatim transcribes it, then exports the results where you choose."
         case .export: return "What goes into an export or a copy: which text, speaker names, and timecodes."
-        case .storage: return "Where your library, models, and kept video live, and whether they sync with your iPhone."
+        case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."
         case .about: return "Version, help, and the fine print."
         }
     }
@@ -182,6 +182,8 @@ enum SettingsIndex {
         .init("storage.icloud", .storage, "Sync with iCloud", "Transcripts, notes, projects, and the Dictionary match your iPhone.", keywords: "icloud sync iphone cloud"),
         .init("storage.library", .storage, "Transcripts and audio", "Your library on this Mac.", keywords: "finder reveal files location folder"),
         .init("storage.models", .storage, "Models", "Downloaded transcription models.", keywords: "finder reveal disk space"),
+        .init("links.signIn", .storage, "Sign-in for private videos", "Verbatim reads cookies only for the link you're fetching and never stores them.",
+              keywords: "cookies private age restricted members login signed in account browser safari chrome firefox brave edge youtube links dropbox google drive onedrive icloud"),
         .init("storage.keepFolder", .storage, "Keep folder", "Where kept video and audio from links go.", keywords: "keep download video folder"),
         .init("storage.keepVideo", .storage, "Keep the video of every link I transcribe", "Video is saved as MP4 (H.264, up to 1080p) with its sound; audio as M4A. Nothing is re-encoded.", keywords: "keep download youtube mp4"),
         .init("storage.deleteAll", .storage, "Delete all data", "Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, the Thought pad, and downloaded models. Settings stay.", keywords: "erase reset privacy remove"),

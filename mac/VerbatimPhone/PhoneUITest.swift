@@ -395,6 +395,9 @@ enum PhoneUITest {
         OriginalCleanedSelfTest.run(check)
         check("settings search finds built-in vocabulary",
               SettingsSearchIndex.search("modern words").flatMap(\.entries).contains { $0.id == "builtInVocabulary" })
+        // Cloud share links, the same cases as the Mac (CloudShareLinkChecks); no network.
+        for r in CloudShareLinkChecks.run() { check("iPhone " + r.name, r.ok) }
+        check("cloud links aren't podcast shows", !PhoneLinkFetcher.isShowLink(URL(string: "https://www.dropbox.com/s/abc/feed.mp3?dl=0")!))
         recordingChecks(check)
         Log.note("UITEST keyboard checks: \(pass) passed, \(fail) failed")
     }
