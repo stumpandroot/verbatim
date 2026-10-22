@@ -330,6 +330,7 @@ struct RowActions: View {
     var transcript: Transcript
     var body: some View {
         Button { app.togglePin(transcript.id) } label: { Label(transcript.pinned ? "Unpin" : "Pin", systemImage: transcript.pinned ? "pin.slash" : "pin") }
+        Button { RenameCenter.shared.begin(transcript) } label: { Label("Rename…", systemImage: "pencil") }
         Menu {
             // One project at a time: choosing another moves it there (the current one has a checkmark).
             ForEach(app.store.projects) { p in

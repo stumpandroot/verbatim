@@ -11,6 +11,9 @@ struct LibraryView: View {
     @State private var anchor: UUID? = nil
     /// Library › kind chips (nil is All), kept on AppState so the screenshot tour can choose one.
     private var kind: RecordingKind? { app.libraryKind }
+    /// Newest, Oldest, Longest, or Title A–Z, remembered on this Mac.
+    @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
+    private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
 
     var body: some View {
         // `filtered` searches every transcript's text; work it out once per render.
@@ -21,7 +24,7 @@ struct LibraryView: View {
         let all = typeFilter.apply(base, searching: searching)
         let byKind = kind.map { k in base.filter { $0.kind == k } } ?? base
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
-        let groups = Store.group(list)
+        let groups = Store.group(list, sort: sort)
         let order = groups.flatMap { $0.items.map(\.id) }
         VStack(spacing: 0) {
             ScrollView {
@@ -31,6 +34,17 @@ struct LibraryView: View {
                             .font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
                         Text(list.count == 1 ? "1 transcript" : "\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
                         Spacer()
+                        Menu {
+                            Picker("Sort by", selection: $sortRaw) {
+                                ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
+                            }
+                            .pickerStyle(.inline)
+                        } label: {
+                            Label(sort.title, systemImage: "arrow.up.arrow.down")
+                        }
+                        .menuStyle(.borderlessButton).fixedSize()
+                        .help("Sort the Library: newest, oldest, longest, or by title")
+                        .accessibilityLabel("Sort by \(sort.title)")
                         if !list.isEmpty {
                             Button(selecting ? "Done" : "Select") {
                                 withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = []; anchor = nil } }

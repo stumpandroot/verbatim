@@ -28,6 +28,13 @@ struct TranscriptScreen: View {
     @State private var showEngine = false
     /// Original tab: one selectable text, for selecting across lines.
     @State private var selecting = false
+    /// The transcript action whose result sheet is open.
+    @State private var runningAction: TranscriptActionSpec? = nil
+    /// Scroll to the playing line. Turns off when you scroll yourself; the dock's Follow turns it back on.
+    @State private var follow = true
+    @State private var followed: UUID? = nil
+    /// Opened from a search passage: where the audio starts.
+    @State private var pendingSeek: Double? = nil
 
     /// What Copy takes on this tab.
     private var copyVersion: Exporter.CopyVersion { mode == .document ? .cleaned : .original }
@@ -55,15 +62,32 @@ struct TranscriptScreen: View {
                             .padding(.bottom, t.audioFileName != nil && t.status == .ready && mode != .document ? 120 : 32)
                         }
                         .scrollDismissesKeyboard(.interactively)
+                        .onManualScroll { if app.player.isPlaying, follow { follow = false } }
                         .onAppear {
-                            if let f = app.focusSegment, t.segments.contains(where: { $0.id == f }) {
+                            // Opened from a search passage, a note, or a link: land on that line and start the audio there.
+                            if let f = app.focusSegment, let s = t.segments.first(where: { $0.id == f }) {
                                 app.focusSegment = nil; mode = .transcript
+                                pendingSeek = s.start
+                                app.player.seek(to: s.start)
                                 DispatchQueue.main.async { proxy.scrollTo(f, anchor: .center) }
                             }
                         }
+                        .onReceive(app.player.clock.$time) { now in
+                            // Follow playback, only when the playing line changes (not on every tick).
+                            guard follow, app.player.isPlaying, mode == .transcript, !selecting,
+                                  let s = PlaybackSync.line(at: now, in: t.segments), s.id != followed else { return }
+                            followed = s.id
+                            withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                        }
+                        .onChange(of: follow) { _, on in
+                            // Follow turned back on: go to the playing line now.
+                            guard on, let s = PlaybackSync.line(at: app.player.time, in: t.segments) else { return }
+                            followed = s.id
+                            withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                        }
                     }
                     if t.audioFileName != nil, t.status == .ready, mode != .document {
-                        PhoneDock(transcript: t, clock: app.player.clock, downloading: downloading)
+                        PhoneDock(transcript: t, clock: app.player.clock, downloading: downloading, follow: $follow)
                             .padding(.horizontal, 14).padding(.bottom, 8)
                     }
                 }
@@ -77,12 +101,20 @@ struct TranscriptScreen: View {
                         }
                         Button { showNotes = true } label: { Image(systemName: "note.text") }.accessibilityLabel("Notes")
                         Menu {
+                            Section("From the original transcript") {
+                                PhoneActionItems { a in
+                                    if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
+                                }
+                            }
                             Button {
                                 if let why = SummaryAction.unavailableReason { summaryUnavailable = why }
                                 else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
                             } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }
                             .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                            Divider()
+                        } label: { Image(systemName: "wand.and.stars") }
+                        .accessibilityLabel("Actions")
+                        .disabled(t.status != .ready)
+                        Menu {
                             Button { app.copyText(t, copyVersion) } label: { Label(copyVersion == .cleaned ? "Copy cleaned text" : "Copy text", systemImage: "doc.on.doc") }
                             Menu {
                                 Button { app.copyText(t, copyVersion, timestamps: true) } label: { Label("Copy with timestamps", systemImage: "clock") }
@@ -94,12 +126,18 @@ struct TranscriptScreen: View {
                             } label: { Label("More ways to copy", systemImage: "doc.on.clipboard") }
                             Divider()
                             Button { app.exportRequest = PhoneExportRequest(ids: [t.id]) } label: { Label("Export…", systemImage: "square.and.arrow.up") }
+                            if let u = app.store.audioURL(for: t) {
+                                Button { shareAudio(u) } label: { Label("Share original audio", systemImage: "waveform") }
+                            }
                         } label: { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Copy and export")
                         .disabled(t.status != .ready)
                     }
                 }
-                .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
+                .sheet(item: $runningAction) { a in
+                    PhoneActionSheet(action: a, transcript: t).environmentObject(app).presentationDetents([.large])
+                }
+                .alert("Apple Intelligence is off", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
                     Button("OK", role: .cancel) {}
                 } message: { Text(summaryUnavailable ?? "") }
                 .sheet(isPresented: $showNotes) { NotesSheet(id: id).presentationDetents([.medium, .large]) }
@@ -113,7 +151,7 @@ struct TranscriptScreen: View {
                     if !didStart { didStart = true; mode = startMode }
                     if let u = app.store.audioURL(for: t) {
                         downloading = !Cloud.isDownloaded(u)
-                        app.player.loadAsync(u)
+                        app.player.loadAsync(u, startAt: pendingSeek)
                         if downloading { Task { _ = await Cloud.ensureDownloaded(u); downloading = false } }
                     }
                 }
@@ -121,6 +159,15 @@ struct TranscriptScreen: View {
             } else {
                 Text("This transcript was deleted.").foregroundStyle(Ink.mute).frame(maxWidth: .infinity, maxHeight: .infinity).background(Ink.paper)
             }
+        }
+    }
+
+    /// Shares the recording's audio file, after it downloads from iCloud when it lives on the other device.
+    private func shareAudio(_ u: URL) {
+        Task { @MainActor in
+            if !Cloud.isDownloaded(u) { app.say("Downloading the audio…"); _ = await Cloud.ensureDownloaded(u) }
+            guard FileManager.default.fileExists(atPath: u.path) else { app.say("The audio isn't on this iPhone yet. Try again in a moment."); return }
+            shareItems = [u]
         }
     }
 
@@ -350,10 +397,14 @@ struct PhoneLines: View {
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.mute).frame(width: 44, alignment: .leading)
-                            .onTapGesture { app.player.seek(to: s.start); if !app.player.isPlaying { app.player.toggle() } }
+                            .onTapGesture { play(s) }
                             .accessibilityLabel("Play from \(s.start.timecode)").accessibilityAddTraits(.isButton)
-                        Text(s.text).font(.system(size: 17)).foregroundStyle(Ink.ink).lineSpacing(3)
+                        lineText(s, playing: playing).font(.system(size: 17)).foregroundStyle(Ink.ink).lineSpacing(3)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            // Tap a line to play from it (Select text, above, is for selecting).
+                            .onTapGesture { play(s) }
+                            .accessibilityAction(named: "Play from here") { play(s) }
                     }
                     .padding(.vertical, 6).padding(.horizontal, 6)
                     .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -361,6 +412,9 @@ struct PhoneLines: View {
                 .id(s.id)
                 .contentShape(Rectangle())
                 .contextMenu {
+                    if app.player.loadedURL != nil {
+                        Button { play(s) } label: { Label("Play from here", systemImage: "play") }
+                    }
                     Button { app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true) } label: { Label("Bookmark", systemImage: "bookmark") }
                     Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }
                     Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied") } label: { Label("Copy quote", systemImage: "quote.opening") }
@@ -385,22 +439,66 @@ struct PhoneLines: View {
         let ids = Self.playing(transcript.segments, at: now, isPlaying: app.player.isPlaying)
         if ids != playingIDs { playingIDs = ids }
     }
+
+    /// Seeks to the line and plays, once the audio is open.
+    private func play(_ s: Segment) {
+        guard app.player.canPlay else { return }
+        app.player.play(from: PlaybackSync.seekTime(s, duration: app.player.duration))
+    }
+
+    /// The line's text; while it plays with fresh word timings, the playing word is tinted too.
+    @ViewBuilder private func lineText(_ s: Segment, playing: Bool) -> some View {
+        if playing, PlaybackSync.timingsFresh(s) {
+            PlayingWordText(segment: s, base: AttributedString(s.text), clock: clock, tint: Ink.accentText.opacity(0.18))
+        } else {
+            Text(s.text)
+        }
+    }
 }
 
-/// The floating glass player: play, skip, scrubber, time, speed, bookmark.
+/// The floating glass player: play, skip, scrubber, time, speed, follow, bookmark. Text sits on solid chips, never
+/// on the glass itself.
 struct PhoneDock: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
     @ObservedObject var clock: PlayerClock
     var downloading: Bool
+    @Binding var follow: Bool
     var body: some View {
         let total = max(app.player.duration, transcript.duration, 0.1)
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Text("\(clock.time.timecode) / \(total.timecode)").font(Ink.mono(12.5)).foregroundStyle(Ink.ink)
+                    .padding(.horizontal, 9).padding(.vertical, 5).background(Ink.card, in: Capsule())
+                Spacer(minLength: 4)
+                Menu {
+                    Picker("Speed", selection: Binding(get: { app.player.rate }, set: { app.player.setRate($0) })) {
+                        ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
+                    }
+                } label: {
+                    Text(PlaybackSync.speedLabel(app.player.rate)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+                        .padding(.horizontal, 10).padding(.vertical, 5).background(Ink.card, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Ink.hairline))
+                }
+                .accessibilityLabel("Playback speed, \(PlaybackSync.speedLabel(app.player.rate))")
+                Button { follow.toggle() } label: {
+                    Label("Follow", systemImage: "text.line.first.and.arrowtriangle.forward")
+                        .font(.system(size: 13, weight: .semibold)).labelStyle(.titleAndIcon)
+                        .foregroundStyle(follow ? Ink.onInteractive : Ink.ink)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(follow ? Ink.interactive : Ink.card, in: Capsule())
+                        .overlay(Capsule().strokeBorder(follow ? Color.clear : Ink.hairline))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Follow playback")
+                .accessibilityValue(follow ? "On" : "Off")
+                .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
+            }
             Slider(value: Binding(get: { min(clock.time, total) }, set: { app.player.seek(to: $0) }), in: 0...total)
                 .tint(Ink.persimmon)
                 .accessibilityLabel("Playback position")
             HStack(spacing: 18) {
-                Text("\(clock.time.timecode) / \(total.timecode)").font(Ink.mono(12.5)).foregroundStyle(Ink.ink)
+                Color.clear.frame(width: 24, height: 1)
                 Spacer()
                 Button { app.player.seek(to: max(0, clock.time - 5)) } label: { Image(systemName: "gobackward.5") }.accessibilityLabel("Back 5 seconds")
                 Button { app.player.toggle() } label: {
@@ -420,12 +518,30 @@ struct PhoneDock: View {
                     let seg = transcript.segments.first { at >= $0.start && at < $0.end }
                     app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
                 } label: { Image(systemName: "bookmark") }.accessibilityLabel("Bookmark this moment")
+                    .frame(width: 24)
             }
             .font(.system(size: 18)).foregroundStyle(Ink.ink)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .floatingGlass(RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
+}
+
+/// Calls `action` when the person drags the scroll view themselves (not when code scrolls it), for turning off
+/// Follow. iOS 18 reads the scroll phase; iOS 17 watches for a drag alongside the scroll.
+private struct ManualScroll: ViewModifier {
+    var action: () -> Void
+    func body(content: Content) -> some View {
+        if #available(iOS 18, *) {
+            content.onScrollPhaseChange { _, phase in if phase == .interacting { action() } }
+        } else {
+            content.simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { _ in action() })
+        }
+    }
+}
+
+extension View {
+    func onManualScroll(_ action: @escaping () -> Void) -> some View { modifier(ManualScroll(action: action)) }
 }
 
 struct PhoneLinkCard: View {
@@ -480,6 +596,11 @@ struct NotesSheet: View {
                             }
                             .foregroundStyle(n.isBookmark ? Ink.sageText : Ink.accentText)
                             if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 8)) }
+                            if let action = n.aiAction {
+                                // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
+                                Label("\(action) · Made by Apple Intelligence", systemImage: "sparkles")
+                                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.accentText)
+                            }
                             Text(n.text).font(.system(size: 15)).foregroundStyle(Ink.ink)
                         }
                         .listRowBackground(n.isBookmark ? Ink.butterTint : n.segmentId != nil ? Ink.petalTint : Ink.persimmonTint)

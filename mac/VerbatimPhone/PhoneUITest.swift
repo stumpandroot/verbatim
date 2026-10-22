@@ -262,6 +262,11 @@ enum PhoneUITest {
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") library: \(name)")
         }
+        // Transcript actions, Library sort and search, synced playback (shared with the Mac's self-test).
+        ActionsHistoryChecks.run { name, ok in
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+        }
         Log.note("UITEST library checks: \(pass) passed, \(fail) failed")
     }
 

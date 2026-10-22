@@ -629,6 +629,11 @@ enum UITest {
         check("captions: the current line finishes", feed.history.map(\.text) == ["Hello there.", "How are you?"] && feed.current.isEmpty)
         // Library type and platform filters, and Add from Library (shared with the iPhone's self-test).
         LibraryFilterChecks.run { check("library: " + $0, $1) }
+        // Transcript actions, Library sort and search, synced playback (shared with the iPhone's self-test).
+        ActionsHistoryChecks.run { check($0, $1) }
+        let restored = FlowAction.builtIn
+        check("actions: the five sit alongside the eight in Settings › Actions", restored.count == 13
+              && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } })
         let dict = Transcript(title: "d", source: .dictation, sourceLabel: "", duration: 1, audioFileName: nil, model: "")
         check("dictations are kind dictation", dict.kind == .dictation && dict.titleIsAuto && dict.kindIsAuto)
 

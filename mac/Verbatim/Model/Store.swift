@@ -737,7 +737,8 @@ final class Store: ObservableObject {
     /// Lowercased text for search, cached by ID until the transcript changes. Pass a transcript from `transcripts`.
     func searchText(_ t: Transcript) -> String {
         if let s = searchCache[t.id] { return s }
-        let s = t.text.lowercased()
+        // The words, Cleaned text, summary, notes, and tags (LibrarySearch), built on first search and cached.
+        let s = LibrarySearch.index(t)
         searchCache[t.id] = s
         return s
     }

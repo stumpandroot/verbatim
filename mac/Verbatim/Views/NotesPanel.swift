@@ -116,6 +116,15 @@ struct NoteCard: View {
                 .foregroundStyle(note.isBookmark ? Ink.limeText : Ink.iris)
                 .tapArea(onSeek)
             }
+            if let action = note.aiAction {
+                // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
+                HStack(spacing: 5) {
+                    Image(systemName: "sparkles").font(.system(size: 10, weight: .semibold))
+                    Text("\(action) · Made by Apple Intelligence").font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+                }
+                .foregroundStyle(Ink.accentText)
+                .accessibilityElement(children: .combine)
+            }
             Text(note.text).font(.system(size: 14)).foregroundStyle(Ink.ink).lineSpacing(3).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

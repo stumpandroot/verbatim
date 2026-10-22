@@ -287,6 +287,9 @@ struct ExportDocument {
     var lineByLine = false
     /// A page at a given second, for Markdown timecode links.
     var link: ((Double) -> String?)? = nil
+    /// Notes saved from an action (Make a plan, Key points): the action's name and the text, shown after the body
+    /// under a heading that says Apple Intelligence made them. Included with the summary option.
+    var aiResults: [(action: String, text: String)] = []
 }
 
 /// A rendered piece of an export, in reading order. Text, Markdown, and Word each write these their own way.
@@ -340,6 +343,15 @@ enum ExportLayout {
             out.append(.heading("Moments"))
             for m in doc.moments.sorted(by: { $0.at < $1.at }) {
                 out.append(.moment(Timecode.format(m.at, style: o.timecodeStyle, offset: o.timecodeOffset) + " " + m.label))
+            }
+        }
+        if o.summary {
+            for r in doc.aiResults {
+                out.append(.heading("\(r.action) (made by Apple Intelligence from this transcript)"))
+                for para in r.text.components(separatedBy: "\n\n") {
+                    let p = para.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !p.isEmpty { out.append(.text(p)) }
+                }
             }
         }
         if o.provenance { out.append(.footer(doc.footer)) }

@@ -13,6 +13,9 @@ struct LibraryScreen: View {
     /// Rows rise in once; the first screenful staggers when you switch to Library.
     @State private var seen = SeenRows()
     @State private var entrance = 0
+    /// Newest, Oldest, Longest, or Title A–Z, remembered on this iPhone.
+    @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
+    private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
 
     enum Filter: Hashable { case all, pinned, working, project(UUID), kind(RecordingKind) }
 
@@ -44,7 +47,8 @@ struct LibraryScreen: View {
     var body: some View {
         // `scoped` searches every transcript's text; work it out once per render.
         let scoped = self.scoped
-        let items = typeFilter.apply(scoped, searching: searching)
+        let items = sort.sorted(typeFilter.apply(scoped, searching: searching))
+        let passages = search.trimmingCharacters(in: .whitespaces).count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
         let project: UUID? = { if case .project(let p) = filter { return p }; return nil }()
         let heroKind: RecordingKind? = { if case .kind(let k) = filter { return k }; return nil }()
         List {
@@ -112,6 +116,18 @@ struct LibraryScreen: View {
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
+            if !passages.isEmpty {
+                Section {
+                    Text("Passages").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    ForEach(passages) { hit in
+                        PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    }
+                }
+            }
             if filter == .kind(.journal), !items.isEmpty {
                 ForEach(JournalDays.group(items)) { day in
                     Section {
@@ -166,6 +182,14 @@ struct LibraryScreen: View {
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
         .searchable(text: $search, prompt: "Find the line you need")
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Sort by", selection: $sortRaw) {
+                        ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
+                    }
+                } label: { Image(systemName: "arrow.up.arrow.down") }
+                .accessibilityLabel("Sort by \(sort.title)")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { TrashScreen() } label: { Image(systemName: "trash") }.accessibilityLabel("Recently Deleted")
             }
@@ -225,5 +249,58 @@ struct LibraryScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(filter == f ? .isSelected : [])
+    }
+}
+
+/// One transcript's matching lines from a search: tap a line to open the transcript there, with the audio cued to it.
+struct PhonePassageCard: View {
+    @EnvironmentObject var app: PhoneState
+    var transcript: Transcript
+    var lines: [Segment]
+    var count: Int
+    var query: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(transcript.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+                Spacer(minLength: 6)
+                Text(count == 1 ? "1 match" : "\(count) matches").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+            }
+            .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
+            ForEach(lines) { s in
+                Button { app.open(transcript.id, segment: s.id) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.accentText).frame(width: 46, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 2) {
+                            if transcript.speakers.count >= 2, let sp = transcript.speakerName(s.speaker) {
+                                Text(sp).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                            }
+                            Text(marked(s.text)).font(.system(size: 15)).foregroundStyle(Ink.ink).lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SoftPress())
+                .accessibilityHint("Opens the transcript at \(s.start.timecode)")
+            }
+        }
+        .padding(.bottom, 6)
+        .cardSurface(radius: 14)
+    }
+
+    private func marked(_ text: String) -> AttributedString {
+        var a = AttributedString(text)
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return a }
+        var start = a.startIndex
+        while start < a.endIndex, let r = a[start...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
+            a[r].backgroundColor = Ink.persimmonTint; a[r].font = .system(size: 15, weight: .semibold)
+            start = r.upperBound
+        }
+        return a
     }
 }

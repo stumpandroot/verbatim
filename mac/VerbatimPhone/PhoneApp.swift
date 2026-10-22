@@ -21,6 +21,7 @@ struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
     @State private var newProjectName = ""
+    @ObservedObject private var rename = RenameCenter.shared
     /// The full-screen recorder zooms out of the bar and back into it.
     @Namespace private var recorderZoom
 
@@ -91,6 +92,11 @@ struct PhoneRoot: View {
                 newProjectName = ""
             }
         } message: { Text("The transcript moves into it.") }
+        .alert("Rename transcript", isPresented: Binding(get: { rename.target != nil }, set: { if !$0 { rename.target = nil } })) {
+            TextField("Title", text: $rename.draft)
+            Button("Cancel", role: .cancel) { rename.target = nil }
+            Button("Rename") { rename.commit(app.store); app.say("Renamed") }
+        }
         .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet() }

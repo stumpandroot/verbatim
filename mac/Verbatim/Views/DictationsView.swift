@@ -172,7 +172,7 @@ struct DictationRow: View {
         }
         .sheet(item: $running) { a in
             ActionSheet(action: a, source: pasted, sourceLabel: "a dictation into \(info?.app ?? "an app")") { text in
-                app.store.addNote(Note(text: "\(a.name):\n\(text)"), to: transcript.id)
+                app.store.addNote(Note(text: text, aiAction: a.name), to: transcript.id)
             }
             .environmentObject(app)
         }

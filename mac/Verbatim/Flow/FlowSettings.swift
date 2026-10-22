@@ -110,7 +110,12 @@ struct FlowAction: Codable, Identifiable, Equatable {
         FlowAction(name: "Tighten", instruction: "Make this shorter and clearer. Keep every point, fact, name, and number.", symbol: "arrow.down.right.and.arrow.up.left"),
         FlowAction(name: "Translate to Spanish", instruction: "Translate this into Spanish. Keep names, brands, and product names exactly as written.", symbol: "globe"),
         FlowAction(name: "Screenplay dialogue", instruction: "Format this as screenplay dialogue: each CHARACTER NAME in capitals on its own line, followed by the line of dialogue. Put actions in brief present-tense lines of their own. Keep the spoken words.", symbol: "film"),
-    ]
+    ] + transcriptBuiltIn
+
+    /// The five transcript actions (TranscriptActions), with their fixed IDs, after the eight above.
+    static let transcriptBuiltIn: [FlowAction] = TranscriptActions.builtIn.map {
+        FlowAction(id: $0.id, name: $0.name, instruction: $0.instruction, symbol: $0.symbol, kind: $0.extracts ? .extract : .rewrite)
+    }
 
     /// Lowercased letters and digits only, for matching a spoken name ("client email.") to an action.
     static func norm(_ s: String) -> String {
@@ -174,7 +179,15 @@ final class FlowSettings: ObservableObject {
         styles = Self.load([AppCategory: FlowStyle].self, "flow.styles") ?? [.email: .formal, .work: .casual, .personal: .casual, .code: .verbatim, .other: .casual]
         snippets = Self.load([Snippet].self, "flow.snippets") ?? []
         positions = Self.load([String: BarPosition].self, "flow.positions") ?? [:]
-        actions = Self.load([FlowAction].self, "flow.actions") ?? FlowAction.builtIn
+        // Saved actions from before the transcript actions: add the five once, after yours (deleting one later sticks).
+        var saved = Self.load([FlowAction].self, "flow.actions") ?? FlowAction.builtIn
+        if !d.bool(forKey: "flow.actions.transcriptAdded") {
+            d.set(true, forKey: "flow.actions.transcriptAdded")
+            let have = Set(saved.map(\.id))
+            let missing = FlowAction.transcriptBuiltIn.filter { !have.contains($0.id) }
+            if !missing.isEmpty { saved += missing; d.set(try? JSONEncoder().encode(saved), forKey: "flow.actions") }
+        }
+        actions = saved
         typingWPM = d.object(forKey: "flow.typingWPM") as? Int ?? 40
         activeProject = d.string(forKey: "flow.activeProject").flatMap(UUID.init(uuidString:))
         declinedFixes = d.stringArray(forKey: "flow.declinedFixes") ?? []

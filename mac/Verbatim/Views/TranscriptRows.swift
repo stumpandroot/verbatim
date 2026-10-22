@@ -146,6 +146,7 @@ struct RowMenu: View {
     var transcript: Transcript
     var body: some View {
         Button("Open") { app.go(.transcript(transcript.id)) }
+        Button("Rename…") { RenameCenter.shared.begin(transcript) }
         Button(transcript.pinned ? "Unpin" : "Pin") { app.store.update(transcript.id) { $0.pinned.toggle() } }
         Menu("Add to project") {
             // One project at a time: choosing another moves it there (the current one has a checkmark).

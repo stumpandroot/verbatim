@@ -52,6 +52,14 @@ enum Exporter {
         .sorted { $0.at < $1.at }
     }
 
+    /// Notes Apple Intelligence wrote from an action, oldest first, with the action's name.
+    static func aiResults(_ t: Transcript) -> [(action: String, text: String)] {
+        t.notes.filter { $0.aiAction != nil }.sorted { $0.createdAt < $1.createdAt }.compactMap { n in
+            let text = n.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : (action: n.aiAction ?? "", text: text)
+        }
+    }
+
     static func provenance(_ t: Transcript) -> String {
         let f = Formats.style(date: .medium, time: .short)
         return "Transcribed with Verbatim (\(t.model.isEmpty ? "on-device" : t.model)) on \(f.string(from: t.createdAt))"
@@ -97,6 +105,7 @@ enum Exporter {
         var doc = ExportDocument(title: t.title, details: details(t), summary: summary(t), paragraphs: paragraphs,
                                  moments: moments(t), footer: provenance(t), lineByLine: lineByLine)
         if o.source == .document, t.cleanedByModel { doc.aiNote = aiNoteText }
+        doc.aiResults = aiResults(t)
         if let info = t.linkInfo {
             let label = [info.channel, info.site].compactMap { $0 }.joined(separator: " · ").ifEmpty(info.url)
             doc.sourceLine = (markdown ? "Source: [\(label)](\(info.url))" : "Source: \(info.url)") + (info.uploadDisplay.map { " · \($0)" } ?? "")

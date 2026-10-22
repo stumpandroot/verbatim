@@ -53,8 +53,12 @@ struct TranscriptView: View {
         // One sheet for the screen: the tools row can exist twice (scrolled and pinned).
         screenBody.sheet(item: $runningAction) { a in
             if let t = transcript {
-                ActionSheet(action: a, source: t.documentText, sourceLabel: "“\(t.title)”") { text in
-                    app.store.addNote(Note(text: "\(a.name):\n\(text)"), to: t.id)
+                // The transcript actions read the Original text with corrections, never the Cleaned text.
+                let onOriginal = TranscriptActions.isBuiltIn(a.id)
+                ActionSheet(action: a, source: onOriginal ? TranscriptActions.source(t, timestamps: false) : t.documentText,
+                            sourceLabel: onOriginal ? "the original transcript" : "“\(t.title)”",
+                            transcript: onOriginal ? t : nil, aiLabel: TranscriptActions.madeByLabel) { text in
+                    app.store.addNote(Note(text: text, aiAction: a.name), to: t.id)
                 }
                 .environmentObject(app)
             }

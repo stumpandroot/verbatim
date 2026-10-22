@@ -6,6 +6,7 @@ struct ContentView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var sidebarOpen = true
     @State private var newProjectName = ""
+    @ObservedObject private var rename = RenameCenter.shared
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
@@ -68,6 +69,11 @@ struct ContentView: View {
                 newProjectName = ""
             }
         } message: { Text("The transcript joins the new project.") }
+        .alert("Rename transcript", isPresented: Binding(get: { rename.target != nil }, set: { if !$0 { rename.target = nil } })) {
+            TextField("Title", text: $rename.draft)
+            Button("Cancel", role: .cancel) { rename.target = nil }
+            Button("Rename") { rename.commit(app.store) }
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }

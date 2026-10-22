@@ -45,6 +45,15 @@ struct SegmentLine: View {
         app.toast = Toast(withLink ? "Quote and link copied" : "Quote copied")
     }
 
+    /// The line's text; while it plays with fresh word timings, the playing word is tinted too.
+    @ViewBuilder private var lineText: some View {
+        if current, PlaybackSync.timingsFresh(segment) {
+            PlayingWordText(segment: segment, base: highlighted(segment.text), clock: app.player.clock, tint: Ink.iris.opacity(0.22))
+        } else {
+            Text(highlighted(segment.text))
+        }
+    }
+
     private var highlight: Color {
         if current { return Ink.irisTint }
         if saved { return Ink.saved }
@@ -58,7 +67,7 @@ struct SegmentLine: View {
             Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(tsHover ? Ink.iris : Ink.faint)
                 .underline(tsHover, color: Ink.iris).onHover { tsHover = $0 }.help("Play from here")
                 .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 6)
-                .tapArea { app.player.seek(to: segment.start) }
+                .tapArea { app.player.seek(to: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
             VStack(alignment: .leading, spacing: 2) {
                 if showSpeaker, let sp = segment.speaker, let name = transcript.speakerName(sp) {
                     HStack(spacing: 7) {
@@ -82,7 +91,7 @@ struct SegmentLine: View {
                     }
                     .padding(.top, 8)
                 }
-                Text(highlighted(segment.text))
+                lineText
                     .font(.system(size: size)).lineSpacing(size * 0.3).foregroundStyle(Ink.ink)
                     .textSelection(.enabled)
                     .padding(.horizontal, 10).padding(.vertical, 6)
@@ -92,12 +101,16 @@ struct SegmentLine: View {
                     .animation(Motion.touch, value: hover)
                     .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
                     .contentShape(Rectangle())
-                    .onTapGesture { select() }
+                    // A click selects the line (for a passage note) and, once the audio is open, plays from it.
+                    .onTapGesture {
+                        select()
+                        if app.player.canPlay { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
+                    }
                     .contextMenu {
                         CorrectionItems(text: segment.text, editable: editable) { w in fixing = w; replacement = w }
                         Divider()
                         Button("Note on this passage") { select(); NotificationCenter.default.post(name: .verbatimFocusNote, object: nil) }
-                        Button("Play from here") { app.player.seek(to: segment.start); if !app.player.isPlaying { app.player.toggle() } }
+                        Button("Play from here") { app.player.play(from: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
                         if let info = transcript.linkInfo {
                             Button(info.supportsTimestamps ? "Open video at \(segment.start.timecode)" : "Open video") {
                                 if let u = info.url(at: segment.start) { NSWorkspace.shared.open(u) }

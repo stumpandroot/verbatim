@@ -16,10 +16,15 @@ struct ActionsMenuItems: View {
 
 /// Runs a saved action on text inside Verbatim and shows the result before anything is kept.
 /// Nothing changes until you copy it or save it as a note, so closing the sheet is the undo.
+/// With `transcript`, a transcript action (TranscriptActions) runs on that transcript's Original text with
+/// corrections, with the relaxed-guardrails retry; other actions run on `source` through FlowCleanup.
 struct ActionSheet: View {
     let action: FlowAction
     let source: String
     let sourceLabel: String
+    var transcript: Transcript? = nil
+    /// The mark on the result, so it never reads as the transcript.
+    var aiLabel: String = "Made by Apple Intelligence"
     var saveNote: ((String) -> Void)? = nil
 
     @EnvironmentObject var app: AppState
@@ -29,6 +34,8 @@ struct ActionSheet: View {
     @State private var part = ""
     @State private var runID = 0
     @State private var job: Task<Void, Never>? = nil
+    @State private var failure: String? = nil
+    @State private var skipped = ""
 
     enum Phase { case running, done, failed }
 
@@ -55,17 +62,32 @@ struct ActionSheet: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .done:
-                    TextEditor(text: $result)
-                        .font(.system(size: 14)).scrollContentBackground(.hidden)
-                        .padding(10)
-                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
-                        .accessibilityLabel("Result, editable")
+                    VStack(alignment: .leading, spacing: 0) {
+                        // A solid marked strip, so the result never reads as the transcript.
+                        HStack(spacing: 7) {
+                            Image(systemName: "sparkles").font(.system(size: 11, weight: .semibold))
+                            Text(aiLabel).font(.system(size: 12, weight: .semibold))
+                            Spacer(minLength: 6)
+                            if !skipped.isEmpty { Text(skipped).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
+                        }
+                        .foregroundStyle(Ink.accentText)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Ink.persimmonTint)
+                        .accessibilityElement(children: .combine)
+                        TextEditor(text: $result)
+                            .font(.system(size: 14)).scrollContentBackground(.hidden)
+                            .padding(10)
+                            .accessibilityLabel("Result, editable. \(aiLabel)")
+                    }
+                    .background(Ink.reader, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Ink.hairline))
                 case .failed:
                     VStack(spacing: 6) {
                         Text("Couldn't run this action").font(Ink.serif(18)).foregroundStyle(Ink.ink)
-                        Text(FlowCleanup.available ? "Apple's on-device model didn't answer. Try again, or try a shorter piece of text."
-                                                   : "Actions use Apple Intelligence, which needs macOS 26 and Apple Intelligence turned on in System Settings.")
+                        Text(failure ?? (FlowCleanup.available ? "Apple's on-device model didn't answer. Try again, or try a shorter piece of text."
+                                                   : "Actions use Apple Intelligence, which needs macOS 26 and Apple Intelligence turned on in System Settings."))
                             .font(.system(size: 13)).foregroundStyle(Ink.mute).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -75,7 +97,7 @@ struct ActionSheet: View {
             .animation(Motion.settle, value: state)
 
             HStack(spacing: 10) {
-                if state == .done { Text("Written by Apple Intelligence, which can be wrong. Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
+                if state == .done { Text("Apple Intelligence can be wrong. Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
                 Spacer()
                 Button("Close") { stop(); dismiss() }.keyboardShortcut(.cancelAction)
                 if state != .running { Button("Try Again") { start() } }
@@ -99,8 +121,27 @@ struct ActionSheet: View {
     private func start() {
         stop()
         let id = runID
-        state = .running; part = ""
+        state = .running; part = ""; failure = nil; skipped = ""
         let instruction = action.instruction, kind = action.kind, text = source
+        if let t = transcript {
+            let timestamps = TranscriptActions.spec(action.id)?.timestamps ?? false
+            job = Task { @MainActor in
+                do {
+                    let out = try await TranscriptActions.run(instruction: instruction, extracts: kind == .extract, timestamps: timestamps, on: t) { i, n in
+                        Task { @MainActor in if id == runID { part = n > 1 ? "Part \(i) of \(n)" : "" } }
+                    }
+                    guard id == runID else { return }
+                    result = out.text
+                    skipped = out.skippedParts > 0 ? "Apple Intelligence declined \(out.skippedParts) of \(out.totalParts) parts; their words aren’t here" : ""
+                    state = .done
+                } catch {
+                    guard id == runID, !(error is CancellationError) else { return }
+                    failure = (error as? LocalizedError)?.errorDescription
+                    state = .failed
+                }
+            }
+            return
+        }
         job = Task { @MainActor in
             let out = await FlowCleanup.apply(instruction: instruction, to: text, kind: kind) { i, n in
                 if id == runID { part = n > 1 ? "Part \(i) of \(n)" : "" }
@@ -135,6 +176,10 @@ struct ActionSettings: View {
                                     .fixedSize()
                                     Text(a.kind == .rewrite ? "Long text is done in parts, kept in order." : "Long text is done in parts, then the results are merged into one.")
                                         .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                                    if TranscriptActions.isBuiltIn(a.id) {
+                                        Text("On a transcript, this action reads the Original text with your corrections, never the Cleaned text, and adds nothing the transcript doesn't say.")
+                                            .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                                    }
                                     HStack {
                                         Button("Move Up") { move(a.id, by: -1) }.disabled(settings.actions.first?.id == a.id)
                                         Button("Move Down") { move(a.id, by: 1) }.disabled(settings.actions.last?.id == a.id)
@@ -168,7 +213,7 @@ struct ActionSettings: View {
         }
         .confirmationDialog("Restore the built-in actions?", isPresented: $confirmRestore) {
             Button("Restore", role: .destructive) { settings.actions = FlowAction.builtIn }
-        } message: { Text("Replaces your actions with the eight that come with Verbatim. Actions you added or changed are removed.") }
+        } message: { Text("Replaces your actions with the \(FlowAction.builtIn.count) that come with Verbatim, including Make a plan, Journal entry, Write a draft, Study notes, and Key points. Actions you added or changed are removed.") }
     }
 
     private func move(_ id: UUID, by d: Int) {

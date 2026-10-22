@@ -184,6 +184,11 @@ struct Note: Codable, Identifiable, Equatable {
     var createdAt = Date()
     /// A still from the video at `at` (Paths.thumbs), when a video file is available.
     var frameFile: String? = nil
+    /// The action that wrote this note with Apple Intelligence ("Make a plan"), so the transcript view and exports
+    /// keep it marked as the model's. nil for notes the person wrote. Older files decode without it.
+    var aiAction: String? = nil
+
+    var byModel: Bool { aiAction != nil }
 }
 
 struct Transcript: Codable, Identifiable, Equatable {

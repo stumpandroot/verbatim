@@ -23,12 +23,18 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
+    /// A seek asked for while the file was still opening; applied once it opens.
+    private var pendingStart: Double?
+
+    /// True once the audio is open and can play.
+    var canPlay: Bool { player != nil }
 
     /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it.
     func loadAsync(_ url: URL, startAt: Double? = nil) {
         if loadedURL == url, player != nil { return }
         if player != nil || isPlaying { stop() }   // no redundant publishes when nothing is loaded
         if loadedURL != url { loadedURL = url }
+        pendingStart = nil
         let r = rate
         Task.detached(priority: .userInitiated) {
             // Audio recorded on the other device downloads from iCloud on first play.
@@ -42,7 +48,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
                 p.delegate = self
                 self.player = p
                 if self.duration != p.duration { self.duration = p.duration }
-                if let s = startAt { p.currentTime = min(s, p.duration); self.time = p.currentTime } else { self.time = 0 }
+                defer { self.pendingStart = nil }
+                if let s = startAt ?? self.pendingStart { p.currentTime = min(s, p.duration); self.time = p.currentTime } else { self.time = 0 }
             }
         }
     }
@@ -73,9 +80,15 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func seek(to t: TimeInterval) {
-        guard let p = player else { return }
+        guard let p = player else { if loadedURL != nil { pendingStart = max(0, t) }; return }
         p.currentTime = max(0, min(t, p.duration))
         time = p.currentTime
+    }
+
+    /// Seeks and plays (tap a line, Play from here).
+    func play(from t: TimeInterval) {
+        seek(to: t)
+        if player != nil, !isPlaying { toggle() }
     }
 
     func setRate(_ r: Float) { rate = r; player?.rate = r }
