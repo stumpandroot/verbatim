@@ -750,7 +750,7 @@ enum UITest {
         // Settings search
         let tc = SettingsIndex.search("timecode").map(\.id)
         check("settings search finds timecode rows", tc.contains("export.timecodes") && tc.contains("watched.exportOptions") && tc.contains("captions.soon"))
-        check("settings search needs every word", SettingsIndex.search("sync icloud").map(\.id) == ["storage.icloud"] && SettingsIndex.search("   ").isEmpty)
+        check("settings search needs every word", SettingsIndex.search("sync iphone").map(\.id) == ["storage.icloud"] && SettingsIndex.search("sync icloud").map(\.id).contains("storage.icloud") && SettingsIndex.search("   ").isEmpty)
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
 
