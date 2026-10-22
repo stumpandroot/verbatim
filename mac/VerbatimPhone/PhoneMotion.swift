@@ -3,7 +3,7 @@ import SwiftUI
 // Motion for the iPhone screens, matched to the approved web prototype (timings in `Motion`, Tokens.swift).
 // Rules from the design system: never animate keyboard-initiated or high-frequency actions; stagger only the
 // first screenful when a screen appears; delight stays small and rare. Everything here reads `\.limitMotion`
-// (Reduce Motion or Settings › Limit animation): movement becomes a short fade and ambient motion stops.
+// (Reduce Motion or Settings › Limit animation): movement becomes a short fade and nothing loops.
 
 enum PhoneMotion {
     /// The screenshot tour (VERBATIM_UITEST=1) wants settled screens, so entrances and ambient loops stay off there.
@@ -144,7 +144,7 @@ struct SoftPress: ButtonStyle {
     }
 }
 
-/// A switch whose knob settles with a small spring (520 ms), in the brand's sage. Keeps the system switch's
+/// A switch whose knob settles without overshoot (`Motion.toggle`, the 240 ms `snap`), in the brand's sage. Keeps the system switch's
 /// accessibility (role, value, and actions) through `accessibilityRepresentation`.
 struct SpringSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View { SpringSwitch(configuration: configuration) }
@@ -175,156 +175,5 @@ struct SpringSwitchStyle: ToggleStyle {
             .sensoryFeedback(.selection, trigger: on)
             .accessibilityRepresentation { Toggle(isOn: configuration.$isOn) { configuration.label } }
         }
-    }
-}
-
-// MARK: - Ambient motion (small, slow, and off when motion is limited)
-
-/// The Record key's soft halo: a disc that swells to 1.38× and fades, every 4.2 s.
-struct RecordHalo: View {
-    var color: Color = Ink.persimmon
-    @Environment(\.limitMotion) private var limitMotion
-    var body: some View {
-        if limitMotion || !PhoneMotion.on {
-            Color.clear
-        } else {
-            Circle().fill(color)
-                .keyframeAnimator(initialValue: 0.0, repeating: true) { content, v in
-                    content.scaleEffect(1 + 0.38 * v).opacity(0.35 * (1 - v))
-                } keyframes: { _ in
-                    KeyframeTrack { LinearKeyframe(1.0, duration: 4.2, timingCurve: .easeOut) }
-                }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-/// A straight segment in a design-space box, aspect fit like BrandGlyph (for trimmed, animated lines).
-struct ArtLine: Shape {
-    var box: CGRect
-    var from: CGPoint
-    var to: CGPoint
-    func path(in rect: CGRect) -> Path {
-        let space = ArtSpace(box: box, size: rect.size)
-        var p = Path()
-        p.move(to: from); p.addLine(to: to)
-        return p.applying(space.transform).offsetBy(dx: rect.minX, dy: rect.minY)
-    }
-}
-
-/// The Import icon: the document's lines erase and rewrite every 4.8 s, one after another.
-struct ImportGlyph: View {
-    var color: Color = Ink.ink
-    @Environment(\.limitMotion) private var limitMotion
-    private static let page = BrandArt(box: BrandArt.iconBox, strokes: [.path("M43 22h34l17 17v68H43z M77 22v19h17")])
-    private static let lines: [(y: CGFloat, end: CGFloat)] = [(56, 83), (71, 83), (86, 73)]
-    /// BrandGlyph's floor at icon size (4.5 × 24 / 112 is under it).
-    private let lineWidth: CGFloat = 1.1
-
-    var body: some View {
-        ZStack {
-            BrandGlyph(art: Self.page, color: color)
-            ForEach(0..<3, id: \.self) { i in line(i) }
-        }
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder private func line(_ i: Int) -> some View {
-        let l = Self.lines[i]
-        let shape = ArtLine(box: BrandArt.iconBox, from: CGPoint(x: 52, y: l.y), to: CGPoint(x: l.end, y: l.y))
-        let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-        if limitMotion || !PhoneMotion.on {
-            shape.stroke(color, style: style)
-        } else {
-            let tint = color
-            Color.clear.keyframeAnimator(initialValue: 1.0, repeating: true) { _, v in
-                shape.trim(from: 0, to: v).stroke(tint, style: style)
-            } keyframes: { _ in
-                // Hold, erase from the end, rewrite, hold: 4.8 s per cycle, each line 0.25 s after the last.
-                KeyframeTrack {
-                    LinearKeyframe(1.0, duration: 2.64 + 0.25 * Double(i))
-                    LinearKeyframe(0.0, duration: 0.72, timingCurve: .easeInOut)
-                    LinearKeyframe(1.0, duration: 0.72, timingCurve: .easeInOut)
-                    LinearKeyframe(1.0, duration: 0.72 - 0.25 * Double(i))
-                }
-            }
-        }
-    }
-}
-
-/// The Link icon: the chain gives a small, slow bounce every 5 s.
-struct LinkGlyph: View {
-    @Environment(\.limitMotion) private var limitMotion
-    var body: some View {
-        if limitMotion || !PhoneMotion.on {
-            symbol
-        } else {
-            TimelineView(.periodic(from: .now, by: 5)) { context in
-                symbol.symbolEffect(.bounce, options: .speed(0.5), value: context.date)
-            }
-        }
-    }
-    private var symbol: some View {
-        Image(systemName: "link").font(.system(size: 17, weight: .light)).accessibilityHidden(true)
-    }
-}
-
-/// Voice-note tiles: the brand mic with three small level bars that breathe at slightly different rates.
-struct VoiceTileArt: View {
-    @Environment(\.limitMotion) private var limitMotion
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            BrandGlyph(art: .capture, color: Ink.ink, minLineWidth: 1.3).padding(8)
-            HStack(alignment: .bottom, spacing: 1.5) {
-                bar(height: 5, period: 1.6)
-                bar(height: 7, period: 1.9)
-                bar(height: 4, period: 1.4)
-            }
-            .frame(height: 7, alignment: .bottom)
-            .padding(.top, 7).padding(.trailing, 6)
-        }
-    }
-
-    @ViewBuilder private func bar(height: CGFloat, period: Double) -> some View {
-        let shape = Capsule().fill(Ink.ink.opacity(0.75)).frame(width: 1.3, height: height)
-        if limitMotion || !PhoneMotion.on {
-            shape
-        } else {
-            shape.keyframeAnimator(initialValue: 0.35, repeating: true) { content, v in
-                content.scaleEffect(x: 1, y: v, anchor: .bottom)
-            } keyframes: { _ in
-                KeyframeTrack {
-                    LinearKeyframe(1.0, duration: period / 2, timingCurve: .easeInOut)
-                    LinearKeyframe(0.35, duration: period / 2, timingCurve: .easeInOut)
-                }
-            }
-        }
-    }
-}
-
-/// Link tiles: the play triangle breathes (1 → 1.12 → 1 over 3.6 s) inside its still circle.
-struct PlayTileArt: View {
-    @Environment(\.limitMotion) private var limitMotion
-    private static let ring = BrandArt(box: BrandArt.iconBox, strokes: [.circle(64, 64, 42)])
-    private static let triangle = BrandArt(box: BrandArt.iconBox, strokes: [.path("M55 43l29 21-29 21z")])
-    var body: some View {
-        ZStack {
-            BrandGlyph(art: Self.ring, color: Ink.ink, minLineWidth: 1.3)
-            if limitMotion || !PhoneMotion.on {
-                BrandGlyph(art: Self.triangle, color: Ink.ink, minLineWidth: 1.3)
-            } else {
-                BrandGlyph(art: Self.triangle, color: Ink.ink, minLineWidth: 1.3)
-                    .keyframeAnimator(initialValue: 1.0, repeating: true) { content, v in
-                        content.scaleEffect(v)
-                    } keyframes: { _ in
-                        KeyframeTrack {
-                            LinearKeyframe(1.12, duration: 1.8, timingCurve: .easeInOut)
-                            LinearKeyframe(1.0, duration: 1.8, timingCurve: .easeInOut)
-                        }
-                    }
-            }
-        }
-        .padding(8)
     }
 }
