@@ -82,10 +82,44 @@ final class TranscriptionCoordinator: ObservableObject {
 
     /// Transcripts waiting to run, oldest first. One runs at a time.
     @Changed var queue: [UUID] = []
-    @Changed var runningID: UUID? = nil
+    @Changed var runningID: UUID? = nil { didSet { updateKeepAwake() } }
     /// Identifies the current run, so a cancelled run's late callbacks can't touch the next one.
     private var runToken = UUID()
     private var runningTask: Task<Void, Never>? = nil
+    /// Cancelled runs that haven't ended yet. The next job waits for them, so two never run at once.
+    private var draining = 0 { didSet { updateKeepAwake() } }
+    /// Held while a job runs (or a cancelled one winds down): the Mac doesn't idle-sleep in the middle of a long file.
+    private var keepAwake: NSObjectProtocol?
+
+    private func updateKeepAwake() {
+        #if os(macOS)
+        let busy = runningID != nil || draining > 0
+        if busy, keepAwake == nil {
+            keepAwake = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Transcribing")
+        } else if !busy, let a = keepAwake {
+            ProcessInfo.processInfo.endActivity(a)
+            keepAwake = nil
+        }
+        #endif
+    }
+
+    /// Stops the running job. The next one starts only once the old task has actually ended, so an engine still
+    /// finishing the old file never runs alongside the new one.
+    private func stopRunning() {
+        runToken = UUID()
+        let old = runningTask
+        runningTask = nil
+        runningID = nil
+        guard let old else { return }
+        old.cancel()
+        draining += 1
+        Task { [weak self] in
+            await old.value
+            guard let self else { return }
+            self.draining -= 1
+            self.pump()
+        }
+    }
 
     init(store: Store, config: Config) {
         self.store = store
@@ -156,7 +190,7 @@ final class TranscriptionCoordinator: ObservableObject {
         guard let t = store.transcript(id), t.audioFileName != nil, t.pendingAppend == nil else { return }
         // Still running with the old settings (the v3 offer comes mid-run): that run stops; its late result is dropped.
         queue.removeAll { $0 == id }
-        if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil }
+        if runningID == id { stopRunning() }
         if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
         if checkWithV3 { checkWithV3IDs.insert(id) }
         store.update(id) { $0.languageChoice = language }
@@ -181,22 +215,20 @@ final class TranscriptionCoordinator: ObservableObject {
         if store.transcript(id)?.pendingAppend != nil {
             // The transcript stays as it was; the new recording is kept, ready to add with Retry.
             store.update(id) { $0.stage = "New recording not added yet"; $0.processingDevice = nil; $0.processingDeviceName = nil }
-            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; pump() }
+            if runningID == id { stopRunning(); pump() }
             return
         }
         if config.speakerPass == .afterWords, store.transcript(id)?.status == .ready {
             // The words are in; only the speaker pass was running. Stop it and keep the transcript.
             store.update(id) { $0.stage = nil }
-            if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil; labelIfNeeded(id); SummaryCenter.shared.summarizeIfNeeded(id, store: store); pump() }
+            if runningID == id { stopRunning(); labelIfNeeded(id); SummaryCenter.shared.summarizeIfNeeded(id, store: store); pump() }
             return
         }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
         if let name = store.transcript(id)?.audioFileName { SectionCheckpoint.remove(audio: name) }
         if runningID == id {
-            runToken = UUID()
-            runningTask?.cancel(); runningTask = nil
-            runningID = nil
-            pump()
+            stopRunning()
+            pump()   // waits until the cancelled job has ended (`draining`)
         }
     }
 
@@ -222,7 +254,7 @@ final class TranscriptionCoordinator: ObservableObject {
 
     /// Starts the next queued transcript if nothing is running.
     func pump() {
-        guard runningID == nil else { return }
+        guard runningID == nil, draining == 0 else { return }
         while let next = queue.first {
             queue.removeFirst()
             guard let t = store.transcript(next), t.status == .processing || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
