@@ -114,6 +114,8 @@ final class PhoneState: ObservableObject {
         // imports again each time the app becomes active; the broadcast extension's notification covers an open app.
         watchInbox()
         if !PhoneUITest.enabled { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.importInbox() } }
+        // The recording's Live Activity and its paused-for-a-call notification (RecordingPresence.swift).
+        RecordingPresence.shared.attach(self)
         if PhoneUITest.enabled { PhoneUITest.run(self) }
     }
 

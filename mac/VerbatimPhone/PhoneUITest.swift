@@ -317,7 +317,37 @@ enum PhoneUITest {
         OriginalCleanedSelfTest.run(check)
         check("settings search finds built-in vocabulary",
               SettingsSearchIndex.search("modern words").flatMap(\.entries).contains { $0.id == "builtInVocabulary" })
+        recordingChecks(check)
         Log.note("UITEST keyboard checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// After a call: when a recording resumes and on which input; and the recording Live Activity's content.
+    static func recordingChecks(_ check: (String, Bool) -> Void) {
+        check("recording: an interruption resumes only with shouldResume",
+              InterruptionPolicy.shouldResume(pausedForInterruption: true, isRecording: true, isPaused: true, systemSaysResume: true)
+              && !InterruptionPolicy.shouldResume(pausedForInterruption: true, isRecording: true, isPaused: true, systemSaysResume: false)
+              && !InterruptionPolicy.shouldResume(pausedForInterruption: false, isRecording: true, isPaused: true, systemSaysResume: true))
+        check("recording: resuming keeps AirPods while they're connected",
+              InterruptionPolicy.input(pinned: "airpods", available: ["mic", "airpods"], builtIn: "mic") == "airpods"
+              && InterruptionPolicy.input(pinned: "airpods", available: ["mic"], builtIn: "mic") == "mic")
+        let now = Date(timeIntervalSinceReferenceDate: 1_000)
+        let running = VerbatimRecordingAttributes.ContentState.make(elapsed: 65, isPaused: false, pausedReason: "Paused for a call", now: now)
+        check("recording activity: running counts from the start, with no reason",
+              running.startDate == now.addingTimeInterval(-65) && running.pauseTime == nil && running.pausedReason == nil && running.status == "Recording")
+        let paused = VerbatimRecordingAttributes.ContentState.make(elapsed: 65, isPaused: true, pausedReason: "Paused for a call", now: now)
+        check("recording activity: paused holds the timer and shows the reason",
+              paused.pauseTime == now && paused.elapsed == 65 && paused.status == "Paused for a call")
+        let saved = VerbatimRecordingAttributes.ContentState.make(elapsed: 65, isPaused: false, pausedReason: "x", saved: true, now: now)
+        check("recording activity: saved stops the timer and drops the reason",
+              saved.isPaused && saved.pausedReason == nil && saved.status.hasPrefix("Saved"))
+        check("recording activity: odd elapsed values never go negative",
+              VerbatimRecordingAttributes.ContentState.make(elapsed: -3, isPaused: true, pausedReason: nil, now: now).elapsed == 0
+              && VerbatimRecordingAttributes.ContentState.make(elapsed: .nan, isPaused: true, pausedReason: nil, now: now).elapsed == 0)
+        check("recording activity: short reasons",
+              VerbatimRecordingAttributes.shortReason(Recorder.callPausedNotice) == "Paused for a call. Open Verbatim."
+              && VerbatimRecordingAttributes.shortReason(Recorder.audioRestartedNotice) == "Audio restarted. Tap Resume."
+              && VerbatimRecordingAttributes.shortReason(Recorder.interruptionBeganNotice) == "Paused for a call"
+              && VerbatimRecordingAttributes.shortReason(nil) == nil)
     }
 
     private static func seed(_ app: PhoneState) {
