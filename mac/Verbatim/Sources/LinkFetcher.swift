@@ -76,24 +76,18 @@ enum LinkFetcher {
         let template = Paths.downloads.appendingPathComponent("\(stamp).%(ext)s").path
         progress("Fetching audio")
         Log.note("yt-dlp fetch \(link)" + (signIn.map { " with the \($0.name) sign-in" } ?? ""))
+        func removePartials() {
+            let fm = FileManager.default
+            for f in (try? fm.contentsOfDirectory(atPath: Paths.downloads.path)) ?? [] where f.hasPrefix(stamp) {
+                try? fm.removeItem(at: Paths.downloads.appendingPathComponent(f))
+            }
+        }
         let out: String
         do {
-            out = try await run(helper, LinkSignIn.arguments(signIn) + [
-                "--no-playlist", "--no-warnings", "--newline", "--progress",
-                "-f", "bestaudio[ext=m4a]/bestaudio/best",
-                // Printed once the video's details are known, before the download starts.
-                "--print", "video:\(metaTag)\t%(title)s\t%(uploader)s\t%(extractor_key)s\t%(thumbnail)s\t%(duration)s",
-                "--print", "after_move:%(title)s\t%(uploader)s\t%(filepath)s\t%(webpage_url)s\t%(extractor_key)s\t%(upload_date)s\t%(thumbnail)s",
-                "--no-simulate",
-                "-o", template, link,
-            ], progress: progress, events: events)
+            out = try await run(helper, YtDlpCommand.audio(link: link, template: template, signIn: LinkSignIn.arguments(signIn)),
+                                progress: progress, events: events)
         } catch {
-            if error is CancellationError {
-                let fm = FileManager.default
-                for f in (try? fm.contentsOfDirectory(atPath: Paths.downloads.path)) ?? [] where f.hasPrefix(stamp) {
-                    try? fm.removeItem(at: Paths.downloads.appendingPathComponent(f))
-                }
-            }
+            if error is CancellationError { removePartials() }
             throw error
         }
         guard let line = out.split(separator: "\n").last(where: { $0.contains("\t") && !$0.hasPrefix(metaTag) }) else {
@@ -106,7 +100,19 @@ enum LinkFetcher {
         }
         func part(_ i: Int) -> String? { parts.count > i && parts[i] != "NA" && !parts[i].isEmpty ? parts[i] : nil }
         if let signIn { signInByLink[link] = signIn }
-        return Fetched(url: URL(fileURLWithPath: path), title: parts[0], uploader: part(1),
+        // Every download goes through MediaImport, like cloud links: WebM and Opus (and anything else AVFoundation
+        // can't read) are decoded by FFmpeg, and video keeps only its sound.
+        let downloaded = URL(fileURLWithPath: path)
+        progress("Preparing the audio")
+        let prepared: MediaImport.Prepared
+        do {
+            prepared = try await MediaImport.prepare(downloaded, into: Paths.downloads.appendingPathComponent("\(stamp)-audio.m4a"))
+        } catch {
+            removePartials()
+            throw error
+        }
+        if prepared.url != downloaded { try? FileManager.default.removeItem(at: downloaded) }
+        return Fetched(url: prepared.url, title: parts[0], uploader: part(1),
                        pageURL: part(3), site: part(4).map(siteName), uploadDate: part(5), thumbnail: part(6))
     }
 
@@ -172,14 +178,8 @@ enum LinkFetcher {
         let template = Paths.downloads.appendingPathComponent("keep-\(stamp).%(format_id)s.%(ext)s").path
         progress("Keeping video")
         Log.note("yt-dlp keep \(link)")
-        // "," downloads each format separately (no merging needed). Falls back to one combined MP4.
-        let format = "bv*[ext=mp4][vcodec^=avc1][height<=1080],ba[ext=m4a]/b[ext=mp4][height<=1080]/b[ext=mp4]"
-        let out = try await run(helper, LinkSignIn.arguments(signInByLink[link]) + [
-            "--no-playlist", "--no-warnings", "--newline",
-            "-f", format,
-            "--print", "after_move:%(filepath)s\t%(vcodec)s\t%(acodec)s",
-            "--no-simulate", "-o", template, link,
-        ], progress: { p in progress(p.replacingOccurrences(of: "Fetching audio", with: "Keeping video")) })
+        let out = try await run(helper, YtDlpCommand.keep(link: link, template: template, signIn: LinkSignIn.arguments(signInByLink[link])),
+                                progress: { p in progress(p.replacingOccurrences(of: "Fetching audio", with: "Keeping video")) })
         var video: URL?, audio: URL?
         for line in out.split(separator: "\n") where line.contains("\t") {
             let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
@@ -197,7 +197,7 @@ enum LinkFetcher {
     }
 
     /// Marks the metadata line in yt-dlp's output.
-    private static let metaTag = "VBMETA"
+    private static let metaTag = YtDlpCommand.metaTag
 
     /// Reads one line of yt-dlp output: progress percentages and the metadata line.
     private static func scan(_ line: Substring, progress: @Sendable (String) -> Void, events: (@Sendable (Event) -> Void)?) {
@@ -211,76 +211,23 @@ enum LinkFetcher {
         }
     }
 
-    /// The running yt-dlp, so cancelling the Task can stop it.
-    private final class Running: @unchecked Sendable {
-        private let lock = NSLock()
-        private var process: Process?
-        private(set) var cancelled = false
-        func attach(_ p: Process) { lock.lock(); process = p; let c = cancelled; lock.unlock(); if c, p.isRunning { p.terminate() } }
-        func cancel() { lock.lock(); cancelled = true; let p = process; lock.unlock(); if let p, p.isRunning { p.terminate() } }
-    }
-
-    /// Splits a byte stream into lines (pipes deliver arbitrary chunks).
-    private final class LineBuffer: @unchecked Sendable {
-        private var pending = ""
-        func feed(_ s: String, _ each: (Substring) -> Void) {
-            pending += s
-            while let nl = pending.firstIndex(where: \.isNewline) {
-                let line = pending[..<nl]
-                if !line.isEmpty { each(line) }
-                pending = String(pending[pending.index(after: nl)...])
-            }
-        }
-    }
-
+    /// Runs yt-dlp with only the environment it needs (YtDlpCommand.environment) and waits until it has exited and
+    /// both of its outputs are read to the end (HelperProcess). Cancelling the Task stops it.
     private static func run(_ exe: URL, _ args: [String], progress: @escaping @Sendable (String) -> Void,
                             events: (@Sendable (Event) -> Void)? = nil) async throws -> String {
-        let running = Running()
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { cont in
-            let p = Process()
-            p.executableURL = exe
-            p.arguments = args
-            var env = ProcessInfo.processInfo.environment
-            env["HOME"] = NSHomeDirectory()
-            env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
-            p.environment = env
-            let out = Pipe(), err = Pipe()
-            p.standardOutput = out; p.standardError = err
-            var collected = Data()
-            var errText = ""
-            // --print implies --quiet, so with --progress the progress lines can arrive on either stream.
-            let outLines = LineBuffer(), errLines = LineBuffer()
-            out.fileHandleForReading.readabilityHandler = { h in
-                let d = h.availableData
-                guard !d.isEmpty else { return }
-                collected.append(d)
-                if let s = String(data: d, encoding: .utf8) { outLines.feed(s) { scan($0, progress: progress, events: events) } }
-            }
-            err.fileHandleForReading.readabilityHandler = { h in
-                if let s = String(data: h.availableData, encoding: .utf8) {
-                    errLines.feed(s) { l in
-                        if l.contains("[download]") { scan(l, progress: progress, events: events) } else { errText += l + "\n" }
-                    }
-                }
-            }
-            p.terminationHandler = { proc in
-                out.fileHandleForReading.readabilityHandler = nil
-                err.fileHandleForReading.readabilityHandler = nil
-                if running.cancelled {
-                    cont.resume(throwing: CancellationError())
-                } else if proc.terminationStatus == 0 {
-                    cont.resume(returning: String(data: collected, encoding: .utf8) ?? "")
-                } else {
-                    let msg = errText.split(separator: "\n").last(where: { $0.contains("ERROR") }).map(String.init) ?? "yt-dlp exited with status \(proc.terminationStatus)."
-                    cont.resume(throwing: HelperError(message: msg.replacingOccurrences(of: "ERROR: ", with: ""),
-                                                      output: String(errText.suffix(8000)), status: proc.terminationStatus))
-                }
-            }
-            do { try p.run(); running.attach(p) } catch { cont.resume(throwing: error) }
-            }
-        } onCancel: {
-            running.cancel()
+        let env = YtDlpCommand.environment(from: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+        // --print implies --quiet, so with --progress the progress lines can arrive on either stream.
+        let r = try await HelperProcess.run(exe, args, environment: env,
+                                            onStdoutLine: { scan($0, progress: progress, events: events) },
+                                            onStderrLine: { l in
+                                                guard l.contains("[download]") else { return false }
+                                                scan(l, progress: progress, events: events)
+                                                return true
+                                            })
+        guard r.status == 0 else {
+            throw HelperError(message: YtDlpCommand.errorMessage(stderr: r.stderr, status: r.status),
+                              output: String(r.stderr.suffix(8000)), status: r.status)
         }
+        return r.stdout
     }
 }
