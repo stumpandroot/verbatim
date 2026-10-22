@@ -354,9 +354,11 @@ final class LiveCaptions: ObservableObject {
             stoppingApp = false
             capture.liveTap.set(nil)
             appWords.stop()
-            let saved = stopped.map { $0.joinFailed ? nil : $0.url } ?? url
-            if keep, let start = appStart, let saved, FileManager.default.fileExists(atPath: saved.path) { tracks.append((saved, start)) }
-            else if stopped?.joinFailed != true { Self.remove(saved ?? url) }
+            // A failed join keeps every part for launch recovery: nothing to add, nothing to remove.
+            let joinFailed = stopped?.joinFailed == true
+            let saved: URL = stopped?.url ?? url
+            if keep, !joinFailed, let start = appStart, FileManager.default.fileExists(atPath: saved.path) { tracks.append((saved, start)) }
+            else if !joinFailed { Self.remove(saved) }
             appStart = nil; appURL = nil
         }
         guard !tracks.isEmpty else { return }
