@@ -97,6 +97,11 @@ enum MediaImport {
         let access = src.startAccessingSecurityScopedResource()
         defer { if access { src.stopAccessingSecurityScopedResource() } }
         let ext = src.pathExtension.lowercased()
+        // Every path below may delete its output when it fails, so it must never be a file that's already there.
+        for e in Set([m4aDest.pathExtension, ext, "wav"]) where !e.isEmpty {
+            let u = m4aDest.deletingPathExtension().appendingPathExtension(e)
+            if FileManager.default.fileExists(atPath: u.path) { throw AudioNaming.AlreadyExists(url: u) }
+        }
         if ffmpegExts.contains(ext) {
             return try await viaFFmpeg(src, into: m4aDest, separateTracksInto: folder, stage: stage)
         }
@@ -218,11 +223,18 @@ enum MediaImport {
                 for (i, t) in tracks.enumerated() {
                     stage?("Preparing track \(i + 1) of \(tracks.count)")
                     let url = folder.appendingPathComponent("track-\(i + 1).wav")
-                    let w = try WAVWriter(url: url, sampleRate: Int(rate))
+                    // A failure removes the tracks this pass already wrote, so the FFmpeg fallback starts clean.
+                    let made = trackFiles.map { folder.appendingPathComponent($0.fileName) }
+                    let w: WAVWriter
+                    do { w = try WAVWriter(url: url, sampleRate: Int(rate)) } catch { made.forEach { try? FileManager.default.removeItem(at: $0) }; throw error }
                     do {
                         try MediaImport.readPCM(asset, output: AVAssetReaderTrackOutput(track: t, outputSettings: MediaImport.pcmSettings(rate))) { try w.write($0) }
                         try w.finish()
-                    } catch { w.abandon(); throw error }
+                    } catch {
+                        w.abandon()
+                        made.forEach { try? FileManager.default.removeItem(at: $0) }
+                        throw error
+                    }
                     trackFiles.append(AudioTrack(fileName: url.lastPathComponent, sourceName: src.lastPathComponent, speaker: labels[i],
                                                  duration: Double(w.frames) / rate))
                 }

@@ -626,7 +626,7 @@ final class Store: ObservableObject {
 
     /// Where a new recording is written while it's being made.
     func newRecordingURL(ext: String = "wav") -> URL {
-        Paths.recordings.appendingPathComponent("\(Formats.fileStamp.string(from: Date())).\(ext)")
+        Self.uniqueURL(in: Paths.recordings, ext: ext, used: Set(transcripts.compactMap(\.audioFileName)))
     }
 
     func update(_ id: UUID, _ change: (inout Transcript) -> Void) {
@@ -756,19 +756,25 @@ final class Store: ObservableObject {
         return Paths.audio.appendingPathComponent(name)
     }
 
-    func newAudioURL(ext: String) -> URL {
-        Paths.audio.appendingPathComponent("\(Formats.fileStamp.string(from: Date())).\(ext)")
-    }
+    /// A new audio file in the synced audio folder: "<stamp> <random>.<ext>", a name no file and no transcript uses
+    /// (`AudioNaming`), so two imports in the same second never share one.
+    func newAudioURL(ext: String) -> URL { newAudioURL(ext: ext, avoiding: []) }
 
     /// A new audio file name that's not in use and isn't any of `avoiding`.
     func newAudioURL(ext: String, avoiding: [URL]) -> URL {
-        let base = newAudioURL(ext: ext)
-        var u = base, n = 2
-        let taken = Set(avoiding.map(\.standardizedFileURL))
-        while taken.contains(u.standardizedFileURL) || FileManager.default.fileExists(atPath: u.path) {
-            u = Paths.audio.appendingPathComponent("\(base.deletingPathExtension().lastPathComponent) \(n).\(ext)"); n += 1
+        var used = Set(transcripts.compactMap(\.audioFileName))
+        used.formUnion(transcripts.compactMap(\.pendingAppend))
+        used.formUnion(avoiding.map(\.lastPathComponent))
+        return Self.uniqueURL(in: Paths.audio, ext: ext, used: used)
+    }
+
+    /// "<stamp> <random>.<ext>" in `folder`, not used by any file there (with this or a sibling extension) or `used`.
+    nonisolated static func uniqueURL(in folder: URL, ext: String, used: Set<String> = []) -> URL {
+        let stamp = Formats.fileStamp.string(from: Date())
+        let name = AudioNaming.uniqueName(stamp: stamp, ext: ext) { stem, e in
+            AudioNaming.taken(stem: stem, ext: e, in: folder, used: used)
         }
-        return u
+        return folder.appendingPathComponent(name)
     }
 
     // MARK: Projects and dictionary

@@ -139,10 +139,11 @@ final class WAVWriter {
 
     init(url: URL, sampleRate: Int) throws {
         self.url = url; self.sampleRate = sampleRate
-        try? FileManager.default.removeItem(at: url)
-        guard FileManager.default.createFile(atPath: url.path, contents: WAVWriter.header(dataBytes: 0, sampleRate: sampleRate)) else {
-            throw FFmpegAudio.err("Couldn't write the audio.")
-        }
+        // Never replaces a file: the writer creates its own (failing if the name is taken), so `abandon` and the
+        // callers' cleanup only ever delete what this writer made.
+        do { try AudioNaming.claim(url, contents: WAVWriter.header(dataBytes: 0, sampleRate: sampleRate)) }
+        catch let e as AudioNaming.AlreadyExists { throw e }
+        catch { throw FFmpegAudio.err("Couldn't write the audio.") }
         handle = try FileHandle(forWritingTo: url)
         try handle.seekToEnd()
     }
@@ -201,7 +202,9 @@ final class MonoAudioWriter {
     init(m4a: URL, sampleRate: Int) throws {
         self.sampleRate = sampleRate
         url = m4a
-        try? FileManager.default.removeItem(at: m4a)
+        // Claims the name first (fails if a file is there), so this writer never replaces or deletes a file it
+        // didn't create. AVAudioFile then writes over the empty file it just made.
+        try AudioNaming.claim(m4a)
         let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: Double(sampleRate), AVNumberOfChannelsKey: 1]
         if let f = try? AVAudioFile(forWriting: m4a, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false) {
             file = f
