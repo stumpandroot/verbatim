@@ -40,7 +40,7 @@ struct RecordingLiveActivity: Widget {
                 RecordingDot(state: context.state).frame(width: 10, height: 10)
             } compactTrailing: {
                 RecordingTimer(state: context.state)
-                    .font(Ink.mono(13, weight: .medium)).foregroundStyle(context.state.isPaused ? .white.opacity(0.7) : Ink.persimmon)
+                    .font(Ink.mono(13, weight: .medium)).foregroundStyle(context.state.isPaused ? Color.white.opacity(0.7) : Ink.persimmon)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 52)
             } minimal: {
