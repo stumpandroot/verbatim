@@ -35,6 +35,19 @@ protocol TranscriptionHost: AnyObject {
     func appendFailed(_ id: UUID, error: Error)
     /// A short message for the person (a toast on the Mac, a banner on the iPhone).
     func notify(_ message: String)
+    /// The running job's share done (0…1) while it transcribes, or nil when it can't tell.
+    func progressFraction(_ id: UUID, _ fraction: Double?)
+    /// The recording sounds like `language` (nil: not English, but unclear which), Parakeet v3 transcribes it, and
+    /// v3 isn't downloaded. Offer the download; `rerun(_:language:)` transcribes it again with v3.
+    func offerParakeetV3(_ id: UUID, language: String?)
+}
+
+extension TranscriptionHost {
+    func progressFraction(_ id: UUID, _ fraction: Double?) {}
+    func offerParakeetV3(_ id: UUID, language: String?) {
+        let what = language.map(LanguageDetection.name) ?? "another language"
+        notify("This recording sounds like \(what). Download Parakeet v3 in Settings to transcribe it.")
+    }
 }
 
 /// The transcription queue shared by the Mac and the iPhone: one job runs at a time, oldest first.
@@ -52,11 +65,15 @@ final class TranscriptionCoordinator: ObservableObject {
         var appendFailedStage: String
         /// Write start and failure lines to the log.
         var logsJobs: Bool
+        /// Transcribe long recordings about 5 minutes at a time, saving each finished section so a stopped job picks
+        /// up where it left off (SectionedTranscription.swift). The iPhone, where iOS can stop a job in the
+        /// background or for memory. The Mac hands the whole file to FluidAudio, which already streams it from disk.
+        var sectioned = false
 
         static let mac = Config(speakerPass: .inline, autoTitleSources: [.voiceMemo, .app, .dictation], waitForDownload: false,
                                 appendFailedStage: "Couldn't add the new recording. Choose Retry.", logsJobs: true)
         static let phone = Config(speakerPass: .afterWords, autoTitleSources: [.voiceMemo], waitForDownload: true,
-                                  appendFailedStage: "Couldn't add the new recording. Tap Retry.", logsJobs: false)
+                                  appendFailedStage: "Couldn't add the new recording. Tap Retry.", logsJobs: false, sectioned: true)
     }
 
     let store: Store
@@ -89,6 +106,9 @@ final class TranscriptionCoordinator: ObservableObject {
                                      && ($0.processingDevice == Device.id || (includeUnowned && $0.processingDevice == nil)))
                                     || ($0.pendingAppend != nil && $0.processingDevice == Device.id) }
             .sorted { $0.createdAt < $1.createdAt }.map(\.id)
+        // Saved sections only for jobs that will pick up again; the rest finished, were deleted, or were cancelled.
+        let resuming = Set((queue + [runningID].compactMap { $0 }).compactMap { store.transcript($0)?.audioFileName })
+        Task.detached(priority: .utility) { SectionCheckpoint.sweep(keeping: resuming) }
     }
 
     // MARK: Queueing
@@ -129,6 +149,20 @@ final class TranscriptionCoordinator: ObservableObject {
         return true
     }
 
+    /// Transcribes a finished transcript again, in `language` (nil: Verbatim checks the language). Its words,
+    /// speakers, and Dictionary fixes are replaced; title, notes, and tags stay. `checkWithV3` downloads Parakeet v3
+    /// if needed and checks the language with it (the language was unclear to the English-only model).
+    func rerun(_ id: UUID, language: String?, checkWithV3: Bool = false) {
+        guard let t = store.transcript(id), t.audioFileName != nil, t.pendingAppend == nil else { return }
+        // Still running with the old settings (the v3 offer comes mid-run): that run stops; its late result is dropped.
+        queue.removeAll { $0 == id }
+        if runningID == id { runToken = UUID(); runningTask?.cancel(); runningTask = nil; runningID = nil }
+        if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
+        if checkWithV3 { checkWithV3IDs.insert(id) }
+        store.update(id) { $0.languageChoice = language }
+        if let fresh = store.transcript(id) { retry(fresh) }
+    }
+
     func retry(_ t: Transcript) {
         guard t.audioFileName != nil else { host?.notify("That recording's audio is missing."); return }
         if t.pendingAppend != nil {
@@ -157,6 +191,7 @@ final class TranscriptionCoordinator: ObservableObject {
             return
         }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
+        if let name = store.transcript(id)?.audioFileName { SectionCheckpoint.remove(audio: name) }
         if runningID == id {
             runToken = UUID()
             runningTask?.cancel(); runningTask = nil
@@ -236,7 +271,26 @@ final class TranscriptionCoordinator: ObservableObject {
     /// the label changed, and without touching the disk: `stage` is display-only.
     private func progressHandler(_ id: UUID) -> @Sendable (EngineProgress) -> Void {
         let labels = labelHandler(id)
-        return { p in labels(p.label) }
+        return { p in
+            if case .transcribing(let f) = p { Task { @MainActor in self.host?.progressFraction(id, f) } }
+            labels(p.label)
+        }
+    }
+
+    /// Transcripts whose next run checks the language with Parakeet v3, downloading it first (`rerun`).
+    private var checkWithV3IDs: Set<UUID> = []
+
+    /// Language and long-recording handling for a run of `t`.
+    private func jobOptions(_ id: UUID, _ t: Transcript) -> JobOptions {
+        let withV3 = checkWithV3IDs.remove(id) != nil
+        return JobOptions(sectioned: config.sectioned, audioName: t.audioFileName, languageChoice: t.languageChoice,
+                   detectLanguage: LanguageDetection.isEnabled || withV3, checkWithV3: withV3,
+                   offerV3: { language in Task { @MainActor in self.host?.offerParakeetV3(id, language: language) } })
+    }
+
+    /// The job's words are saved in the Store: its saved sections can go.
+    private func dropSections(_ t: Transcript) {
+        if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
     }
 
     /// The same, for runs that write their own labels ("Track 2 of 3 · 41%").
@@ -276,16 +330,17 @@ final class TranscriptionCoordinator: ObservableObject {
         let autoTitle = config.autoTitleSources
         let logsJobs = config.logsJobs
         let progress = progressHandler(id)
+        let options = jobOptions(id, t)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
                 let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
-                                                         dictionary: dict, project: project, needWave: needWave, progress: progress)
+                                                         dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let original = out.original, fixed = out.fixed, speakers = out.speakers, corrections = out.corrections, wave = out.wave
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    // Cancelled while running: keep the cancellation, drop the late result.
-                    guard self.store.transcript(id)?.status == .processing else { return }
+                    // Cancelled while running (or started again): keep the cancellation, drop the late result.
+                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { x in
                         x.original = original
                         x.segments = fixed
@@ -302,6 +357,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
+                    self.dropSections(t)
                     // In a batch, stay quiet until the last one.
                     self.host?.transcriptReady(id, corrections: corrections.count, queueEmpty: self.queue.isEmpty)
                 }
@@ -309,7 +365,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 if logsJobs { Log.note("transcribe failed: \(error)") }
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    guard self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }
@@ -368,14 +424,15 @@ final class TranscriptionCoordinator: ObservableObject {
         let autoTitle = config.autoTitleSources
         let logsJobs = config.logsJobs
         let progress = progressHandler(id)
+        let options = jobOptions(id, t)
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
                 let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false,
-                                                         dictionary: dict, project: project, needWave: needWave, progress: progress)
+                                                         dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let findSpeakers = wantSpeakers && out.fixed.count > 1
                 let proceed = await MainActor.run { () -> Bool in
-                    guard self.store.transcript(id)?.status == .processing else { self.finished(id, token: token); return false }
+                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { self.finished(id, token: token); return false }
                     self.store.update(id) { x in
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
@@ -384,6 +441,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
+                    self.dropSections(t)
                     self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
                     if !findSpeakers { self.finished(id, token: token) }
                     return true
@@ -409,7 +467,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 if logsJobs { Log.note("transcribe failed: \(error)") }
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    guard self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }

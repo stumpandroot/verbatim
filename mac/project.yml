@@ -95,8 +95,9 @@ targets:
         NSHumanReadableCopyright: "© 2026 Stump & Root Co."
         NSMicrophoneUsageDescription: "Verbatim records voice memos and dictation with your microphone and transcribes them on this Mac. Recordings stay on this Mac, or in your own iCloud if you turn on sync."
         NSAudioCaptureUsageDescription: "Verbatim records the audio of the app you choose and transcribes it on this Mac. No video is kept."
-        # Live words (Audio/LiveTranscriber.swift): on-device only; asked for on systems before macOS 26.
-        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, on this Mac."
+        # Live words (Audio/LiveTranscriber.swift): on-device only; asked for on systems before macOS 26. Also
+        # languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
+        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, and transcribes languages its own models don't cover, on this Mac."
         # The You page's "Where you dictate" (App/SiteCapture.swift): the front tab's host only, asked once per browser.
         NSAppleEventsUsageDescription: "Verbatim reads the website you're dictating into, by domain only, to show where you dictate."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
@@ -257,7 +258,8 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbatim records voice memos with your microphone and transcribes them on this iPhone."
         # Live words (Audio/LiveTranscriber.swift), on device only; for the keyboard session's live words later.
-        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, on this iPhone."
+        # Also languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
+        NSSpeechRecognitionUsageDescription: "Verbatim shows your words as you speak, and transcribes languages its own models don't cover, on this iPhone."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
         NSContactsUsageDescription: "Verbatim suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
         ITSAppUsesNonExemptEncryption: false

@@ -58,7 +58,14 @@ struct NotesPanel: View {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                     row("Source", transcript.sourceLabel)
                     row("Engine", transcript.model.isEmpty ? "—" : transcript.model)
-                    if let l = transcript.language { row("Language", l.uppercased()) }
+                    GridRow {
+                        Text("Language").foregroundStyle(Ink.mute)
+                        if transcript.status == .ready, transcript.audioFileName != nil, transcript.pendingAppend == nil {
+                            TranscriptLanguageMenuMac(transcript: transcript)
+                        } else {
+                            Text(transcript.language.map(LanguageDetection.name) ?? "—").foregroundStyle(Ink.ink)
+                        }
+                    }
                     // Same count as splitting `text` (the segments joined by spaces), without building the joined string.
                     row("Words", "\(transcript.segments.reduce(0) { $0 + $1.text.split(separator: " ").count })")
                     row("Dictionary", "\(transcript.corrections.filter(\.byDictionary).count) fixes")
@@ -95,6 +102,48 @@ struct NotesPanel: View {
 
     private func row(_ k: String, _ v: String) -> some View {
         GridRow { Text(k).foregroundStyle(Ink.mute); Text(v).foregroundStyle(Ink.ink) }
+    }
+}
+
+/// Details › Language: what the transcript was transcribed in, and Transcribe again in… another language.
+private struct TranscriptLanguageMenuMac: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    /// The language picked, waiting for the confirmation (`.some(nil)`: detect automatically).
+    @State private var pending: String?? = nil
+
+    var body: some View {
+        Menu {
+            Section("Transcribe again in") {
+                Button("Detect automatically") { pending = .some(nil) }
+                ForEach(LanguageDetection.pickableV3, id: \.self) { item($0) }
+            }
+            Section("With Apple speech recognition") {
+                ForEach(LanguageDetection.pickableApple, id: \.self) { item($0) }
+            }
+        } label: {
+            Text(transcript.language.map(LanguageDetection.name) ?? "Set language")
+        }
+        .menuStyle(.borderlessButton).fixedSize()
+        .help("Transcribe again in another language")
+        .confirmationDialog(confirmTitle, isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } })) {
+            Button("Transcribe Again") {
+                if let choice = pending { app.coordinator.rerun(transcript.id, language: choice) }
+                pending = nil
+            }
+            Button("Cancel", role: .cancel) { pending = nil }
+        } message: {
+            Text("Verbatim replaces this transcript's words, speakers, and Dictionary fixes. Your title, notes, and tags stay.")
+        }
+    }
+
+    private func item(_ code: String) -> some View {
+        Toggle(LanguageDetection.name(code), isOn: Binding(get: { code == transcript.language }, set: { _ in pending = .some(code) }))
+    }
+
+    private var confirmTitle: String {
+        guard let choice = pending else { return "" }
+        return choice.map { "Transcribe again in \(LanguageDetection.name($0))?" } ?? "Transcribe again and detect the language?"
     }
 }
 

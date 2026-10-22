@@ -14,6 +14,8 @@ enum EngineProgress {
     case transcribing(Double?)
     case diarizing
     case applyingDictionary
+    /// Listening to the first seconds to tell which language the recording is in.
+    case checkingLanguage
 
     var label: String {
         switch self {
@@ -22,6 +24,7 @@ enum EngineProgress {
         case .transcribing(let f): return "Transcribing" + (f.map { String(format: " %.0f%%", $0 * 100) } ?? "")
         case .diarizing: return "Finding speakers"
         case .applyingDictionary: return "Applying Dictionary"
+        case .checkingLanguage: return "Checking the language"
         }
     }
 }
@@ -125,17 +128,18 @@ enum Engines {
     }
 
     /// Splits a flat word list into sentence-ish segments at punctuation or long pauses, keeping word timings.
-    static func segments(fromWords words: [WordSpan], maxWords: Int = 28, pause: Double = 1.2) -> [Segment] {
+    /// `separator` joins the words ("" for languages written without spaces, such as Japanese).
+    static func segments(fromWords words: [WordSpan], maxWords: Int = 28, pause: Double = 1.2, separator: String = " ") -> [Segment] {
         var out: [Segment] = []
         var cur: [WordSpan] = []
         func flush() {
             guard !cur.isEmpty else { return }
-            out.append(Segment(start: cur.first!.start, end: cur.last!.end, text: cur.map(\.text).joined(separator: " "), words: cur))
+            out.append(Segment(start: cur.first!.start, end: cur.last!.end, text: cur.map(\.text).joined(separator: separator), words: cur))
             cur = []
         }
         for (i, w) in words.enumerated() {
             cur.append(w)
-            let endsSentence = w.text.last.map { ".!?".contains($0) } ?? false
+            let endsSentence = w.text.last.map { ".!?。！？".contains($0) } ?? false
             let longPause = i + 1 < words.count && words[i + 1].start - w.end > pause
             if (endsSentence && cur.count >= 6) || longPause || cur.count >= maxWords { flush() }
         }

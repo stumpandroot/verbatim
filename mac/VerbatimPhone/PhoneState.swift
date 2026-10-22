@@ -84,6 +84,8 @@ final class PhoneState: ObservableObject {
     @Published var savingRecording = false
     /// Microphone access is off: an alert with Open Settings.
     @Published var showMicDenied = false
+    /// A transcript in a language Parakeet v3 handles, with v3 not downloaded: an alert offering the download.
+    @Published var v3Offer: ParakeetV3Offer? = nil
     /// A passage to land on when the next transcript opens (from Moments or search).
     var focusSegment: UUID? = nil
 
@@ -753,6 +755,29 @@ extension PhoneState: TranscriptionHost {
         backgroundWork.finish()
     }
     func progress(_ id: UUID, label: String) { backgroundWork.title(label) }
+    func progressFraction(_ id: UUID, _ fraction: Double?) { backgroundWork.fraction(fraction) }
+
+    func offerParakeetV3(_ id: UUID, language: String?) {
+        // One question at a time; a batch of recordings asks once.
+        guard v3Offer == nil else { return }
+        v3Offer = ParakeetV3Offer(id: id, language: language)
+    }
+
+    /// Download on the offer: transcribes the recording again in its language with Parakeet v3, which downloads
+    /// as part of that job (its progress shows on the transcript). When the language was unclear, the job downloads
+    /// v3 first and checks the language again with it.
+    func acceptV3Offer() {
+        guard let offer = v3Offer else { return }
+        v3Offer = nil
+        player.stop()
+        coordinator.rerun(offer.id, language: offer.language, checkWithV3: offer.language == nil)
+    }
+
+    /// Transcribe again in…: a language you pick, or nil to let Verbatim check.
+    func transcribeAgain(_ id: UUID, language: String?) {
+        player.stop()
+        coordinator.rerun(id, language: language)
+    }
 
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
         if queueEmpty { say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }

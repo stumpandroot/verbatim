@@ -77,6 +77,13 @@ struct PhoneRoot: View {
         } message: {
             Text("Stop or discard your recording to use \(app.finishRecordingFirst ?? "this"). It keeps recording until you do.")
         }
+        // A recording in a language the English-only model can't hear, with Parakeet v3 not downloaded yet.
+        .alert(app.v3Offer?.title ?? "", isPresented: Binding(get: { app.v3Offer != nil }, set: { if !$0 { app.v3Offer = nil } })) {
+            Button("Not Now", role: .cancel) { app.v3Offer = nil }
+            Button("Download") { app.acceptV3Offer() }
+        } message: {
+            Text(app.v3Offer?.message ?? "")
+        }
         .alert("Microphone access is off", isPresented: $app.showMicDenied) {
             Button("Not Now", role: .cancel) {}
             Button("Open Settings") { app.openAppSettings() }

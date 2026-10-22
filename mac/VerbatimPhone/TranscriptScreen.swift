@@ -183,6 +183,12 @@ struct TranscriptScreen: View {
                 if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(Ink.mono(13)) }
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
                 if let k = t.kind { Text("·"); Text(k.label) }
+                // The language it was transcribed in, and Transcribe again in… another one.
+                if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil, t.source != .dictation {
+                    Text("·"); TranscriptLanguageMenu(transcript: t)
+                } else if let l = t.language {
+                    Text("·"); Text(LanguageDetection.name(l))
+                }
             }
             .font(.system(size: 14)).foregroundStyle(Ink.mute)
             if t.titleIsAuto && t.titleByModel { AITitleNote() }

@@ -18,6 +18,8 @@ struct SettingsScreen: View {
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    /// Check each recording's language and pick a model that knows it (LanguageCheck.swift). On by default.
+    @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
     /// Show words while you record (MiniRecorder.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
@@ -129,11 +131,10 @@ struct SettingsScreen: View {
     // MARK: Groups
 
     @ViewBuilder private var personalization: some View {
-        SettingsRow(icon: "globe", tint: Ink.sageTint, art: .iconLanguage, title: "Language") {
-            SettingsValue(app.preset == .english ? "English" : "Automatic")
-        }
-        .accessibilityElement(children: .combine)
-        .settingsSearchTarget("language", flash: searchFlash)
+        SettingsToggleRow(icon: "globe", tint: Ink.sageTint, art: .iconLanguage, title: "Detect the language",
+                          subtitle: "Verbatim listens to the first 30 seconds and uses a model that knows that language. To change one transcript's language, tap its language under the title.",
+                          isOn: $detectLanguage)
+            .settingsSearchTarget("language", flash: searchFlash)
         SettingsDivider()
         Button { bump("voice"); voicePreview = false; showVoice = true } label: {
             SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings", bounce: bumps["voice", default: 0]) {
