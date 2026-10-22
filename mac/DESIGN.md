@@ -6,25 +6,30 @@ Sources: the family design system (project doc `01-design-system.md`, v2.1), the
 
 ## 1. Color
 
-The palette lives in `mac/Verbatim/Views/Tokens.swift` (`Ink`). Use tokens only. **[checked]** No hex values outside `Tokens.swift`, and no `Color.red`, `.blue`, `.orange`, `.green`, `.gray`, `.purple`, `.pink`, `.yellow`, or `.accentColor`. Errors use `Ink.danger`.
+The palette lives in `mac/Verbatim/Views/Tokens.swift` (`Ink`). Use tokens only. **[checked]** No hex values outside `Tokens.swift`, and no `Color.red`, `.blue`, `.orange`, `.green`, `.gray`, `.purple`, `.pink`, `.yellow`, or `.accentColor` outside it. Errors and destructive actions use `Ink.danger` (defined in Tokens.swift), with an icon and a word, never persimmon.
 
 | Token | Hex (light) | Means | Use it for |
 |---|---|---|---|
 | `paper` | `#F5F0E6` | The page | App background |
 | `reader` / `card` | `#FFFDF9` | Content you read | Transcript sheet, neutral cards, rows |
 | `ink` | `#26352E` | Structure | Text, strokes, primary buttons (`interactive`) |
-| `persimmon` | `#FA6B47` | **Record and capture** | Record panel, voice-note chips, recording state, the app icon |
-| `butter` | `#F4C76B` | **Dictate and saved** | Dictate tile, dictations panel, saved passages |
-| `sage` | `#AFC398` | **Import and files** | Import tile, imported-file and link chips, playing passage |
+| `persimmon` | `#FA6B47` | **Record** | Record panel, voice-note chips, recording state, the app icon |
+| `butter` | `#F4C76B` | **Dictate** | Dictate tile, dictations panel, today's bar in This week (it counts dictated words) |
+| `sage` | `#AFC398` | **Import** (files and links) | Import tile, imported-file and link chips |
 | `petal` | `#EFB6C8` | **App audio** | App audio tile, app-audio chips |
+| ink outline on `card` | — | **Live captions** | Live captions tile and its chips |
+
+Neutral (`ink` at 6% with `dim` text, plus the item's own diagram or initials): kinds (journal, idea, meeting, note), tags, speakers, projects, filters, and counts. They never borrow an action hue.
+
+Reading washes are a separate role and appear only on the transcript and document surfaces, never beside the action tiles: saved = `saved` (butter), playing = `playing` (sage), search match = `match` (persimmon).
 
 Rules:
 
 1. One color, one meaning. Never reuse a hue for a different action on the same screen. Tags, filters, and counts are neutral (`ink` at 6% with `dim` text).
 2. About 70% neutral, 20% ink, 10% accent on working screens. Home and onboarding may run richer.
-3. One loud fill per screen: the primary action. Everything else is a pastel tile, a tint, or neutral.
+3. One saturated fill per screen: persimmon, for the primary action. The pastel start tiles on Home (butter, sage, petal) are allowed because each one is a different action; everything else is a tint or neutral.
 4. Text on paper uses `ink`, `dim`, `mute`, or a text-safe variant (`accentText`, `sageText`), never a bright fill.
-5. Ink text on fills: petal 7.5:1, butter 8.1:1, sage 6.8:1. On persimmon, use reader white or large or semibold ink only.
+5. Text on every fill is ink: petal 7.5:1, butter 8.1:1, sage 6.8:1, persimmon 4.45:1 (so on persimmon, ink text must be 18 pt or larger, or semibold 14 pt or larger). Never put reader white text on persimmon; it measures 2.8:1.
 6. Status never depends on color alone; pair it with a word or an icon.
 7. Dark mode is a near-black green, never an inversion.
 
@@ -34,7 +39,7 @@ Rules:
 |---|---|---|
 | Display | `Ink.serif` (New York stands in for Instrument Serif) | Greeting, Record, section titles, document titles, big numbers |
 | UI and body | SF Pro, Dynamic Type | Everything else: tile names, labels, rows, buttons, transcript text |
-| Data | `Ink.mono` | **Only** keyboard shortcuts, timecodes inside transcripts and players, and tabular indexes ("01") |
+| Data | `Ink.mono` | **Only** keyboard shortcuts, timecodes inside transcripts and players, running recording timers, file paths, and tabular indexes ("01") |
 
 Rules:
 
@@ -49,6 +54,7 @@ Rules:
 - **Ours (`BrandArt`) for anything that means something in Verbatim:** record, dictate, import, link, app audio, captions, library, moments, bookmark, play, export, summaries, speakers, language, voice, search inside a transcript, empty states, and all navigation. Fine line: a 24-unit grid with a 1.5 stroke, or a 112-unit box with a 6 stroke. Round caps and joins.
 - **Apple's SF Symbols only for standard controls.** **[checked]** Allowed: `xmark`, `xmark.circle.fill`, `plus`, `plus.circle`, `minus.circle`, `chevron.*`, `checkmark`, `checkmark.circle.fill`, `ellipsis`, `ellipsis.circle`, `square.and.arrow.up`, `trash`, `magnifyingglass` (search fields only), `sidebar.left`, `line.3.horizontal` (drag handles), `arrow.right` (text links), `arrow.up.arrow.down`, `chevron.up.chevron.down`, `arrow.uturn.backward`, `arrow.counterclockwise`, and keyboard keys (`return`, `delete.left`, `globe`, `keyboard`).
 - Everything else, such as `sparkles`, `wand.and.stars`, `waveform`, `mic`, `bookmark`, `link`, `play.*`, `note.text`, `doc.on.clipboard`, and `info.circle`, gets a `BrandArt` glyph. If none exists, draw one in the same grammar and add it to `mac/tools/gen_icons.py`.
+- **System surfaces** (Control Center controls, Live Activities and the Dynamic Island, widgets, context menus, the menu bar item) can only show SF Symbols or custom symbols from the asset catalog. Export our glyphs as custom symbols (`.symbols` in Assets) and use those; until a glyph is exported, the closest SF Symbol is allowed there, marked on its line with `// brand: system surface`. The menu bar item uses the bars mark.
 - Icons sit bare or in a tinted disc of their own color. Don't put a white disc on a colored tile.
 - **Diagrams:** Capture (rings), Refine (paths into lines), and Understand (overlapping circles). Use them on Home (the Method band), onboarding, empty states, and loading. Don't use them as wallpaper. Ink strokes on paper or on their own fill.
 
@@ -78,7 +84,7 @@ Rules:
 
 - Use the `Motion` tokens. Ease-out or critically damped springs; no bounce in productivity controls.
 - Never animate keyboard-initiated or high-frequency actions.
-- Movement means something. The Record meter shows the real mic level: live while recording, live while you hover or touch the Record panel, and still otherwise. Don't animate it randomly.
+- Movement means something. The Record meter shows the real mic level: live while recording, live while you hover (Mac) or touch (iPhone) the Record panel, and still otherwise. Hover opens the mic, so the system's orange mic indicator shows during it; close the mic within one second of the pointer leaving. Don't animate the meter randomly, and don't loop icon animations.
 - Icons draw on once when they appear and again on hover. Limit Motion turns this off.
 
 ## 8. Words
@@ -87,7 +93,7 @@ Google developer documentation style: second person, active voice, sentence case
 
 ## 9. Website
 
-The marketing site and the link transcriber (`link-transcriber/static`) use the same tokens as CSS variables, the same serif and sans roles, the colophon rings, and the same icon set. No gradients, no purple, no centered hero with one button over three icon cards.
+The marketing site and the link transcriber (`link-transcriber/static`) use the same tokens as CSS variables, the same type roles (serif: Newsreader from Google Fonts, SIL OFL, until Instrument Serif is licensed; sans: the system stack; mono: IBM Plex Mono), the colophon rings, and the same icon set. No gradients, no purple, no centered hero with one button over three icon cards.
 
 ## 10. QA before you call a screen done
 

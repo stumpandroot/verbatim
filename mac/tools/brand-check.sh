@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Brand check: fails when Swift code breaks the [checked] rules in mac/DESIGN.md.
-#   1. SF Symbols outside the allowlist (DESIGN.md §3)
+#   1. SF Symbols outside the allowlist (DESIGN.md §3); system surfaces may mark a line `// brand: system surface`
 #   2. Colors outside Tokens.swift: hex literals in color calls and system color names (§1)
 #   3. Materials or glass (§5): allowed only on a line marked `// brand: glass ok (no text)`
 #   4. The retired V mark, BrandArt.mark (§4)
@@ -15,7 +15,7 @@ report() { echo "brand-check: $1"; echo "$2" | sed 's/^/  /'; echo; fail=1; }
 ALLOWED='^(xmark|xmark\.circle\.fill|plus|plus\.circle|minus\.circle|chevron\..*|checkmark|checkmark\.circle\.fill|ellipsis|ellipsis\.circle|square\.and\.arrow\.up|trash|magnifyingglass|sidebar\.left|line\.3\.horizontal|arrow\.right|arrow\.up\.arrow\.down|arrow\.uturn\.backward|arrow\.counterclockwise|return|delete\.left|globe|keyboard)$'
 syms=$(grep -rnoE --include=*.swift '(systemName|systemImage): *"[^"]+"' $SRC \
   | awk -F: '{ n=$0; sub(/.*: *"/, "", n); sub(/"$/, "", n); print $1 ":" $2 "  " n }' \
-  | while IFS= read -r l; do echo "${l##*  }" | grep -qE "$ALLOWED" || echo "$l"; done)
+  | while IFS= read -r l; do echo "${l##*  }" | grep -qE "$ALLOWED" && continue; f=${l%%:*}; n=${l#*:}; n=${n%%  *}; sed -n "${n}p" "$f" | grep -q 'brand: system surface' || echo "$l"; done)
 [ -n "$syms" ] && report "SF Symbols not on the DESIGN.md §3 allowlist (use a BrandArt glyph):" "$syms"
 
 hex=$(grep -rnE --include=*.swift '(hex: *0x[0-9A-Fa-f]{6}|Color\(red:|Color\(\.sRGB|UIColor\(red:|NSColor\(red:|NSColor\(calibratedRed:)' $SRC | grep -v 'Views/Tokens.swift' | cut -d: -f1,2)
