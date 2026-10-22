@@ -129,7 +129,12 @@ enum LocalOnly {
     // keyword model, and speaker models load through calls that download when the files are missing, so Verbatim
     // remembers which ones have loaded on this device.
     private static func readyKey(_ name: String) -> String { "privacy.modelReady." + name }
-    static func markModelReady(_ name: String) { defaults.set(true, forKey: readyKey(name)) }
+    /// Writes only the first time, so loading a model again posts no UserDefaults change (callers run on
+    /// background actors, and every observer hears that post on the writer's thread).
+    static func markModelReady(_ name: String) {
+        guard !defaults.bool(forKey: readyKey(name)) else { return }
+        defaults.set(true, forKey: readyKey(name))
+    }
     static func modelReady(_ name: String) -> Bool { defaults.bool(forKey: readyKey(name)) }
 }
 

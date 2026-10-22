@@ -162,17 +162,27 @@ enum VoiceEnrollmentSheet {
         }
         parent.beginSheet(w) { _ in
             m.cancel()
-            if window === w { cleanUp() }
+            // Released on the next turn of the run loop, never inside AppKit's own sheet callback.
+            DispatchQueue.main.async { if window === w { cleanUp() } }
         }
         if readMore { m.readMore() }
     }
 
+    /// Called from the sheet's own Done and Cancel buttons, so the window must outlive this call: the click that
+    /// called it is still unwinding through the window's SwiftUI views. The sheet closes now; the last references
+    /// (window, model) go on the next turn of the run loop. Releasing them inside the click could free the window
+    /// mid-click, most likely with Reduce Motion or Limit animation on (no closing animation holds the window then).
     static func dismiss() {
         guard let w = window else { return }
         VoiceEnrollment.trace("closing the sheet")
         model?.cancel()
-        cleanUp()
+        if let o = parentCloseObserver { NotificationCenter.default.removeObserver(o) }
+        parentCloseObserver = nil
         if let parent = w.sheetParent { parent.endSheet(w) } else { w.orderOut(nil) }
+        DispatchQueue.main.async {
+            if window === w { cleanUp() }
+            VoiceEnrollment.trace("sheet released")
+        }
     }
 
     private static func cleanUp() {

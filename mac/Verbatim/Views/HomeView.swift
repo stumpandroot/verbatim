@@ -66,7 +66,9 @@ struct HomeView: View {
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mic = AudioDevices.current(); now = Date() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in let m = AudioDevices.current(); if m != mic { mic = m } }
+        // UserDefaults posts on whichever thread wrote the setting (the speaker models mark themselves ready from a
+        // background actor); Home state changes only on the main thread.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in let m = AudioDevices.current(); if m != mic { mic = m } }
     }
 
     // MARK: Header
