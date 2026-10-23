@@ -348,6 +348,7 @@ struct SettingsSearchResultRow: View {
         case .page(.dictionary): return "Opens Dictionary"
         case .page(.keyboard): return "Opens Keyboard settings"
         case .page(.snippets): return "Opens Snippets"
+        case .page(.actionButton): return "Opens Action button settings"
         }
     }
 
