@@ -88,6 +88,8 @@ enum UITest {
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
             await settingsSteps(main: window)
+            await ribbonSteps(app: app)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -144,6 +146,86 @@ enum UITest {
         w.close()
         main.makeKeyAndOrderFront(nil)
         try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    // MARK: Ribbon
+
+    /// What the Ribbon's prompt handlers saw, for the checks below.
+    private static var ribbonAnswer = ""
+
+    /// Clicks inside the Ribbon's panel: a prompt's main answer, its other answer, its X, and a notice's action.
+    /// Each step first checks the routing the window server uses (with the pointer over the control, the panel
+    /// must stop ignoring mouse events), then clicks the control through the panel's own event path.
+    private static func ribbonSteps(app: AppState) async {
+        guard let bar = app.dictation.bar else { fail += 1; Log.note("UITEST FAIL ribbon: no Ribbon controller"); return }
+        func lititz(_ seconds: Double = 20) -> FlowBarModel.Prompt {
+            .init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way.",
+                  primary: "Remember", secondary: "Not now", seconds: seconds,
+                  onPrimary: { ribbonAnswer = "primary" }, onSecondary: { ribbonAnswer = "secondary" }, onTimeout: { ribbonAnswer = "timeout" })
+        }
+        let settle: UInt64 = 1_200_000_000   // the card slides in and its frames are recorded
+
+        ribbonAnswer = ""; bar.ask(lititz())
+        try? await Task.sleep(nanoseconds: settle)
+        await ribbonStep("ribbon prompt Remember runs its answer", bar, target: "ribbon-prompt-primary",
+                         check: { ribbonAnswer == "primary" && bar.model.phase == .idle })
+
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        ribbonAnswer = ""; bar.ask(lititz())
+        try? await Task.sleep(nanoseconds: settle)
+        await ribbonStep("ribbon prompt Not now runs its answer", bar, target: "ribbon-prompt-secondary",
+                         check: { ribbonAnswer == "secondary" && bar.model.phase == .idle })
+
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        ribbonAnswer = ""; bar.ask(lititz())
+        try? await Task.sleep(nanoseconds: settle)
+        await ribbonStep("ribbon prompt X dismisses it", bar, target: "ribbon-prompt-close",
+                         check: { ribbonAnswer == "timeout" && bar.model.phase == .idle && bar.model.prompt == nil })
+
+        // The countdown holds while the pointer is over the card and restarts when it leaves.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        ribbonAnswer = ""; bar.ask(lititz(3))
+        try? await Task.sleep(nanoseconds: settle)
+        if let panel = bar.panelWindow, let f = frames["ribbon-prompt-primary"], let content = panel.contentView {
+            let over = panel.convertPoint(toScreen: CGPoint(x: f.midX, y: content.bounds.height - f.midY))
+            bar.updatePointer(at: over)
+            let held = !bar.model.promptCountdown.running
+            try? await Task.sleep(nanoseconds: 2_500_000_000)    // past the 3 s it had (1.2 s already gone)
+            bar.updatePointer(at: over)                          // the poll may have read the real pointer meanwhile
+            let stillUp = bar.model.phase == .prompt && ribbonAnswer.isEmpty
+            bar.updatePointer(at: CGPoint(x: panel.frame.midX, y: panel.frame.maxY + 400))
+            let resumed = bar.model.promptCountdown.running && bar.model.promptCountdown.seconds >= FlowBarController.resumeSeconds
+            let ok = held && stillUp && resumed
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") ribbon prompt holds under the pointer (held=\(held) stillUp=\(stillUp) resumed=\(resumed))")
+        } else { fail += 1; Log.note("UITEST FAIL ribbon prompt holds under the pointer: no panel or target") }
+        bar.setPhase(.idle)
+
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        var ran = false
+        bar.flash("Learned “Lititz”", action: "Undo") { ran = true }
+        try? await Task.sleep(nanoseconds: settle)
+        await ribbonStep("ribbon notice action runs", bar, target: "ribbon-notice-action", check: { ran && bar.model.phase == .idle })
+        bar.setPhase(.idle)
+    }
+
+    private static func ribbonStep(_ name: String, _ bar: FlowBarController, target: String, check: () -> Bool) async {
+        guard let panel = bar.panelWindow, panel.isVisible, let content = panel.contentView else {
+            fail += 1; Log.note("UITEST FAIL \(name): the Ribbon isn't on screen"); return
+        }
+        guard let f = frames[target] else { fail += 1; Log.note("UITEST FAIL \(name): missing target \(target)"); return }
+        // The window server sends a click to the panel only while it isn't ignoring mouse events, which the
+        // controller decides from the pointer's position against the drawn content's frame.
+        let screen = panel.convertPoint(toScreen: CGPoint(x: f.midX, y: content.bounds.height - f.midY))
+        bar.updatePointer(at: screen)
+        let routed = !panel.ignoresMouseEvents
+        if !routed { fail += 1 }
+        Log.note("UITEST \(routed ? "routed" : "FAIL") \(name): pointer \(Int(screen.x)),\(Int(screen.y)) hit rect \(bar.hitRect.map { "\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" } ?? "nil")")
+        click(target, in: panel)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        let ok = routed && check()
+        if ok { pass += 1 } else if routed { fail += 1 }
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name) (phase=\(bar.model.phase) answer=\(ribbonAnswer))")
     }
 
     /// Two watched folders for the screenshots, like the approved mockup: one watching with SRT and Plain text

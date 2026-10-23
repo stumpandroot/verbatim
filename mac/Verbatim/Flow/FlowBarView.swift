@@ -117,34 +117,45 @@ struct FlowBarView: View {
 
     private var screenEdge: Edge { switch model.edge { case .left: return .leading; case .right: return .trailing; case .bottom: return .bottom } }
 
+    /// The panel's own coordinate space: the root fills the hosting view, so frames in it are panel coordinates.
+    private static let space = "ribbon-panel"
+
     var body: some View {
         ZStack(alignment: alignment) {
             Color.clear
             Group {
                 if model.phase == .prompt, let p = model.prompt {
-                    PromptCard(prompt: p, controller: controller)
+                    // The card's own controls take its clicks directly; the Ribbon's drag-or-click gesture isn't
+                    // over it (wrapped around SwiftUI Buttons, it swallowed their clicks on macOS 26).
+                    PromptCard(prompt: p, controller: controller, countdown: model.promptCountdown)
                         .padding(model.edge == .bottom ? .bottom : (model.edge == .left ? .leading : .trailing), 10)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel(p.title)
                         .transition(.asymmetric(insertion: .move(edge: screenEdge).combined(with: .opacity), removal: .opacity))
                 } else {
-                    tabbed.transition(.opacity)
+                    tabbed
+                        .contentShape(Rectangle())
+                        // One gesture: a drag moves the Ribbon, otherwise it's a click. Controls inside (Stop, Cancel,
+                        // a notice's action) take their own clicks and don't also trigger the Ribbon's.
+                        .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                            .onChanged { _ in controller.dragChanged() }
+                            .onEnded { _ in controller.dragEnded() }
+                            .exclusively(before: TapGesture().onEnded { controller.clicked() }))
+                        .accessibilityElement(children: model.phase == .listening ? .contain : .combine)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel(accessibilityLabel)
+                        .accessibilityAction { controller.clicked() }
+                        .transition(.opacity)
                 }
             }
-            .background(GeometryReader { g in Color.clear.preference(key: RibbonSizeKey.self, value: g.size) })
-            .contentShape(Rectangle())
-            // One gesture: a drag moves the Ribbon, otherwise it's a click. Buttons inside (Stop, Cancel,
-            // Discard, Paste anyway) take their own clicks and don't also trigger the Ribbon's.
-            .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                .onChanged { _ in controller.dragChanged() }
-                .onEnded { _ in controller.dragEnded() }
-                .exclusively(before: TapGesture().onEnded { controller.clicked() }))
-            .accessibilityElement(children: model.phase == .listening || model.phase == .prompt ? .contain : .combine)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(accessibilityLabel)
+            // Where the content really is, in panel coordinates: the clickable area follows it.
+            .background(GeometryReader { g in Color.clear.preference(key: RibbonFrameKey.self, value: g.frame(in: .named(Self.space))) })
             // Slides in from the edge when it first appears (and after sleep or a display change).
             .offset(x: model.shown ? 0 : (model.edge == .left ? -12 : model.edge == .right ? 12 : 0), y: model.shown || model.edge != .bottom ? 0 : 12)
             .opacity(model.shown ? 1 : 0)
         }
-        .onPreferenceChange(RibbonSizeKey.self) { s in if model.contentSize != s { model.contentSize = s } }
+        .coordinateSpace(name: Self.space)
+        .onPreferenceChange(RibbonFrameKey.self) { f in if model.contentFrame != f { model.contentFrame = f } }
         .animation(morph, value: stateKey)
     }
 
@@ -232,7 +243,11 @@ struct FlowBarView: View {
                 RibbonMeter(edge: model.edge, levels: [0.7, 0.5, 0.85], thickness: 3.5, length: 12)
             } rest: {
                 Text(model.notice).font(.system(size: 12, weight: .medium)).foregroundStyle(RibbonInk.text).lineLimit(2).frame(maxWidth: 300, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                if let a = model.noticeAction { Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(RibbonInk.persimmonText).fixedSize() }
+                if let a = model.noticeAction {
+                    RibbonControl(id: "ribbon-notice-action", label: a, action: controller.performNoticeAction) { _ in
+                        Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(RibbonInk.persimmonText).fixedSize()
+                    }
+                }
             }
             .transition(contentTransition)
         case .prompt:
@@ -370,9 +385,52 @@ private struct LiveFit: Layout {
     }
 }
 
-private struct RibbonSizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+private struct RibbonFrameKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    /// Mid-transition both states are drawn for a moment; the clickable area covers both.
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next.isEmpty { return }
+        value = value.isEmpty ? next : value.union(next)
+    }
+}
+
+/// A hit-safe control for the Ribbon's cards (the prompt's X and answers, a notice's action). A direct gesture on
+/// a flat hit area, not a SwiftUI Button: on macOS 26 Buttons inside this non-activating panel lost clicks, the
+/// same failure `CardButton` and `TapArea` work around in the main window. It fires on release inside the control
+/// (with a small margin), at high priority so the Ribbon's own drag-or-click never takes it. VoiceOver gets a
+/// button with the label and a press action.
+struct RibbonControl<Label: View>: View {
+    let id: String
+    let label: String
+    var help: String? = nil
+    let action: () -> Void
+    @ViewBuilder var content: (_ pressed: Bool) -> Label
+    @State private var pressed = false
+    @State private var size: CGSize = .zero
+
+    var body: some View {
+        content(pressed)
+            .contentShape(Rectangle())
+            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
+            .highPriorityGesture(DragGesture(minimumDistance: 0)
+                .onChanged { v in
+                    let over = CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location)
+                    if pressed != over { pressed = over }
+                }
+                .onEnded { v in
+                    pressed = false
+                    if CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
+                })
+            .help(help ?? "")
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(label)
+            .accessibilityHint(help ?? "")
+            .accessibilityAction { action() }
+            .accessibilityIdentifier(id)
+            .uiTarget(id)
+    }
 }
 
 /// The logo's three bars. On the sides they run horizontally from the edge; at the bottom they stand up.
@@ -430,6 +488,8 @@ struct PromptCard: View {
     @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     let prompt: FlowBarModel.Prompt
     let controller: FlowBarController
+    /// Runs down while the card waits and holds while the pointer is over it (FlowBarController keeps time).
+    let countdown: FlowBarModel.Countdown
     @State private var progress: CGFloat = 1
 
     var body: some View {
@@ -438,24 +498,29 @@ struct PromptCard: View {
                 RibbonBars(edge: .left, levels: [0.8, 0.55, 0.95], thickness: 3.5, length: 12)
                 Text(prompt.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(RibbonInk.text)
                 Spacer(minLength: 12)
-                Button { controller.dismissPrompt() } label: {
+                RibbonControl(id: "ribbon-prompt-close", label: "Close", help: "Close (keeps it in Dictations)", action: controller.dismissPrompt) { _ in
                     ZStack {
                         Circle().stroke(RibbonInk.track, lineWidth: 2)
                         Circle().trim(from: 0, to: progress).stroke(RibbonInk.muted, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
                         Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(RibbonInk.text)
                     }
                     .frame(width: 26, height: 26)
+                    // A little room around the ring, so a click just off it still closes the card.
+                    .padding(4)
                 }
-                .buttonStyle(.plain).help("Close (keeps it in Dictations)")
+                .padding(-4)
             }
             (Text(prompt.body) + Text(prompt.quote.map { "“\($0)”" } ?? "").foregroundColor(RibbonInk.text) + Text(prompt.after))
                 .font(.system(size: 13)).foregroundStyle(RibbonInk.muted).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Spacer()
-                Button(prompt.secondary) { controller.answer(primary: false) }
-                    .buttonStyle(PromptButton(filled: false))
+                RibbonControl(id: "ribbon-prompt-secondary", label: prompt.secondary, action: { controller.answer(primary: false) }) { pressed in
+                    PromptButtonLabel(title: prompt.secondary, filled: false, pressed: pressed)
+                }
                 if let p = prompt.primary {
-                    Button(p) { controller.answer(primary: true) }.buttonStyle(PromptButton(filled: true))
+                    RibbonControl(id: "ribbon-prompt-primary", label: p, action: { controller.answer(primary: true) }) { pressed in
+                        PromptButtonLabel(title: p, filled: true, pressed: pressed)
+                    }
                 }
             }
         }
@@ -464,18 +529,30 @@ struct PromptCard: View {
         .background(RibbonInk.tab, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(RibbonInk.edge, lineWidth: 0.75))
         .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
-        .onAppear { withAnimation(.linear(duration: prompt.seconds)) { progress = 0 } }
+        .onAppear { run(countdown) }
+        .onChange(of: countdown) { _, c in run(c) }
+    }
+
+    /// Snaps the ring to the time left, then runs it down if the countdown is running (a held card stays put).
+    private func run(_ c: FlowBarModel.Countdown) {
+        var t = Transaction(); t.disablesAnimations = true
+        withTransaction(t) { progress = c.fraction }
+        guard c.running, c.seconds > 0 else { return }
+        withAnimation(.linear(duration: c.seconds)) { progress = 0 }
     }
 }
 
-private struct PromptButton: ButtonStyle {
+/// The prompt's answer buttons: ink-filled for the main answer, a raised tint for the other.
+private struct PromptButtonLabel: View {
+    var title: String
     var filled: Bool
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+    var pressed: Bool
+    var body: some View {
+        Text(title)
             .font(.system(size: 13, weight: filled ? .semibold : .regular))
             .foregroundStyle(filled ? RibbonInk.tab : RibbonInk.text)
             .padding(.horizontal, 14).padding(.vertical, 7)
             .background(filled ? RibbonInk.text : RibbonInk.raised, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(pressed ? 0.97 : 1)
     }
 }

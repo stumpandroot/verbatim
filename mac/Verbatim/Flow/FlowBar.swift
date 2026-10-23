@@ -44,8 +44,17 @@ final class FlowBarModel: ObservableObject {
     @Published var alert: ListeningAlert? = nil
     @Published var appLabel = ""      // "MAIL" while writing
     @Published var edge: BarEdge = .bottom
-    /// The drawn content's real size, measured by SwiftUI; clicks inside it reach the Ribbon, clicks outside pass through.
-    @Published var contentSize: CGSize = .zero
+    /// Where the drawn content really is, measured by SwiftUI in the panel's own coordinates (top-left origin).
+    /// Clicks inside it reach the Ribbon; clicks outside pass through to the apps behind.
+    @Published var contentFrame: CGRect = .zero
+    /// The prompt's countdown ring: the share of time left, the seconds it takes to run out from there, and
+    /// whether it's running (it holds while the pointer is over the card).
+    struct Countdown: Equatable {
+        var fraction: CGFloat = 1
+        var seconds: Double = 0
+        var running = false
+    }
+    @Published var promptCountdown = Countdown()
 }
 
 /// The always-on floating Ribbon for dictation, in Verbatim's ink, persimmon, and paper.
@@ -73,6 +82,12 @@ final class FlowBarController {
     private var noticeRemaining: TimeInterval = 0
     private var noticeRunningSince: Date?
     private var promptTimer: Timer?
+    /// Time left on the prompt's countdown, and when it last started running (nil while held by hover).
+    private var promptRemaining: TimeInterval = 0
+    private var promptRunningSince: Date?
+    /// Leaving the Ribbon restarts a held notice or prompt with at least this long to go, so it never vanishes
+    /// just as you reach for it again.
+    static let resumeSeconds: TimeInterval = 4
     private var pollTimer: Timer?
     private var monitors: [Any] = []
     private var dragOffset: CGPoint = .zero
@@ -103,6 +118,10 @@ final class FlowBarController {
             }
         }
         pollTimer?.tolerance = 0.05   // lets macOS batch the wakeups; still about 4 times a second
+        // A new state or a card that grew moves the clickable area while the pointer may be standing still:
+        // check again at once, after the change lands (these fire before the value is set).
+        model.$contentFrame.removeDuplicates().sink { [weak self] _ in DispatchQueue.main.async { self?.pointerMoved() } }.store(in: &bag)
+        model.$phase.removeDuplicates().sink { [weak self] _ in DispatchQueue.main.async { self?.pointerMoved() } }.store(in: &bag)
         // Next turn of the run loop: this runs while SwiftUI is still building the app's state, and sizing a
         // panel's hosting view inside that update aborts in AttributeGraph ("value_set" during update).
         DispatchQueue.main.async { [weak self] in self?.refresh() }
@@ -148,7 +167,7 @@ final class FlowBarController {
 
     func setPhase(_ p: FlowBarModel.Phase) {
         if p != .notice { noticeTimer?.invalidate(); model.noticeAction = nil; model.onNoticeAction = nil }
-        if p != .prompt { promptTimer?.invalidate(); model.prompt = nil }
+        if p != .prompt { promptTimer?.invalidate(); promptTimer = nil; promptRunningSince = nil; model.prompt = nil }
         // While busy the Ribbon stays on the display it started on, even if the pointer wanders.
         lockedKey = (p == .idle) ? nil : (lockedKey ?? currentScreen().map { self.key(for: $0) })
         model.phase = p
@@ -185,33 +204,70 @@ final class FlowBarController {
     private func runNoticeCountdown() {
         noticeTimer?.invalidate()
         noticeRunningSince = Date()
+        // Main-run-loop timer: runs right here, so a hover that paused it can't race a queued task.
         noticeTimer = Timer.scheduledTimer(withTimeInterval: noticeRemaining, repeats: false) { [weak self] _ in
-            Task { @MainActor in if self?.model.phase == .notice { self?.setPhase(.idle) } }
+            MainActor.assumeIsolated {
+                guard let self, self.model.phase == .notice, self.noticeRunningSince != nil else { return }
+                self.setPhase(.idle)
+            }
         }
     }
 
-    /// Hovering the Ribbon holds a notice; leaving starts the rest of its countdown (at least 2 s more).
-    private func noticeHoverChanged(_ hovering: Bool) {
-        guard model.phase == .notice else { return }
-        if hovering {
-            guard let since = noticeRunningSince else { return }
-            noticeRemaining -= Date().timeIntervalSince(since)
-            noticeRunningSince = nil
-            noticeTimer?.invalidate(); noticeTimer = nil
-        } else if noticeRunningSince == nil {
-            noticeRemaining = max(noticeRemaining, 2)
-            runNoticeCountdown()
+    /// Hovering the Ribbon holds a notice or a prompt; leaving starts the rest of its countdown (at least
+    /// `resumeSeconds` more).
+    private func hoverChanged(_ hovering: Bool) {
+        switch model.phase {
+        case .notice:
+            if hovering {
+                guard let since = noticeRunningSince else { return }
+                noticeRemaining -= Date().timeIntervalSince(since)
+                noticeRunningSince = nil
+                noticeTimer?.invalidate(); noticeTimer = nil
+            } else if noticeRunningSince == nil {
+                noticeRemaining = max(noticeRemaining, Self.resumeSeconds)
+                runNoticeCountdown()
+            }
+        case .prompt:
+            if hovering {
+                guard let since = promptRunningSince else { return }
+                promptRemaining = max(0, promptRemaining - Date().timeIntervalSince(since))
+                promptRunningSince = nil
+                promptTimer?.invalidate(); promptTimer = nil
+                model.promptCountdown = .init(fraction: promptFraction, seconds: promptRemaining, running: false)
+            } else if promptRunningSince == nil, model.prompt != nil {
+                promptRemaining = max(promptRemaining, Self.resumeSeconds)
+                runPromptCountdown()
+            }
+        default: break
         }
     }
 
-    /// A question with two choices ("Started by mistake?"). It answers itself with `onTimeout` after `seconds`.
+    /// A question with two choices ("Started by mistake?"). It answers itself with `onTimeout` after `seconds`;
+    /// the countdown holds while the pointer is over the card.
     func ask(_ prompt: FlowBarModel.Prompt) {
         setPhase(.prompt)
         model.prompt = prompt
+        promptTimer?.invalidate(); promptTimer = nil
+        promptRemaining = prompt.seconds
+        promptRunningSince = nil
+        model.promptCountdown = .init(fraction: 1, seconds: prompt.seconds, running: false)
+        if model.hover { return }   // already over the Ribbon: it starts when the pointer leaves
+        runPromptCountdown()
+    }
+
+    /// The share of the prompt's time that's left, for the ring.
+    private var promptFraction: CGFloat {
+        guard let total = model.prompt?.seconds, total > 0 else { return 0 }
+        return CGFloat(min(1, max(0, promptRemaining / total)))
+    }
+
+    private func runPromptCountdown() {
         promptTimer?.invalidate()
-        promptTimer = Timer.scheduledTimer(withTimeInterval: prompt.seconds, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.model.phase == .prompt else { return }
+        promptRunningSince = Date()
+        model.promptCountdown = .init(fraction: promptFraction, seconds: promptRemaining, running: true)
+        promptTimer = Timer.scheduledTimer(withTimeInterval: promptRemaining, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.model.phase == .prompt, self.promptRunningSince != nil else { return }
                 let p = self.model.prompt
                 self.setPhase(.idle)
                 p?.onTimeout()
@@ -231,6 +287,17 @@ final class FlowBarController {
         setPhase(.idle)
         if primary { p.onPrimary() } else { p.onSecondary() }
     }
+
+    /// The action on a notice ("Open", "Settings"): runs it and clears the notice.
+    func performNoticeAction() {
+        guard model.phase == .notice else { return }
+        let action = model.onNoticeAction
+        setPhase(.idle)
+        action?()
+    }
+
+    /// The panel the Ribbon draws in, for the UI self-test.
+    var panelWindow: NSWindow? { panel }
 
     // MARK: Panel
 
@@ -323,22 +390,54 @@ final class FlowBarController {
         if p.frame != frame { p.setFrame(frame, display: true) }
     }
 
-    /// The Ribbon's drawn area on screen, in screen coordinates.
+    /// The Ribbon's drawn area on screen, in screen coordinates: the frame SwiftUI measured for what it really
+    /// drew (the tab, or the prompt card with its edge padding), so the clickable area follows the card wherever
+    /// it's laid out.
     private func ribbonRect() -> NSRect? {
         guard let p = panel, p.isVisible else { return nil }
-        var s = model.contentSize
-        // Closed, the sliver is thin; give the pointer a fair target.
-        s.width = max(s.width, model.edge == .bottom ? 64 : 14)
-        s.height = max(s.height, model.edge == .bottom ? 14 : 64)
         let f = p.frame
-        switch model.edge {
-        case .left: return NSRect(x: f.minX, y: f.midY - s.height / 2, width: s.width, height: s.height)
-        case .right: return NSRect(x: f.maxX - s.width, y: f.midY - s.height / 2, width: s.width, height: s.height)
-        case .bottom: return NSRect(x: f.midX - s.width / 2, y: f.minY, width: s.width, height: s.height)
+        let c = model.contentFrame
+        // Closed, the sliver is thin; give the pointer a fair target.
+        let minW: CGFloat = model.edge == .bottom ? 64 : 14, minH: CGFloat = model.edge == .bottom ? 14 : 64
+        guard c.width > 0, c.height > 0 else {
+            // Not measured yet: centered on the edge, as the layout aligns it.
+            switch model.edge {
+            case .left: return NSRect(x: f.minX, y: f.midY - minH / 2, width: minW, height: minH)
+            case .right: return NSRect(x: f.maxX - minW, y: f.midY - minH / 2, width: minW, height: minH)
+            case .bottom: return NSRect(x: f.midX - minW / 2, y: f.minY, width: minW, height: minH)
+            }
         }
+        // Panel coordinates (top-left origin) to screen coordinates (bottom-left origin).
+        var r = NSRect(x: f.minX + c.minX, y: f.maxY - c.maxY, width: c.width, height: c.height)
+        if r.width < minW {
+            switch model.edge {
+            case .left: break
+            case .right: r.origin.x = r.maxX - minW
+            case .bottom: r.origin.x = r.midX - minW / 2
+            }
+            r.size.width = minW
+        }
+        if r.height < minH {
+            if model.edge != .bottom { r.origin.y = r.midY - minH / 2 }
+            r.size.height = minH
+        }
+        return r
     }
 
-    private func pointerMoved() {
+    /// The area that takes clicks right now, with its margin (the self-test logs it).
+    var hitRect: NSRect? {
+        // A prompt or a notice with an action holds controls near its edges: a wider margin, so a click that
+        // lands just off a button still reaches the card instead of the app behind.
+        let generous = model.phase == .prompt || (model.phase == .notice && model.noticeAction != nil)
+        let m: CGFloat = generous ? 10 : 4
+        return ribbonRect()?.insetBy(dx: -m, dy: -m)
+    }
+
+    private func pointerMoved() { updatePointer(at: NSEvent.mouseLocation) }
+
+    /// Decides whether the panel takes clicks (only over the drawn Ribbon) and whether the Ribbon is hovered,
+    /// for the pointer at `location` on screen.
+    func updatePointer(at location: CGPoint) {
         guard let p = panel else { return }
         if model.dragging {
             // A drag whose end never arrived (the view was rebuilt mid-drag) must not leave the panel catching clicks.
@@ -348,13 +447,13 @@ final class FlowBarController {
         // Off screen there's nothing to hit or hover: the same result as below, without reading the pointer.
         guard p.isVisible else {
             if !p.ignoresMouseEvents { p.ignoresMouseEvents = true }
-            if model.hover != menu.isOpen { model.hover = menu.isOpen; noticeHoverChanged(menu.isOpen) }
+            if model.hover != menu.isOpen { model.hover = menu.isOpen; hoverChanged(menu.isOpen) }
             return
         }
-        let inside = ribbonRect()?.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation) ?? false
+        let inside = hitRect?.contains(location) ?? false
         if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
         let hover = inside || menu.isOpen
-        if model.hover != hover { model.hover = hover; noticeHoverChanged(hover) }
+        if model.hover != hover { model.hover = hover; hoverChanged(hover) }
     }
 
     // MARK: Drag to an edge
@@ -408,7 +507,7 @@ final class FlowBarController {
         if menu.isOpen { menu.close(); return }
         if Date().timeIntervalSince(menu.closedAt) < 0.35 { return }
         switch model.phase {
-        case .notice: model.onNoticeAction?(); setPhase(.idle)
+        case .notice: performNoticeAction()
         case .working, .prompt: break
         default: dictation?.barClicked()
         }
