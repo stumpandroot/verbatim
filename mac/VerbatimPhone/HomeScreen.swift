@@ -335,9 +335,9 @@ struct HomeScreen: View {
 
     private var cleanUpPill: some View {
         Text("Clean up").font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Ink.paperFixed)
+            .foregroundStyle(Ink.onInteractive)
             .padding(.horizontal, 12).frame(minHeight: 30)
-            .background(Ink.inkFixed, in: Capsule())
+            .background(Ink.interactive, in: Capsule())
     }
 
     /// "Meeting · Today · 3:39 PM", or where it is while it's being made.
