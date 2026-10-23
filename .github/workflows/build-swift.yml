@@ -525,9 +525,18 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          # Pasted secrets often carry spaces or a newline; strip them, then check the shapes so a mix-up (one ID in
+          # the other's slot, or a command pasted as a value) fails here with a clear message, never mid-archive.
+          KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+          ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+          bad=0
+          [[ "$KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::ASC_KEY_ID isn't a Key ID (10 capital letters and digits, ${#KEY_ID} characters found). Set it again with: gh secret set ASC_KEY_ID --body <Key ID>"; bad=1; }
+          [[ "$ISSUER" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "::error::ASC_ISSUER_ID isn't an Issuer ID (36 characters with dashes, ${#ISSUER} found). Set it again with: gh secret set ASC_ISSUER_ID --body <Issuer ID>"; bad=1; }
+          grep -q "BEGIN PRIVATE KEY" <<< "$ASC_KEY_P8" || { echo "::error::ASC_KEY_P8 isn't a .p8 key file. Set it again with: gh secret set ASC_KEY_P8 < AuthKey_<Key ID>.p8"; bad=1; }
+          [ $bad -eq 0 ] || exit 1
+          KEY="$RUNNER_TEMP/AuthKey_${KEY_ID}.p8"
           printf '%s\n' "$ASC_KEY_P8" > "$KEY"
-          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
           ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
           # The App Store build (mac/APP_STORE.md): the AppStore configuration sets VERBATIM_APP_STORE=YES, so
           # TestFlight gets exactly what App Review sees.
