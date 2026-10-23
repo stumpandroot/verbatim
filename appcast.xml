@@ -6,14 +6,14 @@
     <description>Verbose for Mac: tagged releases, plus beta builds of main.</description>
     <language>en</language>
     <item>
-      <title>Verbose beta 179</title>
-      <pubDate>Fri, 23 Oct 2026 12:22:27 GMT</pubDate>
+      <title>Verbose beta 180</title>
+      <pubDate>Fri, 23 Oct 2026 13:32:00 GMT</pubDate>
       <sparkle:channel>beta</sparkle:channel>
-      <sparkle:version>179</sparkle:version>
+      <sparkle:version>180</sparkle:version>
       <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description>&lt;p&gt;Beta build 179: Ribbon: prompt and notice controls take clicks on macOS 26&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-179"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
-      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-179/Verbatim-universal.dmg" length="95809461" type="application/octet-stream" sparkle:edSignature="EU+iZx8Gstqw7FkUHAO5NJdMKbTZdzA6Qxq1M7qvs5xZJ0D0EbzrHcrA3rpYs1HmxLMVoXCMksS3dP6yvwJ4Cg==" />
+      <description>&lt;p&gt;Beta build 180: Self-test: run the meeting steps after the Ribbon steps (merge fix)&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-180"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-180/Verbatim-universal.dmg" length="96169557" type="application/octet-stream" sparkle:edSignature="SjWNJLqYBtmIu2foQMwXTt/2Y/ayk7SJr7KhFTuDYRY9hz8lJyU17JoIF5IUABtBovACeshAgzps0cOl03CiBQ==" />
     </item>
   </channel>
 </rss>
