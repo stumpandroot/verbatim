@@ -149,7 +149,9 @@ struct TranscriptView: View {
                     }
                     if t.audioFileName != nil, t.status == .ready, view != .document {
                         PlayerDock(transcript: t, clock: app.player.clock)
-                            .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.bottom, 24).staggerIn(3)
+                            .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.bottom, 24)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .staggerIn(3)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -582,7 +584,7 @@ private struct UndoChip: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Undo \(text)")
                 .accessibilityAddTraits(.isButton)
-                .accessibilityAction(action)
+                .accessibilityAction { action() }
         }
         .font(.system(size: 12.5, weight: .semibold))
         .padding(.leading, 14).padding(.trailing, 4)
