@@ -39,12 +39,12 @@ struct PrivacySettingsPane: View {
             SettingsGroup(title: "Network activity") {
                 SettingsRow("privacy.activity", detail: activityDetail) {
                     Button("Clear") { model.clear() }
-                        .buttonStyle(.brandSecondary).disabled(model.events.isEmpty)
+                        .buttonStyle(.settingsPill).disabled(model.events.isEmpty)
                 }
                 if model.events.isEmpty {
                     Text("Nothing yet. Verbose hasn't used the network on this Mac since the list was cleared.")
                         .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .padding(.horizontal, 20).padding(.vertical, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .overlay(alignment: .top) { RowRule() }
                 } else {
@@ -87,7 +87,7 @@ struct NetworkEventRow: View {
                 }
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 9)
+        .padding(.horizontal, 20).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { RowRule() }
         .accessibilityElement(children: .combine)

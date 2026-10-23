@@ -460,7 +460,7 @@ struct PasteSettingsRows: View {
                         .buttonStyle(.plain).help("Paste in this app again")
                 }
             }
-            LabeledContent("Type instead of paste in") { Button("Add App…") { choose() } }
+            LabeledContent("Type instead of paste in") { Button("Add App…") { choose() }.buttonStyle(.settingsPill) }
         }
         Text("For apps that block ⌘V or paste the wrong thing. Typing leaves your clipboard alone but is slower, and if you press a key while it types, it stops rather than starting over.")
             .font(.system(size: 12)).foregroundStyle(Ink.mute)

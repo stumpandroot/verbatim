@@ -137,7 +137,7 @@ struct LinkSignInSettingsRow: View {
         SettingsRow("links.signIn", detail: detail) {
             HStack(spacing: 8) {
                 if raw == LinkSignIn.Browser.safari.rawValue {
-                    Button("Open Full Disk Access") { NSWorkspace.shared.open(LinkSignIn.fullDiskAccessURL) }.buttonStyle(.brandSecondary)
+                    Button("Open Full Disk Access") { NSWorkspace.shared.open(LinkSignIn.fullDiskAccessURL) }.buttonStyle(.settingsPill)
                 }
                 Picker("Sign-in for private videos", selection: $raw) {
                     Text("Off").tag("off")

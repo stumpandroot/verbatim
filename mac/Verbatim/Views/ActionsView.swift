@@ -181,8 +181,8 @@ struct ActionSettings: View {
                                             .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
                                     }
                                     HStack {
-                                        Button("Move Up") { move(a.id, by: -1) }.disabled(settings.actions.first?.id == a.id)
-                                        Button("Move Down") { move(a.id, by: 1) }.disabled(settings.actions.last?.id == a.id)
+                                        Button("Move Up") { move(a.id, by: -1) }.buttonStyle(.settingsPill).disabled(settings.actions.first?.id == a.id)
+                                        Button("Move Down") { move(a.id, by: 1) }.buttonStyle(.settingsPill).disabled(settings.actions.last?.id == a.id)
                                         Spacer()
                                         Button("Delete", role: .destructive) {
                                             // After the row's fields let go of their bindings, or AppKit can read a removed index.
@@ -190,6 +190,7 @@ struct ActionSettings: View {
                                             editing = nil
                                             DispatchQueue.main.async { settings.actions.removeAll { $0.id == id } }
                                         }
+                                        .buttonStyle(SettingsDangerPillStyle())
                                     }
                                 }
                                 .padding(.vertical, 6)
@@ -204,10 +205,10 @@ struct ActionSettings: View {
                         let new = FlowAction(name: "New action", instruction: "")
                         settings.actions.append(new); editing = new.id
                     }
-                    .buttonStyle(.brandPrimary)
+                    .buttonStyle(.settingsPrimaryPill)
                 }
                 SettingsRow("actions.restore") {
-                    Button("Restore Built-in Actions…") { confirmRestore = true }.buttonStyle(.brandSecondary)
+                    Button("Restore Built-in Actions…") { confirmRestore = true }.buttonStyle(.settingsPill)
                 }
             }
         }
