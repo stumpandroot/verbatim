@@ -112,7 +112,9 @@ targets:
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: "© 2026 Stump & Root Co."
         NSMicrophoneUsageDescription: "Verbose records voice memos and dictation with your microphone and transcribes them on this Mac. Recordings stay on this Mac, or in your own iCloud if you turn on sync."
-        NSAudioCaptureUsageDescription: "Verbose records the audio of the app you choose and transcribes it on this Mac. No video is kept."
+        # Core Audio process taps (Audio/ProcessTapCapture.swift, the meeting capture test behind the meetings.poc flag):
+        # macOS shows this the first time a tap's aggregate device starts. Without the key the tap delivers silence.
+        NSAudioCaptureUsageDescription: "Verbose records the other people in your meetings from the app's audio, on this Mac."
         # Live words (Audio/LiveTranscriber.swift): on-device only; asked for on systems before macOS 26. Also
         # languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
         NSSpeechRecognitionUsageDescription: "Verbose shows your words as you speak, and transcribes languages its own models don't cover, on this Mac."

@@ -171,26 +171,40 @@ extension AppState {
     func startMultitrack(_ draft: MultitrackDraft) {
         let picked = draft.tracks.filter { $0.url != nil }
         guard picked.count >= 2 else { return }
-        let sources = picked.compactMap(\.url)
-        let fileNames = picked.indices.map { "track-\($0 + 1).wav" }
         let auto = draft.alignAutomatically
-        let known: [Double?] = picked.map { auto ? $0.offset : 0 }
-        var t = Transcript(title: draft.title, source: .file, sourceLabel: "\(picked.count) tracks",
-                           duration: picked.compactMap(\.duration).max() ?? 0, audioFileName: nil, model: "")
+        startMultitrack(sources: picked.compactMap(\.url), sourceNames: picked.map(\.fileName),
+                        speakers: picked.map(\.speaker), offsets: picked.map { auto ? $0.offset : 0 },
+                        durations: picked.map { $0.duration ?? 0 }, title: draft.title, align: auto, ignoreBleed: draft.ignoreBleed)
+        multitrackDraft = nil
+    }
+
+    /// Makes a multi-track transcript from files recorded at the same time, one speaker each: the sheet's tracks,
+    /// or a meeting capture's mic and system tracks (App/MeetingSession.swift), which pass offsets from host time
+    /// with `align` off. `onPrepared` runs on the main actor once the working copies and the mix are made (true) or
+    /// that failed (false); the sources can go after true. Returns the transcript's ID.
+    @discardableResult
+    func startMultitrack(sources: [URL], sourceNames: [String], speakers: [String], offsets known: [Double?], durations: [Double],
+                         title: String, align auto: Bool, ignoreBleed: Bool, source: SourceKind = .file, sourceLabel: String? = nil,
+                         recordedAt: Date? = nil, onPrepared: ((Bool) -> Void)? = nil) -> UUID? {
+        guard sources.count >= 2, sources.count == speakers.count else { return nil }
+        let fileNames = sources.indices.map { "track-\($0 + 1).wav" }
+        var t = Transcript(title: title, source: source, sourceLabel: sourceLabel ?? "\(sources.count) tracks",
+                           duration: durations.max() ?? 0, audioFileName: nil, model: "")
+        if let recordedAt { t.createdAt = recordedAt }
         t.status = .processing; t.stage = "Preparing tracks"
         t.kind = .meeting
         t.titleIsAuto = false
-        t.multitrack = MultitrackInfo(tracks: picked.enumerated().map { i, tr in
-            AudioTrack(fileName: fileNames[i], sourceName: tr.fileName,
-                       speaker: tr.speaker.trimmingCharacters(in: .whitespaces).isEmpty ? "Speaker \(i + 1)" : tr.speaker,
-                       offset: known[i] ?? 0, duration: tr.duration ?? 0)
-        }, ignoreBleed: draft.ignoreBleed, alignAutomatically: auto)
+        t.multitrack = MultitrackInfo(tracks: sources.indices.map { i in
+            let speaker = speakers[i].trimmingCharacters(in: .whitespaces)
+            return AudioTrack(fileName: fileNames[i], sourceName: i < sourceNames.count ? sourceNames[i] : sources[i].lastPathComponent,
+                              speaker: speaker.isEmpty ? "Speaker \(i + 1)" : speaker,
+                              offset: (i < known.count ? known[i] : nil) ?? 0, duration: i < durations.count ? durations[i] : 0)
+        }, ignoreBleed: ignoreBleed, alignAutomatically: auto)
         t.processingDevice = Device.id; t.processingDeviceName = Device.name
         if let p = projectFilter { t.projectId = p }
         store.add(t)
-        multitrackDraft = nil
         verbiePose = .receiving
-        toast = Toast("Preparing \(picked.count) tracks", action: "View") { [weak self] in self?.go(.queue) }
+        toast = Toast("Preparing \(sources.count) tracks", action: "View") { [weak self] in self?.go(.queue) }
 
         let id = t.id, folder = Paths.tracks(id), mixDest = store.newAudioURL(ext: "m4a")
         let store = self.store
@@ -218,17 +232,20 @@ extension AppState {
                     }
                     Log.note("multitrack: prepared \(sources.count) tracks, offsets \(r.offsets.map { String(format: "%.2f", $0) })")
                     self.coordinator.enqueueExisting(id)
+                    onPrepared?(true)
                 }
             } catch {
                 try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: mixDest)
                 Log.note("multitrack: prepare failed: \(error)")
                 await MainActor.run {
                     self?.multitrackTasks[id] = nil
+                    onPrepared?(false)
                     guard !(error is CancellationError), store.transcript(id)?.status == .processing else { return }
                     store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self?.jobFailed(id, error: error)
                 }
             }
         }
+        return id
     }
 }

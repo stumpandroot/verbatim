@@ -211,6 +211,9 @@ enum MultitrackAudio {
             stage("Lining up tracks")
             let found = MultitrackMath.offsets(envelopes: envelopes)
             for i in 1..<max(1, n) { offsets[i] = (i < knownOffsets.count ? knownOffsets[i] : nil) ?? found[i] }
+        } else {
+            // Not by sound: the offsets given (a meeting capture's, from host time), or all together.
+            for i in 1..<max(1, n) { offsets[i] = (i < knownOffsets.count ? knownOffsets[i] : nil) ?? 0 }
         }
         try Task.checkCancellation()
         let gate = ProgressGate()
