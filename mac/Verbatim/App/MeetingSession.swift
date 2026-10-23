@@ -649,7 +649,8 @@ final class MeetingSession: ObservableObject {
         stopObservingSleep()
         let ws = NSWorkspace.shared.notificationCenter
         sleepObservers.append(ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
+            // Right away, not in a task: the Mac may sleep before a task gets to run.
+            MainActor.assumeIsolated {
                 guard let self, self.isActive else { return }
                 self.sidecar?.events.append(String(format: "sleep at %.3f", HostClock.now()))
                 if self.phase == .recording, self.canPause { self.togglePause(); self.pausedForSleep = true }

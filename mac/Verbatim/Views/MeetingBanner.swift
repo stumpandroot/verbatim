@@ -9,8 +9,9 @@ import AppKit
 
 // MARK: - Panel
 
-/// A borderless floating panel for meeting surfaces. The banner never becomes key, so the meeting app keeps the
-/// keyboard; the consent sheet does (Return records, Esc cancels).
+/// A borderless floating panel for meeting surfaces that never activates Verbose, so the meeting app stays in
+/// front with its windows. The banner never becomes key; the consent sheet does (Return records, Esc cancels),
+/// the way Recent dictations takes keys without switching apps.
 final class MeetingFloatingPanel: NSPanel {
     var keyable = false
     override var canBecomeKey: Bool { keyable }
@@ -18,7 +19,7 @@ final class MeetingFloatingPanel: NSPanel {
 
     static func make(keyable: Bool, level: NSWindow.Level) -> MeetingFloatingPanel {
         let p = MeetingFloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 120),
-                                     styleMask: keyable ? [.borderless] : [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
+                                     styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
         p.keyable = keyable
         p.level = level
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
@@ -383,7 +384,6 @@ final class MeetingConsentController {
         self.completion = completion
         let p = panel ?? make()
         place(p)
-        NSApp.activate(ignoringOtherApps: true)
         p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
         NSAnimationContext.runAnimationGroup { c in c.duration = 0.18; p.animator().alphaValue = 1 }
