@@ -23,8 +23,10 @@ struct GeneralSettingsPane: View {
                 SettingsToggleRow("general.menuBar", isOn: $app.showMenuBar)
                 SettingsToggleRow("general.sounds", isOn: $app.sounds)
             }
+            SettingsGroup(title: "Home") {
+                SettingsToggleRow("general.homeWeek", isOn: Binding(get: { app.showHomeWeek }, set: { app.showHomeWeek = $0 }))
+            }
             SettingsGroup(title: "Welcome") {
-                SettingsToggleRow("general.welcomeCard", isOn: Binding(get: { app.showWelcomeCard }, set: { app.showWelcomeCard = $0 }))
                 SettingsToggleRow("general.tourOnLaunch", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
                 SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.brandSecondary) }
             }

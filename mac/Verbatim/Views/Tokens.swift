@@ -60,6 +60,20 @@ enum Ink {
     /// The Record panel's fill: persimmon nudged lighter (#FB7350), so ink text on it reaches 4.7:1 at any size.
     /// `persimmon` (#FA6B47) stays the brand and app-icon color.
     static let recordFill = dyn(0xFB7350, 0xF27A57)
+    /// Color panels in the website style (DESIGN.md §5.5): the brand fills in light, a little deeper in dark only, so a
+    /// panel never glows on the near-black green. Ink text (`inkFixed`) on all four in both modes. Mac surfaces built
+    /// with the web-style kit (WebStyle.swift) use these; the plain brand tokens stay for everything else.
+    static let panelRecord = dyn(0xFB7350, 0xE2694B)
+    static let panelButter = dyn(butterHex, 0xDDB563)
+    static let panelSage = dyn(sageHex, 0x9DB088)
+    static let panelPetal = dyn(petalHex, 0xD9A3B5)
+    /// The hard offset shadow under outlined cards and highlighted rows (website style): ink in light, near black in dark.
+    static let hard = dyn(inkHex, 0x0C1310)
+    /// Filter chips at rest (website style): a soft wash, no border. Selected chips are `ink` with `paper` text.
+    static let chip = dyn(0xE6DFD1, 0x22312A)
+    static let chipHover = dyn(0xDAD4C7, 0x2E3B34)
+    /// Status text for something kept (a video kept from a link): sage mixed into ink, text-safe on paper and card.
+    static let keptText = dynC(0x5D6E58, 0xD2D6C0, 0x3E4A3A, 0xE3E6D6)
     /// Neutral chips and tags (kinds, tags, speakers, projects, counts): ink at 6% behind `dim` text.
     static let neutralChip = make { dark, _ in
         dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.08) : PColor(hex: inkHex).withAlphaComponent(0.06)

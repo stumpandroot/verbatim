@@ -1,19 +1,30 @@
 import SwiftUI
 
-/// Every transcript, grouped by day (pinned first), filtered by the sidebar project and the search field.
-/// Select mode picks many at once to move, export, or delete; any row (or the selection) drags onto a project.
-/// ⌘-click adds or removes a row and Shift-click selects a range, starting Select mode when it's off.
+// brand: web style
+//
+/// Every transcript, grouped by day (pinned first), filtered by the sidebar project, the kind and type chips, and the
+/// search field. Website style (mac/DESIGN.md §11): a compact title with a mono count and the search field on the
+/// right, soft filter chips, mono day headers, flat rows with serif titles, and the projects on color panels in a
+/// right column. Select mode picks many at once to move, export, or delete; any row (or the selection) drags onto a
+/// project. ⌘-click adds or removes a row and Shift-click selects a range, starting Select mode when it's off.
 struct LibraryView: View {
     @EnvironmentObject var app: AppState
     @State private var selecting = false
     @State private var selection: Set<UUID> = []
     /// Where a Shift-click range starts: the last row clicked or ⌘-clicked.
     @State private var anchor: UUID? = nil
+    /// The project card under the pointer: its drawing moves (one moving drawing per screen; otherwise the first).
+    @State private var hoveredProject: UUID? = nil
+    @State private var projectDown: UUID? = nil
     /// Library › kind chips (nil is All), kept on AppState so the screenshot tour can choose one.
     private var kind: RecordingKind? { app.libraryKind }
     /// Newest, Oldest, Longest, or Title A–Z, remembered on this Mac.
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
+
+    private static let margin: CGFloat = 40
+    private static let maxContent: CGFloat = 1100
+    private static let sideWidth: CGFloat = 300
 
     var body: some View {
         // `filtered` searches every transcript's text; work it out once per render.
@@ -26,97 +37,42 @@ struct LibraryView: View {
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
         let groups = Store.group(list, sort: sort)
         let order = groups.flatMap { $0.items.map(\.id) }
-        VStack(spacing: 0) {
+        GeometryReader { geo in
+            let inner = min(Self.maxContent, max(320, geo.size.width - 2 * Self.margin))
+            // The projects column: on wide windows, outside a project, and not in the Journal's reading view.
+            let side = inner >= 820 && app.projectFilter == nil && kind != .journal
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? kind?.plural ?? "Library")
-                            .font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
-                        Text(list.count == 1 ? "1 transcript" : "\(list.count) transcripts").font(.system(size: 13)).foregroundStyle(Ink.mute)
-                        Spacer()
-                        Menu {
-                            Picker("Sort by", selection: $sortRaw) {
-                                ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
+                    header(count: list.count, searchBelow: inner < 760).staggerIn(0)
+                    if inner < 760 {
+                        WebSearchField(text: $app.search, prompt: "Find the line you need").padding(.top, 14)
+                    }
+                    chips(all: all, byKind: byKind, searching: searching).padding(.top, 18).staggerIn(1)
+                    HStack(alignment: .top, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if let k = kind {
+                                KindHeroCard(kind: k, meta: heroMeta(k, list), compact: true).frame(maxWidth: 760).padding(.top, 16)
                             }
-                            .pickerStyle(.inline)
-                        } label: {
-                            Label(sort.title, systemImage: "arrow.up.arrow.down")
-                        }
-                        .menuStyle(.borderlessButton).fixedSize()
-                        .help("Sort the Library: newest, oldest, longest, or by title")
-                        .accessibilityLabel("Sort by \(sort.title)")
-                        if !list.isEmpty {
-                            Button(selecting ? "Done" : "Select") {
-                                withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = []; anchor = nil } }
+                            if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
+                                PassageResults(query: app.search, list: list).padding(.top, 14)
                             }
-                            .buttonStyle(.bordered).keyboardShortcut(selecting ? .cancelAction : .init("s", modifiers: [.command, .shift]))
-                        }
-                        if let p = app.projectFilter {
-                            Button { app.addFromLibrary = p } label: { Label("Add from Library…", art: .iconLibrary, size: 14) }
-                                .buttonStyle(.bordered).keyboardShortcut("l", modifiers: [.command, .shift])
-                                .help("Add transcripts you already have to this project (⇧⌘L)")
-                                .uiTarget("add-from-library")
-                        }
-                        Button { app.chooseFiles() } label: { Label("Import", systemImage: "plus") }.buttonStyle(.bordered)
-                            .help(app.projectFilter == nil ? "Import audio or video files" : "Import audio or video files into this project")
-                    }
-                    .staggerIn(0).padding(.bottom, 6)
-                    if !selecting && !app.store.projects.isEmpty {
-                        Text("Drag a transcript onto a project in the sidebar to file it.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                    }
-                    kindChips(all).padding(.top, 12).staggerIn(1)
-                    LibraryFilterBar(filter: Binding(get: { app.libraryFilter }, set: { app.libraryFilter = $0 }),
-                                     items: byKind, searching: searching, wraps: true, shortcuts: true) { selection = [] }
-                        .padding(.top, 8).staggerIn(1)
-                    if let k = kind {
-                        KindHeroCard(kind: k, meta: heroMeta(k, list), compact: true).frame(maxWidth: 760).padding(.top, 16)
-                    }
-                    if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                        PassageResults(query: app.search, list: list).padding(.top, 14)
-                    }
-                    if groups.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if app.search.isEmpty { IconPlate(art: .iconLibrary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
-                            Text(!app.search.isEmpty ? "Nothing found for “\(app.search)”."
-                                 : typeFilter != .all ? "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label)."
-                                 : app.projectFilter != nil ? "Nothing in this project yet. Add transcripts from your library or import files."
-                                 : "Nothing in here yet.").font(.system(size: 14)).foregroundStyle(Ink.mute)
-                            if app.search.isEmpty, typeFilter != .all {
-                                Button("Show all") { app.libraryFilter = .all }.buttonStyle(.bordered)
+                            if groups.isEmpty {
+                                emptyState(typeFilter).padding(.top, 22).staggerIn(1)
+                            }
+                            if kind == .journal && !selecting {
+                                journal(list, order: order).padding(.top, 20)
+                            } else {
+                                rows(groups, order: order)
                             }
                         }
-                        .padding(.top, 30).staggerIn(1)
-                    }
-                    if kind == .journal && !selecting {
-                        journal(list, order: order).padding(.top, 20)
-                    } else {
-                    ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
-                        HStack {
-                            Text(g.label).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
-                            Spacer()
-                            if selecting {
-                                let ids = Set(g.items.map(\.id))
-                                Button(ids.isSubset(of: selection) ? "Deselect" : "Select all") {
-                                    if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
-                                }
-                                .buttonStyle(.plain).font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.iris)
-                            }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if side {
+                            projectColumn.frame(width: Self.sideWidth).padding(.top, 22).staggerIn(2)
                         }
-                        .padding(.top, 22).padding(.bottom, 8).staggerIn(1 + gi * 2)
-                        VStack(spacing: 8) {
-                            ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
-                                HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
-                                           dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
-                                           open: { click(t.id, order: order) })
-                                    .staggerIn(2 + gi * 2 + ii)
-                                    .contextMenu { RowMenu(transcript: t) }
-                            }
-                        }
-                    }
                     }
                 }
-                .frame(maxWidth: 1040)
-                .padding(.horizontal, 36).padding(.top, 24).padding(.bottom, selecting ? 90 : 40)
+                .frame(width: inner, alignment: .leading)
+                .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, selecting ? 90 : 40)
                 .frame(maxWidth: .infinity)
             }
             .animation(Motion.settle, value: list.map(\.id))
@@ -127,30 +83,188 @@ struct LibraryView: View {
         .onChange(of: app.projectFilter) { _, _ in selection = [] }
     }
 
-    /// All, then each kind with its count, in the app's chip form.
-    private func kindChips(_ all: [Transcript]) -> some View {
-        let options: [RecordingKind?] = [nil] + RecordingKind.pickable.map { Optional($0) }
-        return FlowRow(spacing: 6, lineSpacing: 6) {
-            ForEach(options, id: \.self) { k in
-                let on = k == kind
-                let n = k.map { kk in all.filter { $0.kind == kk }.count } ?? all.count
-                Button { app.libraryKind = k; selection = [] } label: {
-                    HStack(spacing: 6) {
-                        Text(k?.plural ?? "All")
-                        Text("\(n)").fontWeight(.regular).opacity(0.75)
+    // MARK: Header and chips
+
+    private var projectName: String? { app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } }
+
+    /// "Library  46 transcripts", with Select, Add from Library (in a project), Import, and the search field.
+    private func header(count: Int, searchBelow: Bool) -> some View {
+        let title: (String, String?) = projectName.map { WebText.splitLastWord($0) } ?? (kind?.plural ?? "Library", nil)
+        return PageTitle(title: title.0, italic: title.1, count: count == 1 ? "1 transcript" : "\(count.formatted()) transcripts") {
+            HStack(spacing: 8) {
+                if count > 0 {
+                    Button(selecting ? "Done" : "Select") {
+                        withAnimation(Motion.snap) { selecting.toggle(); if !selecting { selection = []; anchor = nil } }
                     }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
-                    .padding(.horizontal, 12).frame(minHeight: 30)
-                    .background(on ? Ink.interactive : Ink.card, in: Capsule())
-                    .overlay(Capsule().strokeBorder(on ? Color.clear : Ink.hairline))
-                    .contentShape(Capsule())
+                    .buttonStyle(PillButtonStyle(kind: selecting ? .dark : .line, size: .mini))
+                    .keyboardShortcut(selecting ? .cancelAction : .init("s", modifiers: [.command, .shift]))
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(on ? .isSelected : [])
-                .uiTarget(k.map { "kind-\($0.rawValue)" } ?? "kind-all")
+                if let p = app.projectFilter {
+                    Button("Add from Library…") { app.addFromLibrary = p }
+                        .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
+                        .keyboardShortcut("l", modifiers: [.command, .shift])
+                        .help("Add transcripts you already have to this project (⇧⌘L)")
+                        .uiTarget("add-from-library")
+                }
+                Button("Import") { app.chooseFiles() }
+                    .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
+                    .help(app.projectFilter == nil ? "Import audio or video files" : "Import audio or video files into this project")
+                if !searchBelow {
+                    WebSearchField(text: $app.search, prompt: "Find the line you need").frame(width: 300)
+                }
             }
         }
+    }
+
+    /// Kind chips (All, Journal, Ideas, …) with the sort menu at the end, then the type chips (and platforms).
+    private func chips(all: [Transcript], byKind: [Transcript], searching: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                kindChips(all)
+                Spacer(minLength: 0)
+                Menu {
+                    Picker("Sort by", selection: $sortRaw) {
+                        ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label(sort.title, systemImage: "arrow.up.arrow.down")
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+                .help("Sort the Library: newest, oldest, longest, or by title")
+                .accessibilityLabel("Sort by \(sort.title)")
+            }
+            LibraryFilterBar(filter: Binding(get: { app.libraryFilter }, set: { app.libraryFilter = $0 }),
+                             items: byKind, searching: searching, wraps: true, shortcuts: true) { selection = [] }
+        }
+    }
+
+    /// All, then each kind with its count, as soft chips (kinds stay neutral: no colored dots).
+    private func kindChips(_ all: [Transcript]) -> some View {
+        let options: [RecordingKind?] = [nil] + RecordingKind.pickable.map { Optional($0) }
+        return FlowRow(spacing: 8, lineSpacing: 8) {
+            ForEach(options, id: \.self) { k in
+                let n = k.map { kk in all.filter { $0.kind == kk }.count } ?? all.count
+                FilterChip(title: k?.plural ?? "All", count: n, selected: k == kind) { app.libraryKind = k; selection = [] }
+                    .uiTarget(k.map { "kind-\($0.rawValue)" } ?? "kind-all")
+            }
+        }
+    }
+
+    // MARK: Rows
+
+    /// "Today · Fri Oct 23": the group's label, with the date for Today and Yesterday.
+    private func dayLabel(_ g: (label: String, items: [Transcript])) -> String {
+        guard g.label == "Today" || g.label == "Yesterday", let first = g.items.first else { return g.label }
+        return "\(g.label) · \(Formats.pattern("EEE MMM d").string(from: first.createdAt))"
+    }
+
+    private func rows(_ groups: [(label: String, items: [Transcript])], order: [UUID]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
+                HStack(spacing: 12) {
+                    DayHeader(text: dayLabel(g))
+                    if selecting {
+                        let ids = Set(g.items.map(\.id))
+                        Button(ids.isSubset(of: selection) ? "Deselect" : "Select all") {
+                            if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
+                        }
+                        .buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
+                    }
+                }
+                .padding(.top, gi == 0 ? 22 : 18).padding(.bottom, 8).staggerIn(1 + gi * 2)
+                VStack(spacing: 2) {
+                    ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
+                        HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
+                                   project: app.projectFilter == nil ? t.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name } : nil,
+                                   dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
+                                   open: { click(t.id, order: order) })
+                            .staggerIn(2 + gi * 2 + ii)
+                            .contextMenu { RowMenu(transcript: t) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func emptyState(_ typeFilter: LibraryFilter) -> some View {
+        Group {
+            if !app.search.isEmpty {
+                EmptyStateCard(art: .search, title: "Nothing found",
+                               message: "Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
+            } else if typeFilter != .all {
+                EmptyStateCard(art: .iconLibrary, title: "Nothing here",
+                               message: "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label).",
+                               button: "Show all", action: { app.libraryFilter = .all })
+            } else if let p = app.projectFilter {
+                EmptyStateCard(art: .iconProject, title: "Nothing in this project yet",
+                               message: "Add transcripts from your library or import files.",
+                               button: "Add from Library", action: { app.addFromLibrary = p })
+            } else if kind != nil {
+                EmptyStateCard(art: .iconLibrary, title: "Nothing here yet",
+                               message: "Recordings of this kind land here as you make them.",
+                               button: "Show all", action: { app.libraryKind = nil })
+            } else {
+                EmptyStateCard(art: .iconLibrary, title: "Nothing here yet",
+                               message: "Record a voice note, import a file, or paste a link on Home. Every transcript lands here.",
+                               button: "Import files", action: { app.chooseFiles() })
+            }
+        }
+    }
+
+    // MARK: Projects
+
+    /// The projects on color panels, each with its drawing, and New project. Only one drawing moves: the card under
+    /// the pointer, or the first.
+    private var projectColumn: some View {
+        let projects = app.store.projects
+        let moving = hoveredProject ?? projects.first?.id
+        return VStack(alignment: .leading, spacing: 14) {
+            ForEach(Array(projects.enumerated()), id: \.element.id) { i, p in
+                projectCard(p, index: i, moving: moving == p.id)
+            }
+            PillButton(title: "New project", kind: .line, trailing: .plus, fullWidth: true,
+                       hint: "Names a new project. Then drag transcripts onto it in the sidebar.") { app.newProjectFor = [] }
+                .uiTarget("library-new-project")
+            Text(projects.isEmpty ? "Group transcripts by client or job." : "Drag a transcript onto a project in the sidebar to file it.")
+                .font(.system(size: 12.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private static let projectFills: [Color] = [Ink.panelButter, Ink.panelPetal, Ink.panelSage]
+
+    private func projectCard(_ p: Project, index i: Int, moving: Bool) -> some View {
+        let items = app.store.live.filter { $0.projectId == p.id && !$0.isDictation }
+        let people = Set(items.flatMap { t in t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") } }).count
+        let meta = [HomeCounts.countLabel(items.count, "transcript", "transcripts"), people > 0 ? HomeCounts.countLabel(people, "person", "people") : nil]
+            .compactMap { $0 }.joined(separator: " · ")
+        let name = WebText.splitLastWord(p.name)
+        return HomeCard(tilt: 3, radius: Radius.record, shadow: false, onHover: { h in
+            if h { hoveredProject = p.id } else if hoveredProject == p.id { hoveredProject = nil }
+        }, onPress: { down in projectDown = down ? p.id : nil }, action: { app.projectFilter = p.id }) { hovering in
+            VStack(alignment: .leading, spacing: 0) {
+                Eyebrow(text: "Project", color: Ink.inkFixed)
+                Spacer(minLength: 8)
+                WebText.serif(name.0, italic: name.1, size: 28).lineLimit(2).minimumScaleFactor(0.75)
+                Spacer(minLength: 8)
+                Text(meta).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+            }
+            .foregroundStyle(Ink.inkFixed)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 170)
+            .colorPanel(Self.projectFills[i % Self.projectFills.count], radius: Radius.record) {
+                if i % 2 == 0 {
+                    PanelArt(kind: .lines, running: moving).frame(width: 200, height: 170).offset(x: 30, y: 0)
+                } else {
+                    PanelArt(kind: .circles, running: moving).frame(width: 230, height: 200).offset(x: 70, y: -50)
+                }
+            }
+            .inkEdge(outline: hovering, shadow: InkEdge.card(hover: hovering, pressed: projectDown == p.id), radius: Radius.record)
+        }
+        .accessibilityLabel("Project \(p.name)")
+        .accessibilityValue(meta)
+        .accessibilityHint("Shows this project's transcripts.")
     }
 
     private func heroMeta(_ k: RecordingKind, _ list: [Transcript]) -> String {
@@ -162,31 +276,30 @@ struct LibraryView: View {
         return list.count == 1 ? "1 saved" : "\(list.count) saved"
     }
 
-    /// Journal reads by day: "◇ TODAY ···· SAT 17 OCT", then each entry's title, time, and opening lines.
+    /// Journal reads by day: "Today · Sat 17 Oct", then each entry as a flat row with its serif title, time, length,
+    /// and opening lines.
     private func journal(_ list: [Transcript], order: [UUID]) -> some View {
-        VStack(alignment: .leading, spacing: 26) {
+        VStack(alignment: .leading, spacing: 22) {
             ForEach(JournalDays.group(list)) { day in
-                VStack(alignment: .leading, spacing: 10) {
-                    EditorialSectionHeader(index: day.date, label: day.label)
-                    ForEach(day.entries) { t in
-                        Button { click(t.id, order: order) } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                    Text(t.title).font(Ink.serif(22)).foregroundStyle(Ink.ink).lineLimit(1)
-                                    Text("\(Formats.pattern("h:mm a").string(from: t.createdAt)) · \(t.duration.timecode)")
-                                        .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
-                                    Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 8) {
+                    DayHeader(text: day.label == day.date ? day.label : "\(day.label) · \(day.date)")
+                    VStack(spacing: 2) {
+                        ForEach(day.entries) { t in
+                            FlatRowButton(action: { click(t.id, order: order) }) { _ in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                        WebText.serif(t.title, size: 22).foregroundStyle(Ink.ink).lineLimit(1)
+                                        Spacer(minLength: 0)
+                                        Text("\(Formats.pattern("h:mm a").string(from: t.createdAt)) · \(WebFormat.clock(t.duration))")
+                                            .font(Ink.mono(12)).foregroundStyle(Ink.dim).lineLimit(1).fixedSize()
+                                    }
+                                    Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(3).lineLimit(2)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(3).lineLimit(2)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16).padding(.vertical, 14)
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 14)
-                            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-                            .contentShape(Rectangle())
+                            .contextMenu { RowMenu(transcript: t) }
                         }
-                        .buttonStyle(.plain)
-                        .contextMenu { RowMenu(transcript: t) }
                     }
                 }
             }

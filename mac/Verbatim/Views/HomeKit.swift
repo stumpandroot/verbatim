@@ -588,6 +588,9 @@ struct HomeCard<Content: View>: View {
     var lift: Double = 2
     var radius: CGFloat
     var enabled = true
+    /// The soft lift shadow under the pointer. Mac web-style cards turn it off and draw the hard ink shadow
+    /// themselves (`inkEdge`, WebStyle.swift).
+    var shadow = true
     /// The pointer arrived (true) or left (false). Mac only.
     var onHover: ((Bool) -> Void)? = nil
     /// The pointer or finger went down (true) or came up (false).
@@ -604,7 +607,7 @@ struct HomeCard<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         content(hover != nil && enabled)
-            .cardMotion(hover: enabled ? hover : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift)
+            .cardMotion(hover: enabled ? hover : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift, shadow: shadow)
             .opacity(down && enabled && limitMotion ? 0.8 : 1)
             .allowsHitTesting(false)
             .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })

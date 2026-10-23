@@ -21,7 +21,7 @@ struct LibraryFilterBar: View {
         VStack(alignment: .leading, spacing: 8) {
             row {
                 ForEach(sources, id: \.0) { s, n in
-                    chip(s.label, n, on: filter.source == s, target: "source-\(s.rawValue)") { choose(LibraryFilter(source: s)) }
+                    chip(s.label, n, on: filter.source == s, source: s, target: "source-\(s.rawValue)") { choose(LibraryFilter(source: s)) }
                         .modifier(TypeShortcut(index: LibrarySource.allCases.firstIndex(of: s).map { $0 + 1 }, on: shortcuts))
                 }
             }
@@ -49,18 +49,34 @@ struct LibraryFilterBar: View {
 
     @ViewBuilder private func row<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         if wraps {
-            FlowRow(spacing: 6, lineSpacing: 6) { content() }
+            FlowRow(spacing: Self.spacing, lineSpacing: Self.spacing) { content() }
         } else {
             ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { content() }.padding(.horizontal, 20) }
         }
     }
 
-    private func chip(_ label: String, _ n: Int, on: Bool, small: Bool = false, target: String, action: @escaping () -> Void) -> some View {
-        #if os(macOS)
-        let size: CGFloat = small ? 12 : 13, height: CGFloat = small ? 26 : 30, pad: CGFloat = small ? 10 : 12
-        #else
+    #if os(macOS)
+    private static let spacing: CGFloat = 8
+    /// Website style on Mac (DESIGN.md §11): soft rounded chips, each type with its source's color as a dot (links an
+    /// ink ring). Platforms have no dot.
+    private func chip(_ label: String, _ n: Int, on: Bool, small: Bool = false, source: LibrarySource? = nil, target: String, action: @escaping () -> Void) -> some View {
+        FilterChip(title: label, count: n, dot: Self.dot(source), ring: source == .links, selected: on, small: small, action: action)
+            .uiTarget(target)
+    }
+
+    private static func dot(_ s: LibrarySource?) -> Color? {
+        switch s {
+        case .voiceMemos?: return Ink.panelRecord
+        case .videos?, .audioFiles?: return Ink.panelSage
+        case .appAudio?: return Ink.panelPetal
+        case .dictations?: return Ink.panelButter
+        default: return nil
+        }
+    }
+    #else
+    private static let spacing: CGFloat = 6
+    private func chip(_ label: String, _ n: Int, on: Bool, small: Bool = false, source: LibrarySource? = nil, target: String, action: @escaping () -> Void) -> some View {
         let size: CGFloat = small ? 13 : 14, height: CGFloat = small ? 30 : 32, pad: CGFloat = small ? 12 : 14
-        #endif
         return Button(action: action) {
             HStack(spacing: 6) {
                 Text(label)
@@ -76,10 +92,8 @@ struct LibraryFilterBar: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(label), \(n)")
         .accessibilityAddTraits(on ? .isSelected : [])
-        #if os(macOS)
-        .uiTarget(target)
-        #endif
     }
+    #endif
 }
 
 /// ⌥⌘ and the type's place in the list (All is 1).

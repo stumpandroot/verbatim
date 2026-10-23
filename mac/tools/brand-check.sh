@@ -4,6 +4,7 @@
 #   2. Colors outside Tokens.swift: hex literals in color calls and system color names (§1)
 #   3. Materials or glass (§5): allowed only on a line marked `// brand: glass ok (no text)`
 #   4. The retired V mark, BrandArt.mark (§4)
+#   5. Mono under 12 pt in files marked `// brand: web style` (§2.2, §11)
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
@@ -29,6 +30,14 @@ glass=$(grep -rnE --include=*.swift '\.(ultraThinMaterial|thinMaterial|regularMa
 
 mark=$(grep -rnE --include=*.swift 'BrandArt\.mark\b|art: *\.mark\b' $SRC | grep -v 'Views/Brand.swift' | cut -d: -f1,2)
 [ -n "$mark" ] && report "The retired V mark (use the bars mark):" "$mark"
+
+#   5. Website style (§2.2, §11): in files marked `// brand: web style`, mono text is 12 pt or larger
+webfiles=$(grep -rlE --include=*.swift '^// brand: web style' $SRC)
+if [ -n "$webfiles" ]; then
+  small=$(grep -nE 'Ink\.mono\(([0-9]|1[01])(\.[0-9]+)?[,)]|Overline\(' $webfiles | cut -d: -f1,2)
+  keys=$(grep -nE 'Keycap\(' $webfiles | grep -vE 'Keycap\([^)]*size: *(1[2-9]|[2-9][0-9])' | grep -vE 'struct Keycap|Keycap\.spoken' | cut -d: -f1,2)
+  [ -n "$small$keys" ] && report "Mono under 12 pt in a web-style file (use Ink.mono(12) or larger, Keycap(size: 12)):" "$(printf '%s\n%s' "$small" "$keys" | sed '/^$/d')"
+fi
 
 [ $fail -eq 0 ] && echo "brand-check: OK"
 exit $fail

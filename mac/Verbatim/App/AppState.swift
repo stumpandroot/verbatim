@@ -61,11 +61,9 @@ final class AppState: ObservableObject {
     @Changed("advModel") var advModel = "v2"
     @Changed("identifySpeakers") var identifySpeakers = true
     @Changed("applyDictionary") var applyDictionary = true
-    /// Home's Method cards (Capture, Refine, Understand). On by default and never hidden automatically; Settings ›
-    /// General › Show the Method cards turns them off. The key keeps its old name so your choice carries over.
-    @Changed("showWelcomeCard") var showWelcomeCard = true
-    /// Set by earlier builds when they hid the card on their own after the first transcript (see `restoreMethodCards`).
-    @Changed("welcomeAutoHidden") var welcomeAutoHidden = false
+    /// Home's This week strip (words, time saved typing, recordings, moments). On by default; Settings › General ›
+    /// Show This week on Home turns it off. (It replaced the Method cards, whose setting had nothing left to show.)
+    @Changed("home.showWeek") var showHomeWeek = true
     @Changed("projectVocab") var projectScopedVocabulary = false
     @Changed("captureMode") var captureMode = "voice"
     /// "system" | "light" | "dark"
@@ -142,7 +140,6 @@ final class AppState: ObservableObject {
         mirrorSnippets()
         FolderWatcher.shared.attach(self)
         applyAppearance()
-        restoreMethodCards()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
@@ -199,17 +196,8 @@ final class AppState: ObservableObject {
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
 
-    /// The screenshot tour always shows the Method cards, so its Home captures stay comparable build to build.
-    var showsWelcomeCard: Bool { UITest.enabled || showWelcomeCard }
-
-    /// The Method cards stay on Home now. Once, brings them back where an earlier build hid them on its own
-    /// (it set `welcomeAutoHidden`); a card you turned off yourself in Settings stays off.
-    func restoreMethodCards() {
-        let key = "home.methodCardsRestored"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        if welcomeAutoHidden && !showWelcomeCard { showWelcomeCard = true }
-    }
+    /// The self-test and screenshot tour always show This week, so its click step and Home captures stay comparable.
+    var showsHomeWeek: Bool { UITest.enabled || showHomeWeek }
     var engineChoice: (engine: String, model: String) {
         preset == .advanced ? (advEngine, advModel) : (preset.config.0, preset.config.1)
     }

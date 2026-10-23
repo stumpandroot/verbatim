@@ -53,68 +53,94 @@ struct WaveformThumb: Shape {
     }
 }
 
+/// A Library row in the website style (mac/DESIGN.md §11): flat on the paper with a hairline; under the pointer or
+/// selected it takes the card fill, the ink outline, and the hard shadow. Never tilts. The kind dot, a serif title
+/// (italic after the project's name), a sentence-case meta line, the status as plain mono text ("Cleaned",
+/// "Original"), and the length in mono. The ⋯ menu shows under the pointer and sits above the click layer.
 struct HistoryRow: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     /// nil = not selecting; true/false = selection mode with this row's state.
     var selected: Bool? = nil
+    /// The project's name, when the row is shown outside it (the meta line names it; the title's italic follows it).
+    var project: String? = nil
     /// The IDs a drag of this row carries (the whole selection when this row is part of it).
     var dragIDs: (() -> [UUID])? = nil
     var open: () -> Void
-    @State private var hover = false
 
     var body: some View {
-        CardButton(tilt: 2, lift: 2, radius: Radius.row, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) {
+        FlatRowButton(selected: selected == true, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) { _ in
             HStack(spacing: 14) {
                 if let sel = selected {
-                    Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.iris : Ink.mute)
+                    Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.ink : Ink.mute)
                 }
-                // Colored by source, as on Home (DESIGN.md §1); the kind is a neutral word in the meta line.
-                BrandGlyph(art: style.art, color: style.onTint, minLineWidth: 1.4).frame(width: 22, height: 22)
-                    .frame(width: 48, height: 48).background(style.tint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                    .accessibilityHidden(true)
+                KindDot(transcript: transcript, size: 38)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
-                        Text(transcript.title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1).layoutPriority(1)
+                        WebText.serif(title.0, italic: title.1, size: 21).foregroundStyle(Ink.ink).lineLimit(1)
                     }
-                    HStack(spacing: 6) {
-                        Text(transcript.sourceLabel)
-                        Text("·"); Text(HomeRecentStyle.length(transcript.duration)).monospacedDigit()
-                        if !transcript.speakers.isEmpty { Text("·"); Text("\(transcript.speakers.count) speakers") }
-                        if let k = transcript.kind, k != .dictation { Text("·"); Text(k.label) }
-                        if transcript.status == .processing { Text("·"); Text(transcript.stageText).foregroundStyle(Ink.iris); ProgressView().controlSize(.mini) }
-                        if transcript.status == .failed { Text("·"); Text("Needs retry").foregroundStyle(Ink.danger).fontWeight(.semibold) }
-                    }
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)
+                    Text(metaLine).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 10)
-                WaveformThumb(values: transcript.waveform.isEmpty ? placeholder : Waveform.resample(transcript.waveform, to: 32))
-                    .fill(waveColor).frame(width: 120, height: 24)
-                Text(dateLine).font(.system(size: 13)).foregroundStyle(Ink.mute).frame(width: 96, alignment: .trailing).lineLimit(1)
-                Color.clear.frame(width: 30, height: 28)   // room for the ⋯ menu, which sits above the click layer
+                status
+                Text(WebFormat.clock(transcript.duration)).font(Ink.mono(12)).foregroundStyle(Ink.dim).lineLimit(1).fixedSize()
+                if selected == nil { Color.clear.frame(width: 26, height: 26) }   // room for the ⋯ menu
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(selected == true ? Ink.wash : hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(selected == true ? Ink.iris.opacity(0.5) : Ink.ink.opacity(hover ? 0.14 : 0.07)))
+            .padding(.horizontal, 16).padding(.vertical, 12)
+        } accessory: { lit in
+            if selected == nil {
+                RowMenuButton(transcript: transcript).padding(.trailing, 8).opacity(lit ? 1 : 0)
+            }
         }
-        .overlay(alignment: .trailing) {
-            if selected == nil { RowMenuButton(transcript: transcript).padding(.trailing, 12) }
-        }
-        .onHover { hover = $0 }
         .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .identity))
     }
 
-    private var placeholder: [Float] { (0..<48).map { _ in Float.random(in: 0.08...0.25) } }
-    private var style: HomeRecentStyle { HomeRecentStyle(transcript) }
-    private var waveColor: Color { Ink.ink.opacity(0.55) }
-    private var dateLine: String {
-        let cal = Calendar.current
-        if cal.isDateInToday(transcript.createdAt) { return "Today" }
-        else if cal.isDateInYesterday(transcript.createdAt) { return "Yesterday" }
-        let pattern = cal.isDate(transcript.createdAt, equalTo: Date(), toGranularity: .year) ? "MMM d" : "MMM d, yyyy"
-        return Formats.pattern(pattern).string(from: transcript.createdAt)
+    private var title: (String, String?) { WebText.split(transcript.title, after: project ?? projectOfRow) }
+    /// Inside a project the title still italicizes after the project's name.
+    private var projectOfRow: String? { transcript.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name } }
+
+    @ViewBuilder private var status: some View {
+        switch transcript.status {
+        case .processing:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                StatusText(text: transcript.stageText, tone: .dim, mono: true)
+            }
+        case .failed:
+            StatusText(text: "Needs retry", tone: .danger, mono: true)
+        case .ready:
+            if transcript.document != nil {
+                StatusText(text: "Cleaned", tone: .accent, mono: true)
+            } else {
+                StatusText(text: "Original", tone: .dim, mono: true)
+            }
+        }
+    }
+
+    /// "Meeting · Tim, Jonathan · Lapp Wagons", "Voice note · Idea", "youtube.com · Kept video", "Journal · 3 moments".
+    private var metaLine: String {
+        let t = transcript
+        var parts: [String] = []
+        let link = LibrarySource.isLink(t)
+        let source = link ? (t.sourceLabel.isEmpty ? HomeRecentStyle(t).source : t.sourceLabel) : HomeRecentStyle(t).source
+        switch t.kind {
+        case .meeting?, .journal?: parts.append(t.kind!.label)
+        case let k?: parts.append(source); if k != .dictation { parts.append(k.label) }
+        case nil: parts.append(source)
+        }
+        let named = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
+        if named.count >= 2 {
+            parts.append(named.count > 3 ? named.prefix(3).joined(separator: ", ") + " +\(named.count - 3)" : named.joined(separator: ", "))
+        } else if t.speakers.count >= 2 {
+            parts.append("\(t.speakers.count) speakers")
+        }
+        if let project { parts.append(project) }
+        let moments = WebStatus.moments(t)
+        if moments > 0 { parts.append(HomeCounts.countLabel(moments, "moment", "moments")) }
+        if t.keptVideo != nil { parts.append("Kept video") }
+        return parts.joined(separator: " · ")
     }
 }
 

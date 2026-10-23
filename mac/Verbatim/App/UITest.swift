@@ -290,9 +290,9 @@ enum UITest {
         // Home's Dictations section (seeded above), scrolled into view.
         await reveal("home-dictations", in: window)
         await show("02b-home-dictations")
-        // The Method cards between the tiles and Recent.
-        await reveal("home-method", in: window)
-        await show("02c-home-method")
+        // The This week strip under the tiles.
+        await reveal("home-week", in: window)
+        await show("02c-home-week")
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
@@ -1081,7 +1081,7 @@ enum UITest {
         check("settings search finds built-in vocabulary", SettingsIndex.search("chatgpt spelling").map(\.id).contains("models.builtInVocabulary"))
         HomeSelfTest.run(check)
         AudioDuckerSelfTest.run(check)
-        check("settings search finds the Method cards", SettingsIndex.search("method cards").map(\.id).contains("general.welcomeCard"))
+        check("settings search finds This week", SettingsIndex.search("this week").map(\.id).contains("general.homeWeek"))
     }
 
     /// App audio capture: synthetic sample buffers go through the live capture's path (owned copy, then the

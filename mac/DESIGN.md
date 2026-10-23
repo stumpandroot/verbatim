@@ -2,7 +2,7 @@
 
 This file is the brand spec for every Verbatim surface: the Mac app, the iPhone app, the keyboard, the dictation bar, the menu bar, widgets and Live Activities, the app icon, and the website. Agents read it before changing any UI. If something you need isn't here, ask; don't invent a color, a typeface, an icon, a material, or a radius.
 
-Sources: the family design system (project doc `01-design-system.md`, v2.1), the brand marks decision (`brand/README.md`, October 18, 2026), the interface icon set (October 18, 2026), Tim's Home review (October 22, 2026), and his Home feel choices the same day (sharp corners, stacked tiles, full-color Method cards, full motion). `mac/tools/brand-check.sh` enforces the rules marked **[checked]**.
+Sources: the family design system (project doc `01-design-system.md`, v2.1), the brand marks decision (`brand/README.md`, October 18, 2026), the interface icon set (October 18, 2026), Tim's Home review (October 22, 2026), his Home feel choices the same day (sharp corners, stacked tiles, full motion), and the website-style mockup for the Mac app ("The app, in the website's clothes", October 23, 2026; §11). `mac/tools/brand-check.sh` enforces the rules marked **[checked]**.
 
 ## 1. Color
 
@@ -13,8 +13,8 @@ The palette lives in `mac/Verbatim/Views/Tokens.swift` (`Ink`). Use tokens only.
 | `paper` | `#F5F0E6` | The page | App background |
 | `reader` / `card` | `#FFFDF9` | Content you read | Transcript sheet, neutral cards, rows |
 | `ink` | `#26352E` | Structure | Text, strokes, primary buttons (`interactive`) |
-| `persimmon` | `#FA6B47` | **Record** | Record panel, voice-note chips, recording state, the app icon |
-| `butter` | `#F4C76B` | **Dictate** | Dictate tile, dictations panel, today's bar in This week (it counts dictated words) |
+| `persimmon` | `#FA6B47` | **Record** | Record panel, voice-note chips, recording state, today's bar in This week, the app icon |
+| `butter` | `#F4C76B` | **Dictate** | Dictate tile, the Last dictation panel |
 | `sage` | `#AFC398` | **Import** (files and links) | Import tile, imported-file and link chips |
 | `petal` | `#EFB6C8` | **App audio** | App audio tile, app-audio chips |
 | ink outline on `card` | — | **Live captions** | Live captions tile and its chips |
@@ -25,13 +25,13 @@ Reading washes are a separate role and appear only on the transcript and documen
 
 Rules:
 
-1. One color, one meaning. Never reuse a hue for a different action on the same screen. Tags, filters, and counts are neutral (`ink` at 6% with `dim` text). The one exception is Home's Method cards (§6.4), which Tim chose in full color: Capture persimmon, Refine petal, Understand sage.
+1. One color, one meaning. Never reuse a hue for a different action on the same screen. Tags, filters, and counts are neutral (filter chips use the `chip` wash, §11). The exception is project cards on color panels (§11), which cycle butter, petal, and sage as decoration; their text and eyebrow say "Project", so the hue never stands alone.
 2. About 70% neutral, 20% ink, 10% accent on working screens. Home and onboarding may run richer.
-3. One saturated fill per screen: persimmon, for the primary action. The pastel start tiles on Home (butter, sage, petal) are allowed because each one is a different action, and so are the three Method cards; everything else is a tint or neutral.
+3. One saturated fill per screen: persimmon, for the primary action. The pastel start tiles on Home (butter, sage, petal) are allowed because each one is a different action; everything else is a tint, a color panel (§11), or neutral.
 4. Text on paper uses `ink`, `dim`, `mute`, or a text-safe variant (`accentText`, `sageText`), never a bright fill.
 5. Text on every fill is ink: petal 7.5:1, butter 8.1:1, sage 6.8:1, persimmon 4.45:1 (so on persimmon, ink text must be 18 pt or larger, or semibold 14 pt or larger). Never put reader white text on persimmon; it measures 2.8:1.
 6. Status never depends on color alone; pair it with a word or an icon.
-7. Dark mode is a near-black green, never an inversion.
+7. Dark mode is a near-black green, never an inversion. Color panels get slightly deeper fills in dark only (`panelRecord` `#E2694B`, `panelButter` `#DDB563`, `panelSage` `#9DB088`, `panelPetal` `#D9A3B5`; light uses the brand values, with `panelRecord` = the Record fill `#FB7350`). Ink text stays on them in both modes.
 
 ## 2. Type
 
@@ -39,15 +39,15 @@ Rules:
 |---|---|---|
 | Display | `Ink.serif` (New York stands in for Instrument Serif) | Greeting, Record, section titles, document titles, big numbers |
 | UI and body | SF Pro, Dynamic Type | Everything else: tile names, labels, rows, buttons, transcript text |
-| Data | `Ink.mono` | **Only** keyboard shortcuts, timecodes inside transcripts and players, running recording timers, file paths, and tabular indexes ("01") |
+| Data | `Ink.mono` | Keyboard shortcuts, timecodes and durations, running recording timers, file paths, tabular indexes ("01"), and in the website style (§11) eyebrows ("◇ This week"), page-title counts ("46 transcripts"), day headers, and a list's status column. Never smaller than 12 pt. |
 
 Rules:
 
 1. Sentence case everywhere. No uppercase tracked labels except `Overline`, at most one per screen.
-2. Metadata is sans, not mono: "Voice note · 7:50 · Today". Use `.monospacedDigit()` for numbers that change.
+2. Metadata lines are sans, not mono: "Voice note · 7:50 · Today". Use `.monospacedDigit()` for numbers that change. **[checked]** In files marked `// brand: web style`, mono text is never smaller than 12 pt (`Ink.mono` sizes, `Keycap` sizes, no `Overline`).
 3. Shortcuts render as keycaps: mono inside an outlined rectangle with the button radius (4).
 4. Never set reading text in the serif.
-5. Tile and button names: SF Pro semibold, 15 pt on Mac.
+5. Button names: SF Pro semibold (13.5 pt in a regular pill, 12 pt in a mini). Mac Home's tile names are serif 21 pt with a 12 pt sans detail (§6.5).
 
 ## 3. Icons
 
@@ -56,7 +56,7 @@ Rules:
 - Everything else, such as `sparkles`, `wand.and.stars`, `waveform`, `mic`, `bookmark`, `link`, `play.*`, `note.text`, `doc.on.clipboard`, and `info.circle`, gets a `BrandArt` glyph. If none exists, draw one in the same grammar and add it to `mac/tools/gen_icons.py`.
 - **System surfaces** (Control Center controls, Live Activities and the Dynamic Island, widgets, context menus, the menu bar item) can only show SF Symbols or custom symbols from the asset catalog. Export our glyphs as custom symbols (`.symbols` in Assets) and use those; until a glyph is exported, the closest SF Symbol is allowed there, marked on its line with `// brand: system surface`. The menu bar item uses the bars mark.
 - Icons sit bare. Home's start tiles and Record panel have no disc behind the icon. Elsewhere an icon may sit in a tinted disc of its own color; never put a white disc on a colored tile.
-- **Diagrams:** Capture (rings), Refine (paths into lines), and Understand (overlapping circles). Use them on Home (the Method cards, where they loop; §7), onboarding, empty states, and loading. Don't use them as wallpaper. Ink strokes on paper or on their own fill.
+- **Diagrams:** Capture (rings), Refine (paths into lines), and Understand (overlapping circles). Use them in onboarding, the iPhone's Method cards, empty states, and loading. On Mac color panels they become the panel drawings (§11: rings, lines, circles, strands). Don't use them as wallpaper. Ink strokes on paper or on their own fill.
 
 ## 4. Marks and the app icon
 
@@ -71,17 +71,18 @@ Rules:
 
 1. **[checked]** Never put text on a blur or material (`.ultraThinMaterial`, `.regularMaterial`, `.glassEffect`). Glass belongs to system chrome: toolbars, tab bars, sheets, and transient controls without text. A floating bar with text uses `Ink.bar` or `Ink.card` plus a hairline.
 2. Paper, illustrations, and colored tiles stay opaque.
-3. Radii (sharp, `Radius` in Tokens.swift): 4 for buttons, fields, chips, and keycaps; 6 for rows and sheets; 8 for tiles, cards, and panels; 10 for the Record panel. Use the tokens, never a number. Don't round everything the same.
-4. Shadows: `shadow.low` only, or a hairline. No soft shadows everywhere.
+3. Radii (sharp, `Radius` in Tokens.swift): 4 for filter chips, fields, and keycaps; 6 for rows and sheets; 8 for tiles and cards; 10 for the Record panel, color panels, and big strips. Buttons are pills (capsules), and so is the search field (§11). Use the tokens, never a number. Don't round everything the same.
+4. Shadows: a hairline, or the website's hard offset shadow (`Ink.hard`, no blur) under an ink-outlined card or highlighted row (§11). No soft shadows everywhere.
+5. Color panels (§11) are opaque brand fills with paper grain; grain never goes on paper, cards, or under glass, and it turns off under Increase Contrast and Reduce Transparency.
 
 ## 6. Layout (Home and other dashboards)
 
 1. One grid per screen. On Mac Home it's 12 columns, and every band splits at the same 7 / 5 edge.
 2. Stats appear in one place only (This week).
 3. Rows that sit side by side share a height so they line up.
-4. The Method band explains the app with three full-color cards across all 12 columns: Capture (persimmon, on the Record fill so small ink text passes), Refine (petal), and Understand (sage), with ink text in both modes. Each card has the mono index ("01") top left, its diagram top right (about 100 pt, looping slowly), the serif title, a semibold line, and a sans, sentence-case count ("46 transcripts", "Latest: …", "4 moments saved").
-5. Home's start tiles are "Stacked" on Mac: the bare 26 pt icon top left, the shortcut keycap top right where one exists, and the name (SF Pro semibold 15) with a one-line detail at the foot.
-6. Whole cards are buttons: This week opens You (iPhone: About me); a Recent dictations row copies its words wherever you click, then says "Copied".
+4. Mac Home, top to bottom: the mono date eyebrow and the big two-line greeting ("Good afternoon, Tim." / italic "What are we keeping?"); the Record panel (7 columns, 196 pt, ink outline and a (6, 7) hard shadow at rest, rings drawing) beside four tiles (5 columns, two by two, 196 pt together); one slim **This week** strip across all 12 columns (eyebrow, words in the serif, seven 8-pt bars with today in the Record color, then recordings, time saved typing, and moments on the right; Settings › General › Show This week on Home); then Recent recordings (two flat rows) beside Last dictation (one card on a butter panel). The Method band is gone from Mac Home; the iPhone keeps its Method carousel until its own pass.
+5. Home's start tiles on Mac: the bare 22 pt icon top left, the shortcut keycap top right where one exists, and the name (serif 21) with a one-line 12 pt detail at the foot. Dictate butter, Import sage, App audio petal (color panels with grain), Live captions card white with an ink outline.
+6. Whole cards are buttons: This week opens You (iPhone: About me); Last dictation copies its words wherever you click, and its Copy pill turns into "✓ Copied" for 1.6 s. A recent recording with filler words shows "14 filler words" and a mini dark "Clean up" pill, which opens the transcript's Cleaned tab.
 
 ## 7. Motion
 
@@ -89,8 +90,9 @@ Rules:
 - Never animate keyboard-initiated or high-frequency actions.
 - Cards tilt toward the pointer, lift 2 pt, and catch a sheen and an edge light on hover, and press in (0.98) on click or touch (`CardMotion`, `HomeCard`). Keep hit-testing on a flat, untransformed layer: a 3D-rotated view loses clicks on macOS 26. iPhone has no hover, so cards only press.
 - The Record meter breathes slowly and evenly at rest: each bar is its resting height × (0.42 + 0.5 × breath), with breath = 0.5 − 0.5 cos(2π t / 5.2 − 0.09 i). Never random. It shows the real mic level while you hover (Mac) or touch (iPhone) the Record panel and while recording. Hover opens the mic, so the system's orange mic indicator shows during it; close the mic within one second of the pointer leaving.
-- The Method diagrams loop slowly: Capture's rings swell, Refine's strands flow into clean lines, Understand's circles drift together and apart.
-- Loops (the breath and the diagrams) use TimelineView with a Canvas, at most 30 frames a second, and pause when they're off screen or the app is inactive (`LoopTimeline`). Never drive a loop with state or a repeatForever animation; on macOS 26 every SwiftUI transaction is expensive.
+- The Method diagrams loop slowly (iPhone): Capture's rings swell, Refine's strands flow into clean lines, Understand's circles drift together and apart. On Mac the panel drawings loop (§11), at most one per screen.
+- Loops (the breath, the diagrams, the panel drawings) use TimelineView with a Canvas, at most 30 frames a second, and pause when they're off screen or the app is inactive (`LoopTimeline`). Never drive a loop with state or a repeatForever animation; on macOS 26 every SwiftUI transaction is expensive.
+- Big cards (Record, tiles, color panels, Moments cards, This week, Last dictation) tilt as above and, on Mac, pick up the 1.5 pt ink outline and a hard shadow on hover: (7, 9) under the pointer, (2, 3) while pressed. Flat list rows never tilt; they take the outline and a (4, 5) shadow on hover or selection (§11).
 - Icons draw on once when they appear and again on hover. Icon draw-ons never loop.
 - Sidebar rows: on hover a wash fades and scales in (180 ms, ease-out), the label nudges 2 pt right, and the icon redraws. The persimmon selection tick slides to the new row over 300 ms.
 - Limit Motion (and the system's Reduce Motion) stills all of it: no tilt, lift, or scale, a still meter, still diagrams, icons fully drawn, and crossfades instead of slides.
@@ -111,4 +113,37 @@ The marketing site and the link transcriber (`link-transcriber/static`) use the 
 - [ ] No text on blur.
 - [ ] One accent fill per screen, and each color keeps its meaning.
 - [ ] Light, dark, Increase Contrast, Reduce Transparency, Limit Motion, and larger text checked.
-- [ ] Compared side by side with Home D (board "Verbatim new screens") and the Home feel mockup (October 22, 2026).
+- [ ] Compared side by side with the website-style mockup (October 23, 2026) for Mac screens, or Home D and the Home feel mockup (October 22, 2026) for iPhone.
+- [ ] Mac screens: built from the §11 kit, with the file marked `// brand: web style`.
+
+## 11. Website style (Mac)
+
+The Mac app wears the website's clothes (mockup "The app, in the website's clothes", October 23, 2026, `notes/web-style/playful.src.html`). Home and Library are done; every other Mac screen follows these rules when it's next touched. Build with the kit in `mac/Verbatim/Views/WebStyle.swift` and mark the file `// brand: web style` (brand-check then holds its mono text to 12 pt or larger).
+
+**Titles**
+
+1. The big two-line headline (serif 52, italic second line) is for Home only. Every other screen has a compact title: `PageTitle` (serif 34, a mono 12.5 count beside it such as "128 kept", controls and the search field on the right, an optional 14 pt dim lede under it).
+2. Section titles are serif 26 with an italic second part ("Recent *recordings*", "Up *next*"), with an optional "Library →" text link (`SectionTitle`). Day headers are mono 12 with a dashed hairline ("Today · Fri Oct 23", `DayHeader`). Eyebrows are mono 12.5 with an outlined diamond ("◇ This week", `Eyebrow`), at most one per card.
+
+**Lists**
+
+3. List rows are flat (`FlatRowButton`, `flatRow(highlighted:)`): transparent on the paper with a hairline at the bottom and the row radius (6). Under the pointer or selected, a row takes the card fill, a 1.5 pt ink outline, and a (4, 5) hard shadow. **No tilt on rows.** Tilt stays on big cards: Record, tiles, color panels, This week, Last dictation, Moments cards.
+4. Library-style rows: the kind dot (`KindDot`: source fill, ink icon for the kind; links an ink ring), a serif 21 title with an italic part where the data allows (after the project's name), a 12.5 pt sentence-case meta line, the status in mono, and the length in mono ("15:39").
+
+**Controls and status**
+
+5. Buttons are pills (`PillButton`, `PillLabel`, `PillButtonStyle`): **dark** (ink fill, paper text), **line** (1.5 pt ink inset outline), regular 36 pt or **mini** 28 pt. On a color panel use the fixed ink pill.
+6. Filters are soft chips (`FilterChip`): the 4 pt button radius, the `chip` wash, no border; selected is ink with paper text. Never a capsule. A type chip may carry its source's color as a 9 pt dot (links: an ink ring); kinds, tags, and platforms have no dot.
+7. Status is plain colored text, never a capsule (`StatusText`): "Cleaned" in `accentText`, "Original" and counts in `dim`, "✓ Video kept" in `keptText`, "Needs retry" in `danger`. A check or an icon may lead it; the word carries the meaning.
+8. The search field is a pill with a 1.5 pt ink outline on card white (`WebSearchField`).
+9. Mono labels are never smaller than 12 pt. **[checked]** in files marked `// brand: web style`.
+
+**Panels and art**
+
+10. Color panels (Record, butter, sage, petal) are opaque fills with paper grain (`colorPanel`, `GrainOverlay`), ink text, and the panel radius. Dark mode uses the deeper `panel*` fills (§1.7).
+11. A color panel may carry one oversized line drawing, clipped by the panel (`PanelArt`): `rings` (concentric circles anchored at the bottom that breathe, 2.6 s, ±7 %), `lines` (horizontal lines that draw in, hold, and draw out, staggered, 7 s), `circles` (three circles that drift apart and back, 7 s), `strands` (two curved strands with flowing dashes into short lines). **At most one drawing moves per screen** (Library: the project card under the pointer, otherwise the first); the rest hold still. All of them stop under Reduce Motion and Limit animation.
+12. Empty screens get one horizontal card (`EmptyStateCard`): an 80 pt butter plate with an ink outline and the screen's icon, a serif 26 title, one or two sentences, and one dark pill.
+
+**Windows**
+
+13. Settings is its own window, never a screen inside the main window.

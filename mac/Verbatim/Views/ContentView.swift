@@ -69,10 +69,16 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { newProjectName = "" }
             Button("Create") {
                 let n = newProjectName.trimmingCharacters(in: .whitespaces)
-                if !n.isEmpty, let ids = app.newProjectFor { app.addToProject(ids, app.store.addProject(n).id) }
+                if !n.isEmpty, let ids = app.newProjectFor {
+                    let project = app.store.addProject(n)
+                    if !ids.isEmpty { app.addToProject(ids, project.id) }
+                }
                 newProjectName = ""
             }
-        } message: { Text("The transcript joins the new project.") }
+        } message: {
+            // Library's New project starts one with nothing in it; a row's menu brings its transcript along.
+            Text(app.newProjectFor?.isEmpty == false ? "The transcript joins the new project." : "Group transcripts by client or job. Drag transcripts onto it in the sidebar.")
+        }
         .alert("Rename transcript", isPresented: Binding(get: { rename.target != nil }, set: { if !$0 { rename.target = nil } })) {
             TextField("Title", text: $rename.draft)
             Button("Cancel", role: .cancel) { rename.target = nil }

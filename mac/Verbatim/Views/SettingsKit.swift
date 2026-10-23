@@ -91,7 +91,7 @@ enum SettingsIndex {
         .init("general.limitMotion", .general, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
         .init("general.menuBar", .general, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),
         .init("general.sounds", .general, "Sounds", "A short chime when recording or dictation starts, a tick when your words are ready, and a soft tone when you cancel.", keywords: "chime audio feedback"),
-        .init("general.welcomeCard", .general, "Show the Method cards on Home", "Capture, Refine, and Understand, with your latest counts.", keywords: "welcome card hero intro method capture refine understand"),
+        .init("general.homeWeek", .general, "Show This week on Home", "Words, time saved typing, recordings, and moments for the week, in one strip under the tiles.", keywords: "this week stats words saved typing recordings moments method cards welcome"),
         .init("general.tourOnLaunch", .general, "Show the welcome tour when Verbose opens", keywords: "onboarding launch"),
         .init("general.tour", .general, "Welcome tour", "Walk through the basics again.", keywords: "onboarding intro help"),
         .init("general.autoUpdate", .general, "Check for updates automatically", keywords: "sparkle update"),
