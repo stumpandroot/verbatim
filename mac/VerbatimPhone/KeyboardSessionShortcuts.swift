@@ -1,30 +1,73 @@
 import Foundation
 import AppIntents
 
-/// Hands a session start from `StartKeyboardSessionIntent` (Control Center, the Action button, Shortcuts) to the
-/// keyboard session. The intent can run before the session exists (a cold launch), so a start that arrives early
-/// waits until `KeyboardSession` attaches.
+/// Hands a session start from `StartKeyboardSessionIntent`, `DictateIntent`, `ActionButtonIntent`, or the Control
+/// Center switch to the keyboard session. The intent can run before the session exists (a cold launch), so a start
+/// that arrives early waits until `KeyboardSession` attaches.
 enum SessionStartSignal {
-    @MainActor private static var handler: ((KeyboardBridge.StartSource) -> Void)?
-    @MainActor private static var pending: KeyboardBridge.StartSource?
+    struct Start: Equatable {
+        var source: KeyboardBridge.StartSource
+        /// Also start a take as soon as the microphone is on (the Action button's first press).
+        var take: Bool
+    }
+
+    @MainActor private static var handler: ((Start) -> Void)?
+    @MainActor private static var pending: Start?
 
     /// Called once by `KeyboardSession`. A start that arrived first runs on the next turn of the main loop, once
     /// the app has finished setting up.
-    @MainActor static func attach(_ h: @escaping (KeyboardBridge.StartSource) -> Void) {
+    @MainActor static func attach(_ h: @escaping (Start) -> Void) {
         handler = h
         guard let p = pending else { return }
         pending = nil
         DispatchQueue.main.async { h(p) }
     }
 
-    @MainActor static func fire(_ source: KeyboardBridge.StartSource) {
-        if let handler { handler(source) } else { pending = source }
+    @MainActor static func fire(_ source: KeyboardBridge.StartSource, take: Bool = false) {
+        let s = Start(source: source, take: take)
+        if let handler { handler(s) } else { pending = s }
     }
 }
 
-/// Siri, Spotlight, the Shortcuts app, and the Action button (Settings › Action Button › Shortcut › Verbatim).
+/// Hands Settings › Action button's Record a voice note or Live captions to the app once Verbose is in front.
+enum ActionButtonSignal {
+    @MainActor private static var handler: ((Ribbon.ActionChoice) -> Void)?
+    @MainActor private static var pending: Ribbon.ActionChoice?
+
+    @MainActor static func attach(_ h: @escaping (Ribbon.ActionChoice) -> Void) {
+        handler = h
+        guard let p = pending else { return }
+        pending = nil
+        DispatchQueue.main.async { h(p) }
+    }
+
+    @MainActor static func fire(_ choice: Ribbon.ActionChoice) {
+        if let handler { handler(choice) } else { pending = choice }
+    }
+}
+
+/// Siri, Spotlight, the Shortcuts app, and the Action button (Settings › Action Button › Shortcut › Verbose).
 struct VerbatimAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: ActionButtonIntent(),
+            phrases: [
+                "\(.applicationName) action button",
+                "Run the \(.applicationName) action",
+            ],
+            shortTitle: "Action button",
+            systemImageName: "button.horizontal.top.press"   // brand: system surface
+        )
+        AppShortcut(
+            intent: DictateIntent(),
+            phrases: [
+                "Dictate with \(.applicationName)",
+                "Start a \(.applicationName) dictation",
+                "Stop the \(.applicationName) dictation",
+            ],
+            shortTitle: "Dictate",
+            systemImageName: "waveform"   // brand: system surface
+        )
         AppShortcut(
             intent: StartKeyboardSessionIntent(),
             phrases: [
@@ -33,7 +76,7 @@ struct VerbatimAppShortcuts: AppShortcutsProvider {
                 "Start a \(.applicationName) keyboard session",
             ],
             shortTitle: "Start dictation session",
-            systemImageName: "mic.fill"
+            systemImageName: "mic.fill"   // brand: system surface
         )
     }
 }

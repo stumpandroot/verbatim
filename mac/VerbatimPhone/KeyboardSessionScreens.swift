@@ -63,6 +63,7 @@ struct SessionStartScreen: View {
 
     private var title: String {
         if !session.isOn { return "Turning on the microphone…" }
+        if session.startedForTake, session.dictating { return "Listening. Go back to talk." }
         if session.startSource != nil { return "Your session is on." }
         if session.needsManualReturn { return session.dictating ? "Listening. Go back to talk." : "You're set." }
         return "Going back…"
@@ -72,6 +73,12 @@ struct SessionStartScreen: View {
     /// it whenever another app opened Verbatim.
     private var detail: String {
         // Started from Control Center, the Action button, Shortcuts, the widget, or Settings: no app to go back to.
+        if session.startedForTake {
+            if !session.isOn { return "Verbose turns on the microphone and starts listening." }
+            if session.dictating {
+                return "Swipe right along the bottom edge to go back to your app, and talk. Press the Action button again when you're done: your words go into the Verbose keyboard if it's open, or on the clipboard."
+            }
+        }
         if session.startSource != nil {
             if !session.isOn { return "Verbose turns on the microphone for the Verbose keyboard." }
             return "Go to the app you want to type in: swipe right along the bottom edge, or swipe up and choose it. Then tap the record button on the Verbose keyboard and talk."
@@ -115,8 +122,8 @@ struct KeyboardSetupScreen: View {
 
     /// Ways to start a session without the keyboard opening Verbatim (the only ways in App Store builds).
     private let startWays: [(symbol: String, text: String)] = [
-        ("square.grid.2x2", "Control Center: tap Edit, then Add a Control, and choose Start dictation session."),
-        ("button.horizontal.top.press", "Action button: in Settings › Action Button, choose Shortcut, then Verbose › Start dictation session."),
+        ("square.grid.2x2", "Control Center: tap Edit, then Add a Control, and choose Verbose session."),
+        ("button.horizontal.top.press", "Action button: in Settings › Action Button, choose Controls › Verbose action. The first press starts a session and a take; see Verbose › Settings › Action button."),
         ("lock", "Lock Screen: touch and hold the Lock Screen, tap Customize, and add the Verbose widget."),
         ("mic", "Here: tap Start keyboard session above."),
     ]
@@ -258,5 +265,61 @@ private struct SessionCard: View {
         }
         .padding(16)
         .cardSurface(radius: Radius.row)
+    }
+}
+
+// MARK: - Session ended
+
+/// Over the app after a call or another app's audio ended the session (the approved ribbon mockup, screen 7): why
+/// it ended, the last take (here in Verbose only, never on the Lock Screen), and Restart session.
+struct SessionEndedScreen: View {
+    @ObservedObject var session: KeyboardSession
+    var notice: KeyboardSession.EndedNotice
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Session ended")
+                .font(Ink.serif(34)).foregroundStyle(Ink.ink)
+                .padding(.top, 24)
+                .accessibilityAddTraits(.isHeader)
+
+            Text(notice.reason + (notice.lastTake == nil ? "" : " Your last take is saved in Dictations."))
+                .font(.system(size: 16)).foregroundStyle(Ink.dim)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
+
+            if let take = notice.lastTake {
+                HStack(spacing: 10) {
+                    IconGlyph(art: .iconRecent, size: 20, color: Ink.ink)
+                    Text(take).font(.system(size: 16)).foregroundStyle(Ink.ink).lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: 8)
+                    if let at = notice.lastTakeAt {
+                        Text(at, style: .time).font(.system(size: 14)).monospacedDigit().foregroundStyle(Ink.mute)
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .cardSurface(radius: Radius.row)
+                .padding(.top, 20)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Last take: " + take)
+            }
+
+            Button("Restart session") {
+                session.endedNotice = nil
+                session.startFromOutside(.app)
+            }
+            .buttonStyle(.brandPrimaryLarge)
+            .padding(.top, 20)
+            .accessibilityHint("Turns the microphone back on")
+
+            Button("Not now") { session.endedNotice = nil }
+                .buttonStyle(.brandSecondaryLarge)
+                .padding(.top, 10)
+
+            Spacer(minLength: 20)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Ink.paper.ignoresSafeArea())
     }
 }

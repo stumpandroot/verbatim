@@ -4,7 +4,7 @@ import ActivityKit
 import AppIntents
 
 /// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities, the Lock Screen
-/// widget, and (iOS 18) the Control Center control that start a keyboard session.
+/// widget, and (iOS 18) the Control Center controls: the session switch and the Action button's control.
 @main
 struct VerbatimWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -13,103 +13,258 @@ struct VerbatimWidgetBundle: WidgetBundle {
         StartSessionWidget()
         if #available(iOS 18.0, *) {
             StartSessionControl()
+            ActionButtonControl()
         }
     }
 }
 
-/// Dynamic Island: the bars mark in persimmon and a state icon (a check when ready, three bars while listening).
-/// Expanded and on the Lock Screen: "Verbatim is ready" or "Listening…", and End session.
+/// The recording ribbon (the approved "iPhone recording ribbon" mockup). Dynamic Island compact: a dot, the take's
+/// timer, and the level while listening; "Copied" and the word count after. Expanded: Listening, the timer, the
+/// level, and Cancel and Done; otherwise the state, and End session and Dictate. Lock Screen: the same states with
+/// no transcript text, ever. After a call: Session ended, and a tap restarts it.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
-            LockScreenView(state: context.state)
-                .activityBackgroundTint(Ink.inkFixed)
-                .activitySystemActionForegroundColor(Ink.paperFixed)
+            RibbonLockScreen(state: context.state)
+                .activityBackgroundTint(Ink.paperFixed)
+                .activitySystemActionForegroundColor(Ink.inkFixed)
+                .widgetURL(context.state.shown == .ended ? restartLink : nil)
         } dynamicIsland: { context in
-            DynamicIsland {
+            let s = context.state
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    BarsMark(color: Ink.persimmon).frame(width: 26, height: 26).padding(.leading, 4)
+                    PhaseGlyph(phase: s.shown, onDark: true).frame(width: 22, height: 22).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    StateIcon(listening: context.state.listening).frame(width: 22, height: 22).padding(.trailing, 4)
+                    if s.shown == .listening, let start = s.takeStartedAt {
+                        TakeTimer(start: start).font(Ink.mono(15, weight: .medium)).foregroundStyle(.white)
+                            .frame(width: 56, alignment: .trailing).padding(.trailing, 4)
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.listening ? "Listening…" : "Verbose is ready")
-                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
-                        .lineLimit(1)
+                    Text(Ribbon.headline(s.shown, words: s.words))
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        Text(subtitle(context.state)).font(.system(size: 13)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
-                        Spacer(minLength: 8)
-                        EndButton()
+                    VStack(spacing: 10) {
+                        if s.shown == .listening {
+                            LevelBars(level: s.level, color: Ink.persimmon).frame(height: 24)
+                        } else {
+                            Text(Ribbon.detail(s.shown, takes: s.takes, message: s.message))
+                                .font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        RibbonButtons(phase: s.shown, onDark: true)
                     }
                     .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
+                CompactLeading(state: s)
             } compactTrailing: {
-                StateIcon(listening: context.state.listening).frame(width: 16, height: 16)
+                CompactTrailing(state: s)
             } minimal: {
-                BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
+                if s.shown == .listening {
+                    Circle().fill(Ink.persimmon).frame(width: 9, height: 9).accessibilityLabel("Listening")
+                } else {
+                    BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
+                }
             }
             .keylineTint(Ink.persimmon)
+            .widgetURL(s.shown == .ended ? restartLink : nil)
         }
     }
 }
 
-private func subtitle(_ s: VerbatimSessionAttributes.ContentState) -> String {
-    s.listening ? "Tap ✓ on the keyboard when you're done" : "Tap the record button on the Verbose keyboard"
-}
+/// Opens Verbose and starts a new session (the Lock Screen widget's link).
+private let restartLink = URL(string: "verbatim://session?start=1&from=widget")!
 
-private struct LockScreenView: View {
+private struct CompactLeading: View {
     var state: VerbatimSessionAttributes.ContentState
     var body: some View {
-        HStack(spacing: 12) {
-            BarsMark(color: Ink.persimmon).frame(width: 28, height: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.listening ? "Listening…" : "Verbose is ready")
-                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.paperFixed)
-                if let ends = state.endsAt, !state.listening {
-                    (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))
-                        .font(.system(size: 13).monospacedDigit()).foregroundStyle(Ink.paperFixed.opacity(0.7))
-                } else {
-                    Text("Microphone on for the keyboard")
-                        .font(.system(size: 13)).foregroundStyle(Ink.paperFixed.opacity(0.7))
+        switch state.shown {
+        case .listening:
+            HStack(spacing: 5) {
+                Circle().fill(Ink.persimmon).frame(width: 7, height: 7)
+                if let start = state.takeStartedAt {
+                    TakeTimer(start: start).font(Ink.mono(12, weight: .medium)).foregroundStyle(.white).frame(width: 34, alignment: .leading)
                 }
             }
-            Spacer(minLength: 8)
-            EndButton()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Listening")
+        case .copied, .inserted:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.persimmon)
+                Text(state.shown == .copied ? "Copied" : "Inserted").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+            }
+        default:
+            BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
         }
-        .padding(16)
     }
 }
 
-/// A check when the session is ready; three butter bars while listening (butter means Dictate).
-private struct StateIcon: View {
-    var listening: Bool
+private struct CompactTrailing: View {
+    var state: VerbatimSessionAttributes.ContentState
     var body: some View {
-        if listening {
-            HStack(spacing: 2) {
-                ForEach([0.6, 1.0, 0.8], id: \.self) { h in
-                    Capsule().fill(Ink.butter).frame(width: 3.5).frame(maxHeight: .infinity).scaleEffect(y: h)
-                }
-            }
-            .accessibilityLabel("Listening")
-        } else {
+        switch state.shown {
+        case .listening:
+            LevelBars(level: state.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 16)
+        case .copied, .inserted:
+            Text(Ribbon.wordsLabel(state.words)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.white.opacity(0.75))
+        case .failed:
+            PhaseGlyph(phase: .failed, onDark: true).frame(width: 16, height: 16)
+        case .transcribing:
+            PhaseGlyph(phase: .transcribing, onDark: true).frame(width: 16, height: 16)
+        default:
             Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.butter)
                 .accessibilityLabel("Ready")
         }
     }
 }
 
-private struct EndButton: View {
+private struct RibbonLockScreen: View {
+    var state: VerbatimSessionAttributes.ContentState
+    private let ink = Ink.inkFixed
+
     var body: some View {
-        Button(intent: EndVerbatimSessionIntent()) {
-            Text("End session").font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                PhaseGlyph(phase: state.shown, onDark: false).frame(width: 18, height: 18)
+                Text(Ribbon.headline(state.shown, words: state.words))
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                Spacer(minLength: 8)
+                trailing
+            }
+            if state.shown == .listening {
+                LevelBars(level: state.level, color: Ink.persimmonFixed).frame(height: 20)
+            } else {
+                Text(Ribbon.detail(state.shown, takes: state.takes, message: state.message))
+                    .font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            RibbonButtons(phase: state.shown, onDark: false)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Ink.persimmon)
-        .accessibilityHint("Turns off the microphone")
+        .padding(14)
+    }
+
+    @ViewBuilder private var trailing: some View {
+        if state.shown == .listening, let start = state.takeStartedAt {
+            TakeTimer(start: start).font(Ink.mono(15, weight: .medium)).foregroundStyle(ink).frame(width: 60, alignment: .trailing)
+        } else if state.shown == .ready, let started = state.sessionStartedAt {
+            Text(started, style: .relative).font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.muteOnPaper)
+                .multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
+        }
+    }
+}
+
+/// The take's timer: counts up on its own from `start`, so the app doesn't update it.
+private struct TakeTimer: View {
+    var start: Date
+    var body: some View {
+        Text(timerInterval: start...start.addingTimeInterval(KeyboardBridge.maxSeconds + 60), countsDown: false, showsHours: false)
+            .monospacedDigit().lineLimit(1)
+    }
+}
+
+/// One glyph per phase: the bars mark when ready, the microphone while listening, a check after.
+private struct PhaseGlyph: View {
+    var phase: Ribbon.Phase
+    var onDark: Bool
+    var body: some View {
+        switch phase {
+        case .listening:
+            BrandGlyph(art: .capture, color: Ink.persimmon).accessibilityLabel("Listening")
+        case .transcribing:
+            BrandGlyph(art: .iconTranscribing, color: onDark ? .white : Ink.inkFixed).accessibilityLabel("Writing")
+        case .copied, .inserted:
+            Image(systemName: "checkmark").resizable().scaledToFit().padding(2).foregroundStyle(onDark ? Ink.persimmon : Ink.inkFixed)
+                .accessibilityLabel(phase == .copied ? "Copied" : "Inserted")
+        case .failed:
+            BrandGlyph(art: .iconAttention, color: onDark ? Ink.accentTextOnInk : Ink.accentTextOnPaper).accessibilityLabel("Didn't finish")
+        case .ready, .ended:
+            BarsMark(color: Ink.persimmon)
+        }
+    }
+}
+
+/// The level, about once a second while listening: fixed bar shapes scaled by the real microphone level.
+private struct LevelBars: View {
+    var level: Double
+    var color: Color
+    var count = 9
+    private static let shape: [Double] = [0.45, 0.7, 0.55, 0.9, 1.0, 0.8, 0.6, 0.75, 0.5]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: count > 5 ? 3 : 2) {
+            ForEach(0..<count, id: \.self) { i in
+                let base = Self.shape[(i * Self.shape.count) / max(1, count)]
+                Capsule().fill(color)
+                    .frame(width: count > 5 ? 3 : 2.5)
+                    .frame(maxHeight: .infinity)
+                    .scaleEffect(y: max(0.15, base * (0.2 + 0.8 * min(1, max(0, level)))), anchor: .center)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Microphone level")
+    }
+}
+
+/// Phase-dependent buttons: Cancel and Done while listening; End session and Dictate otherwise; nothing to press
+/// while the words are being written or after the session ended (the whole activity restarts it then).
+private struct RibbonButtons: View {
+    var phase: Ribbon.Phase
+    var onDark: Bool
+
+    var body: some View {
+        switch phase {
+        case .listening:
+            HStack(spacing: 8) {
+                RibbonButton(title: "Cancel", primary: false, onDark: onDark, intent: CancelTakeIntent())
+                    .accessibilityLabel("Cancel dictation").accessibilityHint("Stops listening without keeping it")
+                RibbonButton(title: "Done", primary: true, onDark: onDark, intent: FinishTakeIntent())
+                    .accessibilityLabel("Stop and copy").accessibilityHint("Stops listening and delivers your words")
+            }
+        case .transcribing:
+            HStack(spacing: 8) {
+                RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
+                    .accessibilityHint("Turns off the microphone")
+            }
+        case .ended:
+            Text("Restart session")
+                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                .frame(maxWidth: .infinity).padding(.vertical, 8)
+                .background(Ink.persimmonFixed, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Opens Verbose and turns the microphone back on")
+        default:
+            HStack(spacing: 8) {
+                RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
+                    .accessibilityHint("Turns off the microphone")
+                RibbonButton(title: "Dictate", primary: true, onDark: onDark, intent: DictateIntent())
+                    .accessibilityLabel("Start dictation")
+            }
+        }
+    }
+}
+
+/// A full-width pill. Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a
+/// quiet wash. Opaque fills only; no text on blur.
+private struct RibbonButton<I: AppIntent>: View {
+    var title: String
+    var primary: Bool
+    var onDark: Bool
+    var intent: I
+
+    var body: some View {
+        Button(intent: intent) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(primary || !onDark ? Ink.inkFixed : Color.white)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(primary ? Ink.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Ink.inkFixed.opacity(0.08)),
+                            in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -4,20 +4,48 @@ import AppIntents
 
 // MARK: - Control Center
 
-/// Control Center (and the Lock Screen's control slots, iOS 18): "Start dictation session". Opens Verbatim for a
-/// moment, turns on the microphone for the keyboard, and shows how to go back to your app.
+/// Control Center (and the Lock Screen's control slots and the Action button, iOS 18): "Verbose · Session on". A
+/// switch that shows whether a session holds the microphone. Turning it on with no session opens Verbose for a
+/// moment and starts one; turning it off ends the session without opening Verbose (`SetSessionIntent`). Keeps the
+/// old Start dictation session control's kind, so a control you already added becomes the switch.
 @available(iOS 18.0, *)
 struct StartSessionControl: ControlWidget {
     static let kind = "co.stumpandroot.verbatim.ios.control.startSession"
 
     var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: Self.kind, provider: SessionControlValue()) { isOn in
+            ControlWidgetToggle("Verbose", isOn: isOn, action: SetSessionIntent()) { on in
+                Label(on ? "Session on" : "Session off", systemImage: on ? "waveform" : "mic.fill")   // brand: system surface
+            }
+            .tint(Ink.persimmon)
+        }
+        .displayName("Verbose session")
+        .description("Turns the microphone on for dictation in any app, or off.")
+    }
+}
+
+/// Reads whether a session is on from the App Group heartbeat (`KeyboardBridge.sessionLive`). The app reloads the
+/// control when a session starts or ends (`ControlCenter.reloadControls`).
+@available(iOS 18.0, *)
+struct SessionControlValue: ControlValueProvider {
+    var previewValue: Bool { false }
+    func currentValue() async throws -> Bool { KeyboardBridge.sessionLive }
+}
+
+/// The Action button's control (iOS 18): does what you chose in Verbose › Settings › Action button. Dictate a
+/// take unless you change it.
+@available(iOS 18.0, *)
+struct ActionButtonControl: ControlWidget {
+    static let kind = "co.stumpandroot.verbatim.ios.control.action"
+
+    var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: StartKeyboardSessionIntent()) {
-                Label("Start dictation session", systemImage: "mic.fill")   // brand: system surface
+            ControlWidgetButton(action: ActionButtonIntent()) {
+                Label("Verbose action", systemImage: "waveform")   // brand: system surface
             }
         }
-        .displayName("Start dictation session")
-        .description("Opens Verbose and turns on the microphone for the Verbose keyboard.")
+        .displayName("Verbose action")
+        .description("Dictates a take, or does what you chose in Verbose › Settings › Action button.")
     }
 }
 

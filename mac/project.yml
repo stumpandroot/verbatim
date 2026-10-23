@@ -328,6 +328,10 @@ targets:
       - VerbatimWidgets/SessionActivity.swift
       # Shared with the widget extension: the recording's Live Activity and its Pause, Resume, and Stop intents.
       - VerbatimWidgets/RecordingActivity.swift
+      # Shared with the widget extension: the recording ribbon's rules (Live Activity words, routing, timeouts) and
+      # its intents (Dictate, Done, Cancel, the Action button, and the Control Center session switch).
+      - VerbatimWidgets/RibbonRules.swift
+      - VerbatimWidgets/DictateIntents.swift
       # Shared with the share and broadcast extensions: the App Group inbox they fill and the app imports.
       - VerbatimShare/VerbatimInbox.swift
     dependencies:
@@ -469,17 +473,19 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: false
         DEAD_CODE_STRIPPING: true
 
-  # The keyboard session's Live Activity: the Dynamic Island and Lock Screen while Verbatim keeps the microphone
-  # ready for the keyboard. Draws only; the app starts, updates, and ends it. The End session button runs an
-  # AppIntent in the app's process, so this extension needs no App Group.
+  # The keyboard session's Live Activity (the recording ribbon): the Dynamic Island and Lock Screen while Verbatim
+  # keeps the microphone ready. Draws only; the app starts, updates, and ends it. Its buttons run App Intents in the
+  # app's process. The Control Center session switch reads whether a session is on from the App Group
+  # (KeyboardBridge.sessionLive), so this extension is in the group too.
   VerbatimWidgets:
     type: app-extension
     platform: iOS
     sources:
       - path: VerbatimWidgets
-        excludes: ["Info.plist"]
+        excludes: ["Info.plist", "VerbatimWidgets.entitlements"]
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
+      - VerbatimKeyboard/KeyboardBridge.swift
     info:
       path: VerbatimWidgets/Info.plist
       properties:
@@ -489,6 +495,11 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: VerbatimWidgets/VerbatimWidgets.entitlements
+      properties:
+        # Shared with the app and the keyboard (KeyboardBridge.appGroup): the session switch's state.
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.widgets

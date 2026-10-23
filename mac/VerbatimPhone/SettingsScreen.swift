@@ -37,6 +37,9 @@ struct SettingsScreen: View {
     @State private var showSnippets = false
     @State private var showAboutMe = false
     @State private var showKeyboard = false
+    @State private var showActionButton = false
+    /// Settings › Action button's choice (Ribbon.ActionChoice), for the row's value.
+    @AppStorage(Ribbon.actionChoiceKey) private var actionChoice = Ribbon.ActionChoice.dictate.rawValue
     @State private var showVoice = false
     /// Settings › Privacy (PhoneTrust.swift).
     @State private var showPrivacy = false
@@ -95,6 +98,7 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
+        .navigationDestination(isPresented: $showActionButton) { ActionButtonScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
         .navigationDestination(isPresented: $showPrivacy) { PhonePrivacyScreen() }
         .navigationDestination(isPresented: $showAcknowledgements) { AcknowledgementsView().navigationTitle("Acknowledgements") }
@@ -181,6 +185,16 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("keyboardRow", flash: searchFlash)
+        SettingsDivider()
+        Button { bump("actionButton"); showActionButton = true } label: {
+            SettingsRow(icon: "button.horizontal.top.press", tint: Ink.butterTint, art: .iconActionButton, title: "Action button",
+                        subtitle: "Dictate from any app without switching", bounce: bumps["actionButton", default: 0]) {
+                SettingsValue(Ribbon.actionChoice(actionChoice) == .dictate ? "Dictate" : Ribbon.actionChoice(actionChoice) == .voiceNote ? "Voice note" : "Captions")
+                SettingsChevron()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("actionButtonRow", flash: searchFlash)
         SettingsDivider()
         Menu {
             Picker("Appearance", selection: $app.appearance) {
@@ -470,6 +484,7 @@ struct SettingsScreen: View {
         switch SettingsPage.take() {
         case "aboutMe"?: showAboutMe = true
         case "keyboard"?: showKeyboard = true
+        case "actionButton"?: showActionButton = true
         default: break
         }
     }
@@ -482,6 +497,7 @@ struct SettingsScreen: View {
         case .page(.aboutMe): showAboutMe = true
         case .page(.dictionary): showDictionary = true
         case .page(.keyboard): showKeyboard = true
+        case .page(.actionButton): showActionButton = true
         case .page(.snippets): showSnippets = true
         case .row:
             Task { @MainActor in

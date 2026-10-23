@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import ActivityKit
 import UIKit
+import WidgetKit
 
 /// The app's half of keyboard dictation (see `KeyboardBridge` for the whole flow).
 ///
@@ -12,6 +13,11 @@ import UIKit
 /// idle timeout, from the Live Activity or Settings › Keyboard, or for a call. Each dictation is marked in the
 /// running capture, transcribed straight away with the warm model (not through the transcription queue), handed
 /// to the keyboard, and then saved as a dictation in Library › Dictations.
+///
+/// The recording ribbon (`Ribbon`, RibbonRules.swift) builds on the session: the Action button, the Control Center
+/// switch, Shortcuts, and the Live Activity's Dictate, Done, and Cancel start and stop takes here without switching
+/// apps (`toggleTake`, `startTake`, `stopTake`, `cancelTake`, through `RibbonSignal`). A take's words go into the
+/// text field when the Verbose keyboard is on screen, otherwise to the clipboard and the keyboard's Recent row.
 @MainActor
 final class KeyboardSession: ObservableObject {
     enum Stage: Equatable {
@@ -21,11 +27,30 @@ final class KeyboardSession: ObservableObject {
         case on
     }
 
-    /// Settings › Keyboard › End keyboard sessions after. 0 = until you end it.
+    /// Settings › Keyboard and Settings › Action button › End the session after (idle): 10, 30 (the default), or
+    /// 60 minutes (`Ribbon.timeoutChoices`). An older stored choice moves to the nearest one.
     static let timeoutKey = "keyboard.sessionTimeout"
-    static let timeoutChoices: [(seconds: Int, label: String)] = [
-        (60, "1 minute"), (300, "5 minutes"), (900, "15 minutes"), (1800, "30 minutes"), (3600, "60 minutes"), (0, "Until I end it"),
-    ]
+    static let timeoutChoices: [(seconds: Int, label: String)] = Ribbon.timeoutChoices.map { ($0, Ribbon.timeoutLabel($0)) }
+
+    /// Where a take started, for the log.
+    enum TakeSource: String { case intent, liveActivity, app, test }
+
+    enum TakeOutcome: Equatable {
+        case started, stopped, cancelled
+        /// Nothing to do (Done with no take running, Start during a take).
+        case ignored
+        /// No session holds the microphone. iOS won't turn it on from the background, so Verbose must come forward;
+        /// nothing touched the audio session.
+        case needsForeground
+    }
+
+    /// The "Session ended" screen after a call or another app's audio ended the session.
+    struct EndedNotice: Equatable {
+        var reason: String
+        /// The last take's words, shown in the app only (never on the Lock Screen), and when it was made.
+        var lastTake: String?
+        var lastTakeAt: Date?
+    }
 
     @Published private(set) var stage: Stage = .off
     /// The start screen over the app: shown while starting, and when switching back to your app didn't work.
@@ -40,7 +65,11 @@ final class KeyboardSession: ObservableObject {
         didSet { if dictating != oldValue { PhoneDucker.set(dictating) } }   // Lower other audio while listening.
     }
     @Published private(set) var endsAt: Date? = nil
-    @Published var timeoutSeconds: Int = UserDefaults.standard.object(forKey: KeyboardSession.timeoutKey) as? Int ?? 300 {
+    /// True when this session started from the Action button's first press: the start screen says it's listening.
+    @Published private(set) var startedForTake = false
+    /// Set when a call or another app's audio ended the session; the Session ended screen shows it.
+    @Published var endedNotice: EndedNotice? = nil
+    @Published var timeoutSeconds: Int = Ribbon.normalizedTimeout(UserDefaults.standard.object(forKey: KeyboardSession.timeoutKey) as? Int) {
         didSet {
             UserDefaults.standard.set(timeoutSeconds, forKey: Self.timeoutKey)
             if stage == .on { touch() }
@@ -73,6 +102,25 @@ final class KeyboardSession: ObservableObject {
     private var savedTranscripts: [UUID: UUID] = [:]
     private var pendingPolish: [UUID: String] = [:]
 
+    // The recording ribbon.
+    /// Takes the app started itself (not the keyboard), so their words are routed by `Ribbon.route`.
+    private var ribbonTakes: Set<UUID> = []
+    /// Ribbon takes still being transcribed (the Live Activity says "Writing your words…").
+    private var transcribingTakes: Set<UUID> = []
+    /// Start a take as soon as the microphone is on (the Action button's first press).
+    private var pendingRibbonTake = false
+    private var sessionStartedAt: Date?
+    private var takeStartedAt: Date?
+    private var takes = 0
+    /// Copied, Inserted, or a failure, shown in the Live Activity until `until`.
+    private var result: (phase: Ribbon.Phase, words: Int, message: String?, until: Date)?
+    private var lastLevelPush = Date.distantPast
+    /// A ribbon take whose clipboard write didn't take (Verbose in the background): copied when Verbose opens.
+    private(set) var pendingCopy: String?
+    /// The last take's words and time, for the Session ended screen.
+    private(set) var lastTake: (text: String, at: Date)?
+    private var activityWatch: Task<Void, Never>?
+
     init(app: PhoneState) {
         self.app = app
         // A session never outlives the app: a Live Activity left by a crash or a force quit goes now.
@@ -82,8 +130,21 @@ final class KeyboardSession: ObservableObject {
             d.removeObject(forKey: KeyboardBridge.formatKey)
             KeyboardBridge.post(KeyboardBridge.Note.state)
         }
-        // Control Center, the Action button, and Shortcuts (StartKeyboardSessionIntent) start sessions here.
-        SessionStartSignal.attach { [weak self] source in self?.startFromOutside(source) }
+        // Control Center, the Action button, and Shortcuts (StartKeyboardSessionIntent, DictateIntent, ActionButtonIntent,
+        // SetSessionIntent) start sessions here.
+        SessionStartSignal.attach { [weak self] s in self?.startFromOutside(s.source, take: s.take) }
+        // The ribbon's intents run in this process (LiveActivityIntent) and call the session directly; from the
+        // widget's process they post a Darwin notification instead.
+        RibbonSignal.handler = { [weak self] c in self?.handleRibbon(c) ?? .ignored }
+        for c in [RibbonCommand.toggle, .finish, .cancel, .endSession] {
+            KeyboardBridge.observe(RibbonSignal.note(c)) { [weak self] in _ = self?.handleRibbon(c) }
+        }
+        // Settings › Action button: Record a voice note or Live captions, once Verbose is in front.
+        ActionButtonSignal.attach { [weak self] choice in self?.runAction(choice) }
+        // A take whose clipboard write failed in the background is copied as soon as Verbose opens.
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.copyPending() }
+        }
     }
 
     private var defaults: UserDefaults? { KeyboardBridge.defaults }
@@ -101,11 +162,12 @@ final class KeyboardSession: ObservableObject {
 
     /// Starts a session from outside the keyboard: Control Center, the Action button or Shortcuts
     /// (`StartKeyboardSessionIntent`), the Lock Screen widget, or Settings › Keyboard.
-    func startFromOutside(_ source: KeyboardBridge.StartSource) {
-        start(request: nil, host: nil, dictation: nil, source: source)
+    func startFromOutside(_ source: KeyboardBridge.StartSource, take: Bool = false) {
+        start(request: nil, host: nil, dictation: nil, source: source, take: take)
     }
 
-    func start(request r: UUID?, host h: String?, dictation d: UUID? = nil, source: KeyboardBridge.StartSource? = nil) {
+    /// `take`: also start a ribbon take as soon as the microphone is on (the Action button's first press).
+    func start(request r: UUID?, host h: String?, dictation d: UUID? = nil, source: KeyboardBridge.StartSource? = nil, take: Bool = false) {
         guard let app else { return }
         request = r
         host = h
@@ -114,9 +176,14 @@ final class KeyboardSession: ObservableObject {
         let hostNote = h.map { "names the host app " + $0 } ?? "names no host app (the keyboard couldn't read it)"
         let dictationNote = d == nil ? "" : ", starts a dictation"
         if let source {
-            Log.note("keyboard session: started from " + source.rawValue)
-            // Already on: nothing to start, so the screen says what to do next.
-            if stage == .on { observe(); showManualReturn(); return }
+            Log.note("keyboard session: started from " + source.rawValue + (take ? ", with a take" : ""))
+            if stage == .on {
+                observe()
+                // Already on and asked for a take: start one (or leave the running one alone), no screen.
+                if take { if current == nil { startTake(source: .intent) }; return }
+                // Already on: nothing to start, so the screen says what to do next.
+                showManualReturn(); return
+            }
         } else {
             Log.note("keyboard session: link " + hostNote + dictationNote)
         }
@@ -128,8 +195,11 @@ final class KeyboardSession: ObservableObject {
             goBack()
             return
         }
+        if take { pendingRibbonTake = true; startedForTake = true }
         guard stage == .off else { return }
         guard !app.recorder.isRecording else {
+            pendingRibbonTake = false
+            startedForTake = false
             answer(ok: false, "Verbose is recording a voice memo. Stop it first.")
             app.askToFinishRecording(for: "the keyboard")
             return
@@ -145,6 +215,8 @@ final class KeyboardSession: ObservableObject {
                 guard self.stage == .starting else { return }
                 if ok { self.beginCapture() } else {
                     self.stage = .off
+                    self.pendingRibbonTake = false
+                    self.startedForTake = false
                     self.showScreen = false
                     self.answer(ok: false, "Microphone access is off. Turn it on in Settings › Verbose.")
                     app.say("Microphone access is off. Turn it on in Settings › Verbose.")
@@ -171,21 +243,32 @@ final class KeyboardSession: ObservableObject {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             stage = .off
             showScreen = false
+            pendingRibbonTake = false
+            startedForTake = false
             answer(ok: false, "Couldn't turn on the microphone: \(error.localizedDescription)")
             app?.say("Couldn't turn on the microphone.")
             return
         }
         stage = .on
         lastActivity = Date()
+        sessionStartedAt = Date()
+        takes = 0
+        result = nil
+        ribbonTakes = []
+        transcribingTakes = []
+        endedNotice = nil
         // A start command left from before this launch isn't for this session.
         if let old = KeyboardBridge.uuid(KeyboardBridge.Key.startID), old != firstTapDictation { handled.insert(old) }
         touch()
         writeSession()
         // Listening before the keyboard hears the session is on, so it shows the dictation the moment you're back.
         beginFirstTapDictation()
+        // The Action button's first press: listening before you swipe back to your app.
+        if pendingRibbonTake { pendingRibbonTake = false; startTake(source: .intent) }
         answer(ok: true)
         startHeartbeat()
         startActivity()
+        reloadControl()
         warmModel()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         // Back to your app as soon as the capture is running. A short beat lets the screen draw first.
@@ -390,7 +473,7 @@ final class KeyboardSession: ObservableObject {
             }
         })
         observers.append(nc.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: s, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.interrupted("The session ended. Tap to start a new one.") }
+            MainActor.assumeIsolated { self?.interrupted("The session ended. Tap to start a new one.", call: false) }
         })
         observers.append(nc.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.end(reason: "Verbose was closed. Tap to start a new session.") }
@@ -430,6 +513,9 @@ final class KeyboardSession: ObservableObject {
         capture.beginTake()
         // Apple's model loads while you talk, so cleanup starts warm (one prewarmed session serves one dictation).
         FlowCleanup.prewarm(level: PhoneDictation.level)
+        takeStartedAt = Date()
+        takes += 1
+        result = nil
         dictating = true
         lastActivity = Date()
         touch()
@@ -453,6 +539,8 @@ final class KeyboardSession: ObservableObject {
         d.set(seconds, forKey: KeyboardBridge.Key.elapsed)
         writeLive(d)
         KeyboardBridge.post(KeyboardBridge.Note.state)
+        // The Live Activity's level, about once a second (ActivityKit isn't for 10 updates a second).
+        if Date().timeIntervalSince(lastLevelPush) >= 1 { lastLevelPush = Date(); updateActivity() }
         checkCommands()
         if dictating, seconds >= KeyboardBridge.maxSeconds { finishDictation() }
         // A first-tap dictation nobody came back to: stop listening after a minute.
@@ -492,10 +580,16 @@ final class KeyboardSession: ObservableObject {
         dictating = false
         meter?.invalidate(); meter = nil
         lastActivity = Date()
+        let ribbon = ribbonTakes.contains(id)
+        if ribbon { transcribingTakes.insert(id) }
         touch()
         updateActivity()
         let duration = Double(samples.count) / SessionCapture.sampleRate
-        guard duration >= 0.4 else { write(.failed, for: id, message: "No words were heard."); return }
+        guard duration >= 0.4 else {
+            write(.failed, for: id, message: "No words were heard.")
+            if ribbon { showResult(.failed, for: id, words: 0, message: Ribbon.nothingHeardMessage) }
+            return
+        }
         write(.transcribing, for: id)
         beginBackground()
         let settings = app.jobSettings()
@@ -559,6 +653,7 @@ final class KeyboardSession: ObservableObject {
                 Log.note("keyboard dictation: transcription failed: \(error)")
                 await MainActor.run {
                     self.write(.failed, for: id, message: "Transcription failed: \(error.localizedDescription)")
+                    if ribbon { self.showResult(.failed, for: id, words: 0, message: "Didn't finish writing. The audio is saved in Dictations.") }
                     // The audio is kept in Dictations as a failed dictation, with Retry, like the Mac's.
                     self.saveUnfinished(samples: samples, duration: duration, title: "Dictation", error: error.localizedDescription)
                 }
@@ -614,12 +709,68 @@ final class KeyboardSession: ObservableObject {
             d.set(text, forKey: KeyboardBridge.Key.text)
             d.set(raw, forKey: KeyboardBridge.Key.raw)
         }
-        // The keyboard's Recent row, and Also copy each dictation, before the keyboard hears it's done.
         if !text.isEmpty {
+            lastTake = (text, Date())
+            if endedNotice != nil { endedNotice?.lastTake = text; endedNotice?.lastTakeAt = Date() }
+        }
+        // The keyboard's Recent row, and the clipboard, before the keyboard hears it's done.
+        if !text.isEmpty, ribbonTakes.contains(id) {
+            deliverRibbon(id, text: text)
+        } else if !text.isEmpty {
             KeyboardBridge.addRecent(id: id, text: text)
             if KeyboardBridge.alwaysCopy { copyForKeyboard(id, text) }
+        } else if ribbonTakes.contains(id) {
+            showResult(.failed, for: id, words: 0, message: Ribbon.nothingHeardMessage)
         }
         write(text.isEmpty ? .failed : .done, for: id, message: text.isEmpty ? "No words were heard." : nil)
+    }
+
+    /// A ribbon take's words (owner decision, `Ribbon.route`): into the text field when the Verbose keyboard is on
+    /// screen and showing this take, with the clipboard left alone; otherwise on the clipboard. Always in the Recent
+    /// row. A clipboard write that didn't take is reported in the Live Activity and retried when Verbose opens.
+    private func deliverRibbon(_ id: UUID, text: String) {
+        KeyboardBridge.addRecent(id: id, text: text)
+        let d = defaults
+        let route = Ribbon.route(keyboardVisibleAt: d?.double(forKey: KeyboardBridge.Key.keyboardVisibleAt) ?? 0,
+                                 keyboardShowsTake: KeyboardBridge.uuid(KeyboardBridge.Key.seenID) == id,
+                                 now: Date().timeIntervalSince1970)
+        // Before the text is marked done, so a keyboard that appears later doesn't insert it too.
+        if route == .clipboard { d?.set(id.uuidString, forKey: KeyboardBridge.Key.routedAway) }
+        var copied: Bool? = nil
+        if Ribbon.copies(route, alwaysCopy: KeyboardBridge.alwaysCopy) {
+            copied = copyRibbon(id, text)
+            // The keyboard copies when the app couldn't, but only for the keyboard route; on the clipboard route
+            // the failure is the result.
+            if route == .keyboard { copied = nil }
+        }
+        let words = Ribbon.wordCount(text)
+        Log.note("ribbon: take delivered to the \(route == .keyboard ? "keyboard" : "clipboard") (\(words) words)\(copied == false ? "; the clipboard write didn't take" : "")")
+        showResult(Ribbon.resultPhase(route, copied: copied), for: id, words: words,
+                   message: copied == false ? Ribbon.copyFailedMessage : nil)
+    }
+
+    /// Puts a ribbon take on the clipboard. False when iOS didn't take the write (it can refuse in the
+    /// background); the text then waits in `pendingCopy` for Verbose to open.
+    private func copyRibbon(_ id: UUID, _ text: String) -> Bool {
+        let pb = UIPasteboard.general
+        let before = pb.changeCount
+        pb.string = text
+        guard pb.changeCount != before else { pendingCopy = text; return false }
+        copiedChangeCount = pb.changeCount
+        defaults?.set(id.uuidString, forKey: KeyboardBridge.copiedKey)
+        pendingCopy = nil
+        return true
+    }
+
+    /// Verbose came forward with a take that couldn't be copied in the background: copy it now and say so.
+    private func copyPending() {
+        guard let text = pendingCopy else { return }
+        pendingCopy = nil
+        UIPasteboard.general.string = text
+        copiedChangeCount = UIPasteboard.general.changeCount
+        app?.say("Copied your last take.")
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        if result?.phase == .failed { result = nil; updateActivity() }
     }
 
     /// The clipboard's change count after the app last copied a keyboard dictation, so the polished text replaces
@@ -701,7 +852,7 @@ final class KeyboardSession: ObservableObject {
             if d.string(forKey: KeyboardBridge.Key.polishing) == id.uuidString { d.removeObject(forKey: KeyboardBridge.Key.polishing) }
             KeyboardBridge.updateRecent(id: id, text: polished)
             // The copy follows the polished text, while the clipboard still holds the copy the app made.
-            if KeyboardBridge.alwaysCopy, d.string(forKey: KeyboardBridge.copiedKey) == id.uuidString,
+            if KeyboardBridge.alwaysCopy || ribbonTakes.contains(id), d.string(forKey: KeyboardBridge.copiedKey) == id.uuidString,
                let count = copiedChangeCount, UIPasteboard.general.changeCount == count {
                 UIPasteboard.general.string = polished
                 copiedChangeCount = UIPasteboard.general.changeCount
@@ -784,9 +935,16 @@ final class KeyboardSession: ObservableObject {
         capture.checkHealth()
         guard stage == .on else { return }
         checkCommands()
-        if !dictating, let e = endsAt, Date() >= e {
+        switch Ribbon.endCheck(now: Date(), startedAt: sessionStartedAt, endsAt: endsAt, dictating: dictating) {
+        case .idle:
             end(reason: "The session ended after \(Self.label(timeoutSeconds)) without dictation. Tap to start a new one.")
             return
+        case .cap:
+            // A Live Activity lasts at most 8 hours; the microphone is never on without one.
+            end(reason: "The session ended after 8 hours, the longest iOS shows it. Tap to start a new one.")
+            return
+        case .keep:
+            break
         }
         if Date().timeIntervalSince(lastBeat) >= KeyboardBridge.heartbeatInterval { writeSession() }
     }
@@ -806,20 +964,23 @@ final class KeyboardSession: ObservableObject {
     private func captureFailed(_ message: String) {
         guard stage == .on else { return }
         if dictating { finishDictation() }
-        end(reason: message)
+        end(reason: message, restartable: true, call: false)
     }
 
     /// A call or another app took the audio: keep what was being said, then end.
-    private func interrupted(_ reason: String) {
+    private func interrupted(_ reason: String, call: Bool = true) {
         guard stage == .on else { return }
         if dictating { finishDictation() }
-        end(reason: reason)
+        end(reason: reason, restartable: true, call: call)
     }
 
     /// Ends the session: the microphone turns off (the orange dot goes), the Live Activity ends. The speech model
-    /// stays loaded until iOS reclaims it.
-    func end(reason: String?) {
+    /// stays loaded until iOS reclaims it. `restartable` (a call, another app's audio, a lost microphone): the Live
+    /// Activity stays on the Lock Screen for 2 minutes as "Session ended" with Restart session, and the Session
+    /// ended screen shows in Verbose.
+    func end(reason: String?, restartable: Bool = false, call: Bool = false) {
         guard stage != .off else { return }
+        let restarting = restartable && stage == .on
         if let id = current { capture.cancelTake(); write(.cancelled, for: id); current = nil }
         stopLive()
         unseenSince = nil
@@ -834,6 +995,10 @@ final class KeyboardSession: ObservableObject {
         needsManualReturn = false
         startSource = nil
         endsAt = nil
+        pendingRibbonTake = false
+        startedForTake = false
+        takeStartedAt = nil
+        sessionStartedAt = nil
         if let d = defaults {
             d.set(false, forKey: KeyboardBridge.Key.sessionActive)
             // The format chip goes back to Auto for the next session.
@@ -842,7 +1007,14 @@ final class KeyboardSession: ObservableObject {
             if let reason { d.set(reason, forKey: KeyboardBridge.Key.endReason) } else { d.removeObject(forKey: KeyboardBridge.Key.endReason) }
         }
         KeyboardBridge.post(KeyboardBridge.Note.state)
-        endActivity()
+        if restarting {
+            let why = Ribbon.endedReason(call: call)
+            endedNotice = EndedNotice(reason: why, lastTake: lastTake?.text, lastTakeAt: lastTake?.at)
+            endActivity(ended: why)
+        } else {
+            endActivity()
+        }
+        reloadControl()
     }
 
     // MARK: Live Activity
@@ -854,24 +1026,188 @@ final class KeyboardSession: ObservableObject {
     private func startActivity() {
         guard activitiesAllowed else { return }
         endStaleActivities()
-        let state = VerbatimSessionAttributes.ContentState(listening: false, endsAt: endsAt)
         do {
-            activity = try Activity.request(attributes: VerbatimSessionAttributes(), content: ActivityContent(state: state, staleDate: nil))
+            let a = try Activity.request(attributes: VerbatimSessionAttributes(), content: ActivityContent(state: activityState(), staleDate: nil))
+            activity = a
+            watch(a)
         } catch {
             Log.note("Live Activity unavailable: \(error)")
         }
     }
 
+    /// The session never outlives its Live Activity: when iOS ends it (the 8-hour limit) or you dismiss it from
+    /// the Lock Screen, the session ends too, so the microphone is never on without it showing.
+    private func watch(_ a: Activity<VerbatimSessionAttributes>) {
+        activityWatch?.cancel()
+        activityWatch = Task { [weak self] in
+            for await state in a.activityStateUpdates {
+                guard state == .ended || state == .dismissed else { continue }
+                guard let self, self.activity?.id == a.id, self.stage == .on else { return }
+                Log.note("keyboard session: the Live Activity \(state == .ended ? "ended" : "was dismissed"); ending the session")
+                self.activity = nil
+                self.end(reason: "The session ended with its Live Activity. Tap to start a new one.")
+                return
+            }
+        }
+    }
+
+    /// What the ribbon shows: listening, writing, a result for a few seconds, or ready. Counts and times only.
+    private var ribbonPhase: Ribbon.Phase {
+        if dictating { return .listening }
+        if !transcribingTakes.isEmpty { return .transcribing }
+        if let r = result, r.until > Date() { return r.phase }
+        return .ready
+    }
+
+    private func activityState() -> VerbatimSessionAttributes.ContentState {
+        let phase = ribbonPhase
+        let shownResult = phase == result?.phase ? result : nil
+        return VerbatimSessionAttributes.ContentState(listening: dictating, endsAt: endsAt, phase: phase, sessionStartedAt: sessionStartedAt,
+                                                      takeStartedAt: dictating ? takeStartedAt : nil,
+                                                      level: dictating ? min(1, max(0, Double(capture.level))) : 0,
+                                                      words: shownResult?.words ?? 0, takes: takes, message: shownResult?.message)
+    }
+
     private func updateActivity() {
         guard let a = activity else { return }
-        let state = VerbatimSessionAttributes.ContentState(listening: dictating, endsAt: endsAt)
+        let state = activityState()
         Task { await a.update(ActivityContent(state: state, staleDate: nil)) }
     }
 
-    private func endActivity() {
+    /// Copied, Inserted, or a failure for a ribbon take. A result shows for `Ribbon.resultHold` seconds; a failed
+    /// copy stays until Verbose opens or the next take starts, so it's never missed. The success haptic plays only
+    /// with Verbose in front (in-app).
+    private func showResult(_ phase: Ribbon.Phase, for id: UUID, words: Int, message: String? = nil) {
+        transcribingTakes.remove(id)
+        let sticky = phase == .failed && message == Ribbon.copyFailedMessage
+        let until = sticky ? Date.distantFuture : Date().addingTimeInterval(Ribbon.resultHold)
+        result = (phase, words, message, until)
+        updateActivity()
+        if phase == .copied || phase == .inserted, UIApplication.shared.applicationState == .active {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+        guard !sticky else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Ribbon.resultHold + 0.05) { [weak self] in
+            guard let self, let r = self.result, r.until <= Date() else { return }
+            self.result = nil
+            self.updateActivity()
+        }
+    }
+
+    /// Ends the Live Activity. With `ended` (a call ended the session), it stays on the Lock Screen as "Session
+    /// ended" for `Ribbon.endedHold`, and a tap restarts the session.
+    private func endActivity(ended: String? = nil) {
+        activityWatch?.cancel()
+        activityWatch = nil
         guard let a = activity else { return }
         activity = nil
-        Task { await a.end(nil, dismissalPolicy: .immediate) }
+        if let ended {
+            let state = VerbatimSessionAttributes.ContentState(listening: false, endsAt: nil, phase: .ended, takes: takes,
+                                                               message: ended + " Tap to restart.")
+            Task { await a.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .after(Date().addingTimeInterval(Ribbon.endedHold))) }
+        } else {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    /// The Control Center switch follows the session (iOS 18).
+    private func reloadControl() {
+        guard !PhoneUITest.enabled else { return }
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: "co.stumpandroot.verbatim.ios.control.startSession")
+        }
+    }
+
+    // MARK: Recording ribbon
+
+    /// Starts a take, or stops the running one (the Action button, Shortcuts, the Lock Screen's Dictate). With no
+    /// session it returns `.needsForeground` and touches nothing: the intent then brings Verbose forward.
+    @discardableResult
+    func toggleTake(source: TakeSource) -> TakeOutcome {
+        let state: Ribbon.TakeState = current.map { .listening($0) } ?? .idle
+        return run(Ribbon.decide(state, .toggle, sessionOn: stage == .on), source: source)
+    }
+
+    /// Starts a take with its own dictation ID (no keyboard asked for it). The keyboard picks it up when it's on
+    /// screen (`KeyboardBridge.Key.ribbonID`).
+    @discardableResult
+    func startTake(source: TakeSource = .app) -> TakeOutcome {
+        let state: Ribbon.TakeState = current.map { .listening($0) } ?? .idle
+        let action = Ribbon.decide(state, .start, sessionOn: stage == .on)
+        guard action == .begin else { return run(action, source: source) }
+        let id = UUID()
+        ribbonTakes.insert(id)
+        // Before the take is written as listening, so a keyboard on screen sees it's a ribbon take.
+        defaults?.set(id.uuidString, forKey: KeyboardBridge.Key.ribbonID)
+        Log.note("ribbon: take started (\(source.rawValue))")
+        beginDictation(id)
+        return .started
+    }
+
+    /// Done: stops the running take (a ribbon take or the keyboard's) and delivers the words.
+    @discardableResult
+    func stopTake() -> TakeOutcome {
+        let state: Ribbon.TakeState = current.map { .listening($0) } ?? .idle
+        return run(Ribbon.decide(state, .stop, sessionOn: stage == .on), source: .liveActivity)
+    }
+
+    /// Cancel: drops the running take. Nothing is saved.
+    @discardableResult
+    func cancelTake() -> TakeOutcome {
+        let state: Ribbon.TakeState = current.map { .listening($0) } ?? .idle
+        return run(Ribbon.decide(state, .cancel, sessionOn: stage == .on), source: .liveActivity)
+    }
+
+    private func run(_ action: Ribbon.TakeAction, source: TakeSource) -> TakeOutcome {
+        switch action {
+        case .needsForeground: return .needsForeground
+        case .begin: return startTake(source: source)
+        case .finish(let id):
+            guard current == id else { return .ignored }
+            Log.note("ribbon: take stopped (\(source.rawValue))")
+            finishDictation()
+            return .stopped
+        case .cancel(let id):
+            guard current == id else { return .ignored }
+            cancelDictation()
+            return .cancelled
+        case .none: return .ignored
+        }
+    }
+
+    /// An intent's command, in this process.
+    private func handleRibbon(_ c: RibbonCommand) -> RibbonOutcome {
+        func map(_ o: TakeOutcome) -> RibbonOutcome {
+            switch o {
+            case .started, .stopped, .cancelled: return .done
+            case .ignored: return .ignored
+            case .needsForeground: return .needsForeground
+            }
+        }
+        switch c {
+        case .toggle: return map(toggleTake(source: .intent))
+        case .finish: return map(stopTake())
+        case .cancel: return map(cancelTake())
+        case .endSession:
+            guard stage != .off else { return .ignored }
+            end(reason: nil)
+            return .done
+        case .startSession:
+            return stage == .off ? .needsForeground : .done
+        }
+    }
+
+    /// Settings › Action button's choice, with Verbose in front.
+    private func runAction(_ choice: Ribbon.ActionChoice) {
+        guard let app else { return }
+        switch choice {
+        case .dictate:
+            if stage == .on { toggleTake(source: .intent) } else { startFromOutside(.shortcut, take: true) }
+        case .voiceNote:
+            app.requestRecord()
+        case .captions:
+            app.requestCaptions()
+        }
     }
 
     private func endStaleActivities() {

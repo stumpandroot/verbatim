@@ -10,7 +10,7 @@ enum SettingsSearchTarget: Equatable {
 
 /// The Settings subpages a result can open. SettingsScreen maps each one to its navigation destination.
 enum SettingsSubpage: Equatable {
-    case aboutMe, dictionary, keyboard, snippets
+    case aboutMe, dictionary, keyboard, snippets, actionButton
 }
 
 /// One searchable setting. `id` matches the row's `.settingsSearchTarget(_:flash:)` id on the Settings page.
@@ -65,6 +65,12 @@ enum SettingsSearchIndex {
               description: "Dictate into any app", target: .page(.keyboard)),
         .init(id: "keyboardTimeout", section: "Keyboard", label: "End keyboard sessions after", keywords: ["session", "timeout", "idle", "microphone", "minutes"],
               description: "How long a session waits before it turns off the microphone", target: .page(.keyboard)),
+        .init(id: "actionButton", section: "Personalization", label: "Action button",
+              keywords: ["action button", "control center", "dynamic island", "lock screen", "shortcut", "siri", "press", "ribbon", "dictate anywhere", "voice note", "live captions", "clipboard"],
+              description: "Dictate from any app without switching", target: .page(.actionButton)),
+        .init(id: "actionButtonTimeout", section: "Personalization", label: "End the session after",
+              keywords: ["action button", "idle", "timeout", "minutes", "microphone", "session"],
+              description: "10, 30, or 60 minutes without dictation", target: .page(.actionButton)),
         .init(id: "keyboardAutoStart", section: "Keyboard", label: "Start dictating when you come back",
               keywords: ["auto start", "listen", "first tap", "second tap", "dictate", "microphone", "return", "switch back"],
               description: "The first tap opens Verbose and starts listening; no second tap", target: .page(.keyboard)),
@@ -176,6 +182,8 @@ enum SettingsSearchIndex {
         case "keyboardTimeout":
             let s = app.session.timeoutSeconds
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")
+        case "actionButton": return Ribbon.actionChoice(d.string(forKey: Ribbon.actionChoiceKey)).title
+        case "actionButtonTimeout": return "\(app.session.timeoutSeconds / 60) min"
         case "keyboardAutoStart": return onOff(KeyboardBridge.autoStart)
         case "keyboardPolishAfter": return onOff(KeyboardBridge.polishAfter)
         case "keyboardLiveWords": return onOff(KeyboardBridge.liveWords)

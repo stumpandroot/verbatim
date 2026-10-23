@@ -60,6 +60,7 @@ enum KeyboardBridge {
         static let cancelID = "kb.d.cancel"               // String UUID
         static let insertedID = "kb.d.inserted"           // the dictation whose text a keyboard already inserted
         static let seenID = "kb.d.seen"                   // the dictation a keyboard has shown as listening
+        static let keyboardVisibleAt = "kb.k.visible"     // Double: when a keyboard was last on screen (about once a second), 0 when it left
 
         // Dictation state (written by the app)
         static let dictation = "kb.d.id"                  // String UUID: the dictation the fields below describe
@@ -69,6 +70,9 @@ enum KeyboardBridge {
         static let text = "kb.d.text"                     // String: the text to insert
         static let raw = "kb.d.raw"                       // String: the transcript as spoken
         static let message = "kb.d.message"               // String: why it failed
+        // The recording ribbon (the Action button, Control Center, the Dynamic Island; written by the app)
+        static let ribbonID = "kb.d.ribbon"               // String UUID: a take the app started itself; a keyboard on screen picks it up
+        static let routedAway = "kb.d.routedAway"         // String UUID: a ribbon take that went to the clipboard, so no keyboard inserts it later
         static let levelLabel = "kb.levelLabel"           // "Polished": the cleanup the app applies
         static let snippets = "kb.snippets"               // Data: JSON [Snippet] (trigger and expansion), written by the app
         // Live words while listening (written by the app about 10 times a second, read by the keyboard)
@@ -160,16 +164,25 @@ enum KeyboardBridge {
     }
 
     /// The dictation a keyboard should show when it appears, from the shared state: one that's listening,
-    /// transcribing, or done, and that no keyboard has inserted or cancelled yet. Nil otherwise.
-    static func runningDictation(id: UUID?, phase: Phase?, insertedID: String?, cancelID: UUID?) -> (id: UUID, phase: Phase)? {
+    /// transcribing, or done, and that no keyboard has inserted or cancelled yet, and that didn't already go to the
+    /// clipboard (a ribbon take with no keyboard on screen, `routedAway`). Nil otherwise.
+    static func runningDictation(id: UUID?, phase: Phase?, insertedID: String?, cancelID: UUID?, routedAway: String? = nil) -> (id: UUID, phase: Phase)? {
         guard let id, let phase, [.listening, .transcribing, .done].contains(phase),
-              insertedID != id.uuidString, cancelID != id else { return nil }
+              insertedID != id.uuidString, cancelID != id, routedAway != id.uuidString else { return nil }
         return (id, phase)
     }
 
     /// `runningDictation` read from the App Group.
     static var currentRunningDictation: (id: UUID, phase: Phase)? {
-        runningDictation(id: uuid(Key.dictation), phase: phase, insertedID: defaults?.string(forKey: Key.insertedID), cancelID: uuid(Key.cancelID))
+        runningDictation(id: uuid(Key.dictation), phase: phase, insertedID: defaults?.string(forKey: Key.insertedID), cancelID: uuid(Key.cancelID),
+                         routedAway: defaults?.string(forKey: Key.routedAway))
+    }
+
+    /// A ribbon take a keyboard on screen should pick up and show (then insert): the running dictation is the one
+    /// the app started from the Action button, Control Center, or the Dynamic Island. Pure, so it's testable.
+    static func ribbonTakeToAdopt(ribbonID: UUID?, running: (id: UUID, phase: Phase)?) -> (id: UUID, phase: Phase)? {
+        guard let r = ribbonID, let running, running.id == r else { return nil }
+        return running
     }
 
     /// A snippet as the keyboard sees it: the trigger shown on its chip and the text it inserts. The app writes the

@@ -152,6 +152,7 @@ final class KeyboardModel: ObservableObject {
         reloadSnippets()
         reloadRecent()
         refreshFormat()
+        markVisible()
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
@@ -175,7 +176,38 @@ final class KeyboardModel: ObservableObject {
         retime()
     }
 
-    func pause() { visible = false; stopTimer() }
+    func pause() {
+        visible = false
+        stopTimer()
+        // Gone from the screen: a take from the Action button now goes to the clipboard instead.
+        defaults?.set(0.0, forKey: KeyboardBridge.Key.keyboardVisibleAt)
+    }
+
+    /// Tells the app this keyboard is on screen (written with every poll, at least once a second), so a take from
+    /// the Action button, Control Center, or the Dynamic Island goes straight into this field instead of the
+    /// clipboard (`Ribbon.route`). Only with Full Access: without it there's no App Group.
+    private func markVisible() {
+        defaults?.set(Date().timeIntervalSince1970, forKey: KeyboardBridge.Key.keyboardVisibleAt)
+    }
+
+    /// A take the app started from the Action button, Control Center, or the Dynamic Island while this keyboard is
+    /// on screen: show it as listening, so its words go into this field when it's done.
+    private func adoptRibbonTake() {
+        guard visible, dictation == nil, request == nil, stage == .idle || stage == .inserted,
+              let take = KeyboardBridge.ribbonTakeToAdopt(ribbonID: KeyboardBridge.uuid(KeyboardBridge.Key.ribbonID),
+                                                          running: KeyboardBridge.currentRunningDictation) else { return }
+        insertion = nil
+        polishing = false
+        notice = nil
+        showingSnippets = false
+        showingRecent = false
+        clearLive()
+        dictation = take.id
+        level = 0
+        elapsed = 0
+        surface = .dictation
+        set(take.phase == .listening ? .listening : .writing)
+    }
 
     // MARK: Actions
 
@@ -459,7 +491,9 @@ final class KeyboardModel: ObservableObject {
     private func poll() {
         guard visible, let defaults else { return }
         now = Date()
+        markVisible()
         readSession(defaults)
+        adoptRibbonTake()
         switch stage {
         case .starting: pollStarting(defaults)
         case .listening, .writing: pollDictation(defaults)
@@ -558,6 +592,16 @@ final class KeyboardModel: ObservableObject {
     private func insertResult(_ d: UUID, _ defaults: UserDefaults) {
         // Another keyboard instance (or an earlier run of this one) already inserted it.
         if defaults.string(forKey: KeyboardBridge.Key.insertedID) == d.uuidString { dictation = nil; set(.idle); return }
+        // A take from the Action button that finished while this keyboard was away went to the clipboard instead.
+        if defaults.string(forKey: KeyboardBridge.Key.routedAway) == d.uuidString {
+            dictation = nil
+            level = 0
+            clearLive()
+            set(.idle)
+            reloadRecent()
+            flashInfo("Copied. Paste it, or tap it in Recent.")
+            return
+        }
         defaults.set(d.uuidString, forKey: KeyboardBridge.Key.insertedID)
         let text = (defaults.string(forKey: KeyboardBridge.Key.text) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let raw = (defaults.string(forKey: KeyboardBridge.Key.raw) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
