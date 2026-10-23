@@ -37,8 +37,9 @@ Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both w
 
 The keyboard can't open Verbose, and iOS doesn't let an app start recording from the background, so each of these opens Verbose for a moment, turns on the microphone, and then shows "Your session is on" with how to go back to your app:
 
-- **Control Center** (iOS 18 and later): the Start dictation session control (`StartSessionControl`).
-- **Action button and Shortcuts:** the Start dictation session App Shortcut (`StartKeyboardSessionIntent`, `VerbatimAppShortcuts`).
+- **Control Center** (iOS 18 and later): the Verbose session switch (`StartSessionControl`, `SetSessionIntent`). Off ends the session without opening Verbose.
+- **Action button** (the recording ribbon): the Verbose action control or the Action button App Shortcut (`ActionButtonIntent`), which does what Settings › Action button says (Dictate a take by default). The first press opens Verbose, turns on the microphone, and starts a take; while the session is on, each press starts or stops a take without opening Verbose (`DictateIntent` and friends are `LiveActivityIntent`s that run in the app's process).
+- **Shortcuts and Siri:** Dictate (`DictateIntent`) and Start dictation session (`StartKeyboardSessionIntent`), in `VerbatimAppShortcuts`.
 - **Lock Screen:** the Verbose widget, which opens `verbatim://session?start=1&from=widget`.
 - **Verbose:** Settings › Keyboard › Start keyboard session.
 

@@ -60,6 +60,7 @@ struct PhoneRoot: View {
         // The "link added" card and the Library tab's count badge, above the tab bar (PhoneLinkCard.swift).
         .overlay { PhoneLinkCardLayer() }
         .overlay { SessionStartLayer(session: app.session) }
+        .overlay { SessionEndedLayer(session: app.session) }
         .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox() } }
@@ -134,6 +135,19 @@ struct PhoneRoot: View {
             }
         }
         .animation(Motion.settle, value: app.toast)
+    }
+}
+
+/// "Session ended" after a call or another app's audio ended the session, with Restart session. Under the start
+/// screen, so a restart shows that instead.
+private struct SessionEndedLayer: View {
+    @ObservedObject var session: KeyboardSession
+    var body: some View {
+        if let notice = session.endedNotice, !session.showScreen {
+            SessionEndedScreen(session: session, notice: notice)
+                .transition(.opacity)
+                .zIndex(9)
+        }
     }
 }
 

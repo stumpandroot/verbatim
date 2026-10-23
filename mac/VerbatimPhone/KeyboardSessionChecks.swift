@@ -82,9 +82,9 @@ enum KeyboardSessionChecks {
         let widget = KeyboardBridge.sessionLink(in: URL(string: "verbatim://session?start=1&from=widget")!)
         check("the Lock Screen widget's link names its source", widget?.source == .widget && widget?.request == nil)
         let seconds = KeyboardSession.timeoutChoices.map { $0.seconds }
-        check("session timeouts keep 1, 5, 15 minutes and until you end it", [60, 300, 900, 0].allSatisfy { seconds.contains($0) })
-        check("session timeouts add 30 and 60 minutes", seconds.contains(1800) && seconds.contains(3600))
-        check("timeout labels", KeyboardSession.label(1800) == "30 minutes" && KeyboardSession.label(3600) == "60 minutes")
+        check("session timeouts are 10, 30, and 60 minutes (owner decision)", seconds == [600, 1800, 3600])
+        check("no session runs until you end it (a Live Activity lasts 8 hours)", !seconds.contains(0))
+        check("timeout labels", KeyboardSession.label(1800) == "30 minutes" && KeyboardSession.label(3600) == "60 minutes" && KeyboardSession.label(600) == "10 minutes")
 
         Log.note("UITEST keyboard E2 checks: \(pass) passed, \(fail) failed")
     }

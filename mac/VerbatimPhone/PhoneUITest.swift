@@ -13,6 +13,7 @@ enum PhoneUITest {
         seed(app)
         keyboardChecks()
         KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
+        ribbonChecks(app)             // The recording ribbon: routing, takes, timeouts, and the session's take API.
         libraryChecks()
         homeChecks()
         homeActionChecks(app)
@@ -156,6 +157,18 @@ enum PhoneUITest {
                 await show("\(prefix)09c-voice-enroll")
                 NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: false)
                 try? await Task.sleep(nanoseconds: 700_000_000)
+                // The recording ribbon: the Session ended screen after a call (made-up last take), then Settings ›
+                // Action button (last, because it stays pushed on the Settings tab).
+                app.session.endedNotice = KeyboardSession.EndedNotice(reason: Ribbon.endedReason(call: true),
+                                                                      lastTake: "Thursday works. Noon at the usual place?",
+                                                                      lastTakeAt: Date().addingTimeInterval(-120))
+                await show("\(prefix)09d-session-ended")
+                app.session.endedNotice = nil
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if prefix == "d" {
+                    SettingsPage.open("actionButton")
+                    await show("d09e-action-button")
+                }
             }
             app.appearance = "light"
             for i in 0..<3 {
@@ -170,6 +183,57 @@ enum PhoneUITest {
             write("done")
             Log.note("UITEST phone tour done")
         }
+    }
+
+    /// The recording ribbon (RibbonRules.swift, KeyboardSession's take API): the owner's routing rule, the take
+    /// state machine, the idle timeout, the Action button choice, the keyboard hand-off keys, and the session's
+    /// actions called directly. No microphone in the simulator, so the take API is checked with no session: it must
+    /// ask for the foreground and leave the audio session alone.
+    static func ribbonChecks(_ app: PhoneState) {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") ribbon: \(name)")
+        }
+        let now = Date().timeIntervalSince1970
+        check("keyboard up and showing the take: insert", Ribbon.route(keyboardVisibleAt: now - 1, keyboardShowsTake: true, now: now) == .keyboard)
+        check("no keyboard: clipboard", Ribbon.route(keyboardVisibleAt: 0, keyboardShowsTake: false, now: now) == .clipboard)
+        check("the keyboard route leaves the clipboard alone", !Ribbon.copies(.keyboard, alwaysCopy: false))
+        check("a failed copy is reported", Ribbon.resultPhase(.clipboard, copied: false) == .failed)
+        check("presses alternate", Ribbon.decide(.idle, .toggle, sessionOn: true) == .begin
+              && { let i = UUID(); return Ribbon.decide(.listening(i), .toggle, sessionOn: true) == .finish(i) }())
+        check("default idle timeout is 30 minutes", Ribbon.normalizedTimeout(nil) == 1800)
+        check("the Action button dictates by default", Ribbon.actionChoice(nil) == .dictate)
+
+        // The keyboard hand-off: a visible keyboard adopts a ribbon take; a take that went to the clipboard isn't inserted later.
+        let t = UUID()
+        check("a visible keyboard picks up the ribbon take",
+              KeyboardBridge.ribbonTakeToAdopt(ribbonID: t, running: (id: t, phase: KeyboardBridge.Phase.listening))?.id == t)
+        check("a keyboard doesn't adopt someone else's dictation",
+              KeyboardBridge.ribbonTakeToAdopt(ribbonID: UUID(), running: (id: t, phase: KeyboardBridge.Phase.listening)) == nil)
+        check("a take that went to the clipboard isn't inserted later",
+              KeyboardBridge.runningDictation(id: t, phase: .done, insertedID: nil, cancelID: nil, routedAway: t.uuidString) == nil)
+        check("a take routed to the keyboard still is",
+              KeyboardBridge.runningDictation(id: t, phase: .done, insertedID: nil, cancelID: nil, routedAway: UUID().uuidString)?.id == t)
+
+        // The session's take API with no session (the simulator has no microphone).
+        let session = app.session
+        let category = AVAudioSession.sharedInstance().category
+        if !session.isOn {
+            check("toggleTake with no session needs the foreground", session.toggleTake(source: .test) == .needsForeground)
+            check("startTake with no session needs the foreground", session.startTake(source: .test) == .needsForeground)
+            check("stopTake with no take does nothing", session.stopTake() == .ignored)
+            check("cancelTake with no take does nothing", session.cancelTake() == .ignored)
+            check("the take API leaves the session off", !session.isOn && !session.dictating)
+            check("the take API doesn't touch the audio session", AVAudioSession.sharedInstance().category == category)
+            check("the Dictate intent's command asks for the foreground", RibbonSignal.send(.toggle) == .needsForeground)
+            check("Done from the Dynamic Island with no take is ignored", RibbonSignal.send(.finish) == .ignored)
+            check("the Control Center switch on with no session asks for the foreground", RibbonSignal.send(.startSession) == .needsForeground)
+        }
+        check("settings search finds the Action button",
+              SettingsSearchIndex.search("action button").flatMap(\.entries).contains { $0.id == "actionButton" })
+        check("settings search finds the idle timeout", SettingsSearchIndex.search("idle").flatMap(\.entries).contains { $0.id == "actionButtonTimeout" })
+        Log.note("UITEST ribbon checks: \(pass) passed, \(fail) failed")
     }
 
     private static func show(_ name: String) async {
