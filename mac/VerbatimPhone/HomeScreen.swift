@@ -3,7 +3,7 @@ import AVFoundation
 
 /// Home, in the website style (mockup "Verbose iPhone, Website Style", October 23, 2026): the only screen with the
 /// big two-line serif greeting, then the Record panel (record color, grain, the breathing meter, and the rings that
-/// swell gently), four short start tiles (Dictate, Import, Paste a link, Live captions), a one-line This week card,
+/// swell gently), four short start tiles (Dictate, Import, What's playing, Live captions; Import's touch-and-hold menu pastes a link), a one-line This week card,
 /// and the two most recent recordings as flat rows. Whatever you record here shows up on your Mac.
 struct HomeScreen: View {
     @EnvironmentObject var app: PhoneState
@@ -173,10 +173,10 @@ struct HomeScreen: View {
                 }
                 .buttonStyle(PhoneCardPress())
                 .accessibilityHint("Opens your dictations and how to use the Verbose keyboard.")
-                // Touch and hold for Transcribe what's playing, the other way to bring audio in.
+                // Touch and hold to paste a link instead (the existing link sheet).
                 Menu {
                     Button("Choose files…") { app.showImporter = true }
-                    Button("What's playing in another app") { app.showPlayingSheet = true }
+                    Button("Paste a link") { app.showLinkSheet = true }
                 } label: {
                     tile("Import", art: .iconDownload, fill: PhoneInk.sage)
                 } primaryAction: {
@@ -184,14 +184,15 @@ struct HomeScreen: View {
                 }
                 .menuStyle(.button)
                 .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Choose audio or video files to transcribe. Touch and hold for what's playing in another app.")
+                .accessibilityHint("Choose audio or video files to transcribe. Touch and hold to paste a link.")
+                .accessibilityAction(named: "Paste a link") { app.showLinkSheet = true }
             }
             GridRow {
-                Button { app.showLinkSheet = true } label: {
-                    tile("Paste a link", art: .iconLinks, fill: PhoneInk.petal)
+                Button { app.showPlayingSheet = true } label: {
+                    tile("What's playing", art: .iconVoice, fill: PhoneInk.petal)
                 }
                 .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Paste a YouTube, podcast, or file link to transcribe.")
+                .accessibilityHint("Transcribes sound from TikTok or any app.")
                 // Paper with an ink outline, so it never outweighs Record.
                 Button { app.requestCaptions() } label: {
                     tile("Live captions", art: .iconCaptions, fill: nil)
