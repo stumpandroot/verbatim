@@ -60,7 +60,7 @@ Rules:
 
 ## 4. Marks and the app icon
 
-- **App icon:** the notation bars (B1). A paper mark on a persimmon field, flat, with glass off on the mark. Ink and reversed alternates. Masters are in `brand/`.
+- **App icon:** the notation bars (B1), dimensional: white bars with depth and a soft shadow on a persimmon-red field that lightens toward the top left (Tim's render, October 23, 2026). Masters: `brand/verbose-app-icon-render-1254.png` (source), `verbose-app-icon-1024.png` (iPhone, full bleed), `verbose-app-icon-mac-1024.png` (Mac shape). The flat paper-on-persimmon bars stay the mark everywhere else (sidebar, website, favicon).
 - **Colophon:** the tangent rings (R3a), for the website, onboarding, About, and print. Never as the app icon.
 - Public name: Verbose. Wordmark: lowercase 'verbose.' in the serif, persimmon period. Tagline: 'Go ahead. Be verbose.' 'Verbatim' is the internal codename.
 - **In-app wordmark:** the bars plus lowercase "verbose." in the serif, as in the sidebar (`Ink.wordmark`). The period is a mark in the text-safe persimmon (`accentText`, 5.1:1 on paper); the bright `persimmon` measures 2.5:1 on paper, too low for a small mark. The tagline (`Ink.tagline`) sits under it in the serif on About and the first onboarding screen.
