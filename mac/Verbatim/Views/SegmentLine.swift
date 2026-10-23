@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
 
+// brand: web style
+
 /// One line: timecode, speaker only when it changes, text. Click to select (for a passage-linked note),
 /// right-click to correct a word. The current line during playback carries the iris tint.
 struct SegmentLine: View {
@@ -13,6 +15,8 @@ struct SegmentLine: View {
     var selected: Bool
     var editable: Bool
     var size: CGFloat
+    /// The first line in the sheet: no extra space above its speaker.
+    var first = false
     var select: () -> Void
     @State private var hover = false
     @State private var tsHover = false
@@ -63,22 +67,30 @@ struct SegmentLine: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(segment.start.timecode).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(tsHover ? Ink.iris : Ink.faint)
-                .underline(tsHover, color: Ink.iris).onHover { tsHover = $0 }.help("Play from here")
-                .frame(width: 48, alignment: .leading).padding(.top, showSpeaker ? 24 : 6)
+        HStack(alignment: .top, spacing: 10) {
+            Text(segment.start.timecode).font(Ink.mono(12)).foregroundStyle(tsHover ? Ink.ink : Ink.mute)
+                .underline(tsHover, color: Ink.ink).onHover { tsHover = $0 }.help("Play from here")
+                .lineLimit(1).fixedSize()
+                .frame(width: 64, alignment: .leading).padding(.top, showSpeaker && segment.speaker != nil ? 6 : 10)
                 .tapArea { app.player.seek(to: PlaybackSync.seekTime(segment, duration: app.player.duration)) }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 if showSpeaker, let sp = segment.speaker, let name = transcript.speakerName(sp) {
                     HStack(spacing: 7) {
-                        Circle().fill(speakerColor(sp)).frame(width: 8, height: 8)
                         Menu {
                             ForEach(transcript.speakers) { s in Button(s.label) { app.assign(transcript: transcript.id, segment: segment.id, to: s.id) } }
                             Divider()
                             Button("Rename \(name)…") { renaming = true; newName = name }
                             Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
-                        } label: { Text(name).font(.system(size: 13, weight: .semibold)).foregroundStyle(speakerColor(sp)) }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                        } label: {
+                            // A speaker pill: the speaker's color, fixed ink text.
+                            Text(name).font(.system(size: 12.5, weight: .bold)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+                                .padding(.horizontal, 11).frame(height: 26)
+                                .background(speakerColor(sp), in: Capsule())
+                                .contentShape(Capsule())
+                        }
+                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                        .help("Change or rename the speaker")
+                        .accessibilityLabel("Speaker \(name)")
                         .popover(isPresented: $renaming, arrowEdge: .bottom) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Name this speaker").font(.system(size: 12.5, weight: .semibold))
@@ -89,10 +101,10 @@ struct SegmentLine: View {
                             .padding(14)
                         }
                     }
-                    .padding(.top, 8)
+                    .padding(.leading, 10)
                 }
                 lineText
-                    .font(.system(size: size)).lineSpacing(size * 0.3).foregroundStyle(Ink.ink)
+                    .font(.system(size: size)).lineSpacing(size * 0.45).foregroundStyle(Ink.ink)
                     .textSelection(.enabled)
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     // Three highlights, never confused: saved (lime, persistent), playing (iris, moves), hover (light, temporary).
@@ -131,14 +143,20 @@ struct SegmentLine: View {
                     }
             }
         }
-        .padding(.vertical, 3)
+        // About 24 pt between speakers; lines from the same speaker sit closer.
+        .padding(.top, showSpeaker && !first ? 18 : 0)
+        .padding(.vertical, 2)
         .animation(Motion.settle, value: current)
         .animation(Motion.snap, value: selected)
     }
 
-    /// Speakers are neutral (DESIGN.md §1): an ink dot and the name in ink, so they never borrow an action hue or
-    /// the saved and playing washes beside them.
-    private func speakerColor(_ id: String) -> Color { Ink.ink }
+    /// The speaker pill's fill (the website's transcript): the source fills in turn, Record, petal, sage, butter, by
+    /// the speaker's place in the list. Always with fixed ink text, so the name carries the meaning.
+    private func speakerColor(_ id: String) -> Color {
+        let fills = [Ink.panelRecord, Ink.panelPetal, Ink.panelSage, Ink.panelButter]
+        let i = transcript.speakers.firstIndex { $0.id == id } ?? 0
+        return fills[i % fills.count]
+    }
     private func commit() {
         guard let from = fixing else { return }
         let to = replacement.trimmingCharacters(in: .whitespaces)
@@ -196,7 +214,7 @@ struct TranscriptLines: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
-                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current.contains(s.id), saved: saved.contains(s.id), selected: selected == s.id, editable: editable, size: textSize) {
+                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current.contains(s.id), saved: saved.contains(s.id), selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)

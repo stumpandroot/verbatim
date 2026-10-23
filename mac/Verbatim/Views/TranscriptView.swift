@@ -1,8 +1,11 @@
 import SwiftUI
 import AppKit
 
-/// Transcript workspace (Listening Desk composition, Soft Instrument playback dock).
-/// Calm reading surface; the player and the notes carry the interaction.
+// brand: web style
+
+/// Transcript workspace in the website style (mac/DESIGN.md §11): the recording's name as a large two-line serif
+/// title under a mono eyebrow, the Original / Cleaned / Review toggle, the lines on a paper sheet with an ink outline,
+/// the side column (Summary on butter, Moments, Export), and the dark player dock.
 struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
     static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
@@ -30,6 +33,10 @@ struct TranscriptView: View {
     @State private var showEngine = false
     /// Original tab: one selectable text, for selecting across lines.
     @State private var selecting = false
+    /// Renaming the title in place (click it).
+    @State private var editingTitle = false
+    @State private var titleDraft = ""
+    @FocusState private var titleFocused: Bool
     @Namespace private var segNS
 
     /// Raw values stay stable: UI tests and Home post them in `.verbatimShowMode`.
@@ -81,20 +88,26 @@ struct TranscriptView: View {
             // Decided from the geometry in the same pass, so the screen lays out once (no open-then-close).
             let narrow = g.size.width < 900
             let notesOpen = notesPref ?? !narrow
-            HStack(spacing: 0) {
+            let sideInline = notesOpen && !narrow
+            HStack(alignment: .top, spacing: 0) {
                 ZStack(alignment: .bottom) {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t).staggerIn(0)
-                                modeBar(t, notesOpen: notesOpen, narrow: narrow)
+                                modeBar(t, notesOpen: notesOpen, narrow: narrow, withToggle: false)
                                     .opacity(barPinned ? 0 : 1).allowsHitTesting(!barPinned)
                                     .background(GeometryReader { b in Color.clear.preference(key: BarOffsetKey.self, value: b.frame(in: .named("tscroll")).minY) })
-                                    .staggerIn(1).padding(.bottom, 8)
+                                    .staggerIn(1).padding(.bottom, 12)
+                                // The side column is closed: the Summary card sits above the text instead.
+                                if !notesOpen, view != .review {
+                                    TranscriptSummaryCard(transcript: t).padding(.bottom, 14)
+                                }
                                 content(t)
                             }
-                            .frame(maxWidth: 720, alignment: .leading)
-                            .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, t.audioFileName != nil && view != .document ? 124 : 40)
+                            .frame(maxWidth: 760, alignment: .leading)
+                            .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40)
+                            .padding(.top, 28).padding(.bottom, t.audioFileName != nil && view != .document ? 124 : 40)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .coordinateSpace(name: "tscroll")
@@ -106,9 +119,9 @@ struct TranscriptView: View {
                             // The mode bar and tools stay reachable while reading: pinned under the top edge.
                             if barPinned {
                                 VStack(spacing: 0) {
-                                    modeBar(t, notesOpen: notesOpen, narrow: narrow)
-                                        .frame(maxWidth: 720, alignment: .leading)
-                                        .padding(.horizontal, 40).padding(.vertical, 8)
+                                    modeBar(t, notesOpen: notesOpen, narrow: narrow, withToggle: true)
+                                        .frame(maxWidth: 760, alignment: .leading)
+                                        .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.vertical, 8)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .background(Ink.paper)
                                     Rectangle().fill(Ink.hairline).frame(height: 1)
@@ -134,20 +147,23 @@ struct TranscriptView: View {
                             }
                         }
                     }
-                    if t.audioFileName != nil, t.status == .ready, view != .document { PlayerDock(transcript: t, clock: app.player.clock).padding(.horizontal, 24).padding(.bottom, 18).staggerIn(3) }
+                    if t.audioFileName != nil, t.status == .ready, view != .document {
+                        PlayerDock(transcript: t, clock: app.player.clock)
+                            .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.bottom, 24).staggerIn(3)
+                    }
                 }
                 .frame(maxWidth: .infinity)
-                if notesOpen && !narrow {
+                if sideInline {
                     NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } })
-                        .frame(width: 300)
+                        .frame(width: 300).padding(.trailing, 32).padding(.top, 28)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
             }
             .overlay(alignment: .trailing) {
                 // Narrow window: Notes becomes a drawer over the text instead of squeezing it.
                 if notesOpen && narrow {
-                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } })
-                        .frame(width: 300)
+                    NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen, onClose: { withAnimation(Motion.nav) { notesPref = false } }, drawer: true)
+                        .frame(width: 320)
                         .shadow(color: .black.opacity(0.12), radius: 24, x: -6)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
@@ -192,61 +208,157 @@ struct TranscriptView: View {
 
     // MARK: Header and mode bar
 
+    /// "◇ Meeting · Thu Oct 22 · 15:39": the kind (or the source), the day, and the length.
+    private func eyebrow(_ t: Transcript) -> String {
+        var parts = [t.kind?.label ?? (t.sourceLabel.isEmpty ? "Recording" : t.sourceLabel)]
+        parts.append(Formats.pattern("EEE MMM d").string(from: t.createdAt))
+        parts.append(WebFormat.clock(t.duration))
+        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func projectName(_ t: Transcript) -> String? {
+        t.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name }
+    }
+
+    /// The recording's name on two lines, the second in italic: after the project's name when it starts with it
+    /// ("Lapp Wagons / *catalog call*"), otherwise split near the middle at a word. One word stays on one line.
+    static func twoLine(_ title: String, project: String?) -> (String, String?) {
+        let split = WebText.split(title, after: project)
+        if split.1 != nil { return split }
+        let words = title.split(separator: " ").map(String.init)
+        guard words.count >= 2 else { return (title, nil) }
+        var best = 1, bestDiff = Int.max
+        for k in 1..<words.count {
+            let a = words[..<k].joined(separator: " ").count, b = words[k...].joined(separator: " ").count
+            // Ties go to a longer first line.
+            let diff = abs(a - b) * 2 + (a < b ? 1 : 0)
+            if diff < bestDiff { bestDiff = diff; best = k }
+        }
+        return (words[..<best].joined(separator: " "), words[best...].joined(separator: " "))
+    }
+
     private func header(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Deferred save: typing a title doesn't re-encode the whole transcript on every keystroke.
-            TextField("Title", text: Binding(get: { t.title }, set: { v in
-                guard v != t.title else { return }
-                app.store.update(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
-            }))
-                .textFieldStyle(.plain).font(Ink.serif(32)).foregroundStyle(Ink.ink).lineLimit(2)
-            HStack(spacing: 8) {
-                Text(t.sourceLabel); Text("·"); Text(t.duration.timecode)
-                if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
-                if let k = t.kind { Text("·"); Text(k.label) }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Eyebrow(text: eyebrow(t))
+                    title(t)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                modeToggle.padding(.top, 2)
             }
-            .font(.system(size: 14)).foregroundStyle(Ink.mute)
-            if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 2) }
+            if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 8) }
             if t.status == .ready {
                 KindAndTags(transcript: t, compact: true,
                             onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
-                    .padding(.top, 10)
+                    .padding(.top, 12)
             }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { ArtIcon(art: .capture, size: 16).foregroundStyle(Ink.accentText) }
                     Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim)
                     if t.processingDevice == nil {
-                        Button("Retry") { app.retry(t) }.buttonStyle(.link)
-                        Button("Discard") { app.discardPendingAppend(t.id) }.buttonStyle(.link)
+                        Button("Retry") { app.retry(t) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
+                        Button("Discard") { app.discardPendingAppend(t.id) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
                     } else {
-                        Button("Cancel") { app.cancel(t.id) }.buttonStyle(.link)
+                        Button("Cancel") { app.cancel(t.id) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .padding(.top, 8)
+                .padding(.top, 10)
             }
-            if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 10) }
+            if let info = t.linkInfo { LinkCard(info: info, transcript: t).padding(.top, 12) }
+            if view == .original, !t.corrections.isEmpty { correctionChips(t).padding(.top, 16) }
         }
         .padding(.bottom, 14)
     }
 
-    private func modeBar(_ t: Transcript, notesOpen: Bool, narrow: Bool) -> some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 2) {
-                ForEach(Self.visibleModes, id: \.self) { m in
-                    Text(m.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
-                        .padding(.horizontal, 13).padding(.vertical, 5)
-                        .background { if view == m { Capsule().fill(Ink.iris).matchedGeometryEffect(id: "mode", in: segNS) } }
-                        .foregroundStyle(view == m ? Ink.onInteractive : Ink.ink)
-                        .tapArea { withAnimation(Motion.snap) { view = m } }
-                        .accessibilityLabel(m.title).accessibilityAddTraits(view == m ? .isSelected : [])
-                }
+    /// The title: content, not a page label, so it stays large (serif 44). Click it to rename in place; Return or
+    /// clicking away saves, Escape cancels.
+    @ViewBuilder private func title(_ t: Transcript) -> some View {
+        if editingTitle {
+            TextField("Title", text: $titleDraft, axis: .vertical)
+                .textFieldStyle(.plain).font(Ink.serif(44)).tracking(-1).foregroundStyle(Ink.ink).lineLimit(1...3)
+                .focused($titleFocused)
+                .onSubmit { commitTitle(t) }
+                .onChange(of: titleFocused) { _, f in if !f { commitTitle(t) } }
+                .onExitCommand { editingTitle = false }
+        } else {
+            let lines = Self.twoLine(t.title, project: projectName(t))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(lines.0).font(Ink.serif(44))
+                if let second = lines.1 { Text(second).font(Ink.serif(44).italic()) }
             }
-            .padding(3).background(Ink.track, in: Capsule()).fixedSize()
-            Divider().frame(height: 18)
+            .tracking(-1).foregroundStyle(Ink.ink)
+            .lineLimit(2).minimumScaleFactor(0.7)
+            .fixedSize(horizontal: false, vertical: true)
+            .contentShape(Rectangle())
+            .onTapGesture { beginRename(t) }
+            .help("Click to rename")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(t.title)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityAction(named: "Rename") { beginRename(t) }
+        }
+    }
+
+    private func beginRename(_ t: Transcript) {
+        titleDraft = t.title
+        editingTitle = true
+        DispatchQueue.main.async { titleFocused = true }
+    }
+
+    private func commitTitle(_ t: Transcript) {
+        guard editingTitle else { return }
+        editingTitle = false
+        let v = titleDraft.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+        guard !v.isEmpty, v != t.title else { return }
+        app.store.update(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
+    }
+
+    /// Original / Cleaned / Review: a soft track with the chosen one in ink.
+    private var modeToggle: some View {
+        HStack(spacing: 2) {
+            ForEach(Self.visibleModes, id: \.self) { m in
+                Text(m.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 16).padding(.vertical, 7)
+                    .background { if view == m { Capsule().fill(Ink.ink).matchedGeometryEffect(id: "mode", in: segNS) } }
+                    .foregroundStyle(view == m ? Ink.paper : Ink.ink)
+                    .contentShape(Capsule())
+                    .tapArea { withAnimation(Motion.snap) { view = m } }
+                    .accessibilityLabel(m.title).accessibilityAddTraits(view == m ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(4).background(Ink.chip, in: Capsule()).fixedSize()
+    }
+
+    /// The latest fixes (yours and the Dictionary's) as dark pills with Undo; the rest are in Review.
+    private func correctionChips(_ t: Transcript) -> some View {
+        let recent = Array(t.corrections.suffix(3).reversed())
+        let more = t.corrections.count - recent.count
+        return FlowRow(spacing: 8, lineSpacing: 8) {
+            ForEach(recent) { c in
+                UndoChip(text: "“\(c.from)” → \(c.to)") { undo(t, c) }
+            }
+            if more > 0 {
+                Text(more == 1 ? "1 more in Review" : "\(more) more in Review")
+                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim)
+                    .frame(height: 34).contentShape(Rectangle())
+                    .tapArea { withAnimation(Motion.snap) { view = .review } }
+                    .accessibilityAddTraits(.isButton)
+            }
+        }
+    }
+
+    private func modeBar(_ t: Transcript, notesOpen: Bool, narrow: Bool, withToggle: Bool) -> some View {
+        HStack(spacing: 12) {
+            if withToggle {
+                modeToggle
+                Divider().frame(height: 18)
+            }
             versionControl(t).layoutPriority(-1)
             Spacer(minLength: 8)
             tools(t, notesOpen: notesOpen, compact: narrow)
@@ -302,7 +414,7 @@ struct TranscriptView: View {
                 .disabled(t.status != .ready)
                 .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
             Button { withAnimation(Motion.nav) { notesPref = !notesOpen } } label: { ToolLabel(title: "Notes", art: .iconNotes, compact: compact, on: notesOpen) }
-                .buttonStyle(.plain).help(notesOpen ? "Hide notes" : "Show notes")
+                .buttonStyle(.plain).help(notesOpen ? "Hide the side column (summary, moments, details)" : "Show the side column (summary, moments, details)")
             Menu {
                 Button("Larger text") { textSize = min(22, textSize + 1) }
                 Button("Smaller text") { textSize = max(13, textSize - 1) }
@@ -319,17 +431,11 @@ struct TranscriptView: View {
         if t.status == .processing { processing(t) }
         else if t.status == .failed { failed(t) }
         else {
-            VStack(alignment: .leading, spacing: 0) {
-                if view != .review {
-                    SummaryBlock(transcript: t,
-                                 onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
-                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
-                }
-                switch view {
-                case .original: original(t)
-                case .document: DocumentView(transcript: t)
-                case .review: review(t)
-                }
+            // The Summary lives in the side column (TranscriptSummaryCard), or above the text when it's closed.
+            switch view {
+            case .original: readingSheet(original(t))
+            case .document: DocumentView(transcript: t)
+            case .review: review(t)
             }
         }
     }
@@ -347,7 +453,7 @@ struct TranscriptView: View {
             if showEngine {
                 Text(t.hasEngineWords ? "Engine words: exactly what the engine heard, before your corrections and Dictionary fixes."
                                       : "This transcript has no separate engine words, so these are the lines as they are.")
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 62)
+                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 84)
             }
             if selecting {
                 SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: textSize)
@@ -355,7 +461,7 @@ struct TranscriptView: View {
                 lines(t, segments: segs, editable: !showEngine)
             }
             if hideFillerSetting, t.fillerCount > 0 {
-                FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 60)
+                FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 84)
             }
             if !background.isEmpty {
                 BackgroundVoicesCard(segments: background, compact: true,
@@ -364,6 +470,15 @@ struct TranscriptView: View {
                     .padding(.top, 6)
             }
         }
+    }
+
+    /// The reading sheet: card white, a 1.5 pt ink outline, the panel radius.
+    private func readingSheet<V: View>(_ inner: V) -> some View {
+        inner
+            .padding(.horizontal, 22).padding(.vertical, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+            .inkEdge(outline: true, radius: Radius.record)
     }
 
     private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {
@@ -375,20 +490,27 @@ struct TranscriptView: View {
             if t.corrections.isEmpty {
                 placeholder("Nothing changed yet", "Corrections you make, and Dictionary fixes, show here side by side with the original so you can accept or undo them.")
             } else {
-                ForEach(t.corrections) { c in
-                    HStack(alignment: .top, spacing: 12) {
-                        ArtIcon(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 15).foregroundStyle(Ink.iris).frame(width: 18)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) { Text(c.from).strikethrough().foregroundStyle(Ink.mute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
-                            if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
-                                Text(seg.text).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(2)
-                                Button(seg.start.timecode) { app.player.seek(to: seg.start) }.buttonStyle(.link).font(.system(size: 11, design: .monospaced))
+                VStack(spacing: 2) {
+                    ForEach(t.corrections) { c in
+                        HStack(alignment: .top, spacing: 12) {
+                            ArtIcon(art: c.byDictionary ? .iconDictionary : .iconFeedback, size: 15).foregroundStyle(Ink.ink).frame(width: 18)
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) { Text(c.from).strikethrough().foregroundStyle(Ink.mute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
+                                    .font(.system(size: 14))
+                                if let seg = t.segments.first(where: { $0.id == c.segmentId }) {
+                                    Text(seg.text).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(2)
+                                    Text(seg.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.dim).underline()
+                                        .tapArea { app.player.seek(to: seg.start) }
+                                        .help("Play from here").accessibilityAddTraits(.isButton)
+                                }
                             }
+                            Spacer()
+                            StatusText(text: c.byDictionary ? "Dictionary" : "Your fix", tone: .dim)
+                            Button("Undo") { undo(t, c) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
                         }
-                        Spacer()
-                        Button("Undo") { undo(t, c) }.buttonStyle(.bordered).controlSize(.small)
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .flatRow(highlighted: false)
                     }
-                    .padding(12).cardSurface(radius: Radius.row)
                 }
             }
         }
@@ -406,7 +528,10 @@ struct TranscriptView: View {
                 Text(body).font(.system(size: 13.5)).foregroundStyle(Ink.mute)
             }
         }
-        .padding(16).background(Ink.wash, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        .inkEdge(outline: true, radius: Radius.record)
     }
 
 
@@ -432,11 +557,37 @@ struct TranscriptView: View {
                 Text("Transcription did not finish").font(.system(size: 14, weight: .semibold))
                 Text(t.error ?? "").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 HStack(spacing: 8) {
-                    Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
+                    Button("Retry") { app.retry(t) }.buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
                     AllowDownloadButton(transcript: t)
                 }
             }
         }
+    }
+}
+
+/// "“Lit it's” → Lititz  [Undo]": a fix as a dark pill with a card-white Undo inside (accent text).
+private struct UndoChip: View {
+    var text: String
+    var action: () -> Void
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(text).lineLimit(1).truncationMode(.middle).foregroundStyle(Ink.paper)
+                .frame(maxWidth: 260, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Undo").foregroundStyle(Ink.accentText)
+                .padding(.horizontal, 11).frame(height: 26)
+                .background(Ink.card, in: Capsule())
+                .contentShape(Capsule())
+                .tapArea(action)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Undo \(text)")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction(action)
+        }
+        .font(.system(size: 12.5, weight: .semibold))
+        .padding(.leading, 14).padding(.trailing, 4)
+        .frame(height: 34)
+        .background(Ink.ink, in: Capsule())
     }
 }
 
