@@ -1,8 +1,11 @@
 import SwiftUI
 import AppKit
 
+// brand: web style
+//
 // The Settings panes (SettingsView.swift holds the window). Every row's label and description come from
-// SettingsIndex, so search always matches what's on screen.
+// SettingsIndex, so search always matches what's on screen. Website style (DESIGN.md §11): actions inside rows are
+// line mini pills; switches, menus, and segmented controls stay native.
 
 // MARK: - App › General
 
@@ -28,7 +31,7 @@ struct GeneralSettingsPane: View {
             }
             SettingsGroup(title: "Welcome") {
                 SettingsToggleRow("general.tourOnLaunch", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
-                SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.brandSecondary) }
+                SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.settingsPill) }
             }
             UpdateSettingsSection()
             YouSettingsSection()
@@ -46,7 +49,7 @@ struct UpdateSettingsSection: View {
             SettingsToggleRow("general.beta", isOn: $updater.betaUpdates, disabled: !updater.isRunning)
             SettingsRow("general.version", detail: "Version \(updater.version) (\(updater.build)). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
                 Button("Check Now") { updater.checkForUpdates() }
-                    .buttonStyle(.brandSecondary)
+                    .buttonStyle(.settingsPill)
                     .disabled(!updater.isRunning || !updater.canCheckForUpdates)
             }
         }
@@ -154,8 +157,8 @@ struct DictationForm: View {
                                 Text(verbatim: "“\(s.trigger)”").fontWeight(.medium).frame(width: 150, alignment: .leading)
                                 Text(s.expansion).foregroundStyle(Ink.dim).lineLimit(2)
                                 Spacer()
-                                Button { flow.snippets.removeAll { $0.id == s.id } } label: { Image(systemName: "minus.circle") }
-                                    .buttonStyle(.plain).help("Remove").accessibilityLabel("Remove \(s.trigger)")
+                                Button("Remove") { flow.snippets.removeAll { $0.id == s.id } }
+                                    .buttonStyle(.settingsPill).help("Remove").accessibilityLabel("Remove \(s.trigger)")
                             }
                             .font(.system(size: 13))
                         }
@@ -167,6 +170,7 @@ struct DictationForm: View {
                                 guard !t.isEmpty, !e.isEmpty else { return }
                                 flow.snippets.append(Snippet(trigger: t, expansion: e)); newTrigger = ""; newExpansion = ""
                             }
+                            .buttonStyle(.settingsPill)
                             .disabled(newTrigger.trimmingCharacters(in: .whitespaces).isEmpty || newExpansion.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                         .textFieldStyle(.roundedBorder)
@@ -176,11 +180,10 @@ struct DictationForm: View {
             SettingsGroup(title: "Permissions and pasting") {
                 SettingsRow("dictate.accessibility") {
                     HStack(spacing: 8) {
-                        Circle().fill(trusted ? Ink.sage : Ink.persimmon).frame(width: 8, height: 8)
-                        Text(trusted ? "Allowed" : "Needed").font(.system(size: 13))
+                        StatusText(text: trusted ? "Allowed" : "Needed", tone: trusted ? .kept : .danger, check: trusted)
                         if !trusted {
-                            Button("Allow…") { dictation.requestAccessibility() }.buttonStyle(.brandPrimary)
-                            Button("Open System Settings") { dictation.openAccessibilitySettings() }.buttonStyle(.brandSecondary)
+                            Button("Allow…") { dictation.requestAccessibility() }.buttonStyle(.settingsPrimaryPill)
+                            Button("Open System Settings") { dictation.openAccessibilitySettings() }.buttonStyle(.settingsPill)
                         }
                     }
                 }
@@ -387,20 +390,31 @@ private struct MeetingAppRow: View {
     var record: MeetingAppRecord
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(record.name).font(.system(size: 14)).foregroundStyle(Ink.ink)
-                Text(detail).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .center, spacing: 14) {
+            // The app's dot: a neutral wash with the speakers glyph (color stays for meaning, DESIGN.md §1).
+            IconGlyph(art: .iconSpeakers, size: 16, color: Ink.ink)
+                .frame(width: 30, height: 30)
+                .background(Ink.chip, in: Circle())
+                .accessibilityHidden(true)
+            SettingsRowText(label: record.name, detail: detail)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if record.skipConsent {
-                SettingsChip(title: "Ask before recording", on: false) { MeetingCoordinator.shared.setSkipConsent(key, false) }
-                    .help("Show the consent sheet again each time you record \(record.name)")
+                PillButton(title: "Ask before recording", kind: .line, size: .mini,
+                           hint: "Shows the consent sheet again each time you record \(record.name)") {
+                    MeetingCoordinator.shared.setSkipConsent(key, false)
+                }
+                .help("Show the consent sheet again each time you record \(record.name)")
             }
-            SettingsChip(title: "Don't ask for this app", on: record.dontAsk) { MeetingCoordinator.shared.setDontAsk(key, !record.dontAsk) }
-                .help("Verbose doesn't ask when \(record.name) uses your microphone")
+            // On (Verbose doesn't ask for this app), the pill is solid ink.
+            PillButton(title: "Don't ask for this app", kind: record.dontAsk ? .dark : .line, size: .mini,
+                       hint: record.dontAsk ? "Asks again when \(record.name) uses your microphone" : nil) {
+                MeetingCoordinator.shared.setDontAsk(key, !record.dontAsk)
+            }
+            .accessibilityValue(record.dontAsk ? "On" : "Off")
+            .help("Verbose doesn't ask when \(record.name) uses your microphone")
         }
-        .padding(.horizontal, 16).padding(.vertical, 13)
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .frame(minHeight: 60)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { RowRule() }
         .accessibilityElement(children: .contain)
@@ -470,7 +484,7 @@ struct ExportSettingsPane: View {
             .onChange(of: options) { _, o in o.save() }
             SettingsGroup {
                 SettingsRow("export.watched", detail: "Auto-export from a watched folder writes files with the options above.") {
-                    Button("Watched folders →") { tab = .watched }.buttonStyle(.plain).foregroundStyle(Ink.accentText).font(.system(size: 13))
+                    PillButton(title: "Watched folders", kind: .line, size: .mini, trailing: .arrow) { tab = .watched }
                 }
             }
         }
@@ -491,16 +505,12 @@ private struct ExportPaneRow<Control: View>: View {
         VStack(spacing: 0) {
             RowRule()
             HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
-                    if let note {
-                        Text(note).font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                SettingsRowText(label: title, detail: note ?? "")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 control()
             }
-            .padding(.horizontal, 16).padding(.vertical, 11)
+            .padding(.horizontal, 20).padding(.vertical, 12)
+            .frame(minHeight: 60)
         }
         .accessibilityElement(children: .contain)
     }
@@ -565,10 +575,10 @@ struct StorageSettingsPane: View {
             CloudSyncSection()
             SettingsGroup(title: "On this Mac", footer: Paths.root.path) {
                 SettingsRow("storage.library") {
-                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }.buttonStyle(.brandSecondary)
+                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }.buttonStyle(.settingsPill)
                 }
                 SettingsRow("storage.models") {
-                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }.buttonStyle(.brandSecondary)
+                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }.buttonStyle(.settingsPill)
                 }
             }
             SettingsGroup(title: "Links", footer: "Share links from Dropbox, Google Drive, OneDrive, SharePoint, and iCloud Drive download directly when they're shared with anyone who has the link.") {
@@ -577,12 +587,12 @@ struct StorageSettingsPane: View {
             SettingsGroup(title: "Keep", footer: "Keep only what you have the right to save: your own uploads, Creative Commons, or with permission. Some sites' terms don't allow downloading.") {
                 SettingsRow("storage.keepFolder", detail: keepFolder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")) {
                     HStack(spacing: 8) {
-                        Button("Change…") { chooseKeepFolder() }.buttonStyle(.brandSecondary)
+                        Button("Change…") { chooseKeepFolder() }.buttonStyle(.settingsPill)
                         Button("Show") {
                             try? FileManager.default.createDirectory(at: keepFolder, withIntermediateDirectories: true)
                             NSWorkspace.shared.activateFileViewerSelecting([keepFolder])
                         }
-                        .buttonStyle(.brandSecondary)
+                        .buttonStyle(.settingsPill)
                     }
                 }
                 SettingsToggleRow("storage.keepVideo", isOn: $app.keepVideoByDefault,
@@ -663,6 +673,7 @@ struct DeleteAllDataSection: View {
         SettingsGroup(title: "Privacy") {
             SettingsRow("storage.deleteAll") {
                 Button("Delete All Data…", role: .destructive) { first = true }
+                    .buttonStyle(SettingsDangerPillStyle())
             }
         }
         .alert("Delete all data?", isPresented: $first) {
@@ -705,13 +716,13 @@ struct AboutSettingsPane: View {
                 }
                 SettingsRow("about.support") {
                     if let u = Links.mail(subject: "Verbose support") {
-                        Link("Contact Support", destination: u).font(.system(size: 13)).foregroundStyle(Ink.accentText)
+                        PillButton(title: "Contact Support", kind: .line, size: .mini) { NSWorkspace.shared.open(u) }
                     }
                 }
                 SettingsRow("about.log") {
                     HStack(spacing: 8) {
-                        Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }.buttonStyle(.brandSecondary)
-                        Button("Send…") { sendDiagnosticLog() }.buttonStyle(.brandSecondary)
+                        Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }.buttonStyle(.settingsPill)
+                        Button("Send…") { sendDiagnosticLog() }.buttonStyle(.settingsPill)
                     }
                 }
                 SettingsRow("about.legal") {
@@ -720,10 +731,10 @@ struct AboutSettingsPane: View {
                         Link("Terms", destination: Links.terms)
                         Link("Refunds", destination: Links.refunds)
                     }
-                    .font(.system(size: 13)).foregroundStyle(Ink.accentText)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
                 }
                 SettingsRow("about.acknowledgements") {
-                    Button("Acknowledgements…") { showAcknowledgements = true }.buttonStyle(.brandSecondary)
+                    Button("Acknowledgements…") { showAcknowledgements = true }.buttonStyle(.settingsPill)
                 }
             }
         }
@@ -783,12 +794,13 @@ struct CloudCleanupSettingsRows: View {
                     SecureField(hasKey ? "Replace the saved key" : provider.keyPlaceholder, text: $key)
                         .textFieldStyle(.roundedBorder).frame(maxWidth: 320)
                         .onSubmit(saveKey)
-                    Button("Save", action: saveKey).disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Save", action: saveKey).buttonStyle(.settingsPrimaryPill).disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
                     if hasKey {
                         Button("Remove") { CloudCleanup.deleteKey(for: provider); hasKey = false; keyNote = "Key removed." }
+                            .buttonStyle(.settingsPill)
                     }
                 }
-                Link("Get a key from \(provider.company)", destination: provider.keysURL).font(.system(size: 12.5))
+                Link("Get a key from \(provider.company)", destination: provider.keysURL).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
             }
             SettingsRow("dictate.cloudModel", detail: "Leave empty for \(provider.defaultModel).") {
                 TextField(provider.defaultModel, text: $model)

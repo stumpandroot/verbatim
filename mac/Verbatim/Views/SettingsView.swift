@@ -1,6 +1,9 @@
 import SwiftUI
 import AppKit
 
+// Website style (DESIGN.md §11) for the Settings window; not marked `brand: web style` because the menu bar panel
+// below keeps its small keycap.
+
 /// The Settings window: a paper sidebar (search on top, then App, Transcription, and Files groups) and the
 /// chosen pane. Typing in search swaps the sidebar for the panes with matches and shows every matching setting;
 /// a result opens its pane and flashes the row. ⌘F focuses search; Esc clears it.
@@ -13,7 +16,7 @@ struct SettingsView: View {
     var body: some View {
         HStack(spacing: 0) {
             SettingsSidebar(tab: $tab, searchFocused: $searchFocused)
-                .frame(width: 250)
+                .frame(width: 230)
             Group {
                 if model.isSearching {
                     SettingsSearchResults()
@@ -75,32 +78,32 @@ struct SettingsSidebar: View {
     @Binding var tab: SettingsTab
     var searchFocused: FocusState<Bool>.Binding
     @ObservedObject private var model = SettingsModel.shared
-    @Namespace private var tick
+    @Namespace private var plate
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            searchField.padding(.bottom, 12)
+            searchField.padding(.bottom, 6)
             if model.isSearching {
                 let results = SettingsIndex.search(model.query)
                 let counts = SettingsIndex.sectionCounts(results)
-                overline("Sections with matches", first: true)
+                groupLabel("Sections with matches", first: true)
                 if counts.isEmpty {
-                    Text("No matches").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.horizontal, 10).padding(.vertical, 7)
+                    Text("No matches").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.horizontal, 12).padding(.vertical, 7)
                 }
                 ForEach(Array(counts.enumerated()), id: \.element.tab) { i, c in
-                    SettingsSideItem(title: c.tab.title, count: c.count, selected: i == 0, tick: tick, showsTick: false) {
+                    SettingsSideItem(title: c.tab.title, count: c.count, selected: i == 0, plate: plate) {
                         if let first = results.first(where: { $0.section == c.tab }) { model.open(first) }
                     }
                     .uiTarget("settings-match-\(c.tab.rawValue)")
                 }
                 Spacer(minLength: 12)
-                Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.horizontal, 10)
+                Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.horizontal, 12)
             } else {
                 ForEach(Array(SettingsTab.groups.enumerated()), id: \.element.title) { gi, g in
-                    overline(g.title, first: gi == 0)
+                    groupLabel(g.title, first: gi == 0)
                     ForEach(g.tabs) { t in
-                        SettingsSideItem(title: t.title, selected: tab == t, tick: tick) {
+                        SettingsSideItem(title: t.title, selected: tab == t, plate: plate) {
                             if limitMotion { tab = t } else { withAnimation(Motion.snap) { tab = t } }
                         }
                         .uiTarget("settings-\(t.rawValue)")
@@ -109,21 +112,23 @@ struct SettingsSidebar: View {
                 Spacer(minLength: 0)
             }
         }
-        .padding(.horizontal, 12).padding(.top, 44).padding(.bottom, 14)
+        .padding(.horizontal, 14).padding(.top, 48).padding(.bottom, 14)
         .frame(maxHeight: .infinity, alignment: .top)
         .modifier(SidebarPaper())
     }
 
-    private func overline(_ text: String, first: Bool) -> some View {
-        Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-            .padding(.horizontal, 10).padding(.top, first ? 6 : 12).padding(.bottom, 6)
+    /// A group's mono label: "App", "Transcription", "Files".
+    private func groupLabel(_ text: String, first: Bool) -> some View {
+        Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+            .padding(.horizontal, 12).padding(.top, first ? 10 : 16).padding(.bottom, 6)
             .accessibilityAddTraits(.isHeader)
     }
 
+    /// The website's pill search field: card white with an ink outline, a little heavier while you type.
     private var searchField: some View {
         let active = searchFocused.wrappedValue || model.isSearching
         return HStack(spacing: 8) {
-            IconGlyph(art: .search, size: 14, color: Ink.mute)
+            IconGlyph(art: .search, size: 15, color: Ink.mute)
             TextField("Search settings", text: $model.query)
                 .textFieldStyle(.plain).font(.system(size: 13))
                 .focused(searchFocused)
@@ -135,42 +140,44 @@ struct SettingsSidebar: View {
                     .buttonStyle(.plain).help("Clear the search (Esc)").accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 10).frame(height: 32)
-        .background(active ? Ink.card : Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.persimmon, lineWidth: active ? 1.5 : 0))
+        .padding(.horizontal, 14).frame(height: 34)
+        .background(Ink.card, in: Capsule())
+        .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: active ? 2 : 1.5))
         .animation(Motion.touch, value: active)
         .uiTarget("settings-search")
     }
 }
 
-/// A sidebar row: semibold with a persimmon tick at the window edge when selected, a light ink tint on hover.
+/// A sidebar row (website style): a rounded row in dim text; under the pointer it takes the soft chip wash; selected,
+/// it's semibold ink on the card fill with the ink outline and a small hard shadow, and that plate slides between rows.
 struct SettingsSideItem: View {
     var title: String
     var count: Int? = nil
     var selected: Bool
-    var tick: Namespace.ID
-    var showsTick = true
+    var plate: Namespace.ID
     var action: () -> Void
     @State private var hover = false
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         HStack {
             Text(title).lineLimit(1)
             Spacer(minLength: 6)
-            if let count { Text("\(count)").fontWeight(.regular).foregroundStyle(Ink.mute) }
+            if let count { Text("\(count)").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
         }
-        .font(.system(size: 13.5))
-        .fontWeight(selected ? .semibold : .regular)
+        .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
         .foregroundStyle(selected ? Ink.ink : Ink.dim)
-        .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Ink.ink.opacity(hover && !selected ? 0.06 : 0)))
-        .overlay(alignment: .leading) {
-            if selected && showsTick {
-                UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 2, topTrailingRadius: 2)
-                    .fill(Ink.persimmon).frame(width: 3, height: 17).offset(x: -12)
-                    .matchedGeometryEffect(id: "settings-tick", in: tick)
+        .padding(.horizontal, 12).frame(height: 32)
+        .background {
+            if selected {
+                shape.fill(Ink.card)
+                    .inkEdge(outline: true, shadow: CGSize(width: 2, height: 3), radius: 16)
+                    .matchedGeometryEffect(id: "settings-selection", in: plate)
+            } else {
+                shape.fill(Ink.chip).opacity(hover ? 1 : 0)
             }
         }
+        .contentShape(shape)
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
         .tapArea(action)
@@ -182,7 +189,8 @@ struct SettingsSideItem: View {
 
 // MARK: - Search results
 
-/// Every matching setting, grouped by pane, with the query tinted in each label and description.
+/// Every matching setting, grouped by pane, with the query tinted in each label and description. Rows look like the
+/// panes' rows; the whole row opens the setting.
 struct SettingsSearchResults: View {
     @ObservedObject private var model = SettingsModel.shared
 
@@ -199,28 +207,28 @@ struct SettingsSearchResults: View {
                         .font(.system(size: 14)).foregroundStyle(Ink.dim)
                 }
                 ForEach(counts, id: \.tab) { c in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Diamond().stroke(Ink.mute, lineWidth: 1).frame(width: 7, height: 7)
-                            Text(c.tab.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-                        }
-                        .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
-                        SettingsGroup {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Eyebrow(text: c.tab.title)
+                            .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
+                        VStack(alignment: .leading, spacing: 0) {
                             ForEach(results.filter { $0.section == c.tab }) { e in
                                 SettingsResultRow(entry: e, terms: terms) { model.open(e) }
                                     .uiTarget("settings-result-\(results.firstIndex(of: e) ?? 0)")
                             }
                         }
+                        .padding(.top, -1)
+                        .settingsCard()
                     }
                 }
             }
-            .padding(.horizontal, 48).padding(.top, 40).padding(.bottom, 40)
+            .padding(.horizontal, 36).padding(.top, 44).padding(.bottom, 36)
             .frame(maxWidth: 780, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
 
+/// A search result: the pane row's bold label and dim detail, with "Open →" as a line mini pill on the right.
 struct SettingsResultRow: View {
     var entry: SettingsEntry
     var terms: [String]
@@ -228,18 +236,20 @@ struct SettingsResultRow: View {
     @State private var hover = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(SettingsIndex.highlighted(entry.label, terms: terms)).font(.system(size: 14)).foregroundStyle(Ink.ink)
+                Text(SettingsIndex.highlighted(entry.label, terms: terms)).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
                 if !entry.detail.isEmpty {
-                    Text(SettingsIndex.highlighted(entry.detail, terms: terms)).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(2)
+                    Text(SettingsIndex.highlighted(entry.detail, terms: terms)).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        .lineSpacing(2).lineLimit(2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Open →").font(.system(size: 13)).foregroundStyle(Ink.accentText)
+            PillLabel(title: "Open", kind: .line, size: .mini, trailing: .arrow, hover: hover)
         }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .background(Ink.ink.opacity(hover ? 0.04 : 0))
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .frame(minHeight: 60)
+        .background(Ink.ink.opacity(hover ? 0.035 : 0))
         .overlay(alignment: .top) { RowRule() }
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)

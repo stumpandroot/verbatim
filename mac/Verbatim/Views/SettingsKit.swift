@@ -1,8 +1,12 @@
 import SwiftUI
 import AppKit
 
+// brand: web style
+//
 // The Settings window's building blocks: the panes and their sidebar groups, the searchable index every row is
-// built from, and the row, group, and header views (paper page, reader-white cards, mono overlines, serif titles).
+// built from, and the row, group, and header views in the website style (DESIGN.md §11): a mono eyebrow and a
+// compact serif title, groups as card-white panels with an ink outline, hairline-separated rows with a bold label
+// and a dim detail, line mini pills for actions in rows, and switches that stay switches.
 
 // MARK: - Panes
 
@@ -296,19 +300,21 @@ final class SettingsModel: ObservableObject {
 
 // MARK: - Page structure
 
-/// A mono overline, the pane's serif title, and its one-line description.
+/// The pane's mono eyebrow (its sidebar group), a compact serif title, and its one-line description.
 struct SettingsPaneHeader: View {
     var overline: String
     var title: String
     var blurb: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(overline).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-            Text(title).font(Ink.serif(40)).foregroundStyle(Ink.ink).padding(.top, 8)
+            Eyebrow(text: overline)
+            Text(title).font(Ink.serif(34)).tracking(-0.5).foregroundStyle(Ink.ink)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .padding(.top, 6)
                 .accessibilityAddTraits(.isHeader)
             if let blurb {
                 Text(blurb).font(.system(size: 14)).lineSpacing(3).foregroundStyle(Ink.dim)
-                    .frame(maxWidth: 520, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 600, alignment: .leading).fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 10)
             }
         }
@@ -325,11 +331,11 @@ struct SettingsPane<Content: View>: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 22) {
                     SettingsPaneHeader(overline: tab.group, title: tab.title, blurb: tab.blurb)
                     content()
                 }
-                .padding(.horizontal, 48).padding(.top, 40).padding(.bottom, 40)
+                .padding(.horizontal, 36).padding(.top, 44).padding(.bottom, 36)
                 .frame(maxWidth: 780, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -349,33 +355,45 @@ struct SettingsPane<Content: View>: View {
     }
 }
 
-/// An optional mono overline over a reader-white card of rows, with an optional note under it.
+/// An optional serif section title ("Apps Verbose has *noticed*") over a card of rows, with an optional note under it.
 struct SettingsGroup<Content: View>: View {
     var title: String? = nil
     var footer: String? = nil
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             if let title {
-                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.leading, 2)
-                    .accessibilityAddTraits(.isHeader)
+                let parts = WebText.splitLastWord(title)
+                SectionTitle(title: parts.0, italic: parts.1).padding(.top, 4)
             }
             VStack(alignment: .leading, spacing: 0) { content() }
                 // Each row draws a hairline above itself; the first one tucks under the card's edge.
                 .padding(.top, -1)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .cardSurface(radius: Radius.tile)
+                .settingsCard()
             if let footer {
-                Text(footer).font(.system(size: 12)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
+                Text(footer).font(.system(size: 12.5)).lineSpacing(3).foregroundStyle(Ink.mute)
+                    .frame(maxWidth: 600, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 2)
             }
         }
     }
 }
 
+extension View {
+    /// A Settings card (website style): card white, the panel radius, and the 1.5 pt ink outline. Content is clipped
+    /// to it, so row tints and hairlines stay inside.
+    func settingsCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
+        return clipShape(shape)
+            .background(Ink.card, in: shape)
+            .inkEdge(outline: true, radius: Radius.record)
+    }
+}
+
 /// The hairline between rows in a card.
 struct RowRule: View {
-    var body: some View { Rectangle().fill(Ink.hairline.opacity(0.6)).frame(height: 1) }
+    var body: some View { Rectangle().fill(Ink.hairline).frame(height: 1) }
 }
 
 /// Marks a view as the target of a search result: it can be scrolled to, and it tints briefly when opened.
@@ -420,18 +438,29 @@ struct SettingsRow<Control: View>: View {
                 }
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 13)
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .frame(minHeight: 60)
         .frame(maxWidth: .infinity, alignment: .leading)
         .settingsAnchor(id)
         .overlay(alignment: .top) { RowRule() }
     }
 
     private var text: some View {
+        SettingsRowText(label: entry?.label ?? id, detail: detail ?? entry?.detail ?? "", detailColor: detailColor)
+    }
+}
+
+/// A row's text: the label in bold, the detail dim under it.
+struct SettingsRowText: View {
+    var label: String
+    var detail: String = ""
+    var detailColor: Color = Ink.mute
+    var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(entry?.label ?? id).font(.system(size: 14)).foregroundStyle(Ink.ink)
-            let d = detail ?? entry?.detail ?? ""
-            if !d.isEmpty {
-                Text(d).font(.system(size: 12.5)).foregroundStyle(detailColor).lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
+            Text(label).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if !detail.isEmpty {
+                Text(detail).font(.system(size: 12.5)).foregroundStyle(detailColor).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -488,25 +517,56 @@ extension View {
     }
 }
 
-/// A small text pill: format chips, status tags.
+/// A toggle chip (watched folders' export formats): the website's soft filter chip, ink when on.
 struct SettingsChip: View {
     var title: String
     var on: Bool
     var action: () -> Void
     @State private var hover = false
     var body: some View {
-        Text(title)
-            .font(.system(size: 12.5))
-            .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
-            .padding(.horizontal, 11).frame(height: 28)
-            .background(on ? Ink.interactive : Ink.ink.opacity(hover ? 0.12 : 0.08), in: Capsule())
-            .contentShape(Capsule())
+        FilterChipLabel(title: title, selected: on, small: true, hover: hover)
             .onHover { hover = $0 }
-            .animation(Motion.touch, value: hover)
             .tapArea(action)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
             .accessibilityValue(on ? "On" : "Off")
             .accessibilityAddTraits(.isButton)
     }
+}
+
+/// A line mini pill in the danger color, for destructive actions in a row ("Delete All Data…"). The word carries
+/// the meaning; a confirmation always follows.
+struct SettingsDangerPillStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var hover = false
+        @Environment(\.isEnabled) private var enabled
+        var body: some View {
+            configuration.label
+                .font(.system(size: PillSize.mini.font, weight: .semibold))
+                .lineLimit(1)
+                .foregroundStyle(Ink.danger)
+                .padding(.horizontal, PillSize.mini.padding)
+                .frame(height: PillSize.mini.height)
+                .background {
+                    ZStack {
+                        Capsule().fill(Ink.danger.opacity(hover ? 0.08 : 0))
+                        Capsule().strokeBorder(Ink.danger, lineWidth: 1.5)
+                    }
+                }
+                .fixedSize()
+                .contentShape(Capsule())
+                .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
+                .onHover { hover = $0 }
+                .animation(Motion.touch, value: hover)
+        }
+    }
+}
+
+extension ButtonStyle where Self == PillButtonStyle {
+    /// A line mini pill, for actions inside Settings rows.
+    static var settingsPill: PillButtonStyle { PillButtonStyle(kind: .line, size: .mini) }
+    /// A dark mini pill, for the one primary action in a Settings row.
+    static var settingsPrimaryPill: PillButtonStyle { PillButtonStyle(kind: .dark, size: .mini) }
 }
