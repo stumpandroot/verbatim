@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 // Mac: the voice profile in Settings (`VoiceProfileSection`) and the enrollment sheet it opens
 // (`VoiceEnrollmentSheet`). Shared pieces and the recording live in VoiceEnrollment.swift.
@@ -130,6 +131,9 @@ enum VoiceEnrollmentSheet {
     private static var window: NSWindow?
     private static var model: VoiceEnrollment?
     private static var parentCloseObserver: NSObjectProtocol?
+    /// Resizes the sheet to fit its content after the model changes (see `fit`).
+    private static var sizeWatch: AnyCancellable?
+    private static let width: CGFloat = 620
 
     /// Opens the sheet on `parent` (the key window: Settings, or the main window from the You page). `readMore`
     /// goes straight to one more passage; `preview` (UI tour) shows step 2 with made-up progress and never records.
@@ -147,7 +151,12 @@ enum VoiceEnrollmentSheet {
             .limitMotionRoot()
             .tint(Ink.switchOn)
         let host = NSHostingController(rootView: root)
-        host.sizingOptions = [.preferredContentSize]
+        // No automatic sizing. With `.preferredContentSize`, AppKit asked SwiftUI for the size inside its own
+        // Update Constraints pass, and the sheet's content changing as recording began (live words, the clock)
+        // marked the window as needing another pass from inside that pass, which AppKit ends with an exception
+        // (the crash in build 180: -[NSWindow _postWindowNeedsUpdateConstraints] under
+        // NSHostingController.preferredContentSize). The sheet is now sized here, outside layout.
+        host.sizingOptions = []
         let w = NSWindow(contentViewController: host)
         w.styleMask = [.titled]
         // Kept alive by `window` (ARC); a window that also released itself on close would be freed twice.
@@ -156,6 +165,17 @@ enum VoiceEnrollmentSheet {
         w.backgroundColor = NSColor(Ink.paper)
         model = m
         window = w
+        fit(w, host)
+        // Content height changes with the step, the passage, and messages; refit a beat after each change, on
+        // the main run loop and never inside a layout pass. Small changes (the clock ticking) are ignored.
+        sizeWatch = m.objectWillChange
+            .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
+            .sink { [weak w, weak host] _ in
+                MainActor.assumeIsolated {
+                    guard let w, let host else { return }
+                    fit(w, host)
+                }
+            }
         // The window under the sheet closing (Settings closed with ⌘W) stops the recording with it.
         parentCloseObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: parent, queue: .main) { _ in
             MainActor.assumeIsolated { dismiss() }
@@ -185,7 +205,18 @@ enum VoiceEnrollmentSheet {
         }
     }
 
+    /// Sizes the sheet to its content at the fixed width. Only called from the run loop (never from layout).
+    private static func fit(_ w: NSWindow, _ host: NSHostingController<some View>) {
+        let fitting = host.sizeThatFits(in: CGSize(width: width, height: 2000))
+        let maxHeight = (w.sheetParent?.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
+        let size = CGSize(width: width, height: min(max(fitting.height.rounded(.up), 320), maxHeight - 80))
+        guard abs(w.contentLayoutRect.height - size.height) > 1 || abs(w.contentLayoutRect.width - size.width) > 1 else { return }
+        w.setContentSize(size)
+    }
+
     private static func cleanUp() {
+        sizeWatch?.cancel()
+        sizeWatch = nil
         if let o = parentCloseObserver { NotificationCenter.default.removeObserver(o) }
         parentCloseObserver = nil
         window = nil
