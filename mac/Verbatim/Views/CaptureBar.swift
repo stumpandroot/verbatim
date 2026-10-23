@@ -12,6 +12,8 @@ struct RecordMenu: View {
     var body: some View {
         let selected = AudioDevices.selectedUID
         Button { app.requestRecord() } label: { Label("Record", systemImage: "record.circle") }   // brand: system surface (context menu)
+        Button { MeetingCoordinator.shared.recordFromMenu() } label: { Label("Record a meeting", systemImage: "person.2") }   // brand: system surface (context menu)
+            .disabled(MeetingSession.shared.isActive)
         Divider()
         Section("Microphone") {
             Button { AudioDevices.selectedUID = nil; onChange() } label: {

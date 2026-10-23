@@ -10,7 +10,7 @@ import AppKit
 /// values the old tabbed window used, so links from the floating button and the welcome tour still land.
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general, dictate, floatingButton, actions, privacy
-    case models = "transcription", speakers, captions
+    case models = "transcription", speakers, captions, meetings
     case watched, export, storage, about
 
     var id: String { rawValue }
@@ -25,6 +25,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .models: return "Models and language"
         case .speakers: return "Speakers and your voice"
         case .captions: return "Live captions"
+        case .meetings: return "Meetings"
         case .watched: return "Watched folders"
         case .export: return "Export"
         case .storage: return "Storage and iCloud"
@@ -36,7 +37,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var group: String {
         switch self {
         case .general, .dictate, .floatingButton, .actions, .privacy: return "App"
-        case .models, .speakers, .captions: return "Transcription"
+        case .models, .speakers, .captions, .meetings: return "Transcription"
         case .watched, .export, .storage, .about: return "Files"
         }
     }
@@ -52,6 +53,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .models: return "Which model transcribes your recordings, and what Verbose does to a transcript when it's ready."
         case .speakers: return "Who's talking in a recording, how Verbose knows your voice, and which microphone records you."
         case .captions: return "Live captions for whatever your Mac is playing or hearing."
+        case .meetings: return "Record a call as two tracks, your microphone and the meeting app, on this Mac. Verbose can notice a call and ask; it never records on its own."
         case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose."
         case .export: return "What goes into an export or a copy: which text, speaker names, and timecodes."
         case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."
@@ -61,7 +63,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     static let groups: [(title: String, tabs: [SettingsTab])] = [
         ("App", [.general, .dictate, .floatingButton, .actions, .privacy]),
-        ("Transcription", [.models, .speakers, .captions]),
+        ("Transcription", [.models, .speakers, .captions, .meetings]),
         ("Files", [.watched, .export, .storage, .about]),
     ]
 }
@@ -160,6 +162,12 @@ enum SettingsIndex {
         .init("captions.size", .captions, "Text size", "How big captions read in the captions bar.", keywords: "subtitles captions live font large"),
         .init("captions.soon", .captions, "Show the time in the header", "Open live captions from Home, the menu bar, or ⌥⌘C. Captions are made on this Mac.", keywords: "subtitles captions live timecode clock"),
         .init("captions.above", .captions, "Keep captions above full-screen apps", keywords: "subtitles captions floating window full screen"),
+
+        // Meetings
+        .init("meetings.notice", .meetings, "Notice calls and ask to record", "When Zoom, Teams, FaceTime, or a browser starts using your microphone, Verbose asks whether to record. It checks which app is using the microphone, never what it hears.", keywords: "meeting call detect detection prompt zoom teams facetime meet webex slack discord"),
+        .init("meetings.copyNotice", .meetings, "Copy the chat notice when recording starts", "Puts a short notice on the clipboard to paste in the meeting chat, so everyone knows you're recording.", keywords: "consent notice chat clipboard tell everyone announce"),
+        .init("meetings.mic", .meetings, "Record your side from", "The same microphone as Settings › Speakers and your voice. A built-in mic keeps Bluetooth headphones sounding their best.", keywords: "microphone input device airpods meeting"),
+        .init("meetings.apps", .meetings, "Apps Verbose has noticed", "Turn off the question for an app, or bring back the consent sheet.", keywords: "meeting apps zoom teams chrome safari don't ask consent"),
 
         // Watched folders
         .init("watched.folders", .watched, "Watched folders", "New audio and video in these folders is transcribed automatically.", keywords: "watch folder automatic import hot folder"),

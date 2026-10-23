@@ -3,7 +3,7 @@ import AppKit
 import AVFoundation
 import IOKit.pwr_mgt
 
-/// Meeting capture, a proof of concept with no visible UI yet: local, bot-free, two-track recording of a call. The
+/// Meeting capture: local, bot-free, two-track recording of a call. The
 /// meeting app's sound comes from a Core Audio process tap (`ProcessTapCapture`, macOS 14.4 and later), or from
 /// ScreenCaptureKit (`AppAudioCapture`) on macOS 14.0–14.3 or when the tap delivers only zeros; your voice comes
 /// from the microphone through its own `Recorder` (an `InputUnit` on the chosen mic, no ducking). The two tracks
@@ -14,18 +14,17 @@ import IOKit.pwr_mgt
 /// the app's name. Launch recovery (`recoverLeftovers`) turns a session folder a crash left behind into that same
 /// two-track transcript. Nothing leaves the Mac and nothing here uses the network.
 ///
-/// Hidden behind a developer flag, off by default:
-///     defaults write co.stumpandroot.verbatim meetings.poc -bool YES
-/// adds "Start meeting capture (test)" to the File menu. Optional target override (a bundle ID, or "system"):
-///     defaults write co.stumpandroot.verbatim meetings.poc.target -string us.zoom.xos
+/// It never starts on its own: `MeetingCoordinator` starts it after you click Record in the consent sheet (from the
+/// call prompt, File › Record Meeting…, or the Record panel's menu on Home). While it runs, the menu bar item
+/// (Views/MeetingStatus.swift) shows the time, both tracks' levels, Pause, and Stop and save. Optional developer
+/// override of the system track's target (a bundle ID, or "system"):
+///     defaults write co.stumpandroot.verbatim meetings.target -string us.zoom.xos
 /// Every step leaves a line starting "meeting" in ~/Library/Logs/Verbatim/native.log.
 @MainActor
 final class MeetingSession: ObservableObject {
     static let shared = MeetingSession()
 
-    static let pocKey = "meetings.poc"
-    static let targetKey = "meetings.poc.target"
-    static var pocEnabled: Bool { UserDefaults.standard.bool(forKey: pocKey) }
+    static let targetKey = "meetings.target"
     static let folderExtension = "meeting"
 
     enum Phase: Equatable { case idle, starting, recording, paused, stopping }
@@ -33,6 +32,23 @@ final class MeetingSession: ObservableObject {
     var isActive: Bool { phase != .idle }
     /// Pause needs both tracks to pause together; the ScreenCaptureKit fallback can't pause.
     var canPause: Bool { (phase == .recording || phase == .paused) && screenCapture == nil }
+    /// The system track hears only zeros and there's nothing left to try: "Verbose isn't hearing anything from Zoom".
+    @Published private(set) var remoteSilent = false
+    /// The Mac slept while recording: the session paused (when it can), and the note offers Resume or Stop and save.
+    @Published private(set) var slept = false
+    /// Only your mic is recording: no system track could start, or you chose Keep my mic only.
+    @Published private(set) var micOnly = false
+    /// The system track's speaker: the meeting app's name ("Zoom"), or "Others" for all system audio.
+    private(set) var speaker = "Others"
+    /// The microphone recording your side, for the panel ("MacBook Pro Microphone").
+    private(set) var micName = "Microphone"
+    /// The system track is everything this Mac plays (no one app).
+    var tapsEverything: Bool { target.bundleID == nil }
+    /// Seconds recorded on the mic track (pauses left out): the menu bar timer.
+    var elapsed: TimeInterval { mic.elapsed }
+    /// Short messages for you (a failed start, a saved meeting). The coordinator shows them as a banner; without
+    /// one they go to the main window's toast.
+    var onNotice: ((String) -> Void)?
 
     private weak var app: AppState?
     /// The mic track's recorder: its own, so the app's voice-memo recorder (and its ducking) stays out of it.
@@ -45,7 +61,6 @@ final class MeetingSession: ObservableObject {
     private let screenClock = TrackClock()
     private let screenSilence = SilenceBox()
     private var target: MeetingAudioTarget = .allSystemAudio
-    private var speaker = "Others"
     private var folder: URL?
     private var micURL: URL?
     private var systemURL: URL?
@@ -59,47 +74,39 @@ final class MeetingSession: ObservableObject {
     private var lastSilenceNote: TimeInterval = 0
     private var lastProgressNote: TimeInterval = 0
     private var sleepObservers: [NSObjectProtocol] = []
+    private var screenStartedAt: Double = 0
+    private var pausedForSleep = false
 
     @available(macOS 14.4, *)
     private var tap: ProcessTapCapture? { tapObject as? ProcessTapCapture }
 
-    // MARK: Developer entry
+    // MARK: Targets
 
-    /// The File menu's test item: starts with the meeting app it finds (or the target override), or stops.
-    func toggle(_ app: AppState) {
-        switch phase {
-        case .idle:
-            let (t, name) = Self.chooseTarget()
-            start(app: app, target: t, speaker: name)
-        case .recording, .paused: stop()
-        case .starting, .stopping: break
-        }
+    /// The system track's target for a meeting app: its processes, or everything but Verbose for apps whose call
+    /// sound comes from system processes (FaceTime's call daemons, Safari's WebKit processes).
+    static func target(for app: MeetingAppInfo) -> MeetingAudioTarget {
+        app.globalTap ? .allSystemAudio : .app(bundleID: app.bundleID, name: app.name)
     }
 
-    /// Known meeting apps, in the order they're preferred when several are running. FaceTime and Safari play their
-    /// sound from system processes (FaceTime's call daemons, WebKit's GPU process), so they get a global tap.
-    private static let meetingApps: [(id: String, global: Bool)] = [
-        ("us.zoom.xos", false), ("com.microsoft.teams2", false), ("com.microsoft.teams", false), ("com.apple.FaceTime", true),
-        ("Cisco-Systems.Spark", false), ("com.webex.meetingmanager", false), ("com.tinyspeck.slackmacgap", false),
-        ("com.hnc.Discord", false), ("com.google.Chrome", false), ("company.thebrowser.Browser", false),
-        ("com.microsoft.edgemac", false), ("com.brave.Browser", false), ("org.mozilla.firefox", false), ("com.apple.Safari", true),
-    ]
-
-    /// The target override, else the first running meeting app, else all system audio. Also the system track's
-    /// speaker name.
-    static func chooseTarget() -> (MeetingAudioTarget, String) {
+    /// For a start from the menu: the target override, else the frontmost meeting app, else the first running one
+    /// (`MeetingApps.known` order), else all system audio. Also the system track's speaker name and the app (nil
+    /// for all system audio).
+    static func chooseTarget() -> (target: MeetingAudioTarget, speaker: String, app: MeetingAppInfo?) {
         let running = NSWorkspace.shared.runningApplications
         func name(_ id: String) -> String {
-            running.first { $0.bundleIdentifier == id }?.localizedName ?? id
+            running.first { $0.bundleIdentifier?.lowercased() == id.lowercased() }?.localizedName ?? id
         }
         let override = UserDefaults.standard.string(forKey: targetKey)?.trimmingCharacters(in: .whitespaces) ?? ""
-        if override.lowercased() == "system" { return (.allSystemAudio, "Others") }
-        if !override.isEmpty { return (.app(bundleID: override, name: name(override)), name(override)) }
-        for app in meetingApps where running.contains(where: { $0.bundleIdentifier == app.id }) {
-            let n = name(app.id)
-            return (app.global ? .allSystemAudio : .app(bundleID: app.id, name: n), n)
+        if override.lowercased() == "system" { return (.allSystemAudio, "Others", nil) }
+        if !override.isEmpty {
+            let app = MeetingApps.info(key: override) ?? MeetingAppInfo(key: override.lowercased(), bundleID: override, name: name(override))
+            return (.app(bundleID: app.bundleID, name: app.name), app.name, app)
         }
-        return (.allSystemAudio, "Others")
+        let ids = running.compactMap { $0.bundleIdentifier?.lowercased() }
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if let f = front, let app = MeetingApps.resolve(f, running: Set(ids)) { return (target(for: app), app.name, app) }
+        if let app = MeetingApps.known.first(where: { ids.contains($0.key) }) { return (target(for: app), app.name, app) }
+        return (.allSystemAudio, "Others", nil)
     }
 
     // MARK: Start
@@ -109,6 +116,8 @@ final class MeetingSession: ObservableObject {
         self.app = app
         self.target = target
         self.speaker = speaker
+        remoteSilent = false; slept = false; micOnly = false; pausedForSleep = false
+        micName = AudioDevices.current()?.name ?? "Microphone"
         phase = .starting
         let os = ProcessInfo.processInfo.operatingSystemVersion
         Log.noteNow("meeting: start requested; target \(target.name)\(target.bundleID.map { " (\($0))" } ?? ""), speaker \(speaker), macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)")
@@ -183,7 +192,7 @@ final class MeetingSession: ObservableObject {
         }
         if path == "none" {
             if await startScreenCapture(to: systemURL) { path = "screenCapture"; side.events.append("screenCapture: \(target.name)") }
-            else { side.events.append("no system track; mic only") }
+            else { side.events.append("no system track; mic only"); micOnly = true; remoteSilent = true }
         }
         side.capturePath = path
         sidecar = side
@@ -195,7 +204,6 @@ final class MeetingSession: ObservableObject {
         phase = .recording
         startWatchdog()
         Log.noteNow("meeting: recording; system track via \(path)")
-        app.toast = Toast(path == "none" ? "Meeting capture started (test). Only your mic is recording." : "Meeting capture started (test). Recording your mic and \(speaker).")
     }
 
     /// ScreenCaptureKit for the target app: needs Screen & System Audio Recording, and an app (not all system audio).
@@ -225,6 +233,7 @@ final class MeetingSession: ObservableObject {
             Log.noteNow("meeting: starting ScreenCaptureKit for \(runningApp.name)")
             try await capture.start(app: runningApp, to: url)
             screenCapture = capture
+            screenStartedAt = HostClock.now()
             return true
         } catch {
             capture.liveTap.set(nil)
@@ -235,7 +244,7 @@ final class MeetingSession: ObservableObject {
 
     private func failStart(_ message: String) {
         Log.noteNow("meeting: start failed: \(message)")
-        app?.toast = Toast(message)
+        notify(message)
         releaseSleepAssertion()
         stopObservingSleep()
         if let folder, (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.allSatisfy({ $0 == MeetingSidecar.fileName }) ?? true {
@@ -282,6 +291,7 @@ final class MeetingSession: ObservableObject {
                 await fallBackFromTap(t)
             }
         }
+        checkRemoteSilence()
         let silent = currentSilentFor
         if silent >= 30, elapsed - lastSilenceNote >= 30 {
             lastSilenceNote = elapsed
@@ -300,7 +310,7 @@ final class MeetingSession: ObservableObject {
         if target.bundleID == nil {
             sidecar?.events.append("tap silent; no fallback for all system audio")
             writeSidecar()
-            app?.toast = Toast("Verbose isn't hearing other apps. Check System Settings › Privacy & Security › Screen & System Audio Recording. Your mic keeps recording.")
+            remoteSilent = true
             return
         }
         await t.discard()
@@ -316,9 +326,58 @@ final class MeetingSession: ObservableObject {
             sidecar?.capturePath = "none"
             sidecar?.events.append("tap silent; ScreenCaptureKit unavailable; mic only")
             Log.noteNow("meeting: no system track; the mic keeps recording")
-            app?.toast = Toast("Verbose isn't hearing \(speaker). Check System Settings › Privacy & Security › Screen & System Audio Recording. Your mic keeps recording.")
+            micOnly = true
+            remoteSilent = true
         }
         writeSidecar()
+    }
+
+    /// The ScreenCaptureKit track delivering only zeros past the limit is the same problem as a silent tap; and a
+    /// warning goes away by itself once real sound arrives.
+    private func checkRemoteSilence() {
+        if remoteSilent, !micOnly {
+            var hearing = false
+            if #available(macOS 14.4, *), let t = tap { hearing = t.verdict == .ok }
+            if screenCapture != nil { hearing = screenSilence.everNonZero }
+            if hearing { remoteSilent = false; Log.noteNow("meeting: the system track hears sound again") }
+            return
+        }
+        guard !remoteSilent, screenCapture != nil, !screenSilence.everNonZero, screenStartedAt > 0,
+              HostClock.now() - screenStartedAt >= MeetingAlign.zeroLimit else { return }
+        remoteSilent = true
+        sidecar?.events.append("screenCapture silent")
+        writeSidecar()
+        Log.noteNow("meeting: ScreenCaptureKit delivers only zeros; asking about Screen & System Audio Recording")
+    }
+
+    /// Keep my mic only: the system track (zeros, so far) is dropped and the warning goes away.
+    func keepMicOnly() {
+        guard isActive else { return }
+        remoteSilent = false
+        micOnly = true
+        verdictDone = true
+        Task {
+            if #available(macOS 14.4, *), let t = tap { await t.discard() }
+            tapObject = nil
+            if let c = screenCapture { _ = await c.stop(); c.liveTap.set(nil); screenCapture = nil }
+            if let systemURL { try? FileManager.default.removeItem(at: systemURL); RecordingSegments.removeSegments(of: systemURL) }
+            sidecar?.capturePath = "none"
+            sidecar?.events.append("kept the mic only")
+            writeSidecar()
+            Log.noteNow("meeting: keeping the mic only; the system track is dropped")
+        }
+    }
+
+    /// The meters' levels (0…1) right now: the mic track and the system track.
+    func levels() -> (mic: Float, system: Float) {
+        var system: Float = 0
+        if #available(macOS 14.4, *), let t = tap { system = t.currentLevel }
+        else if let c = screenCapture { system = c.live.level }
+        return (phase == .paused ? 0 : mic.live.level, phase == .paused ? 0 : system)
+    }
+
+    private func notify(_ message: String) {
+        if let onNotice { onNotice(message) } else { app?.toast = Toast(message) }
     }
 
     private var currentSystemClock: TrackClock? {
@@ -350,6 +409,7 @@ final class MeetingSession: ObservableObject {
         } else {
             if mic.isPaused { mic.togglePause() }
             if #available(macOS 14.4, *) { tap?.paused = false }
+            pausedForSleep = false
             if let i = sidecar?.pauses.indices.last, sidecar?.pauses[i].end == nil { sidecar?.pauses[i].end = now }
             phase = .recording
             Log.noteNow("meeting: resumed")
@@ -411,12 +471,13 @@ final class MeetingSession: ObservableObject {
         if micStopped?.joinFailed == true || systemJoinFailed {
             // Every part stays in the session folder; launch recovery joins them and makes the transcript.
             Log.noteNow("meeting: couldn't join a track's segments; the session stays for launch recovery")
-            app.toast = Toast(Store.joinFailedNotice)
+            notify(Store.joinFailedNotice)
             reset()
             return
         }
         let micTrack = micStopped.map { (url: $0.url, duration: $0.duration) }
         Self.handOff(app: app, folder: folder, sidecar: side, mic: micTrack, system: system, recovered: false)
+        notify((micTrack?.duration ?? 0) >= 0.5 || (system?.duration ?? 0) >= 0.5 ? "The meeting is saved. Verbose is transcribing it." : "Nothing was recorded, so there's nothing to save.")
         reset()
     }
 
@@ -424,6 +485,7 @@ final class MeetingSession: ObservableObject {
         watchdog?.invalidate(); watchdog = nil
         tapObject = nil; screenCapture = nil
         folder = nil; micURL = nil; systemURL = nil; sidecar = nil
+        remoteSilent = false; slept = false; pausedForSleep = false; screenStartedAt = 0
         phase = .idle
     }
 
@@ -590,8 +652,9 @@ final class MeetingSession: ObservableObject {
             Task { @MainActor in
                 guard let self, self.isActive else { return }
                 self.sidecar?.events.append(String(format: "sleep at %.3f", HostClock.now()))
+                if self.phase == .recording, self.canPause { self.togglePause(); self.pausedForSleep = true }
                 self.writeSidecar()
-                Log.noteNow("meeting: the Mac is going to sleep while recording")
+                Log.noteNow("meeting: the Mac is going to sleep while recording\(self.pausedForSleep ? "; paused" : "")")
             }
         })
         sleepObservers.append(ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -599,10 +662,19 @@ final class MeetingSession: ObservableObject {
                 guard let self, self.isActive else { return }
                 self.sidecar?.events.append(String(format: "wake at %.3f", HostClock.now()))
                 self.writeSidecar()
+                self.slept = true
                 Log.noteNow("meeting: the Mac woke while recording")
             }
         })
     }
+
+    /// The sleep note's Resume: carries on in the same recording (a gap in both tracks, noted in the sidecar).
+    func resumeAfterSleep() {
+        slept = false
+        if phase == .paused { togglePause() }
+    }
+
+    func dismissSleepNote() { slept = false }
 
     private func stopObservingSleep() {
         for o in sleepObservers { NSWorkspace.shared.notificationCenter.removeObserver(o) }
