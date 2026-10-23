@@ -54,6 +54,9 @@ enum Ink {
     static let danger = dyn(0xB23F24, 0xFF8A6B)
     /// Butter's text color: small text and glyphs on butter tint (6.4:1 on #FCF0D2).
     static let butterText = dyn(0x6B5320, 0xE5C77F)
+    /// A dictation row on Home that was just copied (and the row under the pointer, at 70%): a deeper butter than
+    /// `butterTint`, with ink text on it.
+    static let butterWash = dyn(0xF7E2AE, 0x463D27)
     /// The Record panel's fill: persimmon nudged lighter (#FB7350), so ink text on it reaches 4.7:1 at any size.
     /// `persimmon` (#FA6B47) stays the brand and app-icon color.
     static let recordFill = dyn(0xFB7350, 0xF27A57)
@@ -61,8 +64,6 @@ enum Ink {
     static let neutralChip = make { dark, _ in
         dark ? PColor(hex: 0xF5F0E6).withAlphaComponent(0.08) : PColor(hex: inkHex).withAlphaComponent(0.06)
     }
-    /// The disc behind an icon on a colored tile: ink at 8%, never a white disc (DESIGN.md §3).
-    static let iconDisc = inkFixed.opacity(0.08)
     /// Always-ink and always-reader-white, for surfaces that stay dark or light in both modes (HUD pill, toasts,
     /// text on brand color fills).
     static let inkFixed = Color(hex: inkHex)
@@ -184,16 +185,16 @@ struct Overline: View {
     }
 }
 
-/// Corner radii (DESIGN.md §5.3). Don't round everything the same.
+/// Corner radii (DESIGN.md §5.3): sharp, in four steps. Don't round everything the same.
 enum Radius {
-    /// Buttons, fields, and menu rows.
-    static let button: CGFloat = 9
-    /// Rows, sheets, and small cards.
-    static let row: CGFloat = 13
-    /// Tiles and panels.
-    static let tile: CGFloat = 17
+    /// Buttons, fields, chips, keycaps, and menu rows.
+    static let button: CGFloat = 4
+    /// Rows and sheets.
+    static let row: CGFloat = 6
+    /// Tiles, cards, and panels.
+    static let tile: CGFloat = 8
     /// The Record panel.
-    static let record: CGFloat = 22
+    static let record: CGFloat = 10
 }
 
 /// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.

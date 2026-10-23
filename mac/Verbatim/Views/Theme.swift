@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// A quiet rounded hover background for utility icons and small controls.
 struct HoverChip: ViewModifier {
-    var radius: CGFloat = 7
+    var radius: CGFloat = Radius.button
     @State private var hover = false
     func body(content: Content) -> some View {
         content
@@ -13,7 +13,7 @@ struct HoverChip: ViewModifier {
             .animation(Motion.touch, value: hover)
     }
 }
-extension View { func hoverChip(radius: CGFloat = 7) -> some View { modifier(HoverChip(radius: radius)) } }
+extension View { func hoverChip(radius: CGFloat = Radius.button) -> some View { modifier(HoverChip(radius: radius)) } }
 
 /// A clickable card with pointer tilt, edge light, lift, and press (see `CardMotion`).
 /// The visuals move underneath; an untransformed layer on top takes the pointer, so hit-testing is never

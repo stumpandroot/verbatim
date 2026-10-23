@@ -436,14 +436,15 @@ extension Label where Title == Text, Icon == ArtIcon {
     }
 }
 
-/// A keyboard shortcut as a keycap: mono inside an outlined capsule (DESIGN.md §2.3). Takes the foreground style.
+/// A keyboard shortcut as a keycap: mono inside an outlined rectangle with the button radius (DESIGN.md §2.3).
+/// Takes the foreground style.
 struct Keycap: View {
     var keys: String
     var size: CGFloat = 11
     var body: some View {
         Text(keys).font(Ink.mono(size))
-            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.25)
-            .overlay(Capsule().strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
+            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.3)
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
             .fixedSize()
             .accessibilityLabel(Keycap.spoken(keys))
     }
