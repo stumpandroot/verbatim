@@ -307,37 +307,35 @@ struct TypingKeysView: View {
     }
 }
 
-/// One key. Letters, numbers, and space are `card`; shift, delete, the layer keys, and the globe are `side`, like
-/// the system's darker function keys. An action return key (Go, Send) uses the ink fill.
+/// One key. Letters, numbers, and space are paper keys (`card`); shift, delete, the layer keys, and the globe are
+/// on the wash, like the system's darker function keys. Return is ink with paper text. Each key sits on a 1 pt
+/// ink-tinted bottom edge (`KBKeyFace`).
 private struct KeyCap: View {
     var kind: KeyKind
     @ObservedObject var typing: TypingModel
     var pressed: Bool
 
-    private var isFunction: Bool { !kind.isCharacter && kind != .space && !isActionReturn && !shiftActive }
-    private var isActionReturn: Bool { kind == .returnKey && typing.returnKind.isAction }
+    private var isFunction: Bool { !kind.isCharacter && kind != .space && kind != .returnKey && !shiftActive }
     private var shiftActive: Bool { kind == .shift && typing.shift != .off }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
         ZStack {
-            shape.fill(fill)
-            shape.strokeBorder(isActionReturn ? Color.clear : KB.hairline)
+            KBKeyFace(fill: fill)
             label
         }
     }
 
     private var fill: Color {
-        if isActionReturn { return pressed ? Ink.interactive.opacity(0.8) : Ink.interactive }
-        if isFunction { return pressed ? KB.card : Ink.side }
-        return pressed ? Ink.side : KB.card
+        if kind == .returnKey { return pressed ? KB.ink.opacity(0.8) : KB.ink }
+        if isFunction { return pressed ? KB.card : KB.wash }
+        return pressed ? KB.wash : KB.card
     }
 
     @ViewBuilder private var label: some View {
         switch kind {
         case .character(let c):
             Text(TypingRules.text(for: c, layer: typing.layer, shift: typing.shift))
-                .font(.system(size: typing.layer == .letters ? 23 : 21))
+                .font(.system(size: typing.layer == .letters ? 22 : 21))
                 .foregroundStyle(KB.ink)
         case .shift:
             Group {
@@ -353,18 +351,13 @@ private struct KeyCap: View {
         case .globe:
             Image(systemName: "globe").font(.system(size: 18)).foregroundStyle(KB.ink)
         case .space:
-            Text("space").font(.system(size: 15)).foregroundStyle(KB.ink)
+            Text("space").font(.system(size: 15)).foregroundStyle(KB.muted)
         case .returnKey:
-            Group {
-                if let word = typing.returnKind.label {
-                    Text(word).font(.system(size: 15, weight: isActionReturn ? .semibold : .regular))
-                        .lineLimit(1).minimumScaleFactor(0.6).padding(.horizontal, 4)
-                } else {
-                    Image(systemName: "return").font(.system(size: 18))
-                }
-            }
-            .foregroundStyle(isActionReturn ? Ink.onInteractive : KB.ink)
-            .opacity(typing.returnEnabled ? 1 : 0.4)
+            Text(typing.returnKind.label ?? "return")
+                .font(.system(size: 15, weight: .semibold))
+                .lineLimit(1).minimumScaleFactor(0.6).padding(.horizontal, 4)
+                .foregroundStyle(KB.paper)
+                .opacity(typing.returnEnabled ? 1 : 0.4)
         case .layer:
             Text(kind.layerTitle ?? "").font(.system(size: 15)).foregroundStyle(KB.ink)
         }
@@ -383,12 +376,12 @@ private struct KeyPopup: View {
         let h = keyFrame.height + 4
         let x = min(max(keyFrame.midX, w / 2), max(w / 2, areaWidth - w / 2))
         let y = keyFrame.minY + 2 - h / 2
-        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: KB.keyRadius, style: .continuous)
         Text(text)
             .font(.system(size: 32))
             .foregroundStyle(KB.ink)
             .frame(width: w, height: h)
-            .background(KB.card, in: shape)
+            .background(KBKeyFace(fill: KB.card))
             .overlay(shape.strokeBorder(KB.hairline))
             .position(x: x, y: y)
             .allowsHitTesting(false)

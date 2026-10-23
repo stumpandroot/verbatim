@@ -55,7 +55,7 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// Paper in light, ink in dark, following the field you're typing in: its `keyboardAppearance` when it asks for
+    /// The panel color in light or dark, following the field you're typing in: its `keyboardAppearance` when it asks for
     /// one, otherwise the host app's light or dark mode. Set on the SwiftUI host only, so this controller's own
     /// trait collection keeps reporting the host's mode.
     private func applyAppearance() {
@@ -66,7 +66,7 @@ final class KeyboardViewController: UIInputViewController {
         default: style = traitCollection.userInterfaceStyle == .dark ? .dark : .light
         }
         if host?.overrideUserInterfaceStyle != style { host?.overrideUserInterfaceStyle = style }
-        view.backgroundColor = KB.uiPaper.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
+        view.backgroundColor = KB.uiPanel.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
     }
 
     override func viewWillAppear(_ animated: Bool) {
