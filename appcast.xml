@@ -6,14 +6,14 @@
     <description>Verbose for Mac: tagged releases, plus beta builds of main.</description>
     <language>en</language>
     <item>
-      <title>Verbose beta 181</title>
-      <pubDate>Fri, 23 Oct 2026 17:49:09 GMT</pubDate>
+      <title>Verbose beta 182</title>
+      <pubDate>Fri, 23 Oct 2026 18:35:51 GMT</pubDate>
       <sparkle:channel>beta</sparkle:channel>
-      <sparkle:version>181</sparkle:version>
+      <sparkle:version>182</sparkle:version>
       <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description>&lt;p&gt;Beta build 181: Voice setup on Mac: size the sheet outside layout (fixes the crash when recording starts)&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-181"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
-      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-181/Verbatim-universal.dmg" length="96088661" type="application/octet-stream" sparkle:edSignature="0FTKUD6zYsv/QfoyqIApTVKfviBN9ABqRFDaJSCSKxNjn0iMUJQ4g73jJEzH4XoDolU2wYJkluGUq/k5FVPYAg==" />
+      <description>&lt;p&gt;Beta build 182: Merge remote-tracking branch &amp;#x27;origin/app-icon&amp;#x27; into integrate&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-182"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-182/Verbatim-universal.dmg" length="98939776" type="application/octet-stream" sparkle:edSignature="1mgv4iV6r9AK6wr9nlbXiCd7EeWXaOOlT81XEsA6/gbvdXEKFEs8LqCfXMzJ72lSBjWCYI9Oww6JmITET6tzAw==" />
     </item>
   </channel>
 </rss>
