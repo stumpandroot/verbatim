@@ -212,50 +212,13 @@ final class SettingsSearchModel: ObservableObject {
 
 // MARK: - Field
 
-/// The search field under the Settings title: a paper field with a persimmon ring while focused.
+/// The search field under the Settings title: the website's wash capsule (`PhoneSearchField`).
 struct SettingsSearchField: View {
     @Binding var text: String
     var onSubmit: () -> Void = {}
-    @FocusState private var focused: Bool
-    @ScaledMetric(relativeTo: .body) private var height: CGFloat = 40
-    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 15
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: glyph, weight: .medium))
-                .foregroundStyle(Ink.mute)
-                .accessibilityHidden(true)
-            TextField("Search settings", text: $text, prompt: Text("Search settings").foregroundStyle(Ink.mute))
-                .font(.body)
-                .foregroundStyle(Ink.ink)
-                .tint(Ink.accentText)
-                .focused($focused)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .onSubmit(onSubmit)
-                .accessibilityLabel("Search settings")
-            if !text.isEmpty {
-                Button { text = ""; focused = true } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: glyph + 1))
-                        .foregroundStyle(Ink.faint)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.leading, 12).padding(.trailing, text.isEmpty ? 12 : 0)
-        .frame(minHeight: height)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                .strokeBorder(focused ? Ink.persimmon : Ink.hairline, lineWidth: focused ? 1.5 : 1)
-        )
-        .animation(Motion.fade, value: focused)
+        PhoneSearchField(text: $text, prompt: "Search settings", onSubmit: onSubmit)
     }
 }
 
