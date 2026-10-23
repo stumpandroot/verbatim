@@ -1,5 +1,11 @@
 import SwiftUI
 
+// brand: web style
+//
+// The Dictionary in the website style (mac/DESIGN.md §11): a compact title with the count, the search field, an
+// "Add word" dark pill and the CSV line pill; suggestions on a butter panel; the words in a paper table with an ink
+// outline, mono column heads, the preferred spelling as a serif outlined pill, and an ink switch per word.
+
 /// Words Verbatim spells your way. Entries come from corrections you chose to remember, or from here.
 struct DictionaryView: View {
     @EnvironmentObject var app: AppState
@@ -9,6 +15,7 @@ struct DictionaryView: View {
     @State private var newHeard = ""
     /// nil = all words; .some(nil) = words for every transcript; .some(id) = one project's words.
     @State private var scope: UUID?? = nil
+    @FocusState private var addFocused: Bool
 
     private var entries: [DictionaryEntry] {
         let q = filter.trimmingCharacters(in: .whitespaces).lowercased()
@@ -19,97 +26,169 @@ struct DictionaryView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Dictionary").font(.system(size: 28, weight: .bold)).foregroundStyle(Ink.ink)
-                Text("Right-click a word in any transcript, choose Correct, and turn on Remember. From then on, every new transcript gets it right. Fixes are listed on each transcript so nothing changes silently.")
-                    .font(.system(size: 13.5)).foregroundStyle(Ink.dim).frame(maxWidth: 560, alignment: .leading).padding(.top, 4).padding(.bottom, 18)
-
-                // About me names, repeated fixes, and Contacts (VocabularyViews.swift).
-                DictionarySuggestions()
-
-                HStack(spacing: 8) {
-                    TextField("Search \(app.store.dictionary.count) words", text: $filter).textFieldStyle(.roundedBorder)
-                    Button { adding.toggle() } label: { Label("Add word", systemImage: "plus") }.buttonStyle(.brandPrimary)
-                    // Import CSV… and Export CSV… (Views/TrustViews.swift).
-                    DictionaryCSVMenu()
-                }
-                .padding(.bottom, 10)
-
-                if !app.store.projects.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            SiteChip(label: "All", on: scope == nil) { scope = nil }
-                            SiteChip(label: "Everywhere", on: scope == .some(nil)) { scope = .some(nil) }
-                            ForEach(app.store.projects) { p in SiteChip(label: p.name, on: scope == .some(p.id)) { scope = .some(p.id) }.fixedSize() }
+        let count = app.store.dictionary.count
+        let list = entries
+        GeometryReader { geo in
+            let narrow = geo.size.width < 900
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    PageTitle(title: "Dictionary", count: count == 1 ? "1 word" : "\(count.formatted()) words",
+                              lede: "Right-click a word in any transcript, choose Correct, and turn on Remember. Fixes are listed on each transcript, so nothing changes silently.") {
+                        HStack(spacing: 10) {
+                            if !narrow { search(count).frame(width: 220) }
+                            addButton
+                            // Import CSV… and Export CSV… (Views/TrustViews.swift).
+                            DictionaryCSVMenu()
                         }
                     }
-                    .padding(.bottom, 12)
-                }
+                    .staggerIn(0)
+                    if narrow { search(count).padding(.top, 14) }
 
-                if adding {
-                    HStack(spacing: 8) {
-                        TextField("Preferred spelling (Lititz)", text: $newPreferred).textFieldStyle(.roundedBorder)
-                        TextField("Heard as (Lit it's, Lititz's)", text: $newHeard).textFieldStyle(.roundedBorder)
-                        Button("Add") {
-                            let heard = newHeard.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                            let p = newPreferred.trimmingCharacters(in: .whitespaces)
-                            guard !p.isEmpty, !heard.isEmpty else { return }
-                            // Added while a project is picked: the word belongs to that project.
-                            app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you", projectId: scope ?? nil))
-                            newPreferred = ""; newHeard = ""; adding = false
-                        }
-                        .buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
-                        Button("Cancel") { adding = false }
-                    }
-                    .padding(12).cardSurface(radius: Radius.button)
-                    .padding(.bottom, 12)
-                    .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
-                }
+                    // About me names, repeated fixes, and Contacts (VocabularyViews.swift).
+                    DictionarySuggestions().padding(.top, 22).staggerIn(1)
 
-                if entries.isEmpty {
-                    VStack(spacing: 10) {
-                        if filter.isEmpty { IconPlate(art: .iconDictionary, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.petalTint) }
-                        Text(filter.isEmpty ? "No words yet" : "Nothing matches “\(filter)”").font(.system(size: 15, weight: .semibold))
-                        if filter.isEmpty {
-                            Text("Brand names, people, and places are the usual suspects. Add them before a transcript, or fix them after.")
-                                .font(.system(size: 13)).foregroundStyle(Ink.mute).multilineTextAlignment(.center).frame(maxWidth: 380)
+                    if !app.store.projects.isEmpty {
+                        FlowRow(spacing: 8, lineSpacing: 8) {
+                            FilterChip(title: "All", selected: scope == nil) { scope = nil }
+                            FilterChip(title: "Everywhere", selected: scope == .some(nil)) { scope = .some(nil) }
+                            ForEach(app.store.projects) { p in FilterChip(title: p.name, selected: scope == .some(p.id)) { scope = .some(p.id) } }
                         }
+                        .padding(.top, 18)
                     }
-                    .frame(maxWidth: .infinity).padding(.top, 50)
-                } else {
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Preferred spelling").frame(width: 180, alignment: .leading)
-                            Text("Heard as").frame(maxWidth: .infinity, alignment: .leading)
-                            Text("Learned from").frame(width: 200, alignment: .leading)
-                            Text("").frame(width: 40)
-                        }
-                        .font(.system(size: 11.5, weight: .medium)).foregroundStyle(Ink.mute)
-                        .padding(.horizontal, 14).padding(.vertical, 10)
-                        Divider()
-                        ForEach(entries) { e in
-                            DictionaryRow(entry: e)
-                            Divider().opacity(0.5)
-                        }
-                    }
-                    .cardSurface(radius: Radius.row)
-                    .tiltCard(lift: 1, radius: Radius.row, rotates: false)
-                }
 
-                BuiltInVocabularySection()
+                    if adding {
+                        addForm.padding(.top, 18)
+                            .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .identity))
+                    }
+
+                    if list.isEmpty {
+                        emptyState.padding(.top, 18)
+                    } else {
+                        table(list).padding(.top, 18).staggerIn(2)
+                    }
+
+                    BuiltInVocabularySection()
+                }
+                .frame(maxWidth: 900, alignment: .leading)
+                .padding(.horizontal, 40).padding(.top, 30).padding(.bottom, 40)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: 820)
-            .padding(.horizontal, 40).padding(.top, 36).padding(.bottom, 40)
-            .frame(maxWidth: .infinity)
         }
         .animation(Motion.settle, value: adding)
         .onChange(of: app.store.projects) { _, ps in
             if case .some(.some(let id)) = scope, !ps.contains(where: { $0.id == id }) { scope = nil }
         }
     }
+
+    private func search(_ count: Int) -> some View {
+        WebSearchField(text: $filter, prompt: count == 1 ? "Search 1 word" : "Search \(count.formatted()) words", height: 36)
+    }
+
+    private var addButton: some View {
+        Button {
+            withAnimation(Motion.settle) { adding.toggle() }
+            if adding { DispatchQueue.main.async { addFocused = true } }
+        } label: {
+            HStack(spacing: 8) {
+                Text("Add word")
+                ArtIcon(art: .webPlus, size: 16, lineWidth: 1.5)
+            }
+        }
+        .buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
+        .help("Add a word Verbose should spell your way")
+    }
+
+    // MARK: Add
+
+    /// The new word: the preferred spelling, how it's heard, then Add (Return) or Cancel.
+    private var addForm: some View {
+        HStack(spacing: 10) {
+            field("Preferred spelling (Lititz)", text: $newPreferred).focused($addFocused)
+            field("Heard as (Lit it's, Lititz's)", text: $newHeard)
+            Button("Add") { add() }
+                .buttonStyle(PillButtonStyle(kind: .dark, size: .mini))
+                .keyboardShortcut(.defaultAction)
+            Button("Cancel") { withAnimation(Motion.settle) { adding = false } }
+                .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
+                .keyboardShortcut(.cancelAction)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        .inkEdge(outline: true, radius: Radius.record)
+    }
+
+    private func field(_ prompt: String, text: Binding<String>) -> some View {
+        TextField(prompt, text: text)
+            .textFieldStyle(.plain).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
+            .padding(.horizontal, 14).frame(height: 32)
+            .background(Ink.paper, in: Capsule())
+            .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
+            .onSubmit { add() }
+    }
+
+    private func add() {
+        let heard = newHeard.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let p = newPreferred.trimmingCharacters(in: .whitespaces)
+        guard !p.isEmpty, !heard.isEmpty else { return }
+        // Added while a project is picked: the word belongs to that project.
+        app.store.dictionary.append(DictionaryEntry(preferred: p, heardAs: heard, learnedFrom: "Added by you", projectId: scope ?? nil))
+        newPreferred = ""; newHeard = ""
+        withAnimation(Motion.settle) { adding = false }
+    }
+
+    // MARK: Table
+
+    private func table(_ list: [DictionaryEntry]) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                Text("Preferred spelling").frame(width: DictionaryColumns.preferred, alignment: .leading)
+                Text("Heard as").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Learned from").frame(width: DictionaryColumns.learned, alignment: .leading)
+                Color.clear.frame(width: DictionaryColumns.toggle, height: 1)
+            }
+            .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+            .padding(.horizontal, 20).frame(height: 40)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            Rectangle().fill(Ink.hairline).frame(height: 1)
+            ForEach(Array(list.enumerated()), id: \.element.id) { i, e in
+                DictionaryRow(entry: e)
+                if i < list.count - 1 { Rectangle().fill(Ink.hairline).frame(height: 1) }
+            }
+        }
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        .inkEdge(outline: true, radius: Radius.record)
+    }
+
+    @ViewBuilder private var emptyState: some View {
+        if filter.trimmingCharacters(in: .whitespaces).isEmpty && scope == nil {
+            EmptyStateCard(art: .iconDictionary, title: "No words yet",
+                           message: "Brand names, people, and places are the usual suspects. Add them before a transcript, or fix them after.",
+                           button: adding ? nil : "Add word") {
+                withAnimation(Motion.settle) { adding = true }
+                DispatchQueue.main.async { addFocused = true }
+            }
+        } else if filter.trimmingCharacters(in: .whitespaces).isEmpty {
+            EmptyStateCard(art: .iconDictionary, title: "No words here",
+                           message: "Words added while this is picked belong to it.", button: "Show all") { scope = nil }
+        } else {
+            EmptyStateCard(art: .search, title: "Nothing matches “\(filter)”",
+                           message: "Try another spelling, or add it as a new word.", button: "Clear search") { filter = "" }
+        }
+    }
 }
 
+/// The table's column widths: the preferred spelling, Learned from, and the switch; Heard as takes the rest.
+enum DictionaryColumns {
+    static let preferred: CGFloat = 200
+    static let learned: CGFloat = 250
+    static let toggle: CGFloat = 40
+}
+
+/// One word: the preferred spelling as a serif outlined pill, what it's heard as, where it came from ("Only in
+/// Lapp Wagons" after a petal dot when it belongs to a project), and the switch. Off, the row dims (the switch stays
+/// clear). Right-click to move it to a project or delete it (with Undo).
 struct DictionaryRow: View {
     @EnvironmentObject var app: AppState
     var entry: DictionaryEntry
@@ -119,25 +198,39 @@ struct DictionaryRow: View {
         if let i = app.store.dictionary.firstIndex(where: { $0.id == entry.id }) { app.store.dictionary[i].projectId = id }
     }
 
+    private var project: String? {
+        entry.projectId.flatMap { pid in app.store.projects.first { $0.id == pid }?.name }
+    }
+
     var body: some View {
-        HStack {
-            Pill(text: entry.preferred).frame(width: 180, alignment: .leading)
-            Text(entry.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(Ink.dim).frame(maxWidth: .infinity, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.learnedFrom).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
-                if let pid = entry.projectId, let p = app.store.projects.first(where: { $0.id == pid }) {
-                    Text("Only in \(p.name)").font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.iris)
+        HStack(spacing: 16) {
+            Group {
+                WordPill(text: entry.preferred).frame(width: DictionaryColumns.preferred, alignment: .leading)
+                Text(entry.heardAs.joined(separator: ", ")).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
+                    .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    Text(entry.learnedFrom).font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineLimit(1)
+                    if let project {
+                        HStack(spacing: 6) {
+                            Circle().fill(Ink.petal).frame(width: 8, height: 8).accessibilityHidden(true)
+                            Text("Only in \(project)").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.dim).lineLimit(1)
+                        }
+                        .layoutPriority(1)
+                    }
                 }
+                .frame(width: DictionaryColumns.learned, alignment: .leading)
             }
-            .frame(width: 200, alignment: .leading)
-            Toggle("", isOn: Binding(get: { entry.enabled }, set: { v in
+            .opacity(entry.enabled ? 1 : 0.45)
+            InkSwitch(isOn: Binding(get: { entry.enabled }, set: { v in
                 if let i = app.store.dictionary.firstIndex(where: { $0.id == entry.id }) { app.store.dictionary[i].enabled = v }
-            })).toggleStyle(.switch).controlSize(.small).labelsHidden().frame(width: 40)
+            }), label: "Use \(entry.preferred)")
+            .frame(width: DictionaryColumns.toggle, alignment: .trailing)
         }
-        .padding(.horizontal, 14).padding(.vertical, 9)
-        .background(hover ? Ink.cardHover : .clear)
-        .opacity(entry.enabled ? 1 : 0.55)
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .background(hover ? Ink.cardHover : Color.clear)
         .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
         .contextMenu {
             if !app.store.projects.isEmpty {
                 Menu("Use In") {
@@ -152,5 +245,38 @@ struct DictionaryRow: View {
                 app.toast = Toast("Removed “\(removed.preferred)”", action: "Undo") { [weak app] in app?.store.dictionary.append(removed) }
             }
         }
+    }
+}
+
+/// A word as a serif outlined pill ("Lapp Wagons"): 30 pt, serif 17, a 1.5 pt ink inset outline.
+struct WordPill: View {
+    var text: String
+    var body: some View {
+        Text(text).font(Ink.serif(17)).foregroundStyle(Ink.ink).lineLimit(1)
+            .padding(.horizontal, 13).frame(height: 30)
+            .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The website's switch: a 36 × 22 track with a 1.5 pt ink outline; on, the track is ink and the knob paper on the
+/// right; off, the track is a hairline wash and the knob ink on the left. VoiceOver reads it as a toggle.
+struct InkSwitch: View {
+    @Binding var isOn: Bool
+    var label: String
+    @Environment(\.limitMotion) private var limitMotion
+
+    var body: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Capsule().fill(isOn ? Ink.ink : Ink.hairline)
+            Capsule().strokeBorder(Ink.ink, lineWidth: 1.5)
+            Circle().fill(isOn ? Ink.paper : Ink.ink).frame(width: 14, height: 14).padding(4)
+        }
+        .frame(width: 36, height: 22)
+        .contentShape(Capsule())
+        .animation(limitMotion ? nil : Motion.snap, value: isOn)
+        .tapArea { isOn.toggle() }
+        .accessibilityRepresentation { Toggle(label, isOn: $isOn) }
+        .help(isOn ? "On: new transcripts use this spelling" : "Off: kept, but not used")
     }
 }

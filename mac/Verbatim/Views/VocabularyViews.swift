@@ -1,9 +1,14 @@
 import SwiftUI
 import AppKit
 
+// brand: web style
+//
 // The Dictionary screen's Suggestions (About me names, repeated fixes, Contacts) and Built-in vocabulary sections.
+// Suggestions sit on a butter panel with grain and the `lines` drawing (mac/DESIGN.md §11), each one a paper pill
+// with a mini dark Add.
 
-/// Names from About me and fixes you keep making, each with Add and Dismiss, plus the Contacts button.
+/// Names from About me and fixes you keep making, each a paper pill with Add (and a small × to dismiss it), plus the
+/// Contacts button, on a butter panel.
 struct DictionarySuggestions: View {
     @EnvironmentObject var app: AppState
     @AppStorage(AboutMeContext.key) private var aboutMe = ""
@@ -18,60 +23,74 @@ struct DictionarySuggestions: View {
         let all = VocabularySuggestions.current(aboutMe: aboutMe, extraNames: modelNames, dictionary: app.store.dictionary,
                                                 dismissedRaw: dismissedRaw, pairs: EditLearner.load(pairsData))
         let list = Array(all.prefix(Self.shown))
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
-                Text("Suggestions").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+        HStack(alignment: .center, spacing: 24) {
+            VStack(alignment: .leading, spacing: 8) {
+                Eyebrow(text: all.isEmpty ? "Suggestions" : "Suggestions · \(all.count)", color: Ink.inkFixed)
                     .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Button { showContacts = true } label: { Label("Suggest names from Contacts", art: .iconAboutMe) }
-                    .buttonStyle(.brandSecondary)
+                WebText.serif("Names and", italic: "fixes.", size: 24).foregroundStyle(Ink.inkFixed).lineLimit(1)
+                PillButton(title: "Suggest names from Contacts", kind: .line, size: .mini, icon: .iconAboutMe, fixedInk: true,
+                           hint: "Pick names from your contacts. Names stay on this Mac.") { showContacts = true }
                     .help("Pick names from your contacts. Names stay on this Mac.")
+                    .padding(.top, 6)
             }
-            if list.isEmpty {
-                Text("Names from About me, and fixes you make more than once, show up here.")
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(list) { s in
-                        row(s)
-                        if s.id != list.last?.id { Divider().opacity(0.5) }
+            .fixedSize()
+            VStack(alignment: .leading, spacing: 8) {
+                if list.isEmpty {
+                    Text("Names from About me, and fixes you make more than once, show up here.")
+                        .font(.system(size: 13)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    FlowRow(spacing: 8, lineSpacing: 8) {
+                        ForEach(list) { s in pill(s) }
+                    }
+                    if all.count > list.count {
+                        Text("\(all.count - list.count) more after these.").font(.system(size: 12.5)).foregroundStyle(Ink.inkFixed.opacity(0.8))
                     }
                 }
-                .cardSurface(radius: Radius.row)
-                if all.count > list.count {
-                    Text("\(all.count - list.count) more after these.").font(.system(size: 12)).foregroundStyle(Ink.mute)
-                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.bottom, 18)
+        .padding(.leading, 20).padding(.trailing, 90).padding(.vertical, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .colorPanel(Ink.panelButter, radius: Radius.record) {
+            PanelArt(kind: .lines).frame(width: 200, height: 140).offset(x: 20, y: -10)
+        }
         .task(id: aboutMe) { modelNames = await NameExtractor.modelNames(in: aboutMe) }
         .sheet(isPresented: $showContacts) { ContactNamesSheet().environmentObject(app) }
     }
 
-    private func row(_ s: VocabularySuggestion) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: s.source == .aboutMe ? "person.text.rectangle" : "arrow.triangle.2.circlepath")
-                .font(.system(size: 13)).foregroundStyle(Ink.mute).frame(width: 18)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(s.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
-                Text(s.detail).font(.system(size: 12)).foregroundStyle(Ink.mute)
-            }
-            Spacer(minLength: 8)
-            Button("Dismiss") {
-                dismissedRaw = VocabularySuggestions.dismissing(s.id, in: dismissedRaw)
-                if s.source == .edits, let h = s.heard.first { EditLearner.forget(heard: h, fixed: s.preferred) }
-            }
-            .buttonStyle(.brandSecondary)
-            .accessibilityLabel("Dismiss \(s.preferred)")
-            Button("Add") {
+    /// "Jonathan  from About me  [Add] ×": paper fill, an ink outline, a mini dark Add.
+    private func pill(_ s: VocabularySuggestion) -> some View {
+        HStack(spacing: 8) {
+            Text(s.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+            Text(s.detail).font(.system(size: 11.5)).foregroundStyle(Ink.muteOnPaper).lineLimit(1)
+            PillButton(title: "Add", kind: .dark, size: .mini, fixedInk: true, hint: "Adds \(s.preferred) to your Dictionary") {
                 app.store.addSuggestion(s)
                 app.toast = Toast("Added \(s.preferred) to your Dictionary")
             }
-            .buttonStyle(.brandPrimary)
             .accessibilityLabel("Add \(s.preferred)")
+            Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Ink.muteOnPaper)
+                .frame(width: 20, height: 26).contentShape(Rectangle())
+                .tapArea { dismiss(s) }
+                .help("Dismiss")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Dismiss \(s.preferred)")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { dismiss(s) }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.leading, 14).padding(.trailing, 4)
+        .frame(height: 34)
+        .background(Ink.paperFixed, in: Capsule())
+        .overlay(Capsule().inset(by: -0.75).stroke(Ink.inkFixed, lineWidth: 1.5))
+        .accessibilityElement(children: .contain)
+        .contextMenu {
+            Button("Add \(s.preferred)") { app.store.addSuggestion(s); app.toast = Toast("Added \(s.preferred) to your Dictionary") }
+            Button("Dismiss") { dismiss(s) }
+        }
+    }
+
+    private func dismiss(_ s: VocabularySuggestion) {
+        dismissedRaw = VocabularySuggestions.dismissing(s.id, in: dismissedRaw)
+        if s.source == .edits, let h = s.heard.first { EditLearner.forget(heard: h, fixed: s.preferred) }
     }
 }
 
@@ -175,8 +194,7 @@ struct BuiltInVocabularySection: View {
         let off = BuiltInVocabulary.disabled(disabledRaw)
         let active = all.filter { !off.contains($0.id) }.count
         VStack(alignment: .leading, spacing: 8) {
-            Text("Built-in vocabulary").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-                .accessibilityAddTraits(.isHeader)
+            SectionTitle(title: "Built-in", italic: "vocabulary").padding(.bottom, 6)
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -186,19 +204,20 @@ struct BuiltInVocabularySection: View {
                             .font(.system(size: 12.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    Toggle("Built-in vocabulary", isOn: $on).toggleStyle(.switch).labelsHidden().tint(Ink.switchOn)
+                    InkSwitch(isOn: $on, label: "Built-in vocabulary")
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
+                .padding(.horizontal, 20).padding(.vertical, 14)
                 if on {
-                    Divider()
-                    HStack(spacing: 8) {
-                        TextField("Search \(all.count) terms", text: $query).textFieldStyle(.roundedBorder)
-                        Button(showList ? "Hide list" : "Show list") { showList.toggle() }.buttonStyle(.brandSecondary)
+                    Rectangle().fill(Ink.hairline).frame(height: 1)
+                    HStack(spacing: 10) {
+                        WebSearchField(text: $query, prompt: "Search \(all.count) terms", height: 36)
+                        Button(showList ? "Hide list" : "Show list") { showList.toggle() }
+                            .buttonStyle(PillButtonStyle(kind: .line, size: .mini))
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .padding(.horizontal, 20).padding(.vertical, 12)
                     if showList || !query.trimmingCharacters(in: .whitespaces).isEmpty {
                         let shown = matching(all)
-                        Divider()
+                        Rectangle().fill(Ink.hairline).frame(height: 1)
                         if shown.isEmpty {
                             Text("Nothing matches “\(query)”").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(14)
                         } else {
@@ -212,7 +231,9 @@ struct BuiltInVocabularySection: View {
                     }
                 }
             }
-            .cardSurface(radius: Radius.row)
+            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+            .inkEdge(outline: true, radius: Radius.record)
         }
         .padding(.top, 28)
     }
@@ -227,16 +248,15 @@ struct BuiltInVocabularySection: View {
 
     private func termRow(_ t: BuiltInTerm, on termOn: Bool) -> some View {
         HStack(spacing: 10) {
-            Pill(text: t.term).frame(width: 180, alignment: .leading)
+            WordPill(text: t.term).frame(width: DictionaryColumns.preferred, alignment: .leading)
             Text(t.isContextual ? "Only next to words like “call” or “app”: \(t.forms.joined(separator: ", "))" : t.forms.joined(separator: ", "))
                 .font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(t.forms.joined(separator: ", "))
             Text(t.category).font(.system(size: 11.5)).foregroundStyle(Ink.mute).frame(width: 100, alignment: .leading)
-            Toggle(t.term, isOn: Binding(get: { termOn }, set: { v in disabledRaw = BuiltInVocabulary.setting(t.id, on: v, in: disabledRaw) }))
-                .toggleStyle(.switch).controlSize(.small).labelsHidden().tint(Ink.switchOn)
+            InkSwitch(isOn: Binding(get: { termOn }, set: { v in disabledRaw = BuiltInVocabulary.setting(t.id, on: v, in: disabledRaw) }), label: t.term)
         }
-        .padding(.horizontal, 14).padding(.vertical, 7)
+        .padding(.horizontal, 20).padding(.vertical, 8)
         .opacity(termOn ? 1 : 0.55)
     }
 }
