@@ -1,10 +1,11 @@
 import SwiftUI
 import AVFoundation
 
-/// Home (approved mockup "PhoneHome", October 2026, with the Home D rules from mac/DESIGN.md): the greeting with
-/// your initial, the Record panel, four half-height start tiles (Import, Link, What's playing, Live captions), the
-/// compact Method cards on paper, This week, Recent recordings, Recent dictations, and the keyboard's state. Brand
-/// icons only (HomeKit.swift); opaque paper. Whatever you record here shows up on your Mac.
+/// Home (approved mockup "PhoneHome", October 2026, with the Home D rules and the card feel from mac/DESIGN.md): the
+/// greeting with your initial, the Record panel, four half-height start tiles (Import, Link, What's playing, Live
+/// captions), the full-color Method cards, This week, Recent recordings, Recent dictations, and the keyboard's state.
+/// Bare brand icons only (HomeKit.swift); opaque paper. Cards press in on touch. Whatever you record here shows up
+/// on your Mac.
 struct HomeScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.limitMotion) private var limitMotion
@@ -81,8 +82,7 @@ struct HomeScreen: View {
             }
             Spacer(minLength: 0)
             Button {
-                SettingsPage.open("aboutMe")
-                app.tab = .settings
+                Self.openProfile(app)
             } label: {
                 // Neutral: sage means Import, so the avatar is paper with a hairline.
                 ZStack {
@@ -103,34 +103,46 @@ struct HomeScreen: View {
         }
     }
 
+    /// Your profile, About me in Settings: the avatar and This week open it.
+    static func openProfile(_ app: PhoneState) {
+        SettingsPage.open("aboutMe")
+        app.tab = .settings
+    }
+
+    /// Puts a dictation's words on the clipboard (a Recent dictations row). The row itself confirms with "Copied".
+    static func copyDictation(_ text: String) {
+        UIPasteboard.general.string = text
+    }
+
     // MARK: Record
 
     /// Ink on the Record fill (#FB7350): 4.7:1, so every line passes at any size. White would be 2.8:1.
     private var onRecord: Color { Ink.inkFixed }
 
     private var recordPanel: some View {
-        Button {
+        // Touch down listens (after a moment, so a quick tap doesn't open the mic); lifting the finger closes it.
+        HomeCard(tilt: 2, radius: Radius.record, onPress: { pressed in
+            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
+        }, action: {
             monitor.stop()
             app.requestRecord()
-        } label: {
+        }) { _ in
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 7) {
                     Circle().fill(onRecord).frame(width: 7, height: 7).accessibilityHidden(true)
                     Text("Ready · \(micName)").font(.system(size: 13 * k, weight: .medium)).lineLimit(1)
                 }
+                // Real level while recording and while a finger rests here; an even breath otherwise.
                 Group {
                     if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
                     else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
-                    else { HomeMeter(barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
+                    else { BreathingHomeMeter(barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
                 }
                 .frame(height: 44)
-                HStack(spacing: 14) {
-                    ZStack {
-                        Circle().fill(Ink.iconDisc)
-                        DrawOnGlyph(art: .capture, color: onRecord, lineWidth: 1.6, replay: recordReplay)
-                            .frame(width: 28, height: 28)
-                    }
-                    .frame(width: 58, height: 58)
+                HStack(alignment: .bottom, spacing: 12) {
+                    // Bare: no disc behind the mic.
+                    DrawOnGlyph(art: .capture, color: onRecord, lineWidth: 1.8, replay: recordReplay)
+                        .frame(width: 40, height: 40)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Record").font(Ink.serif(30 * k))
                         Text("A voice note, a meeting, or a thought.").font(.system(size: 14 * k, weight: .semibold))
@@ -142,12 +154,7 @@ struct HomeScreen: View {
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Ink.recordFill, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
         }
-        // Touch down listens (after a moment, so a quick tap doesn't open the mic); lifting the finger closes it.
-        .buttonStyle(HomePressStyle(onPress: { pressed in
-            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
-        }))
         .accessibilityLabel("Record")
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
@@ -177,7 +184,7 @@ struct HomeScreen: View {
                     DrawOnGlyph(art: .iconVoice, color: Ink.inkFixed, lineWidth: 1.4, replay: replay)
                 }
                 // Paper with an ink outline, so it never outweighs Record.
-                HomeTile(title: "Live captions", fill: Ink.card, onFill: Ink.ink, disc: Ink.neutralChip,
+                HomeTile(title: "Live captions", fill: Ink.card, onFill: Ink.ink,
                          edge: Ink.ink, edgeWidth: 1.5, metrics: .phone, hint: "Shows what's said in the room as captions.") {
                     app.requestCaptions()
                 } icon: { replay in
@@ -197,19 +204,19 @@ struct HomeScreen: View {
             Text("Method").font(.system(size: 12.5 * k, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 10) {
-                    CompactMethodCard(feature: .capture, line: "Record or import a file.",
-                                      meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
-                                      hint: "Starts a voice note.") { app.requestRecord() }
+                    MethodCard(feature: .capture, line: "Record or import a file.",
+                               meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
+                               compact: true, hint: "Starts a voice note.") { app.requestRecord() }
                         .frame(width: width)
-                    CompactMethodCard(feature: .refine, line: "Clean up a transcript. The original stays.",
-                                      meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
-                                      hint: "Opens your latest transcript as a document.") {
+                    MethodCard(feature: .refine, line: "Clean up a transcript. The original stays.",
+                               meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
+                               compact: true, hint: "Opens your latest transcript as a document.") {
                         if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
                     }
                     .frame(width: width)
-                    CompactMethodCard(feature: .understand, line: "Search, moments, and summaries.",
-                                      meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
-                                      hint: "Opens your saved moments.") { app.tab = .moments }
+                    MethodCard(feature: .understand, line: "Search, moments, and summaries.",
+                               meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
+                               compact: true, hint: "Opens your saved moments.") { app.tab = .moments }
                         .frame(width: width)
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -223,9 +230,15 @@ struct HomeScreen: View {
 
     // MARK: This week
 
+    /// One button: anywhere on it opens your profile (About me), as the avatar does.
     private var weekCard: some View {
         let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
-        return HomeWeekCard(week: week, recordingsToday: HomeCounts.recordingsToday(app.store.live, now: now), compact: true) { EmptyView() }
+        let today = HomeCounts.recordingsToday(app.store.live, now: now)
+        return HomeCard(tilt: 3, radius: Radius.tile, action: { Self.openProfile(app) }) { _ in
+            HomeWeekCard(week: week, recordingsToday: today, compact: true) { EmptyView() }
+        }
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")). Today: \(HomeCounts.countLabel(today, "recording", "recordings")).")
+        .accessibilityHint("Opens About me.")
     }
 
     // MARK: Recent
@@ -268,7 +281,7 @@ struct HomeScreen: View {
                 app.libraryPath.append(DictationsRoute())
             }
             HomeDictationsPanel(items: items, compact: true, place: { $0.flow?.app },
-                                copy: { text in UIPasteboard.general.string = text; app.say("Copied") },
+                                copy: { Self.copyDictation($0) },
                                 empty: "Dictate with the Verbose keyboard in any app. What you say shows up here.")
             Button {
                 SettingsPage.open("keyboard")
