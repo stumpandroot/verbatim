@@ -345,6 +345,73 @@ struct CaptionsSettingsPane: View {
     }
 }
 
+// MARK: - Transcription › Meetings
+
+/// Meeting capture: whether Verbose notices calls and asks, the chat notice, your microphone, and each app it
+/// has noticed (don't ask for this app; bring back the consent sheet).
+struct MeetingsSettingsPane: View {
+    @AppStorage(MeetingCoordinator.noticeKey) private var notice = true
+    @AppStorage(MeetingCoordinator.copyNoticeKey) private var copyNotice = true
+    @ObservedObject private var coordinator = MeetingCoordinator.shared
+
+    var body: some View {
+        SettingsPane(tab: .meetings) {
+            SettingsGroup {
+                SettingsToggleRow("meetings.notice", isOn: $notice)
+                SettingsToggleRow("meetings.copyNotice", isOn: $copyNotice)
+                SettingsRow("meetings.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
+            }
+            SettingsGroup(title: SettingsIndex.entry("meetings.apps")?.label,
+                          footer: "In some places, everyone on a call must agree before you record. Verbose shows the consent sheet each time you start; after five recordings with an app, the sheet offers to stop asking for that app.") {
+                let apps = coordinator.book.sorted
+                if apps.isEmpty {
+                    SettingsRow("meetings.apps", detail: "No calls noticed yet. When a meeting app starts using your microphone, it shows here.")
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(apps, id: \.key) { entry in
+                            MeetingAppRow(key: entry.key, record: entry.record)
+                        }
+                    }
+                    .settingsAnchor("meetings.apps")
+                }
+            }
+        }
+    }
+}
+
+/// One noticed app: its counts, "Don't ask for this app", and, when the consent sheet is off for it, a way back.
+private struct MeetingAppRow: View {
+    var key: String
+    var record: MeetingAppRecord
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(record.name).font(.system(size: 14)).foregroundStyle(Ink.ink)
+                Text(detail).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if record.skipConsent {
+                SettingsChip(title: "Ask before recording", on: false) { MeetingCoordinator.shared.setSkipConsent(key, false) }
+                    .help("Show the consent sheet again each time you record \(record.name)")
+            }
+            SettingsChip(title: "Don't ask for this app", on: record.dontAsk) { MeetingCoordinator.shared.setDontAsk(key, !record.dontAsk) }
+                .help("Verbose doesn't ask when \(record.name) uses your microphone")
+        }
+        .padding(.horizontal, 16).padding(.vertical, 13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) { RowRule() }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var detail: String {
+        let calls = "\(record.calls) call\(record.calls == 1 ? "" : "s") noticed"
+        let rec = "\(record.recorded) recorded"
+        let skip = record.skipConsent ? " · no consent sheet" : ""
+        return "\(calls) · \(rec)\(skip)"
+    }
+}
+
 // MARK: - Files › Export
 
 /// The options Export and watched folders use (Copy follows the tab you're on instead). Same keys as

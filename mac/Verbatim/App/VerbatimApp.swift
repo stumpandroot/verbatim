@@ -42,12 +42,9 @@ struct VerbatimApp: App {
                     .keyboardShortcut("r", modifiers: [.option, .shift])
                 Button("Live Captions") { app.toggleLiveCaptions() }
                     .keyboardShortcut("c", modifiers: [.option, .command])
-                // Meeting capture proof of concept (App/MeetingSession.swift): only with the developer flag
-                // `defaults write co.stumpandroot.verbatim meetings.poc -bool YES`, off by default.
-                if MeetingSession.pocEnabled {
-                    Divider()
-                    MeetingCaptureCommands(app: app)
-                }
+                // Meeting capture (App/MeetingCoordinator.swift): every start goes through the consent sheet.
+                Divider()
+                MeetingCaptureCommands()
             }
             CommandGroup(after: .importExport) {
                 // Every Library transcript as a Markdown note with properties (Views/TrustViews.swift).
@@ -81,15 +78,17 @@ struct VerbatimApp: App {
     }
 }
 
-/// The meeting capture test items in the File menu (developer flag only): start or stop, and pause or resume.
+/// Record Meeting… (the consent sheet, then a two-track recording of the call) or Stop Meeting, and Pause or
+/// Resume while recording.
 struct MeetingCaptureCommands: View {
-    let app: AppState
     @ObservedObject private var session = MeetingSession.shared
     var body: some View {
-        Button(session.isActive ? "Stop meeting capture (test)" : "Start meeting capture (test)") { session.toggle(app) }
-            .disabled(session.phase == .starting || session.phase == .stopping)
+        Button(session.isActive ? "Stop Meeting" : "Record Meeting…") {
+            if session.isActive { MeetingCoordinator.shared.stopFromMenu() } else { MeetingCoordinator.shared.recordFromMenu() }
+        }
+        .disabled(session.phase == .starting || session.phase == .stopping)
         if session.canPause {
-            Button(session.phase == .paused ? "Resume meeting capture (test)" : "Pause meeting capture (test)") { session.togglePause() }
+            Button(session.phase == .paused ? "Resume Meeting" : "Pause Meeting") { session.togglePause() }
         }
     }
 }

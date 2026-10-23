@@ -151,6 +151,8 @@ final class AppState: ObservableObject {
         store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
         // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
         if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
+        // Notices calls and asks to record them; never records on its own (App/MeetingCoordinator.swift).
+        DispatchQueue.main.async { MeetingCoordinator.shared.attach(self) }
         QuitGuard.app = self
         // Services, Spotlight, and Shortcuts (App/SystemHooks.swift).
         SystemHooks.attach(self)

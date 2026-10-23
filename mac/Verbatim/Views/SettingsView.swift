@@ -48,6 +48,7 @@ struct SettingsView: View {
         case .models: ModelsSettingsPane()
         case .speakers: SpeakersSettingsPane()
         case .captions: CaptionsSettingsPane()
+        case .meetings: MeetingsSettingsPane()
         case .watched: WatchedFoldersPane()
         case .export: ExportSettingsPane()
         case .storage: StorageSettingsPane()
