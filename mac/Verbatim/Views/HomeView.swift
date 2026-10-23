@@ -42,6 +42,10 @@ struct HomeView: View {
     }
 
     var body: some View {
+        // A GeometryReader takes exactly the space the window offers and passes it down, so Home's width comes
+        // from the window. (Measuring the scroll view or the content was circular: both report the content's
+        // own width back, so Home either kept a too-wide layout or grew past the detail area.)
+        GeometryReader { geo in
         ScrollView {
             VStack(alignment: .leading, spacing: Self.gap) {
                 header.staggerIn(0)
@@ -59,14 +63,8 @@ struct HomeView: View {
             .padding(.horizontal, Self.margin).padding(.top, 36).padding(.bottom, 36)
             .frame(maxWidth: .infinity)
         }
-        // The space Home has to work with comes from the scroll view, which always takes the window's full width.
-        // Measuring the content instead was circular: its bands are sized from `width`, so a window narrower than
-        // the starting guess kept the wide layout and slid under the sidebar.
-        .background(GeometryReader { g in
-            Color.clear
-                .onAppear { width = Self.contentWidth(g.size.width) }
-                .onChange(of: g.size.width) { _, w in width = Self.contentWidth(w) }
-        })
+        .onChange(of: geo.size.width, initial: true) { _, w in width = Self.contentWidth(w) }
+        }
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
         .onChange(of: recording) { _, on in if on { monitor.stop() } }
