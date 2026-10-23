@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Every transcript, searchable, with filter chips for pinned, in progress, and each project, plus the shared type
-/// and platform chips (LibraryFilterBar). A project's view adds transcripts from the rest of the library.
+/// The Library in the website style: a compact serif title with the count in mono, a search field on the paper, one
+/// row of soft filter chips (types with a color dot, kinds, pinned, in progress, and each project), mono day headers,
+/// and flat rows with hairlines: the serif title, a meta line, and the state as a plain word over the length in mono.
+/// Drag a row onto a project chip to move it there.
 struct LibraryScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var search = ""
@@ -39,9 +41,36 @@ struct LibraryScreen: View {
         }
     }
 
-    /// Press-and-hold dictations, newest first. They have their own list, reached from the card at the top.
+    /// Dictations, newest first. They have their own list, reached from the row at the top (and Home's Dictate).
     private var dictations: [Transcript] {
         app.store.live.filter(\.isDictation).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// The list, with a day header before each day's first row when the order is by date.
+    private enum Line: Identifiable {
+        case day(Date, String)
+        case row(Transcript, Int)
+        var id: AnyHashable {
+            switch self {
+            case .day(let d, _): return AnyHashable("day-\(d.timeIntervalSince1970)")
+            case .row(let t, _): return AnyHashable(t.id)
+            }
+        }
+    }
+
+    private func lines(_ items: [Transcript]) -> [Line] {
+        let byDate = sort == .newest || sort == .oldest
+        let cal = Calendar.current
+        var out: [Line] = []
+        var lastDay: Date? = nil
+        for (i, t) in items.enumerated() {
+            if byDate {
+                let day = cal.startOfDay(for: t.createdAt)
+                if day != lastDay { out.append(.day(day, PhoneDayHeader.label(day))); lastDay = day }
+            }
+            out.append(.row(t, i))
+        }
+        return out
     }
 
     var body: some View {
@@ -50,36 +79,16 @@ struct LibraryScreen: View {
         let items = sort.sorted(typeFilter.apply(scoped, searching: searching))
         let passages = search.trimmingCharacters(in: .whitespaces).count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
         let project: UUID? = { if case .project(let p) = filter { return p }; return nil }()
-        let heroKind: RecordingKind? = { if case .kind(let k) = filter { return k }; return nil }()
         List {
             Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        chip("All", .all)
-                        ForEach(RecordingKind.pickable) { k in chip(k.plural, .kind(k)) }
-                        chip("Pinned", .pinned)
-                        chip("In progress", .working)
-                        ForEach(app.store.projects) { p in
-                            chip(p.name, .project(p.id))
-                                .dropDestination(for: String.self) { items, _ in
-                                    let ids = items.flatMap { TranscriptDrag.ids(from: $0) }
-                                    guard !ids.isEmpty else { return false }
-                                    for id in ids { app.move(id, to: p.id) }
-                                    app.say(ids.count == 1 ? "Moved to \(p.name)" : "Moved \(ids.count) to \(p.name)")
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    return true
-                                }
-                        }
-                        Button { newProject = true } label: { Image(systemName: "plus").font(.system(size: 13, weight: .semibold)).frame(width: 32, height: 32) }
-                            .buttonStyle(TactileButtonStyle()).accessibilityLabel("New project")
-                    }
-                    .padding(.horizontal, 20)
+                VStack(alignment: .leading, spacing: 14) {
+                    PhoneCompactTitle(title: "Library", count: "\(app.store.live.filter { !$0.isDictation }.count)")
+                    PhoneSearchField(text: $search, prompt: "Find the line you need")
                 }
-                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
-                LibraryFilterBar(filter: $typeFilter, items: scoped, searching: searching, wraps: false) {
-                    typeFilter.save(LibraryFilter.libraryKey)
-                }
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0)).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .padding(.top, 4)
+                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                chips(scoped)
+                    .listRowInsets(EdgeInsets(top: 14, leading: 0, bottom: 4, trailing: 0)).listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
             if let p = project {
                 Section {
@@ -92,34 +101,27 @@ struct LibraryScreen: View {
                         }
                         .foregroundStyle(Ink.ink)
                         .padding(.horizontal, 14).frame(minHeight: 48)
-                        .cardSurface(radius: Radius.row)
+                        .phoneOutlined(radius: Radius.row, line: 1)
                         .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                     }
-                    .buttonStyle(SoftPress())
+                    .buttonStyle(PhoneCardPress())
                     .accessibilityHint("Adds transcripts you already have to this project")
-                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 4, trailing: 20))
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
             if filter == .all, search.isEmpty, typeFilter == .all, !dictations.isEmpty {
                 Section {
                     NavigationLink(value: DictationsRoute()) { DictationsCard(dictations: dictations) }
-                        .buttonStyle(SoftPress())
-                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                }
-            }
-            if let k = heroKind {
-                Section {
-                    KindHeroCard(kind: k, meta: heroMeta(k, items))
-                        .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                        .buttonStyle(PhoneCardPress())
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 0, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
             if !passages.isEmpty {
                 Section {
-                    Text("Passages").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
+                    PhoneDayHeader(text: "Passages")
+                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     ForEach(passages) { hit in
                         PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
@@ -128,23 +130,6 @@ struct LibraryScreen: View {
                     }
                 }
             }
-            if filter == .kind(.journal), !items.isEmpty {
-                ForEach(JournalDays.group(items)) { day in
-                    Section {
-                        EditorialSectionHeader(index: day.date, label: day.label)
-                            .padding(.top, 10)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20))
-                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        ForEach(day.entries) { t in
-                            Button { app.open(t.id) } label: { journalCard(t) }
-                                .buttonStyle(SoftPress())
-                                .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                                .contextMenu { RowActions(transcript: t) }
-                        }
-                    }
-                }
-            } else {
             Section {
                 if items.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
@@ -154,34 +139,33 @@ struct LibraryScreen: View {
                              : project != nil ? "Nothing in this project yet. Add transcripts from your library."
                              : "Nothing here yet.").font(.system(size: 15)).foregroundStyle(Ink.dim)
                     }
+                    .padding(.top, 16)
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
-                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    Button { app.open(t.id) } label: { PhoneRow(transcript: t) }
-                        .buttonStyle(SoftPress())
-                        .riseIn(t.id, index: i, seen: seen, epoch: entrance, scrollRise: search.isEmpty)   // typing never animates rows
-                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .contextMenu { RowActions(transcript: t) }
-                        .draggable(TranscriptDrag.payload([t.id]))   // drop onto a project chip
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
-                        }
+                ForEach(lines(items)) { line in
+                    switch line {
+                    case .day(_, let label):
+                        PhoneDayHeader(text: label)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    case .row(let t, let i):
+                        row(t, index: i)
+                    }
                 }
-            }
             }
         }
         .listStyle(.plain)
+        .environment(\.defaultMinListRowHeight, 1)
         .tabEntrance(.library) { seen.entered(); entrance += 1 }
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.immediately)
         .background(Ink.paper.ignoresSafeArea())
         .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
-        .searchable(text: $search, prompt: "Find the line you need")
         .toolbar {
+            // The serif title sits on the paper; the bar keeps only Apple's buttons.
+            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker("Sort by", selection: $sortRaw) {
@@ -198,6 +182,7 @@ struct LibraryScreen: View {
             // The screenshot tour (and anything else) can open Library on a kind, or back on All.
             guard let r else { return }
             filter = RecordingKind(rawValue: r).map { .kind($0) } ?? .all
+            if filter != .all { setType(.all) }
             app.libraryFilterRequest = nil
         }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
@@ -208,47 +193,132 @@ struct LibraryScreen: View {
             Button("Cancel", role: .cancel) { projectName = "" }
             Button("Create") {
                 let n = projectName.trimmingCharacters(in: .whitespaces)
-                if !n.isEmpty { filter = .project(app.store.addProject(n).id) }
+                if !n.isEmpty { filter = .project(app.store.addProject(n).id); setType(.all) }
                 projectName = ""
             }
         }
     }
 
-    private func heroMeta(_ k: RecordingKind, _ list: [Transcript]) -> String {
-        if k == .journal {
-            let week = Date().addingTimeInterval(-7 * 86_400)
-            return "\(list.filter { $0.createdAt >= week }.count) this week"
+    // MARK: Rows
+
+    private func row(_ t: Transcript, index i: Int) -> some View {
+        Button { app.open(t.id) } label: {
+            PhoneFlatRow(transcript: t, meta: Self.meta(t)) { PhoneRowState(transcript: t) }
         }
-        return list.count == 1 ? "1 saved" : "\(list.count) saved"
+        .buttonStyle(PhoneCardPress())
+        .riseIn(t.id, index: i, seen: seen, epoch: entrance, scrollRise: search.isEmpty)   // typing never animates rows
+        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        .contextMenu { RowActions(transcript: t) }
+        .draggable(TranscriptDrag.payload([t.id]))   // drop onto a project chip
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
+        }
+        .swipeActions(edge: .leading) {
+            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Ink.sageText)   // brand: system surface (swipe action)
+        }
     }
 
-    /// A Journal entry: title, time, and the opening lines, in the row-card form.
-    private func journalCard(_ t: Transcript) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(t.title).font(.system(size: 17, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(2)
-                Spacer(minLength: 4)
-                Text(Formats.pattern("h:mm a").string(from: t.createdAt)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
+    /// "Meeting · Tim, Jonathan", "Voice note · Idea", "Journal · 3 moments", "youtube.com · Video".
+    static func meta(_ t: Transcript) -> String {
+        let style = HomeRecentStyle(t)
+        let source = t.source == .voiceMemo && !LibrarySource.isLink(t) ? "Voice note" : style.source
+        // Names people typed; the engine's "Speaker 1" placeholders count as speakers, not names.
+        let names = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
+        let moments = t.notes.filter { $0.at != nil }.count
+        let kind = t.kind.flatMap { $0 == .dictation ? nil : $0 }
+        var parts: [String] = []
+        if let kind, names.count >= 2 || moments > 0 { parts.append(kind.label) }
+        else { parts.append(source); if let kind { parts.append(kind.label) } }
+        if names.count >= 2 { parts.append(names.prefix(3).joined(separator: ", ")) }
+        else if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+        else if moments > 0 { parts.append(moments == 1 ? "1 moment" : "\(moments) moments") }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: Chips
+
+    /// One row of soft chips. A type and the other filters don't combine: choosing one clears the other.
+    private func chips(_ scoped: [Transcript]) -> some View {
+        let sources = typeFilter.sourceCounts(scoped, searching: searching).filter { $0.0 != .all }
+        let platforms = typeFilter.platformCounts(scoped, searching: searching)
+        let kinds = RecordingKind.pickable.filter { k in app.store.live.contains { $0.kind == k } || filter == .kind(k) }
+        return VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    PhoneChip(label: "All", selected: filter == .all && typeFilter == .all) { pick(.all); setType(.all) }
+                    ForEach(sources, id: \.0) { s, n in
+                        PhoneChip(label: s.label, selected: typeFilter.source == s, dot: Self.dot(s)) {
+                            pick(.all)
+                            setType(typeFilter.source == s ? .all : LibraryFilter(source: s))
+                        }
+                        .accessibilityValue("\(n)")
+                    }
+                    ForEach(kinds) { k in chip(k.plural, .kind(k)) }
+                    chip("Pinned", .pinned)
+                    chip("In progress", .working)
+                    ForEach(app.store.projects) { p in
+                        chip(p.name, .project(p.id))
+                            .dropDestination(for: String.self) { items, _ in
+                                let ids = items.flatMap { TranscriptDrag.ids(from: $0) }
+                                guard !ids.isEmpty else { return false }
+                                for id in ids { app.move(id, to: p.id) }
+                                app.say(ids.count == 1 ? "Moved to \(p.name)" : "Moved \(ids.count) to \(p.name)")
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                return true
+                            }
+                    }
+                    Button { newProject = true } label: {
+                        Image(systemName: "plus").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+                            .frame(width: 32, height: 32)
+                            .background(PhoneInk.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    }
+                    .buttonStyle(PhoneCardPress())
+                    .accessibilityLabel("New project")
+                }
+                .padding(.horizontal, 20)
             }
-            Text(JournalDays.preview(t)).font(.system(size: 15)).foregroundStyle(Ink.dim).lineSpacing(2).lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if typeFilter.source.hasPlatforms, !platforms.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(platforms, id: \.0) { p, n in
+                            PhoneChip(label: p, selected: typeFilter.platform == p, count: n) {
+                                setType(LibraryFilter(source: typeFilter.source, platform: typeFilter.platform == p ? nil : p))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
+            }
         }
-        .padding(14)
-        .cardSurface(radius: Radius.row)
-        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .accessibilityElement(children: .combine)
     }
 
     private func chip(_ label: String, _ f: Filter) -> some View {
-        Button { withAnimation(Motion.snap) { filter = f } } label: {
-            Text(label).font(.system(size: 14, weight: .medium))
-                .padding(.horizontal, 14).frame(height: 32)
-                .foregroundStyle(filter == f ? Ink.onInteractive : Ink.ink)
-                .background(filter == f ? Ink.interactive : Ink.card, in: Capsule())
-                .overlay(Capsule().strokeBorder(filter == f ? Color.clear : Ink.hairline))
+        PhoneChip(label: label, selected: filter == f) {
+            pick(filter == f ? .all : f)
+            setType(.all)
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(filter == f ? .isSelected : [])
+    }
+
+    /// Chip taps never animate rows (high-frequency); the list changes in place.
+    private func pick(_ f: Filter) { filter = f }
+
+    private func setType(_ f: LibraryFilter) {
+        guard f != typeFilter else { return }
+        typeFilter = f
+        typeFilter.save(LibraryFilter.libraryKey)
+    }
+
+    /// The source's color, as on Home: voice notes record, files and links sage, app audio petal, dictation butter.
+    static func dot(_ s: LibrarySource) -> Color? {
+        switch s {
+        case .all: return nil
+        case .voiceMemos: return PhoneInk.record
+        case .videos, .audioFiles, .links: return PhoneInk.sage
+        case .appAudio: return PhoneInk.petal
+        case .dictations: return PhoneInk.butter
+        }
     }
 }
 
