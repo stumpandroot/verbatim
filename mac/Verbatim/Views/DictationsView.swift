@@ -1,6 +1,11 @@
 import SwiftUI
 import AppKit
 
+// brand: web style
+//
+// Dictations in the website style (mac/DESIGN.md §11): a compact title with the count and the retention menu as a
+// line pill, category chips, day headers, and flat rows that copy when clicked.
+
 /// Every dictation, newest first, grouped by day: what you said, what was pasted, and where.
 /// Copy any of them again, see the words before cleanup, redo the cleanup at another level, or open the
 /// full transcript with its audio.
@@ -18,16 +23,23 @@ struct DictationsView: View {
             return (t.flow?.pasted ?? t.text).lowercased().contains(q) || (t.flow?.raw ?? "").lowercased().contains(q) || (t.flow?.app ?? "").lowercased().contains(q)
         }
     }
+    /// "Today · Fri Oct 23", "Yesterday · Thu Oct 22", "Monday, Oct 19".
     private static func days(_ shown: [Transcript]) -> [(String, [Transcript])] {
         let cal = Calendar.current
         let f = Formats.pattern("EEEE, MMM d")
+        let short = Formats.pattern("EEE MMM d")
         var out: [(String, [Transcript])] = []
         for t in shown {
-            let label = cal.isDateInToday(t.createdAt) ? "Today" : cal.isDateInYesterday(t.createdAt) ? "Yesterday" : f.string(from: t.createdAt)
+            let label = cal.isDateInToday(t.createdAt) ? "Today · \(short.string(from: t.createdAt))"
+                : cal.isDateInYesterday(t.createdAt) ? "Yesterday · \(short.string(from: t.createdAt))"
+                : f.string(from: t.createdAt)
             if out.last?.0 == label { out[out.count - 1].1.append(t) } else { out.append((label, [t])) }
         }
         return out
     }
+
+    private static let retention: [(Int, String)] = [(0, "Keep forever"), (30, "Keep 30 days"), (7, "Keep 7 days"), (1, "Keep 1 day")]
+    private var retentionTitle: String { Self.retention.first { $0.0 == settings.keepDays }?.1 ?? "Keep \(settings.keepDays) days" }
 
     var body: some View {
         // Filtered and sorted once per render, not once per use.
@@ -35,138 +47,146 @@ struct DictationsView: View {
         let shown = matching(all)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Dictations").font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
-                    Text(all.count == 1 ? "1 kept" : "\(all.count) kept").font(.system(size: 13)).foregroundStyle(Ink.mute)
-                    Spacer()
-                    Picker("Keep", selection: $settings.keepDays) {
-                        Text("Keep forever").tag(0)
-                        Text("Keep 30 days").tag(30)
-                        Text("Keep 7 days").tag(7)
-                        Text("Keep 1 day").tag(1)
-                    }
-                    .pickerStyle(.menu).labelsHidden().fixedSize()
-                    .onChange(of: settings.keepDays) { _, _ in app.dictation.purgeOldDictations() }
+                PageTitle(title: "Dictations", count: all.count == 1 ? "1 kept" : "\(all.count.formatted()) kept") {
+                    retentionMenu
                 }
-                Text("Everything you dictated into other apps, with the audio. If a paste went missing, it's here. ⌘⌃V pastes the last one again.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.top, 4)
-                HStack(spacing: 6) {
-                    SiteChip(label: "All", on: filter == nil) { filter = nil }
-                    ForEach(AppCategory.allCases) { c in SiteChip(label: c.title, on: filter == c) { filter = c } }
+                .staggerIn(0)
+                DictationsLede(before: "Everything you dictated into other apps, with the audio. If a paste went missing, it's here.",
+                               keys: "⌃⌘V", after: "pastes the last one again.")
+                    .padding(.top, 12)
+                FlowRow(spacing: 8, lineSpacing: 8) {
+                    FilterChip(title: "All", selected: filter == nil) { filter = nil }
+                    ForEach(AppCategory.allCases) { c in FilterChip(title: c.title, selected: filter == c) { filter = c } }
                 }
-                .padding(.top, 14)
+                .padding(.top, 22).padding(.bottom, 6)
+                .staggerIn(1)
 
                 if shown.isEmpty {
-                    HStack(spacing: 16) {
-                        IconPlate(art: .iconDictations, size: 80)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(all.isEmpty ? "No dictations yet" : "Nothing matches").font(Ink.serif(20, weight: .regular))
-                            Text("Click the floating button at the edge of your screen, or \(app.dictation.hotkey.shortTitle), and talk. The words land where your cursor is.")
-                                .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
-                        }
-                        Spacer()
-                    }
-                    .padding(20).background(NoteCardBackground(hover: false)).padding(.top, 20)
+                    emptyState(all.isEmpty).padding(.top, 20).staggerIn(1)
                 } else {
                     ForEach(Self.days(shown), id: \.0) { day, items in
-                        Text(day).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 24).padding(.bottom, 8)
-                        VStack(spacing: 6) {
+                        DayHeader(text: day).padding(.top, 14).padding(.bottom, 8)
+                        VStack(spacing: 2) {
                             ForEach(items) { t in DictationRow(transcript: t) }
                         }
                     }
                 }
             }
-            .frame(maxWidth: 860, alignment: .leading)
-            .padding(.horizontal, 32).padding(.vertical, 28)
+            .frame(maxWidth: 900, alignment: .leading)
+            .padding(.horizontal, 40).padding(.top, 30).padding(.bottom, 40)
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// "Keep 30 days ⌄": the retention menu as a line pill.
+    private var retentionMenu: some View {
+        Menu {
+            Picker("Keep", selection: $settings.keepDays) {
+                ForEach(Self.retention, id: \.0) { item in Text(item.1).tag(item.0) }
+            }
+            .pickerStyle(.inline).labelsHidden()
+        } label: {
+            PillLabel(title: retentionTitle, kind: .line, size: .regular, trailing: .chevron)
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("How long dictations are kept. Pinned ones stay.")
+        .accessibilityLabel("Keep dictations")
+        .accessibilityValue(retentionTitle)
+        .onChange(of: settings.keepDays) { _, _ in app.dictation.purgeOldDictations() }
+    }
+
+    @ViewBuilder private func emptyState(_ none: Bool) -> some View {
+        if none {
+            EmptyStateCard(art: .iconDictations, title: "No dictations yet",
+                           message: "Click the floating button at the edge of your screen, or press \(app.dictation.hotkey.shortTitle), and talk. The words land where your cursor is.")
+        } else {
+            EmptyStateCard(art: .search, title: "Nothing matches",
+                           message: "No dictation in this category matches your search.", button: "Show all") {
+                filter = nil
+                app.search = ""
+            }
         }
     }
 }
 
+/// The lede with the paste-last shortcut drawn as a key inside the sentence: the words wrap around the key.
+private struct DictationsLede: View {
+    var before: String
+    var keys: String
+    var after: String
+
+    var body: some View {
+        FlowRow(spacing: 4, lineSpacing: 1) {
+            ForEach(Array(words(before).enumerated()), id: \.offset) { _, w in word(w) }
+            Keycap(keys: keys, size: 12).foregroundStyle(Ink.dim).frame(height: 22).padding(.horizontal, 2)
+            ForEach(Array(words(after).enumerated()), id: \.offset) { _, w in word(w) }
+        }
+        .frame(maxWidth: 640, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(before) \(Keycap.spoken(keys)) \(after)")
+    }
+
+    private func words(_ s: String) -> [String] { s.split(separator: " ").map(String.init) }
+    private func word(_ w: String) -> some View {
+        Text(w).font(.system(size: 14)).foregroundStyle(Ink.dim).frame(height: 22)
+    }
+}
+
+/// One dictation as a flat row: the time and length in mono, the words, and a meta line (the app's icon, the app,
+/// the cleanup level, "not pasted" in accent). Clicking the row copies what was pasted; the Copy pill turns into
+/// "✓ Copied" for 1.6 s. The More menu redoes cleanup, runs an action, opens the transcript, pins, or deletes.
+/// The row drags onto a project in the sidebar.
 struct DictationRow: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
-    @State private var hover = false
     @State private var showRaw = false
     @State private var working = false
     @State private var running: FlowAction? = nil
+    @State private var copied = false
+    @State private var copies = 0
+    @Environment(\.limitMotion) private var limitMotion
 
     private var info: FlowInfo? { transcript.flow }
     private var pasted: String { info?.pasted ?? transcript.text }
     private var raw: String { info?.raw ?? transcript.text }
     private var time: String { Formats.style(date: .none, time: .short).string(from: transcript.createdAt) }
+    private var shownText: String { showRaw ? raw : pasted }
+    private var canCopy: Bool { transcript.status != .failed && !shownText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(time).font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute)
-                Text(transcript.duration.timecode).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.mute)
-            }
-            .frame(width: 64, alignment: .leading)
-            .contentShape(Rectangle())
-            // Drag by the time column (the text stays selectable) onto a project in the sidebar.
-            .transcriptDrag([transcript.id])
-            .help("Drag onto a project")
-            VStack(alignment: .leading, spacing: 6) {
-                if transcript.status == .failed {
-                    Text(transcript.error ?? "Transcription failed").font(.system(size: 14)).foregroundStyle(Ink.danger)
-                } else if let instruction = info?.instruction {
-                    Text("“\(instruction)”").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.dim)
-                    Text(pasted).font(.system(size: 14.5)).foregroundStyle(Ink.ink).lineLimit(hover ? 12 : 3).textSelection(.enabled)
-                } else {
-                    Text(showRaw ? raw : (pasted.isEmpty ? "(only filler words)" : pasted))
-                        .font(.system(size: 14.5)).foregroundStyle(showRaw ? Ink.dim : Ink.ink)
-                        .lineLimit(hover ? 12 : 3).textSelection(.enabled)
+        FlatRowButton(dragPayload: { TranscriptDrag.payload([transcript.id]) }, action: { if canCopy { copyNow(shownText) } }) { lit in
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(time).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.ink)
+                    Text(WebFormat.clock(transcript.duration)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
                 }
-                HStack(spacing: 6) {
-                    if let info {
-                        Text(info.app)
-                        Text("·")
-                        Text(info.instruction == nil ? CleanupLevel.title(stored: info.level) : "Edited by voice")
-                        if info.pasted != info.raw, info.instruction == nil { Text("·"); Text("cleaned") }
-                        if !info.pastedOK { Text("·"); Text("not pasted").foregroundStyle(Ink.accentText) }
+                .lineLimit(1)
+                .frame(width: 76, alignment: .leading)
+                .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    if transcript.status == .failed {
+                        Text(transcript.error ?? "Transcription failed").font(.system(size: 15)).foregroundStyle(Ink.danger)
+                    } else if let instruction = info?.instruction {
+                        Text("“\(instruction)”").font(Ink.serif(15).italic()).foregroundStyle(Ink.dim)
+                        Text(pasted).font(.system(size: 15)).foregroundStyle(Ink.ink).lineSpacing(4).lineLimit(lit ? 12 : 3)
                     } else {
-                        Text(transcript.sourceLabel)
+                        Text(showRaw ? raw : (pasted.isEmpty ? "(only filler words)" : pasted))
+                            .font(.system(size: 15)).foregroundStyle(showRaw ? Ink.dim : Ink.ink)
+                            .lineSpacing(4).lineLimit(lit ? 12 : 3)
                     }
+                    metaLine
                 }
-                .font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // Room for the Copy pill and the More menu, which sit above the row's click layer.
+                controls.hidden()
             }
-            Spacer(minLength: 8)
-            HStack(spacing: 2) {
-                if working { ProgressView().controlSize(.small).padding(.horizontal, 6) }
-                Button { Paster.copy(pasted); app.toast = Toast("Copied") } label: { ToolLabel(title: "Copy", art: .iconCopy) }
-                    .buttonStyle(.plain).help("Copy what was pasted")
-                Menu {
-                    if info != nil, info?.instruction == nil {
-                        Button(showRaw ? "Show what was pasted" : "Show what you said") { showRaw.toggle() }
-                        Button("Copy what you said") { Paster.copy(raw); app.toast = Toast("Copied what you said") }
-                        Divider()
-                        Section("Redo cleanup") {
-                            ForEach(CleanupLevel.allCases) { l in
-                                Button(l.title) { redo(l) }
-                            }
-                        }
-                        Divider()
-                    }
-                    if transcript.status != .failed, !pasted.isEmpty {
-                        Menu("Run Action") { ActionsMenuItems { running = $0 } }
-                        Divider()
-                    }
-                    Button("Open transcript and audio") { app.go(.transcript(transcript.id)) }
-                    Button(transcript.pinned ? "Unpin" : "Pin (kept past the retention limit)") { app.store.update(transcript.id) { $0.pinned.toggle() } }
-                    Divider()
-                    Button("Delete", role: .destructive) { app.delete([transcript.id]) }
-                } label: { ToolLabel(title: "More", symbol: "ellipsis", compact: true) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            }
-            .opacity(hover || working ? 1 : 0.35)
+            .padding(.horizontal, 16).padding(.vertical, 14)
+        } accessory: { _ in
+            controls.padding(.trailing, 16).padding(.top, 14)
+                .frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(NoteCardBackground(hover: hover))
-        .onHover { hover = $0 }
-        .animation(Motion.touch, value: hover)
         .contextMenu {
-            Button("Copy") { Paster.copy(pasted) }
+            Button("Copy") { copyNow(pasted) }
             if transcript.status != .failed, !pasted.isEmpty { Menu("Run Action") { ActionsMenuItems { running = $0 } } }
             Button("Open transcript and audio") { app.go(.transcript(transcript.id)) }
         }
@@ -175,6 +195,90 @@ struct DictationRow: View {
                 app.store.addNote(Note(text: text, aiAction: a.name), to: transcript.id)
             }
             .environmentObject(app)
+        }
+    }
+
+    /// "▢ Mail · Clean · cleaned", "▢ Slack · Edited by voice", "▢ Messages · Literal · not pasted".
+    private var metaLine: some View {
+        HStack(spacing: 7) {
+            if let info {
+                AppIconView(bundleID: info.bundleID).frame(width: 14, height: 14)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                Text(metaParts.joined(separator: " · "))
+                if !info.pastedOK {
+                    Text("·")
+                    Text("not pasted").fontWeight(.semibold).foregroundStyle(Ink.accentText)
+                }
+            } else {
+                Text(transcript.sourceLabel)
+            }
+            if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
+        }
+        .font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+    }
+
+    private var metaParts: [String] {
+        guard let info else { return [transcript.sourceLabel] }
+        var parts = [info.app, info.instruction == nil ? CleanupLevel.title(stored: info.level) : "Edited by voice"]
+        if info.pasted != info.raw, info.instruction == nil { parts.append("cleaned") }
+        return parts
+    }
+
+    /// The working spinner, the Copy pill, and the More menu.
+    private var controls: some View {
+        HStack(spacing: 4) {
+            if working { ProgressView().controlSize(.small).padding(.horizontal, 4) }
+            if canCopy {
+                CopyPill(copied: copied, limitMotion: limitMotion)
+                    .tapArea { copyNow(shownText) }
+                    .help(showRaw ? "Copy what you said" : "Copy what was pasted")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(copied ? "Copied" : "Copy")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { copyNow(shownText) }
+            }
+            moreMenu
+        }
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            if info != nil, info?.instruction == nil {
+                Button(showRaw ? "Show what was pasted" : "Show what you said") { showRaw.toggle() }
+                Button("Copy what you said") { Paster.copy(raw); app.toast = Toast("Copied what you said") }
+                Divider()
+                Section("Redo cleanup") {
+                    ForEach(CleanupLevel.allCases) { l in
+                        Button(l.title) { redo(l) }
+                    }
+                }
+                Divider()
+            }
+            if transcript.status != .failed, !pasted.isEmpty {
+                Menu("Run Action") { ActionsMenuItems { running = $0 } }
+                Divider()
+            }
+            Button("Open transcript and audio") { app.go(.transcript(transcript.id)) }
+            Button(transcript.pinned ? "Unpin" : "Pin (kept past the retention limit)") { app.store.update(transcript.id) { $0.pinned.toggle() } }
+            Divider()
+            Button("Delete", role: .destructive) { app.delete([transcript.id]) }
+        } label: {
+            MoreDots()
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("More")
+        .accessibilityLabel("More actions for this dictation")
+    }
+
+    private func copyNow(_ text: String) {
+        Paster.copy(text)
+        copies += 1
+        let token = copies
+        withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = true }
+        HomeAnnounce.say("Copied")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            guard copies == token else { return }
+            withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = false }
         }
     }
 
@@ -187,5 +291,40 @@ struct DictationRow: View {
             }
             working = false; showRaw = false
         }
+    }
+}
+
+/// "Copy" as a line pill that turns into a dark "✓ Copied" (a short crossfade and slide; a plain crossfade with
+/// motion limited).
+private struct CopyPill: View {
+    var copied: Bool
+    var limitMotion: Bool
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            PillLabel(title: "Copy", kind: .line, size: .mini, icon: .iconCopy)
+                .opacity(copied ? 0 : 1)
+                .offset(y: copied && !limitMotion ? -4 : 0)
+            PillLabel(title: "Copied", kind: .dark, size: .mini, icon: .homeCheck)
+                .opacity(copied ? 1 : 0)
+                .offset(y: copied || limitMotion ? 0 : 4)
+        }
+        .contentShape(Capsule())
+    }
+}
+
+/// "···": a row's More button (30 × 28), dim, with a soft wash under the pointer.
+private struct MoreDots: View {
+    @State private var hover = false
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { _ in Circle().fill(Ink.dim).frame(width: 3.5, height: 3.5) }
+        }
+        .frame(width: 30, height: 28)
+        .background(Capsule().fill(Ink.ink.opacity(hover ? 0.07 : 0)))
+        .contentShape(Capsule())
+        .onHover { hover = $0 }
+        .animation(Motion.touch, value: hover)
+        .accessibilityHidden(true)
     }
 }
