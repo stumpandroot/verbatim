@@ -1,46 +1,46 @@
 import SwiftUI
 import AVFoundation
 
-/// Home (approved mockup "PhoneHome", October 2026, with the Home D rules and the card feel from mac/DESIGN.md): the
-/// greeting with your initial, the Record panel, four half-height start tiles (Import, Link, What's playing, Live
-/// captions), the full-color Method cards, This week, Recent recordings, Recent dictations, and the keyboard's state.
-/// Bare brand icons only (HomeKit.swift); opaque paper. Cards press in on touch. Whatever you record here shows up
-/// on your Mac.
+/// Home, in the website style (mockup "Verbose iPhone, Website Style", October 23, 2026): the only screen with the
+/// big two-line serif greeting, then the Record panel (record color, grain, the breathing meter, and the rings that
+/// swell gently), four short start tiles (Dictate, Import, Paste a link, Live captions), a one-line This week card,
+/// and the two most recent recordings as flat rows. Whatever you record here shows up on your Mac.
 struct HomeScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.limitMotion) private var limitMotion
     /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
     @AppStorage("profile.name") private var storedName = ""
-    /// Entrances: the first screenful staggers in on launch and on each switch to Home; rows rise once.
+    /// Entrances: the first screenful staggers in on launch and on each switch to Home.
     @State private var seen = SeenRows()
     @State private var entrance = 0
     @State private var now = Date()
     @State private var micName = HomeScreen.currentMic()
-    @State private var recordReplay = 0
     /// Listens to the mic while a finger is on Record, so the meter shows your real level (DESIGN.md §7).
     @StateObject private var monitor = HomeLevelMonitor()
-    @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
+    @ObservedObject private var flow = FlowSettings.shared
+    @ScaledMetric(relativeTo: .largeTitle) private var displaySize: CGFloat = 36
+    @ScaledMetric(relativeTo: .title) private var recordSize: CGFloat = 30
+    @ScaledMetric(relativeTo: .body) private var recordLine: CGFloat = 17
+    @ScaledMetric(relativeTo: .body) private var tileSize: CGFloat = 19
+    @ScaledMetric(relativeTo: .title2) private var sectionSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .footnote) private var small: CGFloat = 12.5
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 0) {
                     header.id("home-top")
                         .riseIn("header", index: 0, seen: seen, epoch: entrance)
-                    recordPanel
+                    recordPanel.padding(.top, 18)
                         .riseIn("record", index: 1, seen: seen, epoch: entrance)
-                    tiles
+                    tiles.padding(.top, 10)
                         .riseIn("tiles", index: 2, seen: seen, epoch: entrance)
-                    method.padding(.top, 4)
-                        .riseIn("method", index: 3, seen: seen, epoch: entrance)
-                    weekCard
-                        .riseIn("week", index: 4, seen: seen, epoch: entrance)
-                    recent.padding(.top, 6).id("home-recent")
-                        .riseIn("recent", index: 5, seen: seen, epoch: entrance)
-                    dictations.padding(.top, 6).id("home-dictations")
-                        .riseIn("dictations", index: 6, seen: seen, epoch: entrance)
+                    weekCard.padding(.top, 12)
+                        .riseIn("week", index: 3, seen: seen, epoch: entrance)
+                    recent.padding(.top, 24).id("home-recent")
+                        .riseIn("recent", index: 4, seen: seen, epoch: entrance)
                 }
-                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 32)
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
             }
             .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeScroll)) { note in
                 guard let id = note.object as? String else { return }
@@ -50,6 +50,7 @@ struct HomeScreen: View {
         .tabEntrance(.home) { seen.entered(); entrance += 1 }
         .background(Ink.paper.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
         .onAppear { now = Date(); micName = Self.currentMic() }
         .onDisappear { monitor.stop() }
         .onChange(of: app.recorder.isRecording) { _, on in if on { monitor.stop() } }
@@ -68,93 +69,95 @@ struct HomeScreen: View {
 
     private var firstName: String? { HomeGreeting.firstName(storedName) }
 
+    /// The eyebrow date, then "Good afternoon, Tim." over an italic "What are we keeping?", both in the display serif.
     private var header: some View {
         let line = HomeGreeting.line(name: firstName, hour: Calendar.current.component(.hour, from: now))
-        return HStack(alignment: .bottom, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(HomeGreeting.dateLine(now)).font(.system(size: 13 * k, weight: .medium)).foregroundStyle(Ink.mute)
-                // "Good afternoon," on one line and the name on the next, as in the mockup.
-                Text(line.replacingOccurrences(of: ", ", with: ",\n"))
-                    .font(Ink.serif(34 * k)).foregroundStyle(Ink.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(line)
-                    .accessibilityAddTraits(.isHeader)
+        return VStack(alignment: .leading, spacing: 8) {
+            PhoneEyebrow(text: HomeGreeting.dateLine(now))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line)
+                Text("What are we keeping?").italic()
             }
-            Spacer(minLength: 0)
-            Button {
-                Self.openProfile(app)
-            } label: {
-                // Neutral: sage means Import, so the avatar is paper with a hairline.
-                ZStack {
-                    Circle().fill(Ink.card)
-                    Circle().strokeBorder(Ink.hairline)
-                    if let name = firstName, let first = name.first {
-                        Text(String(first).uppercased()).font(Ink.serif(19)).foregroundStyle(Ink.ink)
-                    } else {
-                        IconGlyph(art: .iconAboutMe, size: 20, color: Ink.ink)
-                    }
-                }
-                .frame(width: 40, height: 40)
-                .contentShape(Circle())
-            }
-            .buttonStyle(SoftPress())
-            .accessibilityLabel("About me")
-            .accessibilityHint("Opens About me in Settings.")
+            .font(Ink.serif(displaySize)).tracking(-0.8)
+            .foregroundStyle(Ink.ink)
+            .lineSpacing(0)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
         }
     }
 
-    /// Your profile, About me in Settings: the avatar and This week open it.
+    /// Your profile, About me in Settings: This week opens it.
     static func openProfile(_ app: PhoneState) {
         SettingsPage.open("aboutMe")
         app.tab = .settings
     }
 
-    /// Puts a dictation's words on the clipboard (a Recent dictations row). The row itself confirms with "Copied".
+    /// Puts a dictation's words on the clipboard (a Dictations row). The row itself confirms with a check.
     static func copyDictation(_ text: String) {
         UIPasteboard.general.string = text
     }
 
     // MARK: Record
 
-    /// Ink on the Record fill (#FB7350): 4.7:1, so every line passes at any size. White would be 2.8:1.
+    /// Ink on the Record fill: 4.7:1, so every line passes at any size. White would be 2.8:1.
     private var onRecord: Color { Ink.inkFixed }
 
     private var recordPanel: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
         // Touch down listens (after a moment, so a quick tap doesn't open the mic); lifting the finger closes it.
-        HomeCard(tilt: 2, radius: Radius.record, onPress: { pressed in
-            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
-        }, action: {
+        return Button {
             monitor.stop()
             app.requestRecord()
-        }) { _ in
-            VStack(alignment: .leading, spacing: 14) {
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 7) {
                     Circle().fill(onRecord).frame(width: 7, height: 7).accessibilityHidden(true)
-                    Text("Ready · \(micName)").font(.system(size: 13 * k, weight: .medium)).lineLimit(1)
+                    Text("Ready · \(micName)").font(.system(size: small, weight: .semibold)).lineLimit(1)
                 }
+                .padding(.horizontal, 11).frame(minHeight: 26)
+                .background(Ink.readerFixed.opacity(0.55), in: Capsule())
                 // Real level while recording and while a finger rests here; an even breath otherwise.
                 Group {
-                    if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
-                    else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
-                    else { BreathingHomeMeter(barWidth: 5, gap: 6, heights: HomeMeter.phoneHeights, color: onRecord) }
+                    if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
+                    else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
+                    else { BreathingHomeMeter(barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
                 }
-                .frame(height: 44)
-                HStack(alignment: .bottom, spacing: 12) {
-                    // Bare: no disc behind the mic.
-                    DrawOnGlyph(art: .capture, color: onRecord, lineWidth: 1.8, replay: recordReplay)
-                        .frame(width: 40, height: 40)
+                .frame(maxWidth: 250).frame(height: 36)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+                HStack(alignment: .bottom, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Record").font(Ink.serif(30 * k))
-                        Text("A voice note, a meeting, or a thought.").font(.system(size: 14 * k, weight: .semibold))
+                        Text("Record").font(Ink.serif(recordSize))
+                        Text("a thought, a call, a walk.").font(Ink.serif(recordLine)).italic()
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    Spacer(minLength: 8)
+                    ZStack {
+                        Circle().fill(Ink.inkFixed)
+                        Circle().fill(PhoneInk.record).frame(width: 18, height: 18)
+                    }
+                    .frame(width: 52, height: 52)
+                    .accessibilityHidden(true)
                 }
             }
             .foregroundStyle(onRecord)
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Ink.recordFill, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 184, alignment: .leading)
+            .background {
+                ZStack(alignment: .topTrailing) {
+                    PhonePanelFill(color: PhoneInk.record, shape: shape)
+                    PhonePanelArt(kind: .rings).frame(width: 200, height: 200).offset(x: 40, y: 6)
+                }
+                .clipShape(shape)
+            }
+            .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
+            .background(shape.fill(PhoneInk.hard).offset(x: 4, y: 5))
+            .contentShape(shape)
         }
+        .buttonStyle(PhonePressReporting { pressed in
+            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
+        })
         .accessibilityLabel("Record")
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
@@ -163,148 +166,203 @@ struct HomeScreen: View {
     // MARK: Tiles
 
     private var tiles: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)], spacing: 8) {
-            Group {
-                HomeTile(title: "Import", fill: Ink.sage, metrics: .phone, hint: "Choose audio or video files to transcribe.") {
+        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+            GridRow {
+                Button { app.homePath.append(DictationsRoute()) } label: {
+                    tile("Dictate", art: .iconDictations, fill: PhoneInk.butter)
+                }
+                .buttonStyle(PhoneCardPress())
+                .accessibilityHint("Opens your dictations and how to use the Verbose keyboard.")
+                // Touch and hold for Transcribe what's playing, the other way to bring audio in.
+                Menu {
+                    Button("Choose files…") { app.showImporter = true }
+                    Button("What's playing in another app") { app.showPlayingSheet = true }
+                } label: {
+                    tile("Import", art: .iconDownload, fill: PhoneInk.sage)
+                } primaryAction: {
                     app.showImporter = true
-                } icon: { replay in
-                    DrawOnGlyph(art: .document, color: Ink.inkFixed, lineWidth: 1.25, replay: replay)
                 }
-                // Sage: a link is an import (butter means Dictate).
-                HomeTile(title: "Link", fill: Ink.sage, metrics: .phone, hint: "Paste a YouTube, podcast, or file link to transcribe.") {
-                    app.showLinkSheet = true
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconLinks, color: Ink.inkFixed, lineWidth: 1.4, replay: replay)
-                }
+                .menuStyle(.button)
+                .buttonStyle(PhoneCardPress())
+                .accessibilityHint("Choose audio or video files to transcribe. Touch and hold for what's playing in another app.")
             }
-            Group {
-                HomeTile(title: "What's playing", fill: Ink.petal, metrics: .phone, hint: "Transcribes sound from TikTok or any app.") {
-                    app.showPlayingSheet = true
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconVoice, color: Ink.inkFixed, lineWidth: 1.4, replay: replay)
+            GridRow {
+                Button { app.showLinkSheet = true } label: {
+                    tile("Paste a link", art: .iconLinks, fill: PhoneInk.petal)
                 }
+                .buttonStyle(PhoneCardPress())
+                .accessibilityHint("Paste a YouTube, podcast, or file link to transcribe.")
                 // Paper with an ink outline, so it never outweighs Record.
-                HomeTile(title: "Live captions", fill: Ink.card, onFill: Ink.ink,
-                         edge: Ink.ink, edgeWidth: 1.5, metrics: .phone, hint: "Shows what's said in the room as captions.") {
-                    app.requestCaptions()
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconCaptions, color: Ink.ink, lineWidth: 1.4, replay: replay)
+                Button { app.requestCaptions() } label: {
+                    tile("Live captions", art: .iconCaptions, fill: nil)
                 }
+                .buttonStyle(PhoneCardPress())
+                .accessibilityHint("Shows what's said in the room as captions.")
             }
         }
     }
 
-    // MARK: Method
-
-    private var method: some View {
-        let live = app.store.live
-        let latest = HomeCounts.latestRefinable(live)
-        let width = 196 * min(k, 1.5)
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Method").font(.system(size: 12.5 * k, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 10) {
-                    MethodCard(feature: .capture, line: "Record or import a file.",
-                               meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
-                               compact: true, hint: "Starts a voice note.") { app.requestRecord() }
-                        .frame(width: width)
-                    MethodCard(feature: .refine, line: "Clean up a transcript. The original stays.",
-                               meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
-                               compact: true, hint: "Opens your latest transcript as a document.") {
-                        if let t = latest { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) }
-                    }
-                    .frame(width: width)
-                    MethodCard(feature: .understand, line: "Search, moments, and summaries.",
-                               meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
-                               compact: true, hint: "Opens your saved moments.") { app.tab = .moments }
-                        .frame(width: width)
-                }
+    /// A start tile: the bare icon top left, the name in the serif at the foot. Color tiles get grain; Live captions
+    /// is paper with an ink outline.
+    private func tile(_ title: String, art: BrandArt, fill: Color?) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+        let on = fill == nil ? Ink.ink : Ink.inkFixed
+        return VStack(alignment: .leading, spacing: 8) {
+            IconGlyph(art: art, size: 22, color: on)
+            Spacer(minLength: 0)
+            Text(title).font(Ink.serif(tileSize)).foregroundStyle(on)
+                .lineLimit(2).minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.viewAligned)
-            .contentMargins(.horizontal, 18, for: .scrollContent)
-            .padding(.horizontal, -18)
         }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+        .background {
+            if let fill { PhonePanelFill(color: fill, shape: shape) } else { shape.fill(Ink.card) }
+        }
+        .overlay { if fill == nil { shape.strokeBorder(Ink.ink, lineWidth: 1.5) } }
+        .contentShape(shape)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: This week
 
-    /// One button: anywhere on it opens your profile (About me), as the avatar does.
+    /// One line: the week's words in the serif, seven small day bars, and the time saved. Opens About me.
     private var weekCard: some View {
         let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
-        let today = HomeCounts.recordingsToday(app.store.live, now: now)
-        return HomeCard(tilt: 3, radius: Radius.tile, action: { Self.openProfile(app) }) { _ in
-            HomeWeekCard(week: week, recordingsToday: today, compact: true) { EmptyView() }
+        let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
+        return Button { Self.openProfile(app) } label: {
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("This week").font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                    (Text(week.words.formatted()) + Text(week.words == 1 ? " word" : " words").italic())
+                        .font(Ink.serif(24)).foregroundStyle(Ink.ink)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 6)
+                dayBars(week)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(saved).font(Ink.serif(17)).foregroundStyle(Ink.ink).lineLimit(1)
+                    Text("saved").font(.system(size: small)).foregroundStyle(Ink.dim)
+                }
+                .fixedSize()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .phoneOutlined(radius: Radius.record)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
         }
-        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")). Today: \(HomeCounts.countLabel(today, "recording", "recordings")).")
+        .buttonStyle(PhoneCardPress())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(saved) saved.")
         .accessibilityHint("Opens About me.")
+    }
+
+    private func dayBars(_ week: HomeWeek) -> some View {
+        let peak = CGFloat(max(1, week.peak))
+        return HStack(alignment: .bottom, spacing: 5) {
+            ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
+                let empty = day.isFuture || day.words == 0
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(day.isToday && !empty ? PhoneInk.record : Ink.ink)
+                    .opacity(empty ? 0.3 : 1)
+                    .frame(width: 7, height: empty ? 2 : max(4, 34 * CGFloat(day.words) / peak))
+            }
+        }
+        .frame(height: 34, alignment: .bottom)
+        .accessibilityHidden(true)
+    }
+
+    /// "42s", "18m", "2h 14m".
+    static func savedLabel(_ s: Double) -> String {
+        if s < 60 { return "\(Int(s.rounded()))s" }
+        let m = Int((s / 60).rounded())
+        if m < 60 { return "\(m)m" }
+        return m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m"
     }
 
     // MARK: Recent
 
     private var recent: some View {
-        let items = Array(app.store.live.filter { !$0.isDictation }.prefix(3))
-        return VStack(alignment: .leading, spacing: 8) {
-            HomeSectionTitle(title: "Recent recordings", link: "Library", size: 23, linkHint: "Opens your library.") { app.tab = .library }
+        let items = Array(app.store.live.filter { !$0.isDictation }.prefix(2))
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                (Text("Recent ") + Text("recordings").italic())
+                    .font(Ink.serif(sectionSize)).foregroundStyle(Ink.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                Button("Library") { app.tab = .library }
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.accentText)
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens your library.")
+            }
             if items.isEmpty {
-                HStack(spacing: 14) {
-                    EmptyStateArt(art: .capture, tint: Ink.persimmonTint)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Record something new.").font(Ink.serif(20 * k)).foregroundStyle(Ink.ink)
-                        Text("Recordings and imports land here, and on your Mac.").font(.system(size: 14 * k)).foregroundStyle(Ink.dim)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Record something new.").font(Ink.serif(20)).foregroundStyle(Ink.ink)
+                    Text("Recordings and imports land here, and on your Mac.").font(.system(size: 14)).foregroundStyle(Ink.dim)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .cardSurface(radius: Radius.row)
+                .padding(.vertical, 12)
             } else {
-                ForEach(items) { t in
-                    Button { app.open(t.id) } label: { HomeRecentRow(transcript: t, compact: true) }
-                        .buttonStyle(SoftPress())
-                        .contextMenu { RowActions(transcript: t) }
-                        .accessibilityHint("Opens the transcript.")
-                }
+                ForEach(items) { t in recentRow(t) }
             }
         }
     }
 
-    private var keyboardOn: Bool {
-        app.store.live.contains { $0.isDictation } || KeyboardBridge.defaults?.string(forKey: KeyboardBridge.Key.seenID) != nil
+    /// A flat row; a recording with filler words gets a "Clean up" pill that opens its Cleaned text.
+    private func recentRow(_ t: Transcript) -> some View {
+        let cleanUp = t.status == .ready && !PhoneRowState.cleaned(t) && t.fillerCount > 0
+        return Button { app.open(t.id) } label: {
+            PhoneFlatRow(transcript: t, serif: false, meta: Self.recentMeta(t, now: now)) {
+                // Holds the pill's room; the real pill sits on top so it takes its own taps.
+                if cleanUp { cleanUpPill.hidden() }
+            }
+        }
+        .buttonStyle(PhoneCardPress())
+        .overlay(alignment: .trailing) {
+            if cleanUp {
+                Button { app.focusSegment = nil; app.homePath.append(DocumentRoute(id: t.id)) } label: { cleanUpPill }
+                    .buttonStyle(PhoneCardPress())
+                    .padding(.trailing, 2)
+                    .accessibilityLabel("Clean up \(t.title)")
+                    .accessibilityHint("Opens the cleaned text without the filler words.")
+            }
+        }
+        .contextMenu { RowActions(transcript: t) }
+        .accessibilityHint("Opens the transcript.")
     }
 
-    private var dictations: some View {
-        let items = Array(app.store.live.filter { $0.isDictation }.sorted { $0.createdAt > $1.createdAt }.prefix(2))
-        return VStack(alignment: .leading, spacing: 8) {
-            HomeSectionTitle(title: "Recent dictations", link: "All", linkLabel: "All dictations", size: 23, linkHint: "Opens every dictation.") {
-                app.tab = .library
-                app.libraryPath.append(DictationsRoute())
-            }
-            HomeDictationsPanel(items: items, compact: true, place: { $0.flow?.app },
-                                copy: { Self.copyDictation($0) },
-                                empty: "Dictate with the Verbose keyboard in any app. What you say shows up here.")
-            Button {
-                SettingsPage.open("keyboard")
-                app.tab = .settings
-            } label: {
-                HStack(spacing: 10) {
-                    IconGlyph(art: .iconDictations, size: 20, color: Ink.butterText)
-                    Text(keyboardOn ? "Verbose keyboard is on" : "Set up the Verbose keyboard").font(.system(size: 13.5 * k)).foregroundStyle(Ink.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 8)
-                    Text("Settings ›").font(.system(size: 13 * k)).foregroundStyle(Ink.mute)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .cardSurface(radius: Radius.row)
-                .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            }
-            .buttonStyle(SoftPress())
-            .accessibilityElement(children: .combine)
-            .accessibilityHint("Opens the keyboard's settings.")
+    private var cleanUpPill: some View {
+        Text("Clean up").font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Ink.paperFixed)
+            .padding(.horizontal, 12).frame(minHeight: 30)
+            .background(Ink.inkFixed, in: Capsule())
+    }
+
+    /// "Meeting · Today · 3:39 PM", or where it is while it's being made.
+    static func recentMeta(_ t: Transcript, now: Date) -> String {
+        let style = HomeRecentStyle(t)
+        switch t.status {
+        case .processing: return "\(style.chip) · \(t.stageText)"
+        case .failed: return "\(style.chip) · Didn't finish"
+        case .ready:
+            let day = HomeRecentStyle.day(t.createdAt, now: now)
+            return "\(style.chip) · \(day) · \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
         }
     }
 }
+
+/// Card press feedback (`PhoneCardPress`) that also reports the press, so Record can open the mic while a finger
+/// rests on it.
+struct PhonePressReporting: ButtonStyle {
+    var onPress: (Bool) -> Void
+    func makeBody(configuration: Configuration) -> some View {
+        PhoneCardPress().makeBody(configuration: configuration)
+            .onChange(of: configuration.isPressed) { _, pressed in onPress(pressed) }
+    }
+}
+
 
 extension Notification.Name {
     /// Scrolls Home to a section ("home-top", "home-recent", "home-dictations"); the screenshot tour uses it.
