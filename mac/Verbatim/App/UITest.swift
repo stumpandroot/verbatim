@@ -90,26 +90,7 @@ enum UITest {
             await settingsSteps(main: window)
             await ribbonSteps(app: app)
             window.makeKeyAndOrderFront(nil)
-    /// Meeting capture's floating surfaces, clicked through their own panels: a pretend call prompt (nothing is
-    /// watched in the self-test) and the consent sheet. Nothing records: the last click is Cancel.
-    private static func meetingSteps(main: NSWindow) async {
-        let coordinator = MeetingCoordinator.shared
-        coordinator.showTestPrompt(name: "Zoom")
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        guard let banner = coordinator.banner.window, banner.isVisible else { fail += 1; Log.note("UITEST FAIL meeting prompt did not show"); return }
-        await step("meeting prompt Not now hides it", banner, target: "meeting-prompt-notnow", check: { coordinator.banner.kind == nil || !coordinator.banner.isShowing })
-        coordinator.showTestPrompt(name: "Zoom")
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        await step("meeting prompt Record opens the consent sheet", banner, target: "meeting-prompt-record", check: { coordinator.consent.isShowing })
-        if let sheet = coordinator.consent.window, sheet.isVisible {
-            await step("meeting consent Cancel closes it without recording", sheet, target: "meeting-consent-cancel",
-                       check: { !coordinator.consent.isShowing && !MeetingSession.shared.isActive })
-        } else {
-            fail += 1; Log.note("UITEST FAIL meeting consent sheet has no window")
-        }
-        coordinator.banner.hide()
-        main.makeKeyAndOrderFront(nil)
-        try? await Task.sleep(nanoseconds: 400_000_000)
+            await meetingSteps(main: window)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
