@@ -436,14 +436,15 @@ extension Label where Title == Text, Icon == ArtIcon {
     }
 }
 
-/// A keyboard shortcut as a keycap: mono inside an outlined capsule (DESIGN.md §2.3). Takes the foreground style.
+/// A keyboard shortcut as a keycap: mono inside an outlined rectangle with the button radius (DESIGN.md §2.3).
+/// Takes the foreground style.
 struct Keycap: View {
     var keys: String
     var size: CGFloat = 11
     var body: some View {
         Text(keys).font(Ink.mono(size))
-            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.25)
-            .overlay(Capsule().strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
+            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.3)
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(ForegroundStyle().opacity(0.75), lineWidth: 1))
             .fixedSize()
             .accessibilityLabel(Keycap.spoken(keys))
     }
@@ -621,6 +622,9 @@ enum BrandFeature: CaseIterable {
     var index: String { switch self { case .capture: return "01"; case .refine: return "02"; case .understand: return "03" } }
     var title: String { switch self { case .capture: return "Capture"; case .refine: return "Refine"; case .understand: return "Understand" } }
     var art: BrandArt { switch self { case .capture: return .diagramCapture; case .refine: return .diagramRefine; case .understand: return .diagramUnderstand } }
+    /// The Method card's fill (DESIGN.md §6.4), with ink text in both modes. Capture uses the Record fill, persimmon
+    /// nudged lighter, so its 12–13 pt ink lines reach 4.7:1 (bright persimmon measures 4.45:1).
+    var fill: Color { switch self { case .capture: return Ink.recordFill; case .refine: return Ink.petal; case .understand: return Ink.sage } }
 }
 
 // MARK: - Card motion (shared by Mac and iPhone)
@@ -872,6 +876,200 @@ struct ArtSpace {
     }
 }
 
+
+// MARK: - Looping drawings
+
+/// Looping drawings (the Method diagrams, the Record meter's breath) hold still in the screenshot tour
+/// (VERBATIM_UITEST=1), so captures repeat.
+enum LoopingArt {
+    static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] != "1"
+}
+
+/// A clock for drawings that loop: a TimelineView at most 30 frames a second that runs only while `running` is
+/// true, the view is on screen (not scrolled away, not on another page), and the app is active. Paused, it holds
+/// its last frame. Draw with a Canvas inside: on macOS 26 every SwiftUI transaction is expensive, so a loop never
+/// drives state or a repeatForever animation, and it never runs while nobody can see it.
+struct LoopTimeline<Content: View>: View {
+    var running: Bool
+    @ViewBuilder var content: (Date) -> Content
+    @State private var onScreen = false
+    @State private var scrolledIn = true
+    #if os(macOS)
+    @Environment(\.controlActiveState) private var activeState
+    private var appActive: Bool { activeState != .inactive }
+    #else
+    @Environment(\.scenePhase) private var scenePhase
+    private var appActive: Bool { scenePhase == .active }
+    #endif
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !(running && LoopingArt.enabled && onScreen && scrolledIn && appActive))) { timeline in
+            content(timeline.date)
+        }
+        .onAppear { onScreen = true }
+        .onDisappear { onScreen = false }
+        .modifier(ScrollVisibility(visible: $scrolledIn))
+    }
+}
+
+/// Tells a loop when its scroll view has scrolled it out of sight (macOS 15 and iOS 18; earlier systems rely on
+/// appear and disappear).
+private struct ScrollVisibility: ViewModifier {
+    @Binding var visible: Bool
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, iOS 18.0, *) {
+            content.onScrollVisibilityChange(threshold: 0.01) { visible = $0 }
+        } else {
+            content
+        }
+    }
+}
+
+/// A simulated voice for the Capture diagram: a slow phrase envelope times a syllable rhythm, split into four
+/// targets, one per ring (outer to inner: gain .12/.18/.24/.30, stiffer and quicker toward the middle).
+/// Deterministic: the same clock always gives the same shape.
+final class CaptureVoice {
+    let springs = SpringBank([(22, 5, 0.12), (34, 6, 0.18), (50, 7, 0.24), (70, 8, 0.30)])
+    private var ct = 0.0
+
+    func advance(_ now: Date) {
+        let dt = springs.tick(now)
+        ct += dt * 6
+        let phrase = 0.5 + 0.5 * sin(ct / 6)
+        let syll = 0.5 + 0.5 * sin(ct * 1.3 + sin(ct / 3))
+        let env = 0.15 + 0.85 * phrase * (0.5 + 0.5 * syll)
+        springs.step(dt, targets: [env * 0.9, env * (0.6 + 0.4 * syll), env * syll, env * (0.4 + 0.6 * abs(sin(ct * 2.1)))])
+    }
+}
+
+/// The Method diagrams, looping slowly (DESIGN.md §7), on the Method cards of both apps:
+/// - Capture: the four rings scale from their shared bottom point, each on its own spring, driven by a
+///   simulated voice. They never rotate.
+/// - Refine: strands flow into the bar as travelling dashes; the clean lines draw in one after another, hold,
+///   and clear (7 s).
+/// - Understand: the circles drift together and apart (7 s); only the region all three share is hatched.
+/// Runs only while on screen and the app is active (`LoopTimeline`). With motion limited it's the still diagram.
+struct AnimatedFeatureArt: View {
+    var feature: BrandFeature
+    var color: Color = Ink.ink
+    var minLineWidth: CGFloat = 1.1
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var voice = CaptureVoice()
+
+    var body: some View {
+        Group {
+            if limitMotion || !LoopingArt.enabled {
+                BrandGlyph(art: feature.art, color: color, minLineWidth: minLineWidth)
+            } else {
+                LoopTimeline(running: true) { now in
+                    Canvas { ctx, size in
+                        switch feature {
+                        case .capture: drawCapture(ctx, size, now)
+                        case .refine: drawRefine(ctx, size, now.timeIntervalSinceReferenceDate)
+                        case .understand: drawUnderstand(ctx, size, now.timeIntervalSinceReferenceDate)
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func width(_ art: BrandArt, _ s: CGFloat) -> CGFloat { max(minLineWidth, art.strokeWidth * s) }
+
+    // Capture
+
+    private static let captureAxis = Path(SVGPathData.parse("M300 96 L300 421 M280 93h40 M282 425h36"))
+
+    private func drawCapture(_ ctx: GraphicsContext, _ size: CGSize, _ now: Date) {
+        voice.advance(now)
+        let art = BrandArt.diagramCapture
+        let sp = ArtSpace(box: art.box, size: size)
+        let style = StrokeStyle(lineWidth: width(art, sp.s), lineCap: .round, lineJoin: .round)
+        let shading = GraphicsContext.Shading.color(color)
+        // Each ring keeps touching the shared point (300, 383) as it scales: center = 383 − r.
+        var rings = Path()
+        for (i, r0) in [CGFloat(124), 102, 80, 58].enumerated() {
+            let r = r0 * voice.springs.scale(i)
+            rings.addPath(sp.circle(300, 383 - r, r))
+        }
+        ctx.stroke(rings, with: shading, style: style)
+        ctx.stroke(Self.captureAxis.applying(sp.transform), with: shading, style: style)
+        ctx.fill(sp.circle(300, 383, 6), with: shading)
+    }
+
+    // Refine
+
+    private static let strandPaths: [Path] = [
+        "M75 128 C155 150, 185 100, 246 196 Q258 214 270 247",
+        "M75 168 C155 133, 185 203, 246 213 Q258 225 270 247",
+        "M75 207 C155 229, 185 179, 246 230 Q258 236 270 247",
+        "M75 247 C155 212, 185 282, 246 247 Q258 247 270 247",
+        "M75 287 C155 309, 185 259, 246 264 Q258 258 270 247",
+        "M75 327 C155 292, 185 362, 246 281 Q258 269 270 247",
+        "M75 367 C155 389, 185 339, 246 298 Q258 280 270 247",
+    ].map { Path(SVGPathData.parse($0)) }
+    /// Seconds per dash cycle, varied so the strands don't move in step.
+    private static let strandPeriods: [Double] = [4.2, 5, 3.6, 5, 4.2, 3.6, 4.2]
+    private static let cleanLines: [(y: CGFloat, end: CGFloat)] = [(128, 490), (168, 465), (207, 440), (247, 490), (287, 465), (327, 440), (367, 490)]
+
+    private func drawRefine(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
+        let art = BrandArt.diagramRefine
+        let sp = ArtSpace(box: art.box, size: size)
+        let w = width(art, sp.s)
+        let shading = GraphicsContext.Shading.color(color)
+        // Long dashes (72 on, 14 off) travel along each strand toward the bar.
+        for (i, strand) in Self.strandPaths.enumerated() {
+            let period = Self.strandPeriods[i]
+            let f = t.truncatingRemainder(dividingBy: period) / period
+            let phase = CGFloat(86 * (1 - f)) * sp.s
+            ctx.stroke(strand.applying(sp.transform), with: shading,
+                       style: StrokeStyle(lineWidth: w, lineCap: .round, dash: [72 * sp.s, 14 * sp.s], dashPhase: phase))
+        }
+        let round = StrokeStyle(lineWidth: w, lineCap: .round)
+        var bar = Path()
+        bar.move(to: CGPoint(x: 299, y: 96)); bar.addLine(to: CGPoint(x: 299, y: 402))
+        ctx.stroke(bar.applying(sp.transform), with: shading, style: round)
+        // Clean lines: draw in over the first quarter (0.15 s apart), hold, clear from the left in the last quarter.
+        for (i, line) in Self.cleanLines.enumerated() {
+            let len = line.end - 325
+            var local = (t - Double(i) * 0.15).truncatingRemainder(dividingBy: 7)
+            if local < 0 { local += 7 }
+            let p = local / 7
+            var from: CGFloat = 0, to: CGFloat = 1
+            if p < 0.25 { to = min(1, 170 * CGFloat(CubicEase.gentle(p / 0.25)) / len) }
+            else if p >= 0.75 { from = min(1, 170 * CGFloat(CubicEase.gentle((p - 0.75) / 0.25)) / len) }
+            guard to > from else { continue }
+            var path = Path()
+            path.move(to: CGPoint(x: 325, y: line.y)); path.addLine(to: CGPoint(x: line.end, y: line.y))
+            ctx.stroke(path.trimmedPath(from: from, to: to).applying(sp.transform), with: shading, style: round)
+        }
+    }
+
+    // Understand
+
+    /// A little roomier than the still diagram's box, so the circles have space to drift.
+    private static let understandBox = CGRect(x: 80, y: 55, width: 440, height: 420)
+    private static let hatch = Path(BrandArt.cgPath(BrandArt.understandHatch))
+
+    private func drawUnderstand(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
+        let art = BrandArt.diagramUnderstand
+        let sp = ArtSpace(box: Self.understandBox, size: size)
+        let shading = GraphicsContext.Shading.color(color)
+        // Apart at the start of the cycle, together at the middle, apart again (ease-in-out each way).
+        let p = t.truncatingRemainder(dividingBy: 7) / 3.5
+        let apart = CGFloat(p < 1 ? 1 - CubicEase.inOut(p) : CubicEase.inOut(p - 1))
+        let centers: [(CGFloat, CGFloat)] = [(300, 205 - 22 * apart), (230 - 20 * apart, 327 + 12 * apart), (370 + 20 * apart, 327 + 12 * apart)]
+        let circles = centers.map { sp.circle($0.0, $0.1, 126) }
+        // Only the region all three share is hatched, so it grows as they meet.
+        var clipped = ctx
+        for circle in circles { clipped.clip(to: circle) }
+        clipped.stroke(Self.hatch.applying(sp.transform), with: shading, style: StrokeStyle(lineWidth: max(minLineWidth * 0.8, art.clippedWidth * sp.s)))
+        var outline = Path()
+        for circle in circles { outline.addPath(circle) }
+        ctx.stroke(outline, with: shading, style: StrokeStyle(lineWidth: width(art, sp.s)))
+    }
+}
 
 /// The AI label (privacy policy and App Store AI disclosure): shown wherever Verbatim shows text a language model
 /// rewrote, so nobody mistakes it for a word-for-word transcript.

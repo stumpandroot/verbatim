@@ -73,6 +73,17 @@ enum UITest {
             await step("captions tile opens the live captions panel", window, target: "tile-captions", check: { LiveCaptions.shared.isOpen })
             LiveCaptions.shared.close(force: true)
             try? await Task.sleep(nanoseconds: 400_000_000)
+            // This week is one button: a click anywhere on it opens You.
+            await step("This week opens You", window, target: "home-week", check: { app.screen == .activity })
+            await step("sidebar Home goes home from You", window, target: "side-home", check: { app.screen == .home })
+            // A Recent dictations row copies its words wherever it's clicked.
+            seedDictations(app)
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            let newest = app.store.live.filter { $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
+            let expected = newest.map { HomeDictationText.pasted($0) } ?? ""
+            NSPasteboard.general.clearContents()
+            await step("clicking a recent dictation copies its text", window, target: "home-dictation-0",
+                       check: { !expected.isEmpty && NSPasteboard.general.string(forType: .string) == expected })
             app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 

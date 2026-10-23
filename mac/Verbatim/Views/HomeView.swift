@@ -2,10 +2,11 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
 
-/// Home (approved mockup Home D, October 22, 2026; mac/DESIGN.md §6): a greeting under a sans date line, the Record
-/// panel, four start tiles (Dictate, Import, App audio, Live captions), This week (the only stats), the Method band,
-/// Recent recordings, and Recent dictations. One 12-column grid: every band splits at the same 7 / 5 edge. Every
-/// icon is a brand icon (HomeKit.swift); surfaces are opaque paper. Narrow windows stack the bands.
+/// Home (approved mockup Home D, October 22, 2026, with the card feel Tim chose that day; mac/DESIGN.md §6): a
+/// greeting under a sans date line, the Record panel, four start tiles (Dictate, Import, App audio, Live captions),
+/// This week (the only stats), three Method cards, Recent recordings, and Recent dictations. One 12-column grid: every
+/// band splits at the same 7 / 5 edge. Every icon is a bare brand icon (HomeKit.swift); surfaces are opaque. Every
+/// card tilts, lifts, and catches the light on hover (`HomeCard`). Narrow windows stack the bands.
 struct HomeView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var log = ActivityLog.shared
@@ -19,7 +20,6 @@ struct HomeView: View {
     @State private var mic: AudioDevices.Device? = AudioDevices.current()
     @State private var importOpen = false
     @State private var fileOver = false
-    @State private var recordHover = false
     @State private var recordReplay = 0
     /// Listens to the mic while the pointer is over Record, so the meter shows your real level (DESIGN.md §7).
     @StateObject private var monitor = HomeLevelMonitor()
@@ -27,7 +27,7 @@ struct HomeView: View {
     /// The gutter between columns and between bands.
     private static let gap: CGFloat = 16
     private var wide: Bool { width >= 680 }
-    /// Tiles tighten (smaller disc and padding) when their column is narrow, as in the 1000-pt screenshot window.
+    /// Tiles tighten (smaller icon and padding) when their column is narrow, as in the 1000-pt screenshot window.
     private var tileMetrics: HomeTileMetrics { wide && columns(width).1 < 380 ? .macCompact : .mac }
     /// The 7 / 5 split of a 12-column grid with `gap` gutters: (7 columns + 6 gutters, 5 columns + 4 gutters).
     private func columns(_ total: CGFloat) -> (CGFloat, CGFloat) {
@@ -124,10 +124,17 @@ struct HomeView: View {
     }
 
     private var recordPanel: some View {
-        Button {
+        HomeCard(tilt: 2, radius: Radius.record, enabled: !recording, onHover: { h in
+            if h {
+                recordReplay += 1
+                if !recording { monitor.listen(after: 0.12) }
+            } else {
+                monitor.stop(after: 0.4)
+            }
+        }, action: {
             monitor.stop()
             app.requestRecord()
-        } label: {
+        }) { _ in
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Circle().fill(onRecord).frame(width: 8, height: 8).accessibilityHidden(true)
@@ -136,20 +143,19 @@ struct HomeView: View {
                     Keycap(keys: "⌥⇧R")
                 }
                 Spacer(minLength: 16)
+                // Real level while recording and while the pointer rests here; an even breath otherwise.
                 Group {
                     if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
                     else if app.capture.isCapturing { LiveHomeMeter(live: app.capture.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
                     else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
-                    else { HomeMeter(barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
+                    else { BreathingHomeMeter(barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
                 }
                 .frame(height: 72)
                 Spacer(minLength: 16)
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle().fill(Ink.iconDisc)
-                        DrawOnGlyph(art: .capture, color: onRecord, lineWidth: 1.6, replay: recordReplay).frame(width: 28, height: 28)
-                    }
-                    .frame(width: 60, height: 60)
+                HStack(alignment: .bottom, spacing: 14) {
+                    // Bare: no disc behind the mic.
+                    DrawOnGlyph(art: .capture, color: onRecord, lineWidth: 2, replay: recordReplay, duration: 0.55)
+                        .frame(width: 44, height: 44)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(recording ? "Recording" : "Record").font(Ink.serif(34))
                         Text(recording ? "Pause or stop from the bar above." : "A voice note, a meeting, or a thought.")
@@ -162,21 +168,7 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .frame(minHeight: 296)
             .background(Ink.recordFill, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
         }
-        .buttonStyle(HomePressStyle())
-        .disabled(recording)
-        .offset(y: recordHover && !limitMotion && !recording ? -2 : 0)
-        .onHover { h in
-            recordHover = h
-            if h {
-                recordReplay += 1
-                if !recording { monitor.listen(after: 0.12) }
-            } else {
-                monitor.stop(after: 0.4)
-            }
-        }
-        .animation(HomeMotion.lift, value: recordHover)
         .contextMenu { RecordMenu(onChange: { mic = AudioDevices.current() }) }
         .help("Recording from \(micName). Right-click to change the microphone.")
         .accessibilityLabel(recording ? "Recording" : "Record")
@@ -190,14 +182,12 @@ struct HomeView: View {
                 set: { open in if !open && app.captureMode == "dictate" { app.captureMode = "voice" } })
     }
 
-    /// "hold right ⌘" → ("Hold right", "⌘"): the words in sans and the key as a keycap.
+    /// "hold right ⌘" → ("Hold to talk in any app", "right ⌘"): what it does in sans, and the key as a keycap.
     private var dictateKey: (String, String?) {
         guard app.dictation.accessibilityTrusted else { return ("Needs Accessibility", nil) }
         let title = app.dictation.hotkey.shortTitle
-        for prefix in ["hold right ", "hold "] where title.hasPrefix(prefix) {
-            let words = String(prefix.dropLast())
-            return (words.prefix(1).uppercased() + words.dropFirst(), String(title.dropFirst(prefix.count)))
-        }
+        if title.hasPrefix("hold right ") { return ("Hold to talk in any app", "right " + title.dropFirst("hold right ".count)) }
+        if title.hasPrefix("hold ") { return ("Hold to talk in any app", String(title.dropFirst("hold ".count))) }
         return (title.prefix(1).uppercased() + title.dropFirst(), nil)
     }
 
@@ -208,17 +198,17 @@ struct HomeView: View {
                          fill: Ink.butter, metrics: tileMetrics, hint: "Shows your dictation key and your last dictation.") {
                     app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate"
                 } icon: { replay in
-                    DrawOnGlyph(art: .iconDictations, color: Ink.inkFixed, lineWidth: 1.5, replay: replay)
+                    DrawOnGlyph(art: .iconDictations, color: Ink.inkFixed, lineWidth: 1.5, replay: replay, duration: 0.55)
                 }
                 .popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
                 .contextMenu { DictateMenu() }
                 .uiTarget("mode-dictate")
 
-                HomeTile(title: "Import", detail: fileOver ? "Drop to transcribe" : "A file or a link",
+                HomeTile(title: "Import", detail: fileOver ? "Drop to transcribe" : "A file or a link", keycap: "⌘O",
                          fill: Ink.sage, edge: fileOver ? Ink.inkFixed : .clear, edgeWidth: 1.5, metrics: tileMetrics, hint: "Choose files, or paste a link to transcribe.") {
                     importOpen = true
                 } icon: { replay in
-                    DrawOnGlyph(art: .document, color: Ink.inkFixed, lineWidth: 1.5, replay: replay)
+                    DrawOnGlyph(art: .document, color: Ink.inkFixed, lineWidth: 1.5, replay: replay, duration: 0.55)
                 }
                 .popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
                 .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
@@ -229,7 +219,7 @@ struct HomeView: View {
                          hint: "Choose an app to record its sound, like a call or a video.") {
                     app.pickApp()
                 } icon: { replay in
-                    DrawOnGlyph(art: .iconVoice, color: Ink.inkFixed, lineWidth: 1.5, replay: replay)
+                    DrawOnGlyph(art: .iconVoice, color: Ink.inkFixed, lineWidth: 1.5, replay: replay, duration: 0.55)
                 }
                 .contextMenu {
                     Button("Choose an app…") { app.pickApp() }
@@ -241,55 +231,54 @@ struct HomeView: View {
                 .uiTarget("tile-app")
 
                 // Paper with an ink outline, so it never outweighs Record.
-                HomeTile(title: "Live captions", detail: captions.isOpen ? "On screen now" : nil, keycap: captions.isOpen ? nil : "⌥⌘C",
-                         fill: Ink.card, onFill: Ink.ink, disc: Ink.neutralChip, edge: Ink.ink, edgeWidth: 1.5,
+                HomeTile(title: "Live captions", detail: captions.isOpen ? "On screen now" : "Words as they're said", keycap: "⌥⌘C",
+                         fill: Ink.card, onFill: Ink.ink, edge: Ink.ink, edgeWidth: 1.5,
                          metrics: tileMetrics, hint: "Shows captions in a floating panel, from your microphone or an app's sound.") {
                     app.toggleLiveCaptions()
                 } icon: { replay in
-                    DrawOnGlyph(art: .iconCaptions, color: Ink.ink, lineWidth: 1.5, replay: replay)
+                    DrawOnGlyph(art: .iconCaptions, color: Ink.ink, lineWidth: 1.5, replay: replay, duration: 0.55)
                 }
                 .uiTarget("tile-captions")
             }
         }
     }
 
+    /// This week is one button: anywhere on it opens You. "You →" stays as a visual cue inside it.
     private var weekCard: some View {
         let week = HomeWeek(log.events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
-        return HomeWeekCard(week: week, recordingsToday: HomeCounts.recordingsToday(app.store.live, now: now), compact: false) {
-            Text("·").foregroundStyle(Ink.mute)
-            Button { app.go(.activity) } label: {
-                Text("You →").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink).contentShape(Rectangle())
+        let today = HomeCounts.recordingsToday(app.store.live, now: now)
+        return HomeCard(tilt: 3, radius: Radius.tile, action: { app.go(.activity) }) { _ in
+            HomeWeekCard(week: week, recordingsToday: today, compact: false) {
+                Text("·").foregroundStyle(Ink.mute)
+                Text("You →").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("You")
-            .accessibilityHint("Opens your week, cleanup, and where you dictate.")
         }
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")). Today: \(HomeCounts.countLabel(today, "recording", "recordings")).")
+        .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
         .uiTarget("home-week")
     }
 
     // MARK: Method
 
-    /// One paper panel across all 12 columns, the three diagrams in ink.
+    /// Three full-color cards across all 12 columns (DESIGN.md §6.4), each with its looping diagram.
     private var method: some View {
         let live = app.store.live
         let latest = HomeCounts.latestRefinable(live)
-        return MethodBand {
-            MethodBandCell(feature: .capture, line: "Record, dictate, or import.",
-                           meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
-                           hint: "Starts a voice note.") { app.requestRecord() }
+        return HStack(alignment: .top, spacing: Self.gap) {
+            MethodCard(feature: .capture, line: "Record, dictate, or import.",
+                       meta: HomeCounts.countLabel(live.filter { !$0.isDictation }.count, "transcript", "transcripts"),
+                       hint: "Starts a voice note.") { app.requestRecord() }
                 .uiTarget("card-capture")
-            MethodDivider()
-            MethodBandCell(feature: .refine, line: "Clean up. The original stays.",
-                           meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
-                           hint: "Opens your latest transcript as a document.") {
+            MethodCard(feature: .refine, line: "Clean up. The original stays.",
+                       meta: latest.map { "Latest: \($0.title)" } ?? "Nothing to refine yet", enabled: latest != nil,
+                       hint: "Opens your latest transcript as a document.") {
                 guard let t = latest else { return }
                 app.go(.transcript(t.id))
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NotificationCenter.default.post(name: .verbatimShowMode, object: "Document") }
             }
-            MethodDivider()
-            MethodBandCell(feature: .understand, line: "Search and summaries.",
-                           meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
-                           hint: "Opens your saved moments.") { app.go(.moments) }
+            MethodCard(feature: .understand, line: "Search and summaries.",
+                       meta: HomeCounts.countLabel(HomeCounts.momentsSaved(live), "moment saved", "moments saved"),
+                       hint: "Opens your saved moments.") { app.go(.moments) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Method")
@@ -321,8 +310,9 @@ struct HomeView: View {
                 emptyRecordings
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    Button { app.go(.transcript(t.id)) } label: { HomeRecentRow(transcript: t, compact: false) }
-                        .buttonStyle(HomePressStyle())
+                    HomeCard(tilt: 2, radius: Radius.row, action: { app.go(.transcript(t.id)) }) { hovering in
+                        HomeRecentRow(transcript: t, compact: false, hovering: hovering)
+                    }
                         .contextMenu { RowMenu(transcript: t) }
                         .accessibilityHint("Opens the transcript.")
                         .uiTarget("row-\(i)")

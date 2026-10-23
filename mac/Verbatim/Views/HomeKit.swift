@@ -1,21 +1,28 @@
 import SwiftUI
 import AVFoundation
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 // Home, shared by the Mac (HomeView) and iPhone (HomeScreen) apps (approved mockup Home D, October 22, 2026): the
 // greeting and counts (pure, self-tested), the brand icons that draw themselves on, the Record panel's meter and its
 // level monitor, the start tiles, This week, the Method band, and the Recent rows. Everything is drawn from BrandArt;
 // nothing here uses SF Symbols.
 //
-// Motion (DESIGN.md §7): nothing loops. Draw-ons play once on appear and again on hover (Mac); tiles lift 2 pt on
-// hover. The meter is still at rest and moves only with a real microphone level. Springs never bounce. With Reduce
-// Motion or Limit animation everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still so
-// captures repeat.
+// Motion (DESIGN.md §7): every card tilts toward the pointer, lifts 2 pt, and catches a sheen and an edge light on
+// hover (Mac), and presses in on click or touch (`HomeCard`). Icons draw on when they appear and again on hover. Two
+// things loop, slowly and evenly, and only while on screen: the Method diagrams and the Record meter's breath at
+// rest; the meter shows the real microphone level on hover, touch, and while recording. Springs never bounce. With
+// Reduce Motion or Limit animation everything is still, and the screenshot tour (VERBATIM_UITEST=1) keeps it still
+// so captures repeat.
 
 enum HomeMotion {
     /// Off in the screenshot tour, so Home captures are the same every run.
     static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] != "1"
-    /// Tile hover lift and press: a 180 ms spring with no bounce.
-    static let lift = Animation.spring(duration: 0.18, bounce: 0)
+    /// The copied dictation row's label morph: a quick crossfade and slide.
+    static let morph = Animation.easeOut(duration: 0.18)
 }
 
 // MARK: - Greeting
@@ -278,6 +285,10 @@ enum HomeSelfTest {
         tiktok.sourceURL = "https://www.tiktok.com/@a/video/1"
         check("home: video link row", HomeRecentStyle(tiktok).chip == "Video" && HomeRecentStyle(tiktok).source == "TikTok")
         check("home: dictation row", HomeRecentStyle(dict).chip == "Dictation")
+        check("home: the meter breathes evenly", abs(HomeMeter.breathScale(t: 0, bar: 0) - 0.42) < 0.0001
+              && abs(HomeMeter.breathScale(t: 2.6, bar: 0) - 0.92) < 0.0001
+              && abs(HomeMeter.breathScale(t: 7.8, bar: 0) - HomeMeter.breathScale(t: 2.6, bar: 0)) < 0.0001
+              && HomeMeter.breathScale(t: 1, bar: 3) < HomeMeter.breathScale(t: 1, bar: 0))
     }
 }
 
@@ -293,14 +304,16 @@ struct BrandArtShape: Shape {
     }
 }
 
-/// A brand icon or diagram whose strokes draw on (1.1 s, ease-out, all strokes at once) when it appears and each
-/// time `replay` changes. Fills and the Understand diagram's hatch fade in with the line. Never loops. Still, fully
-/// drawn, with motion limited.
+/// A brand icon or diagram whose strokes draw on (1.1 s by default, ease-out, all strokes at once) when it appears
+/// and each time `replay` changes. Fills, dashed construction lines, and the Understand diagram's hatch fade in with
+/// the line. Never loops. Still, fully drawn, with motion limited.
 struct DrawOnGlyph: View {
     var art: BrandArt
     var color: Color
     var lineWidth: CGFloat
     var replay: Int = 0
+    /// Seconds to draw. Hover replays on the tiles, the Record panel, and the sidebar use 0.55.
+    var duration: Double = 1.1
     @Environment(\.limitMotion) private var limitMotion
     @State private var progress: CGFloat = HomeMotion.enabled ? 0 : 1
 
@@ -319,6 +332,10 @@ struct DrawOnGlyph: View {
                            color: color, minLineWidth: lineWidth * 0.75)
                     .opacity(Double(p))
             }
+            if !art.dashes.isEmpty {
+                BrandGlyph(art: BrandArt(box: art.box, strokeWidth: art.strokeWidth, dashes: art.dashes), color: color, minLineWidth: lineWidth)
+                    .opacity(Double(p))
+            }
         }
         .onAppear { play(delay: 0.2) }
         .onChange(of: replay) { _, _ in play(delay: 0) }
@@ -331,16 +348,17 @@ struct DrawOnGlyph: View {
         reset.disablesAnimations = true
         withTransaction(reset) { progress = 0 }
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 1.1).delay(delay)) { progress = 1 }
+            withAnimation(.easeOut(duration: duration).delay(delay)) { progress = 1 }
         }
     }
 }
 
 // MARK: - Record meter
 
-/// The Record panel's level bars. Still at rest (the `heights` pattern); with `levels` they show the real
-/// microphone level, newest on the right: while recording, and while the level monitor listens (hover on Mac,
-/// touch on iPhone). Bars fill the width at `barWidth` with at least `gap` between them.
+/// The Record panel's level bars. With `levels` they show the real microphone level, newest on the right: while
+/// recording, and while the level monitor listens (hover on Mac, touch on iPhone). Otherwise they rest on the
+/// `heights` pattern: breathing slowly and evenly with a `breath` clock (`BreathingHomeMeter`), still without one.
+/// Bars fill the width at `barWidth` with at least `gap` between them.
 struct HomeMeter: View {
     var barWidth: CGFloat
     var gap: CGFloat
@@ -348,6 +366,8 @@ struct HomeMeter: View {
     var heights: [CGFloat]
     var color: Color = Ink.inkFixed
     var levels: [Float]? = nil
+    /// The breath's clock in seconds; nil holds the bars still.
+    var breath: Double? = nil
 
     var body: some View {
         Canvas { ctx, size in
@@ -359,6 +379,10 @@ struct HomeMeter: View {
                 if let levels, !levels.isEmpty {
                     let l = levels[min(levels.count - 1, i * levels.count / n)]
                     v = max(0.1, min(1, CGFloat(l) * 1.6))
+                } else if let breath {
+                    v *= CGFloat(Self.breathScale(t: breath, bar: i))
+                } else {
+                    v *= Self.stillScale
                 }
                 let bh = max(barWidth, v * h)
                 let rect = CGRect(x: CGFloat(i) * step, y: (h - bh) / 2, width: barWidth, height: bh)
@@ -368,9 +392,39 @@ struct HomeMeter: View {
         .accessibilityHidden(true)
     }
 
+    /// The breath (DESIGN.md §7): each bar is its resting height × (0.42 + 0.5 × breath), with
+    /// breath = 0.5 − 0.5 cos(2π t / 5.2 − 0.09 i). A 5.2-second cycle that rolls gently from left to right; never random.
+    static func breathScale(t: Double, bar i: Int) -> Double {
+        let breath = 0.5 - 0.5 * cos(2 * Double.pi * t / 5.2 - Double(i) * 0.09)
+        return 0.42 + 0.5 * breath
+    }
+    /// The still bars (Limit animation, the screenshot tour): the middle of the breath.
+    static let stillScale: CGFloat = 0.7
+
     /// Home D's resting shape (72-pt meter, 35 bars).
     static let macHeights: [CGFloat] = [8, 24, 48, 28, 60, 32, 16, 44, 20, 8, 28, 52, 22, 36, 12, 32, 56, 24, 14, 40, 8, 22, 48, 18, 34, 6, 24, 44, 18, 32, 12, 40, 20, 28, 10].map { $0 / 72 }
     static let phoneHeights: [CGFloat] = [6, 14, 28, 16, 36, 20, 8, 24, 12, 6, 16, 30, 12, 22, 8, 18, 32, 14, 8, 24, 6, 12, 28, 10].map { $0 / 44 }
+}
+
+/// The meter at rest: breathing on a `LoopTimeline` (30 fps at most, paused off screen and while the app is
+/// inactive), still with motion limited.
+struct BreathingHomeMeter: View {
+    var barWidth: CGFloat
+    var gap: CGFloat
+    var heights: [CGFloat]
+    var color: Color = Ink.inkFixed
+    @Environment(\.limitMotion) private var limitMotion
+
+    var body: some View {
+        if limitMotion || !HomeMotion.enabled {
+            HomeMeter(barWidth: barWidth, gap: gap, heights: heights, color: color)
+        } else {
+            LoopTimeline(running: true) { now in
+                HomeMeter(barWidth: barWidth, gap: gap, heights: heights, color: color, breath: now.timeIntervalSinceReferenceDate)
+            }
+            .accessibilityHidden(true)
+        }
+    }
 }
 
 /// Live levels for the meter, observed on their own so only the meter re-renders while it listens.
@@ -519,26 +573,101 @@ final class HomeMicTap: @unchecked Sendable {
     #endif
 }
 
-// MARK: - Tiles
+// MARK: - Cards
 
-/// Press: 0.98 over a no-bounce spring; a brief dim instead with motion limited. `onPress` hears the finger or
-/// pointer go down and up (the iPhone Record panel listens while it's pressed).
-struct HomePressStyle: ButtonStyle {
+/// Every card on Home (DESIGN.md §7): the Record panel, the start tiles, This week, the Method cards, and the recent
+/// recordings. On Mac it tilts toward the pointer, lifts 2 pt, and catches a sheen and an edge light (`CardMotion`),
+/// and presses in on click. On iPhone, where there's no hover, it presses in on touch. With motion limited it only
+/// dims while pressed.
+///
+/// Mac: the visuals move underneath and a flat, untransformed layer on top takes the pointer, as `CardButton` does,
+/// because a 3D-rotated view, or a Button competing with a gesture, loses clicks on macOS 26. Because that layer
+/// takes the pointer, `content` hears hover through its `hovering` argument rather than its own `onHover`.
+struct HomeCard<Content: View>: View {
+    var tilt: Double = 3
+    var lift: Double = 2
+    var radius: CGFloat
+    var enabled = true
+    /// The pointer arrived (true) or left (false). Mac only.
+    var onHover: ((Bool) -> Void)? = nil
+    /// The pointer or finger went down (true) or came up (false).
     var onPress: ((Bool) -> Void)? = nil
-    func makeBody(configuration: Configuration) -> some View { PressBody(configuration: configuration, onPress: onPress) }
+    var action: () -> Void
+    @ViewBuilder var content: (_ hovering: Bool) -> Content
+
+    #if os(macOS)
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var hover: CGPoint? = nil
+    @State private var down = false
+    @State private var size: CGSize = .zero
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content(hover != nil && enabled)
+            .cardMotion(hover: enabled ? hover : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift)
+            .opacity(down && enabled && limitMotion ? 0.8 : 1)
+            .allowsHitTesting(false)
+            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
+            .overlay {
+                // The hit layer: flat, on top, and the only thing that receives the pointer.
+                shape.fill(Color.white.opacity(0.001))
+                    .contentShape(shape)
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let p):
+                            if hover == nil { onHover?(true) }
+                            hover = p
+                        case .ended:
+                            hover = nil
+                            if down { down = false; onPress?(false) }
+                            onHover?(false)
+                        }
+                    }
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { _ in if !down { down = true; onPress?(true) } }
+                        .onEnded { v in
+                            down = false
+                            onPress?(false)
+                            if enabled && CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
+                        })
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { if enabled { action() } }
+    }
+    #else
+    var body: some View {
+        Button { if enabled { action() } } label: { content(false) }
+            .buttonStyle(HomeCardPressStyle(radius: radius, tilt: tilt, lift: lift, onPress: onPress))
+            .disabled(!enabled)
+    }
+    #endif
+}
+
+#if os(iOS)
+/// iPhone: the card presses in (scale 0.98) while a finger is on it; a brief dim instead with motion limited.
+private struct HomeCardPressStyle: ButtonStyle {
+    var radius: CGFloat
+    var tilt: Double
+    var lift: Double
+    var onPress: ((Bool) -> Void)?
+    func makeBody(configuration: Configuration) -> some View { PressBody(configuration: configuration, style: self) }
     private struct PressBody: View {
         let configuration: ButtonStyleConfiguration
-        var onPress: ((Bool) -> Void)?
+        let style: HomeCardPressStyle
         @Environment(\.limitMotion) private var limitMotion
         var body: some View {
             configuration.label
-                .scaleEffect(configuration.isPressed && !limitMotion ? 0.98 : 1)
+                .cardMotion(hover: nil, size: .zero, pressed: configuration.isPressed, radius: style.radius, tilt: style.tilt, lift: style.lift)
                 .opacity(configuration.isPressed && limitMotion ? 0.75 : 1)
-                .animation(limitMotion ? Motion.fade : HomeMotion.lift, value: configuration.isPressed)
-                .onChange(of: configuration.isPressed) { _, pressed in onPress?(pressed) }
+                .animation(Motion.fade, value: configuration.isPressed && limitMotion)
+                .onChange(of: configuration.isPressed) { _, pressed in style.onPress?(pressed) }
         }
     }
 }
+#endif
+
+// MARK: - Tiles
 
 /// Sizes for the start tiles: the Mac's 92-pt tiles (Home D) and the iPhone's slim 54-pt tiles.
 struct HomeTileMetrics {
@@ -547,23 +676,25 @@ struct HomeTileMetrics {
     var hPad: CGFloat
     var vPad: CGFloat
     var gap: CGFloat
-    var disc: CGFloat
     var icon: CGFloat
     var title: CGFloat
-    static let mac = HomeTileMetrics(minHeight: 92, radius: Radius.tile, hPad: 14, vPad: 10, gap: 11, disc: 40, icon: 26, title: 15)
-    static let macCompact = HomeTileMetrics(minHeight: 92, radius: Radius.tile, hPad: 12, vPad: 10, gap: 9, disc: 34, icon: 22, title: 14.5)
-    static let phone = HomeTileMetrics(minHeight: 54, radius: Radius.tile, hPad: 12, vPad: 8, gap: 10, disc: 32, icon: 20, title: 14.5)
+    /// Mac ("Stacked", Tim's pick): the icon top left, the shortcut top right, the name and detail at the foot.
+    /// iPhone: the icon beside the name, so the slim tiles stay one line tall.
+    var stacked: Bool
+    static let mac = HomeTileMetrics(minHeight: 92, radius: Radius.tile, hPad: 14, vPad: 13, gap: 11, icon: 26, title: 15, stacked: true)
+    static let macCompact = HomeTileMetrics(minHeight: 92, radius: Radius.tile, hPad: 12, vPad: 12, gap: 9, icon: 22, title: 14.5, stacked: true)
+    static let phone = HomeTileMetrics(minHeight: 54, radius: Radius.tile, hPad: 14, vPad: 8, gap: 10, icon: 22, title: 14.5, stacked: false)
 }
 
-/// A start tile: a flat brand color, the icon in an ink 8% disc (never white, DESIGN.md §3), a semibold title, and
-/// a sentence-case detail with an optional keycap. Lifts 2 pt on hover and replays its icon's draw-on.
+/// A start tile: a flat brand color, a bare brand icon (no disc behind it), a semibold name, and a sentence-case
+/// detail, with a keycap where the action has a shortcut. Card motion (`HomeCard`); the icon draws on when it
+/// appears and again on hover.
 struct HomeTile<Icon: View>: View {
     var title: String
     var detail: String? = nil
     var keycap: String? = nil
     var fill: Color
     var onFill: Color = Ink.inkFixed
-    var disc: Color = Ink.iconDisc
     /// An outline: Live captions is a paper tile with a 1.5 pt ink edge.
     var edge: Color = .clear
     var edgeWidth: CGFloat = 1
@@ -571,23 +702,50 @@ struct HomeTile<Icon: View>: View {
     var hint: String
     var action: () -> Void
     @ViewBuilder var icon: (_ replay: Int) -> Icon
-    @Environment(\.limitMotion) private var limitMotion
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
-    @State private var hover = false
     @State private var replay = 0
     @State private var taps = 0
 
     var body: some View {
-        Button {
+        HomeCard(tilt: 3, radius: metrics.radius, onHover: { h in if h { replay += 1 } }, action: {
             taps += 1
             action()
-        } label: {
-            HStack(spacing: metrics.gap) {
-                ZStack {
-                    Circle().fill(disc)
+        }) { _ in
+            face
+        }
+        #if os(iOS)
+        .sensoryFeedback(.selection, trigger: taps)
+        #endif
+        .accessibilityLabel(title)
+        .accessibilityValue([detail, keycap.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
+        .accessibilityHint(hint)
+    }
+
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: metrics.radius, style: .continuous) }
+
+    @ViewBuilder private var face: some View {
+        if metrics.stacked {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 8) {
                     icon(replay).frame(width: metrics.icon, height: metrics.icon)
+                    Spacer(minLength: 0)
+                    if let keycap { Keycap(keys: keycap, size: 10.5).opacity(0.8) }
                 }
-                .frame(width: metrics.disc, height: metrics.disc)
+                Spacer(minLength: 6)
+                Text(title).font(.system(size: metrics.title, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85)
+                if let detail {
+                    Text(detail).font(.system(size: 12.5)).lineLimit(1).minimumScaleFactor(0.85).opacity(0.78).padding(.top, 2)
+                }
+            }
+            .foregroundStyle(onFill)
+            .padding(.horizontal, metrics.hPad).padding(.vertical, metrics.vPad)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: metrics.minHeight)
+            .background(fill, in: shape)
+            .overlay(shape.strokeBorder(edge, lineWidth: edgeWidth))
+        } else {
+            HStack(spacing: metrics.gap) {
+                icon(replay).frame(width: metrics.icon, height: metrics.icon)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.system(size: metrics.title * k, weight: .semibold))
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
@@ -604,23 +762,9 @@ struct HomeTile<Icon: View>: View {
             .foregroundStyle(onFill)
             .padding(.horizontal, metrics.hPad).padding(.vertical, metrics.vPad)
             .frame(maxWidth: .infinity, minHeight: metrics.minHeight * max(1, k), alignment: .leading)
-            .background(fill, in: RoundedRectangle(cornerRadius: metrics.radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: metrics.radius, style: .continuous).strokeBorder(edge, lineWidth: edgeWidth))
-            .contentShape(RoundedRectangle(cornerRadius: metrics.radius, style: .continuous))
+            .background(fill, in: shape)
+            .overlay(shape.strokeBorder(edge, lineWidth: edgeWidth))
         }
-        .buttonStyle(HomePressStyle())
-        .offset(y: hover && !limitMotion ? -2 : 0)
-        .onHover { h in
-            hover = h
-            if h { replay += 1 }
-        }
-        .animation(HomeMotion.lift, value: hover)
-        #if os(iOS)
-        .sensoryFeedback(.selection, trigger: taps)
-        #endif
-        .accessibilityLabel(title)
-        .accessibilityValue([detail, keycap.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
-        .accessibilityHint(hint)
     }
 }
 
@@ -683,99 +827,44 @@ struct HomeWeekCard<Trailing: View>: View {
 
 // MARK: - Method
 
-/// One step of the Method band (Mac, Home D): the diagram in ink, the index, the serif title, one line, and a live
-/// count. No fills; the band is one paper panel, so it adds no colors (DESIGN.md §6.4).
-struct MethodBandCell: View {
+/// One Method card (DESIGN.md §6.4): full color (Capture persimmon, Refine petal, Understand sage) with ink text in
+/// both modes; the mono index top left, the looping diagram top right, the serif title, a semibold line, and a live
+/// count in sentence-case sans. Card motion (`HomeCard`). Mac: 196 pt tall, three across all 12 columns. iPhone
+/// (`compact`): a narrower card for the carousel, as tall as its row.
+struct MethodCard: View {
     var feature: BrandFeature
     var line: String
     var meta: String
     var enabled = true
-    var hint: String
-    var action: () -> Void
-    @State private var hover = false
-    @State private var replay = 0
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                DrawOnGlyph(art: feature.art, color: Ink.ink, lineWidth: 1.3, replay: replay)
-                    .frame(width: 72, height: 72)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(feature.index).font(Ink.mono(11)).foregroundStyle(Ink.mute)
-                    Text(feature.title).font(Ink.serif(24)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8).padding(.top, 2)
-                    Text(line).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
-                    Text(meta).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1).truncationMode(.tail).padding(.top, 4)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 20).padding(.vertical, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(hover && enabled ? Ink.cardHover : Color.clear)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(HomePressStyle())
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.6)
-        .onHover { h in hover = h; if h { replay += 1 } }
-        .animation(Motion.touch, value: hover)
-        .accessibilityLabel("\(feature.title). \(line)")
-        .accessibilityValue(meta)
-        .accessibilityHint(hint)
-    }
-}
-
-/// The Method band: three cells side by side in one paper panel, split by hairlines, across all 12 columns.
-struct MethodBand<Content: View>: View {
-    @ViewBuilder var content: () -> Content
-    var body: some View {
-        HStack(spacing: 0) { content() }
-            .fixedSize(horizontal: false, vertical: true)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .cardSurface(radius: Radius.tile)
-    }
-}
-
-/// The hairline between Method cells.
-struct MethodDivider: View {
-    var body: some View { Rectangle().fill(Ink.hairline).frame(width: 1) }
-}
-
-/// A compact Method card (iPhone carousel, approved earlier): index and diagram on top, the serif title, one line,
-/// and a live count, on a paper card with a hairline. Ink diagrams, no fills.
-struct CompactMethodCard: View {
-    var feature: BrandFeature
-    var line: String
-    var meta: String
-    var enabled = true
+    var compact = false
     var hint: String
     var action: () -> Void
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .top) {
-                    Text(feature.index).font(Ink.mono(11)).foregroundStyle(Ink.mute)
-                    Spacer(minLength: 8)
-                    DrawOnGlyph(art: feature.art, color: Ink.ink, lineWidth: 1.1)
-                        .frame(width: 52, height: 52)
-                        .padding(.top, -4)
-                }
-                Text(feature.title).font(Ink.serif(24 * k)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8)
-                Text(line).font(.system(size: 13 * k)).foregroundStyle(Ink.dim).lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
-                Text(meta).font(.system(size: 12 * k)).monospacedDigit().foregroundStyle(Ink.mute)
-                    .lineLimit(1).truncationMode(.tail).padding(.top, 6)
+        HomeCard(tilt: 3, radius: Radius.tile, enabled: enabled, action: action) { _ in
+            VStack(alignment: .leading, spacing: 0) {
+                Text(feature.index).font(Ink.mono(compact ? 11 : 12, weight: .medium))
+                // The diagram sits top right (overlay); the words gather at the foot.
+                Spacer(minLength: compact ? 50 : 8)
+                Text(feature.title).font(Ink.serif((compact ? 26 : 30) * k)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(line).font(.system(size: 13 * k, weight: .semibold)).lineLimit(compact ? 3 : 2)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
+                Text(meta).font(.system(size: 12 * k)).monospacedDigit().opacity(0.8)
+                    .lineLimit(1).truncationMode(.tail).padding(.top, 4)
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            // Fills the row's height, so cards side by side line up (callers fix the row's height to its tallest card).
+            // Fills the row's height, so cards side by side line up.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .cardSurface(radius: Radius.tile)
-            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(alignment: .topTrailing) {
+                AnimatedFeatureArt(feature: feature, color: Ink.inkFixed, minLineWidth: 1)
+                    .frame(width: compact ? 64 : 100, height: compact ? 64 : 100)
+                    .padding(.top, -4)
+            }
+            .foregroundStyle(Ink.inkFixed)
+            .padding(.horizontal, compact ? 14 : 18).padding(.vertical, compact ? 12 : 16)
+            .frame(height: compact ? nil : 196)
+            .background(feature.fill, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         }
-        .buttonStyle(HomePressStyle())
-        .disabled(!enabled)
         .opacity(enabled ? 1 : 0.6)
         .accessibilityLabel("\(feature.title). \(line)")
         .accessibilityValue(meta)
@@ -811,12 +900,12 @@ struct HomeSectionTitle: View {
 }
 
 /// A recent recording, 60 pt tall: its source's tinted chip and brand icon, the title, a sentence-case meta line,
-/// and a neutral tag.
+/// and a neutral tag. `hovering` comes from the card around it (Mac), which takes the pointer.
 struct HomeRecentRow: View {
     var transcript: Transcript
     var compact: Bool
+    var hovering = false
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
-    @State private var hover = false
 
     var body: some View {
         let style = HomeRecentStyle(transcript)
@@ -833,17 +922,16 @@ struct HomeRecentRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(style.chip).font(.system(size: 11.5 * k)).foregroundStyle(Ink.dim)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .background(Ink.neutralChip, in: Capsule())
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .lineLimit(1).fixedSize()
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 60 * max(1, k))
-        .background(hover ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(hovering ? Ink.cardHover : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline.opacity(0.7)))
         .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .onHover { hover = $0 }
-        .animation(Motion.touch, value: hover)
+        .animation(Motion.touch, value: hovering)
         .accessibilityElement(children: .combine)
     }
 
@@ -857,8 +945,9 @@ struct HomeRecentRow: View {
     }
 }
 
-/// Recent dictations on a butter-tint panel (butter means Dictate): time and where it went, what you said, and
-/// Copy. On Mac each row is 66 pt, so four of them end level with four 60-pt recording rows and their gaps.
+/// Recent dictations on a butter-tint panel (butter means Dictate). Each row is one button: click or tap anywhere on
+/// it to copy what you said. On Mac each row is 62.5 pt, so four of them (with the panel's inset and gaps) end level
+/// with four 60-pt recording rows and their gaps.
 struct HomeDictationsPanel: View {
     var items: [Transcript]
     var compact: Bool
@@ -867,25 +956,37 @@ struct HomeDictationsPanel: View {
     var empty: String
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 2) {
             if items.isEmpty {
                 HStack(spacing: 10) {
                     IconGlyph(art: .iconDictations, size: 18, color: Ink.butterText)
                     Text(empty).font(.system(size: 13.5)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
-                .padding(.vertical, 12)
+                .padding(.horizontal, 10).padding(.vertical, 10)
             }
             ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                 HomeDictationItem(transcript: t, compact: compact, place: place(t), copy: copy)
-                if i < items.count - 1 { Rectangle().fill(Ink.hairline.opacity(0.6)).frame(height: 1) }
+                    .overlay(alignment: .top) {
+                        if i > 0 {
+                            Rectangle().fill(Ink.hairline.opacity(0.6)).frame(height: 1)
+                                .padding(.leading, 12).padding(.trailing, 10).offset(y: -1.5)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    #if os(macOS)
+                    .uiTarget("home-dictation-\(i)")
+                    #endif
             }
         }
-        .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, compact ? 4 : 0)
+        .padding(4)
         .background(Ink.butterTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 }
 
+/// One recent dictation: time and where it went, the words as pasted, and Copy. The whole row copies. Hover tints it;
+/// a copy washes it butter while "Copy" turns into a drawn check and "Copied" (a quick crossfade and slide), and
+/// after 1.6 s it goes back. VoiceOver hears "Copied"; iPhone taps add a success haptic. No tilt: rows sit in a panel.
 struct HomeDictationItem: View {
     var transcript: Transcript
     var compact: Bool
@@ -894,36 +995,112 @@ struct HomeDictationItem: View {
     @Environment(\.limitMotion) private var limitMotion
     @ScaledMetric(relativeTo: .body) private var k: CGFloat = 1
     @State private var copied = false
+    @State private var copies = 0
+    @State private var hover = false
 
     var body: some View {
         let failed = transcript.status == .failed
         let text = HomeDictationText.pasted(transcript)
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(HomeDictationText.overline(transcript, place: place)).font(.system(size: 12 * k)).monospacedDigit()
-                    .foregroundStyle(Ink.butterText).lineLimit(1)
-                Text(HomeDictationText.body(transcript)).font(.system(size: (compact ? 14 : 13.5) * k))
-                    .foregroundStyle(failed ? Ink.danger : Ink.ink)
-                    .lineLimit(compact ? 2 : 1).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+        let canCopy = !failed && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let overline = HomeDictationText.overline(transcript, place: place)
+        Button { copyNow(text) } label: {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(overline).font(.system(size: 12 * k)).monospacedDigit()
+                        .foregroundStyle(Ink.butterText).lineLimit(1)
+                    Text(HomeDictationText.body(transcript)).font(.system(size: (compact ? 14 : 13.5) * k))
+                        .foregroundStyle(failed ? Ink.danger : Ink.ink)
+                        .lineLimit(compact ? 2 : 1).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if canCopy { HomeCopyLabel(copied: copied, replay: copies, size: 12.5 * k) }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            Button {
-                copy(text)
-                withAnimation(limitMotion ? nil : Motion.snap) { copied = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { withAnimation(limitMotion ? nil : Motion.snap) { copied = false } }
-            } label: {
-                Text(copied ? "Copied" : "Copy").font(.system(size: 12.5 * k, weight: .semibold))
-                    .foregroundStyle(Ink.butterText)
-                    .padding(.vertical, 6).padding(.horizontal, 8)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(failed || text.isEmpty)
-            .opacity(failed || text.isEmpty ? 0.4 : 1)
-            .accessibilityLabel(copied ? "Copied" : "Copy dictation")
+            .padding(.leading, compact ? 10 : 12).padding(.trailing, 10)
+            .padding(.vertical, compact ? 10 : 0)
+            .frame(minHeight: compact ? 0 : 62.5 * max(1, k))
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, compact ? 10 : 0)
-        .frame(minHeight: compact ? 0 : 66 * max(1, k))
+        .buttonStyle(HomeDictationRowStyle(copied: copied, hover: hover && canCopy))
+        .disabled(!canCopy)
+        .onHover { hover = $0 }
+        #if os(iOS)
+        .sensoryFeedback(.success, trigger: copies)
+        #endif
+        .accessibilityLabel(HomeDictationText.body(transcript))
+        .accessibilityValue(copied ? "Copied" : overline)
+        .accessibilityHint(canCopy ? "Copies the dictation." : "")
+    }
+
+    private func copyNow(_ text: String) {
+        copy(text)
+        copies += 1
+        let token = copies
+        withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = true }
+        HomeAnnounce.say("Copied")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            guard copies == token else { return }
+            withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = false }
+        }
+    }
+}
+
+/// The dictation row's wash: butter at 70% under the pointer, full while pressed and once copied.
+private struct HomeDictationRowStyle: ButtonStyle {
+    var copied: Bool
+    var hover: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(Ink.butterWash.opacity(copied || configuration.isPressed ? 1 : hover ? 0.7 : 0),
+                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .animation(Motion.touch, value: hover)
+            .animation(Motion.touch, value: configuration.isPressed)
+    }
+}
+
+/// "Copy" with the brand copy icon, which turns into a drawn check and "Copied". With motion limited it crossfades
+/// in place.
+struct HomeCopyLabel: View {
+    var copied: Bool
+    var replay: Int
+    var size: CGFloat
+    @Environment(\.limitMotion) private var limitMotion
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 6) {
+                ArtIcon(art: .iconCopy, size: 16)
+                Text("Copy")
+            }
+            .opacity(copied ? 0 : 1)
+            .offset(y: copied && !limitMotion ? -4 : 0)
+            HStack(spacing: 6) {
+                DrawOnGlyph(art: .homeCheck, color: Ink.butterText, lineWidth: 1.5, replay: replay, duration: 0.35)
+                    .frame(width: 16, height: 16)
+                Text("Copied")
+            }
+            .opacity(copied ? 1 : 0)
+            .offset(y: copied || limitMotion ? 0 : 4)
+        }
+        .font(.system(size: size, weight: .semibold))
+        .foregroundStyle(Ink.butterText)
+        .fixedSize()
+        .accessibilityHidden(true)
+    }
+}
+
+extension BrandArt {
+    /// The check in "Copied" (24-unit grid, 1.5 stroke), drawn on when a dictation is copied.
+    static let homeCheck = BrandArt(box: iconGrid, strokes: [.path("M5 12.5L10 17.5L19 7")], strokeWidth: 1.5)
+}
+
+/// Spoken confirmations for VoiceOver ("Copied").
+enum HomeAnnounce {
+    @MainActor static func say(_ text: String) {
+        #if os(macOS)
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        #else
+        UIAccessibility.post(notification: .announcement, argument: text)
+        #endif
     }
 }

@@ -15,6 +15,7 @@ enum PhoneUITest {
         KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
         libraryChecks()
         homeChecks()
+        homeActionChecks(app)
         recorderChecks(app)
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
@@ -203,6 +204,22 @@ enum PhoneUITest {
             Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
         }
         Log.note("UITEST home checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// What Home's cards do when tapped (the Mac's self-test clicks them; here the same actions run directly):
+    /// This week opens your profile, and a Recent dictations row puts its words on the clipboard.
+    static func homeActionChecks(_ app: PhoneState) {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") home: \(name)") }
+        let tab = app.tab
+        HomeScreen.openProfile(app)
+        check("This week opens About me in Settings", app.tab == .settings)
+        _ = SettingsPage.take()
+        app.tab = tab
+        let newest = app.store.live.filter { $0.isDictation }.max { $0.createdAt < $1.createdAt }
+        let text = newest.map { HomeDictationText.pasted($0) } ?? "Running ten minutes late, save me a seat."
+        UIPasteboard.general.string = ""
+        HomeScreen.copyDictation(text)
+        check("a dictation row copies its words", UIPasteboard.general.string == text)
     }
 
     /// The minimized recorder (MiniRecorder.swift): minimizing never stops the recording, reopening keeps its
