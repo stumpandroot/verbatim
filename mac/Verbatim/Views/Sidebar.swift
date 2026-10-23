@@ -7,7 +7,6 @@ struct Sidebar: View {
     @EnvironmentObject var app: AppState
     @State private var newProject = false
     @State private var projectName = ""
-    @Namespace private var pill
     @ObservedObject private var layout = SidebarLayout.shared
     @State private var customizing = false
     @Environment(\.limitMotion) private var limitMotion
@@ -48,7 +47,7 @@ struct Sidebar: View {
             .padding(.leading, 12).padding(.trailing, 6).padding(.top, 18).padding(.bottom, 4)
             ForEach(app.store.projects) { p in
                 SideItem(label: p.name, art: .iconProject,
-                         selected: app.screen == .library && app.projectFilter == p.id, pill: pill, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
+                         selected: app.screen == .library && app.projectFilter == p.id, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
                     .contextMenu { Button("Delete project", role: .destructive) {
                         app.store.projects.removeAll { $0.id == p.id }
                         if app.projectFilter == p.id { app.projectFilter = nil }
@@ -71,7 +70,7 @@ struct Sidebar: View {
             }
             Spacer()
             if trashCount > 0 || app.screen == .trash {
-                SideItem(label: "Recently Deleted", art: .iconDeleted, selected: app.screen == .trash, badge: "\(trashCount)", pill: pill) { app.go(.trash) }
+                SideItem(label: "Recently Deleted", art: .iconDeleted, selected: app.screen == .trash, badge: "\(trashCount)") { app.go(.trash) }
                     .padding(.bottom, 6)
             }
             Rectangle().fill(Ink.hairline).frame(height: 1).padding(.horizontal, 8).padding(.bottom, 8)
@@ -95,6 +94,22 @@ struct Sidebar: View {
         .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
+        // One persimmon tick at the window edge, beside the selected row. It slides to the next selection over
+        // 300 ms instead of jumping (Limit animation: it moves at once).
+        .overlayPreferenceValue(SideTickAnchor.self) { anchor in
+            GeometryReader { g in
+                if let anchor {
+                    let r = g[anchor]
+                    UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 1.5, topTrailingRadius: 1.5)
+                        .fill(Ink.persimmon)
+                        .frame(width: 3, height: 18)
+                        .position(x: r.minX - 12 + 1.5, y: r.midY)
+                        .animation(limitMotion ? nil : Motion.nav, value: r.midY)
+                        .accessibilityHidden(true)
+                }
+            }
+            .allowsHitTesting(false)
+        }
         .modifier(SidebarPaper())
         .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $customizing) { CustomizeSidebarSheet() }
@@ -104,36 +119,42 @@ struct Sidebar: View {
     @ViewBuilder private func mainItem(_ id: SidebarItemID) -> some View {
         switch id {
         case .home:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .home, pill: pill) { app.go(.home) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .home) { app.go(.home) }
                 .uiTarget("side-home")
         case .library:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .library && app.projectFilter == nil, pill: pill, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .library && app.projectFilter == nil, onDropIDs: { app.move($0, to: nil) }) { app.projectFilter = nil; app.go(.library) }
                 .uiTarget("side-library")
         case .links:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .links, pill: pill) { app.go(.links) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .links) { app.go(.links) }
                 .uiTarget("side-links")
         case .moments:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .moments, pill: pill) { app.go(.moments) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .moments) { app.go(.moments) }
                 .uiTarget("side-moments")
         case .queue:
             // Links on their way in count too, once their "link added" card has landed here (AppState+LinkCard).
             let queued = app.queueBadgeCount
             SideItem(label: id.title, art: id.art, selected: app.screen == .queue,
-                     badge: queued == 0 ? nil : "\(queued)", busy: app.runningID != nil, pill: pill,
+                     badge: queued == 0 ? nil : "\(queued)", busy: app.runningID != nil,
                      pillBadge: true, badgePops: app.queueBadgePops) { app.go(.queue) }
                 .anchorPreference(key: QueueItemAnchor.self, value: .bounds) { $0 }
                 .uiTarget("side-queue")
         case .dictations:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .dictations, pill: pill) { app.go(.dictations) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .dictations) { app.go(.dictations) }
                 .uiTarget("side-dictations")
         case .you:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .activity, pill: pill) { app.go(.activity) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .activity) { app.go(.activity) }
                 .uiTarget("side-you")
         case .dictionary:
-            SideItem(label: id.title, art: id.art, selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)", pill: pill) { app.go(.dictionary) }
+            SideItem(label: id.title, art: id.art, selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)") { app.go(.dictionary) }
                 .uiTarget("side-dict")
         }
     }
+}
+
+/// The selected row's bounds, for the sliding selection tick.
+struct SideTickAnchor: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
 }
 
 /// The Queue row's bounds, so the "link added" tile knows where to fly (ContentView).
@@ -153,6 +174,10 @@ struct SidebarPaper: ViewModifier {
     }
 }
 
+/// A sidebar row: its brand icon, label, and badge. Hover fades and scales in a wash (180 ms, ease-out), nudges the
+/// label 2 pt to the right, and redraws the icon. The selected row keeps the wash and semibold type, and reports its
+/// bounds for the persimmon tick (`SideTickAnchor`), which the sidebar slides between rows. Clicks use `TapArea`,
+/// which stays reliable on macOS 26 (see Theme.swift).
 struct SideItem: View {
     var label: String
     var symbol: String? = nil
@@ -162,21 +187,29 @@ struct SideItem: View {
     var selected: Bool
     var badge: String? = nil
     var busy = false
-    var pill: Namespace.ID
     /// Shows the badge as a persimmon count pill (Queue), which pops when `badgePops` goes up.
     var pillBadge = false
     var badgePops = 0
     /// Makes the row a drop target for dragged transcripts.
     var onDropIDs: (([UUID]) -> Void)? = nil
     var action: () -> Void
+    @Environment(\.limitMotion) private var limitMotion
     @State private var hover = false
     @State private var dropping = false
+    @State private var replay = 0
 
     var body: some View {
+        let nudge = hover && !limitMotion
+        let washed = hover || selected
         HStack(spacing: 12) {
-            if let a = art { IconGlyph(art: a, size: 19, color: symbolColor ?? Ink.ink) }
-            else if let s = symbol { Image(systemName: s).font(.system(size: 14.5, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? Ink.ink) }
-            Text(label).lineLimit(1)
+            if let a = art {
+                DrawOnGlyph(art: a, color: symbolColor ?? Ink.ink, lineWidth: 1.2, replay: replay, duration: 0.55)
+                    .frame(width: 19, height: 19)
+                    .offset(x: nudge ? 1 : 0)
+            } else if let s = symbol {
+                Image(systemName: s).font(.system(size: 14.5, weight: .regular)).frame(width: 19).foregroundStyle(symbolColor ?? Ink.ink)
+            }
+            Text(label).lineLimit(1).offset(x: nudge ? 2 : 0)
             Spacer(minLength: 0)
             if busy { ProgressView().controlSize(.mini) }
             if pillBadge {
@@ -189,26 +222,29 @@ struct SideItem: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background {
-            ZStack {
-                // Hover previews with a light ink tint; selection is the persimmon tick and semibold type, no fill.
-                if dropping { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.wash).overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5)) }
-                else if hover && !selected { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.ink.opacity(0.06)) }
+            let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+            if dropping {
+                shape.fill(Ink.wash).overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
+            } else {
+                shape.fill(Ink.wash)
+                    .opacity(washed ? 1 : 0)
+                    .scaleEffect(washed || limitMotion ? 1 : 0.97)
             }
         }
-        .overlay(alignment: .leading) {
-            if selected { UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 1.5, topTrailingRadius: 1.5).fill(Ink.persimmon).frame(width: 3, height: 18).offset(x: -12).matchedGeometryEffect(id: "marker", in: pill) }
-        }
+        .anchorPreference(key: SideTickAnchor.self, value: .bounds) { selected ? $0 : nil }
         .foregroundStyle(Ink.ink)
         .fontWeight(selected ? .semibold : .regular)
         .tapArea(action)
-        .onHover { hover = $0 }
+        .onHover { h in
+            hover = h
+            if h { replay += 1 }
+        }
         .modifier(TranscriptDropTarget(enabled: onDropIDs != nil, dropping: $dropping) { onDropIDs?($0) })
         .animation(Motion.touch, value: hover)
         .animation(Motion.touch, value: dropping)
-        .animation(Motion.snap, value: selected)
+        .animation(Motion.touch, value: selected)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(label)
     }
 }
-
