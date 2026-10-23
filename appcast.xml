@@ -6,14 +6,14 @@
     <description>Verbose for Mac: tagged releases, plus beta builds of main.</description>
     <language>en</language>
     <item>
-      <title>Verbose beta 173</title>
-      <pubDate>Thu, 22 Oct 2026 21:00:08 GMT</pubDate>
+      <title>Verbose beta 174</title>
+      <pubDate>Fri, 23 Oct 2026 00:22:54 GMT</pubDate>
       <sparkle:channel>beta</sparkle:channel>
-      <sparkle:version>173</sparkle:version>
+      <sparkle:version>174</sparkle:version>
       <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description>&lt;p&gt;Beta build 173: Merge remote-tracking branch &amp;#x27;origin/keyboard-basic&amp;#x27; into integrate&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-173"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
-      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-173/Verbatim-universal.dmg" length="95439177" type="application/octet-stream" sparkle:edSignature="i8HgYCBn0IyztqifLJ7ptHpDPkKgsFWq4iaTC7JlM87QJ4h00SGQW/i4OCza9iQSACzXVzx4CHmYjaz3tOgOBw==" />
+      <description>&lt;p&gt;Beta build 174: Voice setup on Mac: keep the sheet alive until its click finishes; Home hears settings changes on the main thread&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-174"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-174/Verbatim-universal.dmg" length="95443870" type="application/octet-stream" sparkle:edSignature="4n/fbTyfdEaFWFgzU91UDF6LYIXluqFrlnXRv1B+7Blf10QzUsO5vlnnl4XsGESWUBgeBLygIPFF+LjQvDdsCQ==" />
     </item>
   </channel>
 </rss>
