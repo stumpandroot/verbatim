@@ -26,6 +26,11 @@ struct HomeView: View {
 
     /// The gutter between columns and between bands.
     private static let gap: CGFloat = 16
+    /// Side margin around the grid, and the widest the grid gets.
+    private static let margin: CGFloat = 40
+    private static let maxContent: CGFloat = 1100
+    /// The grid's width for a scroll view `available` points wide: the space inside the margins, at most 1100.
+    static func contentWidth(_ available: CGFloat) -> CGFloat { min(maxContent, max(280, available - 2 * margin)) }
     private var wide: Bool { width >= 680 }
     /// Tiles tighten (smaller icon and padding) when their column is narrow, as in the 1000-pt screenshot window.
     private var tileMetrics: HomeTileMetrics { wide && columns(width).1 < 380 ? .macCompact : .mac }
@@ -50,15 +55,18 @@ struct HomeView: View {
                 if app.showsWelcomeCard { method.padding(.top, 4).staggerIn(2) }
                 recentRow.padding(.top, 10).staggerIn(3)
             }
-            .frame(maxWidth: 1100, alignment: .leading)
-            .background(GeometryReader { g in
-                Color.clear
-                    .onAppear { width = g.size.width }
-                    .onChange(of: g.size.width) { _, w in width = w }
-            })
-            .padding(.horizontal, 40).padding(.top, 36).padding(.bottom, 36)
+            .frame(width: width, alignment: .leading)
+            .padding(.horizontal, Self.margin).padding(.top, 36).padding(.bottom, 36)
             .frame(maxWidth: .infinity)
         }
+        // The space Home has to work with comes from the scroll view, which always takes the window's full width.
+        // Measuring the content instead was circular: its bands are sized from `width`, so a window narrower than
+        // the starting guess kept the wide layout and slid under the sidebar.
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { width = Self.contentWidth(g.size.width) }
+                .onChange(of: g.size.width) { _, w in width = Self.contentWidth(w) }
+        })
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
         .onChange(of: recording) { _, on in if on { monitor.stop() } }
