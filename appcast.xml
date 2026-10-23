@@ -6,14 +6,14 @@
     <description>Verbose for Mac: tagged releases, plus beta builds of main.</description>
     <language>en</language>
     <item>
-      <title>Verbose beta 180</title>
-      <pubDate>Fri, 23 Oct 2026 13:32:00 GMT</pubDate>
+      <title>Verbose beta 181</title>
+      <pubDate>Fri, 23 Oct 2026 17:49:09 GMT</pubDate>
       <sparkle:channel>beta</sparkle:channel>
-      <sparkle:version>180</sparkle:version>
+      <sparkle:version>181</sparkle:version>
       <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description>&lt;p&gt;Beta build 180: Self-test: run the meeting steps after the Ribbon steps (merge fix)&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-180"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
-      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-180/Verbatim-universal.dmg" length="96169557" type="application/octet-stream" sparkle:edSignature="SjWNJLqYBtmIu2foQMwXTt/2Y/ayk7SJr7KhFTuDYRY9hz8lJyU17JoIF5IUABtBovACeshAgzps0cOl03CiBQ==" />
+      <description>&lt;p&gt;Beta build 181: Voice setup on Mac: size the sheet outside layout (fixes the crash when recording starts)&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-181"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-181/Verbatim-universal.dmg" length="96088661" type="application/octet-stream" sparkle:edSignature="0FTKUD6zYsv/QfoyqIApTVKfviBN9ABqRFDaJSCSKxNjn0iMUJQ4g73jJEzH4XoDolU2wYJkluGUq/k5FVPYAg==" />
     </item>
   </channel>
 </rss>
