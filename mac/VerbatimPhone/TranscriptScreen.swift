@@ -1,9 +1,11 @@
 import SwiftUI
 import UIKit
 
-/// A transcript: title, source, tabs (Original, Cleaned, Review), the reading lines, and a floating glass player.
-/// Long-press a line to bookmark it, add a note, copy it, or open the video at that moment. Copy takes the tab
-/// you're on.
+/// A transcript, in the website style: the eyebrow (kind · date · length) over the recording's name as the big serif
+/// title, the Summary on a butter panel with grain and the strands drawing, the Original / Cleaned switch (plus Review
+/// once something was corrected), speaker pills with mono timecodes over the text at a comfortable size, and the dark
+/// player floating above the tab bar. Long-press a line to bookmark it, add a note, copy it, or open the video at
+/// that moment. Copy takes the tab you're on.
 struct TranscriptScreen: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
@@ -35,6 +37,7 @@ struct TranscriptScreen: View {
     @State private var followed: UUID? = nil
     /// Opened from a search passage: where the audio starts.
     @State private var pendingSeek: Double? = nil
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 32
 
     /// What Copy takes on this tab.
     private var copyVersion: Exporter.CopyVersion { mode == .document ? .cleaned : .original }
@@ -51,12 +54,18 @@ struct TranscriptScreen: View {
                                 header(t)
                                     .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                                 if t.status == .ready {
-                                    ModePicker(options: [(Mode.transcript, "Original"), (.document, "Cleaned"), (.review, "Review")], selection: $mode)
+                                    PhoneSummaryPanel(transcript: t,
+                                                      onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
+                                                      onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
                                         .padding(.top, 16)
-                                        .riseIn("modes", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+                                        .riseIn("summary", index: 1, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+                                    PhoneSegmented(options: modes(t), selection: $mode)
+                                        .padding(.top, 16)
+                                        .riseIn("modes", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+                                        .onChange(of: t.corrections.isEmpty) { _, none in if none, mode == .review { mode = .transcript } }
                                 }
                                 content(t).padding(.top, 14)
-                                    .riseIn("content", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+                                    .riseIn("content", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
                             }
                             .padding(.horizontal, 20).padding(.top, 4)
                             .padding(.bottom, t.audioFileName != nil && t.status == .ready && mode != .document ? 120 : 32)
@@ -88,7 +97,7 @@ struct TranscriptScreen: View {
                     }
                     if t.audioFileName != nil, t.status == .ready, mode != .document {
                         PhoneDock(transcript: t, clock: app.player.clock, downloading: downloading, follow: $follow)
-                            .padding(.horizontal, 14).padding(.bottom, 8)
+                            .padding(.horizontal, 22).padding(.bottom, 10)
                     }
                 }
                 .background(Ink.paper.ignoresSafeArea())
@@ -173,18 +182,36 @@ struct TranscriptScreen: View {
         }
     }
 
+    /// Original and Cleaned; Review joins them once something was corrected.
+    private func modes(_ t: Transcript) -> [(Mode, String)] {
+        var out: [(Mode, String)] = [(.transcript, "Original"), (.document, "Cleaned")]
+        if !t.corrections.isEmpty || mode == .review { out.append((.review, "Review")) }
+        return out
+    }
+
+    /// "Meeting · Thu Oct 22 · 07:50": the kind (or source), the day, and the length.
+    static func eyebrow(_ t: Transcript) -> String {
+        var parts = [t.kind?.label ?? HomeRecentStyle(t).source]
+        let cal = Calendar.current
+        parts.append(Formats.pattern(cal.isDate(t.createdAt, equalTo: Date(), toGranularity: .year) ? "EEE MMM d" : "EEE MMM d, yyyy").string(from: t.createdAt))
+        if t.duration > 0 { parts.append(t.duration.timecode) }
+        return parts.joined(separator: " · ")
+    }
+
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            PhoneEyebrow(text: Self.eyebrow(t))
             TextField("Title", text: Binding(get: { t.title }, set: { v in
                 guard v != t.title else { return }
                 app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
             }), axis: .vertical)
-                .font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1...3)
+                .font(Ink.serif(titleSize)).tracking(-0.6).foregroundStyle(Ink.ink).lineLimit(1...4)
+                .padding(.top, 2)
+                .accessibilityLabel("Title")
             HStack(spacing: 6) {
+                // The kind, day, and length are in the eyebrow above.
                 Text(t.sourceLabel)
-                if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(.system(size: 13)).monospacedDigit() }
                 if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
-                if let k = t.kind { Text("·"); Text(k.label) }
                 // The language it was transcribed in, and Transcribe again in… another one.
                 if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil, t.source != .dictation {
                     Text("·"); TranscriptLanguageMenu(transcript: t)
@@ -192,7 +219,7 @@ struct TranscriptScreen: View {
                     Text("·"); Text(LanguageDetection.name(l))
                 }
             }
-            .font(.system(size: 14)).foregroundStyle(Ink.mute)
+            .font(.system(size: 13)).foregroundStyle(Ink.mute)
             // Source, engine, language, date, and where the data went (PhoneTrust.swift).
             if t.status == .ready { PhoneProvenanceLine(transcript: t) }
             if t.titleIsAuto && t.titleByModel { AITitleNote() }
@@ -251,11 +278,6 @@ struct TranscriptScreen: View {
             .padding(.top, 20)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                if mode != .review {
-                    SummaryBlock(transcript: t, compact: true,
-                                 onSummarize: { replacing in SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: replacing) },
-                                 onSave: { s in app.store.update(t.id) { $0.summary = s; $0.summaryByModel = false } })
-                }
                 switch mode {
                 case .transcript:
                     let background = mainSpeakerOnly ? t.backgroundSegments : []
@@ -272,7 +294,7 @@ struct TranscriptScreen: View {
                             PhoneLines(transcript: t, segments: segs, clock: app.player.clock, onNote: { noteFor = $0 })
                         }
                         if hideFillerSetting, t.fillerCount > 0 {
-                            FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 62)
+                            FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 6)
                         }
                         if !background.isEmpty {
                             BackgroundVoicesCard(segments: background,
@@ -371,6 +393,16 @@ struct PhoneLines: View {
     /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the tint
     /// itself is worked out from the clock in `body`.
     @State private var playingIDs: Set<UUID> = []
+    /// Reading text at a comfortable size and line height (the website's 16.5 / 1.6), scaled with Dynamic Type.
+    @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 16.5
+    @ScaledMetric(relativeTo: .caption) private var pillSize: CGFloat = 12.5
+
+    /// A speaker's pill color, by their place in the list: record, petal, sage, butter, then around again.
+    static func speakerColor(_ t: Transcript, _ id: String?) -> Color {
+        let colors = [PhoneInk.record, PhoneInk.petal, PhoneInk.sage, PhoneInk.butter]
+        guard let id, let i = t.speakers.firstIndex(where: { $0.id == id }) else { return PhoneInk.wash }
+        return colors[i % colors.count]
+    }
 
     /// The playing rule: under the playhead, and either playing or moved off the start.
     static func playing(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
@@ -385,48 +417,52 @@ struct PhoneLines: View {
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
         let segs = segments
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
-        LazyVStack(alignment: .leading, spacing: 2) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segs[i - 1].speaker != s.speaker)
                 let playing = current.contains(s.id)
-                VStack(alignment: .leading, spacing: 3) {
-                    if showSpeaker, let n = transcript.speakerName(s.speaker) {
-                        // Tap the name to rename the speaker or move this line to someone else.
-                        Menu {
-                            if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
-                                Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }   // brand: system surface (menu)
-                            }
-                            Section("This line is") {
-                                ForEach(transcript.speakers) { sp in
-                                    Button { app.assign(transcript.id, segment: s.id, to: sp.id) } label: {
-                                        Label(sp.label, systemImage: sp.id == s.speaker ? "checkmark" : "person")
-                                    }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        if showSpeaker, let n = transcript.speakerName(s.speaker) {
+                            // Tap the name to rename the speaker or move this line to someone else.
+                            Menu {
+                                if let sid = s.speaker, let sp = transcript.speakers.first(where: { $0.id == sid }) {
+                                    Button { newName = sp.name; renaming = sp } label: { Label("Rename \(n)…", systemImage: "pencil") }   // brand: system surface (menu)
                                 }
-                                Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
+                                Section("This line is") {
+                                    ForEach(transcript.speakers) { sp in
+                                        Button { app.assign(transcript.id, segment: s.id, to: sp.id) } label: {
+                                            Label(sp.label, systemImage: sp.id == s.speaker ? "checkmark" : "person")
+                                        }
+                                    }
+                                    Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(n).font(.system(size: pillSize, weight: .bold)).lineLimit(1)
+                                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7)
+                                }
+                                .foregroundStyle(Ink.inkFixed)
+                                .padding(.horizontal, 10).frame(minHeight: 24)
+                                .background(Self.speakerColor(transcript, s.speaker), in: Capsule())
+                                .contentShape(Capsule())
                             }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text(n).font(.system(size: 13, weight: .semibold))
-                                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-                            }
-                            .foregroundStyle(Ink.dim).padding(.top, 10).contentShape(Rectangle())
+                            .accessibilityLabel("Speaker: \(n). Rename or reassign")
                         }
-                        .accessibilityLabel("Speaker: \(n). Rename or reassign")
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.mute).frame(width: 44, alignment: .leading)
+                        Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.mute)
                             .onTapGesture { play(s) }
                             .accessibilityLabel("Play from \(s.start.timecode)").accessibilityAddTraits(.isButton)
-                        lineText(s, playing: playing).font(.system(size: 17)).foregroundStyle(Ink.ink).lineSpacing(3)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            // Tap a line to play from it (Select text, above, is for selecting).
-                            .onTapGesture { play(s) }
-                            .accessibilityAction(named: "Play from here") { play(s) }
                     }
-                    .padding(.vertical, 6).padding(.horizontal, 6)
-                    .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    lineText(s, playing: playing).font(.system(size: textSize)).foregroundStyle(Ink.ink).lineSpacing(textSize * 0.38)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        // Tap a line to play from it (Select text, above, is for selecting).
+                        .onTapGesture { play(s) }
+                        .accessibilityAction(named: "Play from here") { play(s) }
                 }
+                .padding(.vertical, 6).padding(.horizontal, 6)
+                .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .padding(.top, showSpeaker && i > 0 ? 12 : 2)
                 .id(s.id)
                 .contentShape(Rectangle())
                 .contextMenu {
@@ -476,74 +512,117 @@ struct PhoneLines: View {
     }
 }
 
-/// The floating glass player: play, skip, scrubber, time, speed, follow, bookmark. Text sits on solid chips, never
-/// on the glass itself.
+/// The dark player floating above the tab bar (an opaque ink capsule, never glass): play in the record color, the
+/// time in mono, the waveform (drag or tap it to move through the recording; the played part is butter), Follow, and
+/// a menu with speed, skip 5 seconds, and Bookmark this moment.
 struct PhoneDock: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
     @ObservedObject var clock: PlayerClock
     var downloading: Bool
     @Binding var follow: Bool
+
     var body: some View {
         let total = max(app.player.duration, transcript.duration, 0.1)
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                Text("\(clock.time.timecode) / \(total.timecode)").font(Ink.mono(12.5)).foregroundStyle(Ink.ink)
-                    .padding(.horizontal, 9).padding(.vertical, 5).background(Ink.card, in: Capsule())
-                Spacer(minLength: 4)
-                Menu {
-                    Picker("Speed", selection: Binding(get: { app.player.rate }, set: { app.player.setRate($0) })) {
-                        ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
-                    }
-                } label: {
-                    Text(PlaybackSync.speedLabel(app.player.rate)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
-                        .padding(.horizontal, 10).padding(.vertical, 5).background(Ink.card, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Ink.hairline))
+        HStack(spacing: 10) {
+            Button { app.player.toggle() } label: {
+                ZStack {
+                    Circle().fill(PhoneInk.record)
+                    if downloading { ProgressView().tint(Ink.inkFixed) }
+                    else { ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 15, lineWidth: 2).foregroundStyle(Ink.inkFixed) }
                 }
-                .accessibilityLabel("Playback speed, \(PlaybackSync.speedLabel(app.player.rate))")
-                Button { follow.toggle() } label: {
-                    Label("Follow", art: .iconFollow, size: 15)
-                        .font(.system(size: 13, weight: .semibold)).labelStyle(.titleAndIcon)
-                        .foregroundStyle(follow ? Ink.onInteractive : Ink.ink)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(follow ? Ink.interactive : Ink.card, in: Capsule())
-                        .overlay(Capsule().strokeBorder(follow ? Color.clear : Ink.hairline))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Follow playback")
-                .accessibilityValue(follow ? "On" : "Off")
-                .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
+                .frame(width: 38, height: 38)
+                .contentShape(Circle())
             }
-            Slider(value: Binding(get: { min(clock.time, total) }, set: { app.player.seek(to: $0) }), in: 0...total)
-                .tint(Ink.sageText)
-                .accessibilityLabel("Playback position")
-            HStack(spacing: 18) {
-                Color.clear.frame(width: 24, height: 1)
-                Spacer()
-                Button { app.player.seek(to: max(0, clock.time - 5)) } label: { ArtIcon(art: .iconBack5, size: 24) }.accessibilityLabel("Back 5 seconds")
-                Button { app.player.toggle() } label: {
-                    Group {
-                        if downloading { ProgressView().tint(Ink.onInteractive) }
-                        else { ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 20, lineWidth: 2) }
-                    }
-                    .foregroundStyle(Ink.onInteractive).frame(width: 50, height: 50)
+            .buttonStyle(PhoneCardPress())
+            .disabled(downloading)
+            .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
+            Text(clock.time.timecode).font(Ink.mono(12)).foregroundStyle(Ink.paperFixed)
+                .fixedSize()
+                .accessibilityHidden(true)
+            PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total)) { f in
+                app.player.seek(to: f * total)
+            }
+            .frame(height: 26)
+            .accessibilityElement()
+            .accessibilityLabel("Playback position")
+            .accessibilityValue("\(clock.time.timecode) of \(total.timecode)")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: app.player.seek(to: min(total, clock.time + 5))
+                case .decrement: app.player.seek(to: max(0, clock.time - 5))
+                @unknown default: break
                 }
-                .buttonStyle(RaisedKeyStyle(fill: Ink.interactive))
-                .disabled(downloading)
-                .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
-                Button { app.player.seek(to: min(total, clock.time + 5)) } label: { ArtIcon(art: .iconForward5, size: 24) }.accessibilityLabel("Forward 5 seconds")
-                Spacer()
+            }
+            Button { follow.toggle() } label: {
+                Text("Follow").font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(follow ? Ink.inkFixed : Ink.paperFixed)
+                    .padding(.horizontal, 14).frame(minHeight: 36)
+                    .background { if follow { Capsule().fill(Ink.paperFixed) } }
+                    .overlay { if !follow { Capsule().strokeBorder(Ink.paperFixed.opacity(0.6), lineWidth: 1.2) } }
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Follow playback")
+            .accessibilityValue(follow ? "On" : "Off")
+            .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
+            Menu {
+                Picker("Speed", selection: Binding(get: { app.player.rate }, set: { app.player.setRate($0) })) {
+                    ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
+                }
+                Button("Back 5 seconds") { app.player.seek(to: max(0, clock.time - 5)) }
+                Button("Forward 5 seconds") { app.player.seek(to: min(total, clock.time + 5)) }
                 Button {
                     let at = clock.time
                     let seg = transcript.segments.first { at >= $0.start && at < $0.end }
                     app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-                } label: { ArtIcon(art: .bookmark, size: 22) }.accessibilityLabel("Bookmark this moment")
-                    .frame(width: 24)
+                } label: { Label("Bookmark this moment", systemImage: "bookmark") }   // brand: system surface (menu)
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.paperFixed)
+                    .frame(width: 32, height: 38).contentShape(Rectangle())
             }
-            .font(.system(size: 18)).foregroundStyle(Ink.ink)
+            .accessibilityLabel("Playback options, \(PlaybackSync.speedLabel(app.player.rate))")
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .floatingGlass(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .padding(.leading, 8).padding(.trailing, 6)
+        .frame(minHeight: 54)
+        .background(Ink.inkFixed, in: Capsule())
+        .shadow(color: Ink.inkFixed.opacity(0.2), radius: 12, y: 8)
+    }
+}
+
+/// The player's waveform: the recording's levels as thin bars, butter up to the playhead and faint paper after it.
+/// Tap or drag to move the playhead.
+struct PhoneDockWave: View {
+    var levels: [Float]
+    var progress: Double
+    var seek: (Double) -> Void
+
+    var body: some View {
+        GeometryReader { g in
+            Canvas { ctx, size in
+                let n = 46
+                let gap: CGFloat = 2
+                let w = max(1, (size.width - gap * CGFloat(n - 1)) / CGFloat(n))
+                for i in 0..<n {
+                    let v: CGFloat
+                    if levels.isEmpty {
+                        v = 0.2 + 0.7 * CGFloat(abs(sin(Double(i) * 0.7) * cos(Double(i) * 0.23)))
+                    } else {
+                        let idx = min(levels.count - 1, i * levels.count / n)
+                        v = max(0.2, min(1, CGFloat(levels[idx]) * 1.4))
+                    }
+                    let h = v * size.height
+                    let rect = CGRect(x: CGFloat(i) * (w + gap), y: (size.height - h) / 2, width: w, height: h)
+                    let played = Double(i) / Double(n) < progress
+                    ctx.fill(Path(roundedRect: rect, cornerRadius: min(2, w / 2)),
+                             with: .color(played ? Ink.butter : Ink.paperFixed.opacity(0.35)))
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { v in
+                seek(max(0, min(1, Double(v.location.x / max(1, g.size.width)))))
+            })
+        }
     }
 }
 
@@ -637,5 +716,161 @@ struct NotesSheet: View {
             .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+/// The Summary on a butter panel with grain and the strands drawing (the screen's one moving drawing): the eyebrow,
+/// the overview's first sentence as a serif headline and the rest under it, the key points, the Apple Intelligence
+/// note, and Edit and Regenerate. Ink text in both modes. Hidden while there's nothing to show and Apple
+/// Intelligence can't run here (`SummaryBlock.shows`); the Summarize action says why.
+struct PhoneSummaryPanel: View {
+    var transcript: Transcript
+    /// Runs the summary; `true` replaces a summary the person edited.
+    var onSummarize: (_ replacingEdits: Bool) -> Void
+    /// Saves the person's edit; nil removes the summary.
+    var onSave: (TranscriptSummary?) -> Void
+
+    @ObservedObject private var center = SummaryCenter.shared
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var confirmReplace = false
+    @Environment(\.limitMotion) private var limitMotion
+    @ScaledMetric(relativeTo: .title2) private var headSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var bodySize: CGFloat = 14.5
+
+    private var running: Bool { center.isRunning(transcript.id) }
+    private var animation: Animation { limitMotion ? Motion.fade : Motion.settle }
+
+    var body: some View {
+        if SummaryBlock.shows(transcript, center: center) {
+            let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
+            VStack(alignment: .leading, spacing: 10) {
+                PhoneEyebrow(text: "Summary", color: Ink.inkFixed)
+                    .accessibilityAddTraits(.isHeader)
+                content
+            }
+            .foregroundStyle(Ink.inkFixed)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                ZStack(alignment: .topTrailing) {
+                    PhonePanelFill(color: PhoneInk.butter, shape: shape)
+                    if !editing { PhonePanelArt(kind: .strands).frame(width: 160, height: 107).offset(x: 4, y: -16) }
+                }
+                .clipShape(shape)
+            }
+            .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
+                Button("Replace", role: .destructive) { onSummarize(true) }
+                Button("Keep mine", role: .cancel) {}
+            } message: {
+                Text("Apple Intelligence writes a new summary, and your edits are gone.")
+            }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if editing {
+            editor
+        } else if let s = transcript.summary {
+            let parts = Self.split(s.overview)
+            let head = parts.0, rest = parts.1
+            VStack(alignment: .leading, spacing: 10) {
+                if !head.isEmpty {
+                    Text(head).font(Ink.serif(headSize)).lineSpacing(1)
+                        .padding(.trailing, 64)
+                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                }
+                if !rest.isEmpty {
+                    Text(rest).font(.system(size: bodySize)).lineSpacing(3)
+                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                }
+                if !s.keyPoints.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
+                            HStack(alignment: .firstTextBaseline, spacing: 9) {
+                                Circle().fill(Ink.inkFixed).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
+                                Text(p).font(.system(size: bodySize)).lineSpacing(2)
+                                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Key points")
+                }
+                if transcript.summaryByModel {
+                    Label { Text(AIGeneratedNote.summary) } icon: { ArtIcon(art: .iconAI, size: 13) }
+                        .font(.system(size: 12)).opacity(0.8)
+                        .accessibilityElement(children: .combine)
+                }
+                if running { progressRow } else if let why = center.failures[transcript.id] { Text(why).font(.system(size: 13)).opacity(0.8) }
+                HStack(spacing: 18) {
+                    Button("Edit") { draft = s.plainText; withAnimation(animation) { editing = true } }
+                    if Summarizer.available, !running {
+                        Button("Regenerate") {
+                            if transcript.summaryIsEdited { confirmReplace = true } else { onSummarize(false) }
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 14, weight: .semibold))
+                .underline()
+            }
+        } else if running {
+            progressRow
+        } else if let why = center.failures[transcript.id] {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(why).font(.system(size: 14)).fixedSize(horizontal: false, vertical: true)
+                if Summarizer.available {
+                    Button("Try again") { onSummarize(false) }.buttonStyle(.plain)
+                        .font(.system(size: 14, weight: .semibold)).underline()
+                }
+            }
+        }
+    }
+
+    private var progressRow: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small).tint(Ink.inkFixed)
+            Text(progressText).font(.system(size: 14))
+        }
+    }
+
+    private var progressText: String {
+        if let p = center.progress[transcript.id], p > 0 { return "Writing a summary… \(Int(p * 100))%" }
+        return "Writing a summary…"
+    }
+
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("An overview, then one key point per line starting with “- ”.").font(.system(size: 13.5))
+            TextEditor(text: $draft)
+                .font(.system(size: bodySize)).lineSpacing(3)
+                .foregroundStyle(Ink.inkFixed)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 160)
+                .padding(8)
+                .background(Ink.readerFixed, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .environment(\.colorScheme, .light)
+            HStack(spacing: 18) {
+                Button("Save") {
+                    let parsed = TranscriptSummary.parse(draft)
+                    onSave(parsed.isEmpty ? nil : parsed)
+                    withAnimation(animation) { editing = false }
+                }
+                Button("Cancel") { withAnimation(animation) { editing = false } }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 14, weight: .semibold))
+        }
+    }
+
+    /// The overview's first sentence (the headline) and the rest.
+    static func split(_ overview: String) -> (String, String) {
+        let text = overview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let r = text.range(of: #"[.!?](\s|$)"#, options: .regularExpression) else { return (text, "") }
+        let head = String(text[..<r.upperBound]).trimmingCharacters(in: .whitespaces)
+        let rest = String(text[r.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        // A long first sentence reads as body text, not a headline.
+        return head.count <= 90 ? (head, rest) : ("", text)
     }
 }

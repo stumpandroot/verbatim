@@ -7,8 +7,9 @@ enum Profile {
     static let aboutMeLimit = 300
 }
 
-/// Settings: grouped cards with tinted icon tiles, mono section headers, and the version at the foot.
-/// Personalization, Transcription, Sync and data, Support, and the Welcome tour.
+/// Settings in the website style, close to a native iOS list: the compact serif title, search, a card for You at the
+/// top (your initial, your name, and About me, your voice, your week), then grouped cards with mono section labels,
+/// colored icon squares, values, chevrons, and standard switches. The version sits at the foot.
 struct SettingsScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.openURL) private var openURL
@@ -63,9 +64,8 @@ struct SettingsScreen: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Settings").font(Ink.serif(36)).foregroundStyle(Ink.ink)
-                    .accessibilityAddTraits(.isHeader)
-                    .padding(.top, 8)
+                PhoneCompactTitle(title: "Settings")
+                    .padding(.top, 2)
                     .riseIn("title", index: 0, seen: seen, epoch: entrance)
                 SettingsSearchField(text: $search.query) {
                     if let first = SettingsSearchIndex.search(search.query).first?.entries.first { pickSearchResult(first, proxy) }
@@ -75,6 +75,9 @@ struct SettingsScreen: View {
                 if search.isActive {
                     SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
                 } else {
+                youCard
+                    .padding(.top, 18)
+                    .riseIn("you", index: 1, seen: seen, epoch: entrance)
                 group(1, "Personalization") { personalization }
                 group(2, "Recording") { recording }
                 group(3, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
@@ -137,6 +140,52 @@ struct SettingsScreen: View {
             Text(deleteDetail)
         }
     }
+
+    // MARK: You
+
+    @AppStorage("profile.name") private var profileName = ""
+
+    /// You: your initial on the record color, your name in the serif (the last name in italic), and what's inside.
+    /// Opens About me.
+    private var youCard: some View {
+        let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = name.split(separator: " ", maxSplits: 1).map(String.init)
+        return Button { bump("me"); showAboutMe = true } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(PhoneInk.record)
+                    Circle().strokeBorder(Ink.inkFixed, lineWidth: 1.5)
+                    if let first = name.first {
+                        Text(String(first).uppercased()).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed)
+                    } else {
+                        IconGlyph(art: .iconAboutMe, size: 24, color: Ink.inkFixed)
+                    }
+                }
+                .frame(width: 52, height: 52)
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Group {
+                        if parts.count == 2 { Text("\(parts[0]) ") + Text(parts[1]).italic() }
+                        else { Text(name.isEmpty ? "You" : name) }
+                    }
+                    .font(Ink.serif(youSize)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8)
+                    Text("About me, your voice, your week").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                SettingsChevron()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .phoneOutlined(radius: Radius.record)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(name.isEmpty ? "You" : name)
+        .accessibilityHint("Opens About me.")
+    }
+
+    @ScaledMetric(relativeTo: .title2) private var youSize: CGFloat = 22
 
     // MARK: Groups
 
@@ -302,9 +351,9 @@ struct SettingsScreen: View {
                 SettingsLabel(icon: syncWanted ? "icloud" : "icloud.slash", tint: Ink.sageTint, art: syncWanted ? .iconSync : .iconSyncOff, title: "iCloud sync",
                               subtitle: syncSubtitle, subtitleLines: nil, bounce: syncWanted)
             }
-            .toggleStyle(SpringSwitchStyle())
+            .toggleStyle(.switch).tint(PhoneInk.switchOn)
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .frame(minHeight: 54)
+            .frame(minHeight: 50)
             .disabled(copyingDown)
             .settingsSearchTarget("sync", flash: searchFlash)
         } else {
@@ -460,21 +509,21 @@ struct SettingsScreen: View {
     // MARK: Helpers
 
     private func group<Rows: View>(_ index: Int, _ title: String, footer: String? = nil, @ViewBuilder _ rows: () -> Rows) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(Ink.mono(12)).foregroundStyle(Ink.mute)
                 .padding(.horizontal, 4)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) { rows() }
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(Ink.hairline))
             if let footer {
                 Text(footer).font(.system(size: 13)).foregroundStyle(Ink.mute)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }
         }
-        .padding(.top, 26)
+        .padding(.top, 22)
         .riseIn("group-\(index)", index: index, seen: seen, epoch: entrance)
     }
 
@@ -543,13 +592,16 @@ struct SettingsLabel: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                // Neutral tiles: hues mean actions (DESIGN.md §1), so a settings row never borrows one.
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip)
+                // The website style's colored squares: the row's tint at full strength, ink on top. Destructive
+                // rows stay neutral with the danger color.
+                let square = danger ? Ink.neutralChip : SettingsLabel.square(for: tint)
+                let on = danger ? Ink.danger : (square == PhoneInk.wash ? Ink.ink : Ink.inkFixed)
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(square)
                 if let art {
-                    IconGlyph(art: art, size: 20, color: danger ? Ink.danger : Ink.ink)
+                    IconGlyph(art: art, size: 17, color: on)
                 } else {
-                    Image(systemName: icon).font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(danger ? Ink.danger : Ink.ink)
+                    Image(systemName: icon).font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(on)
                         .symbolEffect(.bounce, value: bounce)
                         .symbolEffectsRemoved(limitMotion)
                 }
@@ -557,7 +609,7 @@ struct SettingsLabel: View {
             .frame(width: 30, height: 30)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 17)).foregroundStyle(danger ? Ink.danger : Ink.ink)
+                Text(title).font(.system(size: 16)).foregroundStyle(danger ? Ink.danger : Ink.ink)
                 if let subtitle {
                     Text(subtitle).font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .lineLimit(subtitleLines)
@@ -566,6 +618,15 @@ struct SettingsLabel: View {
             }
             .multilineTextAlignment(.leading)
         }
+    }
+
+    /// The full panel color behind a row's tint (`Ink.*Tint` → `PhoneInk.*`); anything else is the wash.
+    static func square(for tint: Color) -> Color {
+        if tint == Ink.persimmonTint { return PhoneInk.record }
+        if tint == Ink.butterTint { return PhoneInk.butter }
+        if tint == Ink.sageTint { return PhoneInk.sage }
+        if tint == Ink.petalTint { return PhoneInk.petal }
+        return PhoneInk.wash
     }
 }
 
@@ -588,7 +649,7 @@ struct SettingsRow<Trailing: View>: View {
             trailing()
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .frame(minHeight: 54)
+        .frame(minHeight: 50)
         .contentShape(Rectangle())
     }
 }
@@ -606,9 +667,9 @@ struct SettingsToggleRow: View {
         Toggle(isOn: $isOn) {
             SettingsLabel(icon: icon, tint: tint, art: art, title: title, subtitle: subtitle, subtitleLines: nil, bounce: isOn)
         }
-        .toggleStyle(SpringSwitchStyle())
+        .toggleStyle(.switch).tint(PhoneInk.switchOn)
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .frame(minHeight: 54)
+        .frame(minHeight: 50)
     }
 }
 
