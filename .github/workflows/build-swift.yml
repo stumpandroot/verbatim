@@ -4,14 +4,28 @@ name: Build Mac app (SwiftUI)
 # Runs on pushes to main that touch mac/, on version tags such as mac-v2.0.0, and on demand. The Mac and iPhone parts
 # run on separate runners at the same time; the speech bench runs only when speech or dictation code changed (or with
 # [bench] in the commit message). Branch pushes get the quick compile check instead (check-swift.yml).
+#
 # Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
 # MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
 # is unsigned and keeps everything on the Mac.
-# TestFlight (iPhone): ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8 (an App Store Connect API key with the Admin role,
-# so Xcode can manage distribution signing). With them, every build of main uploads the iPhone app to TestFlight.
+# TestFlight (iPhone): ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8. Xcode's cloud signing for App Store distribution
+# needs an App Store Connect API key with the Admin role. With them, every build of main uploads the iPhone app to
+# TestFlight.
 # Automatic updates (Sparkle, mac/Updates/README.md): SPARKLE_PRIVATE_KEY (EdDSA key from `generate_keys -x`). With it
 # and a Developer ID-signed, notarized DMG, builds of main become beta-<run> prereleases and mac-v* tags become
 # stable releases, and the `updates` branch's appcast.xml points at them.
+#
+# How secrets are kept apart (security audit A1, A3, A8, A9):
+#   - Each secret is passed only to the one step that uses it, never to a whole job. Third-party code (Rust crates,
+#     FFmpeg, Homebrew) is built before any key is on the runner, and every key, keychain, and credential is deleted
+#     before the app runs for its screenshot tour, self-test, or speech bench.
+#   - Jobs that sign or upload (`build` on main and mac-v* tags, `testflight`) use the `release` environment, so
+#     its protection rules (required reviewers, allowed branches) and secrets apply. GitHub creates the environment,
+#     unprotected, the first time a job uses it. Builds of other branches started by hand use no environment and
+#     sign only with repository secrets, if any are left.
+#   - The workflow token is read-only, except in the small jobs that push to ci-screens or updates or publish a
+#     release; they run no build tools. Checkouts don't keep the token.
+#   - Every action is pinned to a full commit SHA (the tag is in the comment).
 
 on:
   push:
@@ -21,7 +35,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 # A newer push cancels an older build still running, so an old build can't overwrite a newer DMG on ci-screens.
 concurrency:
@@ -32,31 +46,30 @@ jobs:
   build:
     name: Build (universal)
     runs-on: macos-26
+    environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mac-v')) && 'release' || '' }}
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: mac
-    # The DMG's Sparkle signature, for the release job's appcast update on mac-v* tags (not secret).
     outputs:
+      # The DMG's Sparkle signature, for the beta and release jobs' appcast update (not secret).
       sparkle_signature: ${{ steps.sparkle.outputs.signature }}
       sparkle_length: ${{ steps.sparkle.outputs.length }}
       sparkle_short_version: ${{ steps.sparkle.outputs.short_version }}
       sparkle_bundle_version: ${{ steps.sparkle.outputs.bundle_version }}
+      bench: ${{ steps.changes.outputs.bench }}
+      fluidaudio: ${{ steps.fluidver.outputs.version }}
     env:
-      # Only whether the key exists; the key itself is passed to the one step that signs.
+      # Only whether each secret exists; the values go to the one step that uses each.
+      HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE != '' }}
+      HAS_NOTARY: ${{ secrets.APPLE_APP_PASSWORD != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
-      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-      MACOS_PROVISION_PROFILE: ${{ secrets.MACOS_PROVISION_PROFILE }}
-      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 50
+          persist-credentials: false
 
       - name: Decide whether the speech bench runs
         id: changes
@@ -79,60 +92,101 @@ jobs:
           echo "bench=$RUN" >> "$GITHUB_OUTPUT"
           echo "Speech bench: $RUN"
 
+      # The bench job's model cache key. mac/Package.resolved pins every Swift package (tools/package-resolved.sh).
+      - name: "Bench: find the FluidAudio version (model cache key)"
+        if: steps.changes.outputs.bench == 'true'
+        id: fluidver
+        continue-on-error: true
+        run: |
+          V="$(python3 - <<'PY'
+          import json
+          v = ""
+          try:
+              d = json.load(open("Package.resolved"))
+              for pin in d.get("pins") or d.get("object", {}).get("pins", []):
+                  if (pin.get("identity") or pin.get("package") or "").lower() == "fluidaudio":
+                      st = pin.get("state") or {}
+                      v = st.get("version") or st.get("revision", "")[:12]
+          except Exception:
+              pass
+          print(v or "unknown")
+          PY
+          )"
+          echo "FluidAudio $V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version; sw_vers
 
+      # Same toolchain as mac/harper-ffi/rust-toolchain.toml; change both together.
       - name: Install Rust (Harper grammar engine)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin, aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+          toolchain: 1.97.0
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             mac/harper-ffi/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
+          key: cargo-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh). build.sh builds it when the cache doesn't have this version.
+      # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh), keyed on the script that pins its version and checksum.
       - name: Cache FFmpeg
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: mac/Vendor/ffmpeg
           key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
 
-      - name: Import signing certificate
-        if: ${{ env.MACOS_CERTIFICATE != '' }}
+      # Third-party build code (FFmpeg's configure and make, crate build scripts) runs here, before any key or
+      # credential is on the runner; build.sh then finds these up to date and skips them.
+      - name: Build FFmpeg, Harper, and the link helper (no keys on the runner yet)
         run: |
+          bash ffmpeg/build.sh
+          bash Vendor/harper/build.sh
+          bash fetch-yt-dlp.sh
+
+      - name: Import signing certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISION_PROFILE: ${{ secrets.MACOS_PROVISION_PROFILE }}
+        run: |
+          set +x
+          umask 077
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
-          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          # -T: only codesign and security may use the key without a prompt (not -A, which let any process).
+          # -x: the private key can't be exported from this keychain.
+          # security import has no way to read the password except -P; it's visible only to this job's own
+          # processes for the moment the import runs, and GitHub masks it in the log.
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -f pkcs12 -x \
+            -T /usr/bin/codesign -T /usr/bin/security -P "$MACOS_CERTIFICATE_PASSWORD"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
           security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
           security find-identity -v -p codesigning "$KEYCHAIN"
           if [ -n "$MACOS_PROVISION_PROFILE" ]; then
-            echo "$MACOS_PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/verbatim.provisionprofile"
+            printf '%s' "$MACOS_PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/verbatim.provisionprofile"
             echo "PROVISION_PROFILE=$RUNNER_TEMP/verbatim.provisionprofile" >> "$GITHUB_ENV"
           fi
 
-      - name: Store notarization credentials
-        if: ${{ env.APPLE_APP_PASSWORD != '' }}
-        run: |
-          xcrun notarytool store-credentials verbatim-notary \
-            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
-
-      - name: Build, sign, package, notarize
+      # No secrets in this step; the keychain above signs. Notarization is the next step.
+      - name: Build, sign, and package
         env:
           VERSION: ${{ startsWith(github.ref, 'refs/tags/mac-v') && github.ref_name || '0.0.0' }}
           BUILD: ${{ github.run_number }}
           DMG_SUFFIX: -universal
+          SKIP_NOTARIZE: "1"
         run: |
           set -o pipefail
           if ! VERSION="${VERSION#mac-v}" bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
@@ -141,78 +195,33 @@ jobs:
             exit 1
           fi
 
-      - name: Screenshot the app and publish to the ci-screens branch
-        continue-on-error: true
+      # The Apple ID credentials exist only in this step, in a temporary keychain it deletes when it ends.
+      - name: Notarize and staple
+        if: env.HAS_SIGNING == 'true' && env.HAS_NOTARY == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          set -x; set +e
-          pkill -9 -x Verbatim || true; sleep 1
-          OUT="$RUNNER_TEMP/shots"; rm -rf "$OUT"; mkdir -p "$OUT" dist/screens
-          cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-universal-${GITHUB_RUN_NUMBER}.dmg"
-          # A stable name for the same DMG, so .../raw/ci-screens/Verbatim-latest.dmg survives the force-push below.
-          # Identical bytes share one git blob, so this adds no size. The iPhone and bench steps clone and add to this
-          # commit, so they keep it.
-          cp "dist/Verbatim-universal.dmg" "$OUT/Verbatim-latest.dmg"
-          open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$OUT/open-${GITHUB_RUN_NUMBER}.txt" 2>&1; echo "open exit=$?" >> "$OUT/open-${GITHUB_RUN_NUMBER}.txt"
-          sleep 20
-          perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/transcript-${GITHUB_RUN_NUMBER}.png" || true
-          # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
-          SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$OUT/screens-${GITHUB_RUN_NUMBER}"; mkdir -p "$TOUR"; last=""
-          for i in $(seq 1 300); do
-            cur="$(cat "$SHOW" 2>/dev/null || true)"
-            if [ -n "$cur" ] && [ "$cur" != "$last" ]; then
-              last="$cur"; [ "$cur" = "done" ] && break
-              sleep 1.0; perl -e 'alarm 10; exec @ARGV' screencapture -x "$TOUR/$cur.png" || true
-            fi
-            sleep 0.5
-          done
-          (cd "$OUT" && zip -qr "screens-${GITHUB_RUN_NUMBER}.zip" "screens-${GITHUB_RUN_NUMBER}" && rm -rf "screens-${GITHUB_RUN_NUMBER}") || true
-          PID="$(pgrep -x Verbatim | head -1 || true)"
-          # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
-          { echo "pid=$PID"; for i in 1 2 3; do ps -o %cpu=,rss= -p "$PID" || echo "gone"; sleep 2; done; } > "$OUT/cpu-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
-          perl -e 'alarm 25; exec @ARGV' sample "$PID" 3 -file "$OUT/sample-${GITHUB_RUN_NUMBER}.txt" || echo "sample timed out" > "$OUT/sample-${GITHUB_RUN_NUMBER}.txt"
-          perl -e 'alarm 15; exec @ARGV' screencapture -x "$OUT/home-${GITHUB_RUN_NUMBER}.png" || true
-          cp "$HOME/Library/Logs/Verbatim/native.log" "$OUT/native-${GITHUB_RUN_NUMBER}.log" || true
-          pkill -9 -x Verbatim || true
-          sleep 3
-          # A crash on launch leaves a report here; keep it so the failure is readable without artifact storage.
-          ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | while read -r f; do cp "$f" "$OUT/crash-${GITHUB_RUN_NUMBER}.ips"; done
-          log show --last 3m --predicate 'process == "Verbatim"' --style compact > "$OUT/oslog-${GITHUB_RUN_NUMBER}.txt" 2>&1 || true
-          cp "$OUT"/*.png dist/screens/ || true
-          # The ci-screens branch is reachable where artifact storage is not.
-          cd "$OUT" && git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
-          git add . && git commit -q -m "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
-
-      - name: UI self-test gate (macOS 26)
-        run: |
-          LOG="$HOME/Library/Logs/Verbatim/native.log"
-          tail -n 60 "$LOG" || echo "no native.log"
-          ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | xargs -I{} sh -c 'echo "::error::crash report {}"; head -c 6000 "{}"'
-          grep "UITEST" "$LOG" || { echo "::error::no UITEST lines in the log"; exit 1; }
-          grep -q "UITEST DONE" "$LOG" || { echo "::error::self-test did not finish"; exit 1; }
-          if grep -q "UITEST FAIL" "$LOG"; then grep "UITEST FAIL" "$LOG" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; fi
-
-      - name: Upload screenshot
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: screens
-          path: mac/dist/screens/
-
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: Verbatim-universal
-          path: mac/dist/Verbatim-universal.dmg
-          if-no-files-found: error
+          set +x
+          NK="$RUNNER_TEMP/notary.keychain-db"
+          NKP="$(uuidgen)"
+          trap 'security delete-keychain "$NK" 2>/dev/null || true' EXIT
+          security create-keychain -p "$NKP" "$NK"
+          security set-keychain-settings -lut 7200 "$NK"
+          security unlock-keychain -p "$NKP" "$NK"
+          # notarytool reads the password only from --password or a terminal prompt; like security import above,
+          # it's visible only to this job's own processes while store-credentials runs, and masked in the log.
+          xcrun notarytool store-credentials verbatim-notary --keychain "$NK" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          NOTARY_KEYCHAIN="$NK" NOTARY_PROFILE=verbatim-notary bash notarize.sh dist/Verbatim-universal.dmg
 
       # Automatic updates (mac/Updates/README.md). Builds of main (push or workflow_dispatch) and mac-v* tags only,
-      # and only with the Sparkle key and a Developer ID certificate. Never blocks the build.
+      # and only with the Sparkle key and a Developer ID certificate. Never blocks the build. Runs before the app
+      # does, so nothing the app or its tour starts is on the runner while the key is.
       - name: "Updates: sign the DMG for Sparkle"
         id: sparkle
-        if: env.HAS_SPARKLE_KEY == 'true' && env.MACOS_CERTIFICATE != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mac-v'))
+        if: env.HAS_SPARKLE_KEY == 'true' && env.HAS_SIGNING == 'true' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mac-v'))
         continue-on-error: true
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
@@ -243,16 +252,185 @@ jobs:
           echo "short_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" >> "$GITHUB_OUTPUT"
           echo "bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" >> "$GITHUB_OUTPUT"
 
-      - name: "Updates: publish this build of main as a beta"
-        if: steps.sparkle.outputs.signature != '' && github.ref == 'refs/heads/main'
+      # Removes every key and credential, whatever happened above, before the app runs.
+      - name: Remove signing keys and credentials
+        if: always()
+        run: |
+          security list-keychains -d user -s login.keychain-db || true
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
+          security delete-keychain "$RUNNER_TEMP/notary.keychain-db" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP"/*.provisionprofile "$RUNNER_TEMP/sparkle-tools"
+          security list-keychains -d user
+
+      # The signed app runs here with no secrets, keys, or tokens on the runner. ci-screens gets the screenshots
+      # and a short summary (the publish-screens job); logs, samples, and crash reports go to a workflow artifact.
+      - name: Screenshot tour
         continue-on-error: true
+        run: |
+          set -x; set +e
+          N="${GITHUB_RUN_NUMBER}"
+          pkill -9 -x Verbatim || true; sleep 1
+          PUB="$RUNNER_TEMP/ci-screens"; DIAG="$RUNNER_TEMP/diagnostics"
+          rm -rf "$PUB" "$DIAG"; mkdir -p "$PUB" "$DIAG" dist/screens
+          open --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app > "$DIAG/open-${N}.txt" 2>&1; echo "open exit=$?" >> "$DIAG/open-${N}.txt"
+          sleep 20
+          perl -e 'alarm 15; exec @ARGV' screencapture -x "$PUB/transcript-${N}.png" || true
+          # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
+          SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$PUB/screens-${N}"; mkdir -p "$TOUR"; last=""
+          for i in $(seq 1 300); do
+            cur="$(cat "$SHOW" 2>/dev/null || true)"
+            if [ -n "$cur" ] && [ "$cur" != "$last" ]; then
+              last="$cur"; [ "$cur" = "done" ] && break
+              sleep 1.0; perl -e 'alarm 10; exec @ARGV' screencapture -x "$TOUR/$cur.png" || true
+            fi
+            sleep 0.5
+          done
+          (cd "$PUB" && zip -qr "screens-${N}.zip" "screens-${N}" && rm -rf "screens-${N}") || true
+          PID="$(pgrep -x Verbatim | head -1 || true)"
+          # Main-thread spin shows as sustained CPU on an idle app. Sample three times, 2 s apart.
+          { echo "pid=$PID"; for i in 1 2 3; do ps -o %cpu=,rss= -p "$PID" || echo "gone"; sleep 2; done; } > "$DIAG/cpu-${N}.txt" 2>&1 || true
+          perl -e 'alarm 25; exec @ARGV' sample "$PID" 3 -file "$DIAG/sample-${N}.txt" || echo "sample timed out" > "$DIAG/sample-${N}.txt"
+          perl -e 'alarm 15; exec @ARGV' screencapture -x "$PUB/home-${N}.png" || true
+          cp "$HOME/Library/Logs/Verbatim/native.log" "$DIAG/native-${N}.log" || true
+          pkill -9 -x Verbatim || true
+          sleep 3
+          ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | while read -r f; do cp "$f" "$DIAG/crash-${N}.ips"; done
+          log show --last 3m --predicate 'process == "Verbatim"' --style compact > "$DIAG/oslog-${N}.txt" 2>&1 || true
+          cp "$PUB"/*.png dist/screens/ || true
+
+      - name: Summarize the self-test
+        if: always()
+        run: |
+          N="${GITHUB_RUN_NUMBER}"; PUB="$RUNNER_TEMP/ci-screens"; mkdir -p "$PUB"
+          LOG="$HOME/Library/Logs/Verbatim/native.log"
+          {
+            echo "Build ${N} from ${GITHUB_SHA::7} (${GITHUB_REF_NAME})"
+            if [ -f "$LOG" ]; then
+              echo "Mac self-test: $(grep -c 'UITEST PASS' "$LOG") passed, $(grep -c 'UITEST FAIL' "$LOG") failed, finished: $(grep -q 'UITEST DONE' "$LOG" && echo yes || echo no)"
+              grep 'UITEST FAIL' "$LOG" | head -n 40 | cut -c1-300
+            else
+              echo "Mac self-test: no native.log (the app didn't run)"
+            fi
+            [ -f "$RUNNER_TEMP/diagnostics/crash-${N}.ips" ] && echo "Crash report: yes (in the job log and the mac-diagnostics-${N} artifact)"
+            echo "Logs, CPU samples, and crash reports: the mac-diagnostics-${N} artifact on the workflow run (7 days)."
+          } > "$PUB/summary-${N}.txt"
+          cat "$PUB/summary-${N}.txt"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Verbatim-universal
+          path: mac/dist/Verbatim-universal.dmg
+          if-no-files-found: error
+
+      - name: Upload screenshot
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: screens
+          path: mac/dist/screens/
+
+      # For the publish-screens job, which pushes it with the DMG to ci-screens.
+      - name: Upload screenshots and summary for ci-screens
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-screens-mac
+          path: ${{ runner.temp }}/ci-screens/
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload logs and crash reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mac-diagnostics-${{ github.run_number }}
+          path: ${{ runner.temp }}/diagnostics/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: UI self-test gate (macOS 26)
+        run: |
+          LOG="$HOME/Library/Logs/Verbatim/native.log"
+          tail -n 60 "$LOG" || echo "no native.log"
+          ls -t "$HOME/Library/Logs/DiagnosticReports"/Verbatim* 2>/dev/null | head -1 | xargs -I{} sh -c 'echo "::error::crash report {}"; head -c 6000 "{}"'
+          grep "UITEST" "$LOG" || { echo "::error::no UITEST lines in the log"; exit 1; }
+          grep -q "UITEST DONE" "$LOG" || { echo "::error::self-test did not finish"; exit 1; }
+          if grep -q "UITEST FAIL" "$LOG"; then grep "UITEST FAIL" "$LOG" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; fi
+
+  # Pushes this build's DMG, screenshots, and summary to the ci-screens branch (a fresh commit each build). The
+  # branch is reachable where workflow artifacts aren't. Runs even when the self-test failed, as before.
+  publish-screens:
+    name: Publish to ci-screens
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Get the DMG
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Verbatim-universal
+          path: pub
+      - name: Get the screenshots and summary
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-screens-mac
+          path: pub
+      - name: Push to the ci-screens branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          N="${GITHUB_RUN_NUMBER}"
+          if [ ! -f pub/Verbatim-universal.dmg ]; then echo "No DMG from this build; nothing to publish."; exit 0; fi
+          cd pub
+          mv Verbatim-universal.dmg "Verbatim-universal-${N}.dmg"
+          # A stable name for the same DMG, so .../raw/ci-screens/Verbatim-latest.dmg survives the force-push below.
+          # Identical bytes share one git blob, so this adds no size.
+          cp "Verbatim-universal-${N}.dmg" Verbatim-latest.dmg
+          ls -la
+          # The token reaches git through a credential helper that reads it from the environment, never argv.
+          export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0="" GIT_CONFIG_KEY_1=credential.helper
+          export GIT_CONFIG_VALUE_1='!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
+          git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
+          git add . && git commit -q -m "Build ${N} from ${GITHUB_SHA::7}"
+          git push -q -f "https://github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
+
+  # Beta channel: builds of main become beta-<run> prereleases, and the appcast on the updates branch points at them.
+  beta:
+    name: "Updates: publish this build of main as a beta"
+    needs: build
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.sparkle_signature != ''
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: mac/Updates
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Verbatim-universal
+          path: mac/dist
+      - name: Release and appcast
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIG: ${{ steps.sparkle.outputs.signature }}
-          LEN: ${{ steps.sparkle.outputs.length }}
-          SHORT: ${{ steps.sparkle.outputs.short_version }}
-          BUNDLE: ${{ steps.sparkle.outputs.bundle_version }}
+          SIG: ${{ needs.build.outputs.sparkle_signature }}
+          LEN: ${{ needs.build.outputs.sparkle_length }}
+          SHORT: ${{ needs.build.outputs.sparkle_short_version }}
+          BUNDLE: ${{ needs.build.outputs.sparkle_bundle_version }}
         run: |
           set -euo pipefail
           N="${GITHUB_RUN_NUMBER}"; TAG="beta-${N}"; R="$GITHUB_REPOSITORY"
@@ -278,77 +456,68 @@ jobs:
               gh release delete "$OLD" -R "$R" --yes --cleanup-tag || echo "::warning::couldn't delete $OLD"
             done
 
-      # Accuracy and latency bench (mac/Bench/README.md). Every step here is continue-on-error: a bench problem
-      # never blocks a build. It runs last, after the DMG is published, and adds bench-<run>.json and bench-<run>.md to
-      # the ci-screens commit for this build.
-      - name: "Bench: find the FluidAudio version (model cache key)"
-        if: steps.changes.outputs.bench == 'true'
-        id: fluidver
-        continue-on-error: true
+  # Accuracy and latency bench (mac/Bench/README.md), on its own runner with no secrets, from this build's DMG.
+  # A bench problem never blocks a build. bench-<run>.json and bench-<run>.md go to this build's ci-screens commit
+  # (the publish-bench job); the bench's logs and any crash report go to a workflow artifact.
+  bench:
+    name: Speech bench
+    needs: build
+    if: needs.build.outputs.bench == 'true'
+    runs-on: macos-26
+    continue-on-error: true
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Verbatim-universal
+          path: ${{ runner.temp }}/dmg
+      - name: "Bench: copy the app out of the DMG"
         run: |
-          V="$(python3 - <<'PY'
-          import glob, json
-          v = ""
-          for p in glob.glob("Verbatim.xcodeproj/**/Package.resolved", recursive=True):
-              try:
-                  d = json.load(open(p))
-              except Exception:
-                  continue
-              for pin in d.get("pins") or d.get("object", {}).get("pins", []):
-                  if (pin.get("identity") or pin.get("package") or "").lower() == "fluidaudio":
-                      st = pin.get("state") or {}
-                      v = st.get("version") or st.get("revision", "")[:12]
-          if not v:
-              try:
-                  d = json.load(open("build/spm/workspace-state.json"))
-                  for dep in d["object"]["dependencies"]:
-                      if dep["packageRef"]["identity"] == "fluidaudio":
-                          st = dep["state"].get("checkoutState", {})
-                          v = st.get("version") or st.get("revision", "")[:12]
-              except Exception:
-                  pass
-          print(v or "unknown")
-          PY
-          )"
-          echo "FluidAudio $V"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
+          M="$RUNNER_TEMP/mnt"; mkdir -p "$M" "$RUNNER_TEMP/app"
+          hdiutil attach -nobrowse -readonly -mountpoint "$M" "$RUNNER_TEMP/dmg/Verbatim-universal.dmg"
+          ditto "$M/Verbatim.app" "$RUNNER_TEMP/app/Verbatim.app"
+          hdiutil detach "$M" || hdiutil detach -force "$M"
 
       - name: "Bench: restore speech models"
-        if: steps.changes.outputs.bench == 'true'
         id: benchcache
         continue-on-error: true
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/Library/Application Support/Verbatim/models
             ~/Library/Application Support/FluidAudio/Models
-          key: bench-models-${{ runner.os }}-fluidaudio-${{ steps.fluidver.outputs.version }}
+          key: bench-models-${{ runner.os }}-fluidaudio-${{ needs.build.outputs.fluidaudio }}
           restore-keys: |
-            bench-models-${{ runner.os }}-fluidaudio-${{ steps.fluidver.outputs.version }}-
+            bench-models-${{ runner.os }}-fluidaudio-${{ needs.build.outputs.fluidaudio }}-
 
       - name: "Bench: run the synthetic clips through dictation's pipeline"
-        if: steps.changes.outputs.bench == 'true'
         id: bench
         continue-on-error: true
         timeout-minutes: 30
         env:
-          FLUIDAUDIO_VERSION: ${{ steps.fluidver.outputs.version }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FLUIDAUDIO_VERSION: ${{ needs.build.outputs.fluidaudio }}
         run: |
           set +e
-          N="${GITHUB_RUN_NUMBER}"
-          B="$RUNNER_TEMP/bench"; rm -rf "$B"; mkdir -p "$B/out" "$B/clips"
+          N="${GITHUB_RUN_NUMBER}"; APP="$RUNNER_TEMP/app/Verbatim.app"
+          B="$RUNNER_TEMP/bench"; rm -rf "$B"; mkdir -p "$B/out" "$B/clips" "$B/diag"
           LOGDIR="$HOME/Library/Logs/Verbatim"; REPORTS="$HOME/Library/Logs/DiagnosticReports"
           touch "$B/started"
           # Clips come from the runner's built-in voices, so no private audio is involved.
-          say -v '?' > "$B/out/bench-voices-${N}.txt" 2>&1
-          bash Bench/make-clips.sh "$B/clips" > "$B/out/bench-clips-${N}.log" 2>&1
+          say -v '?' > "$B/diag/bench-voices-${N}.txt" 2>&1
+          bash Bench/make-clips.sh "$B/clips" > "$B/diag/bench-clips-${N}.log" 2>&1
           echo "clips: $(ls "$B/clips"/*.wav 2>/dev/null | wc -l | tr -d ' ')"
           pkill -9 -x Verbatim || true
           rm -f "$LOGDIR/native.log"
           # VERBATIM_UITEST=1 gives a clean offline profile (no iCloud, no welcome screens); -bench turns the UI tour off.
           # Models download from Hugging Face on the first run. The app stops itself at 20 minutes with a partial report.
-          open -W -n --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app --args \
+          open -W -n --env VERBATIM_UITEST=1 "$APP" --args \
             -bench "$B/clips" -benchOut "$B/out/bench-${N}.json" -benchModels "v3,ultra,v2" -benchMinutes 20 \
             -benchLabel "build ${N} (${GITHUB_SHA::7})" > "$B/open.txt" 2>&1 &
           OPENPID=$!
@@ -357,7 +526,7 @@ jobs:
           wait "$OPENPID" 2>/dev/null
           # Compare vocabulary-boost profiles on the two fastest models (a few minutes each).
           for PROF in norescue legacy; do
-            open -W -n --env VERBATIM_UITEST=1 build/Build/Products/Release/Verbatim.app --args \
+            open -W -n --env VERBATIM_UITEST=1 "$APP" --args \
               -bench "$B/clips" -benchOut "$B/out/bench-${N}-${PROF}.json" -benchModels "v3,v2" -benchMinutes 8 -benchCleanup none \
               -fluidBoostProfile "$PROF" -benchLabel "build ${N} boost=${PROF}" >> "$B/open.txt" 2>&1 &
             P2=$!
@@ -365,12 +534,12 @@ jobs:
             pkill -9 -x Verbatim || true
             wait "$P2" 2>/dev/null
           done
-          # Keep the bench's log and any crash out of the UI self-test's way.
-          mv "$LOGDIR/native.log" "$B/out/bench-native-${N}.log" 2>/dev/null || true
-          find "$REPORTS" -name 'Verbatim*' -newer "$B/started" 2>/dev/null | head -1 | while read -r f; do mv "$f" "$B/out/bench-crash-${N}.ips"; done
+          mv "$LOGDIR/native.log" "$B/diag/bench-native-${N}.log" 2>/dev/null || true
+          cp "$B/open.txt" "$B/diag/bench-open-${N}.txt" 2>/dev/null || true
+          find "$REPORTS" -name 'Verbatim*' -newer "$B/started" 2>/dev/null | head -1 | while read -r f; do cp "$f" "$B/diag/bench-crash-${N}.ips"; echo "::warning::the app crashed during the bench (bench-crash-${N}.ips in the bench-diagnostics-${N} artifact)"; done
           if [ ! -s "$B/out/bench-${N}.md" ]; then
             { echo "# Verbatim bench: build ${N}"; echo; echo "The bench produced no report. Last log lines:"; echo; echo '```'
-              grep BENCH "$B/out/bench-native-${N}.log" 2>/dev/null | tail -n 20; cat "$B/open.txt" 2>/dev/null; echo '```'; } > "$B/out/bench-${N}.md"
+              grep BENCH "$B/diag/bench-native-${N}.log" 2>/dev/null | tail -n 20; cat "$B/open.txt" 2>/dev/null; echo '```'; } > "$B/out/bench-${N}.md"
           fi
           cat "$B/out/bench-${N}.md" >> "$GITHUB_STEP_SUMMARY"
           # Key the model cache on what's on disk now, so a new model or FluidAudio version saves a fresh cache.
@@ -379,62 +548,108 @@ jobs:
             H="$(ls -R "$M/Verbatim/models" "$M/FluidAudio/Models" 2>/dev/null | shasum | cut -c1-12)"
             echo "models_key=bench-models-${RUNNER_OS}-fluidaudio-${FLUIDAUDIO_VERSION}-${H}" >> "$GITHUB_OUTPUT"
           fi
-          # Add the report to this build's ci-screens commit (only if that commit is still this build's).
-          P="$RUNNER_TEMP/bench-publish"; rm -rf "$P"
-          REPO="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if git clone -q --depth 1 --branch ci-screens "$REPO" "$P" 2>/dev/null && ls "$P"/Verbatim-universal-${N}.dmg >/dev/null 2>&1; then
-            cp "$B/out"/bench-* "$P/" 2>/dev/null
-            (cd "$P" && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co" \
-              && git add -A && git commit -q -m "Bench for build ${N}" \
-              && for t in 1 2 3 4 5; do git push -q origin HEAD:ci-screens && break; sleep 5; git pull -q --rebase origin ci-screens; done) || echo "bench publish skipped"
-          else
-            echo "ci-screens holds a different build; bench report is in the job summary only"
-          fi
           exit 0
 
       - name: "Bench: save speech models"
-        if: always() && steps.changes.outputs.bench == 'true' && steps.bench.outputs.models_key != '' && steps.bench.outputs.models_key != steps.benchcache.outputs.cache-matched-key
+        if: always() && steps.bench.outputs.models_key != '' && steps.bench.outputs.models_key != steps.benchcache.outputs.cache-matched-key
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/Library/Application Support/Verbatim/models
             ~/Library/Application Support/FluidAudio/Models
           key: ${{ steps.bench.outputs.models_key }}
 
+      - name: "Bench: upload the report for ci-screens"
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-screens-bench
+          path: ${{ runner.temp }}/bench/out/
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: "Bench: upload logs and crash reports"
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bench-diagnostics-${{ github.run_number }}
+          path: ${{ runner.temp }}/bench/diag/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish-bench:
+    name: Publish the bench report to ci-screens
+    needs: [bench, publish-screens]
+    if: always() && needs.bench.result == 'success' && needs.publish-screens.result == 'success'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: ci-screens-bench
+          path: results
+      - name: Add the report to this build's ci-screens commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHAT: Bench
+        run: |
+          set +e
+          N="${GITHUB_RUN_NUMBER}"; SRC="$PWD/results"
+          [ -n "$(ls -A "$SRC" 2>/dev/null)" ] || { echo "no $WHAT results"; exit 0; }
+          export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0="" GIT_CONFIG_KEY_1=credential.helper
+          export GIT_CONFIG_VALUE_1='!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
+          D="$RUNNER_TEMP/ci-screens"; rm -rf "$D"
+          git clone -q --depth 1 --branch ci-screens "https://github.com/${GITHUB_REPOSITORY}.git" "$D" || { echo "::warning::couldn't clone ci-screens; $WHAT results are in the workflow artifacts only"; exit 0; }
+          NEWEST="$(ls "$D" | sed -n 's/^Verbatim-universal-\([0-9]*\)\.dmg$/\1/p' | sort -n | tail -1)"
+          if [ "$NEWEST" != "$N" ]; then echo "ci-screens holds build ${NEWEST:-none}, not ${N}; $WHAT results are in the workflow artifacts only"; exit 0; fi
+          cp -R "$SRC/." "$D/"
+          cd "$D" && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
+          git add -A && git commit -q -m "$WHAT results for build ${N}" || { echo "nothing new"; exit 0; }
+          for t in 1 2 3 4 5 6; do
+            git push -q origin HEAD:ci-screens && { echo "published"; exit 0; }
+            sleep 5; git pull -q --rebase origin ci-screens
+          done
+          echo "::warning::couldn't push $WHAT results to ci-screens"
+
   phone:
-    name: iPhone (simulator tour and TestFlight)
+    name: iPhone (simulator tour)
     runs-on: macos-26
     # An iPhone compile error or any UITEST FAIL in its self-test fails this job (and skips TestFlight). The Mac job
-    # is separate, so its download is never held up.
+    # is separate, so its download is never held up. No secrets here.
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: mac
-    env:
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
 
+      # Same toolchain as mac/harper-ffi/rust-toolchain.toml; change both together.
       - name: Install Rust (Harper grammar engine)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
+          toolchain: 1.97.0
           targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             mac/harper-ffi/target
-          key: cargo-ios-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
+          key: cargo-ios-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
       - name: Cache FFmpeg
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: mac/Vendor/ffmpeg
           key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
@@ -447,24 +662,27 @@ jobs:
           xcodegen generate --quiet
           bash tools/package-resolved.sh install
 
+      # ci-screens gets the screenshots and a short summary (publish-phone job); full logs go to a workflow artifact.
       - name: Build the iPhone app and run its screenshot tour (simulator)
         run: |
           set +e
-          P="$RUNNER_TEMP/phone"; rm -rf "$P"; mkdir -p "$P/out/phone-screens-${GITHUB_RUN_NUMBER}"
-          bash Vendor/harper/build-ios.sh > "$P/out/phone-harper-${GITHUB_RUN_NUMBER}.log" 2>&1
-          # Prebuilt Harper libraries for Xcode builds on Tim's Mac (setup.sh downloads these when Rust isn't installed).
-          (cd Vendor/harper && zip -qr "$P/harper-libs.zip" libharper_ffi.a ios ios-sim harper_ffi.h) || true
-          if [ -f "$P/harper-libs.zip" ] && [ "$(stat -f%z "$P/harper-libs.zip")" -lt 90000000 ]; then cp "$P/harper-libs.zip" "$P/out/harper-libs.zip"; fi
+          N="${GITHUB_RUN_NUMBER}"
+          P="$RUNNER_TEMP/phone"; rm -rf "$P"; mkdir -p "$P/out/phone-screens-${N}" "$P/diag"
+          SUMMARY="$P/out/phone-summary-${N}.txt"
+          echo "iPhone build ${N} from ${GITHUB_SHA::7} (${GITHUB_REF_NAME})" > "$SUMMARY"
+          bash Vendor/harper/build-ios.sh > "$P/diag/phone-harper-${N}.log" 2>&1
           xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build-phone \
             -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build > "$P/xcodebuild.log" 2>&1
           status=$?
-          grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 40 > "$P/out/phone-errors-${GITHUB_RUN_NUMBER}.txt"
-          tail -n 30 "$P/xcodebuild.log" >> "$P/out/phone-errors-${GITHUB_RUN_NUMBER}.txt"
+          grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 40 > "$P/diag/phone-errors-${N}.txt"
+          tail -n 30 "$P/xcodebuild.log" >> "$P/diag/phone-errors-${N}.txt"
           if [ $status -ne 0 ]; then
             echo "::error::iPhone build failed"; grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 8 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
+            { echo "iPhone build: failed"; grep -E "error:" "$P/xcodebuild.log" | sort -u | head -n 8 | cut -c1-300; } >> "$SUMMARY"
             exit 1
           fi
+          echo "iPhone build: succeeded" >> "$SUMMARY"
           APP="build-phone/Build/Products/Debug-iphonesimulator/Verbatim.app"
           UDID="$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]; p=[x for x in c if 'Pro' in x['name'] and 'Max' not in x['name']]; print((p or c)[-1]['udid'])")"
           echo "simulator $UDID"
@@ -475,67 +693,166 @@ jobs:
           DATA="$(xcrun simctl get_app_container "$UDID" co.stumpandroot.verbatim.ios data)"
           # The app renders its own screenshots into Documents/screens and writes "done" when the tour ends.
           for i in $(seq 1 200); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
-          cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/" 2>/dev/null || true
-          xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${GITHUB_RUN_NUMBER}/z-device-last.png" > /dev/null 2>&1 || true
-          cp "$DATA/Library/Logs/Verbatim/native.log" "$P/out/phone-native-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || true
+          cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${N}/" 2>/dev/null || true
+          xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${N}/z-device-last.png" > /dev/null 2>&1 || true
+          cp "$DATA/Library/Logs/Verbatim/native.log" "$P/diag/phone-native-${N}.log" 2>/dev/null || true
           # The self-test: every UITEST FAIL fails the job (after the screens are saved), and so does a log with no
           # self-test lines at all (the app never ran it).
-          LOGF="$P/out/phone-native-${GITHUB_RUN_NUMBER}.log"
+          LOGF="$P/diag/phone-native-${N}.log"
           # The import checks skip on the iPhone (its app leaves the test files out); the Mac's self-test runs them.
           grep "UITEST .*import" "$LOGF" 2>/dev/null || echo "no iPhone import self-test lines in the log"
+          PASSED="$(grep -c 'UITEST PASS' "$LOGF" 2>/dev/null)"; FAILED="$(grep -c 'UITEST FAIL' "$LOGF" 2>/dev/null)"
+          echo "iPhone self-test: ${PASSED:-0} passed, ${FAILED:-0} failed" >> "$SUMMARY"
           selftest=0
-          if ! grep -q "UITEST" "$LOGF" 2>/dev/null; then echo "::error::the iPhone self-test didn't run (no UITEST lines in native.log)"; selftest=1; fi
+          if ! grep -q "UITEST" "$LOGF" 2>/dev/null; then echo "::error::the iPhone self-test didn't run (no UITEST lines in native.log)"; echo "iPhone self-test: didn't run" >> "$SUMMARY"; selftest=1; fi
           if grep -q "UITEST FAIL" "$LOGF" 2>/dev/null; then
             grep "UITEST FAIL" "$LOGF" | head -n 40 | cut -c1-400 | while IFS= read -r l; do echo "::error::iPhone $l"; done
-            echo "iPhone self-test: $(grep -c 'UITEST PASS' "$LOGF") passed, $(grep -c 'UITEST FAIL' "$LOGF") failed"
+            grep "UITEST FAIL" "$LOGF" | head -n 40 | cut -c1-300 >> "$SUMMARY"
             selftest=1
           fi
-          (cd "$P/out" && zip -qr "phone-screens-${GITHUB_RUN_NUMBER}.zip" "phone-screens-${GITHUB_RUN_NUMBER}" && rm -rf "phone-screens-${GITHUB_RUN_NUMBER}") || true
+          echo "Logs: the phone-diagnostics-${N} artifact on the workflow run (7 days)." >> "$SUMMARY"
+          cat "$SUMMARY"
+          (cd "$P/out" && zip -qr "phone-screens-${N}.zip" "phone-screens-${N}" && rm -rf "phone-screens-${N}") || true
           xcrun simctl shutdown "$UDID" || true
           exit $selftest
 
-      # Adds the iPhone results to this build's ci-screens commit once the Mac job has published it.
-      - name: Publish the iPhone results to ci-screens
+      - name: Upload screenshots and summary for ci-screens
         if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-screens-phone
+          path: ${{ runner.temp }}/phone/out/
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Upload logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phone-diagnostics-${{ github.run_number }}
+          path: ${{ runner.temp }}/phone/diag/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Adds the iPhone results to this build's ci-screens commit once the Mac results are there.
+  publish-phone:
+    name: Publish the iPhone results to ci-screens
+    needs: [phone, publish-screens]
+    if: always() && needs.publish-screens.result == 'success' && (needs.phone.result == 'success' || needs.phone.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: ci-screens-phone
+          path: results
+      - name: Add the results to this build's ci-screens commit
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHAT: iPhone
         run: |
           set +e
-          N="${GITHUB_RUN_NUMBER}"; SRC="$RUNNER_TEMP/phone/out"
-          [ -d "$SRC" ] || { echo "no iPhone results"; exit 0; }
-          REPO="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          for i in $(seq 1 90); do
-            D="$RUNNER_TEMP/ci-screens-$i"; rm -rf "$D"
-            if git clone -q --depth 1 --branch ci-screens "$REPO" "$D" 2>/dev/null; then
-              NEWEST="$(ls "$D" | sed -n 's/^Verbatim-universal-\([0-9]*\)\.dmg$/\1/p' | sort -n | tail -1)"
-              if [ -n "$NEWEST" ] && [ "$NEWEST" -gt "$N" ]; then echo "a newer build owns ci-screens; skipping"; exit 0; fi
-              if [ "$NEWEST" = "$N" ]; then
-                cp -R "$SRC/." "$D/"
-                (cd "$D" && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co" \
-                  && git add -A && git commit -q -m "iPhone results for build ${N}" && git push -q origin HEAD:ci-screens) && { echo "published"; exit 0; }
-              fi
-            fi
-            sleep 20
+          N="${GITHUB_RUN_NUMBER}"; SRC="$PWD/results"
+          [ -n "$(ls -A "$SRC" 2>/dev/null)" ] || { echo "no $WHAT results"; exit 0; }
+          export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0="" GIT_CONFIG_KEY_1=credential.helper
+          export GIT_CONFIG_VALUE_1='!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
+          D="$RUNNER_TEMP/ci-screens"; rm -rf "$D"
+          git clone -q --depth 1 --branch ci-screens "https://github.com/${GITHUB_REPOSITORY}.git" "$D" || { echo "::warning::couldn't clone ci-screens; $WHAT results are in the workflow artifacts only"; exit 0; }
+          NEWEST="$(ls "$D" | sed -n 's/^Verbatim-universal-\([0-9]*\)\.dmg$/\1/p' | sort -n | tail -1)"
+          if [ "$NEWEST" != "$N" ]; then echo "ci-screens holds build ${NEWEST:-none}, not ${N}; $WHAT results are in the workflow artifacts only"; exit 0; fi
+          cp -R "$SRC/." "$D/"
+          cd "$D" && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
+          git add -A && git commit -q -m "$WHAT results for build ${N}" || { echo "nothing new"; exit 0; }
+          for t in 1 2 3 4 5 6; do
+            git push -q origin HEAD:ci-screens && { echo "published"; exit 0; }
+            sleep 5; git pull -q --rebase origin ci-screens
           done
-          echo "::warning::Mac results never appeared on ci-screens; iPhone results are in the job log only"
+          echo "::warning::couldn't push $WHAT results to ci-screens"
 
-      # Last, so a TestFlight problem never holds up the Mac download.
-      - name: Send the iPhone app to TestFlight
-        if: github.ref == 'refs/heads/main' && env.ASC_KEY_ID != '' && env.ASC_KEY_P8 != ''
-        continue-on-error: true
+  # TestFlight, on its own runner after the iPhone self-test passes. It builds the third-party code first, and the
+  # App Store Connect key exists only in the archive-and-upload step.
+  testflight:
+    name: TestFlight (iPhone)
+    needs: phone
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    environment: release
+    # A TestFlight problem never fails the build.
+    continue-on-error: true
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: mac
+    env:
+      HAS_ASC: ${{ secrets.ASC_KEY_ID != '' && secrets.ASC_KEY_P8 != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: env.HAS_ASC == 'true'
+        with:
+          persist-credentials: false
+      - name: Select Xcode
+        if: env.HAS_ASC == 'true'
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
+      - name: Install Rust (Harper grammar engine)
+        if: env.HAS_ASC == 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: 1.97.0
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+      - name: Cache cargo
+        if: env.HAS_ASC == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mac/harper-ffi/target
+          key: cargo-ios-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
+      - name: Cache FFmpeg
+        if: env.HAS_ASC == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: mac/Vendor/ffmpeg
+          key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
+      - name: Build FFmpeg and Harper, generate the project, and fetch packages (no key on the runner yet)
+        if: env.HAS_ASC == 'true'
         run: |
+          set -o pipefail
+          bash ffmpeg/build.sh
+          bash Vendor/harper/build-ios.sh
+          brew install xcodegen
+          [ -f Local.xcconfig ] || : > Local.xcconfig
+          xcodegen generate --quiet
+          bash tools/package-resolved.sh install
+          xcodebuild -resolvePackageDependencies -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" \
+            -clonedSourcePackagesDirPath build/spm > "$RUNNER_TEMP/resolve.log" 2>&1 || { tail -n 30 "$RUNNER_TEMP/resolve.log"; exit 1; }
+
+      - name: Send the iPhone app to TestFlight
+        if: env.HAS_ASC == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set +x
           set -o pipefail
           # Pasted secrets often carry spaces or a newline; strip them, then check the shapes so a mix-up (one ID in
           # the other's slot, or a command pasted as a value) fails here with a clear message, never mid-archive.
           KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
           ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
           bad=0
-          [[ "$KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::ASC_KEY_ID isn't a Key ID (10 capital letters and digits, ${#KEY_ID} characters found). Set it again with: gh secret set ASC_KEY_ID --body <Key ID>"; bad=1; }
-          [[ "$ISSUER" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "::error::ASC_ISSUER_ID isn't an Issuer ID (36 characters with dashes, ${#ISSUER} found). Set it again with: gh secret set ASC_ISSUER_ID --body <Issuer ID>"; bad=1; }
-          grep -q "BEGIN PRIVATE KEY" <<< "$ASC_KEY_P8" || { echo "::error::ASC_KEY_P8 isn't a .p8 key file. Set it again with: gh secret set ASC_KEY_P8 < AuthKey_<Key ID>.p8"; bad=1; }
+          [[ "$KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::ASC_KEY_ID isn't a Key ID (10 capital letters and digits, ${#KEY_ID} characters found). Set it again with: gh secret set ASC_KEY_ID --env release --body <Key ID>"; bad=1; }
+          [[ "$ISSUER" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "::error::ASC_ISSUER_ID isn't an Issuer ID (36 characters with dashes, ${#ISSUER} found). Set it again with: gh secret set ASC_ISSUER_ID --env release --body <Issuer ID>"; bad=1; }
+          grep -q "BEGIN PRIVATE KEY" <<< "$ASC_KEY_P8" || { echo "::error::ASC_KEY_P8 isn't a .p8 key file. Set it again with: gh secret set ASC_KEY_P8 --env release < AuthKey_<Key ID>.p8"; bad=1; }
           [ $bad -eq 0 ] || exit 1
           KEY="$RUNNER_TEMP/AuthKey_${KEY_ID}.p8"
-          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          trap 'rm -f "$KEY"' EXIT
+          (umask 077; printf '%s\n' "$ASC_KEY_P8" > "$KEY")
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
           ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
           # The App Store build (mac/APP_STORE.md): the AppStore configuration sets VERBATIM_APP_STORE=YES, so
@@ -565,20 +882,24 @@ jobs:
               grep -iE "error|No suitable application records|ITMS-" "$RUNNER_TEMP/phone-upload.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
               tail -n 40 "$RUNNER_TEMP/phone-upload.log"; exit 1; }
           echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
-          rm -f "$KEY"
 
+      - name: Remove the App Store Connect key
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
 
   release:
     name: Publish release
     needs: build
     if: startsWith(github.ref, 'refs/tags/mac-v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          name: Verbatim-universal
           path: dmgs
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: dmgs/*.dmg
           generate_release_notes: true
@@ -588,10 +909,11 @@ jobs:
       - name: "Updates: check out the appcast scripts"
         if: needs.build.outputs.sparkle_signature != ''
         continue-on-error: true
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: src
           sparse-checkout: mac/Updates
+          persist-credentials: false
       - name: "Updates: add this release to the appcast"
         if: needs.build.outputs.sparkle_signature != ''
         continue-on-error: true

@@ -9,6 +9,10 @@ on:
     branches-ignore: [main, ci-screens, updates]
     paths: ["mac/**", ".github/workflows/check-swift.yml"]
 
+# Read-only token; no secrets are used here. Actions are pinned to full commit SHAs (the tag is in the comment).
+permissions:
+  contents: read
+
 concurrency:
   group: check-swift-${{ github.ref }}
   cancel-in-progress: true
@@ -18,7 +22,9 @@ jobs:
     name: Brand check (mac/DESIGN.md)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Check icons, colors, glass, and marks against mac/DESIGN.md
         run: bash mac/tools/brand-check.sh
 
@@ -33,34 +39,38 @@ jobs:
       run:
         working-directory: mac
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
 
+      # Same toolchain as mac/harper-ffi/rust-toolchain.toml; change both together.
       - name: Install Rust (Harper grammar engine)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
+          toolchain: 1.97.0
           targets: ${{ matrix.target == 'Mac' && 'aarch64-apple-darwin, x86_64-apple-darwin' || 'aarch64-apple-ios-sim, x86_64-apple-ios' }}
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             mac/harper-ffi/target
-          key: cargo-check-${{ matrix.target }}-${{ hashFiles('mac/harper-ffi/Cargo.toml') }}
+          key: cargo-check-${{ matrix.target }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: mac/build/spm
-          key: spm-${{ hashFiles('mac/project.yml') }}
-          restore-keys: spm-
+          # Exact inputs only: no prefix fallback, so a cache made for other package versions is never restored.
+          key: spm-${{ hashFiles('mac/project.yml', 'mac/Package.resolved') }}
 
       # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh): built once, then restored from the cache until the script
       # (version, checksum, or options) changes. The first build takes about 10 minutes.
       - name: Cache FFmpeg
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: mac/Vendor/ffmpeg
           key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
@@ -146,21 +156,30 @@ jobs:
     name: Logic tests (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
+      # The tarball's SHA-256, taken from a copy whose swift.org PGP signature (.sig, "Swift 6.x Release Signing
+      # Key", EF80A866B47A981F) checked out. The cache key includes it, so a new pin never reuses an old toolchain.
       - name: Cache Swift 6.1.2
         id: swiftcache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/swift-6.1.2-RELEASE-ubuntu24.04
-          key: swift-6.1.2-RELEASE-ubuntu24.04
+          key: swift-6.1.2-RELEASE-ubuntu24.04-d749d5fe2d6709ee
       - name: Install Swift 6.1.2
+        env:
+          SWIFT_SHA256: d749d5fe2d6709ee988e96b16f02bca7b53304d09925e31063fd5ec56019de9f
+          CACHE_HIT: ${{ steps.swiftcache.outputs.cache-hit }}
         run: |
           set -euo pipefail
-          if [ "${{ steps.swiftcache.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             curl -fsSL --retry 5 -o "$RUNNER_TEMP/swift.tar.gz" \
               "https://download.swift.org/swift-6.1.2-release/ubuntu2404/swift-6.1.2-RELEASE/swift-6.1.2-RELEASE-ubuntu24.04.tar.gz"
+            echo "${SWIFT_SHA256}  $RUNNER_TEMP/swift.tar.gz" | sha256sum -c - || { echo "::error::Swift tarball checksum mismatch"; exit 1; }
             tar -xzf "$RUNNER_TEMP/swift.tar.gz" -C "$RUNNER_TEMP"
+            rm -f "$RUNNER_TEMP/swift.tar.gz"
           fi
           echo "$RUNNER_TEMP/swift-6.1.2-RELEASE-ubuntu24.04/usr/bin" >> "$GITHUB_PATH"
       - name: Run every mac/tools/test-*.sh

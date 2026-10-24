@@ -33,3 +33,20 @@ mac/VerbatimShare/Info.plist
 mac/VerbatimShare/VerbatimShare.entitlements
 mac/VerbatimBroadcast/Info.plist
 mac/VerbatimBroadcast/VerbatimBroadcast.entitlements
+
+# Key material and local secrets: never commit these (signing-setup.sh, mac/Updates/README.md, App Store Connect).
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
+!mac/harper-ffi/vendor/**/zipadvisories.key
+AuthKey_*
+sparkle_private*
+*.provisionprofile
+*.mobileprovision
+Local.xcconfig
+.env
+.env.*
+.claude/
+.scratch/
