@@ -98,6 +98,7 @@ struct ExportSheet: View {
         let multi = ts.contains { $0.speakers.count >= 2 }
         let hasSummary = ts.contains { Exporter.summary($0) != nil }
         let hidden = ts.first.map { $0.hiddenSegmentIDs.count } ?? 0
+        let sponsors = ts.reduce(0) { $0 + $1.sponsorSpans.count }
         VStack(spacing: 0) {
             switch format {
             case .json:
@@ -107,6 +108,8 @@ struct ExportSheet: View {
             case .srt, .vtt:
                 row("Speaker names", divider: true) { menu(ExportOptions.SpeakerMode.allCases, $options.speakerMode, \.captionLabel) }.disabled(!multi)
                 row("Include hidden lines", detail: hidden > 0 ? "\(hidden)" : nil, divider: true) { toggle($options.includeHidden) }
+                row("Include sponsor reads", detail: sponsors > 0 ? "\(sponsors)" : nil, divider: true) { toggle($options.includeSponsors) }
+                    .help("Sponsor reads found in podcasts and videos")
                 row("Characters per line", divider: true) { stepper($options.subtitles.charsPerLine, 16...80, 1) { "\($0)" } }
                 row("Lines per caption", divider: true) { stepper($options.subtitles.linesPerCaption, 1...3, 1) { "\($0)" } }
                 row("Shortest caption", divider: true) { stepper($options.subtitles.minDuration, 0.3...5, 0.1) { String(format: "%.1f s", $0) } }
@@ -132,6 +135,9 @@ struct ExportSheet: View {
                 row("Include hidden lines", detail: hidden > 0 ? "\(hidden)" : nil, divider: true) { toggle($options.includeHidden) }
                     .disabled(options.source == .document && ts.first?.document != nil)
                     .help(options.source == .document && ts.first?.document != nil ? "The edited document has no hidden lines" : "Filler-only lines and background voices the transcript hides")
+                row("Include sponsor reads", detail: sponsors > 0 ? "\(sponsors)" : nil, divider: true) { toggle($options.includeSponsors) }
+                    .disabled(options.source == .document && ts.first?.document != nil)
+                    .help(options.source == .document && ts.first?.document != nil ? "The edited document keeps its own text" : "Sponsor reads found in podcasts and videos")
                 row("One paragraph", divider: true) { toggle($options.singleParagraph) }
                 row("“Transcribed with Verbose” footer", divider: false) { toggle($options.provenance) }
             }

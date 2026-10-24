@@ -47,9 +47,10 @@ do {
     check("old keys: speakers off", old.speakerMode == .off)
     check("old keys: timecodes on means every paragraph", old.timecodeMode == .everyParagraph)
     check("old keys: source", old.source == .transcript)
+    check("sponsor reads are left out by default", !old.includeSponsors && !ExportOptions().includeSponsors)
     var o = ExportOptions()
     o.speakerMode = .everyParagraph; o.timecodeMode = .every30s; o.timecodeStyle = .plain; o.timecodeOffset = 3600
-    o.moments = .end; o.includeHidden = true; o.summary = true; o.header = false
+    o.moments = .end; o.includeHidden = true; o.includeSponsors = true; o.summary = true; o.header = false
     o.subtitles = SubtitleSettings(charsPerLine: 32, linesPerCaption: 1, minDuration: 1.5, maxDuration: 5)
     o.save(to: d)
     eq("round trip", ExportOptions.load(d), o)

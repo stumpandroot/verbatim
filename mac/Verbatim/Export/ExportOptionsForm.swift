@@ -46,6 +46,7 @@ struct ExportOptionRows: View {
                 offsetRow
             }
             Toggle("Include hidden lines", isOn: $options.includeHidden)
+            Toggle("Include sponsor reads", isOn: $options.includeSponsors)
             if showsText {
                 Toggle("One paragraph", isOn: $options.singleParagraph)
                 Toggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
