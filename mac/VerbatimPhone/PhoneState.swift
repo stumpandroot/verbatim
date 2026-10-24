@@ -109,6 +109,11 @@ final class PhoneState: ObservableObject {
         store.$snippets.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
+        // Home's numbers for the keyboard's Home screen (KeyboardBridge.Stats): the same counts as This week.
+        store.$transcripts.combineLatest(FlowSettings.shared.$typingWPM)
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .sink { list, wpm in KeyboardBridge.writeStats(Self.keyboardStats(list.filter { $0.deletedAt == nil }, typingWPM: wpm)) }
+            .store(in: &bag)
         recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
         recorder.onInputSwitched = { [weak self] note in
             if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
@@ -134,6 +139,19 @@ final class PhoneState: ObservableObject {
         // The recording's Live Activity and its paused-for-a-call notification (RecordingPresence.swift).
         RecordingPresence.shared.attach(self)
         if PhoneUITest.enabled { PhoneUITest.run(self) }
+    }
+
+    /// The keyboard's Home numbers from your dictations: this week's words and time saved (as Home's This week card
+    /// counts them), every word you've kept, and the words and seconds behind your speaking pace.
+    static func keyboardStats(_ items: [Transcript], typingWPM: Int, now: Date = Date(), calendar: Calendar = .current) -> KeyboardBridge.Stats {
+        let entries = HomeCounts.entries(fromDictations: items)
+        let week = HomeWeek(entries, now: now, calendar: calendar)
+        let ends = calendar.dateInterval(of: .weekOfYear, for: now)?.end ?? now.addingTimeInterval(7 * 86_400)
+        let timed = entries.filter { $0.seconds > 0 }
+        return KeyboardBridge.Stats(weekWords: week.words, weekSecondsSaved: week.secondsSaved(typingWPM: typingWPM), weekEnds: ends,
+                                    totalWords: entries.reduce(0) { $0 + $1.words },
+                                    paceWords: timed.reduce(0) { $0 + $1.words }, paceSeconds: timed.reduce(0) { $0 + $1.seconds },
+                                    typingWPM: typingWPM)
     }
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }

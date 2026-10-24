@@ -387,3 +387,39 @@ extension KeyboardBridge {
         if updated != list { writeRecent(updated) }
     }
 }
+
+// MARK: - Home stats
+
+/// The numbers on the keyboard's Home screen, written by the app (the same counts as its This week card) whenever
+/// its dictations or your typing speed change. One small JSON record; the keyboard only reads it.
+extension KeyboardBridge {
+    struct Stats: Codable, Equatable {
+        /// Words dictated this calendar week, and the typing time they saved (`HomeWeek.secondsSaved`).
+        var weekWords: Int
+        var weekSecondsSaved: Double
+        /// When that week ends: after it, the keyboard reads this week as 0 until the app writes again.
+        var weekEnds: Date
+        /// Words in every dictation you've kept.
+        var totalWords: Int
+        /// Words and speaking time from dictations whose length is known, for the speaking pace.
+        var paceWords: Int
+        var paceSeconds: Double
+        /// Your typing speed (You › Typing speed), for "about three times faster than typing".
+        var typingWPM: Int
+    }
+
+    static let statsKey = "kb.stats"                // Data: JSON Stats, written by the app
+
+    /// Called by the app. Writes only when something changed, and tells a keyboard on screen to look again.
+    static func writeStats(_ stats: Stats) {
+        guard let d = defaults, let data = try? JSONEncoder().encode(stats) else { return }
+        if d.data(forKey: statsKey) == data { return }
+        d.set(data, forKey: statsKey)
+        post(Note.state)
+    }
+
+    static func readStats() -> Stats? {
+        guard let data = defaults?.data(forKey: statsKey) else { return nil }
+        return try? JSONDecoder().decode(Stats.self, from: data)
+    }
+}

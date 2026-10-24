@@ -1,29 +1,9 @@
 import Foundation
 
 // The typing layout's pure rules: which keys each layer has, where they sit, which key a touch lands on, and the
-// shift, auto-capitalization, and double-space decisions. Foundation only (no UIKit), so
-// mac/tools/test-keyboard.sh compiles and checks it on Linux. `TypingModel` (TypingKeys.swift) applies it to
-// the text field.
-
-// MARK: - Surfaces
-
-/// The keyboard's two views: dictation (the record card) and typing (letter keys).
-enum KeyboardSurface: String, Equatable {
-    case dictation, typing
-
-    /// The extension's own defaults key for the last view you used. Not the App Group: it works without Full Access.
-    static let rememberedKey = "kb.surface"
-
-    /// The view the keyboard opens in. Without Full Access, dictation can't work, so it always opens in typing.
-    /// Number pads open in typing too. With Full Access, the last view you used, or dictation the first time.
-    static func initial(remembered: String?, hasFullAccess: Bool, field: FieldKind) -> KeyboardSurface {
-        guard hasFullAccess else { return .typing }
-        if field == .numberPad || field == .decimalPad { return .typing }
-        return remembered.flatMap(KeyboardSurface.init(rawValue:)) ?? .dictation
-    }
-
-    var toggled: KeyboardSurface { self == .dictation ? .typing : .dictation }
-}
+// shift, auto-capitalization, and double-space decisions (the keyboard's modes are in KeyboardHome.swift).
+// Foundation only (no UIKit), so mac/tools/test-keyboard.sh compiles and checks it on Linux. `TypingModel`
+// (TypingKeys.swift) applies it to the text field.
 
 // MARK: - Field traits
 
