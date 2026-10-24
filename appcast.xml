@@ -6,14 +6,14 @@
     <description>Verbose for Mac: tagged releases, plus beta builds of main.</description>
     <language>en</language>
     <item>
-      <title>Verbose beta 185</title>
-      <pubDate>Sat, 24 Oct 2026 00:35:28 GMT</pubDate>
+      <title>Verbose beta 186</title>
+      <pubDate>Sat, 24 Oct 2026 01:43:40 GMT</pubDate>
       <sparkle:channel>beta</sparkle:channel>
-      <sparkle:version>185</sparkle:version>
+      <sparkle:version>186</sparkle:version>
       <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description>&lt;p&gt;Beta build 185: Merge remote-tracking branch &amp;#x27;origin/web-screens-a&amp;#x27; into integrate&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-185"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
-      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-185/Verbatim-universal.dmg" length="98516131" type="application/octet-stream" sparkle:edSignature="FWFeHlLNQFBcP9Igao6gmxbG2m9WZjDbW2n3CJlhunK8AYKBdF+AV80BhUnjXKt0H1SOuEGaBAz10F+Fx9rLCw==" />
+      <description>&lt;p&gt;Beta build 186: Merge remote-tracking branch &amp;#x27;origin/phone-you&amp;#x27; into integrate&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/stumpandroot/verbatim/releases/tag/beta-186"&gt;Release notes on GitHub&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/stumpandroot/verbatim/releases/download/beta-186/Verbatim-universal.dmg" length="98655732" type="application/octet-stream" sparkle:edSignature="OQwrnR73+Vhz5KHkSG1sGtLFb/t0JRXjAfmDyILYD9UPCTULhJ0RjAGNbbDbagWmqXi0BfPVDcJHqenKUsb3Aw==" />
     </item>
   </channel>
 </rss>
