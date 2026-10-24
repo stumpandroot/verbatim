@@ -316,7 +316,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         sourceLabel = try c.decodeIfPresent(String.self, forKey: .sourceLabel) ?? ""
         sourceURL = try c.decodeIfPresent(String.self, forKey: .sourceURL)
         duration = try c.decodeIfPresent(Double.self, forKey: .duration) ?? 0
-        audioFileName = try c.decodeIfPresent(String.self, forKey: .audioFileName)
+        // File names join library folders: anything but a bare file name is dropped (LibraryFile).
+        audioFileName = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .audioFileName), field: "audio")
         original = try c.decodeIfPresent([Segment].self, forKey: .original) ?? []
         segments = try c.decodeIfPresent([Segment].self, forKey: .segments) ?? []
         speakers = try c.decodeIfPresent([Speaker].self, forKey: .speakers) ?? []
@@ -325,6 +326,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
         notes = try c.decodeIfPresent([Note].self, forKey: .notes) ?? []
+        for i in notes.indices { if let f = notes[i].frameFile { notes[i].frameFile = LibraryFile.checked(f, field: "note still") } }
         waveform = try c.decodeIfPresent([Float].self, forKey: .waveform) ?? []
         model = try c.decodeIfPresent(String.self, forKey: .model) ?? ""
         engine = try c.decodeIfPresent(String.self, forKey: .engine) ?? ""
@@ -347,6 +349,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         documentEdited = try c.decodeIfPresent(Bool.self, forKey: .documentEdited) ?? false
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         link = try c.decodeIfPresent(LinkInfo.self, forKey: .link)
+        if let thumb = link?.thumbnailFile { link?.thumbnailFile = LibraryFile.checked(thumb, field: "thumbnail") }
         // Paths: this device's local record first; older builds wrote them into the file itself, so those move
         // to the local record (when they point at a file on this device) and drop out of the file on its next save.
         let legacy = try d.container(keyedBy: LegacyKeys.self)
@@ -369,7 +372,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         processingDeviceName = try c.decodeIfPresent(String.self, forKey: .processingDeviceName)
         pendingLink = try c.decodeIfPresent(Bool.self, forKey: .pendingLink) ?? false
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
-        pendingAppend = try c.decodeIfPresent(String.self, forKey: .pendingAppend)
+        pendingAppend = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .pendingAppend), field: "continued recording")
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
         // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
         let rawKind = try? c.decodeIfPresent(String.self, forKey: .kind)

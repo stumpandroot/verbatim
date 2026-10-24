@@ -233,7 +233,9 @@ enum MultitrackJob {
     static func canRun(_ t: Transcript) -> Bool {
         guard let mt = t.multitrack, mt.tracks.count >= 2 else { return false }
         let folder = Paths.tracks(t.id)
-        return mt.tracks.allSatisfy { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0.fileName).path) }
+        return mt.tracks.allSatisfy { track in
+            LibraryFile.url(track.fileName, in: folder, field: "track").map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        }
     }
 
     static func progressLabel(_ p: EngineProgress, track: Int, of n: Int) -> String {
@@ -254,7 +256,9 @@ enum MultitrackJob {
         var engine = "", usedModel = model, language: String? = nil
         for (i, track) in info.tracks.enumerated() {
             try Task.checkCancellation()
-            let url = folder.appendingPathComponent(track.fileName)
+            guard let url = LibraryFile.url(track.fileName, in: folder, field: "track") else {
+                throw NSError(domain: "Verbatim", code: 41, userInfo: [NSLocalizedDescriptionKey: "Track \(i + 1)'s file name isn't valid."])
+            }
             progress(progressLabel(.transcribing(0), track: i, of: n))
             let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false, dictionary: dictionary,
                                                      project: project, needWave: false) { p in progress(progressLabel(p, track: i, of: n)) }

@@ -84,6 +84,23 @@ let o4 = object((try? enc.encode(fresh)) ?? Data())
 check("a new transcript writes the current schema and no kind", o4["schemaVersion"] as? Int == Transcript.currentSchema && o4["kind"] == nil)
 check("a new transcript round-trips", (try? dec.decode(Transcript.self, from: try enc.encode(fresh))) == fresh)
 
+// File names from a record: only bare names survive decoding (LibraryFile), so nothing joins outside a folder.
+let unsafe = Data(#"""
+{"id":"6E1C4D0A-3B57-4C39-9C55-2D3A8C3E9F11","title":"Synced","audioFileName":"../../../../../../Documents/Taxes",
+ "pendingAppend":"/etc/passwd","link":{"url":"https://e.com/v","thumbnailFile":".hidden.jpg"},
+ "notes":[{"id":"0B9C6A55-8A43-4E51-9B1E-1C7C8B2D7E40","text":"n","isBookmark":false,"createdAt":"2026-01-01T00:00:00Z","frameFile":"..\\x.jpg"},
+          {"id":"1B9C6A55-8A43-4E51-9B1E-1C7C8B2D7E40","text":"m","isBookmark":false,"createdAt":"2026-01-01T00:00:00Z","frameFile":"frame-1.jpg"}]}
+"""#.utf8)
+if let u = try? dec.decode(Transcript.self, from: unsafe) {
+    check("a traversing audio name decodes as none", u.audioFileName == nil)
+    check("an absolute continued-recording name decodes as none", u.pendingAppend == nil)
+    check("a hidden thumbnail name decodes as none, the link stays", u.link?.thumbnailFile == nil && u.link?.url == "https://e.com/v")
+    check("a bad note still is dropped, a good one kept", u.notes.map(\.frameFile) == [nil, "frame-1.jpg"], "\(u.notes.map(\.frameFile))")
+} else { check("a record with unsafe names still decodes", false) }
+let safe = Data(#"{"title":"OK","audioFileName":"2026-10-23 10.15.32 ab12.m4a","pendingAppend":"part 2.wav"}"#.utf8)
+let s2 = try? dec.decode(Transcript.self, from: safe)
+check("bare names decode unchanged", s2?.audioFileName == "2026-10-23 10.15.32 ab12.m4a" && s2?.pendingAppend == "part 2.wav")
+
 // JSONValue keeps every JSON shape.
 let shapes = Data(#"{"a":"s","b":1.5,"c":true,"d":null,"e":[1,"x",{"f":false}],"g":{"h":[]}}"#.utf8)
 if let v = try? dec.decode(JSONValue.self, from: shapes), let back = try? enc.encode(v) {

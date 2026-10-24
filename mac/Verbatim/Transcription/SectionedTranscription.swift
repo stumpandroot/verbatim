@@ -187,6 +187,7 @@ struct SectionCheckpoint {
     }
 
     static func remove(audio: String) {
+        guard LibraryFile.isSafeName(audio) else { return }
         try? FileManager.default.removeItem(at: folder(for: audio))
     }
 

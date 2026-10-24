@@ -543,8 +543,8 @@ final class Store: ObservableObject {
         for id in ids {
             guard let t = transcript(id) else { continue }
             let entry = PendingImports.entry(id)
-            if let dest = entry?.dest {
-                let base = Paths.audio.appendingPathComponent(dest).deletingPathExtension()
+            if let dest = entry?.dest, let file = LibraryFile.url(dest, in: Paths.audio, field: "import") {
+                let base = file.deletingPathExtension()
                 for ext in Set([URL(fileURLWithPath: dest).pathExtension, "m4a", "wav", URL(fileURLWithPath: entry?.source ?? "").pathExtension]) where !ext.isEmpty {
                     let u = base.appendingPathExtension(ext)
                     if fm.fileExists(atPath: u.path) { try? fm.removeItem(at: u); Log.note("launch: removed half-written \(u.lastPathComponent)") }
@@ -858,12 +858,13 @@ final class Store: ObservableObject {
         searchCache[t.id] = nil
         var files = [TranscriptFiles.url(t.id)]
         if let a = audioURL(for: t) { files.append(a) }
-        if let p = t.pendingAppend { files.append(Paths.audio.appendingPathComponent(p)) }
-        if let th = t.link?.thumbnailFile { files.append(Paths.thumbs.appendingPathComponent(th)) }
+        // Every name goes through LibraryFile: a record can never point a delete outside its folder.
+        if let p = LibraryFile.url(t.pendingAppend, in: Paths.audio, field: "continued recording") { files.append(p) }
+        if let th = LibraryFile.url(t.link?.thumbnailFile, in: Paths.thumbs, field: "thumbnail") { files.append(th) }
         LocalMedia.remove(t.id)
         if t.multitrack != nil { let tracks = Paths.tracks(t.id); TranscriptFiles.queue.async { try? FileManager.default.removeItem(at: tracks) } }
         // Note stills go too. Kept MP4/M4A files in the Keep folder are yours and stay.
-        for f in t.notes.compactMap(\.frameFile) { files.append(Paths.thumbs.appendingPathComponent(f)) }
+        for f in t.notes.compactMap(\.frameFile) { if let u = LibraryFile.url(f, in: Paths.thumbs, field: "note still") { files.append(u) } }
         // Same queue as saves, so a write still queued for this transcript lands before the delete, never after.
         let id = t.id, gone = files
         inFlight[id, default: 0] += 1
@@ -958,8 +959,7 @@ final class Store: ObservableObject {
     }
 
     func audioURL(for t: Transcript) -> URL? {
-        guard let name = t.audioFileName else { return nil }
-        return Paths.audio.appendingPathComponent(name)
+        LibraryFile.url(t.audioFileName, in: Paths.audio, field: "audio")
     }
 
     /// A new audio file in the synced audio folder: "<stamp> <random>.<ext>", a name no file and no transcript uses
