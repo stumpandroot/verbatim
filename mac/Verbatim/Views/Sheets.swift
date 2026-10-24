@@ -49,8 +49,8 @@ struct AppPickerSheet: View {
                     ForEach(apps.filter { filter.isEmpty || $0.name.localizedCaseInsensitiveContains(filter) }) { a in
                         Button { UserDefaults.standard.set(true, forKey: AppPickerSheet.consentKey); app.startCapture(a) } label: {
                             HStack(spacing: 10) {
-                                Image(nsImage: NSWorkspace.shared.icon(forFile: NSWorkspace.shared.urlForApplication(withBundleIdentifier: a.id)?.path ?? ""))
-                                    .resizable().frame(width: 22, height: 22)
+                                AppIcon(key: .bundleID(a.id, generic: true), interpolation: nil) { Color.clear }
+                                    .frame(width: 22, height: 22)
                                 Text(a.name).font(.system(size: 13))
                                 Spacer()
                             }

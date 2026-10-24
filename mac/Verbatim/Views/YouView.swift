@@ -629,39 +629,16 @@ private struct YouShareBar: View {
 }
 
 /// An app's own icon, found by name in the usual Applications folders (activity keeps names, not bundle IDs); a
-/// neutral square when it can't be found. Cached per name.
+/// neutral square while it loads (`AppIconCache`, off the main thread) and when it can't be found.
 private struct YouAppIcon: View {
     var name: String
-    private static var cache: [String: NSImage] = [:]
-    private static var missing: Set<String> = []
-    private static let folders = ["/Applications", "/System/Applications", "/System/Applications/Utilities",
-                                  "/Applications/Utilities", NSHomeDirectory() + "/Applications"]
 
     var body: some View {
-        if let image = Self.icon(name) {
-            Image(nsImage: image).resizable().interpolation(.high).accessibilityHidden(true)
-        } else {
+        AppIcon(key: name.isEmpty ? nil : .name(name)) {
             RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip)
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
-                .accessibilityHidden(true)
         }
-    }
-
-    private static func icon(_ name: String) -> NSImage? {
-        if let hit = cache[name] { return hit }
-        guard !missing.contains(name), !name.isEmpty else { return nil }
-        let interval = Perf.signposter.beginInterval("YouAppIcon.icon")
-        defer { Perf.signposter.endInterval("YouAppIcon.icon", interval) }
-        for folder in folders {
-            let path = folder + "/" + name + ".app"
-            if FileManager.default.fileExists(atPath: path) {
-                let image = NSWorkspace.shared.icon(forFile: path)
-                cache[name] = image
-                return image
-            }
-        }
-        missing.insert(name)
-        return nil
+        .accessibilityHidden(true)
     }
 }
 

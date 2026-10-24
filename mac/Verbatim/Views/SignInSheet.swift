@@ -27,10 +27,6 @@ extension LinkSignIn {
     /// The browsers on this Mac whose sign-in yt-dlp can use, in a fixed order.
     static var installed: [Browser] { Browser.allCases.filter(isInstalled) }
 
-    static func icon(_ b: Browser) -> NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: b.bundleID).map { NSWorkspace.shared.icon(forFile: $0.path) }
-    }
-
     /// The privacy footnote, shared by the sheet and Settings.
     static let privacyNote = "Verbose reads cookies only for the link you're fetching and never stores them."
 }
@@ -95,7 +91,8 @@ struct SignInSheet: View {
             ForEach(Array(list.enumerated()), id: \.element) { i, b in
                 Button { app.useSignIn(b) } label: {
                     HStack(spacing: 10) {
-                        if let icon = LinkSignIn.icon(b) { Image(nsImage: icon).resizable().frame(width: 22, height: 22) }
+                        // Only installed browsers are listed, so the icon is always found (the space holds while it loads).
+                        AppIcon(key: .bundleID(b.bundleID), interpolation: nil) { Color.clear }.frame(width: 22, height: 22)
                         Text(b.name).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.mute)

@@ -889,26 +889,16 @@ enum PanelArtDrawing {
 
 // MARK: - App icons
 
-/// The app a dictation went to, as its own icon (16 pt in Home's Last dictation). Cached per bundle ID.
+/// The app a dictation went to, as its own icon (16 pt in Home's Last dictation), from `AppIconCache`; a neutral
+/// square while it loads and when the app isn't on this Mac.
 struct AppIconView: View {
     var bundleID: String?
-    private static var cache: [String: NSImage] = [:]
 
     var body: some View {
-        if let image = Self.icon(bundleID) {
-            Image(nsImage: image).resizable().interpolation(.high).accessibilityHidden(true)
-        } else {
-            RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip).accessibilityHidden(true)
+        AppIcon(key: bundleID.flatMap { $0.isEmpty ? nil : .bundleID($0) }) {
+            RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip)
         }
-    }
-
-    private static func icon(_ id: String?) -> NSImage? {
-        guard let id, !id.isEmpty else { return nil }
-        if let hit = cache[id] { return hit }
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return nil }
-        let image = NSWorkspace.shared.icon(forFile: url.path)
-        cache[id] = image
-        return image
+        .accessibilityHidden(true)
     }
 }
 
