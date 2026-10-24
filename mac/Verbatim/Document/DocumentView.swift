@@ -215,19 +215,6 @@ private struct ProofreadChip: View {
     }
 }
 
-/// Chip-style toggle for the document toolbar.
-struct ToolChip: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Button { configuration.isOn.toggle() } label: {
-            configuration.label.font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(configuration.isOn ? Ink.irisDeep : Ink.ink)
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(configuration.isOn ? Ink.wash : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - Editor (NSTextView with lint underlines and a popover per lint)
 
 struct DocumentEditor: NSViewRepresentable {

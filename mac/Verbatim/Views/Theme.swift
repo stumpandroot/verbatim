@@ -99,34 +99,7 @@ struct TapArea: ViewModifier {
     }
 }
 
-/// Card motion for surfaces that hold their own controls (the Dictionary rows, the dock frame).
-/// The pointer passes through to children. With `rotates` off (the default for these), the card keeps the edge
-/// light, lift, and shadow and skips the 3D tilt: on macOS 26 a rotated ancestor loses clicks for its children.
-struct TiltCard: ViewModifier {
-    var tilt: Double = 3
-    var lift: Double = 2
-    var radius: Double = 12
-    var rotates: Bool = true
-    @State private var hover: CGPoint? = nil
-    @State private var size: CGSize = .zero
-
-    func body(content: Content) -> some View {
-        content
-            .cardMotion(hover: hover, size: size, pressed: false, radius: radius, tilt: rotates ? tilt : 0, lift: lift)
-            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
-            .onContinuousHover { phase in
-                switch phase {
-                case .active(let p): hover = p
-                case .ended: hover = nil
-                }
-            }
-    }
-}
-
 extension View {
-    func tiltCard(tilt: Double = 4, lift: Double = 2, radius: Double = 12, rotates: Bool = true) -> some View {
-        modifier(TiltCard(tilt: tilt, lift: lift, radius: radius, rotates: rotates))
-    }
     func tapArea(_ action: @escaping () -> Void) -> some View { modifier(TapArea(action: action)) }
     /// Press feedback for real Buttons (scale on isPressed through a button style).
     func pressable() -> some View { buttonStyle(PressStyle()) }
@@ -212,12 +185,5 @@ struct TranscriptDropTarget: ViewModifier {
                 return true
             }
         } else { content }
-    }
-}
-
-extension View {
-    /// Makes the view draggable as these transcripts, onto a project in the sidebar (read back by `TranscriptDropTarget`).
-    func transcriptDrag(_ ids: [UUID]) -> some View {
-        onDrag { NSItemProvider(object: TranscriptDrag.payload(ids) as NSString) }
     }
 }

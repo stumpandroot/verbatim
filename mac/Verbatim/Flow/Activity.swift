@@ -93,16 +93,6 @@ enum Words {
         for w in b { counts[w, default: 0] -= 1 }
         return counts.values.reduce(0) { $0 + abs($1) }
     }
-
-    /// Common words that say nothing about you, left out of "most-used word".
-    static let stop: Set<String> = Set("""
-    a about above after again all also am an and any are as at be because been before being both but by can could did do does doing \
-    don't down during each few for from further get got had has have having he her here hers him his how i i'm i've i'll i'd if in into is \
-    isn't it it's its just like me more most my no nor not now of off on once only or other our ours out over own really same she should \
-    so some such than that that's the their theirs them then there there's these they they're this those through to too under until up \
-    very was we we're were what when where which while who whom why will with would you you're your yours yeah okay ok gonna wanna um uh \
-    going go know think want need let let's one two thing things kind sort maybe actually right well also still even much many way make
-    """.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init))
 }
 
 /// The numbers Activity shows for a period.
@@ -114,10 +104,8 @@ struct ActivityStats {
     var changed = 0
     var vocabularyFixes = 0
     var processing: [Double] = []   // transcription + cleanup, per dictation
-    var byCategory: [AppCategory: Int] = [:]
     var byApp: [String: Int] = [:]
     var byDay: [Date: Int] = [:]    // start of day → words
-    var byHour: [Int: Int] = [:]    // weekday*100 + hour → words
 
     init(_ events: [ActivityEvent], since: Date?) {
         let cal = Calendar.current
@@ -125,10 +113,8 @@ struct ActivityStats {
             words += e.words; seconds += e.seconds; dictations += 1
             fillers += e.fillers; changed += e.changed; vocabularyFixes += e.vocabularyFixes
             if let t = e.transcribeSeconds { processing.append(t + (e.cleanupSeconds ?? 0)) }
-            byCategory[e.category, default: 0] += e.words
             byApp[e.app, default: 0] += e.words
             byDay[cal.startOfDay(for: e.date), default: 0] += e.words
-            byHour[cal.component(.weekday, from: e.date) * 100 + cal.component(.hour, from: e.date), default: 0] += e.words
         }
     }
 
@@ -138,48 +124,5 @@ struct ActivityStats {
     /// Typing the same words at `wpm`, minus the time spent talking and waiting. Editing time isn't counted.
     func secondsSaved(typingWPM wpm: Int) -> Double {
         max(0, Double(words) / Double(max(wpm, 1)) * 60 - seconds - processing.reduce(0, +))
-    }
-
-    var medianProcessing: Double? { percentile(0.5) }
-    var slowProcessing: Double? { processing.count >= 10 ? percentile(0.9) : nil }
-    private func percentile(_ p: Double) -> Double? {
-        guard !processing.isEmpty else { return nil }
-        let s = processing.sorted()
-        return s[min(s.count - 1, Int(Double(s.count - 1) * p + 0.5))]
-    }
-
-    /// "Wednesdays around noon": the weekday and hour with the most words.
-    var peak: (weekday: Int, hour: Int)? {
-        guard let best = byHour.max(by: { $0.value < $1.value }), best.value > 0 else { return nil }
-        return (best.key / 100, best.key % 100)
-    }
-}
-
-/// Word stats from the dictations you still have (Activity's numbers don't keep your words).
-struct WordStats {
-    var mostUsed: (String, Int)?
-    var catchphrase: (String, Int)?
-    var mostFixed: (String, Int)?
-
-    init(_ transcripts: [Transcript], since: Date?) {
-        var counts: [String: Int] = [:], phrases: [String: Int] = [:], fixed: [String: Int] = [:]
-        for t in transcripts where t.source == .dictation && (since.map { t.createdAt >= $0 } ?? true) {
-            guard let info = t.flow, info.instruction == nil else { continue }
-            let w = Words.list(info.pasted)
-            for x in w where x.count > 2 && !Words.stop.contains(x) && Int(x) == nil { counts[x, default: 0] += 1 }
-            if w.count >= 3 {
-                var seen = Set<String>()   // one count per dictation, so a repeated stutter isn't a catchphrase
-                for i in 0...(w.count - 3) {
-                    let p = w[i..<(i + 3)]
-                    guard p.filter({ !Words.stop.contains($0) }).count >= 1, !p.contains(where: { Words.fillerWords.contains($0) }) else { continue }
-                    seen.insert(p.joined(separator: " "))
-                }
-                for p in seen { phrases[p, default: 0] += 1 }
-            }
-            for c in t.corrections where c.byDictionary { fixed[c.to, default: 0] += 1 }
-        }
-        mostUsed = counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }.map { ($0.key, $0.value) }
-        catchphrase = phrases.filter { $0.value >= 3 }.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }.map { ($0.key, $0.value) }
-        mostFixed = fixed.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }.map { ($0.key, $0.value) }
     }
 }

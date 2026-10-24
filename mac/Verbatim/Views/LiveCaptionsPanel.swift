@@ -347,21 +347,3 @@ struct LiveCaptionsMenuRow: View {
         .buttonStyle(.plain)
     }
 }
-
-/// Settings › General › Live captions.
-struct LiveCaptionsSettingsSection: View {
-    @AppStorage(CaptionSize.key) private var sizeRaw = CaptionSize.medium.rawValue
-    @AppStorage(CaptionPrefs.timecodeKey) private var timecode = true
-    @AppStorage(CaptionPrefs.aboveFullScreenKey) private var above = true
-    var body: some View {
-        Section("Live captions") {
-            Picker("Text size", selection: $sizeRaw) {
-                ForEach(CaptionSize.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-            Toggle("Show the time in the header", isOn: $timecode)
-            Toggle("Keep captions above full-screen apps", isOn: $above)
-            Text("Open live captions from Home, the menu bar, or ⌥⌘C while Verbose is running. Captions are made on this Mac; Save as transcript uses your main engine.")
-                .font(.system(size: 12)).foregroundStyle(Ink.mute)
-        }
-    }
-}

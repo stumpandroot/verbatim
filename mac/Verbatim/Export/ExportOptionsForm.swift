@@ -87,19 +87,3 @@ struct ExportOptionRows: View {
     /// "7 s", "7.5 s".
     static func seconds(_ v: Double) -> String { v == v.rounded() ? "\(Int(v)) s" : String(format: "%.1f s", v) }
 }
-
-/// Settings › Export: the defaults every copy and export starts from. The rebuilt Settings embeds this; it edits the
-/// same saved options as the export sheet.
-struct ExportDefaultsSection: View {
-    @State private var options = ExportOptions.saved
-    var body: some View {
-        Section {
-            ExportOptionRows(options: $options, format: nil)
-        } header: {
-            Text("Export")
-        } footer: {
-            Text("Copy and every export start from these. The export sheet changes them too.")
-        }
-        .onChange(of: options) { _, o in o.save() }
-    }
-}

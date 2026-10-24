@@ -355,19 +355,6 @@ struct KindHeroCard: View {
     }
 }
 
-/// The light-tinted tile with a kind's diagram, for library rows of transcripts that have a kind.
-struct KindTile: View {
-    var kind: RecordingKind
-    var size: CGFloat = 46
-    var body: some View {
-        BrandGlyph(art: kind.art, color: Ink.ink, minLineWidth: 1)
-            .frame(width: size * 0.64, height: size * 0.64)
-            .frame(width: size, height: size)
-            .background(kind.tint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            .accessibilityHidden(true)
-    }
-}
-
 /// Journal entries grouped by day, newest first: "TODAY" / "SAT 17 OCT" headings with dotted leaders.
 enum JournalDays {
     struct Day: Identifiable { var id: Date; var label: String; var date: String; var entries: [Transcript] }

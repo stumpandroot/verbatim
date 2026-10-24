@@ -62,18 +62,6 @@ struct LinksView: View {
     private func pasteLink() { app.goHome(); app.focusLink.toggle() }
 }
 
-/// The older capsule chip, still used by screens that haven't moved to the website style (Dictionary, Dictations).
-struct SiteChip: View {
-    var label: String; var on: Bool; var action: () -> Void
-    var body: some View {
-        Text(label).font(.system(size: 12.5, weight: .medium))
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(on ? Ink.iris : Ink.track, in: Capsule())
-            .foregroundStyle(on ? Ink.onInteractive : Ink.ink)
-            .tapArea(action)
-    }
-}
-
 /// A flat Links row: thumbnail, serif title, channel · site · date · length in mono, the status as plain text, then
 /// Open video, Transcript, and the ⋯ menu. Clicking the row opens the transcript; dragging it files it in a project.
 struct LinkRow: View {

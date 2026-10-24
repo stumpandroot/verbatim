@@ -250,26 +250,6 @@ enum CaptionPermission {
 
 // MARK: - Drawing
 
-/// The colophon: three rings tangent at the bottom, the smallest filled. Decorative.
-struct CaptionRingsMark: View {
-    var color: Color = Ink.persimmon
-    var body: some View {
-        Canvas { ctx, size in
-            let s = min(size.width, size.height) / 100
-            let ox = (size.width - 100 * s) / 2, oy = (size.height - 100 * s) / 2
-            func ring(_ cy: CGFloat, _ r: CGFloat) -> Path {
-                Path(ellipseIn: CGRect(x: ox + (50 - r) * s, y: oy + (cy - r) * s, width: 2 * r * s, height: 2 * r * s))
-            }
-            let style = StrokeStyle(lineWidth: max(1, 8 * s))
-            ctx.stroke(ring(50, 42), with: .color(color), style: style)
-            ctx.stroke(ring(62, 30), with: .color(color), style: style)
-            ctx.fill(ring(74, 18), with: .color(color))
-            ctx.stroke(ring(74, 18), with: .color(color), style: style)
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 /// Caption lines, bottom-aligned: older lines smaller and fainter, the current line large with its newest word
 /// in persimmon. VoiceOver reads finished lines only; the changing line is hidden from it.
 struct CaptionLinesView: View {

@@ -767,12 +767,7 @@ enum FlowCleanup {
         return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: Spoken commands and snippets
-
-    /// "new line" and "new paragraph" work at every level, including Literal and code apps.
-    static func spokenCommands(_ s: String) -> String {
-        CleanupPrepass.lineBreaks(s)
-    }
+    // MARK: Snippets
 
     private static func norm(_ s: String) -> String { words(s).joined(separator: " ") }
 
