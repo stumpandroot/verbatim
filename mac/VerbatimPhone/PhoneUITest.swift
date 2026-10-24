@@ -157,6 +157,18 @@ enum PhoneUITest {
                 await show("\(prefix)09c-voice-enroll")
                 NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: false)
                 try? await Task.sleep(nanoseconds: 700_000_000)
+                // The You page from Home's This week card, then About me from the You page.
+                app.tab = .home
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                HomeScreen.openProfile(app)
+                await show("\(prefix)09f-you")
+                if prefix == "p" { youCheck("This week opens the You page", app.tab == .settings && YouScreen.visible) }
+                NotificationCenter.default.post(name: .verbatimYouPage, object: true)
+                await show("\(prefix)09g-you-about-me")
+                if prefix == "p" { youCheck("the You page opens About me", AboutMeScreen.visible) }
+                NotificationCenter.default.post(name: .verbatimYouPage, object: false)
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                if prefix == "p" { youCheck("the You page closes", !YouScreen.visible && !AboutMeScreen.visible) }
                 // The recording ribbon: the Session ended screen after a call (made-up last take), then Settings ›
                 // Action button (last, because it stays pushed on the Settings tab).
                 app.session.endedNotice = KeyboardSession.EndedNotice(reason: Ribbon.endedReason(call: true),
@@ -236,6 +248,11 @@ enum PhoneUITest {
         Log.note("UITEST ribbon checks: \(pass) passed, \(fail) failed")
     }
 
+    /// The You page (YouScreen.swift), checked on screen during the tour.
+    private static func youCheck(_ name: String, _ ok: Bool) {
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") you: \(name)")
+    }
+
     private static func show(_ name: String) async {
         try? await Task.sleep(nanoseconds: 1_500_000_000)   // let presentations settle
         snapshot(name)
@@ -276,7 +293,8 @@ enum PhoneUITest {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") home: \(name)") }
         let tab = app.tab
         HomeScreen.openProfile(app)
-        check("This week opens About me in Settings", app.tab == .settings)
+        // The page itself opening is checked in the tour ("you: This week opens the You page").
+        check("This week asks Settings for the You page", app.tab == .settings && SettingsPage.lastRequested == "you")
         _ = SettingsPage.take()
         app.tab = tab
         let newest = app.store.live.filter { $0.isDictation }.max { $0.createdAt < $1.createdAt }

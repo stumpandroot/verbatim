@@ -1,14 +1,15 @@
 import SwiftUI
 import UIKit
 
-/// About me: a few lines of context, kept only on this iPhone (UserDefaults, never synced).
+/// About me: a few lines of context in UserDefaults. With iCloud sync on, it travels with your name to your Mac
+/// (Store.SyncedProfile).
 enum Profile {
     static let aboutMeKey = "profile.aboutMe"
     static let aboutMeLimit = 300
 }
 
 /// Settings in the website style, close to a native iOS list: the compact serif title, search, a card for You at the
-/// top (your initial, your name, and About me, your voice, your week), then grouped cards with mono section labels,
+/// top (your initial and your name; it opens the You page, YouScreen.swift), then grouped cards with mono section labels,
 /// colored icon squares, values, chevrons, and standard switches. The version sits at the foot.
 struct SettingsScreen: View {
     @EnvironmentObject var app: PhoneState
@@ -37,6 +38,10 @@ struct SettingsScreen: View {
     @State private var showDictionary = false
     @State private var showSnippets = false
     @State private var showAboutMe = false
+    /// The You page (YouScreen.swift): the You card, and Home's This week card.
+    @State private var showYou = false
+    /// A row the You page asked for (Cloud cleanup): scrolled to and flashed once the You page has closed.
+    @State private var pendingRow: String? = nil
     @State private var showKeyboard = false
     @State private var showActionButton = false
     /// Settings › Action button's choice (Ribbon.ActionChoice), for the row's value.
@@ -92,6 +97,11 @@ struct SettingsScreen: View {
             .padding(.horizontal, 20).padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.immediately)
+        .onChange(of: pendingRow) { _, row in
+            guard let row else { return }
+            pendingRow = nil
+            flashRow(row, label: SettingsSearchIndex.all.first { $0.id == row }?.label ?? "", proxy)
+        }
         }
         .tabEntrance(.settings) { seen.entered(); entrance += 1 }
         .background(Ink.paper.ignoresSafeArea())
@@ -100,14 +110,25 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
         .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
+        .navigationDestination(isPresented: $showYou) {
+            YouScreen { row in
+                showYou = false
+                // The row flashes after the pop has finished.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { pendingRow = row }
+            }
+        }
         .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
         .navigationDestination(isPresented: $showActionButton) { ActionButtonScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
         .navigationDestination(isPresented: $showPrivacy) { PhonePrivacyScreen() }
         .navigationDestination(isPresented: $showAcknowledgements) { AcknowledgementsView().navigationTitle("Acknowledgements") }
-        // Home's avatar opens About me, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
+        // Home's This week card opens the You page, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
         .onAppear { openRequestedPage() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettingsPage)) { _ in openRequestedPage() }
+        // UI tour: `false` closes the You page (and anything pushed from it).
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
+            if note.object as? Bool == false { showYou = false }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimShowVoiceProfile)) { note in
             let open = note.object as? Bool ?? false
             voicePreview = open
@@ -146,11 +167,11 @@ struct SettingsScreen: View {
     @AppStorage("profile.name") private var profileName = ""
 
     /// You: your initial on the record color, your name in the serif (the last name in italic), and what's inside.
-    /// Opens About me.
+    /// Opens the You page.
     private var youCard: some View {
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = name.split(separator: " ", maxSplits: 1).map(String.init)
-        return Button { bump("me"); showAboutMe = true } label: {
+        return Button { showYou = true } label: {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().fill(PhoneInk.record)
@@ -169,7 +190,7 @@ struct SettingsScreen: View {
                         else { Text(name.isEmpty ? "You" : name) }
                     }
                     .font(Ink.serif(youSize)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8)
-                    Text("About me, your voice, your week").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    Text("About me, your voice, your week, and cleanup").font(.system(size: 13)).foregroundStyle(Ink.mute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
@@ -182,7 +203,7 @@ struct SettingsScreen: View {
         .buttonStyle(PhoneCardPress())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(name.isEmpty ? "You" : name)
-        .accessibilityHint("Opens About me.")
+        .accessibilityHint("Opens your You page: About me, your voice, your week, and cleanup.")
     }
 
     @ScaledMetric(relativeTo: .title2) private var youSize: CGFloat = 22
@@ -287,7 +308,7 @@ struct SettingsScreen: View {
                 ForEach(CleanupLevel.allCases) { l in Text(l.title).tag(l) }
             }
         } label: {
-            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, art: .refine, title: "Cleanup", subtitle: cleanupSubtitle, subtitleLines: nil, bounce: flow.cleanup.rawValue) {
+            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, art: .refine, title: "Cleanup", subtitle: Self.cleanupNote(flow.cleanup), subtitleLines: nil, bounce: flow.cleanup.rawValue) {
                 SettingsValue(flow.cleanup.title); SettingsMenuMark()
             }
         }
@@ -387,15 +408,16 @@ struct SettingsScreen: View {
         .settingsSearchTarget("deleteAll", flash: searchFlash)
     }
 
-    /// What the cleanup level does to keyboard dictations, and what happens without Apple Intelligence.
-    private var cleanupSubtitle: String {
+    /// What the cleanup level does to keyboard dictations, and what happens without Apple Intelligence. Also on the
+    /// You page.
+    static func cleanupNote(_ level: CleanupLevel) -> String {
         let what: String
-        switch flow.cleanup {
+        switch level {
         case .none: what = "Keyboard dictations go in as spoken, with punctuation and capitals."
         case .light: what = "Removes ums, repeats, and false starts, and turns spoken lists into lists. Keeps your wording."
         case .medium: what = "Everything Clean does, plus fixes grammar, splits run-on sentences, and smooths rambling. Keeps your meaning and voice."
         }
-        guard flow.cleanup.usesModel, !FlowCleanup.available else { return what }
+        guard level.usesModel, !FlowCleanup.available else { return what }
         return what + " Without Apple Intelligence on this iPhone, rules remove ums, repeats, and false starts, fix capitals and “a” or “an,” and make lists and paragraphs."
     }
 
@@ -532,6 +554,7 @@ struct SettingsScreen: View {
     private func openRequestedPage() {
         switch SettingsPage.take() {
         case "aboutMe"?: showAboutMe = true
+        case "you"?: showYou = true
         case "keyboard"?: showKeyboard = true
         case "actionButton"?: showActionButton = true
         default: break
@@ -548,15 +571,19 @@ struct SettingsScreen: View {
         case .page(.keyboard): showKeyboard = true
         case .page(.actionButton): showActionButton = true
         case .page(.snippets): showSnippets = true
-        case .row:
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 80_000_000)   // the groups lay out again first
-                withAnimation(limitMotion ? nil : Motion.nav) { proxy.scrollTo(entry.id, anchor: .center) }
-                searchFlash = entry.id
-                AccessibilityNotification.Announcement(entry.label).post()
-                try? await Task.sleep(nanoseconds: 1_400_000_000)
-                if searchFlash == entry.id { searchFlash = nil }
-            }
+        case .row: flashRow(entry.id, label: entry.label, proxy)
+        }
+    }
+
+    /// Scrolls to a row and flashes it (a search result, or a row the You page links to).
+    private func flashRow(_ id: String, label: String, _ proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 80_000_000)   // the groups lay out again first
+            withAnimation(limitMotion ? nil : Motion.nav) { proxy.scrollTo(id, anchor: .center) }
+            searchFlash = id
+            if !label.isEmpty { AccessibilityNotification.Announcement(label).post() }
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            if searchFlash == id { searchFlash = nil }
         }
     }
 
@@ -714,6 +741,8 @@ struct AboutMeScreen: View {
     @AppStorage(Profile.aboutMeKey) private var aboutMe = ""
     @AppStorage("profile.name") private var name = ""
     @FocusState private var focused: Bool
+    /// Whether About me is on screen, for the UI tour's checks.
+    static var visible = false
 
     var body: some View {
         ScrollView {
@@ -763,6 +792,7 @@ struct AboutMeScreen: View {
         .background(Ink.paper.ignoresSafeArea())
         .navigationTitle("About me")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { if aboutMe.isEmpty { focused = true } }
+        .onAppear { Self.visible = true; if aboutMe.isEmpty, !PhoneUITest.enabled { focused = true } }
+        .onDisappear { Self.visible = false }
     }
 }
