@@ -19,6 +19,13 @@ xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -config
 xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug VERBATIM_APP_STORE=YES build
 ```
 
+## TestFlight builds from CI
+
+The TestFlight upload in `.github/workflows/build-swift.yml` (main builds only, for internal testers) archives the AppStore configuration with one exception: it also defines `YOUTUBE_ON_DEVICE`, by passing `VERBATIM_PHONE_CONDITIONS_YES="APP_STORE YOUTUBE_ON_DEVICE"`, so YouTube links transcribe on the iPhone. Apple doesn't review builds for internal testers.
+
+- Don't add these builds to an external testing group or submit them for App Review. Guideline 5.2.3 makes YouTube downloads a rejection risk.
+- To submit, archive the **VerbatimPhone App Store** scheme as described above, without the override, and upload that build.
+
 Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push to `integrate`, and on every branch push that changes a file the iPhone app or its extensions build from. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the undocumented selector or class names below are left in the app.
 
 ## What the flag changes
