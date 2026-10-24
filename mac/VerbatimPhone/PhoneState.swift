@@ -728,6 +728,18 @@ final class PhoneState: ObservableObject {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         store.update(id) { t in if let i = t.speakers.firstIndex(where: { $0.id == sid }) { t.speakers[i].name = clean } }
+        SpeakerVoices.remember(transcript: id, speaker: sid, name: clean)
+    }
+    /// Use on a speaker name suggestion: renames the speaker the way a typed name does and keeps the suggestion,
+    /// with its reasons, as used.
+    func useSpeakerSuggestion(_ id: UUID, _ s: SpeakerSuggestion) {
+        renameSpeaker(id, speaker: s.speakerId, to: s.name)
+        store.update(id) { $0.markSpeakerSuggestion(s.id, .accepted) }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+    /// Dismiss: the suggestion hides and isn't made again.
+    func dismissSpeakerSuggestion(_ id: UUID, _ s: SpeakerSuggestion) {
+        store.update(id) { $0.markSpeakerSuggestion(s.id, .dismissed) }
     }
     /// Moves one line to another speaker, or to no speaker.
     func assign(_ id: UUID, segment: UUID, to speaker: String?) {

@@ -11,6 +11,8 @@ struct JobOutcome {
     var engine: String
     var model: String
     var language: String?
+    /// Each speaker's voice embedding ("S1" → 256 values), for recognizing voices you've named (SpeakerVoices).
+    var voices: [String: [Float]] = [:]
 }
 
 /// How a job handles language and long recordings. The defaults run exactly as before (no language check, the
@@ -38,10 +40,12 @@ enum TranscriptionJob {
         var result = try await words(url: url, engineId: engineId, model: model, options: options, progress: progress)
         Log.note("transcribe done segments=\(result.segments.count)")
         var speakers: [Speaker] = []
+        var voices: [String: [Float]] = [:]
         if wantSpeakers, result.segments.count > 1 {
             do {
                 let found = try await FluidDiarizer.shared.diarizeDetailed(url: url, progress: progress)
                 speakers = SpeakerAssigner.assign(found, to: &result.segments)
+                voices = SpeakerNames.voices(turns: found.turns, embeddings: found.embeddings, segments: result.segments)
                 Log.note("diarize done speakers=\(speakers.count)")
             } catch {
                 Log.note("diarize failed (kept transcript): \(error)")
@@ -56,7 +60,7 @@ enum TranscriptionJob {
         }
         let wave = needWave ? Waveform.envelope(of: url) : []
         return JobOutcome(original: original, fixed: fixed, speakers: speakers, corrections: corrections, wave: wave,
-                          engine: result.engine, model: result.model, language: result.language)
+                          engine: result.engine, model: result.model, language: result.language, voices: voices)
     }
 
     /// The words: picks the engine and model for the recording's language, then transcribes it whole or in sections.

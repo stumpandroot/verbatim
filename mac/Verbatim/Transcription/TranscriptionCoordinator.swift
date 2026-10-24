@@ -221,7 +221,7 @@ final class TranscriptionCoordinator: ObservableObject {
         if config.speakerPass == .afterWords, store.transcript(id)?.status == .ready {
             // The words are in; only the speaker pass was running. Stop it and keep the transcript.
             store.update(id) { $0.stage = nil }
-            if runningID == id { stopRunning(); labelIfNeeded(id); SummaryCenter.shared.summarizeIfNeeded(id, store: store); pump() }
+            if runningID == id { stopRunning(); labelIfNeeded(id); SpeakerNameSuggester.runIfNeeded(id, store: store); SummaryCenter.shared.summarizeIfNeeded(id, store: store); pump() }
             return
         }
         store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "Cancelled. Choose Retry to run it again." }
@@ -272,6 +272,8 @@ final class TranscriptionCoordinator: ObservableObject {
         guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
         labelIfNeeded(id)
+        // Names for two or more speakers, as suggestions (after the speaker pass, where it runs on its own).
+        SpeakerNameSuggester.runIfNeeded(id, store: store)
         SummaryCenter.shared.summarizeIfNeeded(id, store: store)
         pump()
     }
@@ -393,6 +395,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
+                    SpeakerVoices.keep(id, voices: out.voices)
                     self.dropSections(t)
                     // In a batch, stay quiet until the last one.
                     self.host?.transcriptReady(id, corrections: corrections.count, queueEmpty: self.queue.isEmpty)
@@ -501,6 +504,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         guard speakers.count >= 2 else { return }
                         x.segments = segs; x.speakers = speakers
                         for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker }
+                        SpeakerVoices.keep(id, voices: SpeakerNames.voices(turns: found.turns, embeddings: found.embeddings, segments: segs))
                     }
                 }
             } catch {
@@ -543,6 +547,7 @@ final class TranscriptionCoordinator: ObservableObject {
                           let name = self.store.adoptRecording(combined) else { try? FileManager.default.removeItem(at: combined); return }
                     self.store.update(id) { x in
                         Continuation.apply(out, to: &x, combinedName: name)
+                        SpeakerVoices.forget(id)
                         // The recording grew: Apple Intelligence's summary is rewritten for the whole of it.
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
                     }
