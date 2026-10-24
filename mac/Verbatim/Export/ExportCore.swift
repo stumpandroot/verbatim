@@ -80,6 +80,9 @@ struct ExportOptions: Equatable {
     var moments: MomentsMode = .off
     /// Filler-only lines and background voices the app hides (Settings › Hide filler lines, Main speaker only).
     var includeHidden = false
+    /// Sponsor reads found in podcasts and videos (Sponsors.swift). Left out unless this is on; Copy always leaves
+    /// them out.
+    var includeSponsors = false
     var singleParagraph = false
     /// The "Transcribed with Verbatim" footer.
     var provenance = false
@@ -115,6 +118,7 @@ struct ExportOptions: Equatable {
         o.timecodeOffset = max(0, d.double(forKey: "export.timecodeOffset"))
         if let s = d.string(forKey: "export.moments"), let v = MomentsMode(rawValue: s) { o.moments = v }
         o.includeHidden = d.bool(forKey: "export.hidden")
+        o.includeSponsors = d.bool(forKey: "export.sponsors")
         o.singleParagraph = d.bool(forKey: "export.single")
         o.provenance = d.bool(forKey: "export.prov")
         if d.object(forKey: "export.aiNote") != nil { o.aiNote = d.bool(forKey: "export.aiNote") }
@@ -138,6 +142,7 @@ struct ExportOptions: Equatable {
         d.set(timecodeOffset, forKey: "export.timecodeOffset")
         d.set(moments.rawValue, forKey: "export.moments")
         d.set(includeHidden, forKey: "export.hidden")
+        d.set(includeSponsors, forKey: "export.sponsors")
         d.set(singleParagraph, forKey: "export.single")
         d.set(provenance, forKey: "export.prov")
         d.set(aiNote, forKey: "export.aiNote")

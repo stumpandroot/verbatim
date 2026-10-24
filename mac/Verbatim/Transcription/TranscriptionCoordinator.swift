@@ -271,6 +271,7 @@ final class TranscriptionCoordinator: ObservableObject {
     private func finished(_ id: UUID, token: UUID? = nil) {
         guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
+        detectSponsors(id)
         labelIfNeeded(id)
         // Names for two or more speakers, as suggestions (after the speaker pass, where it runs on its own).
         SpeakerNameSuggester.runIfNeeded(id, store: store)
@@ -284,7 +285,8 @@ final class TranscriptionCoordinator: ObservableObject {
         guard AutoLabel.enabled, let t = store.transcript(id), t.status == .ready, t.source != .dictation,
               t.kind == nil, t.kindIsAuto, !t.segments.isEmpty else { return }
         let wantTitle = t.titleIsAuto && config.autoTitleSources.contains(t.source)
-        let segs = t.segments, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
+        // Sponsor reads (detectSponsors, just before) never name or tag the recording.
+        let segs = t.segmentsWithoutSponsors, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
         let origin = KindRule.origin(of: t)
         Task.detached(priority: .utility) {
             let r = await AutoLabel.suggest(segments: segs, speakers: speakers, duration: duration, origin: origin)
@@ -297,6 +299,54 @@ final class TranscriptionCoordinator: ObservableObject {
                     if !r.tags.isEmpty { x.tags = AutoLabel.merge(x.tags, r.tags) }
                 }
                 Log.note("autolabel: kind \(r.kind.rawValue), title \(wantTitle && r.title != nil ? "suggested" : "kept"), \(r.tags.count) tags, model \(r.usedModel)")
+            }
+        }
+    }
+
+    /// Once a podcast, video, talk, or interview from a link or an imported file is transcribed (and again after
+    /// Transcribe again): finds its sponsor reads by rule (SponsorDetect) before the labels and the summary run, so
+    /// neither reads them. Spans someone marked or dismissed stay. Then Apple Intelligence, where it can run,
+    /// confirms and names each read the rules found.
+    private func detectSponsors(_ id: UUID) {
+        guard let t = store.transcript(id), t.status == .ready, t.source != .dictation, !t.segments.isEmpty else { return }
+        let origin = KindRule.origin(of: t)
+        guard case .media(_) = origin else { return }
+        let speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count)
+        let kind = t.kind ?? KindRule.kind(origin: origin, speakers: speakers, duration: t.duration)
+        guard Transcript.detectsSponsors(isMedia: true, kind: kind) else { return }
+        let found = SponsorDetect.detect(t.sponsorLines)
+        store.update(id) { $0.applySponsors(found) }
+        Log.note("sponsors: \(found.count) found by rule")
+        refineSponsors(id)
+    }
+
+    /// Apple Intelligence's pass over the reads the rules found: a read it calls a sponsor read takes its name (when
+    /// it spells the same brand); one it says isn't goes away. A decline or failure leaves the rules' span.
+    private func refineSponsors(_ id: UUID) {
+        guard SponsorRefine.available, let t = store.transcript(id) else { return }
+        let spans = (t.sponsors ?? []).filter { $0.source == .rules && !$0.dismissed }
+        guard !spans.isEmpty else { return }
+        let passages = spans.map { sp in (sp.id, t.segments.filter { t.sponsorSpan(for: $0, in: [sp]) != nil }.map(\.text).joined(separator: " ")) }
+        Task.detached(priority: .utility) {
+            var answers: [UUID: SponsorDetect.Verdict] = [:]
+            for (sid, text) in passages {
+                if Task.isCancelled { return }
+                answers[sid] = await SponsorRefine.check(text)
+            }
+            let verdicts = answers
+            await MainActor.run {
+                self.store.update(id) { x in
+                    guard var list = x.sponsors else { return }
+                    list.removeAll { verdicts[$0.id] == .notSponsor && $0.source == .rules }
+                    for i in list.indices where list[i].source == .rules {
+                        guard case .sponsor(let name)? = verdicts[list[i].id] else { continue }
+                        list[i].source = .model
+                        list[i].name = SponsorDetect.pickName(rule: list[i].name, model: name)
+                    }
+                    x.sponsors = list
+                }
+                let kept = verdicts.values.filter { if case .sponsor(_) = $0 { return true }; return false }.count
+                Log.note("sponsors: Apple Intelligence confirmed \(kept) of \(verdicts.count)")
             }
         }
     }

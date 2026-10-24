@@ -253,6 +253,7 @@ struct ModelsSettingsPane: View {
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
+    @AppStorage(Transcript.skipSponsorsKey) private var skipSponsors = true
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
 
@@ -288,6 +289,9 @@ struct ModelsSettingsPane: View {
                 SettingsToggleRow("models.nameSort", isOn: $autoLabels)
                 SettingsToggleRow("models.summary", isOn: $autoSummary, detail: Summarizer.unavailableReason)
                 SettingsToggleRow("models.hideFiller", isOn: $hideFiller)
+            }
+            SettingsGroup(title: "Playback") {
+                SettingsToggleRow("models.skipSponsors", isOn: $skipSponsors)
             }
         }
     }
@@ -482,6 +486,8 @@ struct ExportSettingsPane: View {
                     ExportOffsetField(seconds: $options.timecodeOffset)
                 }
                 ExportPaneToggle("Include hidden lines", isOn: $options.includeHidden)
+                ExportPaneToggle("Include sponsor reads", isOn: $options.includeSponsors, note: "Sponsor reads found in podcasts and videos.")
+                    .settingsAnchor("export.sponsors", radius: Radius.row)
             }
             SettingsGroup(title: "Subtitles", footer: "Used for SRT and VTT files.") {
                 ExportPaneStepper("Characters per line", value: $options.subtitles.charsPerLine, range: 16...80, step: 1) { "\($0)" }

@@ -151,6 +151,7 @@ enum SettingsIndex {
         .init("models.projectVocab", .models, "Project vocabulary", "Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.", keywords: "dictionary project scope"),
         .init("models.nameSort", .models, "Name and sort recordings", "Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.", keywords: "auto label title tags kind"),
         .init("models.summary", .models, "Write a summary when a transcript finishes", "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.", keywords: "summary summaries overview key points recap"),
+        .init("models.skipSponsors", .models, "Skip sponsor reads", "In podcasts and videos from links and files, playback jumps past sponsor reads and the transcript folds each one into a line. Summaries, tags, copy, and export leave them out.", keywords: "sponsor sponsors ads ad read advertisement promo code skip podcast youtube"),
         .init("models.hideFiller", .models, "Hide filler lines", "Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.", keywords: "um uh filler"),
         .init("models.offline", .models, "Where models run", "Models download once from Hugging Face and run on this Mac. Transcription never leaves your computer.", keywords: "privacy offline download hugging face"),
 
@@ -192,6 +193,7 @@ enum SettingsIndex {
         .init("export.source", .export, "Text", "Cleaned is paragraphs with your edits and cleanup. Original with corrections and Original (engine words) are line by line. Copy follows the tab you're on.", keywords: "document transcript source cleaned original engine words raw copy"),
         .init("export.speakers", .export, "Speaker names", "Each speaker's name before their words.", keywords: "labels speakers"),
         .init("export.timecodes", .export, "Include timecodes", "A timecode at the start of every line, like [00:12:04]. Subtitles always have them.", keywords: "timecode timestamps time"),
+        .init("export.sponsors", .export, "Include sponsor reads", "Sponsor reads found in podcasts and videos are left out unless this is on. Copy always leaves them out.", keywords: "sponsor sponsors ads advertisement promo"),
         .init("export.single", .export, "One paragraph", "Everything joined into a single paragraph.", keywords: "line breaks join"),
         .init("export.provenance", .export, "Add a “transcribed with” footer", "Title, source, length, model, and date at the end.", keywords: "provenance credit footer"),
         .init("export.watched", .export, "Watched folders export with these options", keywords: "auto-export timecode"),

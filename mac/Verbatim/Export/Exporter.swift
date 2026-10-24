@@ -22,11 +22,13 @@ enum Exporter {
     /// The transcript's summary, when it has one (see `ExportSummary.reflect`).
     static func summary(_ t: Transcript) -> ExportSummary? { ExportSummary.reflect(t) }
 
-    /// The segments an export covers: all of them, or without the hidden ones.
+    /// The segments an export covers: all of them, or without the hidden ones, and without sponsor reads unless
+    /// "Include sponsor reads" is on.
     static func segments(_ t: Transcript, _ o: ExportOptions) -> [Segment] {
-        guard !o.includeHidden else { return t.segments }
+        let all = o.includeSponsors ? t.segments : t.withoutSponsors(t.segments)
+        guard !o.includeHidden else { return all }
         let hidden = t.hiddenSegmentIDs
-        return hidden.isEmpty ? t.segments : t.segments.filter { !hidden.contains($0.id) }
+        return hidden.isEmpty ? all : all.filter { !hidden.contains($0.id) }
     }
 
     /// Kind, date, duration, speakers: "Meeting · Oct 20, 2026 · 42 min · Ana, Tim".

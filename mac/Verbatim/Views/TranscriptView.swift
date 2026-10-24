@@ -204,6 +204,7 @@ struct TranscriptView: View {
                 if UITest.enabled { DispatchQueue.main.async { Log.note("UITEST nav settled ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000))") } }
             }
             .onDisappear { app.player.stop() }
+            .skipsSponsors(t, player: app.player)
             // Playback keys never steal typing: when a text field (renaming a speaker, a note, a correction) has
             // focus, the key goes to the field.
             .onKeyPress(.space) { if Self.typing { return .ignored }; app.player.toggle(); return .handled }

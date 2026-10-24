@@ -131,6 +131,10 @@ struct SegmentLine: View {
                         Divider()
                         Button("Copy quote") { copyQuote(withLink: false) }
                         if transcript.linkInfo != nil { Button("Copy quote with link") { copyQuote(withLink: true) } }
+                        if transcript.offersSponsorMarking, transcript.sponsorSpan(for: segment) == nil {
+                            Divider()
+                            Button("Mark as sponsor") { app.store.update(transcript.id) { $0.markSponsor(segment: segment.id) } }
+                        }
                     }
                     .popover(isPresented: Binding(get: { fixing != nil }, set: { if !$0 { fixing = nil } })) {
                         VStack(alignment: .leading, spacing: 10) {
@@ -162,6 +166,24 @@ struct SegmentLine: View {
         let to = replacement.trimmingCharacters(in: .whitespaces)
         if !to.isEmpty, to != from { app.correct(transcript: transcript.id, segment: segment.id, from: from, to: to, remember: remember) }
         fixing = nil
+    }
+}
+
+/// A folded sponsor read in the Mac transcript, with the app at hand for its menu (the lines themselves don't watch
+/// the app state).
+private struct SponsorFoldLine: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var span: SponsorSpan
+    var open: Bool
+    var toggle: () -> Void
+
+    var body: some View {
+        SponsorFoldRow(span: span, open: open, onToggle: toggle,
+                       onPlay: app.player.canPlay ? { app.player.play(from: span.start) } : nil,
+                       onNotSponsor: { app.store.update(transcript.id) { $0.dismissSponsor(span.id) } })
+            .frame(maxWidth: 520, alignment: .leading)
+            .help("A sponsor read. Click to show it; copy, export, and summaries leave it out.")
     }
 }
 
@@ -197,6 +219,8 @@ struct TranscriptLines: View {
     /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the tint
     /// itself is worked out from the clock in `body`.
     @State private var playingIDs: Set<UUID> = []
+    /// Sponsor reads opened from their folded row.
+    @State private var openSponsors: Set<UUID> = []
 
     /// The playing rule: under the playhead, and either playing or moved off the start.
     static func playing(_ segments: [Segment], at now: Double, isPlaying: Bool) -> Set<UUID> {
@@ -211,14 +235,26 @@ struct TranscriptLines: View {
         let current = Self.playing(segments, at: clock.time, isPlaying: isPlaying)
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
         // Lazy: a long recording has hundreds of lines, each with menus and a popover. Build only what's on screen.
+        // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
+        let folds = SponsorFold.places(segments, in: transcript)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
-                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segments[i - 1].speaker != s.speaker)
+                // After a folded read, name the speaker again: the line above on screen is someone else's.
+                let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
+                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segments[i - 1].speaker != s.speaker)
+                let fold = folds[i]
+                if let fold, fold.first {
+                    SponsorFoldLine(transcript: transcript, span: fold.span, open: openSponsors.contains(fold.span.id)) {
+                        if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) }
+                    }
+                    .padding(.leading, 74).padding(.top, i == 0 ? 0 : 8).padding(.bottom, 6)
+                }
                 SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current.contains(s.id), saved: saved.contains(s.id), selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)
                 .staggerIn(i < 10 ? i + 2 : -1)
+                .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
         }
         .onReceive(clock.$time) { now in syncPlaying(at: now) }

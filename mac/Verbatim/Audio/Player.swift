@@ -7,6 +7,19 @@ import Combine
 @MainActor
 final class PlayerClock: ObservableObject {
     @Published var time: TimeInterval = 0
+    /// A moment's status for the dock, such as "Skipped sponsor"; nil the rest of the time.
+    @Published private(set) var note: String? = nil
+    private var noteTask: Task<Void, Never>?
+
+    /// Shows `text` in the dock for a few seconds.
+    func flash(_ text: String, seconds: Double = 2.5) {
+        note = text
+        noteTask?.cancel()
+        noteTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            if !Task.isCancelled { self?.note = nil }
+        }
+    }
 }
 
 @MainActor
@@ -25,6 +38,10 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var timer: Timer?
     /// A seek asked for while the file was still opening; applied once it opens.
     private var pendingStart: Double?
+    /// Sponsor reads to jump past (Settings › Skip sponsor reads), set by the transcript screen (`skipsSponsors`).
+    var skipSpans: [(start: Double, end: Double)] = []
+    /// The playhead at the last tick or seek: playback that crosses into a read skips it; a seek into one doesn't.
+    private var lastTick: TimeInterval = 0
 
     /// True once the audio is open and can play.
     var canPlay: Bool { player != nil }
@@ -50,6 +67,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
                 if self.duration != p.duration { self.duration = p.duration }
                 defer { self.pendingStart = nil }
                 if let s = startAt ?? self.pendingStart { p.currentTime = min(s, p.duration); self.time = p.currentTime } else { self.time = 0 }
+                self.lastTick = self.time
             }
         }
     }
@@ -72,17 +90,33 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if p.isPlaying { p.pause(); isPlaying = false; timer?.invalidate() }
         else {
             p.play(); isPlaying = true
+            lastTick = p.currentTime
             // Scheduled on the main run loop (this is main-actor code), so the block is already on main: no Task per tick.
             timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.time = self?.player?.currentTime ?? 0 }
+                MainActor.assumeIsolated { self?.tick() }
             }
         }
+    }
+
+    /// Moves the playhead with playback, jumping past a sponsor read it just crossed into.
+    private func tick() {
+        guard let p = player else { time = 0; return }
+        let now = p.currentTime
+        if let to = SponsorSkip.target(from: lastTick, to: now, spans: skipSpans) {
+            p.currentTime = min(to, p.duration)
+            lastTick = p.currentTime; time = p.currentTime
+            clock.flash("Skipped sponsor")
+            return
+        }
+        lastTick = now
+        time = now
     }
 
     func seek(to t: TimeInterval) {
         guard let p = player else { if loadedURL != nil { pendingStart = max(0, t) }; return }
         p.currentTime = max(0, min(t, p.duration))
         time = p.currentTime
+        lastTick = time
     }
 
     /// Seeks and plays (tap a line, Play from here).

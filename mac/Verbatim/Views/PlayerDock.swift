@@ -29,13 +29,18 @@ struct PlayerDock: View {
             .accessibilityLabel(app.player.isPlaying ? "Pause" : "Play")
 
             skip(.iconBack5, -5, "Back 5 seconds (←)")
-            HStack(spacing: 4) {
-                Text(app.player.time.timecode).foregroundStyle(Ink.paperFixed)
-                Text("/").foregroundStyle(Ink.paperFixed.opacity(0.55))
-                Text(total.timecode).foregroundStyle(Ink.paperFixed.opacity(0.75))
+            if let note = clock.note {
+                // Where the time is, for a moment after playback jumps past a sponsor read.
+                SkippedSponsorNote(text: note)
+            } else {
+                HStack(spacing: 4) {
+                    Text(app.player.time.timecode).foregroundStyle(Ink.paperFixed)
+                    Text("/").foregroundStyle(Ink.paperFixed.opacity(0.55))
+                    Text(total.timecode).foregroundStyle(Ink.paperFixed.opacity(0.75))
+                }
+                .font(Ink.mono(12))
+                .fixedSize()
             }
-            .font(Ink.mono(12))
-            .fixedSize()
 
             WaveTrack(values: transcript.waveform, progress: total > 0 ? app.player.time / total : 0,
                       marks: transcript.notes.filter(\.isBookmark).compactMap { $0.at }.map { $0 / max(total, 1) },
