@@ -6,26 +6,26 @@ import UIKit
 // line drawing per screen. Apple owns the chrome (tab bar, navigation buttons, sheets, menus); everything here is the
 // content layer, opaque, and never sits under glass.
 
-// MARK: - Phone-local tokens
+// MARK: - Phone names for shared tokens
 
-/// Tokens the website style needs that `Ink` (Tokens.swift) doesn't have yet. Kept here so the phone can change
-/// without touching the shared file; move them into `Ink` when the Mac adopts the same values.
+/// The website style's names on the iPhone, as aliases of `Ink` (Tokens.swift, shared with the Mac and the keyboard),
+/// so every color value lives in that one file.
 enum PhoneInk {
     /// Color panels: the bright fills on paper, slightly deeper in dark mode so they don't glow on the near-black
     /// green. Text and line art on them is always `Ink.inkFixed`.
-    static let record = Ink.dyn(0xFB7350, 0xE2694B)
-    static let butter = Ink.dyn(0xF4C76B, 0xDDB563)
-    static let sage = Ink.dyn(0xAFC398, 0x9DB088)
-    static let petal = Ink.dyn(0xEFB6C8, 0xD9A3B5)
+    static var record: Color { Ink.panelRecord }
+    static var butter: Color { Ink.panelButter }
+    static var sage: Color { Ink.panelSage }
+    static var petal: Color { Ink.panelPetal }
     /// Soft chips, segmented tracks, and search fields: a warmer, deeper wash than `Ink.wash`.
-    static let wash = Ink.dyn(0xE6DFD1, 0x22312A)
+    static var wash: Color { Ink.chip }
     /// The hard offset shadow under the Record panel (4, 5).
-    static let hard = Ink.dyn(0x26352E, 0x0C1310)
+    static var hard: Color { Ink.hard }
     /// A switch that's on: ink on paper, a lighter sage on dark so the white knob always shows.
-    static let switchOn = Ink.dyn(0x26352E, 0x6E8A58)
+    static var switchOn: Color { Ink.switchOnInk }
     /// Selected chips and segments: ink with paper text (paper with ink text in dark).
-    static let chipOn = Ink.ink
-    static let chipOnText = Ink.paper
+    static var chipOn: Color { Ink.ink }
+    static var chipOnText: Color { Ink.paper }
 }
 
 // MARK: - Grain

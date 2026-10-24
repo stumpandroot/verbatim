@@ -72,6 +72,9 @@ enum Ink {
     /// Filter chips at rest (website style): a soft wash, no border. Selected chips are `ink` with `paper` text.
     static let chip = dyn(0xE6DFD1, 0x22312A)
     static let chipHover = dyn(0xDAD4C7, 0x2E3B34)
+    /// A switch that's on in the iPhone's website style: ink on paper, the lighter sage on dark so the white knob
+    /// always shows. (`switchOn` is the deep sage the Mac uses.)
+    static let switchOnInk = dyn(inkHex, 0x6E8A58)
     /// Status text for something kept (a video kept from a link): sage mixed into ink, text-safe on paper and card.
     static let keptText = dynC(0x5D6E58, 0xD2D6C0, 0x3E4A3A, 0xE3E6D6)
     /// Neutral chips and tags (kinds, tags, speakers, projects, counts): ink at 6% behind `dim` text.
