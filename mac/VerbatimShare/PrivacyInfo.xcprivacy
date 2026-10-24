@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- The share extension: its own defaults for the motion setting (CA92.1, Tokens.swift), and the App Group shared
-     with the app (1C8F.1), where shared files and links wait in the inbox (VerbatimInbox.swift). -->
+     with the app (1C8F.1), where shared files and links wait in the inbox (VerbatimInbox.swift); and the free
+     space, checked before a shared file is copied (E174.1, ShareViewController.swift). -->
 <plist version="1.0">
 <dict>
 	<key>NSPrivacyTracking</key>
@@ -17,6 +18,12 @@
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array><string>CA92.1</string><string>1C8F.1</string></array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array><string>E174.1</string></array>
 		</dict>
 	</array>
 </dict>

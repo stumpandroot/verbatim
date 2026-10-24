@@ -391,9 +391,19 @@ enum PhoneLinkFetcher {
     }
 
     /// The link's thumbnail, saved into Paths.thumbs (synced, like the Mac's). Returns the file name.
+    /// At most `thumbnailMaxBytes`: a bigger image is skipped, read in pieces so it never fills memory first.
     static func saveThumbnail(_ remote: URL, as name: String) async -> String? {
-        guard let (data, resp) = try? await URLSession.shared.data(from: remote),
-              (resp as? HTTPURLResponse)?.statusCode == 200, UIImage(data: data) != nil else { return nil }
+        guard let (bytes, resp) = try? await URLSession.shared.bytes(from: remote),
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        if resp.expectedContentLength > thumbnailMaxBytes { bytes.task.cancel(); return nil }
+        var data = Data()
+        do {
+            for try await b in bytes {
+                data.append(b)
+                if data.count > thumbnailMaxBytes { bytes.task.cancel(); return nil }
+            }
+        } catch { return nil }
+        guard UIImage(data: data) != nil else { return nil }
         let ext = ["jpg", "jpeg", "png", "webp"].contains(remote.pathExtension.lowercased()) ? remote.pathExtension.lowercased() : "jpg"
         let file = name + "." + ext
         do {
@@ -403,6 +413,9 @@ enum PhoneLinkFetcher {
     }
 
     // MARK: Helpers
+
+    /// The largest link thumbnail Verbose saves (5 MB).
+    static let thumbnailMaxBytes = 5_000_000
 
     static let mediaExts: Set<String> = ["mp3", "m4a", "wav", "aac", "aif", "aiff", "caf", "flac", "mp4", "m4v", "mov"]
     private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"

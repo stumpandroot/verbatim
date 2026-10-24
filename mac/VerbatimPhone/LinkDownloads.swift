@@ -37,6 +37,18 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
     private var runs: [UUID: UUID] = [:]
     /// Tasks whose events are already handled in didFinishDownloadingTo (a next chunk, or a failure).
     private var handled: [Int: Error?] = [:]
+
+    /// The largest file a link downloads (4 GB). A bigger or endless file stops, so a link can't fill the iPhone.
+    static let maxBytes: Int64 = 4 * 1024 * 1024 * 1024
+    static let tooLarge = LinkFetchError.message("This file is larger than 4 GB, too large to download on iPhone.")
+
+    /// Stops a download that is, or says it will be, larger than `maxBytes`.
+    private func stopIfTooLarge(_ task: URLSessionDownloadTask, have: Int64, expected: Int64?) -> Bool {
+        guard have > Self.maxBytes || (expected ?? 0) > Self.maxBytes else { return false }
+        handled[task.taskIdentifier] = Self.tooLarge
+        task.cancel()
+        return true
+    }
     private var session: URLSession!
 
     private override init() {
@@ -228,6 +240,8 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
                     totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         guard let job = job(of: downloadTask), isCurrent(job) else { return }
+        let expected = job.chunked ? job.total : (totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil)
+        if stopIfTooLarge(downloadTask, have: (job.chunked ? job.offset : 0) + totalBytesWritten, expected: expected) { return }
         if job.chunked {
             report(job.id, job.total.map { min(1, Double(job.offset + totalBytesWritten) / Double(max(1, $0))) })
         } else {
@@ -253,6 +267,7 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
             }
             let part = Self.partURL(job.id, job.ext)
             let total = http?.value(forHTTPHeaderField: "Content-Range").flatMap { $0.split(separator: "/").last }.flatMap { Int64($0) }
+            if let t = total, t > Self.maxBytes { handled[downloadTask.taskIdentifier] = Self.tooLarge; return }
             var next = job
             next.total = total ?? job.total
             let have = Self.size(part) ?? 0
@@ -299,6 +314,12 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         let marked = handled.removeValue(forKey: task.taskIdentifier)
         guard let job = job(of: task), isCurrent(job) else { return }
+        if error != nil, case .some(.some(let failure)) = marked {
+            // Stopped on purpose (too large): its partial files go, and the reason is the error.
+            removeFiles(job.id)
+            resolve(job.id, .failure(failure))
+            return
+        }
         if let error {
             let ns = error as NSError
             if let data = ns.userInfo[NSURLSessionDownloadTaskResumeData] as? Data, !job.chunked {

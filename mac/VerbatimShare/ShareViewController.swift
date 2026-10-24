@@ -174,6 +174,21 @@ enum ShareIntake {
         }
     }
 
+    /// Free space kept after a copy, so a shared file never fills the iPhone (500 MB).
+    static let spareBytes: Int64 = 500_000_000
+
+    /// Refuses a file that doesn't fit in the free space, less `spareBytes`.
+    private static func checkSpace(for url: URL, in inbox: URL) throws {
+        let size = Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        guard let free = (try? inbox.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage,
+              size + spareBytes > free else { return }
+        throw ShareSpaceError()
+    }
+
+    struct ShareSpaceError: LocalizedError {
+        var errorDescription: String? { "There isn't enough free space on this iPhone for this file. Free up some space, then share it again." }
+    }
+
     /// Copies a file into the inbox and writes its manifest. Returns the name to show.
     private static func store(file url: URL, typeID: String?, suggested: String?, in inbox: URL) throws -> String {
         let id = UUID()
@@ -183,6 +198,7 @@ enum ShareIntake {
         if ext.isEmpty { ext = "mov" }
         ext = ext.lowercased()
         let fileName = id.uuidString + "." + ext
+        try checkSpace(for: url, in: inbox)
         try FileManager.default.copyItem(at: url, to: inbox.appendingPathComponent(fileName))
         var original = (suggested?.isEmpty == false ? suggested! : url.lastPathComponent)
         if (original as NSString).pathExtension.isEmpty { original += "." + ext }
