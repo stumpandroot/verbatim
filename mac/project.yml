@@ -209,8 +209,10 @@ targets:
       properties:
         com.apple.security.device.audio-input: true
         com.apple.security.cs.allow-jit: false
-        com.apple.security.cs.allow-unsigned-executable-memory: true
-        com.apple.security.cs.disable-library-validation: true
+        # No disable-library-validation and no allow-unsigned-executable-memory here: everything the app loads
+        # (Sparkle, the FFmpeg frameworks, the Swift packages) is signed with the app's own team, and Harper is
+        # linked in statically. Only the yt-dlp helper needs the two exceptions (Helper.entitlements, build.sh).
+        # Replacing an FFmpeg framework (LGPL) means signing the app again, as any change to a signed bundle does.
         # Watched folders keep access through security-scoped bookmarks. The Mac app isn't sandboxed, so these
         # are inert today; they keep the bookmarks working if the sandbox is ever turned on.
         com.apple.security.files.user-selected.read-write: true
