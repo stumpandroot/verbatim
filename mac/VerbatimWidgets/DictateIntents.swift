@@ -100,6 +100,9 @@ struct DictateIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Dictate"
     static var description = IntentDescription("Starts or stops a Verbose dictation from any app. Your words go into the Verbose keyboard when it's open, or on the clipboard.")
     static var openAppWhenRun: Bool = false
+    /// On a locked iPhone, Face ID, Touch ID, or the passcode comes first, so nobody holding it can put words in
+    /// your library and on your clipboard. Done and Cancel stay open, so a take can always be stopped.
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
     init() {}
 
     func perform() async throws -> some IntentResult {
@@ -148,6 +151,8 @@ struct ActionButtonIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Verbose action button"
     static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate a take, record a voice note, or open live captions.")
     static var openAppWhenRun: Bool = false
+    /// As for Dictate: unlock first on a locked iPhone.
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
     init() {}
 
     func perform() async throws -> some IntentResult {
