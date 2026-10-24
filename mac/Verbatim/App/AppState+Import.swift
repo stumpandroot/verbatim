@@ -115,9 +115,19 @@ extension AppState {
     }
 
     /// A link added on the iPhone: this Mac fetches its audio into the same transcript and transcribes it.
-    func claimIfPendingLink(_ t: Transcript) {
+    /// `userStarted` is true when you chose Retry on this Mac. Links that arrive by sync are fetched without any
+    /// browser sign-in: a video that needs one waits for you to choose Retry, which then uses the browser chosen in
+    /// Settings.
+    func claimIfPendingLink(_ t: Transcript, userStarted: Bool = false) {
         guard t.pendingLink, t.deletedAt == nil, t.audioFileName == nil,
-              let link = t.sourceURL ?? t.link?.url, LinkFetcher.canFetch(link), !claiming.contains(t.id) else { return }
+              let link = t.sourceURL ?? t.link?.url, !claiming.contains(t.id) else { return }
+        // The same check as a pasted link: a web address (http or https), nothing else.
+        guard LinkFetcher.looksLikeLink(link) else {
+            Log.note("synced link ignored: not an http(s) link")
+            if userStarted { store.update(t.id) { $0.pendingLink = false; $0.status = .failed; $0.stage = nil; $0.error = "That doesn't look like a link." } }
+            return
+        }
+        guard LinkFetcher.canFetch(link) else { return }
         // Local Only: the link waits for the iPhone or for Local Only to be turned off.
         guard NetworkGate.permits(.linkDownload) else { return }
         claiming.insert(t.id)
@@ -132,8 +142,10 @@ extension AppState {
                 do {
                     f = try await LinkFetcher.fetch(link, progress: stage)
                 } catch let e as LinkFetcher.HelperError where e.needsSignIn {
-                    // No sheet for links from the iPhone; the browser chosen in Settings is used when there is one.
+                    // Never a browser's sign-in without you: a synced link waits for Retry; Retry uses the browser
+                    // chosen in Settings, when there is one.
                     guard let saved = LinkSignIn.saved(), LinkSignIn.isInstalled(saved) else { throw e }
+                    guard userStarted else { throw SyncedLinkNeedsSignIn(browser: saved.name) }
                     f = try await LinkFetcher.fetch(link, signIn: saved, progress: stage)
                 }
                 let dest = store.newAudioURL(ext: f.url.pathExtension.isEmpty ? "m4a" : f.url.pathExtension)
@@ -153,4 +165,10 @@ extension AppState {
             }
         }
     }
+}
+
+/// A link from the iPhone needs a browser's sign-in: never used on its own; Retry on this Mac uses it.
+private struct SyncedLinkNeedsSignIn: LocalizedError {
+    let browser: String
+    var errorDescription: String? { "This video needs a sign-in. Choose Retry to use your \(browser) sign-in." }
 }

@@ -9,7 +9,7 @@ extension AppState {
         // A link whose audio never arrived (one the iPhone couldn't fetch): this Mac fetches it.
         if t.source == .link, t.audioFileName == nil, let link = t.sourceURL ?? t.link?.url, LinkFetcher.canFetch(link) {
             store.update(t.id) { $0.pendingLink = true; $0.status = .processing; $0.error = nil; $0.stage = nil }
-            if let fresh = store.transcript(t.id) { claimIfPendingLink(fresh) }
+            if let fresh = store.transcript(t.id) { claimIfPendingLink(fresh, userStarted: true) }
             return
         }
         coordinator.retry(t)
