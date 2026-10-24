@@ -123,8 +123,9 @@ targets:
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
         NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
         NSHighResolutionCapable: true
-        # Sparkle (mac/Updates/README.md). The feed lives on the `updates` branch; CI rewrites it.
-        SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbatim/updates/appcast.xml
+        # Sparkle (mac/Updates/README.md). The feed lives in the public stumpandroot/verbose-updates repo (main
+        # branch), which holds only the feed and the DMGs; CI rewrites it.
+        SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbose-updates/main/appcast.xml
         # PLACEHOLDER: paste the EdDSA public key printed by Sparkle's `generate_keys` here.
         # While this is empty, the app never starts the updater (no checks, no error dialogs).
         SUPublicEDKey: ""

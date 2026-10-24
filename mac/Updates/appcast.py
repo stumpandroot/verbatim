@@ -7,8 +7,9 @@ writes the file back. Items of the other channel are left as they are. See mac/U
 
 Example:
   python3 appcast.py appcast.xml --channel beta --version 123 --short-version 0.0.0 \
-    --url https://github.com/stumpandroot/verbatim/releases/download/beta-123/Verbatim-universal.dmg \
-    --length 123456 --signature BASE64== --notes "Build 123 from main" --notes-link https://github.com/...
+    --url https://github.com/stumpandroot/verbose-updates/releases/download/beta-123/Verbose.dmg \
+    --length 123456 --signature BASE64== --notes "Beta build 123 of main" \
+    --notes-link https://github.com/stumpandroot/verbose-updates/releases/tag/beta-123
 """
 import argparse
 import email.utils
@@ -18,7 +19,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
-FEED_URL = "https://raw.githubusercontent.com/stumpandroot/verbatim/updates/appcast.xml"
+FEED_URL = "https://raw.githubusercontent.com/stumpandroot/verbose-updates/main/appcast.xml"
 MIN_SYSTEM = "14.0"
 
 ET.register_namespace("sparkle", SPARKLE)

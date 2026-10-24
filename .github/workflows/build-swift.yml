@@ -11,20 +11,21 @@ name: Build Mac app (SwiftUI)
 # TestFlight (iPhone): ASC_KEY_ID, ASC_ISSUER_ID, and ASC_KEY_P8. Xcode's cloud signing for App Store distribution
 # needs an App Store Connect API key with the Admin role. With them, every build of main uploads the iPhone app to
 # TestFlight.
-# Automatic updates (Sparkle, mac/Updates/README.md): SPARKLE_PRIVATE_KEY (EdDSA key from `generate_keys -x`). With it
-# and a Developer ID-signed, notarized DMG, builds of main become beta-<run> prereleases and mac-v* tags become
-# stable releases, and the `updates` branch's appcast.xml points at them.
+# Automatic updates (Sparkle, mac/Updates/README.md): SPARKLE_PRIVATE_KEY (EdDSA key from `generate_keys -x`) and
+# UPDATES_TOKEN (fine-grained token, Contents read/write on stumpandroot/verbose-updates only), both in the release
+# environment. With them and a Developer ID-signed, notarized DMG, builds of main become beta-<run> prereleases and
+# mac-v* tags become releases in the public verbose-updates repo, and its appcast.xml points at them.
 #
 # How secrets are kept apart (security audit A1, A3, A8, A9):
 #   - Each secret is passed only to the one step that uses it, never to a whole job. Third-party code (Rust crates,
 #     FFmpeg, Homebrew) is built before any key is on the runner, and every key, keychain, and credential is deleted
 #     before the app runs for its screenshot tour, self-test, or speech bench.
-#   - Jobs that sign or upload (`build` on main and mac-v* tags, `testflight`) use the `release` environment, so
-#     its protection rules (required reviewers, allowed branches) and secrets apply. GitHub creates the environment,
-#     unprotected, the first time a job uses it. Builds of other branches started by hand use no environment and
+#   - Jobs that sign or upload (`build` on main and mac-v* tags, `updates`, `testflight`) use the `release`
+#     environment, so its protection rules (required reviewers, allowed branches) and secrets apply. GitHub creates
+#     the environment, unprotected, the first time a job uses it. Builds of other branches started by hand use no environment and
 #     sign only with repository secrets, if any are left.
-#   - The workflow token is read-only, except in the small jobs that push to ci-screens or updates or publish a
-#     release; they run no build tools. Checkouts don't keep the token.
+#   - The workflow token is read-only, except in the small jobs that push to ci-screens; they run no build tools.
+#     Checkouts don't keep the token. UPDATES_TOKEN reaches only the updates job's publish step.
 #   - Every action is pinned to a full commit SHA (the tag is in the comment).
 
 on:
@@ -53,7 +54,7 @@ jobs:
       run:
         working-directory: mac
     outputs:
-      # The DMG's Sparkle signature, for the beta and release jobs' appcast update (not secret).
+      # The DMG's Sparkle signature, for the updates job's appcast update (not secret).
       sparkle_signature: ${{ steps.sparkle.outputs.signature }}
       sparkle_length: ${{ steps.sparkle.outputs.length }}
       sparkle_short_version: ${{ steps.sparkle.outputs.short_version }}
@@ -402,59 +403,58 @@ jobs:
           git add . && git commit -q -m "Build ${N} from ${GITHUB_SHA::7}"
           git push -q -f "https://github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
 
-  # Beta channel: builds of main become beta-<run> prereleases, and the appcast on the updates branch points at them.
-  beta:
-    name: "Updates: publish this build of main as a beta"
+  # Automatic updates (mac/Updates/README.md): publishes this build's signed, notarized DMG to the public
+  # stumpandroot/verbose-updates repo (feed and DMGs only, never source) and points its appcast at it. Builds of main
+  # become beta-<run> prereleases and refresh beta-latest; mac-v* tags become releases. This repo gets no releases.
+  # Without UPDATES_TOKEN, SPARKLE_PRIVATE_KEY, or a Sparkle signature from the build, it skips with a notice.
+  updates:
+    name: "Updates: publish to verbose-updates"
     needs: build
-    if: github.ref == 'refs/heads/main' && needs.build.outputs.sparkle_signature != ''
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mac-v')
     runs-on: ubuntu-latest
+    environment: release
     continue-on-error: true
     permissions:
-      contents: write
-    defaults:
-      run:
-        working-directory: mac
+      contents: read
+    env:
+      # Only whether each secret exists; UPDATES_TOKEN goes to the publish step alone.
+      HAS_UPDATES_TOKEN: ${{ secrets.UPDATES_TOKEN != '' }}
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+      HAS_SIGNATURE: ${{ needs.build.outputs.sparkle_signature != '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Check what's set up
+        id: gate
+        run: |
+          if [ "$HAS_UPDATES_TOKEN" != "true" ]; then
+            echo "::notice::No update published: UPDATES_TOKEN isn't set in the release environment (mac/Updates/README.md)."
+          elif [ "$HAS_SPARKLE_KEY" != "true" ]; then
+            echo "::notice::No update published: SPARKLE_PRIVATE_KEY isn't set in the release environment (mac/Updates/README.md)."
+          elif [ "$HAS_SIGNATURE" != "true" ]; then
+            echo "::notice::No update published: the build made no Sparkle signature. See the build job's \"Updates: sign the DMG for Sparkle\" step (Developer ID signing and notarization are required)."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "publish=false" >> "$GITHUB_OUTPUT"
+      - if: steps.gate.outputs.publish == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: mac/Updates
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - if: steps.gate.outputs.publish == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: Verbatim-universal
-          path: mac/dist
-      - name: Release and appcast
+          path: dist
+      - name: Publish the DMG and the appcast
+        if: steps.gate.outputs.publish == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATES_TOKEN: ${{ secrets.UPDATES_TOKEN }}
+          UPDATES_REPO: stumpandroot/verbose-updates
           SIG: ${{ needs.build.outputs.sparkle_signature }}
           LEN: ${{ needs.build.outputs.sparkle_length }}
           SHORT: ${{ needs.build.outputs.sparkle_short_version }}
           BUNDLE: ${{ needs.build.outputs.sparkle_bundle_version }}
-        run: |
-          set -euo pipefail
-          N="${GITHUB_RUN_NUMBER}"; TAG="beta-${N}"; R="$GITHUB_REPOSITORY"
-          SUBJECT="$(git log -1 --format=%s)"
-          if gh release view "$TAG" -R "$R" > /dev/null 2>&1; then
-            # A re-run keeps the run number: replace the asset rather than failing.
-            gh release upload "$TAG" dist/Verbatim-universal.dmg -R "$R" --clobber
-          else
-            gh release create "$TAG" dist/Verbatim-universal.dmg -R "$R" --prerelease --target "$GITHUB_SHA" \
-              --title "Beta build ${N}" \
-              --notes "Automatic beta build ${N} of main (${GITHUB_SHA::7}): ${SUBJECT}. For testing; tagged releases are the stable channel."
-          fi
-          URL="https://github.com/${R}/releases/download/${TAG}/Verbatim-universal.dmg"
-          bash Updates/publish-appcast.sh --channel beta --version "$BUNDLE" --short-version "$SHORT" \
-            --url "$URL" --length "$LEN" --signature "$SIG" \
-            --title "Verbose beta ${N}" --notes "Beta build ${N}: ${SUBJECT}" \
-            --notes-link "https://github.com/${R}/releases/tag/${TAG}"
-          # Keep the newest 5 beta prereleases; delete older ones and their tags.
-          gh release list -R "$R" --limit 200 --json tagName,isPrerelease \
-            --jq '.[] | select(.isPrerelease and (.tagName | test("^beta-[0-9]+$"))) | .tagName' \
-            | sort -t- -k2,2 -n -r | tail -n +6 | while IFS= read -r OLD; do
-              echo "Deleting old beta $OLD"
-              gh release delete "$OLD" -R "$R" --yes --cleanup-tag || echo "::warning::couldn't delete $OLD"
-            done
+        run: bash mac/Updates/publish-update.sh dist/Verbatim-universal.dmg
 
   # Accuracy and latency bench (mac/Bench/README.md), on its own runner with no secrets, from this build's DMG.
   # A bench problem never blocks a build. bench-<run>.json and bench-<run>.md go to this build's ci-screens commit
@@ -886,48 +886,3 @@ jobs:
       - name: Remove the App Store Connect key
         if: always()
         run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
-
-  release:
-    name: Publish release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/mac-v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: Verbatim-universal
-          path: dmgs
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: dmgs/*.dmg
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-      # Automatic updates: point the appcast at this release's DMG, after the asset exists. The build job signed it.
-      # A tag with a suffix (mac-v2.1.0-beta.1) is a prerelease and goes to the beta channel; others are stable.
-      - name: "Updates: check out the appcast scripts"
-        if: needs.build.outputs.sparkle_signature != ''
-        continue-on-error: true
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          path: src
-          sparse-checkout: mac/Updates
-          persist-credentials: false
-      - name: "Updates: add this release to the appcast"
-        if: needs.build.outputs.sparkle_signature != ''
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIG: ${{ needs.build.outputs.sparkle_signature }}
-          LEN: ${{ needs.build.outputs.sparkle_length }}
-          SHORT: ${{ needs.build.outputs.sparkle_short_version }}
-          BUNDLE: ${{ needs.build.outputs.sparkle_bundle_version }}
-          CHANNEL: ${{ contains(github.ref_name, '-') && 'beta' || 'stable' }}
-        run: |
-          set -euo pipefail
-          TAG="$GITHUB_REF_NAME"; R="$GITHUB_REPOSITORY"
-          bash src/mac/Updates/publish-appcast.sh --channel "$CHANNEL" --version "$BUNDLE" --short-version "$SHORT" \
-            --url "https://github.com/${R}/releases/download/${TAG}/Verbatim-universal.dmg" \
-            --length "$LEN" --signature "$SIG" --title "Verbose ${SHORT}" \
-            --notes-link "https://github.com/${R}/releases/tag/${TAG}"
