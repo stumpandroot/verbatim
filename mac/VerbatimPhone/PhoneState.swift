@@ -116,9 +116,11 @@ final class PhoneState: ObservableObject {
         // edits to other transcripts used to recount every dictation on the main thread.
         store.$transcripts.combineLatest(FlowSettings.shared.$typingWPM)
             .debounce(for: .seconds(1), scheduler: Self.statsQueue)
-            .map { list, wpm in (dictations: list.filter { $0.deletedAt == nil && $0.isDictation }, wpm: wpm) }
-            .removeDuplicates { $0.dictations == $1.dictations && $0.wpm == $1.wpm }
-            .sink { input in KeyboardBridge.writeStats(Self.keyboardStats(input.dictations, typingWPM: input.wpm)) }
+            .map { (pair: ([Transcript], Int)) -> StatsInput in
+                StatsInput(dictations: pair.0.filter { $0.deletedAt == nil && $0.isDictation }, typingWPM: pair.1)
+            }
+            .removeDuplicates()
+            .sink { (input: StatsInput) in KeyboardBridge.writeStats(Self.keyboardStats(input.dictations, typingWPM: input.typingWPM)) }
             .store(in: &bag)
         recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
         recorder.onInputSwitched = { [weak self] note in
@@ -145,6 +147,12 @@ final class PhoneState: ObservableObject {
         // The recording's Live Activity and its paused-for-a-call notification (RecordingPresence.swift).
         RecordingPresence.shared.attach(self)
         if PhoneUITest.enabled { PhoneUITest.run(self) }
+    }
+
+    /// What the keyboard's Home numbers depend on: live dictations and the typing pace.
+    private struct StatsInput: Equatable {
+        var dictations: [Transcript]
+        var typingWPM: Int
     }
 
     /// Where the keyboard's Home numbers are worked out (`keyboardStats`), off the main thread.
