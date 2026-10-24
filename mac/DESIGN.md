@@ -19,7 +19,7 @@ The palette lives in `mac/Verbatim/Views/Tokens.swift` (`Ink`). Use tokens only.
 | `petal` | `#EFB6C8` | **App audio** | App audio tile, app-audio chips |
 | ink outline on `card` | — | **Live captions** | Live captions tile and its chips |
 
-Neutral (`ink` at 6% with `dim` text, plus the item's own diagram or initials): kinds (journal, idea, meeting, note), tags, projects, filters, and counts. They never borrow an action hue.
+Neutral (`ink` at 6% with `dim` text, plus the item's own diagram or initials): kinds (journal, idea, meeting, note, podcast, video, talk, interview), tags, projects, filters, and counts. They never borrow an action hue.
 
 Speaker pills in a transcript are the one exception: they may use the four panel colors (`panelRecord`, `panelPetal`, `panelSage`, `panelButter`) in a fixed rotation by speaker order (first speaker record, then petal, sage, butter, and around again), with ink text and the speaker's name. The name carries the meaning; the hue only tells speakers apart. Everywhere else, color still means a capture mode.
 

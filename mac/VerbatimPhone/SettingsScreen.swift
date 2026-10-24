@@ -341,7 +341,7 @@ struct SettingsScreen: View {
             .settingsSearchTarget("hideFiller", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
-                          subtitle: "Other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
+                          subtitle: "In voice memos, other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
             .settingsSearchTarget("mainSpeaker", flash: searchFlash)
         SettingsDivider()
         Menu {

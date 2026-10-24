@@ -107,7 +107,7 @@ enum SettingsSearchIndex {
         .init(id: "hideFiller", section: "Transcription", label: "Hide filler lines", keywords: ["um", "uh", "filler", "clean"],
               description: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view"),
         .init(id: "mainSpeaker", section: "Transcription", label: "Main speaker only", keywords: ["background voices", "speakers", "focus"],
-              description: "Other voices fold into a Background voices section"),
+              description: "In voice memos, other voices fold into a Background voices section"),
         .init(id: "audioTracks", section: "Transcription", label: "Files with several audio tracks",
               keywords: ["multiple audio tracks", "mkv", "video", "language", "commentary", "mix", "separate", "speakers", "import"],
               description: "Mix every track, or keep each track as a speaker"),

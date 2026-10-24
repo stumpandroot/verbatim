@@ -147,5 +147,16 @@ if let readNow {
                           localTombstones: [gone2], remoteTombstones: [], now: at(300)).items.isEmpty)
 }
 
+// A transcript file both devices wrote at once: the newest version wins on every device, so their copies agree again.
+check("a newer conflict version replaces the current file", SyncMerge.conflictWinner(current: at(100), others: [at(90), at(140), at(120)]) == 1)
+check("an older conflict version leaves the current file", SyncMerge.conflictWinner(current: at(200), others: [at(90), at(140)]) == nil)
+check("a tie keeps the current file", SyncMerge.conflictWinner(current: at(140), others: [at(140)]) == nil)
+check("an undated version never wins", SyncMerge.conflictWinner(current: at(1), others: [nil]) == nil)
+check("a current file with no date loses to a dated version", SyncMerge.conflictWinner(current: nil, others: [nil, at(5)]) == 1)
+// The two devices see each other's version as the conflict, and both settle on the phone's later write.
+let macSees = SyncMerge.conflictWinner(current: at(100), others: [at(160)])   // Mac's copy current, phone's newer
+let phoneSees = SyncMerge.conflictWinner(current: at(160), others: [at(100)]) // phone's copy current, Mac's older
+check("both devices keep the same version", macSees == 0 && phoneSees == nil)
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -43,7 +43,7 @@ for k in ["chapters", "translation", "rating", "starred", "colorLabel"] {
     check("unknown key \(k) is written back as it was", same(out[k], original[k]), "\(String(describing: out[k])) vs \(String(describing: original[k]))")
 }
 check("unknown enum values are written back", out["source"] as? String == "screenRecording" && out["status"] as? String == "archived"
-      && out["kind"] as? String == "podcast" && out["documentCleanedBy"] as? String == "cloudModel")
+      && out["kind"] as? String == "webinar" && out["documentCleanedBy"] as? String == "cloudModel")
 check("a newer schemaVersion is kept", out["schemaVersion"] as? Int == 3)
 check("known fields round-trip", out["title"] as? String == original["title"] as? String && same(out["segments"], original["segments"])
       && same(out["speakers"], original["speakers"]) && same(out["tags"], original["tags"]) && out["pinned"] as? Bool == true)
@@ -100,6 +100,54 @@ if let u = try? dec.decode(Transcript.self, from: unsafe) {
 let safe = Data(#"{"title":"OK","audioFileName":"2026-10-23 10.15.32 ab12.m4a","pendingAppend":"part 2.wav"}"#.utf8)
 let s2 = try? dec.decode(Transcript.self, from: safe)
 check("bare names decode unchanged", s2?.audioFileName == "2026-10-23 10.15.32 ab12.m4a" && s2?.pendingAppend == "part 2.wav")
+
+// The kinds added in October 2026 read and write as themselves here; a build before them reads them as unlabeled
+// and writes the raw value back (the "webinar" checks above are that path), so synced files stay safe both ways.
+for k in [RecordingKind.podcast, .video, .talk, .interview] {
+    var x = fresh; x.kind = k
+    let o = object((try? enc.encode(x)) ?? Data())
+    let back = try? dec.decode(Transcript.self, from: try enc.encode(x))
+    check("kind \(k.rawValue) round-trips", o["kind"] as? String == k.rawValue && back?.kind == k)
+}
+check("every new kind is pickable, none is a model kind",
+      [RecordingKind.podcast, .video, .talk, .interview].allSatisfy { RecordingKind.pickable.contains($0) && !RecordingKind.modelKinds.contains($0) })
+check("labels", [RecordingKind.podcast, .video, .talk, .interview].map(\.label) == ["Podcast", "Video", "Talk", "Interview"])
+
+// Background voices (Settings › Main speaker only): a voice memo with people nearby folds them; a podcast's host,
+// a meeting, a link, or an imported file never does.
+func voices(_ source: SourceKind, _ lines: [(String, Double)], kind: RecordingKind? = nil) -> Transcript {
+    var x = Transcript(title: "v", source: source, sourceLabel: "", duration: 60, audioFileName: nil, model: "")
+    var at = 0.0
+    x.segments = lines.map { l in defer { at += l.1 }; return Segment(start: at, end: at + l.1, text: "line", speaker: l.0) }
+    x.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
+    x.kind = kind
+    return x
+}
+// The self-test's "Errands and a long walk": S2 talks about 22% of the time.
+let walk = voices(.voiceMemo, [("S1", 8), ("S2", 3.2), ("S1", 6.8), ("S2", 2.8), ("S1", 6)])
+check("a voice memo with a few lines nearby folds them", walk.hasBackgroundVoices && walk.backgroundSegments.count == 2)
+check("the main speaker is the one who talks most", walk.mainSpeaker == "S1")
+// A podcast: the guest talks most, the host asks short questions (the 1:01:59 YouTube report).
+let host = voices(.link, [("S2", 4), ("S1", 30), ("S2", 5), ("S1", 40), ("S2", 3), ("S1", 25)])
+check("a link's host is never a background voice", !host.hasBackgroundVoices && host.backgroundSegments.isEmpty)
+check("the guest is still the main speaker", host.mainSpeaker == "S1")
+check("an imported file's voices never fold", voices(.file, [("S1", 50), ("S2", 3)]).backgroundSegments.isEmpty)
+check("app audio's voices never fold", voices(.app, [("S1", 50), ("S2", 3)]).backgroundSegments.isEmpty)
+check("a meeting's voices never fold", voices(.voiceMemo, [("S1", 50), ("S2", 3)], kind: .meeting).backgroundSegments.isEmpty)
+check("an interview's voices never fold", voices(.voiceMemo, [("S1", 50), ("S2", 3)], kind: .interview).backgroundSegments.isEmpty)
+check("a voice memo conversation doesn't fold the other half",
+      voices(.voiceMemo, [("S1", 20), ("S2", 15), ("S1", 20), ("S2", 15)]).backgroundSegments.isEmpty)
+var linkMemo = voices(.voiceMemo, [("S1", 50), ("S2", 3)]); linkMemo.sourceURL = "https://youtu.be/x"
+check("a voice-memo record with a link doesn't fold", linkMemo.backgroundSegments.isEmpty)
+
+// One device at a time: a job another device has taken over (Retry or a claimed link there) is never written back
+// by this one, so two devices never each keep their own words for one transcript.
+var job = fresh
+check("a job with no device is anyone's", job.jobIsMine("phone") && job.jobIsMine("mac"))
+job.processingDevice = "phone"
+check("a job is its device's", job.jobIsMine("phone"))
+check("another device's job is not this one's", !job.jobIsMine("mac"))
+check("the default is this device", job.jobIsMine() == (Device.id == "phone"))
 
 // JSONValue keeps every JSON shape.
 let shapes = Data(#"{"a":"s","b":1.5,"c":true,"d":null,"e":[1,"x",{"f":false}],"g":{"h":[]}}"#.utf8)

@@ -90,11 +90,30 @@ final class CloudSync: NSObject {
         if profile { store.ingestProfile() }
     }
 
-    /// Keeps the current version and drops the rest. Transcript edits are small and frequent, so the most
-    /// recent writer wins; Recently Deleted and the original engine output protect against real loss.
+    /// Keeps the current version and drops the rest: for the synced lists, whose conflict versions were merged in
+    /// entry by entry first (Store.ingestList). Transcripts use `resolveTranscriptConflicts`.
     nonisolated static func resolveConflicts(_ url: URL) {
         guard let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !versions.isEmpty else { return }
         for v in versions { v.isResolved = true }
         try? NSFileVersion.removeOtherVersionsOfItem(at: url)
+    }
+
+    /// A transcript file's conflict: the most recently modified version wins on every device (`SyncMerge.conflictWinner`),
+    /// then the rest are dropped. True when another device's version replaced this file, so the caller reads it again.
+    @discardableResult
+    nonisolated static func resolveTranscriptConflicts(_ url: URL) -> Bool {
+        guard let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !versions.isEmpty else { return false }
+        var replaced = false
+        let current = NSFileVersion.currentVersionOfItem(at: url)?.modificationDate
+        if let i = SyncMerge.conflictWinner(current: current, others: versions.map(\.modificationDate)) {
+            var err: NSError?
+            NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &err) { u in
+                do { _ = try versions[i].replaceItem(at: u, options: []); replaced = true }
+                catch { Log.note("sync: kept this device's copy of \(url.lastPathComponent): \(error.localizedDescription)") }
+            }
+        }
+        for v in versions { v.isResolved = true }
+        try? NSFileVersion.removeOtherVersionsOfItem(at: url)
+        return replaced
     }
 }

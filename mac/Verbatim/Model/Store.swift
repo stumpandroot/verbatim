@@ -891,7 +891,7 @@ final class Store: ObservableObject {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return nil }
         // A late launch read (`readLate`) is on its way: CloudSync's read waits for it, never on the main thread.
         if pendingSaves[id] != nil || inFlight[id] != nil || lateTranscripts.contains(id) { deferredIngest[id] = url; return nil }
-        CloudSync.resolveConflicts(url)
+        CloudSync.resolveTranscriptConflicts(url)
         guard let data = Cloud.read(url), var t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return nil }
         if let i = index(of: id) {
             // Keep this device's live progress label for jobs it's running.
@@ -911,7 +911,8 @@ final class Store: ObservableObject {
     func ingestUnchanged(_ url: URL) {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return }
         if pendingSaves[id] != nil || inFlight[id] != nil { deferredIngest[id] = url; return }
-        CloudSync.resolveConflicts(url)
+        // The other device wrote it at the same time and its version is newer: read that one.
+        if CloudSync.resolveTranscriptConflicts(url) { ingest(url) }
     }
 
     /// A transcript file disappeared (deleted for good on the other device).

@@ -35,7 +35,7 @@ struct Segment: Codable, Identifiable, Equatable {
 
 /// What a recording is, for filtering the library. Suggested automatically (`Transcript.kindIsAuto`), changeable later.
 enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
-    case journal, idea, meeting, note, dictation
+    case journal, idea, meeting, note, dictation, podcast, video, talk, interview
     static var fallback: RecordingKind { .note }
     init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
@@ -46,10 +46,17 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
         case .meeting: return "Meeting"
         case .note: return "Note"
         case .dictation: return "Dictation"
+        case .podcast: return "Podcast"
+        case .video: return "Video"
+        case .talk: return "Talk"
+        case .interview: return "Interview"
         }
     }
     /// The kinds a person can pick; dictation is set automatically for dictations.
-    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note]
+    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview]
+    /// The kinds Apple Intelligence may suggest for a recording (AutoLabel). Links and imported media get theirs from
+    /// `AutoLabel.mediaKind`; interview is only ever picked.
+    static let modelKinds: [RecordingKind] = [.journal, .idea, .meeting, .note]
 }
 
 /// A voice found by diarization. `label` is the engine's anonymous ID; `name` is what the person typed.
@@ -287,6 +294,11 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Sync: the device running this transcript's job (only that device resumes it), and its name for display.
     var processingDevice: String? = nil
     var processingDeviceName: String? = nil
+
+    /// Whether `device` may carry on with this transcript's job and write its result: no other device has taken the
+    /// job over since (a Retry, Transcribe again, or a claimed link there). Without this check two devices could
+    /// each transcribe one record, and each kept its own words.
+    func jobIsMine(_ device: String = Device.id) -> Bool { processingDevice == nil || processingDevice == device }
     /// A link added on iPhone, waiting for a Mac to fetch its audio (iPhone can't run the link helper).
     var pendingLink = false
     /// Dictations: which app it went to, the words before cleanup, and what was pasted.
@@ -540,10 +552,27 @@ struct Transcript: Codable, Identifiable, Equatable {
         return time.max { $0.value < $1.value }?.key
     }
 
-    /// Lines spoken by anyone other than the main speaker (background voices). Empty without a main speaker.
+    /// Lines spoken by anyone other than the main speaker (background voices). Empty without a main speaker, and
+    /// wherever the other voices are part of the recording (`hasBackgroundVoices`).
     var backgroundSegments: [Segment] {
-        guard let main = mainSpeaker else { return [] }
+        guard hasBackgroundVoices, let main = mainSpeaker else { return [] }
         return segments.filter { $0.speaker != nil && $0.speaker != main }
+    }
+
+    /// Main speaker only folds other voices away only in a recording made by one person with people nearby: a voice
+    /// memo where the others talk for under a third of the time. Never in a link, an imported file, app audio, a
+    /// multi-track recording, or a meeting, podcast, interview, talk, or video, where every voice is a participant
+    /// (a podcast's host is not a background voice).
+    var hasBackgroundVoices: Bool {
+        guard source == .voiceMemo, link == nil, sourceURL == nil, multitrack == nil else { return false }
+        if let kind, [.meeting, .podcast, .interview, .talk, .video].contains(kind) { return false }
+        guard let main = mainSpeaker else { return false }
+        var mine = 0.0, others = 0.0
+        for s in segments {
+            guard let sp = s.speaker else { continue }
+            if sp == main { mine += max(0, s.end - s.start) } else { others += max(0, s.end - s.start) }
+        }
+        return others < (mine + others) / 3
     }
 
     static func titleFrom(_ segments: [Segment]) -> String? {
