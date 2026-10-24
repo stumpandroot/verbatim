@@ -272,6 +272,8 @@ targets:
       - Verbatim/Document/Harper.swift
       - Verbatim/Document/Polish.swift
       - Verbatim/Sources/MediaImport.swift
+      # How long an MP4's samples really are (MediaImport checks fragmented files such as YouTube's M4A with it).
+      - Verbatim/Sources/MP4Timing.swift
       # The bundled FFmpeg's C layer and Swift side, its notice and license, and the import self-test. Its test
       # files (Resources/TestFixtures) stay out of the iPhone app, so they never ship to the App Store; the
       # iPhone self-test skips the import checks without them (the Mac's self-test runs them).

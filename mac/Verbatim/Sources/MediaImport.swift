@@ -112,6 +112,15 @@ enum MediaImport {
             Log.note("import: AVFoundation found no audio in a .\(ext) file; trying FFmpeg")
             return try await viaFFmpeg(src, into: m4aDest, separateTracksInto: folder, stage: stage)
         }
+        // A fragmented MP4 whose length AVFoundation misreads (YouTube's DASH M4A can read as twice as long): the
+        // samples say how long it really is, and FFmpeg decodes it into a file whose length is right, so the
+        // stored duration, the player's total time, and seeking all match the audio. Only fragmented audio-only
+        // files: a plain file's edit list, or a video track longer than the audio, rightly changes its length.
+        if !hasVideo, ["m4a", "mp4", "m4v", "mov"].contains(ext), let timing = MP4Timing.read(src), timing.fragmented, let real = timing.sampleSeconds,
+           let claimed = (try? await asset.load(.duration)).map(CMTimeGetSeconds), MP4Timing.disagrees(reported: claimed, samples: real) {
+            Log.note("import: AVFoundation reads a .\(ext) file as \(String(format: "%.1f", claimed)) s but its samples add up to \(String(format: "%.1f", real)) s; decoding it with FFmpeg")
+            return try await viaFFmpeg(src, into: m4aDest, separateTracksInto: folder, stage: stage)
+        }
         if audioTracks.count > 1 {
             do {
                 return try await severalTracks(src, asset: asset, tracks: audioTracks, into: m4aDest, separateTracksInto: folder, stage: stage)

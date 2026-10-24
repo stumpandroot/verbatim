@@ -172,7 +172,7 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
     private func request(_ job: Job) -> URLRequest {
         var req = URLRequest(url: job.url)
         if let ua = job.userAgent { req.setValue(ua, forHTTPHeaderField: "User-Agent") }
-        if job.chunked { req.setValue("bytes=\(job.offset)-\(job.offset + Self.chunk - 1)", forHTTPHeaderField: "Range") }
+        if job.chunked { req.setValue(LinkChunks.rangeHeader(offset: job.offset, chunk: Self.chunk), forHTTPHeaderField: "Range") }
         return req
     }
 
@@ -266,7 +266,7 @@ final class LinkDownloads: NSObject, URLSessionDownloadDelegate, @unchecked Send
                 return
             }
             let part = Self.partURL(job.id, job.ext)
-            let total = http?.value(forHTTPHeaderField: "Content-Range").flatMap { $0.split(separator: "/").last }.flatMap { Int64($0) }
+            let total = LinkChunks.total(contentRange: http?.value(forHTTPHeaderField: "Content-Range"))
             if let t = total, t > Self.maxBytes { handled[downloadTask.taskIdentifier] = Self.tooLarge; return }
             var next = job
             next.total = total ?? job.total
