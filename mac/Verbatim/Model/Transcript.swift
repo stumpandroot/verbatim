@@ -205,6 +205,51 @@ struct Note: Codable, Identifiable, Equatable {
     var byModel: Bool { aiAction != nil }
 }
 
+/// A sponsor read in a podcast or video (SponsorDetect), by time, so it survives edits to the lines. The transcript
+/// folds it into one row, playback can skip it, and summaries, labels, copy, and export leave it out.
+struct SponsorSpan: Codable, Identifiable, Equatable {
+    /// Who found it. A source a newer build added reads as the rules'.
+    enum Source: String, Codable, TolerantEnum {
+        case rules, model, person
+        static var fallback: Source { .rules }
+        init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
+    }
+    var id = UUID()
+    var start: Double
+    var end: Double
+    /// "Good Ranchers"; nil when nothing named it.
+    var name: String? = nil
+    var source: Source = .rules
+    /// Marked "Not a sponsor": kept only so detecting again (after Transcribe again) leaves that stretch alone.
+    var dismissed = false
+
+    init(start: Double, end: Double, name: String? = nil, source: Source = .rules) {
+        self.start = start; self.end = end; self.name = name; self.source = source
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case id, start, end, name, source, dismissed }
+        let c = try d.container(keyedBy: K.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        start = try c.decodeIfPresent(Double.self, forKey: .start) ?? 0
+        end = try c.decodeIfPresent(Double.self, forKey: .end) ?? start
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        source = (try? c.decodeIfPresent(Source.self, forKey: .source)) ?? .rules
+        dismissed = try c.decodeIfPresent(Bool.self, forKey: .dismissed) ?? false
+    }
+
+    func encode(to e: Encoder) throws {
+        enum K: String, CodingKey { case id, start, end, name, source, dismissed }
+        var c = e.container(keyedBy: K.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(start, forKey: .start)
+        try c.encode(end, forKey: .end)
+        try c.encodeIfPresent(name, forKey: .name)
+        try c.encode(source, forKey: .source)
+        if dismissed { try c.encode(true, forKey: .dismissed) }
+    }
+}
+
 struct Transcript: Codable, Identifiable, Equatable {
     enum Status: String, Codable, TolerantEnum {
         case processing, ready, failed
@@ -214,6 +259,7 @@ struct Transcript: Codable, Identifiable, Equatable {
     }
     /// Every stored field except the local-only paths, so those never reach the synced file.
     enum CodingKeys: String, CodingKey, CaseIterable {
+        case sponsors
         case id, title, createdAt, source, sourceLabel, sourceURL, duration, audioFileName, original, segments, speakers,
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, languageChoice, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
@@ -307,6 +353,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     var pendingAppend: String? = nil
     /// Multi-track recordings: one file per mic, each transcribed on its own and woven together by time.
     var multitrack: MultitrackInfo? = nil
+    /// Sponsor reads (SponsorDetect, Sponsors.swift): nil until a podcast or video is checked, [] when it has none.
+    /// Older builds keep the key as they found it and write it back.
+    var sponsors: [SponsorSpan]? = nil
     /// The file format of the file this was read from (`currentSchema` for new transcripts).
     var schemaVersion = Transcript.currentSchema
     /// What a newer build wrote that this one doesn't understand, written back unchanged on save.
@@ -386,6 +435,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         flow = try c.decodeIfPresent(FlowInfo.self, forKey: .flow)
         pendingAppend = try LibraryFile.checked(c.decodeIfPresent(String.self, forKey: .pendingAppend), field: "continued recording")
         multitrack = try? c.decodeIfPresent(MultitrackInfo.self, forKey: .multitrack)
+        // Spans a newer build wrote in a shape this one can't read are dropped, never the whole file.
+        sponsors = (try? c.decodeIfPresent([SponsorSpan].self, forKey: .sponsors)) ?? nil
         // An unknown kind (from a newer build) reads as unlabeled rather than failing the whole file.
         let rawKind = try? c.decodeIfPresent(String.self, forKey: .kind)
         if let rawKind, let k = RecordingKind(rawValue: rawKind) {
@@ -458,6 +509,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(summary, forKey: .summary)
         try c.encode(summaryByModel, forKey: .summaryByModel)
         try c.encodeIfPresent(multitrack, forKey: .multitrack)
+        try c.encodeIfPresent(sponsors, forKey: .sponsors)
         if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }
         try c.encode(documentMarkHistory, forKey: .documentMarkHistory)
         try c.encode(documentEdited, forKey: .documentEdited)
