@@ -55,7 +55,7 @@ final class TypingModel: ObservableObject {
     func refreshTraits(reset: Bool) {
         guard let p = proxy else { return }
         let newField = Self.mapField(p.keyboardType)
-        let newDocument = p.documentIdentifier
+        let newDocument = p.safeDocumentIdentifier
         let changedField = newField != field || newDocument != document
         if newField != field { field = newField }
         document = newDocument
@@ -540,5 +540,17 @@ final class KeyTouchView: UIView {
     override var accessibilityElements: [Any]? {
         get { elements }
         set {}
+    }
+}
+
+extension UITextDocumentProxy {
+    /// The field's `documentIdentifier`, read without Swift's bridge. Swift declares it as a non-optional `UUID`, but on
+    /// iOS 27 it is nil while the keyboard loads (before the field connects), and bridging nil to `UUID` traps:
+    /// build 185 crashed in `viewDidLoad` every time the keyboard opened. Nil here means "no field yet".
+    var safeDocumentIdentifier: UUID? {
+        let getter = #selector(getter: UITextDocumentProxy.documentIdentifier)
+        guard let object = self as? NSObject, object.responds(to: getter),
+              let value = object.perform(getter)?.takeUnretainedValue() as? NSUUID else { return nil }
+        return value as UUID
     }
 }

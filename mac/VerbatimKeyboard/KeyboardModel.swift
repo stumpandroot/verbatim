@@ -627,7 +627,7 @@ final class KeyboardModel: ObservableObject {
         let inserted = lead + final
         proxy?.insertText(inserted)
         insertion = Insertion(inserted: inserted, text: final, raw: raw, words: Self.wordCount(final),
-                              dictation: d, document: proxy?.documentIdentifier, at: Date())
+                              dictation: d, document: proxy?.safeDocumentIdentifier, at: Date())
         polishing = final == text && defaults.string(forKey: KeyboardBridge.Key.polishing) == d.uuidString
         set(.inserted)
         notice = nil
@@ -669,7 +669,7 @@ final class KeyboardModel: ObservableObject {
         let lead = ins.inserted.hasPrefix(" ") && !ins.text.hasPrefix(" ") ? " " : ""
         let decision = KeyboardBridge.polishSwap(inserted: ins.inserted, polished: lead + polished,
                                                  before: proxy.documentContextBeforeInput,
-                                                 sameField: ins.document == proxy.documentIdentifier,
+                                                 sameField: ins.document == proxy.safeDocumentIdentifier,
                                                  age: Date().timeIntervalSince(ins.at))
         switch decision {
         case .keep(let why):
