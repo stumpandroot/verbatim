@@ -28,6 +28,8 @@ enum PhoneLinkFetcher {
         var title: String?
         var site: String
         var channel: String?
+        /// yyyyMMdd, like the Mac's yt-dlp (`LinkInfo.uploadDate`). YouTube only.
+        var uploadDate: String? = nil
         var thumbnail: URL?
         var pageURL: String
         /// File extension for the download, when the media URL doesn't carry one.
@@ -360,9 +362,37 @@ enum PhoneLinkFetcher {
                 ?? streams.filterVideoAndAudio().filter({ $0.fileExtension == .mp4 }).lowestResolutionStream() else {
             throw LinkFetchError.message("This YouTube video has no audio Verbose can read.")
         }
+        async let page = youTubePageMeta(id)
         let meta = try? await video.metadata
-        return Resolved(media: pick.url, title: meta?.title, site: "YouTube", thumbnail: meta?.thumbnail?.url,
-                        pageURL: "https://www.youtube.com/watch?v=\(id)", ext: pick.fileExtension == .m4a ? "m4a" : "mp4", chunked: true)
+        let more = await page
+        return Resolved(media: pick.url, title: meta?.title, site: "YouTube", channel: more.channel, uploadDate: more.uploadDate,
+                        thumbnail: meta?.thumbnail?.url, pageURL: "https://www.youtube.com/watch?v=\(id)",
+                        ext: pick.fileExtension == .m4a ? "m4a" : "mp4", chunked: true)
+    }
+
+    /// The channel and upload date YouTubeKit doesn't give: from the public watch page (its `itemprop` tags and
+    /// player data), with the oEmbed endpoint's `author_name` for the channel. Best effort: anything missing (a
+    /// consent page, a timeout) stays nil and never stops the import.
+    private static func youTubePageMeta(_ id: String) async -> (channel: String?, uploadDate: String?) {
+        async let author = youTubeOEmbedAuthor(id)
+        var found: (channel: String?, uploadDate: String?) = (nil, nil)
+        if let u = URL(string: "https://www.youtube.com/watch?v=\(id)&hl=en") {
+            var req = URLRequest(url: u, timeoutInterval: 10)
+            // The desktop page: the mobile one escapes its player data differently.
+            req.setValue(desktopUserAgent, forHTTPHeaderField: "User-Agent")
+            if let (data, resp) = try? await URLSession.shared.data(for: req), (resp as? HTTPURLResponse)?.statusCode == 200 {
+                found = YouTubePageMeta.parse(html: String(decoding: data.prefix(4_000_000), as: UTF8.self))
+            }
+        }
+        return (await author ?? found.channel, found.uploadDate)
+    }
+
+    private static func youTubeOEmbedAuthor(_ id: String) async -> String? {
+        guard let u = YouTubePageMeta.oEmbedURL(videoID: id) else { return nil }
+        var req = URLRequest(url: u, timeoutInterval: 10)
+        req.setValue(desktopUserAgent, forHTTPHeaderField: "User-Agent")
+        guard let (data, resp) = try? await URLSession.shared.data(for: req), (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return YouTubePageMeta.author(oEmbed: data)
     }
     #endif
 
@@ -419,6 +449,7 @@ enum PhoneLinkFetcher {
 
     static let mediaExts: Set<String> = ["mp3", "m4a", "wav", "aac", "aif", "aiff", "caf", "flac", "mp4", "m4v", "mov"]
     private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    private static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 
     /// Ogg, Opus, and WebM: formats AVFoundation can't decode on iPhone. The format's name, or nil.
     static func unsupportedFormat(ext: String, mime: String?) -> String? {

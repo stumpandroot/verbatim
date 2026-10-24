@@ -555,9 +555,10 @@ final class PhoneState: ObservableObject {
                     r = resolved
                     guard self.stillWanted(id) else { return }
                     imp.title = resolved.title; imp.site = resolved.site; imp.thumbnailURL = imp.thumbnailURL ?? resolved.thumbnail
+                    if resolved.uploadDate != nil { Self.noteFetchedHere(id) }
                     self.store.update(id) { x in
                         if let title = resolved.title, !title.isEmpty, x.title == link || x.title.hasPrefix("http") { x.title = title }
-                        x.link = LinkInfo(url: resolved.pageURL, site: resolved.site, channel: resolved.channel)
+                        x.link = LinkInfo(url: resolved.pageURL, site: resolved.site, channel: resolved.channel, uploadDate: resolved.uploadDate)
                         x.stage = "Downloading"
                     }
                     imp.phase = .downloading
@@ -647,12 +648,23 @@ final class PhoneState: ObservableObject {
     var macSeen: Bool {
         let key = "sync.macSeen"
         if UserDefaults.standard.bool(forKey: key) { return true }
+        let fetchedHere = Set(UserDefaults.standard.stringArray(forKey: Self.fetchedHereKey) ?? [])
         let seen = store.transcripts.contains { t in
             t.source == .app || (t.processingDevice != Device.id && (t.processingDeviceName ?? "").contains("Mac"))
-                || t.link?.uploadDate != nil
+                || (t.link?.uploadDate != nil && !fetchedHere.contains(t.id.uuidString))
         }
         if seen { UserDefaults.standard.set(true, forKey: key) }
         return seen
+    }
+
+    /// Links whose upload date this iPhone read from YouTube itself, so `macSeen` doesn't take that date for the
+    /// Mac's yt-dlp.
+    private static let fetchedHereKey = "links.fetchedHere"
+    private static func noteFetchedHere(_ id: UUID) {
+        var ids = UserDefaults.standard.stringArray(forKey: fetchedHereKey) ?? []
+        guard !ids.contains(id.uuidString) else { return }
+        ids.append(id.uuidString)
+        UserDefaults.standard.set(Array(ids.suffix(2000)), forKey: fetchedHereKey)
     }
 
     /// Link downloads that stopped when Verbatim closed start again.
