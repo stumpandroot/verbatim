@@ -158,7 +158,7 @@ struct KeyboardView: View {
                     .frame(maxHeight: .infinity)
                 statusLine.padding(.horizontal, 18).padding(.bottom, 6)
                 ZStack {
-                    TalkPill(label: model.sessionLive ? "Tap to talk" : "Tap to start", action: model.record)
+                    TalkPill(label: "Tap to talk", action: model.record)
                         .accessibilityHint(model.sessionLive ? "Starts listening right away"
                                            : "Opens Verbose for a second to turn on the microphone, then comes back here")
                     if model.showsGlobe {
