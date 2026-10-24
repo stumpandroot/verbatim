@@ -1096,7 +1096,7 @@ private struct LiveWordsLine: View {
     private func line(_ joiner: String) -> Text {
         let full = settled + joiner + volatile
         if corrections {
-            let spans = SpokenCorrections.liveSpans(full, limit: 160)
+            let spans = LiveSpansMemo.spans(full)
             if spans.contains(where: { $0.style != .kept }) {
                 return spans.reduce(Text("")) { t, s in
                     s.style == .removed
@@ -1115,6 +1115,23 @@ private struct LiveWordsLine: View {
         let words = trimmed.split(separator: " ", omittingEmptySubsequences: true)
         guard words.count > count else { return ("", trimmed) }
         return (words.dropLast(count).joined(separator: " ") + " ", words.suffix(count).joined(separator: " "))
+    }
+}
+
+/// The live words' spoken-correction spans for the last text seen: the line redraws for other reasons too (the
+/// keyboard's own state), and the rules run again only when the words changed. `liveSpans` runs them on the last
+/// few sentences only, so each new word costs the same however long the dictation gets.
+@MainActor
+private enum LiveSpansMemo {
+    private static var text = ""
+    private static var spans: [SpokenCorrections.Span] = []
+
+    static func spans(_ full: String) -> [SpokenCorrections.Span] {
+        if full != text {
+            text = full
+            spans = SpokenCorrections.liveSpans(full, limit: 160)
+        }
+        return spans
     }
 }
 

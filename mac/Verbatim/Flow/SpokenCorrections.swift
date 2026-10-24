@@ -140,8 +140,43 @@ enum SpokenCorrections {
 
     /// Live words split for display: kept pieces in ink, removed pieces struck out, inserted pieces in ink. Only
     /// the last `limit` characters, cut at a word.
+    ///
+    /// With a limit, the rules run on the last few sentences (`liveTail`), not the whole text, so an update costs
+    /// the same however long the dictation gets. The result is the same as running them on the whole text
+    /// (`SpokenCorrectionsChecks`).
     static func liveSpans(_ text: String, limit: Int = 0) -> [Span] {
-        let spans = apply(text).spans
+        guard limit > 0 else { return apply(text).spans }
+        return lastCharacters(liveTail(text, limit: limit).spans, limit: limit)
+    }
+
+    /// The spans `liveSpans` cuts its last `limit` characters from, and where in `text` the rules started.
+    ///
+    /// The window starts at a sentence start, more than `limit` characters and at least three sentences from the
+    /// end. Corrections reach back a sentence or a clause, so the window's spans match a run on the whole text
+    /// when its first sentence comes through untouched (no cue in it, nothing in it removed): no rule reached past
+    /// it. When one did, the window grows. A start over removes everything before it whatever came earlier, so a
+    /// window whose first cue is a start over stands alone too; when an earlier cue in the window gets in the way,
+    /// the whole text is searched for the start-over cue only, and the rules run from that sentence.
+    static func liveTail(_ text: String, limit: Int) -> (spans: [Span], from: String.Index) {
+        var sentences = 3
+        while true {
+            let start = sentenceStart(in: text, keeping: limit, sentences: sentences)
+            if start == text.startIndex { return (apply(text).spans, start) }
+            var e = Engine(String(text[start...]))
+            e.run()
+            if e.standsAlone { return (e.spans(), start) }
+            if let over = lastStartOver(in: text), over > start {
+                var o = Engine(String(text[over...]))
+                o.run()
+                if o.startsWithStartOver { return (joined(startedOver(text, before: over, limit: limit), o.spans()), over) }
+            }
+            sentences *= 3
+        }
+    }
+
+    /// The last `limit` characters of `spans`, cut at a word. The piece that's cut is the first one shown: nothing
+    /// from before it, so no stray word ends from older pieces.
+    static func lastCharacters(_ spans: [Span], limit: Int) -> [Span] {
         guard limit > 0 else { return spans }
         var total = 0
         var out: [Span] = []
@@ -151,11 +186,86 @@ enum SpokenCorrections {
             if total + piece.count > limit {
                 piece = String(piece.suffix(limit - total))
                 if let space = piece.firstIndex(of: " ") { piece = String(piece[piece.index(after: space)...]) }
+                if !piece.isEmpty { out.insert(Span(text: piece, style: sp.style), at: 0) }
+                break
             }
             total += piece.count
             out.insert(Span(text: piece, style: sp.style), at: 0)
         }
         return out
+    }
+
+    /// Where a window over the end of `text` (or the part before `end`) starts: the first character of a sentence
+    /// (after ".", "!", "?", or "…" and a space) with more than `limit` characters after it, `sentences` sentence
+    /// starts back. The start of `text` when there aren't that many. A period that ends an abbreviation ("Dr.",
+    /// "a.m.") doesn't end a sentence, as the rules read it.
+    static func sentenceStart(in text: String, before end: String.Index? = nil, keeping limit: Int, sentences: Int) -> String.Index {
+        var i = end ?? text.endIndex
+        var count = 0                       // characters from `i` to the end
+        var firstSolid: String.Index?       // the first non-space character after `i`
+        var solidCount = 0                  // characters from `firstSolid` to the end
+        var found = 0
+        var afterSpace = false              // the character after `i` is a space
+        while i > text.startIndex {
+            let j = text.index(before: i)
+            let c = text[j]
+            if afterSpace, ".!?…".contains(c), let s = firstSolid, solidCount > limit, !endsAbbreviation(text, period: j) {
+                found += 1
+                if found >= sentences { return s }
+            }
+            afterSpace = c.isWhitespace
+            count += 1
+            if !c.isWhitespace { firstSolid = j; solidCount = count }
+            i = j
+        }
+        return text.startIndex
+    }
+
+    /// True when the "." at `period` belongs to an abbreviation the tokenizer keeps it on ("Dr.", "e.g.").
+    private static func endsAbbreviation(_ text: String, period: String.Index) -> Bool {
+        guard text[period] == "." else { return false }
+        var k = period
+        while k > text.startIndex {
+            let p = text.index(before: k)
+            if text[p].isWhitespace { break }
+            k = p
+        }
+        let word = text[k..<period].drop { !($0.isLetter || $0.isNumber) }
+        return abbreviations.contains(word.lowercased())
+    }
+
+    /// Start-over cues by a word they all contain, for the search over the whole text.
+    private static let startOverKeys = ["start over", "start again", "all that", "everything", "clear that"]
+
+    /// The start of the sentence holding the last start-over cue in `text`, found by searching for the cue's words
+    /// only (no rules run). Nil without one.
+    static func lastStartOver(in text: String) -> String.Index? {
+        guard let cue = startOverKeys.compactMap({ text.range(of: $0, options: [.caseInsensitive, .backwards])?.lowerBound }).max()
+        else { return nil }
+        return sentenceStart(in: text, before: cue, keeping: 0, sentences: 1)
+    }
+
+    /// How the text before `start` reads after a start over that comes later: all removed (spaces at the very start
+    /// of the text stay kept, as `Engine.spans` treats them). Only the last `limit` and one characters, which is
+    /// all `lastCharacters` reads.
+    private static func startedOver(_ text: String, before start: String.Index, limit: Int) -> [Span] {
+        let from = text.index(start, offsetBy: -(limit + 1), limitedBy: text.startIndex) ?? text.startIndex
+        var head = text[from..<start]
+        var out: [Span] = []
+        if from == text.startIndex {
+            let lead = head.prefix { $0.isWhitespace }
+            if !lead.isEmpty { out.append(Span(text: String(lead), style: .kept)) }
+            head = head.dropFirst(lead.count)
+        }
+        if !head.isEmpty { out.append(Span(text: String(head), style: .removed)) }
+        return out
+    }
+
+    /// `a` then `b`, with the two pieces where they meet joined when they have the same style (as `Engine.spans`
+    /// joins them).
+    private static func joined(_ a: [Span], _ b: [Span]) -> [Span] {
+        guard let last = a.last, let first = b.first, last.style == first.style else { return a + b }
+        return a.dropLast() + [Span(text: last.text + first.text, style: last.style)] + b.dropFirst()
     }
 
     // MARK: Vocabulary
@@ -455,9 +565,28 @@ private struct Engine {
         var i = 0
         while i < t.count {
             guard t[i].alive, t[i].kind == .word, let match = matchCue(at: i) else { i += 1; continue }
-            _ = apply(match)
+            let applied = apply(match)
+            if firstCue == nil { firstCue = (match.start, match.type == .startOver && applied) }
             i = match.end + 1
         }
+    }
+
+    /// Where the first cue started, and whether it was a start over that took effect.
+    private(set) var firstCue: (start: Int, startOver: Bool)?
+
+    /// The first cue is a start over: everything before it goes, whatever text came before this, and nothing
+    /// before it could change what it matched (`SpokenCorrections.liveTail`).
+    var startsWithStartOver: Bool { firstCue?.startOver == true }
+
+    /// True when these tokens, the end of a longer text, come out as they would in the whole text
+    /// (`SpokenCorrections.liveTail`). Either the first cue is a start over, or the first sentence has a word, no
+    /// cue, and nothing removed or replaced: every rule that looks back from a later cue stops at that sentence
+    /// (a sentence end, or a word for the rules that look for one) before it reaches the start of the tokens.
+    var standsAlone: Bool {
+        if startsWithStartOver { return true }
+        guard let end = t.firstIndex(where: Engine.isSentenceEnd) else { return false }
+        if let f = firstCue, f.start <= end { return false }
+        return t[...end].contains { $0.kind == .word } && t[...end].allSatisfy { $0.alive && $0.replacement == nil }
     }
 
     struct Match {
