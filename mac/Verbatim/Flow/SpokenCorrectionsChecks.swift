@@ -131,6 +131,84 @@ enum SpokenCorrectionsChecks {
         out.append(Result(name: "meaning check allows “delete the last sentence”", ok: wiped == nil, detail: wiped ?? ""))
         let none = SpokenCorrections.apply("I actually like it.")
         out.append(Result(name: "no correction leaves no spans struck", ok: !none.changed && none.text == "I actually like it.", detail: "\(none)"))
+        out += liveTailChecks()
+        return out
+    }
+
+    // MARK: Live words on a tail window
+
+    /// Plain sentences for long dictations: no cue words.
+    static let filler = [
+        "The shoot starts early on the north lot.", "Bring the long lens and two spare batteries.",
+        "Dr. Lee will meet us at 9 a.m. by the gate.", "We need the van back by six tonight!",
+        "Is the client still happy with the cut?", "The grade looks warm in the second scene.",
+        "Pack the sliders and the small light kit.", "Sam has the release forms for the talent.",
+        "Lunch is at the diner across the road…", "The drone needs a fresh permit this week.",
+        "Call the venue about the parking passes.", "The score lands on Thursday afternoon.",
+    ]
+
+    /// Sentences with spoken corrections, dropped into the filler at every position.
+    static let cueSentences = [
+        "Meet at 2, actually 3.", "Scratch that.", "Book the room, scratch that, book the hall.",
+        "Let me start over.", "Delete the last two sentences.", "Delete the last 3 words.", "Actually, make that Friday.",
+        "Tell Sarah, I mean Jake.", "No wait, the cafe at 11.", "Oh, never mind.", "Delete everything.",
+        "Send it to Sarah, no wait, send it to Jake.",
+    ]
+
+    /// `liveSpans` runs the rules on the last few sentences only; its spans must match a run on the whole text for
+    /// every visible character, including start overs and corrections that reach back past the window.
+    static func liveTailChecks() -> [Result] {
+        var out: [Result] = []
+        func same(_ text: String, _ limit: Int) -> (Bool, String) {
+            let tail = SpokenCorrections.liveSpans(text, limit: limit)
+            let full = SpokenCorrections.lastCharacters(SpokenCorrections.apply(text).spans, limit: limit)
+            return (tail == full, "limit \(limit), “\(text.suffix(200))”: window \(tail), whole text \(full)")
+        }
+        let long = filler.joined(separator: " ")
+        let named: [(String, String)] = [
+            ("a value fix at the end", long + " Meet at 2, actually 3."),
+            ("a deletion at the end", long + " Book the room. Scratch that. Book the hall."),
+            ("a start over at the end, earlier words struck", long + " Let me start over. New words."),
+            ("a start over after a fix in the window", long + " Meet at 2, actually 3. Let me start over. New words."),
+            ("a start over after a deletion in the window", long + " Book it. Scratch that. Delete everything. Fresh start here."),
+            ("a start over long before the window", "Draft one. Start over. " + long + " Meet at 2, actually 3."),
+            ("chained deletions past the window", long + String(repeating: " Scratch that.", count: 8) + " Done."),
+            ("delete the last five sentences", long + " Delete the last five sentences."),
+            ("a fix that starts a sentence", long + " Meet Tuesday. I mean, Wednesday."),
+            ("paragraphs", long + "\n\nFirst paragraph here. " + long + "\n\nSecond one. Delete the last paragraph."),
+            ("no punctuation", long.filter { $0 != "." } + " meet at 2 actually 3"),
+            ("no correction", long + " " + long),
+        ]
+        for (name, text) in named {
+            for limit in [60, 160] {
+                let (ok, detail) = same(text, limit)
+                out.append(Result(name: "live tail matches the whole text: \(name) (\(limit))", ok: ok, detail: detail))
+            }
+        }
+        // Every cue sentence at every position, alone and followed by a start over.
+        var failures: [String] = []
+        var count = 0
+        for cue in cueSentences {
+            for k in 0...filler.count {
+                var parts = filler
+                parts.insert(cue, at: k)
+                for text in [parts.joined(separator: " "), parts.joined(separator: " ") + " Let me start over. Hi."] {
+                    for limit in [60, 160] {
+                        count += 1
+                        let (ok, detail) = same(text, limit)
+                        if !ok { failures.append(detail) }
+                    }
+                }
+            }
+        }
+        out.append(Result(name: "live tail matches the whole text for \(count) placements", ok: failures.isEmpty,
+                          detail: "\(failures.count) differ; first: \(failures.first ?? "")"))
+        // And it runs on a window, not the whole text.
+        let longer = Array(repeating: long, count: 4).joined(separator: " ")
+        let from = SpokenCorrections.liveTail(longer, limit: 160).from
+        let ran = longer.distance(from: from, to: longer.endIndex)
+        out.append(Result(name: "live tail runs the rules on the last few sentences", ok: ran > 160 && ran < 400,
+                          detail: "\(ran) of \(longer.count) characters"))
         return out
     }
 }

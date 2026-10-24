@@ -139,10 +139,8 @@ struct KeyboardView: View {
                 .accessibilityLabel("Close")
                 .accessibilityHint("Shows the typing keyboard")
             Spacer(minLength: 6)
-            if model.hasFullAccess, model.sessionLive, model.sessionEndsAt != nil {
-                Text(sessionLabel).font(Ink.mono(12)).foregroundStyle(KB.muted)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                    .accessibilityLabel(sessionAccessibility)
+            if model.hasFullAccess, model.sessionLive, let ends = model.sessionEndsAt {
+                SessionCountdown(clock: model.clock, endsAt: ends)
                 Spacer(minLength: 6)
             }
             CircleButton(look: .outline, action: model.showTyping) {
@@ -207,18 +205,6 @@ struct KeyboardView: View {
         GlobeKey(controller: model.controllerForGlobe)
             .frame(width: 34, height: 34)
             .accessibilityLabel("Next keyboard")
-    }
-
-    /// Time left in the session: "4:12 left".
-    private var sessionLabel: String {
-        guard let ends = model.sessionEndsAt else { return "" }
-        return "\(Self.clock(ends.timeIntervalSince(model.now))) left"
-    }
-
-    private var sessionAccessibility: String {
-        guard let ends = model.sessionEndsAt else { return "Session on" }
-        let m = max(0, Int(ends.timeIntervalSince(model.now)) / 60)
-        return m >= 1 ? "Session on, \(m) minutes left" : "Session on, less than a minute left"
     }
 
     static func clock(_ t: TimeInterval) -> String {
@@ -323,20 +309,10 @@ struct KeyboardView: View {
             listeningBar
             VStack(spacing: 12) {
                 listeningWords
-                VoiceWave(level: model.level, active: model.stage == .listening, color: KB.ink, count: 13, barWidth: 6)
+                VoiceWave(clock: model.clock, active: model.stage == .listening, color: KB.ink, count: 13, barWidth: 6)
                     .frame(width: 170, height: 36)
-                VStack(spacing: 3) {
-                    Text(listeningTitle)
-                        .font(Ink.serif(22)).foregroundStyle(KB.ink)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    Text(listeningDetail)
-                        .font(detailIsData ? Ink.mono(12) : .system(size: 12.5))
-                        .foregroundStyle(KB.muted)
-                        .lineLimit(1).minimumScaleFactor(0.75)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(listeningAccessibility)
-                .accessibilityAddTraits(.updatesFrequently)
+                ListeningStatus(clock: model.clock, stage: model.stage, polishing: model.polishing,
+                                words: model.insertion?.words ?? 0, micName: model.micName)
             }
             .padding(.horizontal, 22)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -386,36 +362,6 @@ struct KeyboardView: View {
 
     private var hasLiveWords: Bool { !model.liveSettled.isEmpty || !model.liveVolatile.isEmpty }
 
-    private var listeningTitle: String {
-        if model.polishing { return "Polishing…" }
-        switch model.stage {
-        case .starting: return "Opening Verbose…"
-        case .writing: return "Writing it down"
-        default: return "Listening"
-        }
-    }
-
-    /// The microphone and the time while listening or writing (mono: it's data); a plain line otherwise.
-    private var listeningDetail: String {
-        if model.polishing {
-            let n = model.insertion?.words ?? 0
-            return "Inserted · \(n) \(n == 1 ? "word" : "words")"
-        }
-        if model.stage == .starting { return "Verbose opens for a second, then comes back" }
-        return "\(model.micName) · \(Self.clock(model.elapsed))"
-    }
-
-    private var detailIsData: Bool { !model.polishing && model.stage != .starting }
-
-    private var listeningAccessibility: String {
-        if model.polishing { return "Inserted. Polishing your words" }
-        switch model.stage {
-        case .starting: return "Starting a session"
-        case .writing: return "Writing it down"
-        default: return "Listening, \(Int(model.elapsed)) seconds"
-        }
-    }
-
     // MARK: Lists
 
     @ViewBuilder private var list: some View {
@@ -451,6 +397,78 @@ struct KeyboardView: View {
         if cal.isDateInToday(d) { return time }
         if cal.isDateInYesterday(d) { return "Yesterday · \(time)" }
         return "\(d.formatted(.dateTime.month(.abbreviated).day())) · \(time)"
+    }
+}
+
+// MARK: - Clocked pieces
+
+/// Time left in the session in Home's bar: "4:12 left". Watches the clock, so the countdown redraws only this.
+private struct SessionCountdown: View {
+    @ObservedObject var clock: KeyboardClock
+    var endsAt: Date
+
+    var body: some View {
+        Text("\(KeyboardView.clock(endsAt.timeIntervalSince(clock.now))) left")
+            .font(Ink.mono(12)).foregroundStyle(KB.muted)
+            .lineLimit(1).minimumScaleFactor(0.8)
+            .accessibilityLabel(accessibility)
+    }
+
+    private var accessibility: String {
+        let m = max(0, Int(endsAt.timeIntervalSince(clock.now)) / 60)
+        return m >= 1 ? "Session on, \(m) minutes left" : "Session on, less than a minute left"
+    }
+}
+
+/// Listening's title and the line under it. Watches the clock for the time, so it redraws only this.
+private struct ListeningStatus: View {
+    @ObservedObject var clock: KeyboardClock
+    var stage: KeyboardModel.Stage
+    var polishing: Bool
+    /// The inserted words, shown while polishing.
+    var words: Int
+    var micName: String
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(title)
+                .font(Ink.serif(22)).foregroundStyle(KB.ink)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(detail)
+                .font(detailIsData ? Ink.mono(12) : .system(size: 12.5))
+                .foregroundStyle(KB.muted)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibility)
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private var title: String {
+        if polishing { return "Polishing…" }
+        switch stage {
+        case .starting: return "Opening Verbose…"
+        case .writing: return "Writing it down"
+        default: return "Listening"
+        }
+    }
+
+    /// The microphone and the time while listening or writing (mono: it's data); a plain line otherwise.
+    private var detail: String {
+        if polishing { return "Inserted · \(words) \(words == 1 ? "word" : "words")" }
+        if stage == .starting { return "Verbose opens for a second, then comes back" }
+        return "\(micName) · \(KeyboardView.clock(clock.elapsed))"
+    }
+
+    private var detailIsData: Bool { !polishing && stage != .starting }
+
+    private var accessibility: String {
+        if polishing { return "Inserted. Polishing your words" }
+        switch stage {
+        case .starting: return "Starting a session"
+        case .writing: return "Writing it down"
+        default: return "Listening, \(Int(clock.elapsed)) seconds"
+        }
     }
 }
 
@@ -1018,7 +1036,8 @@ private struct CheckDisc: View {
 /// Reduce Motion and whenever nothing is listening (starting, writing, polishing). Redrawn at most 30 times a
 /// second, in one Canvas.
 private struct VoiceWave: View {
-    var level: Double
+    /// The voice level (`clock.level`): watched here, so the level redraws only the bars.
+    @ObservedObject var clock: KeyboardClock
     var active: Bool
     var color: Color
     var count = 13
@@ -1041,7 +1060,7 @@ private struct VoiceWave: View {
     }
 
     private func bars(t: Double, still: Bool) -> some View {
-        let lifted = pow(min(1, max(0, level)), 0.6)
+        let lifted = pow(min(1, max(0, clock.level)), 0.6)
         // Resolved here, so the Canvas gets a plain color for this appearance rather than an adaptive one.
         let color = Color(self.color.resolve(in: environment))
         let n = max(1, count), maxBar = barWidth
@@ -1096,7 +1115,7 @@ private struct LiveWordsLine: View {
     private func line(_ joiner: String) -> Text {
         let full = settled + joiner + volatile
         if corrections {
-            let spans = SpokenCorrections.liveSpans(full, limit: 160)
+            let spans = LiveSpansMemo.spans(full)
             if spans.contains(where: { $0.style != .kept }) {
                 return spans.reduce(Text("")) { t, s in
                     s.style == .removed
@@ -1115,6 +1134,23 @@ private struct LiveWordsLine: View {
         let words = trimmed.split(separator: " ", omittingEmptySubsequences: true)
         guard words.count > count else { return ("", trimmed) }
         return (words.dropLast(count).joined(separator: " ") + " ", words.suffix(count).joined(separator: " "))
+    }
+}
+
+/// The live words' spoken-correction spans for the last text seen: the line redraws for other reasons too (the
+/// keyboard's own state), and the rules run again only when the words changed. `liveSpans` runs them on the last
+/// few sentences only, so each new word costs the same however long the dictation gets.
+@MainActor
+private enum LiveSpansMemo {
+    private static var text = ""
+    private static var spans: [SpokenCorrections.Span] = []
+
+    static func spans(_ full: String) -> [SpokenCorrections.Span] {
+        if full != text {
+            text = full
+            spans = SpokenCorrections.liveSpans(full, limit: 160)
+        }
+        return spans
     }
 }
 
