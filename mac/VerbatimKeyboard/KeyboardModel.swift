@@ -34,8 +34,9 @@ final class KeyboardModel: ObservableObject {
     }
 
     @Published private(set) var stage: Stage = .idle
-    @Published private(set) var level: Double = 0
-    @Published private(set) var elapsed: TimeInterval = 0
+    /// The voice level, the dictation's time, and the session countdown's clock: published apart from this model,
+    /// so the poll redraws only the views that show them, never the whole keyboard and its keys.
+    let clock = KeyboardClock()
     @Published private(set) var insertion: Insertion? = nil
     /// True while Verbatim polishes the text just inserted (Polish after inserting); the strip shows it.
     @Published private(set) var polishing = false
@@ -64,8 +65,6 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var sessionLive = false
     @Published private(set) var sessionEndsAt: Date? = nil
     @Published private(set) var micName = "iPhone Microphone"
-    /// Ticks once a second while idle, so the session countdown moves.
-    @Published private(set) var now = Date()
     /// Your snippets (synced with the Mac; the app writes them to the App Group), and whether the top strip shows them.
     @Published private(set) var snippets: [KeyboardBridge.Snippet] = []
     @Published private(set) var showingSnippets = false
@@ -105,9 +104,12 @@ final class KeyboardModel: ObservableObject {
     private var visible = false
     /// When the Typing bar started showing "✓ Inserted", so it goes back to the plain bar after a few seconds.
     private var insertedBarSince: Date?
-    /// The stats record last read, so an unchanged record isn't decoded again.
+    /// The stats record last read, so an unchanged record isn't decoded again; it counts up when the record
+    /// changes. And what Home's pages were last worked out from: the record and whether its week was current.
     private var statsData: Data?
     private var stats: KeyboardBridge.Stats?
+    private var statsVersion = 0
+    private var statsPagesFrom: (version: Int, weekCurrent: Bool?)?
     private static let log = Logger(subsystem: "co.stumpandroot.verbatim.keyboard", category: "polish")
 
     init(controller: KeyboardViewController) {
@@ -203,18 +205,29 @@ final class KeyboardModel: ObservableObject {
         statsPage = (statsPage + d + n) % n
     }
 
-    /// Re-reads the app's stats record (decoding it only when it changed) and works out the pages again, so a week
-    /// that ended reads 0. Without Full Access there's no record.
+    /// Re-reads the app's stats record (decoding it only when it changed) and works out the pages again. Runs when
+    /// the keyboard appears and when the app says something changed (`writeStats` posts `Note.state`), not on
+    /// every poll. Without Full Access there's no record.
     private func reloadStats() {
         let data = hasFullAccess ? KeyboardBridge.defaults?.data(forKey: KeyboardBridge.statsKey) : nil
         if data != statsData {
             statsData = data
             stats = data.flatMap { try? JSONDecoder().decode(KeyboardBridge.Stats.self, from: $0) }
+            statsVersion += 1
         }
+        refreshStatsPages()
+    }
+
+    /// Works out Home's pages when the record changed or its week ended since the last time, so a week that ended
+    /// reads 0. Cheap otherwise: the idle poll calls it for the week's end.
+    private func refreshStatsPages() {
+        let weekCurrent = stats.map { Date() < $0.weekEnds }
+        if let from = statsPagesFrom, from.version == statsVersion, from.weekCurrent == weekCurrent { return }
+        statsPagesFrom = (statsVersion, weekCurrent)
         var pages: [KeyboardStatPage] = []
         if let s = stats {
             pages = KeyboardStatsCopy.pages(KeyboardStatNumbers(
-                weekWords: s.weekWords, weekSecondsSaved: s.weekSecondsSaved, weekCurrent: Date() < s.weekEnds,
+                weekWords: s.weekWords, weekSecondsSaved: s.weekSecondsSaved, weekCurrent: weekCurrent ?? false,
                 totalWords: s.totalWords, paceWords: s.paceWords, paceSeconds: s.paceSeconds, typingWPM: s.typingWPM))
         }
         if pages != statsPages { statsPages = pages }
@@ -252,7 +265,7 @@ final class KeyboardModel: ObservableObject {
         markVisible()
         if !observing {
             observing = true
-            KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.poll() }
+            KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.appChanged() }
         }
         // A fresh keyboard process: pick up a dictation that's still running or waiting to be inserted (including
         // one the app began from the first tap while Verbatim was in front).
@@ -299,8 +312,8 @@ final class KeyboardModel: ObservableObject {
         showingRecent = false
         clearLive()
         dictation = take.id
-        level = 0
-        elapsed = 0
+        clock.setLevel(0)
+        clock.setElapsed(0)
         closePanels()
         set(take.phase == .listening ? .listening : .writing)
     }
@@ -379,8 +392,8 @@ final class KeyboardModel: ObservableObject {
             let id = UUID()
             d = id
             dictation = id
-            level = 0
-            elapsed = 0
+            clock.setLevel(0)
+            clock.setElapsed(0)
             sendCategory(for: id)
             defaults.set(id.uuidString, forKey: KeyboardBridge.Key.startID)
         }
@@ -401,15 +414,15 @@ final class KeyboardModel: ObservableObject {
             KeyboardBridge.post(KeyboardBridge.Note.command)
         }
         dictation = nil
-        level = 0
+        clock.setLevel(0)
     }
 
     /// Step 3: the app is already listening to the microphone, so this only marks where your words start.
     private func startDictation(_ defaults: UserDefaults) {
         let d = UUID()
         dictation = d
-        level = 0
-        elapsed = 0
+        clock.setLevel(0)
+        clock.setElapsed(0)
         sendCategory(for: d)
         defaults.set(d.uuidString, forKey: KeyboardBridge.Key.startID)
         KeyboardBridge.post(KeyboardBridge.Note.command)
@@ -423,7 +436,7 @@ final class KeyboardModel: ObservableObject {
         defaults?.set(d.uuidString, forKey: KeyboardBridge.Key.doneID)
         KeyboardBridge.post(KeyboardBridge.Note.command)
         haptic(.light)
-        level = 0
+        clock.setLevel(0)
         set(.writing)
     }
 
@@ -434,7 +447,7 @@ final class KeyboardModel: ObservableObject {
         }
         dictation = nil
         request = nil
-        level = 0
+        clock.setLevel(0)
         clearLive()
         set(.idle)
         retime()
@@ -612,11 +625,18 @@ final class KeyboardModel: ObservableObject {
         flashInfo("Spoken corrections are off. Turn them back on in Settings.")
     }
 
+    /// The app posted `Note.state`: the session, a dictation, or the stats record changed.
+    private func appChanged() {
+        guard visible else { return }
+        reloadStats()
+        poll()
+    }
+
     private func poll() {
         guard visible, let defaults else { return }
-        now = Date()
         markVisible()
         readSession(defaults)
+        clock.tick(Date(), sessionEndsAt: sessionEndsAt)
         adoptRibbonTake()
         switch stage {
         case .starting: pollStarting(defaults)
@@ -625,7 +645,7 @@ final class KeyboardModel: ObservableObject {
         }
         if polishing { pollPolish(defaults) }
         expireInsertedBar()
-        if stage == .idle { reloadStats() }
+        if stage == .idle { refreshStatsPages() }
         retime()
     }
 
@@ -677,7 +697,7 @@ final class KeyboardModel: ObservableObject {
             if !sessionLive || Date().timeIntervalSince(stageSince) > 3 {
                 // The app is gone (closed, or the session just ended). The next tap starts a new session.
                 dictation = nil
-                level = 0
+                clock.setLevel(0)
                 set(.idle)
                 notice = defaults.string(forKey: KeyboardBridge.Key.endReason) ?? "The session ended. Tap to start a new one."
             }
@@ -690,27 +710,27 @@ final class KeyboardModel: ObservableObject {
             if visible, defaults.string(forKey: KeyboardBridge.Key.seenID) != d.uuidString {
                 defaults.set(d.uuidString, forKey: KeyboardBridge.Key.seenID)
             }
-            level = defaults.double(forKey: KeyboardBridge.Key.level)
-            elapsed = defaults.double(forKey: KeyboardBridge.Key.elapsed)
+            clock.setLevel(defaults.double(forKey: KeyboardBridge.Key.level))
+            clock.setElapsed(defaults.double(forKey: KeyboardBridge.Key.elapsed))
             let settled = defaults.string(forKey: KeyboardBridge.Key.liveSettled) ?? ""
             let volatile = defaults.string(forKey: KeyboardBridge.Key.liveVolatile) ?? ""
             if settled != liveSettled { liveSettled = settled }
             if volatile != liveVolatile { liveVolatile = volatile }
-            notice = nil
+            if notice != nil { notice = nil }
         case .transcribing:
             set(.writing)
-            level = 0
+            clock.setLevel(0)
             clearLive()
         case .done:
             insertResult(d, defaults)
         case .failed:
             notice = defaults.string(forKey: KeyboardBridge.Key.message) ?? "Dictation didn't finish."
             dictation = nil
-            level = 0
+            clock.setLevel(0)
             set(.idle)
         case .cancelled:
             dictation = nil
-            level = 0
+            clock.setLevel(0)
             set(.idle)
         }
     }
@@ -721,7 +741,7 @@ final class KeyboardModel: ObservableObject {
         // A take from the Action button that finished while this keyboard was away went to the clipboard instead.
         if defaults.string(forKey: KeyboardBridge.Key.routedAway) == d.uuidString {
             dictation = nil
-            level = 0
+            clock.setLevel(0)
             clearLive()
             set(.idle)
             reloadRecent()
@@ -732,7 +752,7 @@ final class KeyboardModel: ObservableObject {
         let text = (defaults.string(forKey: KeyboardBridge.Key.text) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let raw = (defaults.string(forKey: KeyboardBridge.Key.raw) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         dictation = nil
-        level = 0
+        clock.setLevel(0)
         clearLive()
         guard !text.isEmpty else {
             notice = "No words were heard."
@@ -838,4 +858,31 @@ final class KeyboardModel: ObservableObject {
     static func wordCount(_ s: String) -> Int {
         s.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter || $0.isNumber }) }.count
     }
+}
+
+/// The keyboard's fast-changing numbers, apart from `KeyboardModel`: the views that show them (the session
+/// countdown, the voice bars, Listening's time) watch this, so a poll redraws them and not the whole keyboard.
+/// Each publishes only when what's shown would change.
+@MainActor
+final class KeyboardClock: ObservableObject {
+    /// The time the session countdown reads ("4:12 left"), moved on only when its whole seconds change; nothing
+    /// moves while there's no idle timeout.
+    @Published private(set) var now = Date()
+    /// The voice level (0…1) while listening.
+    @Published private(set) var level: Double = 0
+    /// How long the dictation has run, moved on only when its whole seconds change (Listening shows "0:12").
+    @Published private(set) var elapsed: TimeInterval = 0
+    private var countdown: Int?
+
+    func tick(_ date: Date, sessionEndsAt: Date?) {
+        let left = sessionEndsAt.map { max(0, Int($0.timeIntervalSince(date))) }
+        if left != countdown {
+            countdown = left
+            now = date
+        }
+    }
+
+    func setLevel(_ l: Double) { if l != level { level = l } }
+
+    func setElapsed(_ t: TimeInterval) { if Int(t) != Int(elapsed) { elapsed = t } }
 }
