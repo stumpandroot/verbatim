@@ -248,7 +248,7 @@ final class TranscriptionCoordinator: ObservableObject {
         cancelIfActive(id)
         guard let name = store.transcript(id)?.pendingAppend else { return }
         store.update(id) { $0.pendingAppend = nil; $0.stage = nil; $0.processingDevice = nil; $0.processingDeviceName = nil }
-        store.removeAfterPendingWrites([Paths.audio.appendingPathComponent(name)])
+        if let file = LibraryFile.url(name, in: Paths.audio, field: "continued recording") { store.removeAfterPendingWrites([file]) }
         host?.notify("New recording discarded")
     }
 
@@ -513,9 +513,8 @@ final class TranscriptionCoordinator: ObservableObject {
 
     /// Transcribes a continued recording and joins it onto the transcript.
     private func runAppend(_ id: UUID, _ t: Transcript, _ url: URL) {
-        guard let partName = t.pendingAppend else { finished(id); return }
+        guard let partName = t.pendingAppend, let part = LibraryFile.url(partName, in: Paths.audio, field: "continued recording") else { finished(id); return }
         host?.runWillBegin(id)
-        let part = Paths.audio.appendingPathComponent(partName)
         let combined = Continuation.scratchURL()
         let token = UUID(); runToken = token
         let s = settings

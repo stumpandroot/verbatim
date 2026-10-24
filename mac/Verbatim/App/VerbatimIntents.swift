@@ -59,16 +59,32 @@ struct TranscribeFileIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         let app = try await IntentLookup.app()
         let url: URL
+        // The folder written for data without a file, removed once the import has copied it (or failed).
+        var scratch: URL?
+        var importID: UUID?
+        defer {
+            if let scratch {
+                let copying = importID.flatMap { app.store.transcript($0) }.map { $0.status == .processing && $0.audioFileName == nil } ?? false
+                if !copying { try? FileManager.default.removeItem(at: scratch) }   // else the launch cleanup of downloads removes it
+            }
+        }
         if let u = file.fileURL, FileManager.default.fileExists(atPath: u.path) {
             url = u
         } else {
-            // Shortcuts handed over data without a file on disk: write it next to the downloads, under its name.
+            // Shortcuts handed over data without a file on disk: write it in its own folder under the downloads, under
+            // its name when that's a bare file name (LibraryFile), so a name like "../../x" can't write anywhere else.
             let dir = Paths.downloads.appendingPathComponent("Shortcuts-\(UUID().uuidString)", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            url = dir.appendingPathComponent(file.filename.isEmpty ? "Recording.m4a" : file.filename)
+            scratch = dir
+            let given = (file.filename as NSString).lastPathComponent
+            guard let target = LibraryFile.url(LibraryFile.isSafeName(given) ? given : "Recording.m4a", in: dir, field: "Shortcuts file") else {
+                throw VerbatimIntentError.unreadableFile
+            }
+            url = target
             do { try file.data.write(to: url) } catch { throw VerbatimIntentError.unreadableFile }
         }
         guard let id = app.importFiles([url], useLibraryProject: false, announce: false).first?.0 else { throw VerbatimIntentError.unreadableFile }
+        importID = id
         Log.note("intent: transcribe a file")
         // Waits for the queue (one transcription runs at a time), for up to 12 hours.
         for _ in 0..<(12 * 3600) {

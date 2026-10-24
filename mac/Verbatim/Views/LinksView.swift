@@ -246,7 +246,7 @@ enum ThumbCache {
 
     static func load(_ file: String, maxPixel: Int) async -> NSImage? {
         if let hit = cached(file, maxPixel: maxPixel) { return hit }
-        let url = Paths.thumbs.appendingPathComponent(file)
+        guard let url = LibraryFile.url(file, in: Paths.thumbs, field: "thumbnail") else { return nil }
         let cg: CGImage? = await Task.detached(priority: .userInitiated) { () -> CGImage? in
             guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
             let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,

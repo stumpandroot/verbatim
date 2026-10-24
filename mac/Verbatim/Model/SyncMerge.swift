@@ -32,9 +32,11 @@ enum SyncMerge {
     /// Merges two copies of a list. For an entry in both, the one changed last wins (ties go to the larger
     /// encoding, so both devices pick the same one). An entry deleted (a tombstone) at or after its last change is
     /// dropped; one changed after its delete comes back. Order: `local`'s, then entries only `remote` has, in its
-    /// order.
+    /// order. A change dated after `now` counts as made now (`clamped`), so an entry dated in the future (a wrong
+    /// clock, or a file someone edited) can't outlast every later edit and delete.
     static func merge<T: SyncEntry>(local: [T], remote: [T], localTombstones: [Tombstone], remoteTombstones: [Tombstone],
                                     now: Date = Date()) -> (items: [T], tombstones: [Tombstone]) {
+        let local = clamped(local, now: now), remote = clamped(remote, now: now)
         let tombstones = mergeTombstones(localTombstones, remoteTombstones, now: now)
         let deleted = Dictionary(tombstones.map { ($0.id, $0.deletedAt) }, uniquingKeysWith: max)
         let remoteByID = Dictionary(remote.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -53,6 +55,14 @@ enum SyncMerge {
             return (e.updatedAt ?? .distantPast) <= d
         }
         return (out, tombstones)
+    }
+
+    /// Entries with `updatedAt` no later than `now`.
+    static func clamped<T: SyncEntry>(_ items: [T], now: Date) -> [T] {
+        items.map { e in
+            guard let d = e.updatedAt, d > now else { return e }
+            var e = e; e.updatedAt = now; return e
+        }
     }
 
     /// Of two versions of one entry, the one changed last; a tie goes to the larger encoding (deterministic).
@@ -106,7 +116,8 @@ enum SyncMerge {
     }
 
     /// Decodes a list file. Nil when the data isn't a list of `T` (the caller then never writes over the file).
-    static func decode<T: Decodable>(_ type: T.Type, from data: Data, decoder: JSONDecoder) -> [T]? {
-        try? decoder.decode([T].self, from: data)
+    /// Dates after `now` read as `now` (`clamped`), fixed at the first read, so a delete made after it wins.
+    static func decode<T: SyncEntry>(_ type: T.Type, from data: Data, decoder: JSONDecoder, now: Date = Date()) -> [T]? {
+        (try? decoder.decode([T].self, from: data)).map { clamped($0, now: now) }
     }
 }

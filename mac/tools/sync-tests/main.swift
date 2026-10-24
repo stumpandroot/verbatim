@@ -98,7 +98,7 @@ check("no change stamps nothing", SyncMerge.stamp(old: s0, new: s0, now: at(200)
 check("emptying the list tombstones everything", SyncMerge.stamp(old: s0, new: [], now: at(200)).deleted.count == 2)
 
 // Round trip through a file: a merged list encodes and decodes to the same entries.
-if let data = try? enc.encode(u.items), let back = SyncMerge.decode(Entry.self, from: data, decoder: dec) {
+if let data = try? enc.encode(u.items), let back = SyncMerge.decode(Entry.self, from: data, decoder: dec, now: at(100)) {
     check("a merged list round-trips through JSON", back == u.items)
 } else { check("a merged list round-trips through JSON", false) }
 
@@ -120,6 +120,32 @@ sync(&devA, &tombA); sync(&devB, &tombB); sync(&devA, &tombA)
 func byID(_ xs: [Entry]) -> [Entry] { xs.sorted { $0.id.uuidString < $1.id.uuidString } }
 check("two devices converge after edits, adds, and deletes", byID(devA) == byID(devB) && Set(names(devA)) == ["Ephrata", "C"]
       && devA.first { $0.id == a1.id }?.heardAs == ["Efrata"], "\(names(devA)) vs \(names(devB))")
+
+// Future dates (a wrong clock, or a file someone edited) count as now, so they can't outlast later edits and deletes.
+let future = Entry(preferred: "Forever", updatedAt: Date(timeIntervalSince1970: 253_402_300_799))   // 9999-12-31
+let fm1 = SyncMerge.merge(local: [Entry](), remote: [future], localTombstones: [], remoteTombstones: [], now: at(100))
+check("a future date is clamped to now", fm1.items.first?.updatedAt == at(100), "\(String(describing: fm1.items.first?.updatedAt))")
+let delFuture = Tombstone(id: future.id, deletedAt: at(200))
+check("a delete after now removes an entry dated in the future",
+      SyncMerge.merge(local: [Entry](), remote: [future], localTombstones: [delFuture], remoteTombstones: [], now: at(200)).items.isEmpty)
+var futureEdit = future; futureEdit.updatedAt = at(150); futureEdit.heardAs = ["For ever"]
+// Once a merge has clamped it (and written it back), a later edit wins.
+check("a later edit beats an entry that was dated in the future",
+      SyncMerge.merge(local: [futureEdit], remote: fm1.items, localTombstones: [], remoteTombstones: [], now: at(150)).items.first?.heardAs == ["For ever"])
+check("a local entry dated in the future is clamped too",
+      SyncMerge.merge(local: [future], remote: [Entry](), localTombstones: [], remoteTombstones: [], now: at(100)).items.first?.updatedAt == at(100))
+check("dates up to now are kept", SyncMerge.merge(local: [a1], remote: [Entry](), localTombstones: [], remoteTombstones: [], now: at(10)).items == [a1])
+check("an entry without a date stays without one", SyncMerge.clamped([Entry(preferred: "x")], now: at(1)).first?.updatedAt == nil)
+// Reading a list file clamps too, at the time it's read, so a delete made afterwards wins even before any merge.
+let futureFile = Data(#"[{"id":"7D3F5E7A-2222-4C7B-9A4B-222222222222","preferred":"Forever","heardAs":[],"updatedAt":"9999-12-31T23:59:59Z"}]"#.utf8)
+let readNow = SyncMerge.decode(Entry.self, from: futureFile, decoder: dec, now: at(100))
+check("a list file's future date reads as now", readNow?.first?.updatedAt == at(100), "\(String(describing: readNow?.first?.updatedAt))")
+if let readNow {
+    let gone2 = Tombstone(id: readNow[0].id, deletedAt: at(120))
+    check("deleting it later removes it, even when the file still has the future date",
+          SyncMerge.merge(local: readNow, remote: SyncMerge.decode(Entry.self, from: futureFile, decoder: dec, now: at(100)) ?? [],
+                          localTombstones: [gone2], remoteTombstones: [], now: at(300)).items.isEmpty)
+}
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

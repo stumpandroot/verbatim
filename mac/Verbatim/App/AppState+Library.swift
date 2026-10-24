@@ -115,8 +115,7 @@ extension AppState {
 
     /// Copies the transcript's audio to the Keep folder (M4A for links, recordings, and imports).
     func keepAudio(_ id: UUID) {
-        guard let t = store.transcript(id), let name = t.audioFileName else { toast = Toast("That transcript's audio is missing."); return }
-        let src = Paths.audio.appendingPathComponent(name)
+        guard let t = store.transcript(id), let src = store.audioURL(for: t) else { toast = Toast("That transcript's audio is missing."); return }
         do {
             let out = try Keep.destination(title: t.title, ext: src.pathExtension.isEmpty ? "m4a" : src.pathExtension)
             try FileManager.default.copyItem(at: src, to: out)

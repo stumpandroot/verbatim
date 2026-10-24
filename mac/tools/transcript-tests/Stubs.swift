@@ -25,3 +25,7 @@ enum DocumentText {
 enum MediaImport {
     static let videoExts: Set<String> = ["mov", "mp4", "m4v"]
 }
+
+enum Log {
+    static func note(_ message: String) {}
+}
