@@ -70,6 +70,23 @@ enum SVGPathData {
         }
         return path
     }
+
+    private static let lock = NSLock()
+    private static var parsed: [String: CGPath] = [:]
+
+    /// `parse`, once per path string: artwork redraws on every Canvas pass (looping drawings at 30 fps, the
+    /// keyboard on every poll), and the strings are the fixed constants in this file. Safe from any thread.
+    static func cached(_ d: String) -> CGPath {
+        lock.lock()
+        if let hit = parsed[d] { lock.unlock(); return hit }
+        lock.unlock()
+        let path = parse(d).copy() ?? CGMutablePath()
+        lock.lock()
+        if parsed.count >= 2048 { parsed.removeAll() }   // a guard only; the artwork has a few hundred strings
+        parsed[d] = path
+        lock.unlock()
+        return path
+    }
 }
 
 /// One piece of artwork: path data plus circles, lines, and rects, in a design-space box.
@@ -96,7 +113,7 @@ struct BrandArt {
         let p = CGMutablePath()
         for e in els {
             switch e {
-            case .path(let d): p.addPath(SVGPathData.parse(d))
+            case .path(let d): p.addPath(SVGPathData.cached(d))
             case .circle(let x, let y, let r): p.addEllipse(in: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r))
             case .rect(let x, let y, let w, let h, let rx): p.addRoundedRect(in: CGRect(x: x, y: y, width: w, height: h), cornerWidth: rx, cornerHeight: rx)
             }
