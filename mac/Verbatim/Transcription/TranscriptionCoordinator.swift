@@ -497,10 +497,14 @@ final class TranscriptionCoordinator: ObservableObject {
                         // Only when nobody has assigned speakers by hand in the meantime.
                         guard let found, x.speakers.isEmpty else { return }
                         var segs = x.segments
-                        let speakers = SpeakerAssigner.assign(found, to: &segs)
+                        // The original lines are cut alongside (matched by index); lines with corrections stay whole.
+                        var original: [Segment]? = x.original
+                        let paired = x.original.count == segs.count
+                        let speakers = SpeakerAssigner.assign(found, to: &segs, parallel: &original, keepWhole: Set(x.corrections.map(\.segmentId)))
                         guard speakers.count >= 2 else { return }
                         x.segments = segs; x.speakers = speakers
-                        for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker }
+                        if paired, let original { x.original = original }
+                        else { for i in x.original.indices where i < segs.count { x.original[i].speaker = segs[i].speaker } }
                     }
                 }
             } catch {

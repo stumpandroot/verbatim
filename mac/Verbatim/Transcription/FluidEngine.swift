@@ -691,35 +691,37 @@ struct DiarizationOutput: Sendable {
     }
 }
 
+/// Speaker labels from a diarization (SpeakerTurns does the word-by-word work, shared with the Linux tests).
 enum SpeakerAssigner {
-    /// Gives each segment the speaker who talks for most of its span; builds the speaker list in order of appearance.
+    /// Gives each line the speaker its words belong to, without cutting any line (Continue keeps lines matched by
+    /// index); builds the speaker list in order of appearance.
     static func assign(_ turns: [(speaker: String, start: Double, end: Double)], to segments: inout [Segment]) -> [Speaker] {
-        assignMapped(turns, to: &segments).speakers
+        var none: [Segment]? = nil
+        return assignMapped(turns, to: &segments, parallel: &none, split: false).speakers
     }
 
-    /// Like `assign`, also returning which diarizer label became which speaker id ("S3" → "S1").
-    static func assignMapped(_ turns: [(speaker: String, start: Double, end: Double)], to segments: inout [Segment]) -> (speakers: [Speaker], map: [String: String]) {
-        var order: [String] = []
-        for i in segments.indices {
-            let s = segments[i]
-            var overlap: [String: Double] = [:]
-            for t in turns {
-                let o = min(s.end, t.end) - max(s.start, t.start)
-                if o > 0 { overlap[t.speaker, default: 0] += o }
-            }
-            if let best = overlap.max(by: { $0.value < $1.value })?.key {
-                if !order.contains(best) { order.append(best) }
-                segments[i].speaker = "S\(order.firstIndex(of: best)! + 1)"
-            }
-        }
+    /// Like `assign`, also returning which diarizer label became which speaker id ("S3" → "S1"). With `split`, a
+    /// line whose words change speaker is cut at the sentence boundary nearest the change (`parallel`, matched by
+    /// index, gets the same cuts).
+    static func assignMapped(_ turns: [(speaker: String, start: Double, end: Double)], to segments: inout [Segment],
+                             parallel: inout [Segment]?, split: Bool, keepWhole: Set<UUID> = []) -> (speakers: [Speaker], map: [String: String]) {
+        let order = SpeakerTurns.assign(turns, to: &segments, parallel: &parallel, split: split, keepWhole: keepWhole)
         var map: [String: String] = [:]
         for (i, label) in order.enumerated() { map[label] = "S\(i + 1)" }
         return (order.indices.map { Speaker(id: "S\($0 + 1)", name: "Speaker \($0 + 1)") }, map)
     }
 
     /// Speakers from a diarization, with the one who sounds like you named "You" (VoiceProfile, once enrolled).
+    /// Lines are cut where the speaker changes.
     static func assign(_ out: DiarizationOutput, to segments: inout [Segment]) -> [Speaker] {
-        let mapped = assignMapped(out.turns, to: &segments)
+        var none: [Segment]? = nil
+        return assign(out, to: &segments, parallel: &none)
+    }
+
+    /// The same for a finished transcript: `parallel` is its original lines (cut alongside), and lines with
+    /// corrections (`keepWhole`) stay whole.
+    static func assign(_ out: DiarizationOutput, to segments: inout [Segment], parallel: inout [Segment]?, keepWhole: Set<UUID> = []) -> [Speaker] {
+        let mapped = assignMapped(out.turns, to: &segments, parallel: &parallel, split: true, keepWhole: keepWhole)
         var speakers = mapped.speakers
         VoiceProfile.labelYou(&speakers, embeddings: out.embeddings, map: mapped.map)
         return speakers
