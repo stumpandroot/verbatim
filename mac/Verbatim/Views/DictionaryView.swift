@@ -151,9 +151,12 @@ struct DictionaryView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             Rectangle().fill(Ink.hairline).frame(height: 1)
-            ForEach(Array(list.enumerated()), id: \.element.id) { i, e in
-                DictionaryRow(entry: e)
-                if i < list.count - 1 { Rectangle().fill(Ink.hairline).frame(height: 1) }
+            // Lazy: only the words on screen are built.
+            LazyVStack(spacing: 0) {
+                ForEach(Array(list.enumerated()), id: \.element.id) { i, e in
+                    DictionaryRow(entry: e)
+                    if i < list.count - 1 { Rectangle().fill(Ink.hairline).frame(height: 1) }
+                }
             }
         }
         .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))

@@ -58,12 +58,14 @@ struct WaveformThumb: Shape {
 /// (italic after the project's name), a sentence-case meta line, the status as plain mono text ("Cleaned",
 /// "Original"), and the length in mono. The ⋯ menu shows under the pointer and sits above the click layer.
 struct HistoryRow: View {
-    @EnvironmentObject var app: AppState
     var transcript: Transcript
     /// nil = not selecting; true/false = selection mode with this row's state.
     var selected: Bool? = nil
     /// The project's name, when the row is shown outside it (the meta line names it; the title's italic follows it).
     var project: String? = nil
+    /// The row's own project's name, for the title's italic (inside a project too). Passed in rather than looked up,
+    /// so a row doesn't watch the whole app state: in a long Library every row re-rendered on every change.
+    var projectName: String? = nil
     /// The IDs a drag of this row carries (the whole selection when this row is part of it).
     var dragIDs: (() -> [UUID])? = nil
     var open: () -> Void
@@ -90,16 +92,19 @@ struct HistoryRow: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
         } accessory: { lit in
+            // The menu is built only under the pointer: a Menu per row is a real control, and a long Library made
+            // hundreds. Its spot always takes the pointer, so moving onto it keeps the row lit.
             if selected == nil {
-                RowMenuButton(transcript: transcript).padding(.trailing, 8).opacity(lit ? 1 : 0)
+                Color.clear.frame(width: 30, height: 26).contentShape(Rectangle())
+                    .overlay { if lit { RowMenuButton(transcript: transcript) } }
+                    .padding(.trailing, 8)
             }
         }
         .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .identity))
     }
 
-    private var title: (String, String?) { WebText.split(transcript.title, after: project ?? projectOfRow) }
     /// Inside a project the title still italicizes after the project's name.
-    private var projectOfRow: String? { transcript.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name } }
+    private var title: (String, String?) { WebText.split(transcript.title, after: project ?? projectName) }
 
     @ViewBuilder private var status: some View {
         switch transcript.status {

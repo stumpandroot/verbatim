@@ -37,6 +37,8 @@ struct LibraryView: View {
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
         let groups = Store.group(list, sort: sort)
         let order = groups.flatMap { $0.items.map(\.id) }
+        // Project names by ID, once per render (rows italicize after their project's name and name it outside it).
+        let projectNames = Dictionary(app.store.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
         GeometryReader { geo in
             let inner = min(Self.maxContent, max(320, geo.size.width - 2 * Self.margin))
             // The projects column: on wide windows, outside a project, and not in the Journal's reading view.
@@ -47,7 +49,7 @@ struct LibraryView: View {
                     if inner < 760 {
                         WebSearchField(text: $app.search, prompt: "Find the line you need").padding(.top, 14)
                     }
-                    chips(all: all, byKind: byKind, searching: searching).padding(.top, 18).staggerIn(1)
+                    chips(base: base, all: all, byKind: byKind, searching: searching).padding(.top, 18).staggerIn(1)
                     HStack(alignment: .top, spacing: 20) {
                         VStack(alignment: .leading, spacing: 0) {
                             if let k = kind {
@@ -62,7 +64,7 @@ struct LibraryView: View {
                             if kind == .journal && !selecting {
                                 journal(list, order: order).padding(.top, 20)
                             } else {
-                                rows(groups, order: order)
+                                rows(groups, order: order, projectNames: projectNames)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,11 +118,48 @@ struct LibraryView: View {
         }
     }
 
-    /// Kind chips (All, Journal, Ideas, …) with the sort menu at the end, then the type chips (and platforms).
-    private func chips(all: [Transcript], byKind: [Transcript], searching: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    /// One row of soft chips, as the mockup's Library (`#library .chips`): All with the full count, each type with its
+    /// source's color dot, then each kind, and the sort menu at the end. All clears both filters; a chosen chip clicked
+    /// again clears its own. Types and kinds with nothing in them stay out (unless chosen). Videos and Links add their
+    /// platforms on a second, smaller row when there's more than one. ⌥⌘1–7 choose a type (All is 1).
+    private func chips(base: [Transcript], all: [Transcript], byKind: [Transcript], searching: Bool) -> some View {
+        let filter = app.libraryFilter
+        let total = LibraryFilter.all.apply(base, searching: searching).count
+        let sources = filter.sourceCounts(byKind, searching: searching).filter { $0.0 != .all }
+        var kindCounts: [RecordingKind: Int] = [:]
+        for t in all { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
+        let kinds: [(RecordingKind, Int)] = RecordingKind.pickable.compactMap { k in
+            let n = kindCounts[k] ?? 0
+            return n > 0 || kind == k ? (k, n) : nil
+        }
+        let platforms = filter.platformCounts(byKind, searching: searching)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
-                kindChips(all)
+                FlowRow(spacing: 8, lineSpacing: 8) {
+                    FilterChip(title: "All", count: total, selected: kind == nil && filter == .all) {
+                        app.libraryKind = nil
+                        app.libraryFilter = .all
+                        selection = []
+                    }
+                    .modifier(TypeShortcut(index: 1, on: true))
+                    .uiTarget("kind-all")
+                    ForEach(sources, id: \.0) { s, n in
+                        FilterChip(title: s.label, count: n, dot: LibraryFilterBar.dot(s), ring: s == .links, selected: filter.source == s) {
+                            app.libraryFilter = filter.source == s ? .all : LibraryFilter(source: s)
+                            selection = []
+                        }
+                        .modifier(TypeShortcut(index: LibrarySource.allCases.firstIndex(of: s).map { $0 + 1 }, on: true))
+                        .uiTarget("source-\(s.rawValue)")
+                    }
+                    ForEach(kinds, id: \.0) { k, n in
+                        FilterChip(title: k.plural, count: n, selected: kind == k) {
+                            app.libraryKind = kind == k ? nil : k
+                            selection = []
+                        }
+                        .uiTarget("kind-\(k.rawValue)")
+                    }
+                }
+                .accessibilityElement(children: .contain).accessibilityLabel("Filter")
                 Spacer(minLength: 0)
                 Menu {
                     Picker("Sort by", selection: $sortRaw) {
@@ -134,21 +173,21 @@ struct LibraryView: View {
                 .help("Sort the Library: newest, oldest, longest, or by title")
                 .accessibilityLabel("Sort by \(sort.title)")
             }
-            LibraryFilterBar(filter: Binding(get: { app.libraryFilter }, set: { app.libraryFilter = $0 }),
-                             items: byKind, searching: searching, wraps: true, shortcuts: true) { selection = [] }
-        }
-    }
-
-    /// All, then each kind with its count, as soft chips (kinds stay neutral: no colored dots).
-    private func kindChips(_ all: [Transcript]) -> some View {
-        let options: [RecordingKind?] = [nil] + RecordingKind.pickable.map { Optional($0) }
-        return FlowRow(spacing: 8, lineSpacing: 8) {
-            ForEach(options, id: \.self) { k in
-                let n = k.map { kk in all.filter { $0.kind == kk }.count } ?? all.count
-                FilterChip(title: k?.plural ?? "All", count: n, selected: k == kind) { app.libraryKind = k; selection = [] }
-                    .uiTarget(k.map { "kind-\($0.rawValue)" } ?? "kind-all")
+            if !platforms.isEmpty {
+                FlowRow(spacing: 8, lineSpacing: 8) {
+                    ForEach(platforms, id: \.0) { p, n in
+                        FilterChip(title: p, count: n, selected: filter.platform == p, small: true) {
+                            app.libraryFilter = LibraryFilter(source: filter.source, platform: filter.platform == p ? nil : p)
+                            selection = []
+                        }
+                        .uiTarget("platform-\(p)")
+                    }
+                }
+                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
+                .transition(.opacity)
             }
         }
+        .animation(Motion.fade, value: platforms.isEmpty)
     }
 
     // MARK: Rows
@@ -159,8 +198,10 @@ struct LibraryView: View {
         return "\(g.label) · \(Formats.pattern("EEE MMM d").string(from: first.createdAt))"
     }
 
-    private func rows(_ groups: [(label: String, items: [Transcript])], order: [UUID]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+    /// Lazy, so a library of hundreds builds only the rows on screen. Rows and day headers don't stagger in: they
+    /// arrive with the screen.
+    private func rows(_ groups: [(label: String, items: [Transcript])], order: [UUID], projectNames: [UUID: String]) -> some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
                 HStack(spacing: 12) {
                     DayHeader(text: dayLabel(g))
@@ -172,16 +213,15 @@ struct LibraryView: View {
                         .buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.ink)
                     }
                 }
-                .padding(.top, gi == 0 ? 22 : 18).padding(.bottom, 8).staggerIn(1 + gi * 2)
-                VStack(spacing: 2) {
-                    ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
-                        HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
-                                   project: app.projectFilter == nil ? t.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name } : nil,
-                                   dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
-                                   open: { click(t.id, order: order) })
-                            .staggerIn(2 + gi * 2 + ii)
-                            .contextMenu { RowMenu(transcript: t) }
-                    }
+                .padding(.top, gi == 0 ? 22 : 18).padding(.bottom, 8)
+                ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
+                    let own = t.projectId.flatMap { projectNames[$0] }
+                    HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
+                               project: app.projectFilter == nil ? own : nil, projectName: own,
+                               dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
+                               open: { click(t.id, order: order) })
+                        .contextMenu { RowMenu(transcript: t) }
+                        .padding(.top, ii == 0 ? 0 : 2)
                 }
             }
         }
@@ -219,9 +259,12 @@ struct LibraryView: View {
     private var projectColumn: some View {
         let projects = app.store.projects
         let moving = hoveredProject ?? projects.first?.id
+        // Every project's transcripts in one pass, not one pass over the library per card.
+        var members: [UUID: [Transcript]] = [:]
+        for t in app.store.transcripts where t.deletedAt == nil && !t.isDictation { if let p = t.projectId { members[p, default: []].append(t) } }
         return VStack(alignment: .leading, spacing: 14) {
             ForEach(Array(projects.enumerated()), id: \.element.id) { i, p in
-                projectCard(p, index: i, moving: moving == p.id)
+                projectCard(p, items: members[p.id] ?? [], index: i, moving: moving == p.id)
             }
             PillButton(title: "New project", kind: .line, trailing: .plus, fullWidth: true,
                        hint: "Names a new project. Then drag transcripts onto it in the sidebar.") { app.newProjectFor = [] }
@@ -233,8 +276,7 @@ struct LibraryView: View {
 
     private static let projectFills: [Color] = [Ink.panelButter, Ink.panelPetal, Ink.panelSage]
 
-    private func projectCard(_ p: Project, index i: Int, moving: Bool) -> some View {
-        let items = app.store.live.filter { $0.projectId == p.id && !$0.isDictation }
+    private func projectCard(_ p: Project, items: [Transcript], index i: Int, moving: Bool) -> some View {
         let people = Set(items.flatMap { t in t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") } }).count
         let meta = [HomeCounts.countLabel(items.count, "transcript", "transcripts"), people > 0 ? HomeCounts.countLabel(people, "person", "people") : nil]
             .compactMap { $0 }.joined(separator: " · ")
@@ -279,7 +321,7 @@ struct LibraryView: View {
     /// Journal reads by day: "Today · Sat 17 Oct", then each entry as a flat row with its serif title, time, length,
     /// and opening lines.
     private func journal(_ list: [Transcript], order: [UUID]) -> some View {
-        VStack(alignment: .leading, spacing: 22) {
+        LazyVStack(alignment: .leading, spacing: 22) {
             ForEach(JournalDays.group(list)) { day in
                 VStack(alignment: .leading, spacing: 8) {
                     DayHeader(text: day.label == day.date ? day.label : "\(day.label) · \(day.date)")

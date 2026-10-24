@@ -51,7 +51,8 @@ struct QueueView: View {
                         .padding(.top, 22).staggerIn(1)
                 } else {
                     SectionTitle(title: "Up", italic: "next").padding(.top, 22).padding(.bottom, 10).staggerIn(1)
-                    VStack(spacing: 2) {
+                    // Lazy: a batch import can queue hundreds.
+                    LazyVStack(spacing: 2) {
                         if let r = running { QueueRow(transcript: r, state: .running) }
                         ForEach(importing) { t in QueueRow(transcript: t, state: .importing) }
                         ForEach(Array(waiting.enumerated()), id: \.element.id) { i, t in
@@ -125,7 +126,8 @@ struct QueueRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                controls.hidden().accessibilityHidden(true)   // room for the controls above the click layer
+                // Room for the controls above the click layer.
+                Color.clear.frame(width: controlsWidth, height: 28)
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .frame(minHeight: 64)
@@ -133,6 +135,15 @@ struct QueueRow: View {
             controls.padding(.trailing, 16)
         }
         .contextMenu { RowMenu(transcript: transcript) }
+    }
+
+    /// The controls' width for this state: the spinner and Cancel, Cancel, or a mini pill.
+    private var controlsWidth: CGFloat {
+        switch state {
+        case .running, .importing: return 110
+        case .waiting: return 76
+        case .done, .failed: return 72
+        }
     }
 
     /// "Transcribing 47% · 48:10", "Next · 03:12", "Queued · #3 · 1:02:44", "Done · 12:04", or the error in danger.

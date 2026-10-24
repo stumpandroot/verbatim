@@ -64,10 +64,13 @@ struct DictationsView: View {
                 if shown.isEmpty {
                     emptyState(all.isEmpty).padding(.top, 20).staggerIn(1)
                 } else {
-                    ForEach(Self.days(shown), id: \.0) { day, items in
-                        DayHeader(text: day).padding(.top, 14).padding(.bottom, 8)
-                        VStack(spacing: 2) {
-                            ForEach(items) { t in DictationRow(transcript: t) }
+                    // Lazy: only the dictations on screen are built (people keep hundreds).
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Self.days(shown), id: \.0) { day, items in
+                            DayHeader(text: day).padding(.top, 14).padding(.bottom, 8)
+                            ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                                DictationRow(transcript: t).padding(.top, i == 0 ? 0 : 2)
+                            }
                         }
                     }
                 }
@@ -146,6 +149,9 @@ struct DictationRow: View {
     @State private var copies = 0
     @Environment(\.limitMotion) private var limitMotion
 
+    /// The widest the controls get: the spinner, "✓ Copied", and the More button.
+    private static let controlsWidth: CGFloat = 150
+
     private var info: FlowInfo? { transcript.flow }
     private var pasted: String { info?.pasted ?? transcript.text }
     private var raw: String { info?.raw ?? transcript.text }
@@ -177,8 +183,9 @@ struct DictationRow: View {
                     metaLine
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // Room for the Copy pill and the More menu, which sit above the row's click layer.
-                controls.hidden()
+                // Room for the Copy pill and the More menu, which sit above the row's click layer. (A hidden copy of
+                // the controls built a second menu per row.)
+                Color.clear.frame(width: Self.controlsWidth, height: 28)
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
         } accessory: { _ in
