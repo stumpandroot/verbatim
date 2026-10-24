@@ -522,9 +522,4 @@ extension KeyboardBridge {
         d.set(data, forKey: statsKey)
         post(Note.state)
     }
-
-    static func readStats() -> Stats? {
-        guard let data = defaults?.data(forKey: statsKey) else { return nil }
-        return try? JSONDecoder().decode(Stats.self, from: data)
-    }
 }

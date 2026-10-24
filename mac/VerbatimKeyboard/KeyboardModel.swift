@@ -557,7 +557,6 @@ final class KeyboardModel: ObservableObject {
 
     func space() { proxy?.insertText(" ") }
     func newline() { proxy?.insertText("\n") }
-    func deleteOne() { proxy?.deleteBackward() }
 
     // MARK: Polling
 
