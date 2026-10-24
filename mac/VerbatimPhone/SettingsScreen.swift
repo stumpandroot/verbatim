@@ -23,6 +23,10 @@ struct SettingsScreen: View {
     /// Check each recording's language and pick a model that knows it (LanguageCheck.swift). On by default.
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
     @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
+    /// Recognize voices I've named (SpeakerVoices): on device only, never synced.
+    @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
+    @State private var savedVoices = 0
+    @State private var confirmClearVoices = false
     @State private var showAcknowledgements = false
     /// Show words while you record (MiniRecorder.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
@@ -142,6 +146,12 @@ struct SettingsScreen: View {
             Button("Turn Off") { turnSyncOff() }
         } message: {
             Text("Verbose copies your library onto this iPhone, then stops syncing the next time it opens. Your Mac keeps what's already in iCloud.")
+        }
+        .alert("Clear saved voices?", isPresented: $confirmClearVoices) {
+            Button("Clear", role: .destructive) { SpeakerVoices.clear(); savedVoices = 0 }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Verbose forgets the voices of the speakers you\u{2019}ve named. Names you gave stay.")
         }
         .alert("Delete all data?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
@@ -324,6 +334,21 @@ struct SettingsScreen: View {
         SettingsDivider()
         SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, art: .iconSpeakers, title: "Identify speakers", isOn: $app.identifySpeakers)
             .settingsSearchTarget("speakers", flash: searchFlash)
+        SettingsDivider()
+        SettingsToggleRow(icon: "person.2", tint: Ink.petalTint, art: .iconVoice, title: "Recognize voices I\u{2019}ve named",
+                          subtitle: "Suggests a name when a new speaker sounds like someone you named. The voices stay on this iPhone and are never synced.",
+                          isOn: $recognizeVoices)
+            .settingsSearchTarget("recognizeVoices", flash: searchFlash)
+        SettingsDivider()
+        Button { bump("clearVoices"); confirmClearVoices = true } label: {
+            SettingsRow(icon: "trash", tint: Ink.petalTint, art: .iconDeleteAll, title: "Clear saved voices",
+                        subtitle: savedVoices == 0 ? "No saved voices" : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), on this iPhone only",
+                        bounce: bumps["clearVoices", default: 0]) { EmptyView() }
+        }
+        .buttonStyle(SettingsRowPress())
+        .disabled(savedVoices == 0)
+        .onAppear { savedVoices = SpeakerVoices.namedCount }
+        .settingsSearchTarget("clearVoices", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, art: .iconApplyDictionary, title: "Apply Dictionary", isOn: $app.applyDictionary)
             .settingsSearchTarget("applyDictionary", flash: searchFlash)

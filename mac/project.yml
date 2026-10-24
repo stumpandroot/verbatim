@@ -305,6 +305,7 @@ targets:
       - Verbatim/Views/HomeKit.swift
       - Verbatim/Views/LinkAddedCard.swift
       - Verbatim/Views/KindViews.swift
+      - Verbatim/Views/SpeakerSuggestionRows.swift
       - Verbatim/Views/LibraryFilterBar.swift
       - Verbatim/Views/SummaryBlock.swift
       - Verbatim/Views/VoiceEnrollment.swift
