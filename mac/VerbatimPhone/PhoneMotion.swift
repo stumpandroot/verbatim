@@ -143,37 +143,3 @@ struct SoftPress: ButtonStyle {
         }
     }
 }
-
-/// A switch whose knob settles without overshoot (`Motion.toggle`, the 240 ms `snap`), in the brand's sage. Keeps the system switch's
-/// accessibility (role, value, and actions) through `accessibilityRepresentation`.
-struct SpringSwitchStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View { SpringSwitch(configuration: configuration) }
-    private struct SpringSwitch: View {
-        let configuration: ToggleStyleConfiguration
-        @Environment(\.limitMotion) private var limitMotion
-        @Environment(\.isEnabled) private var enabled
-        var body: some View {
-            let on = configuration.isOn
-            Button {
-                withAnimation(limitMotion ? Motion.fade : Motion.toggle) { configuration.$isOn.wrappedValue.toggle() }
-            } label: {
-                HStack(spacing: 12) {
-                    configuration.label
-                    Spacer(minLength: 8)
-                    ZStack(alignment: on ? .trailing : .leading) {
-                        Capsule().fill(on ? Ink.switchOn : Ink.outlineStrong)
-                        Circle().fill(Ink.readerFixed)
-                            .shadow(color: .black.opacity(0.18), radius: 3, y: 2)
-                            .padding(2)
-                    }
-                    .frame(width: 51, height: 31)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .opacity(enabled ? 1 : 0.45)
-            .sensoryFeedback(.selection, trigger: on)
-            .accessibilityRepresentation { Toggle(isOn: configuration.$isOn) { configuration.label } }
-        }
-    }
-}

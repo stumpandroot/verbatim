@@ -82,11 +82,6 @@ struct PhonePanelFill<S: Shape>: View {
 }
 
 extension View {
-    /// A color panel behind this view: fill, grain, and continuous corners.
-    func phonePanel(_ color: Color, radius: CGFloat, grain: Bool = true) -> some View {
-        background(PhonePanelFill(color: color, shape: RoundedRectangle(cornerRadius: radius, style: .continuous), grain: grain))
-    }
-
     /// A paper card with an ink outline (the website's `inset 0 0 0 1.5px ink`).
     func phoneOutlined(radius: CGFloat, fill: Color = Ink.card, line: CGFloat = 1.5) -> some View {
         background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))

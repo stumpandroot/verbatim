@@ -243,8 +243,6 @@ enum Motion {
     static let rise = gentle(0.9)
     /// Press: scale 0.97 in and out.
     static let pressSoft = gentle(0.32)
-    /// Switches settle without overshoot (no bounce in productivity controls).
-    static let toggle = snap
     /// What replaces movement when motion is limited: a short crossfade.
     static let fade = Animation.easeOut(duration: 0.2)
 }
