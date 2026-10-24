@@ -822,11 +822,9 @@ final class KeyboardSession: ObservableObject {
     /// Puts a ribbon take on the clipboard. False when iOS didn't take the write (it can refuse in the
     /// background); the text then waits in `pendingCopy` for Verbose to open.
     private func copyRibbon(_ id: UUID, _ text: String) -> Bool {
-        let pb = UIPasteboard.general
-        let before = pb.changeCount
-        pb.string = text
-        guard pb.changeCount != before else { pendingCopy = text; return false }
-        copiedChangeCount = pb.changeCount
+        // This iPhone only, for 2 minutes (KeyboardBridge.copyDictation).
+        guard KeyboardBridge.copyDictation(text) else { pendingCopy = text; return false }
+        copiedChangeCount = UIPasteboard.general.changeCount
         defaults?.set(id.uuidString, forKey: KeyboardBridge.copiedKey)
         pendingCopy = nil
         return true
@@ -836,7 +834,7 @@ final class KeyboardSession: ObservableObject {
     private func copyPending() {
         guard let text = pendingCopy else { return }
         pendingCopy = nil
-        UIPasteboard.general.string = text
+        KeyboardBridge.copyDictation(text)
         copiedChangeCount = UIPasteboard.general.changeCount
         app?.say("Copied your last take.")
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -850,11 +848,8 @@ final class KeyboardSession: ObservableObject {
     /// Settings › Keyboard › Also copy each dictation: the app puts the text on the clipboard and notes which
     /// dictation it copied. If the write didn't take, the keyboard copies it instead (with Full Access).
     private func copyForKeyboard(_ id: UUID, _ text: String) {
-        let pb = UIPasteboard.general
-        let before = pb.changeCount
-        pb.string = text
-        guard pb.changeCount != before else { Log.note("keyboard dictation: couldn't copy from the app; the keyboard will"); return }
-        copiedChangeCount = pb.changeCount
+        guard KeyboardBridge.copyDictation(text) else { Log.note("keyboard dictation: couldn't copy from the app; the keyboard will"); return }
+        copiedChangeCount = UIPasteboard.general.changeCount
         defaults?.set(id.uuidString, forKey: KeyboardBridge.copiedKey)
     }
 
@@ -926,7 +921,7 @@ final class KeyboardSession: ObservableObject {
             // The copy follows the polished text, while the clipboard still holds the copy the app made.
             if KeyboardBridge.alwaysCopy || ribbonTakes.contains(id), d.string(forKey: KeyboardBridge.copiedKey) == id.uuidString,
                let count = copiedChangeCount, UIPasteboard.general.changeCount == count {
-                UIPasteboard.general.string = polished
+                KeyboardBridge.copyDictation(polished)
                 copiedChangeCount = UIPasteboard.general.changeCount
             }
             KeyboardBridge.post(KeyboardBridge.Note.state)

@@ -766,7 +766,7 @@ final class KeyboardModel: ObservableObject {
         reloadRecent()
         // Also copy each dictation: the app copies it; when it couldn't, the keyboard does (Full Access only).
         if KeyboardBridge.alwaysCopy, hasFullAccess, defaults.string(forKey: KeyboardBridge.copiedKey) != d.uuidString {
-            UIPasteboard.general.string = final
+            KeyboardBridge.copyDictation(final)
             defaults.set(d.uuidString, forKey: KeyboardBridge.copiedKey)
         }
     }
