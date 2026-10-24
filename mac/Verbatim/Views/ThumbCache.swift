@@ -47,9 +47,9 @@ struct ThumbImage<Missing: View>: View {
 
     private static func picture(_ image: ThumbPlatformImage) -> Image {
         #if os(macOS)
-        Image(nsImage: image)
+        return Image(nsImage: image)
         #else
-        Image(uiImage: image)
+        return Image(uiImage: image)
         #endif
     }
 }

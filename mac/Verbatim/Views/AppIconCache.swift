@@ -28,7 +28,7 @@ enum AppIconCache {
         if let running = loading[key] {
             task = running
         } else {
-            task = Task.detached(priority: .userInitiated) { resolve(key) }
+            task = Task.detached(priority: .userInitiated) { AppIconCache.resolve(key) }
             loading[key] = task
         }
         let image = await task.value
