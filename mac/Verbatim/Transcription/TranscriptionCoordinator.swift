@@ -257,7 +257,8 @@ final class TranscriptionCoordinator: ObservableObject {
         guard runningID == nil, draining == 0 else { return }
         while let next = queue.first {
             queue.removeFirst()
-            guard let t = store.transcript(next), t.status == .processing || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
+            // A job another device has taken over since it was queued (Retry or a claimed link there) is theirs now.
+            guard let t = store.transcript(next), (t.status == .processing && t.jobIsMine()) || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
             runningID = next
             host?.jobStarted(next)
             run(next)
@@ -375,7 +376,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
                     // Cancelled while running (or started again): keep the cancellation, drop the late result.
-                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
                     self.store.update(id) { x in
                         x.original = original
                         x.segments = fixed
@@ -400,7 +401,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 if logsJobs { Log.note("transcribe failed: \(error)") }
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }
@@ -421,7 +422,7 @@ final class TranscriptionCoordinator: ObservableObject {
                                                       project: project, progress: progress)
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
                     self.store.update(id) { x in
                         x.original = out.original
                         x.segments = out.fixed
@@ -442,7 +443,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 if error is CancellationError { return }
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }
@@ -469,7 +470,7 @@ final class TranscriptionCoordinator: ObservableObject {
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let findSpeakers = wantSpeakers && out.fixed.count > 1
                 let proceed = await MainActor.run { () -> Bool in
-                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { self.finished(id, token: token); return false }
+                    guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { self.finished(id, token: token); return false }
                     self.store.update(id) { x in
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
@@ -489,6 +490,8 @@ final class TranscriptionCoordinator: ObservableObject {
                 await MainActor.run {
                     guard self.runToken == token else { return }
                     defer { self.finished(id, token: token) }
+                    // Another device transcribing it again since (Retry there) owns its words and stage now.
+                    guard let now = self.store.transcript(id), now.status == .ready, now.jobIsMine() else { return }
                     self.store.update(id) { x in
                         x.stage = nil
                         // Only when nobody has assigned speakers by hand in the meantime.
@@ -504,7 +507,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 if logsJobs { Log.note("transcribe failed: \(error)") }
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
-                    guard self.runToken == token, self.store.transcript(id)?.status == .processing else { return }
+                    guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }

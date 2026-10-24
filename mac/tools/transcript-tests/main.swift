@@ -140,6 +140,15 @@ check("a voice memo conversation doesn't fold the other half",
 var linkMemo = voices(.voiceMemo, [("S1", 50), ("S2", 3)]); linkMemo.sourceURL = "https://youtu.be/x"
 check("a voice-memo record with a link doesn't fold", linkMemo.backgroundSegments.isEmpty)
 
+// One device at a time: a job another device has taken over (Retry or a claimed link there) is never written back
+// by this one, so two devices never each keep their own words for one transcript.
+var job = fresh
+check("a job with no device is anyone's", job.jobIsMine("phone") && job.jobIsMine("mac"))
+job.processingDevice = "phone"
+check("a job is its device's", job.jobIsMine("phone"))
+check("another device's job is not this one's", !job.jobIsMine("mac"))
+check("the default is this device", job.jobIsMine() == (Device.id == "phone"))
+
 // JSONValue keeps every JSON shape.
 let shapes = Data(#"{"a":"s","b":1.5,"c":true,"d":null,"e":[1,"x",{"f":false}],"g":{"h":[]}}"#.utf8)
 if let v = try? dec.decode(JSONValue.self, from: shapes), let back = try? enc.encode(v) {

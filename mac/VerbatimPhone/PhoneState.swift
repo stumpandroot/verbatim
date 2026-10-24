@@ -613,10 +613,11 @@ final class PhoneState: ObservableObject {
         }
     }
 
-    /// False once the transcript is deleted or cancelled while its link was being fetched.
+    /// False once the transcript is deleted or cancelled while its link was being fetched, or another device took
+    /// the job over (`jobIsMine`).
     private func stillWanted(_ id: UUID) -> Bool {
         guard let t = store.transcript(id) else { return false }
-        return t.deletedAt == nil && t.status == .processing && !Task.isCancelled
+        return t.deletedAt == nil && t.status == .processing && t.jobIsMine() && !Task.isCancelled
     }
 
     /// A site this iPhone can't fetch: the Mac fetches it when one syncs this library (its yt-dlp helper picks up

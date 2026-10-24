@@ -108,6 +108,20 @@ enum SyncMerge {
         return (items, deleted)
     }
 
+    /// Of a transcript file's iCloud conflict versions (both devices wrote it at once), the one to put in place of
+    /// the current file: the most recently modified, when it's newer than the current one; nil keeps the current
+    /// file. Every device picks the same version, so their copies agree again; keeping each device's own current
+    /// file left two devices showing different words for one transcript.
+    static func conflictWinner(current: Date?, others: [Date?]) -> Int? {
+        var best: (i: Int, date: Date)? = nil
+        for (i, d) in others.enumerated() {
+            guard let d else { continue }
+            if best == nil || d > best!.date { best = (i, d) }
+        }
+        guard let best, best.date > (current ?? .distantPast) else { return nil }
+        return best.i
+    }
+
     /// Whether this device may write the list after reading its file: never while the file is there but not
     /// downloaded or not decodable, so a device that hasn't seen the list can't replace it with an empty one.
     static func mayWrite<T>(after read: ListRead<T>) -> Bool {

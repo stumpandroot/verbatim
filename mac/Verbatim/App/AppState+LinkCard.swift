@@ -217,10 +217,11 @@ extension AppState {
         if linkCardID != id, linkImports[id]?.isFinished ?? true { linkImports[id] = nil }
     }
 
-    /// False once the transcript is deleted or cancelled while its link was being fetched.
+    /// False once the transcript is deleted or cancelled while its link was being fetched, or another device took
+    /// the job over (`jobIsMine`).
     private func linkStillWanted(_ id: UUID) -> Bool {
         guard let t = store.transcript(id) else { return false }
-        return t.deletedAt == nil && t.status == .processing && !Task.isCancelled
+        return t.deletedAt == nil && t.status == .processing && t.jobIsMine() && !Task.isCancelled
     }
 
     /// Link downloads that stopped when Verbatim quit start again (no card; they show in Library and Queue).

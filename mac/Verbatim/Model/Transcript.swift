@@ -294,6 +294,11 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Sync: the device running this transcript's job (only that device resumes it), and its name for display.
     var processingDevice: String? = nil
     var processingDeviceName: String? = nil
+
+    /// Whether `device` may carry on with this transcript's job and write its result: no other device has taken the
+    /// job over since (a Retry, Transcribe again, or a claimed link there). Without this check two devices could
+    /// each transcribe one record, and each kept its own words.
+    func jobIsMine(_ device: String = Device.id) -> Bool { processingDevice == nil || processingDevice == device }
     /// A link added on iPhone, waiting for a Mac to fetch its audio (iPhone can't run the link helper).
     var pendingLink = false
     /// Dictations: which app it went to, the words before cleanup, and what was pasted.
