@@ -3,11 +3,25 @@ name: Quick check (compile only)
 # Runs on every push to a branch other than main: compiles the Mac and iPhone apps side by side, with no signing,
 # notarization, screenshots, or bench, so a mistake shows up in minutes. The full build (build-swift.yml) still runs
 # on main and on demand.
+#
+# To save macOS minutes (about $0.062 a minute in a private repo), a branch compiles only the apps its changes reach
+# since it left integrate: the Mac app for its targets' sources, the iPhone app for the iPhone targets' sources (the
+# app, its extensions, and the Mac folders they list in mac/project.yml), and both for the project, package pins,
+# vendored builds, and CI (.github/workflows/scripts/ci-targets.py decides). integrate always compiles both. The brand
+# check and the Linux logic tests run on every push. Docs-only pushes (*.md) don't run at all, except mac/DESIGN.md,
+# which the brand check reads, and the vendored crates under mac/harper-ffi.
 
 on:
   push:
     branches-ignore: [main, ci-screens, updates]
-    paths: ["mac/**", ".github/workflows/check-swift.yml"]
+    # Later patterns win: every .md under mac/ is left out, then mac/DESIGN.md and mac/harper-ffi are put back.
+    paths:
+      - "mac/**"
+      - "!mac/**/*.md"
+      - "mac/DESIGN.md"
+      - "mac/harper-ffi/**"
+      - ".github/workflows/check-swift.yml"
+      - ".github/workflows/scripts/**"
 
 # Read-only token; no secrets are used here. Actions are pinned to full commit SHAs (the tag is in the comment).
 permissions:
@@ -28,13 +42,54 @@ jobs:
       - name: Check icons, colors, glass, and marks against mac/DESIGN.md
         run: bash mac/tools/brand-check.sh
 
+  # Which compiles this push needs (Linux, about 15 seconds). Commits and trees only, no file contents, and only
+  # mac/project.yml and the script checked out; the token isn't kept, so it works the same in a private repo.
+  changes:
+    name: Pick the compiles
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.pick.outputs.targets }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            mac/project.yml
+            .github/workflows/scripts/
+          sparse-checkout-cone-mode: false
+      - name: Compare with where the branch left integrate
+        id: pick
+        run: |
+          set -u
+          if [ "$GITHUB_REF" = refs/heads/integrate ]; then
+            OUT="$(printf 'mac=true\nphone=true')"; echo "integrate compiles both apps."
+          else
+            BASE="$(git merge-base HEAD origin/integrate 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || true)"
+            if [ -n "$BASE" ]; then
+              OUT="$(python3 .github/workflows/scripts/ci-targets.py "$BASE" HEAD)" || OUT="$(printf 'mac=true\nphone=true')"
+            else
+              OUT="$(printf 'mac=true\nphone=true')"; echo "::warning::No merge base with integrate or main; compiling both apps."
+            fi
+          fi
+          T=()
+          grep -qx 'mac=true' <<< "$OUT" && T+=('"Mac"')
+          grep -qx 'phone=true' <<< "$OUT" && T+=('"iPhone"')
+          J="[$(IFS=,; echo "${T[*]}")]"
+          echo "Compiles: $J"
+          echo "targets=$J" >> "$GITHUB_OUTPUT"
+
+  # Skipped (not failed) when the push reaches neither app. The App Store pass is part of the iPhone leg.
   compile:
     name: Compile (${{ matrix.target }})
+    needs: changes
+    if: needs.changes.outputs.targets != '[]'
     runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
-        target: [Mac, iPhone]
+        target: ${{ fromJSON(needs.changes.outputs.targets) }}
     defaults:
       run:
         working-directory: mac
@@ -46,20 +101,37 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
 
+      # The grammar library depends only on mac/harper-ffi and its build scripts, so a library built from the same
+      # files (by this job, or by build-swift.yml on main, whose caches every branch can read) is reused as is; Rust
+      # is installed and Harper built only when there's none. Keep the paths and key in step with build-swift.yml.
+      - name: Cache the grammar library
+        id: harper
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            mac/Vendor/harper/libharper_ffi.a
+            mac/Vendor/harper/ios
+            mac/Vendor/harper/ios-sim
+          key: harper-${{ matrix.target == 'Mac' && 'mac' || 'ios' }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml', 'mac/harper-ffi/src/**', 'mac/harper-ffi/vendor/**', 'mac/Vendor/harper/build.sh', 'mac/Vendor/harper/build-ios.sh') }}
+
       # Same toolchain as mac/harper-ffi/rust-toolchain.toml; change both together.
       - name: Install Rust (Harper grammar engine)
+        if: steps.harper.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
           toolchain: 1.97.0
           targets: ${{ matrix.target == 'Mac' && 'aarch64-apple-darwin, x86_64-apple-darwin' || 'aarch64-apple-ios-sim, x86_64-apple-ios' }}
+      # The same keys as build-swift.yml's Mac and iPhone jobs, which run the same Harper build scripts.
       - name: Cache cargo
+        if: steps.harper.outputs.cache-hit != 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             mac/harper-ffi/target
-          key: cargo-check-${{ matrix.target }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
+          key: ${{ matrix.target == 'Mac' && 'cargo' || 'cargo-ios' }}-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
+      # build-swift.yml's Mac job saves this key on main, so a branch's first push finds the packages too.
       - name: Cache Swift packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -82,13 +154,15 @@ jobs:
             echo "  $s: $(du -sch Vendor/ffmpeg/*.xcframework/$s/*.framework 2>/dev/null | tail -1 | cut -f1)"
           done
 
-      - name: Generate the project and grammar libraries
+      - name: Generate the project
         run: |
           brew install xcodegen
           [ -f Local.xcconfig ] || : > Local.xcconfig
           xcodegen generate --quiet
           bash tools/package-resolved.sh install
-          if [ "${{ matrix.target }}" = "Mac" ]; then bash Vendor/harper/build.sh; else bash Vendor/harper/build-ios.sh; fi
+      - name: Build the grammar library
+        if: steps.harper.outputs.cache-hit != 'true'
+        run: if [ "${{ matrix.target }}" = "Mac" ]; then bash Vendor/harper/build.sh; else bash Vendor/harper/build-ios.sh; fi
 
       - name: Compile
         run: |

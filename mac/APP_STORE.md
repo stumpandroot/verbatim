@@ -19,7 +19,7 @@ xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -config
 xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug VERBATIM_APP_STORE=YES build
 ```
 
-Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the undocumented selector or class names below are left in the app.
+Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push to `integrate`, and on every branch push that changes a file the iPhone app or its extensions build from. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the undocumented selector or class names below are left in the app.
 
 ## What the flag changes
 
