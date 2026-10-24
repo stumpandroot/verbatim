@@ -87,9 +87,9 @@ struct HomeScreen: View {
         }
     }
 
-    /// Your profile, About me in Settings: This week opens it.
+    /// Your profile, the You page in Settings (YouScreen.swift): This week opens it.
     static func openProfile(_ app: PhoneState) {
-        SettingsPage.open("aboutMe")
+        SettingsPage.open("you")
         app.tab = .settings
     }
 
@@ -229,7 +229,7 @@ struct HomeScreen: View {
 
     // MARK: This week
 
-    /// One line: the week's words in the serif, seven small day bars, and the time saved. Opens About me.
+    /// One line: the week's words in the serif, seven small day bars, and the time saved. Opens the You page.
     private var weekCard: some View {
         let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
         let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
@@ -257,7 +257,7 @@ struct HomeScreen: View {
         .buttonStyle(PhoneCardPress())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(saved) saved.")
-        .accessibilityHint("Opens About me.")
+        .accessibilityHint("Opens your You page, with the whole week.")
     }
 
     private func dayBars(_ week: HomeWeek) -> some View {
@@ -371,12 +371,15 @@ extension Notification.Name {
     static let verbatimOpenSettingsPage = Notification.Name("verbatimOpenSettingsPage")
 }
 
-/// Opens a page inside Settings from elsewhere (Home's avatar opens About me; the keyboard row opens Keyboard).
+/// Opens a page inside Settings from elsewhere (Home's This week opens the You page; the keyboard row opens Keyboard).
 /// Kept until Settings reads it, because the Settings tab may not exist yet when Home asks.
 enum SettingsPage {
     static var pending: String?
+    /// The latest page asked for, kept after Settings opens it (for the self-test).
+    static var lastRequested: String?
     static func open(_ page: String) {
         pending = page
+        lastRequested = page
         NotificationCenter.default.post(name: .verbatimOpenSettingsPage, object: page)
     }
     static func take() -> String? {
