@@ -13,12 +13,11 @@ struct LinksView: View {
     @EnvironmentObject var app: AppState
     @State private var site: String? = nil
 
-    private var all: [Transcript] { app.filtered.filter { $0.linkInfo != nil } }
-    private var sites: [String] { Array(Set(all.compactMap { $0.linkInfo?.site })).sorted() }
-    private var shown: [Transcript] { all.filter { site == nil || $0.linkInfo?.site == site } }
-
     var body: some View {
-        let all = self.all, shown = self.shown, sites = self.sites
+        // Worked out once per render: each list used to filter the whole library again.
+        let all = app.filtered.compactMap { t in t.linkInfo.map { LinkItem(t: t, info: $0) } }
+        let sites = Array(Set(all.compactMap { $0.info.site })).sorted()
+        let shown = site == nil ? all : all.filter { $0.info.site == site }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 PageTitle(title: "Links", count: "\(shown.count.formatted()) transcribed",
@@ -46,8 +45,8 @@ struct LinksView: View {
                     .padding(.top, 22).staggerIn(1)
                 } else {
                     LazyVStack(spacing: 2) {
-                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
-                            LinkRow(transcript: t).staggerIn(2 + min(i, 8))
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, row in
+                            LinkRow(transcript: row.t, info: row.info).staggerIn(2 + min(i, 8))
                         }
                     }
                     .padding(.top, 16)
@@ -63,16 +62,24 @@ struct LinksView: View {
     private func pasteLink() { app.goHome(); app.focusLink.toggle() }
 }
 
+/// A transcript in Links with its link details.
+private struct LinkItem: Identifiable {
+    let t: Transcript
+    let info: LinkInfo
+    var id: UUID { t.id }
+}
+
 /// A flat Links row: thumbnail, serif title, channel · site · date · length in mono, the status as plain text, then
 /// Open video, Transcript, and the ⋯ menu. Clicking the row opens the transcript; dragging it files it in a project.
 struct LinkRow: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
+    /// `transcript.linkInfo`, worked out once by the list.
+    var info: LinkInfo
     /// Open video, Transcript, and the ⋯ button, with their gaps.
     private static let actionsWidth: CGFloat = 222
 
     var body: some View {
-        let info = transcript.linkInfo!
         FlatRowButton(dragPayload: { TranscriptDrag.payload([transcript.id]) }, action: { app.go(.transcript(transcript.id)) }) { _ in
             HStack(alignment: .center, spacing: 18) {
                 LinkThumb(info: info, duration: transcript.duration, seed: transcript.id)
@@ -100,7 +107,7 @@ struct LinkRow: View {
     }
 
     private var title: (String, String?) {
-        WebText.split(transcript.title, after: transcript.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name })
+        WebText.split(transcript.title, after: transcript.projectId.flatMap { app.store.projectsByID[$0]?.name })
     }
 
     /// "Lapp Wagons · YouTube · Oct 12, 2026 · 06:52".

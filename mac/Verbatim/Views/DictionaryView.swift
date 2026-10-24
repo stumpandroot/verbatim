@@ -202,7 +202,7 @@ struct DictionaryRow: View {
     }
 
     private var project: String? {
-        entry.projectId.flatMap { pid in app.store.projects.first { $0.id == pid }?.name }
+        entry.projectId.flatMap { app.store.projectsByID[$0]?.name }
     }
 
     var body: some View {

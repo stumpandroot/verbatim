@@ -252,7 +252,7 @@ struct MomentCard: View {
 
     /// The transcript's title in the serif, italic after its project's name where it has one.
     private var titleLine: some View {
-        let project = transcript.projectId.flatMap { id in app.store.projects.first { $0.id == id }?.name }
+        let project = transcript.projectId.flatMap { app.store.projectsByID[$0]?.name }
         let t = WebText.split(transcript.title, after: project)
         return WebText.serif(t.0, italic: t.1, size: 15).lineLimit(1)
     }

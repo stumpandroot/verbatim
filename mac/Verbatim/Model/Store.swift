@@ -400,8 +400,15 @@ private final class LoadSlots: @unchecked Sendable {
 /// Transcripts live as one JSON file each in /transcripts, with audio beside them in /audio.
 @MainActor
 final class Store: ObservableObject {
-    @Published private(set) var transcripts: [Transcript] = []
-    @Published var projects: [Project] = [] { didSet { listEdited(old: oldValue, list: \.projects, sync: \.projectSync) } }
+    @Published private(set) var transcripts: [Transcript] = [] { didSet { transcriptsGeneration &+= 1 } }
+    @Published var projects: [Project] = [] {
+        didSet {
+            projectsByID = Dictionary(projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            listEdited(old: oldValue, list: \.projects, sync: \.projectSync)
+        }
+    }
+    /// `projects` by ID, for rows that show their project's name (kept in step by `projects`' didSet).
+    private(set) var projectsByID: [UUID: Project] = [:]
     @Published var dictionary: [DictionaryEntry] = [] { didSet { listEdited(old: oldValue, list: \.dictionary, sync: \.dictionarySync) } }
     /// Snippets for dictation. Synced like the Dictionary; the Mac mirrors them into `FlowSettings.snippets`.
     @Published var snippets: [Snippet] = [] { didSet { listEdited(old: oldValue, list: \.snippets, sync: \.snippetSync) } }
@@ -686,7 +693,7 @@ final class Store: ObservableObject {
         if pendingSaves[id] != nil || inFlight[id] != nil { deferredIngest[id] = url; return nil }
         CloudSync.resolveConflicts(url)
         guard let data = Cloud.read(url), var t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return nil }
-        if let i = transcripts.firstIndex(where: { $0.id == id }) {
+        if let i = index(of: id) {
             // Keep this device's live progress label for jobs it's running.
             if t.status == .processing, t.processingDevice == Device.id { t.stage = transcripts[i].stage }
             guard transcripts[i] != t else { return nil }
@@ -846,7 +853,7 @@ final class Store: ObservableObject {
     }
 
     func update(_ id: UUID, _ change: (inout Transcript) -> Void) {
-        guard let i = transcripts.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = index(of: id) else { return }
         searchCache[id] = nil
         change(&transcripts[i])
         save(transcripts[i])
@@ -854,7 +861,7 @@ final class Store: ObservableObject {
 
     /// Like `update`, but writes to disk a second after the last change: for typing.
     func updateDeferred(_ id: UUID, _ change: (inout Transcript) -> Void) {
-        guard let i = transcripts.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = index(of: id) else { return }
         searchCache[id] = nil
         change(&transcripts[i])
         pendingSaves[id]?.cancel()
@@ -961,11 +968,30 @@ final class Store: ObservableObject {
         return s
     }
 
-    func transcript(_ id: UUID) -> Transcript? { transcripts.first { $0.id == id } }
+    func transcript(_ id: UUID) -> Transcript? { index(of: id).map { transcripts[$0] } }
+
+    /// Bumped on every change to `transcripts`, so the ID index knows when a miss may be stale.
+    private var transcriptsGeneration = 0
+    private var idIndex: [UUID: Int] = [:]
+    private var idIndexGeneration = -1
+
+    /// Where a transcript is in `transcripts`. The index is checked on each hit and rebuilt only when it's wrong
+    /// and `transcripts` changed since it was built, so progress ticks (which change a transcript in place) and
+    /// lookups of IDs that aren't there don't rebuild it.
+    private func index(of id: UUID) -> Int? {
+        if let i = idIndex[id], i < transcripts.count, transcripts[i].id == id { return i }
+        guard idIndexGeneration != transcriptsGeneration else { return nil }
+        var built: [UUID: Int] = [:]
+        built.reserveCapacity(transcripts.count)
+        for (i, t) in transcripts.enumerated() where built[t.id] == nil { built[t.id] = i }
+        idIndex = built
+        idIndexGeneration = transcriptsGeneration
+        return built[id]
+    }
 
     /// Display-only progress text; not written to disk.
     func setStage(_ id: UUID, _ stage: String) {
-        guard let i = transcripts.firstIndex(where: { $0.id == id }), transcripts[i].stage != stage else { return }
+        guard let i = index(of: id), transcripts[i].stage != stage else { return }
         transcripts[i].stage = stage
     }
 

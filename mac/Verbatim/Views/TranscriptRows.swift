@@ -185,7 +185,7 @@ struct RowMenu: View {
                     Button(p.name) { app.addToProject([transcript.id], p.id) }
                 }
             }
-            if let current = transcript.projectId, let name = app.store.projects.first(where: { $0.id == current })?.name {
+            if let current = transcript.projectId, let name = app.store.projectsByID[current]?.name {
                 Divider()
                 Button("Remove from \(name)") { app.move([transcript.id], to: nil) }
             }
