@@ -156,26 +156,27 @@ struct TagChips: View {
     @State private var adding = false
     @State private var draft = ""
 
+    // No container of its own: each chip and the + button are separate children, so `FlowRow` (KindAndTags) wraps
+    // them onto as many lines as they need instead of running off the edge.
     var body: some View {
         let h: CGFloat = compact ? 28 : 36
-        HStack(spacing: 8) {
-            ForEach(tags, id: \.self) { tag in
-                Text(tag).font(.system(size: compact ? 13 : 15)).foregroundStyle(Ink.ink)
-                    .padding(.horizontal, compact ? 10 : 13).frame(minHeight: h)
-                    .background(Ink.card, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Ink.hairline))
-                    .contextMenu { Button(role: .destructive) { onRemove(tag) } label: { Label("Remove tag", systemImage: "xmark") } }
-                    .accessibilityLabel("Tag: \(tag)")
-            }
-            Button { draft = ""; adding = true } label: {
-                Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold)).foregroundStyle(Ink.dim)
-                    .frame(width: h, height: h)
-                    .overlay(Capsule().strokeBorder(Ink.hairline))
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Add a tag")
+        ForEach(tags, id: \.self) { tag in
+            Text(tag).font(.system(size: compact ? 13 : 15)).foregroundStyle(Ink.ink)
+                .lineLimit(1).truncationMode(.middle)
+                .padding(.horizontal, compact ? 10 : 13).frame(minHeight: h)
+                .background(Ink.card, in: Capsule())
+                .overlay(Capsule().strokeBorder(Ink.hairline))
+                .contextMenu { Button(role: .destructive) { onRemove(tag) } label: { Label("Remove tag", systemImage: "xmark") } }
+                .accessibilityLabel("Tag: \(tag)")
         }
+        Button { draft = ""; adding = true } label: {
+            Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold)).foregroundStyle(Ink.dim)
+                .frame(width: h, height: h)
+                .overlay(Capsule().strokeBorder(Ink.hairline))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add a tag")
         .alert("Add a tag", isPresented: $adding) {
             TextField("Tag", text: $draft)
             Button("Cancel", role: .cancel) {}
@@ -215,17 +216,24 @@ struct FlowRow: Layout {
         let maxW = proposal.width ?? .infinity
         var x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0, widest: CGFloat = 0
         for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
+            let s = Self.size(v, maxW)
             if x > 0, x + s.width > maxW { y += line + lineSpacing; x = 0; line = 0 }
             x += s.width + spacing; line = max(line, s.height); widest = max(widest, x - spacing)
         }
         return CGSize(width: proposal.width ?? widest, height: y + line)
     }
 
+    /// A child's natural size, but never wider than the row (a long tag truncates instead of overflowing).
+    private static func size(_ v: LayoutSubview, _ maxW: CGFloat) -> CGSize {
+        let s = v.sizeThatFits(.unspecified)
+        guard maxW.isFinite, s.width > maxW else { return s }
+        return v.sizeThatFits(ProposedViewSize(width: maxW, height: nil))
+    }
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
         for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
+            let s = Self.size(v, bounds.width)
             if x > bounds.minX, x + s.width > bounds.maxX { y += line + lineSpacing; x = bounds.minX; line = 0 }
             v.place(at: CGPoint(x: x, y: y + (line > 0 ? 0 : 0)), proposal: ProposedViewSize(s))
             x += s.width + spacing; line = max(line, s.height)
