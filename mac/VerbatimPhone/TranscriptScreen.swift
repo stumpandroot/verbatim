@@ -167,6 +167,7 @@ struct TranscriptScreen: View {
                     }
                 }
                 .onDisappear { app.player.stop() }
+                .skipsSponsors(t, player: app.player)
             } else {
                 Text("This transcript was deleted.").foregroundStyle(Ink.mute).frame(maxWidth: .infinity, maxHeight: .infinity).background(Ink.paper)
             }
@@ -393,6 +394,8 @@ struct PhoneLines: View {
     /// The passages under the playhead as of the last tick. Only a change here re-renders the lines; the tint
     /// itself is worked out from the clock in `body`.
     @State private var playingIDs: Set<UUID> = []
+    /// Sponsor reads opened from their folded row.
+    @State private var openSponsors: Set<UUID> = []
     /// Reading text at a comfortable size and line height (the website's 16.5 / 1.6), scaled with Dynamic Type.
     @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 16.5
     @ScaledMetric(relativeTo: .caption) private var pillSize: CGFloat = 12.5
@@ -417,10 +420,22 @@ struct PhoneLines: View {
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
         let segs = segments
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
+        // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
+        let folds = SponsorFold.places(segs, in: transcript)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
-                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || segs[i - 1].speaker != s.speaker)
+                // After a folded read, name the speaker again: the line above on screen is someone else's.
+                let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
+                let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segs[i - 1].speaker != s.speaker)
                 let playing = current.contains(s.id)
+                let fold = folds[i]
+                if let fold, fold.first {
+                    SponsorFoldRow(span: fold.span, open: openSponsors.contains(fold.span.id), compact: false,
+                                   onToggle: { if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) } },
+                                   onPlay: app.player.canPlay ? { app.player.play(from: fold.span.start) } : nil,
+                                   onNotSponsor: { app.store.update(transcript.id) { $0.dismissSponsor(fold.span.id) } })
+                        .padding(.top, i == 0 ? 2 : 10).padding(.bottom, 4)
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         if showSpeaker, let n = transcript.speakerName(s.speaker) {
@@ -477,7 +492,11 @@ struct PhoneLines: View {
                         Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied") } label: { Label("Copy quote with link", systemImage: "link") }   // brand: system surface (menu)
                         Link(destination: u) { Label("Open video at \(s.start.timecode)", systemImage: "play.rectangle") }   // brand: system surface (menu)
                     }
+                    if transcript.offersSponsorMarking, fold == nil {
+                        Button { app.store.update(transcript.id) { $0.markSponsor(segment: s.id) } } label: { Label("Mark as sponsor", systemImage: "tag") }   // brand: system surface (menu)
+                    }
                 }
+                .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
         }
         .alert("Name this speaker", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
@@ -537,9 +556,13 @@ struct PhoneDock: View {
             .buttonStyle(PhoneCardPress())
             .disabled(downloading)
             .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
-            Text(clock.time.timecode).font(Ink.mono(12)).foregroundStyle(Ink.paperFixed)
-                .fixedSize()
-                .accessibilityHidden(true)
+            if let note = clock.note {
+                SkippedSponsorNote(text: note)
+            } else {
+                Text(clock.time.timecode).font(Ink.mono(12)).foregroundStyle(Ink.paperFixed)
+                    .fixedSize()
+                    .accessibilityHidden(true)
+            }
             PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total)) { f in
                 app.player.seek(to: f * total)
             }

@@ -210,6 +210,8 @@ I = {
     'Download': [s('M12 3.5V15'), s('M8 11L12 15L16 11'), s('M5 20.5H19')],
     # The Action button: a phone's edge with the button on its side, and the press.
     'ActionButton': [s('M5.5 3H15V21H5.5Z'), s('M15 6.5H16.5V10.5H15'), s('M19 7L20.5 6'), s('M19 10L20.5 11'), fl(C(10.25, 17.5, 1))],
+    # A sponsor read: a price tag on its string.
+    'Sponsor': [s('M3.5 3.5H11.5L20.5 12.5L12.5 20.5L3.5 11.5Z'), s(C(8, 8, 1.6))],
 }
 
 

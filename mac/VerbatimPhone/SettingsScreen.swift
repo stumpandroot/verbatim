@@ -20,6 +20,7 @@ struct SettingsScreen: View {
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    @AppStorage(Transcript.skipSponsorsKey) private var skipSponsors = true
     /// Check each recording's language and pick a model that knows it (LanguageCheck.swift). On by default.
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
     @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
@@ -343,6 +344,10 @@ struct SettingsScreen: View {
         SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
                           subtitle: "In voice memos, other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
             .settingsSearchTarget("mainSpeaker", flash: searchFlash)
+        SettingsDivider()
+        SettingsToggleRow(icon: "tag", tint: Ink.butterTint, art: .iconSponsor, title: "Skip sponsor reads",
+                          subtitle: "In podcasts and videos, playback jumps past sponsor reads, and they fold into a line", isOn: $skipSponsors)
+            .settingsSearchTarget("skipSponsors", flash: searchFlash)
         SettingsDivider()
         Menu {
             Picker("Files with several audio tracks", selection: $audioTracks) {

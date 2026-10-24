@@ -212,6 +212,7 @@ extension BrandArt {
     static let iconNoSpeaker = BrandArt(box: iconGrid, strokes: [.circle(12, 8.5, 3.5), .path("M5.5 19.5C5.5 15.5 8.4 13.5 12 13.5S18.5 15.5 18.5 19.5"), .path("M4 4L20 20")], strokeWidth: 1.5)
     static let iconDownload = BrandArt(box: iconGrid, strokes: [.path("M12 3.5V15"), .path("M8 11L12 15L16 11"), .path("M5 20.5H19")], strokeWidth: 1.5)
     static let iconActionButton = BrandArt(box: iconGrid, strokes: [.path("M5.5 3H15V21H5.5Z"), .path("M15 6.5H16.5V10.5H15"), .path("M19 7L20.5 6"), .path("M19 10L20.5 11")], fills: [.circle(10.25, 17.5, 1)], strokeWidth: 1.5)
+    static let iconSponsor = BrandArt(box: iconGrid, strokes: [.path("M3.5 3.5H11.5L20.5 12.5L12.5 20.5L3.5 11.5Z"), .circle(8, 8, 1.6)], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the
