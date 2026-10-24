@@ -1,0 +1,3 @@
+Build 194 from c61fa63 (main)
+Mac self-test: 595 passed, 0 failed, finished: yes
+Logs, CPU samples, and crash reports: the mac-diagnostics-194 artifact on the workflow run (7 days).
