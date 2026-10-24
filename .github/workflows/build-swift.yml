@@ -1007,9 +1007,13 @@ jobs:
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
           ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
           # The App Store build (mac/APP_STORE.md): the AppStore configuration sets VERBATIM_APP_STORE=YES, so
-          # TestFlight gets exactly what App Review sees.
+          # TestFlight gets what App Review sees, with one exception: these internal-testing builds also fetch
+          # YouTube on the iPhone (YOUTUBE_ON_DEVICE). Guideline 5.2.3 makes that a rejection risk, so never submit
+          # one of these builds for App Review or external testing; archive one without it (mac/APP_STORE.md).
+          echo "::notice::TestFlight build ${GITHUB_RUN_NUMBER} fetches YouTube on the iPhone. Internal testing only; don't submit it for review."
           xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -configuration AppStore -destination 'generic/platform=iOS' \
             -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+            "VERBATIM_PHONE_CONDITIONS_YES=APP_STORE YOUTUBE_ON_DEVICE" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             "${AUTH[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1 || {
               echo "::error::iPhone archive failed"
