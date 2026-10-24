@@ -372,7 +372,7 @@ targets:
         BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
-        NSMicrophoneUsageDescription: "Verbose records voice memos with your microphone and transcribes them on this iPhone."
+        NSMicrophoneUsageDescription: "Verbose records voice memos and dictation with your microphone, and keeps it ready for the Verbose keyboard while a session is on. Audio is transcribed on this iPhone and goes to your own iCloud only when you turn on iCloud sync."
         # Live words (Audio/LiveTranscriber.swift), on device only; for the keyboard session's live words later.
         # Also languages outside Parakeet v3's 25 (Transcription/LanguageCheck.swift, AppleSpeech), on device only.
         NSSpeechRecognitionUsageDescription: "Verbose shows your words as you speak, and transcribes languages its own models don't cover, on this iPhone."

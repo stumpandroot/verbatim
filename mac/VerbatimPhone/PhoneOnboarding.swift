@@ -6,6 +6,8 @@ struct PhoneOnboarding: View {
     @EnvironmentObject var app: PhoneState
     @State private var step: Int
     @State private var micAllowed = AVAudioApplication.shared.recordPermission == .granted
+    /// The last step's iCloud sync switch (off on a new install; `Cloud.settleSyncDefault`).
+    @State private var syncWanted = Cloud.wantsSync
     @Environment(\.limitMotion) private var reduceMotion
     private let total = 3
 
@@ -54,7 +56,7 @@ struct PhoneOnboarding: View {
             .padding(.top, 22)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
             title(Ink.tagline)
-            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Turn on iCloud sync to see your transcripts on your Mac too.")
+            para("Record a thought, an interview, or a call, or paste a link to a video or podcast. Verbose writes it down on this iPhone. Everything stays on this iPhone unless you turn on iCloud sync.")
             BrandGlyph(art: .diagramCapture, color: Ink.ink, minLineWidth: 1.2)
                 .frame(width: 170, height: 220).frame(maxWidth: .infinity).padding(.top, 50)
                 .accessibilityHidden(true)
@@ -111,9 +113,30 @@ struct PhoneOnboarding: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
             .padding(.top, 22)
-            Label(Cloud.enabled ? "Syncing with iCloud" : "iCloud is off, so everything stays on this iPhone",
-                  systemImage: Cloud.enabled ? "icloud" : "icloud.slash")
-                .font(.system(size: 14)).foregroundStyle(Ink.dim).padding(.top, 16)
+            sync.padding(.top, 16)
+        }
+    }
+
+    /// iCloud sync, offered here and off unless you turn it on. Already syncing (the tour again from Settings): the
+    /// status only, since turning it off copies your library down first (Settings › Sync and data).
+    @ViewBuilder private var sync: some View {
+        if Cloud.enabled {
+            Label { Text("Syncing with iCloud. Turn it off in Settings › Sync and data.") } icon: { ArtIcon(art: .iconSync, size: 14) }
+                .font(.system(size: 14)).foregroundStyle(Ink.dim)
+        } else if Cloud.available {
+            Toggle(isOn: Binding(get: { syncWanted }, set: { on in syncWanted = on; Cloud.setWantsSync(on) })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("iCloud sync").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
+                    Text(syncWanted
+                         ? "Your recordings, transcripts, Dictionary, and snippets go to your own iCloud Drive, so they show on your Mac too. Starts the next time you open Verbose."
+                         : "Off: everything stays on this iPhone. Turn it on to see your transcripts on your Mac too. Audio and transcripts go to your own iCloud Drive.")
+                        .font(.system(size: 13)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch).tint(PhoneInk.switchOn)
+        } else {
+            Label { Text("iCloud is off, so everything stays on this iPhone") } icon: { ArtIcon(art: .iconSyncOff, size: 14) }
+                .font(.system(size: 14)).foregroundStyle(Ink.dim)
         }
     }
 
