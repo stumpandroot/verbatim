@@ -54,11 +54,11 @@ enum PhoneGrainTile {
                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
                                provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
         else { return UIImage() }
-        return UIImage(cgImage: cg, scale: 2, orientation: .up)
+        return UIImage(cgImage: cg, scale: 3, orientation: .up)
     }
 }
 
-/// A color panel's fill: the color, its grain (multiplied at 32%), and the shape. Grain is left off under Increase
+/// A color panel's fill: the color, its grain (premultiplied ink at 30%, one speck per screen pixel), and the shape. Grain is left off under Increase
 /// Contrast and Reduce Transparency, where texture costs legibility.
 struct PhonePanelFill<S: Shape>: View {
     var color: Color
@@ -72,7 +72,7 @@ struct PhonePanelFill<S: Shape>: View {
             .overlay {
                 if grain, contrast != .increased, !reduceTransparency {
                     Image(uiImage: PhoneGrainTile.image).resizable(resizingMode: .tile)
-                        .blendMode(.multiply).opacity(0.32)
+                        .opacity(0.3)
                         .clipShape(shape)
                 }
             }

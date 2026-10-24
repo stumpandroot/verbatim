@@ -753,11 +753,11 @@ struct PhoneSummaryPanel: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                ZStack(alignment: .topTrailing) {
-                    PhonePanelFill(color: PhoneInk.butter, shape: shape)
-                    if !editing { PhonePanelArt(kind: .strands).frame(width: 160, height: 107).offset(x: 4, y: -16) }
-                }
-                .clipShape(shape)
+                PhonePanelFill(color: PhoneInk.butter, shape: shape)
+                    .overlay(alignment: .topTrailing) {
+                        if !editing { PhonePanelArt(kind: .strands).frame(width: 160, height: 107).offset(x: 4, y: -16) }
+                    }
+                    .clipShape(shape)
             }
             .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
                 Button("Replace", role: .destructive) { onSummarize(true) }

@@ -96,10 +96,10 @@ struct PhoneMomentCard: View {
             if let f = note.frameFile {
                 StillImage(file: f).frame(height: 120).frame(maxWidth: .infinity).clipped()
             } else if art {
-                ZStack(alignment: .topTrailing) {
-                    PhonePanelFill(color: PhoneInk.sage, shape: Rectangle())
-                    PhonePanelArt(kind: .circles).frame(width: 220, height: 190).offset(x: 20, y: -40)
-                }
+                PhonePanelFill(color: PhoneInk.sage, shape: Rectangle())
+                    .overlay(alignment: .topTrailing) {
+                        PhonePanelArt(kind: .circles).frame(width: 220, height: 190).offset(x: 20, y: -40)
+                    }
                 .frame(height: 120).frame(maxWidth: .infinity).clipped()
                 .overlay(alignment: .bottom) { Rectangle().fill(Ink.ink).frame(height: 1.5) }
             }
