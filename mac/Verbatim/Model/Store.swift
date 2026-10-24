@@ -454,8 +454,8 @@ final class Store: ObservableObject {
     /// Called after a transcript arrives or changes from the other device (Mac: claim pending links).
     var onRemoteChange: ((Transcript) -> Void)?
     /// Recordings recovered after launch (queued to transcribe, or added to the transcript they continued): the
-    /// app queues these IDs. Recovery that finishes during `init` is picked up by the queue's own resume instead.
-    var onRecovered: (([UUID]) -> Void)?
+    /// app queues these IDs, and says so when `announce` is true (recovery after joining leftover segments).
+    var onRecovered: ((_ ids: [UUID], _ announce: Bool) -> Void)?
     private var sync: CloudSync?
 
     init() {
@@ -527,10 +527,13 @@ final class Store: ObservableObject {
         loadList(list: \.dictionary, sync: \.dictionarySync)
         loadList(list: \.snippets, sync: \.snippetSync)
         cleanUpStuckImports(stuck)
-        cleanDownloads()
-        recoverOrphans()
-        purgeExpired()
         startProfileSync()
+        // Housekeeping the first frame doesn't wait for: old downloads are removed on a background queue, the
+        // recordings folder is checked for orphans on one (they're adopted here afterward), and expired items
+        // leave Recently Deleted a run-loop turn later, once the window has drawn.
+        DispatchQueue.global(qos: .utility).async { Self.cleanDownloads() }
+        recoverOrphans()
+        DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.purgeExpired() } }
     }
 
     // MARK: Launch cleanup
@@ -582,8 +585,8 @@ final class Store: ObservableObject {
     }
 
     /// At launch: link downloads and their partial files older than a day are removed from `Paths.downloads` (a
-    /// finished download moves out of it at once).
-    private func cleanDownloads() {
+    /// finished download moves out of it at once). Touches only the disk, so it runs on a background queue.
+    nonisolated private static func cleanDownloads() {
         let fm = FileManager.default
         let cutoff = Date().addingTimeInterval(-86_400)
         let items = (try? fm.contentsOfDirectory(at: Paths.downloads, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
@@ -612,36 +615,61 @@ final class Store: ObservableObject {
 
     /// A recording whose app died before it stopped is still in the local recordings folder. Surface it.
     /// (Only local recordings: with iCloud, audio from the other device can arrive before its transcript.)
+    /// The folder is read, and each orphan's header repaired and length read, on a background queue; the orphans
+    /// are adopted on the main actor afterward.
     private func recoverOrphans() {
-        // A long recording interrupted mid-way left segment files (or a join it didn't finish): one recording
-        // again first. That copies audio, so it runs off the main thread; the orphans are surfaced after it.
-        guard RecordingSegments.hasLeftovers(in: Paths.recordings) else { adoptOrphans(); return }
         let taken = Set(transcripts.compactMap(\.audioFileName))
+        // Names a transcript points at (its audio, or a continued recording waiting to be joined).
+        let known = taken.union(transcripts.compactMap(\.pendingAppend))
         let folder = Paths.recordings, audio = Paths.audio
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let skipped = RecordingSegments.joinLeftovers(in: folder) { name in
+            // A long recording interrupted mid-way left segment files (or a join it didn't finish): one recording
+            // again first (it copies audio); the orphans are surfaced after it.
+            let leftovers = RecordingSegments.hasLeftovers(in: folder)
+            let skipped = leftovers ? RecordingSegments.joinLeftovers(in: folder) { name in
                 taken.contains(name) || FileManager.default.fileExists(atPath: audio.appendingPathComponent(name).path)
+            } : [:]
+            let probe = Self.probeOrphans(in: folder, known: known)
+            DispatchQueue.main.async {
+                // Recordings recovered without a join are queued quietly, as the queue's resume at launch takes
+                // them; after a join (a long recording put back together), the app says so.
+                MainActor.assumeIsolated { self?.adoptOrphans(probe, skipped: skipped, announce: leftovers) }
             }
-            DispatchQueue.main.async { MainActor.assumeIsolated { self?.adoptOrphans(skipped: skipped) } }
         }
     }
 
-    /// Each orphan is queued to transcribe as "Recovered recording · <date>", or added to the transcript it was
-    /// continuing (RecordingSafety.swift). Orphans of a second or less are deleted once they're a week old.
-    private func adoptOrphans(skipped: [String: [ClosedRange<Double>]] = [:]) {
-        let fm = FileManager.default
-        // Names a transcript points at (its audio, or a continued recording waiting to be joined).
-        let known = Set(transcripts.compactMap(\.audioFileName)).union(transcripts.compactMap(\.pendingAppend))
-        let files = (try? fm.contentsOfDirectory(at: Paths.recordings, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        retryAdoptions(files, known: known)
-        var recovered: [UUID] = []
-        // Not a recording in progress (recovery may finish after a new one started), and not a leftover segment.
+    /// The recordings folder's files, and the orphans among them with their lengths and dates.
+    private struct OrphanProbe {
+        var files: [URL]
+        var orphans: [(url: URL, duration: Double, modified: Date)]
+    }
+
+    /// Lists the recordings folder and reads each orphan: not a name a transcript points at (as of `known`), not
+    /// hidden, not a leftover segment, and not a recording in progress. Repairs WAV headers the app didn't close.
+    nonisolated private static func probeOrphans(in folder: URL, known: Set<String>) -> OrphanProbe {
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        var orphans: [(url: URL, duration: Double, modified: Date)] = []
         for f in files where !known.contains(f.lastPathComponent) && !f.lastPathComponent.hasPrefix(".") && RecordingSegments.parse(f) == nil
             && !RecordingSegments.isActive(f)
             && ["wav", "m4a", "mp3", "mp4", "mov", "aiff"].contains(f.pathExtension.lowercased()) {
             WavRepair.fixHeader(f)   // the app quit before the recording was closed
             let dur = Player.duration(of: f)
             let when = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date()
+            orphans.append((f, dur, when))
+        }
+        return OrphanProbe(files: files, orphans: orphans)
+    }
+
+    /// Each orphan is queued to transcribe as "Recovered recording · <date>", or added to the transcript it was
+    /// continuing (RecordingSafety.swift). Orphans of a second or less are deleted once they're a week old.
+    private func adoptOrphans(_ probe: OrphanProbe, skipped: [String: [ClosedRange<Double>]], announce: Bool) {
+        let fm = FileManager.default
+        // Again now: transcripts may have changed while the folder was read.
+        let known = Set(transcripts.compactMap(\.audioFileName)).union(transcripts.compactMap(\.pendingAppend))
+        retryAdoptions(probe.files, known: known)
+        var recovered: [UUID] = [], appended = false
+        // Not a recording in progress (recovery may finish after a new one started).
+        for (f, dur, when) in probe.orphans where !known.contains(f.lastPathComponent) && !RecordingSegments.isActive(f) {
             guard dur > 1 else {
                 if Self.isStaleTinyOrphan(duration: dur, bytes: Self.fileSize(f), modified: when) {
                     try? fm.removeItem(at: f); Self.clearContinuation(f)
@@ -654,14 +682,16 @@ final class Store: ObservableObject {
             let t = Self.recoveredTranscript(audioFileName: name, duration: dur, recordedAt: when, skipped: skipped[f.lastPathComponent] ?? [])
             searchCache[t.id] = nil
             transcripts.append(t)
+            appended = true
             save(t)
             recovered.append(t.id)
         }
-        transcripts.sort { $0.createdAt > $1.createdAt }
+        // Only when something was added: this runs after the first frame now, and every change re-renders.
+        if appended { transcripts.sort { $0.createdAt > $1.createdAt } }
         if !recovered.isEmpty {
             Log.note("recovery: \(recovered.count) recording\(recovered.count == 1 ? "" : "s") queued")
             waitForWrites()
-            onRecovered?(recovered)
+            onRecovered?(recovered, announce)
         }
     }
 

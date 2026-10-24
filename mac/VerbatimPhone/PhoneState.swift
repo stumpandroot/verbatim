@@ -128,7 +128,7 @@ final class PhoneState: ObservableObject {
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
         // Recordings recovered once launch recovery finishes in the background: transcribe them too.
-        store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
+        store.onRecovered = { [weak self] ids, announce in self?.queueRecovered(ids, announce: announce) }
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
         // Picked files the app quit in the middle of importing start again (their placeholders are still "Importing").
         let resumable = store.takeResumableImports().compactMap { pair -> (UUID, ImportSource)? in
@@ -316,8 +316,9 @@ final class PhoneState: ObservableObject {
     }
 
     /// Recordings recovered after launch: transcribed now (or added to the transcript they continued).
-    func queueRecovered(_ ids: [UUID]) {
+    func queueRecovered(_ ids: [UUID], announce: Bool = true) {
         for id in ids where !queue.contains(id) && runningID != id { coordinator.enqueueExisting(id) }
+        guard announce else { return }
         say(ids.count == 1 ? "Recovered a recording. Transcribing it now." : "Recovered \(ids.count) recordings. Transcribing them now.")
     }
 

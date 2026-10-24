@@ -111,8 +111,9 @@ extension AppState {
     }
 
     /// Recordings recovered after launch: transcribed now (or added to the transcript they continued).
-    func queueRecovered(_ ids: [UUID]) {
+    func queueRecovered(_ ids: [UUID], announce: Bool = true) {
         for id in ids where !queue.contains(id) && runningID != id { coordinator.enqueueExisting(id) }
+        guard announce else { return }
         toast = Toast(ids.count == 1 ? "Recovered a recording. Transcribing it now." : "Recovered \(ids.count) recordings. Transcribing them now.")
     }
 

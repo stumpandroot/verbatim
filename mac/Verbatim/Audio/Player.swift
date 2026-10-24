@@ -108,7 +108,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
     }
 
-    static func duration(of url: URL) -> TimeInterval {
+    nonisolated static func duration(of url: URL) -> TimeInterval {
         (try? AVAudioPlayer(contentsOf: url).duration) ?? 0
     }
 }

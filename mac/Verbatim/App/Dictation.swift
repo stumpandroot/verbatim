@@ -144,7 +144,8 @@ final class DictationController: ObservableObject {
         RecallHotkey.shared.apply()
         bar = FlowBarController(dictation: self)
         refreshMonitors()
-        purgeOldDictations()
+        // Retention runs once the window has drawn: it walks the whole library.
+        DispatchQueue.main.async { [weak self] in self?.purgeOldDictations() }
         // Turning on Accessibility in System Settings doesn't tell the app. Watch for it, and start listening for
         // the hotkey the moment it's allowed (key monitors added before that never receive anything).
         lastTrusted = accessibilityTrusted

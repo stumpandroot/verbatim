@@ -148,7 +148,7 @@ final class AppState: ObservableObject {
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
         coordinator.resume(includeUnowned: true)
         // Recordings recovered once launch recovery finishes in the background: transcribe them too.
-        store.onRecovered = { [weak self] ids in self?.queueRecovered(ids) }
+        store.onRecovered = { [weak self] ids, announce in self?.queueRecovered(ids, announce: announce) }
         // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
         if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
         // Notices calls and asks to record them; never records on its own (App/MeetingCoordinator.swift).
