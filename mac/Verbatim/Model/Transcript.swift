@@ -64,6 +64,56 @@ struct Speaker: Codable, Identifiable, Equatable {
     var id: String          // "S1"
     var name: String        // "Speaker 1" until renamed
     var label: String { name.isEmpty ? id : name }
+    /// Still Verbatim's own name ("Speaker 2", or none): nobody has named this speaker yet.
+    var isPlaceholder: Bool {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty else { return true }
+        guard n.hasPrefix("Speaker ") else { return false }
+        let rest = n.dropFirst("Speaker ".count)
+        return !rest.isEmpty && rest.allSatisfy(\.isNumber)
+    }
+}
+
+/// A name Verbose suggests for a diarized speaker (SpeakerNames.swift), shown with Use and Dismiss and never applied
+/// on its own. Kept after Use (with its reasons) and after Dismiss, so a dismissed name never comes back. Every field
+/// decodes with a default, so a suggestion a newer build wrote still reads.
+struct SpeakerSuggestion: Codable, Equatable, Identifiable {
+    enum State: String, Codable, TolerantEnum {
+        case pending, accepted, dismissed
+        /// A state a newer build added reads as dismissed: never shown, never suggested again.
+        static var fallback: State { .dismissed }
+        init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
+    }
+    /// The speaker it's for ("S1").
+    var speakerId: String
+    var name: String
+    /// Short reasons, most telling first ("called “Jenna” at 1:05", "named in the title").
+    var reasons: [String] = []
+    /// Where the evidence came from: "speech", "link", "model", "past", "voice".
+    var sources: [String] = []
+    var state: State = .pending
+
+    var id: String { speakerId + "|" + name.lowercased() }
+    /// The reasons on one line, first letter capitalized.
+    var reasonText: String {
+        let t = reasons.joined(separator: " · ")
+        guard let f = t.first else { return t }
+        return f.uppercased() + t.dropFirst()
+    }
+
+    init(speakerId: String, name: String, reasons: [String] = [], sources: [String] = [], state: State = .pending) {
+        self.speakerId = speakerId; self.name = name; self.reasons = reasons; self.sources = sources; self.state = state
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case speakerId, name, reasons, sources, state }
+        let c = try d.container(keyedBy: K.self)
+        speakerId = try c.decodeIfPresent(String.self, forKey: .speakerId) ?? ""
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        reasons = (try? c.decodeIfPresent([String].self, forKey: .reasons)) ?? []
+        sources = (try? c.decodeIfPresent([String].self, forKey: .sources)) ?? []
+        state = (try? c.decodeIfPresent(State.self, forKey: .state)) ?? .pending
+    }
 }
 
 /// A dictionary fix applied after recognition, kept so it can be reviewed or undone.
@@ -218,7 +268,8 @@ struct Transcript: Codable, Identifiable, Equatable {
              corrections, projectId, tags, pinned, notes, waveform, model, engine, language, languageChoice, status, stage, error,
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
-             summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion
+             summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
+             speakerSuggestions
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -241,6 +292,9 @@ struct Transcript: Codable, Identifiable, Equatable {
     var original: [Segment] = []
     var segments: [Segment] = []
     var speakers: [Speaker] = []
+    /// Names suggested for `speakers` (SpeakerNames), with what you did about each. nil until suggestions run; older
+    /// builds keep the field as an unknown key and write it back.
+    var speakerSuggestions: [SpeakerSuggestion]? = nil
     var corrections: [Correction] = []
     var projectId: UUID? = nil
     var tags: [String] = []
@@ -333,6 +387,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         original = try c.decodeIfPresent([Segment].self, forKey: .original) ?? []
         segments = try c.decodeIfPresent([Segment].self, forKey: .segments) ?? []
         speakers = try c.decodeIfPresent([Speaker].self, forKey: .speakers) ?? []
+        // Suggestions a newer build wrote in a shape this one can't read are dropped, never the whole file.
+        speakerSuggestions = (try? c.decodeIfPresent([SpeakerSuggestion].self, forKey: .speakerSuggestions)) ?? nil
         corrections = try c.decodeIfPresent([Correction].self, forKey: .corrections) ?? []
         projectId = try c.decodeIfPresent(UUID.self, forKey: .projectId)
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
@@ -426,6 +482,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encode(original, forKey: .original)
         try c.encode(segments, forKey: .segments)
         try c.encode(speakers, forKey: .speakers)
+        try c.encodeIfPresent(speakerSuggestions, forKey: .speakerSuggestions)
         try c.encode(corrections, forKey: .corrections)
         try c.encodeIfPresent(projectId, forKey: .projectId)
         try c.encode(tags, forKey: .tags)
@@ -463,6 +520,27 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encode(documentEdited, forKey: .documentEdited)
         try c.encode(max(schemaVersion, Self.currentSchema), forKey: .schemaVersion)
         try unknown.encodeKeys(to: e, known: Self.knownKeys)
+    }
+
+    /// Suggestions to show: still pending, for a speaker who exists and hasn't been named, with a name no other
+    /// speaker has.
+    var visibleSpeakerSuggestions: [SpeakerSuggestion] {
+        guard let list = speakerSuggestions else { return [] }
+        let taken = Set(speakers.filter { !$0.isPlaceholder }.map { $0.name.lowercased() })
+        var seen = Set<String>()
+        return list.filter { s in
+            guard s.state == .pending, !s.name.isEmpty, !taken.contains(s.name.lowercased()),
+                  speakers.contains(where: { $0.id == s.speakerId && $0.isPlaceholder }), !seen.contains(s.speakerId) else { return false }
+            seen.insert(s.speakerId)
+            return true
+        }
+    }
+
+    /// Marks a suggestion used or dismissed. Using one doesn't rename the speaker; the caller renames it the way a
+    /// typed name does.
+    mutating func markSpeakerSuggestion(_ id: String, _ state: SpeakerSuggestion.State) {
+        guard let i = speakerSuggestions?.firstIndex(where: { $0.id == id }) else { return }
+        speakerSuggestions?[i].state = state
     }
 
     /// A summary the person wrote or edited: automatic summaries leave it alone.

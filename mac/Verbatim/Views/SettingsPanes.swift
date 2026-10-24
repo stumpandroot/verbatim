@@ -299,6 +299,8 @@ struct SpeakersSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
+    @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
+    @State private var savedVoices = SpeakerVoices.namedCount
 
     var body: some View {
         SettingsPane(tab: .speakers) {
@@ -311,6 +313,12 @@ struct SpeakersSettingsPane: View {
                     SettingsToggleRow("speakers.identify", isOn: $app.identifySpeakers)
                 } else {
                     SettingsToggleRow("speakers.identify", isOn: .constant(false), detail: "Speaker labels need macOS 15 or later.", disabled: true)
+                }
+                SettingsToggleRow("speakers.recognizeVoices", isOn: $recognizeVoices)
+                SettingsRow("speakers.clearVoices", detail: savedVoices == 0 ? "No saved voices." : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), kept on this Mac only and never synced.") {
+                    Button("Clear Saved Voices") { SpeakerVoices.clear(); savedVoices = 0 }
+                        .buttonStyle(.settingsPill).disabled(savedVoices == 0)
+                        .onAppear { savedVoices = SpeakerVoices.namedCount }
                 }
                 SettingsToggleRow("speakers.mainOnly", isOn: $mainSpeakerOnly)
                 SettingsRow("speakers.audioTracks") {

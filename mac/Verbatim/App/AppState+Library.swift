@@ -78,6 +78,19 @@ extension AppState {
             let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
             if let i = t.speakers.firstIndex(where: { $0.id == sid }), !clean.isEmpty { t.speakers[i].name = clean }
         }
+        SpeakerVoices.remember(transcript: id, speaker: sid, name: name)
+    }
+
+    /// Use on a speaker name suggestion: renames the speaker the way a typed name does and keeps the suggestion,
+    /// with its reasons, as used.
+    func useSpeakerSuggestion(transcript id: UUID, _ s: SpeakerSuggestion) {
+        renameSpeaker(transcript: id, speaker: s.speakerId, to: s.name)
+        store.update(id) { $0.markSpeakerSuggestion(s.id, .accepted) }
+    }
+
+    /// Dismiss: the suggestion hides and isn't made again.
+    func dismissSpeakerSuggestion(transcript id: UUID, _ s: SpeakerSuggestion) {
+        store.update(id) { $0.markSpeakerSuggestion(s.id, .dismissed) }
     }
 
     func assign(transcript id: UUID, segment seg: UUID, to speaker: String?) {

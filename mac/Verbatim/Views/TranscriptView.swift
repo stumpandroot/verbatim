@@ -277,6 +277,12 @@ struct TranscriptView: View {
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
                     .padding(.top, 12)
             }
+            if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
+                SpeakerSuggestionRows(transcript: t,
+                                      onUse: { app.useSpeakerSuggestion(transcript: t.id, $0) },
+                                      onDismiss: { app.dismissSpeakerSuggestion(transcript: t.id, $0) })
+                    .padding(.top, 12)
+            }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { ArtIcon(art: .capture, size: 16).foregroundStyle(Ink.accentText) }
@@ -296,6 +302,7 @@ struct TranscriptView: View {
             if view == .original, !t.corrections.isEmpty { correctionChips(t).padding(.top, 16) }
         }
         .padding(.bottom, 14)
+        .task(id: t.id) { SpeakerNameSuggester.openedIfNeeded(t.id, store: app.store) }
     }
 
     /// The title: content, not a page label, so it stays large (serif 44). Click it to rename in place; Return or

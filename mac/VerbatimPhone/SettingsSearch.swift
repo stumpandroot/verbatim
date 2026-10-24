@@ -101,6 +101,10 @@ enum SettingsSearchIndex {
               keywords: ["cloud", "claude", "anthropic", "openai", "chatgpt", "gpt", "api key", "keychain", "model", "grammar", "ai"],
               description: "Clean up with your own Anthropic or OpenAI key; off by default"),
         .init(id: "speakers", section: "Transcription", label: "Identify speakers", keywords: ["diarization", "voices", "people", "who spoke"]),
+        .init(id: "recognizeVoices", section: "Transcription", label: "Recognize voices I\u{2019}ve named",
+              keywords: ["voice match", "speaker names", "suggest", "people", "remember", "voices"],
+              description: "Suggests names for voices you named; kept on this iPhone only"),
+        .init(id: "clearVoices", section: "Transcription", label: "Clear saved voices", keywords: ["delete", "forget", "voices", "speakers"]),
         .init(id: "applyDictionary", section: "Transcription", label: "Apply Dictionary", keywords: ["words", "names", "spelling", "corrections"]),
         .init(id: "nameAndSort", section: "Transcription", label: "Name and sort recordings", keywords: ["titles", "tags", "kind", "auto label", "apple intelligence"],
               description: "Suggests a title, kind, and tags when a transcript is ready"),
@@ -191,6 +195,7 @@ enum SettingsSearchIndex {
         case "quality": return app.preset.title
         case "cloudCleanup": return onOff(CloudCleanup.enabled)
         case "speakers": return onOff(app.identifySpeakers)
+        case "recognizeVoices": return onOff(SpeakerVoices.enabled)
         case "applyDictionary": return onOff(app.applyDictionary)
         case "nameAndSort": return onOff(d.object(forKey: AutoLabel.enabledKey) as? Bool ?? true)
         case "hideFiller": return onOff(d.object(forKey: Transcript.hideFillerKey) as? Bool ?? true)

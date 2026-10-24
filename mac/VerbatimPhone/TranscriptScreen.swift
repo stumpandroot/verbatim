@@ -229,6 +229,12 @@ struct TranscriptScreen: View {
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
                     .padding(.top, 8)
             }
+            if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
+                SpeakerSuggestionRows(transcript: t,
+                                      onUse: { app.useSpeakerSuggestion(t.id, $0) },
+                                      onDismiss: { app.dismissSpeakerSuggestion(t.id, $0) })
+                    .padding(.top, 8)
+            }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 18, color: Ink.accentText) }
@@ -252,6 +258,7 @@ struct TranscriptScreen: View {
             }
             if let info = t.linkInfo { PhoneLinkCard(info: info).padding(.top, 8) }
         }
+        .task(id: t.id) { SpeakerNameSuggester.openedIfNeeded(t.id, store: app.store) }
     }
 
     @ViewBuilder private func content(_ t: Transcript) -> some View {
