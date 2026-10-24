@@ -162,7 +162,8 @@ struct Pill: View {
     }
 }
 
-/// Entrance stagger: each element rises 6 pt and fades in, 35 ms after the previous one (first at 0).
+/// Entrance stagger: each element rises 4 pt and fades in over 180 ms, 20 ms after the previous one (first at 0).
+/// Quick on purpose: it plays on every screen change, and a screen never makes you wait for its content.
 struct StaggerIn: ViewModifier {
     var index: Int          // negative = no entrance animation
     @State private var shown = false
@@ -171,7 +172,7 @@ struct StaggerIn: ViewModifier {
         content
             .opacity(shown || index < 0 ? 1 : 0)
             .offset(y: shown || reduce || index < 0 ? 0 : 4)
-            .onAppear { if index >= 0 { withAnimation(Motion.settle.delay(Double(index) * 0.03)) { shown = true } } }
+            .onAppear { if index >= 0 { withAnimation(.easeOut(duration: 0.18).delay(Double(min(index, 8)) * 0.02)) { shown = true } } }
     }
 }
 extension View { func staggerIn(_ index: Int) -> some View { modifier(StaggerIn(index: index)) } }

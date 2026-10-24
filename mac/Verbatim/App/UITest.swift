@@ -1258,6 +1258,19 @@ enum UITest {
               !FlowCleanup.instructions(level: .clean, corrections: false).contains("scratch that") && FlowCleanup.instructions(level: .clean, corrections: true).contains("scratch that"))
     }
 
+    /// Screen-change timing for CI, never a pass or fail: from the navigation (the click that called `go`) to the new
+    /// screen's root `onAppear`, and to the next turn of the main loop after it (the first frame committed). One line
+    /// per change: `UITEST TIMING <screen> <ms> settled=<ms>`. Launch's first screen isn't a change and isn't logged.
+    static func screenAppeared(_ key: String, nav: Int, since start: Date) {
+        guard enabled, nav > 0 else { return }
+        let screen = key.hasPrefix("t-") ? "transcript" : key
+        let appeared = Date().timeIntervalSince(start) * 1000
+        DispatchQueue.main.async {
+            let settled = Date().timeIntervalSince(start) * 1000
+            Log.note("UITEST TIMING \(screen) \(Int(appeared.rounded())) settled=\(Int(settled.rounded()))")
+        }
+    }
+
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
         await reveal(target, in: window)
         click(target, in: window)
@@ -1302,15 +1315,20 @@ enum UITest {
     }
 }
 
-/// Records a control's frame for the self-test. Free in release use: a GeometryReader in the background.
+/// Records a control's frame for the self-test. Outside the self-test it adds nothing (it used to add a
+/// GeometryReader that tracked the global frame of every target on every scroll and layout pass).
 struct UITarget: ViewModifier {
     var id: String
     func body(content: Content) -> some View {
-        content.background(GeometryReader { g in
-            Color.clear
-                .onAppear { UITest.frames[id] = g.frame(in: .global) }
-                .onChange(of: g.frame(in: .global)) { _, f in UITest.frames[id] = f }
-        })
+        if UITest.enabled {
+            content.background(GeometryReader { g in
+                Color.clear
+                    .onAppear { UITest.frames[id] = g.frame(in: .global) }
+                    .onChange(of: g.frame(in: .global)) { _, f in UITest.frames[id] = f }
+            })
+        } else {
+            content
+        }
     }
 }
 extension View { func uiTarget(_ id: String) -> some View { modifier(UITarget(id: id)) } }
