@@ -17,6 +17,8 @@ enum Polish {
             case .high: return "Rewritten for brevity"
             }
         }
+        /// Light, Medium, and High remove filler words; the rule pass (`CleanupGuard.removeFillers`) makes sure.
+        var removesFillers: Bool { self != .none }
     }
     enum Tone: String, CaseIterable, Identifiable {
         case spoken = "As spoken", casual = "Casual", professional = "Professional", concise = "Concise"
@@ -53,7 +55,9 @@ enum Polish {
         var rules = ["You edit a transcript of someone speaking. Return only the edited paragraph, nothing else.",
                      "Use the same language as the paragraph. Never translate.",
                      "Keep the speaker's meaning, facts, names, numbers, negations, and first-person voice. Never add information. When unsure, keep the words as spoken.",
-                     "If the paragraph starts with a speaker label like 'Name: ', keep that label exactly."]
+                     // No speaker labels here, and no example of one: the paragraph comes without its label
+                     // (CleanupGuard), and the small model copied an example label into paragraphs that had none.
+                     "Never add a label, heading, or title of any kind before the text."]
         switch level {
         case .none: rules.append("Fix spelling, punctuation, and capitalization only. Keep every word otherwise.")
         case .light: rules.append("Remove filler words (um, uh, you know, like, I mean), false starts, and repeated words. Fix grammar and punctuation. Keep the wording and sentence order.")
@@ -87,15 +91,24 @@ enum Polish {
     /// Rewrites each paragraph. Calls `progress` with the fraction done. A chunk the model refuses, or whose
     /// answer looks cut off, comes back unchanged. Throws when the model is unavailable or returned nothing usable
     /// at all, so the person sees why instead of an unchanged document.
-    static func rewrite(_ paragraphs: [String], level: Level, tone: Tone, progress: @escaping @Sendable (Double) -> Void) async throws -> [String] {
+    ///
+    /// `speakers` are the names paragraphs can start with ("Name: text", `DocumentText.labelNames`). Each label comes
+    /// off before the model and goes back on after; a label the model invents is dropped; at levels that remove
+    /// fillers, the rule pass removes any it left (`CleanupGuard`). A paragraph left with only fillers is dropped.
+    static func rewrite(_ paragraphs: [String], level: Level, tone: Tone, speakers: [String] = [], progress: @escaping @Sendable (Double) -> Void) async throws -> [String] {
         #if canImport(FoundationModels)
         if #available(macOS 26, iOS 26, *), status.isReady {
             let rules = instructions(level: level, tone: tone)
             var out: [String] = []
             var tried = 0, kept = 0
-            for (i, p) in paragraphs.enumerated() {
+            func add(_ text: String, input: String, label: String?) {
+                let done = CleanupGuard.finish(text, input: input, label: label, speakers: speakers, removeFillers: level.removesFillers)
+                if !done.isEmpty { out.append(done) }
+            }
+            for (i, paragraph) in paragraphs.enumerated() {
                 try Task.checkCancellation()
-                if p.split(separator: " ").count < 3 { out.append(p); progress(Double(i + 1) / Double(paragraphs.count)); continue }
+                let (label, p) = CleanupGuard.prepare(paragraph, speakers: speakers)
+                if p.split(separator: " ").count < 3 { add(p, input: p, label: label); progress(Double(i + 1) / Double(paragraphs.count)); continue }
                 var parts: [String] = []
                 for chunk in chunks(p) {
                     try Task.checkCancellation()
@@ -106,7 +119,7 @@ enum Polish {
                         // would cut an answer silently, while running out of room throws and the chunk is kept.
                         let session = LanguageModelSession(instructions: rules)
                         let r = try await session.respond(to: "Paragraph:\n\(chunk)")
-                        let text = r.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let text = CleanupGuard.dropInventedLabel(r.content, input: chunk, speakers: speakers)
                         if text.isEmpty || looksCut(source: chunk, output: text) {
                             Log.note("polish: paragraph \(i) chunk kept as-is (empty or cut off)")
                             kept += 1
@@ -120,7 +133,7 @@ enum Polish {
                         parts.append(chunk)
                     }
                 }
-                out.append(parts.joined(separator: " "))
+                add(parts.joined(separator: " "), input: p, label: label)
                 progress(Double(i + 1) / Double(paragraphs.count))
             }
             if tried > 0 && kept == tried {

@@ -192,10 +192,11 @@ struct PhoneDocument: View {
         guard working == nil else { return }
         // Always from the corrected lines, never from the cleaned text, so running it twice doesn't compound.
         let paras = DocumentText.paragraphs(transcript.cleanupBase)
+        let speakers = DocumentText.labelNames(transcript)
         working = 0
         Task {
             do {
-                let out = try await Polish.rewrite(paras, level: level, tone: tone) { p in Task { @MainActor in working = p } }
+                let out = try await Polish.rewrite(paras, level: level, tone: tone, speakers: speakers) { p in Task { @MainActor in working = p } }
                 let joined = out.joined(separator: "\n\n")
                 // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
                 app.store.update(transcript.id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }

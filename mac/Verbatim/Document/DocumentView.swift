@@ -175,11 +175,12 @@ struct DocumentView: View {
         }
         let base = transcript.cleanupBase   // always from the corrected lines, never from an earlier cleanup
         let paras = DocumentText.paragraphs(base)
+        let speakers = DocumentText.labelNames(transcript)
         let id = transcript.id
         working = 0
         Task {
             do {
-                let out = try await Polish.rewrite(paras, level: level, tone: tone) { p in Task { @MainActor in working = p } }
+                let out = try await Polish.rewrite(paras, level: level, tone: tone, speakers: speakers) { p in Task { @MainActor in working = p } }
                 let joined = out.joined(separator: "\n\n")
                 // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
                 app.store.update(id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }
