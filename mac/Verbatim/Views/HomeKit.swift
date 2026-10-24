@@ -599,41 +599,19 @@ struct HomeCard<Content: View>: View {
     @ViewBuilder var content: (_ hovering: Bool) -> Content
 
     #if os(macOS)
-    @Environment(\.limitMotion) private var limitMotion
-    @State private var hover: CGPoint? = nil
-    @State private var down = false
-    @State private var size: CGSize = .zero
+    /// Only whether the pointer is over the card lives here, so `content` is rebuilt on enter and exit, never on every
+    /// pointer move: the pointer position (for the tilt and sheen) and the press live in `HomeCardSurface`, which
+    /// draws the already-built content.
+    @State private var hovering = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        content(hover != nil && enabled)
-            .cardMotion(hover: enabled ? hover : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift, shadow: shadow)
-            .opacity(down && enabled && limitMotion ? 0.8 : 1)
-            .allowsHitTesting(false)
-            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
-            .overlay {
-                // The hit layer: flat, on top, and the only thing that receives the pointer.
-                shape.fill(Color.white.opacity(0.001))
-                    .contentShape(shape)
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let p):
-                            if hover == nil { onHover?(true) }
-                            hover = p
-                        case .ended:
-                            hover = nil
-                            if down { down = false; onPress?(false) }
-                            onHover?(false)
-                        }
-                    }
-                    .gesture(DragGesture(minimumDistance: 0)
-                        .onChanged { _ in if !down { down = true; onPress?(true) } }
-                        .onEnded { v in
-                            down = false
-                            onPress?(false)
-                            if enabled && CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
-                        })
-            }
+        HomeCardSurface(radius: radius, tilt: tilt, lift: lift, enabled: enabled, shadow: shadow,
+                        content: content(hovering && enabled),
+                        onHover: { h in
+                            if hovering != h { hovering = h }
+                            onHover?(h)
+                        },
+                        onPress: onPress, action: action)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { if enabled { action() } }
@@ -646,6 +624,61 @@ struct HomeCard<Content: View>: View {
     }
     #endif
 }
+
+#if os(macOS)
+/// The moving part of a Mac `HomeCard`: the card's visuals tilt, lift, and catch the sheen underneath, and a flat,
+/// untransformed hit layer on top takes the pointer. The hit layer reads its own size, so nothing is measured into
+/// state on layout; the pointer position changes only this view's body, never the content's.
+private struct HomeCardSurface<Content: View>: View {
+    var radius: CGFloat
+    var tilt: Double
+    var lift: Double
+    var enabled: Bool
+    var shadow: Bool
+    let content: Content
+    var onHover: (Bool) -> Void
+    var onPress: ((Bool) -> Void)?
+    var action: () -> Void
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var pointer: CGPoint? = nil
+    @State private var size: CGSize = .zero
+    @State private var down = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .cardMotion(hover: enabled ? pointer : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift, shadow: shadow)
+            .opacity(down && enabled && limitMotion ? 0.8 : 1)
+            .allowsHitTesting(false)
+            .overlay {
+                // The hit layer: flat, on top, and the only thing that receives the pointer.
+                GeometryReader { g in
+                    shape.fill(Color.white.opacity(0.001))
+                        .contentShape(shape)
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let p):
+                                if pointer == nil { onHover(true) }
+                                if size != g.size { size = g.size }
+                                pointer = p
+                            case .ended:
+                                pointer = nil
+                                if down { down = false; onPress?(false) }
+                                onHover(false)
+                            }
+                        }
+                        .gesture(DragGesture(minimumDistance: 0)
+                            .onChanged { _ in if !down { down = true; onPress?(true) } }
+                            .onEnded { v in
+                                down = false
+                                onPress?(false)
+                                if enabled && CGRect(origin: .zero, size: g.size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
+                            })
+                }
+            }
+    }
+}
+#endif
 
 #if os(iOS)
 /// iPhone: the card presses in (scale 0.98) while a finger is on it; a brief dim instead with motion limited.
