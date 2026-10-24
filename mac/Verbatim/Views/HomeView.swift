@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
+import CoreAudio
 
 // brand: web style
 //
@@ -17,10 +18,12 @@ struct HomeView: View {
     @ObservedObject private var flow = FlowSettings.shared
     @AppStorage(YouProfile.nameKey) private var storedName = ""
     @Environment(\.limitMotion) private var limitMotion
-    @State private var width: CGFloat = 900
+    /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
+    /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
+    /// thread each time Home's parent re-rendered.)
+    @ObservedObject private var mics = HomeMic.shared
     /// Moves on each minute, so the greeting and today's numbers follow the clock.
     @State private var now = Date()
-    @State private var mic: AudioDevices.Device? = AudioDevices.current()
     @State private var importOpen = false
     @State private var fileOver = false
     @State private var recordDown = false
@@ -37,7 +40,7 @@ struct HomeView: View {
     private static let startHeight: CGFloat = 196
     /// The grid's width for a scroll view `available` points wide: the space inside the margins, at most 1100.
     static func contentWidth(_ available: CGFloat) -> CGFloat { min(maxContent, max(280, available - 2 * margin)) }
-    private var wide: Bool { width >= 680 }
+    private func wide(_ width: CGFloat) -> Bool { width >= 680 }
     /// The 7 / 5 split of a 12-column grid with `gap` gutters: (7 columns + 6 gutters, 5 columns + 4 gutters).
     private func columns(_ total: CGFloat) -> (CGFloat, CGFloat) {
         let column = (total - 11 * Self.gap) / 12
@@ -48,35 +51,34 @@ struct HomeView: View {
     var body: some View {
         // A GeometryReader takes exactly the space the window offers and passes it down, so Home's width comes
         // from the window. (Measuring the scroll view or the content was circular: both report the content's
-        // own width back, so Home either kept a too-wide layout or grew past the detail area.)
+        // own width back, so Home either kept a too-wide layout or grew past the detail area.) The width is worked
+        // out in the body, never stored: a stored width laid Home out twice on every visit (900 pt, then the real one).
         GeometryReader { geo in
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header.staggerIn(0)
-                if app.recorder.isRecording { RecordPanel().padding(.top, 18) }
-                else if app.capture.isCapturing { CapturePanel().padding(.top, 18) }
-                startRow.padding(.top, 20).staggerIn(1)
-                if app.showsHomeWeek { weekStrip.padding(.top, 16).staggerIn(2) }
-                recentRow.padding(.top, 30).staggerIn(3)
+            let width = Self.contentWidth(geo.size.width)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header.staggerIn(0)
+                    if app.recorder.isRecording { RecordPanel().padding(.top, 18) }
+                    else if app.capture.isCapturing { CapturePanel().padding(.top, 18) }
+                    startRow(width).padding(.top, 20).staggerIn(1)
+                    if app.showsHomeWeek { weekStrip.padding(.top, 16).staggerIn(2) }
+                    recentRow(width).padding(.top, 30).staggerIn(3)
+                }
+                .animation(Motion.settle, value: app.recorder.isRecording)
+                .animation(Motion.settle, value: app.capture.isCapturing)
+                .frame(width: width, alignment: .leading)
+                .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, 40)
+                .frame(maxWidth: .infinity)
             }
-            .animation(Motion.settle, value: app.recorder.isRecording)
-            .animation(Motion.settle, value: app.capture.isCapturing)
-            .frame(width: width, alignment: .leading)
-            .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, 40)
-            .frame(maxWidth: .infinity)
-        }
-        .onChange(of: geo.size.width, initial: true) { _, w in width = Self.contentWidth(w) }
         }
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
         .onChange(of: recording) { _, on in if on { monitor.stop() } }
+        .onAppear { mics.refresh() }
         .onDisappear { monitor.stop() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mic = AudioDevices.current(); now = Date() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
-        // UserDefaults posts on whichever thread wrote the setting (the speaker models mark themselves ready from a
-        // background actor); Home state changes only on the main thread.
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in let m = AudioDevices.current(); if m != mic { mic = m } }
     }
 
     // MARK: Header
@@ -111,8 +113,8 @@ struct HomeView: View {
 
     // MARK: Record and tiles
 
-    @ViewBuilder private var startRow: some View {
-        if wide {
+    @ViewBuilder private func startRow(_ width: CGFloat) -> some View {
+        if wide(width) {
             let cols = columns(width)
             HStack(alignment: .top, spacing: Self.gap) {
                 recordPanel(width: cols.0).frame(width: cols.0, height: Self.startHeight)
@@ -129,7 +131,7 @@ struct HomeView: View {
     private var recording: Bool { app.recorder.isRecording || app.capture.isCapturing }
     /// Ink on the Record fill: every line passes at its size (status sits on a light wash). White would fail.
     private var onRecord: Color { Ink.inkFixed }
-    private var micName: String { mic?.name ?? "Microphone" }
+    private var micName: String { mics.device?.name ?? "Microphone" }
 
     private var recordStatus: String {
         if app.capture.isCapturing { return "Capturing · \(app.capture.appName)" }
@@ -193,7 +195,7 @@ struct HomeView: View {
             }
             .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: recordDown, rest: CGSize(width: 6, height: 7)), radius: Radius.record)
         }
-        .contextMenu { RecordMenu(onChange: { mic = AudioDevices.current() }) }
+        .contextMenu { RecordMenu(onChange: { mics.refresh() }) }
         .help("Recording from \(micName). Right-click to change the microphone.")
         .accessibilityLabel(recording ? "Recording" : "Record")
         .accessibilityValue(recording ? "" : "Microphone: \(micName)")
@@ -275,9 +277,12 @@ struct HomeView: View {
     private func weekNumbers(_ week: HomeWeek) -> (recordings: Int, saved: Double, moments: Int) {
         guard let start = week.days.first?.start else { return (0, 0, 0) }
         let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? now
-        let live = app.store.live
-        let recordings = live.filter { !$0.isDictation && $0.createdAt >= start && $0.createdAt < end }.count
-        let moments = live.reduce(0) { n, t in n + t.notes.filter { $0.at != nil && $0.createdAt >= start && $0.createdAt < end }.count }
+        // One pass over the library, without copying it (`store.live` builds a new array).
+        var recordings = 0, moments = 0
+        for t in app.store.transcripts where t.deletedAt == nil {
+            if !t.isDictation && t.createdAt >= start && t.createdAt < end { recordings += 1 }
+            for n in t.notes where n.at != nil && n.createdAt >= start && n.createdAt < end { moments += 1 }
+        }
         return (recordings, week.secondsSaved(typingWPM: flow.typingWPM), moments)
     }
 
@@ -296,8 +301,8 @@ struct HomeView: View {
 
     // MARK: Recent
 
-    @ViewBuilder private var recentRow: some View {
-        if wide {
+    @ViewBuilder private func recentRow(_ width: CGFloat) -> some View {
+        if wide(width) {
             let cols = columns(width)
             HStack(alignment: .top, spacing: Self.gap) {
                 recentRecordings.frame(width: cols.0)
@@ -325,7 +330,7 @@ struct HomeView: View {
                                message: "Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    let fillers = WebStatus.fillers(t)
+                    let fillers = WebStatus.cachedFillers(t)
                     FlatRowButton(action: { app.go(.transcript(t.id)) }) { _ in
                         RecentRow(transcript: t, fillers: fillers)
                     } accessory: { _ in
@@ -350,7 +355,7 @@ struct HomeView: View {
     }
 
     private var lastDictation: some View {
-        let last = app.store.live.filter { $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
+        let last = app.store.transcripts.lazy.filter { $0.deletedAt == nil && $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
         let key = app.dictation.hotkey.shortTitle
         return VStack(alignment: .leading, spacing: 0) {
             SectionTitle(title: "Last", italic: "dictation", link: "All", linkLabel: "All dictations", linkHint: "Opens every dictation.") { app.go(.dictations) }
@@ -610,5 +615,61 @@ private struct LastDictationCard: View {
             guard copies == token else { return }
             withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = false }
         }
+    }
+}
+
+// MARK: - Microphone name
+
+/// The microphone Home's Record panel names ("Ready · Shure MV7+"). Scanning Core Audio's devices takes a few
+/// round trips to the audio server, so it runs on its own queue: once at launch, when the default input or the device
+/// list changes (Core Audio's notifications), when the chosen input changes in Settings, and when the app comes back.
+@MainActor
+final class HomeMic: ObservableObject {
+    static let shared = HomeMic()
+    @Published private(set) var device: AudioDevices.Device?
+    private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.home-mic", qos: .userInitiated)
+    private var running = false
+    private var again = false
+    private var lastUID: String?
+    private var observer: NSObjectProtocol?
+
+    private init() {
+        lastUID = AudioDevices.selectedUID
+        for selector in [kAudioHardwarePropertyDefaultInputDevice, kAudioHardwarePropertyDevices] {
+            var addr = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+            _ = AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, queue) { [weak self] _, _ in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.refresh() } }
+            }
+        }
+        // UserDefaults posts on whichever thread wrote; the main queue delivers it here. Only a changed input choice
+        // (one string read) starts a scan.
+        observer = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.selectionMayHaveChanged() }
+        }
+        refresh()
+    }
+
+    /// Looks the device up again off the main thread; publishes only when it changed.
+    func refresh() {
+        if running { again = true; return }
+        running = true
+        queue.async { [weak self] in
+            let found = AudioDevices.current()
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.running = false
+                    if self.device != found { self.device = found }
+                    if self.again { self.again = false; self.refresh() }
+                }
+            }
+        }
+    }
+
+    private func selectionMayHaveChanged() {
+        let uid = AudioDevices.selectedUID
+        guard uid != lastUID else { return }
+        lastUID = uid
+        refresh()
     }
 }

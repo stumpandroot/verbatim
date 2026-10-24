@@ -41,6 +41,8 @@ struct MomentsView: View {
     var body: some View {
         let all = self.all
         let shown = shown(all)
+        GeometryReader { geo in
+        let inner = min(1100, max(320, geo.size.width - 80))
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 PageTitle(title: "Moments", count: "\(shown.count.formatted()) saved",
@@ -71,52 +73,61 @@ struct MomentsView: View {
                     }
                     .padding(.top, 22)
                 } else {
-                    MomentsBoard(spacing: 16) {
-                        ForEach(shown) { m in MomentCard(note: m.note, transcript: m.transcript) }
-                    }
-                    .padding(.top, 18)
-                    .staggerIn(2)
+                    MomentsBoard(moments: shown, width: inner, spacing: 16)
+                        .padding(.top, 18)
+                        .staggerIn(2)
                 }
             }
-            .frame(maxWidth: 1100, alignment: .leading)
+            .frame(width: inner, alignment: .leading)
             .padding(.horizontal, 40).padding(.top, 30).padding(.bottom, 40)
             .frame(maxWidth: .infinity)
+        }
         }
     }
 }
 
-/// A masonry board: up to three columns, each card at its natural height, placed in the shortest column (the
-/// mockup's CSS columns). Two columns under 760 pt, one under 460.
-private struct MomentsBoard: Layout {
+/// A masonry board: up to three columns, each card at its natural height, each placed in the column that's shortest
+/// so far (the mockup's CSS columns). Two columns under 760 pt, one under 460. Each column is a lazy stack, so only the
+/// cards on screen are built; columns are balanced on estimated heights (the still, the lines of text), which keeps
+/// them even without measuring every card first.
+private struct MomentsBoard: View {
+    var moments: [MomentsView.Moment]
+    var width: CGFloat
     var spacing: CGFloat = 16
 
-    private func columns(_ width: CGFloat) -> Int { width >= 760 ? 3 : width >= 460 ? 2 : 1 }
-
-    private func place(_ width: CGFloat, _ subviews: Subviews) -> (frames: [CGRect], height: CGFloat) {
-        let n = columns(width)
+    var body: some View {
+        let n = width >= 760 ? 3 : width >= 460 ? 2 : 1
         let colW = max(1, (width - spacing * CGFloat(n - 1)) / CGFloat(n))
+        let cols = Self.columns(moments, n: n, width: colW, spacing: spacing)
+        HStack(alignment: .top, spacing: spacing) {
+            ForEach(0..<n, id: \.self) { c in
+                LazyVStack(spacing: spacing) {
+                    ForEach(cols[c]) { m in MomentCard(note: m.note, transcript: m.transcript) }
+                }
+                .frame(width: colW, alignment: .top)
+            }
+        }
+    }
+
+    static func columns(_ moments: [MomentsView.Moment], n: Int, width: CGFloat, spacing: CGFloat) -> [[MomentsView.Moment]] {
+        var cols = [[MomentsView.Moment]](repeating: [], count: n)
         var heights = [CGFloat](repeating: 0, count: n)
-        var frames: [CGRect] = []
-        for v in subviews {
+        for m in moments {
             let c = heights.indices.min { heights[$0] < heights[$1] } ?? 0
-            let h = v.sizeThatFits(ProposedViewSize(width: colW, height: nil)).height
-            let y = heights[c] == 0 ? 0 : heights[c] + spacing
-            frames.append(CGRect(x: CGFloat(c) * (colW + spacing), y: y, width: colW, height: h))
-            heights[c] = y + h
+            cols[c].append(m)
+            heights[c] += estimate(m, width: width) + spacing
         }
-        return (frames, heights.max() ?? 0)
+        return cols
     }
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let w = proposal.width ?? 900
-        return CGSize(width: w, height: place(w, subviews).height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let laid = place(bounds.width, subviews)
-        for (v, f) in zip(subviews, laid.frames) {
-            v.place(at: CGPoint(x: bounds.minX + f.minX, y: bounds.minY + f.minY), proposal: ProposedViewSize(width: f.width, height: f.height))
-        }
+    /// About how tall a card is: the still, the header, up to six lines of words, and the title.
+    private static func estimate(_ m: MomentsView.Moment, width: CGFloat) -> CGFloat {
+        let still = m.note.frameFile ?? m.transcript.linkInfo?.thumbnailFile
+        let bookmark = m.note.isBookmark
+        let chars = CGFloat(m.note.text.isEmpty ? 80 : m.note.text.count)
+        let perLine = max(10, (width - 32) / (bookmark ? 8.5 : 7.2))
+        let lines = min(6, max(1, (chars / perLine).rounded(.up)))
+        return (still == nil ? 16 : 144) + 38 + lines * (bookmark ? 24 : 22) + 46
     }
 }
 
@@ -194,13 +205,9 @@ struct MomentCard: View {
 
     /// The still across the top of the card, flush to its edges; a petal panel with a play glyph if the file is gone.
     private func still(_ file: String) -> some View {
-        ZStack {
-            if let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(file)) {
-                Rectangle().fill(Ink.track).overlay { Image(nsImage: img).resizable().aspectRatio(contentMode: .fill) }.clipped()
-            } else {
-                Color.clear.colorPanel(Ink.panelPetal, radius: 0)
-                    .overlay { SolidPlayGlyph().fill(Ink.inkFixed).frame(width: 11, height: 13).offset(x: 1) }
-            }
+        ThumbImage(file: file, maxPixel: 800) {
+            Color.clear.colorPanel(Ink.panelPetal, radius: 0)
+                .overlay { SolidPlayGlyph().fill(Ink.inkFixed).frame(width: 11, height: 13).offset(x: 1) }
         }
         .frame(height: Self.stillHeight)
         .frame(maxWidth: .infinity)

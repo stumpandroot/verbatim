@@ -20,11 +20,14 @@ struct ContentView: View {
                 // Pin each screen to the space it has. Without this a wide screen pushes the whole row
                 // outward and the sidebar slides off the left edge.
                 GeometryReader { g in
-                    screenView.frame(width: g.size.width, height: g.size.height).id(screenKey).transition(transition).zIndex(Double(app.navCount))
+                    screenView.frame(width: g.size.width, height: g.size.height)
+                        // The self-test times each screen change from the click to here (UITEST TIMING).
+                        .onAppear { if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
+                        .id(screenKey).transition(transition).zIndex(Double(app.navCount))
                 }
             }
             .clipped()
-            .animation(Motion.nav, value: app.navCount)
+            .animation(navAnimation, value: app.navCount)
             .overlay(alignment: .bottom) { ToastView() }
         }
         // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
@@ -136,7 +139,17 @@ struct ContentView: View {
         }
     }
 
-    /// Slides by direction: push from the right, pop to the right, sidebar order up or down.
+    /// Screen changes are quick (motion rules: navigation never makes you wait). Sidebar moves are a 120 ms crossfade;
+    /// opening or leaving a transcript also moves 12 pt over 150 ms, so it still reads as going in and coming back.
+    private var navAnimation: Animation {
+        switch app.direction {
+        case .push, .pop: return limitMotion ? Self.navFade : .easeOut(duration: 0.15)
+        case .up, .down: return Self.navFade
+        }
+    }
+    private static let navFade = Animation.easeOut(duration: 0.12)
+
+    /// Fades in; a transcript also slides in from the right (push) or the left (pop). Sidebar moves only fade.
     /// Both ends of every transition go through `ScreenSlide`, which turns hit-testing off while a screen is
     /// entering or leaving. An outgoing screen can linger when springs are interrupted, and a lingering screen
     /// that still takes clicks is exactly the "have to click twice" bug.
@@ -146,10 +159,9 @@ struct ContentView: View {
         // Limit Motion: a crossfade, nothing moves.
         if limitMotion { return .asymmetric(insertion: ScreenSlide.transition(), removal: .identity) }
         switch app.direction {
-        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 24), removal: .identity)
-        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -24), removal: .identity)
-        case .up: return .asymmetric(insertion: ScreenSlide.transition(y: 14), removal: .identity)
-        case .down: return .asymmetric(insertion: ScreenSlide.transition(y: -14), removal: .identity)
+        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 12), removal: .identity)
+        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -12), removal: .identity)
+        case .up, .down: return .asymmetric(insertion: ScreenSlide.transition(), removal: .identity)
         }
     }
 }

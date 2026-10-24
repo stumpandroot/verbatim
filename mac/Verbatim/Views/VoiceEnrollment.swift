@@ -68,10 +68,14 @@ final class VoiceProfileStatus: ObservableObject {
     @Published private(set) var isPartial = VoiceProfile.stored != nil && !VoiceProfile.isEnrolled
     @Published private(set) var quality: Float? = VoiceProfile.currentQuality
 
+    /// Publishes only what changed, so a screen that refreshes on appear (You) doesn't render twice for nothing.
     func refresh() {
-        isEnrolled = VoiceProfile.isEnrolled
-        isPartial = VoiceProfile.stored != nil && !isEnrolled
-        quality = VoiceProfile.currentQuality
+        let enrolled = VoiceProfile.isEnrolled
+        let partial = VoiceProfile.stored != nil && !enrolled
+        let q = VoiceProfile.currentQuality
+        if isEnrolled != enrolled { isEnrolled = enrolled }
+        if isPartial != partial { isPartial = partial }
+        if quality != q { quality = q }
     }
 
     /// Deletes the profile from this device.

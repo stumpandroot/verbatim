@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ImageIO
 
 // brand: web style
 //
@@ -78,6 +79,8 @@ struct SiteChip: View {
 struct LinkRow: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
+    /// Open video, Transcript, and the ⋯ button, with their gaps.
+    private static let actionsWidth: CGFloat = 222
 
     var body: some View {
         let info = transcript.linkInfo!
@@ -92,7 +95,8 @@ struct LinkRow: View {
                     status.padding(.top, 8)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                actions(info).hidden().accessibilityHidden(true)   // room for the controls above the click layer
+                // Room for the controls above the click layer. (A hidden copy of them built a second menu per row.)
+                Color.clear.frame(width: Self.actionsWidth, height: 28)
             }
             .padding(12)
         } accessory: { _ in
@@ -175,14 +179,10 @@ private struct LinkThumb: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
         ZStack {
-            if let f = info.thumbnailFile, let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(f)) {
-                shape.fill(Ink.track)
-                    .overlay { Image(nsImage: img).resizable().aspectRatio(contentMode: .fill) }
-                    .clipShape(shape)
+            if let f = info.thumbnailFile {
+                ThumbImage(file: f, maxPixel: 320) { panel }.clipShape(shape)
             } else {
-                Color.clear
-                    .colorPanel(Self.fills[Int(seed.uuid.0) % Self.fills.count], radius: Radius.tile)
-                    .overlay { SolidPlayGlyph().fill(Ink.inkFixed).frame(width: 11, height: 13).offset(x: 1) }
+                panel
             }
         }
         .frame(width: 128, height: 72)
@@ -190,6 +190,75 @@ private struct LinkThumb: View {
             if duration > 0 { StillBadge(text: WebFormat.clock(duration)).padding(.trailing, 6).padding(.bottom, 5) }
         }
         .accessibilityHidden(true)
+    }
+
+    private var panel: some View {
+        Color.clear
+            .colorPanel(Self.fills[Int(seed.uuid.0) % Self.fills.count], radius: Radius.tile)
+            .overlay { SolidPlayGlyph().fill(Ink.inkFixed).frame(width: 11, height: 13).offset(x: 1) }
+    }
+}
+
+/// A still from `Paths.thumbs`, read and scaled down off the main thread once, then kept in memory (`ThumbCache`).
+/// A plain track shows while it loads; `missing` shows when there's no readable file. (Reading the file in `body`
+/// decoded every thumbnail on the main thread on every render.)
+struct ThumbImage<Missing: View>: View {
+    var file: String
+    /// The longest side to decode, in pixels: about twice the largest size it's drawn at.
+    var maxPixel: Int
+    @ViewBuilder var missing: () -> Missing
+    @State private var loaded: NSImage?
+    @State private var failed = false
+
+    var body: some View {
+        let image = loaded ?? ThumbCache.cached(file, maxPixel: maxPixel)
+        ZStack {
+            if let image {
+                Rectangle().fill(Ink.track)
+                    .overlay { Image(nsImage: image).resizable().aspectRatio(contentMode: .fill) }
+                    .clipped()
+            } else if failed {
+                missing()
+            } else {
+                Rectangle().fill(Ink.track)
+            }
+        }
+        .task(id: file) {
+            guard ThumbCache.cached(file, maxPixel: maxPixel) == nil else { return }
+            if let img = await ThumbCache.load(file, maxPixel: maxPixel) { loaded = img; failed = false } else { failed = true }
+        }
+    }
+}
+
+/// Decoded stills by file and size. Missing files aren't remembered, so a still that arrives later (iCloud) shows
+/// the next time its view appears.
+@MainActor
+enum ThumbCache {
+    private static let images: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 400
+        return c
+    }()
+
+    private static func key(_ file: String, _ maxPixel: Int) -> NSString { "\(file)@\(maxPixel)" as NSString }
+
+    static func cached(_ file: String, maxPixel: Int) -> NSImage? { images.object(forKey: key(file, maxPixel)) }
+
+    static func load(_ file: String, maxPixel: Int) async -> NSImage? {
+        if let hit = cached(file, maxPixel: maxPixel) { return hit }
+        let url = Paths.thumbs.appendingPathComponent(file)
+        let cg: CGImage? = await Task.detached(priority: .userInitiated) { () -> CGImage? in
+            guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+            let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                            kCGImageSourceCreateThumbnailWithTransform: true,
+                                            kCGImageSourceShouldCacheImmediately: true,
+                                            kCGImageSourceThumbnailMaxPixelSize: maxPixel]
+            return CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary)
+        }.value
+        guard let cg else { return nil }
+        let image = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+        images.setObject(image, forKey: key(file, maxPixel))
+        return image
     }
 }
 
@@ -248,11 +317,7 @@ struct FrameImage: View {
     var body: some View {
         // The rectangle sets the size; the still fills it and is clipped, so it never pushes the layout.
         Rectangle().fill(Ink.track)
-            .overlay {
-                if let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(file)) {
-                    Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                }
-            }
+            .overlay { ThumbImage(file: file, maxPixel: 900) { Rectangle().fill(Ink.track) } }
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
@@ -263,8 +328,8 @@ struct Thumbnail: View {
     var body: some View {
         RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
             .overlay {
-                if let f = info.thumbnailFile, let img = NSImage(contentsOf: Paths.thumbs.appendingPathComponent(f)) {
-                    Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                if let f = info.thumbnailFile {
+                    ThumbImage(file: f, maxPixel: 200) { IconGlyph(art: .iconPlay, size: 22, color: Ink.mute) }
                 } else {
                     IconGlyph(art: .iconPlay, size: 22, color: Ink.mute)
                 }

@@ -64,7 +64,7 @@ struct LibraryFilterBar: View {
             .uiTarget(target)
     }
 
-    private static func dot(_ s: LibrarySource?) -> Color? {
+    static func dot(_ s: LibrarySource?) -> Color? {
         switch s {
         case .voiceMemos?: return Ink.panelRecord
         case .videos?, .audioFiles?: return Ink.panelSage
@@ -97,7 +97,7 @@ struct LibraryFilterBar: View {
 }
 
 /// ⌥⌘ and the type's place in the list (All is 1).
-private struct TypeShortcut: ViewModifier {
+struct TypeShortcut: ViewModifier {
     var index: Int?
     var on: Bool
     @ViewBuilder func body(content: Content) -> some View {
