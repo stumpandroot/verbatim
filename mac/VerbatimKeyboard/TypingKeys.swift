@@ -351,7 +351,8 @@ private struct KeyCap: View {
         case .globe:
             Image(systemName: "globe").font(.system(size: 18)).foregroundStyle(KB.ink)
         case .space:
-            Text("space").font(.system(size: 15)).foregroundStyle(KB.muted)
+            // The space bar carries the name, as on Wispr Flow's keyboard; VoiceOver still says "Space".
+            Text("Verbose").font(.system(size: 15)).foregroundStyle(KB.muted)
         case .returnKey:
             Text(typing.returnKind.label ?? "return")
                 .font(.system(size: 15, weight: .semibold))
@@ -552,5 +553,16 @@ extension UITextDocumentProxy {
         guard let object = self as? NSObject, object.responds(to: getter),
               let value = object.perform(getter)?.takeUnretainedValue() as? NSUUID else { return nil }
         return value as UUID
+    }
+
+    /// The field's `textContentType` as a string, read without Swift's bridge for the same reason: Swift imports it as
+    /// an implicitly unwrapped `UITextContentType`, and a field that isn't connected yet can hand back nil or a
+    /// non-string. Nil means "no content type".
+    var safeTextContentType: String? {
+        let getter = NSSelectorFromString("textContentType")
+        guard let object = self as? NSObject, object.responds(to: getter),
+              let value = object.perform(getter)?.takeUnretainedValue() as? NSString else { return nil }
+        let s = value as String
+        return s.isEmpty ? nil : s
     }
 }

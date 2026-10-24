@@ -6,6 +6,9 @@ import os
 /// keyboard. Without one: idle → starting (Verbatim opens for a moment and comes back) → listening, when Start
 /// dictating when you come back is on (the app began the dictation already), or idle with a session when it's off.
 /// Reads and writes the App Group through `KeyboardBridge`; the app does the listening and transcription.
+///
+/// What shows (`mode`): Home (your numbers and Tap to talk) or Typing (the full keyboard with Start) at rest, and
+/// Listening while a dictation starts, runs, is written down, or is polished. Words that go in land back in Typing.
 @MainActor
 final class KeyboardModel: ObservableObject {
     enum Stage: Equatable {
@@ -46,8 +49,15 @@ final class KeyboardModel: ObservableObject {
     @Published var hasFullAccess = false {
         didSet { typing.hasFullAccess = hasFullAccess }
     }
-    /// Which view shows: dictation (the record card) or typing (letter keys). Typing works without Full Access.
+    /// The resting view: Home or Typing (`KeyboardSurface.opening` picks it on each appearance). Typing works
+    /// without Full Access; Home explains why dictation needs it.
     @Published private(set) var surface: KeyboardSurface = .typing
+    /// The Typing bar's menu card (Cleanup, Snippets, Recent dictations, Open Verbose).
+    @Published private(set) var showingMenu = false
+    /// Home's stats pages (from the app's `KeyboardBridge.Stats`), and the one showing. Empty before the first
+    /// dictation, when Home shows its welcome line instead.
+    @Published private(set) var statsPages: [KeyboardStatPage] = []
+    @Published private(set) var statsPage = 0
     /// The letter keys.
     let typing = TypingModel()
     /// Whether the app holds a session (heartbeat fresh), and when its idle timeout ends it (nil: until you end it).
@@ -93,6 +103,11 @@ final class KeyboardModel: ObservableObject {
     private var observing = false
     /// Text goes in only while the keyboard is on screen, so it lands in the field you're looking at.
     private var visible = false
+    /// When the Typing bar started showing "✓ Inserted", so it goes back to the plain bar after a few seconds.
+    private var insertedBarSince: Date?
+    /// The stats record last read, so an unchanged record isn't decoded again.
+    private var statsData: Data?
+    private var stats: KeyboardBridge.Stats?
     private static let log = Logger(subsystem: "co.stumpandroot.verbatim.keyboard", category: "polish")
 
     init(controller: KeyboardViewController) {
@@ -107,23 +122,103 @@ final class KeyboardModel: ObservableObject {
     /// container (App Store guideline 4.4.1: typing must work without Full Access).
     private var defaults: UserDefaults? { hasFullAccess ? KeyboardBridge.defaults : nil }
 
-    // MARK: Surfaces
+    // MARK: Modes
 
-    /// Picks the view for this appearance: typing without Full Access, otherwise the last view you used
-    /// (dictation the first time). Stored in the extension's own defaults, which need no Full Access.
-    func chooseSurface() {
-        let remembered = UserDefaults.standard.string(forKey: KeyboardSurface.rememberedKey)
-        let s = KeyboardSurface.initial(remembered: remembered, hasFullAccess: hasFullAccess, field: typing.field)
-        if s != surface { surface = s }
+    /// A dictation in progress, or the polish of one just inserted: the keyboard shows Listening.
+    var dictating: Bool {
+        stage == .starting || stage == .listening || stage == .writing || (stage == .inserted && polishing)
     }
 
-    /// The compact toggle: the keyboard key in the dictation view, the Dictate key in the typing view.
-    func toggleSurface() {
-        surface = surface.toggled
-        UserDefaults.standard.set(surface.rawValue, forKey: KeyboardSurface.rememberedKey)
+    var mode: KeyboardMode { KeyboardMode.current(surface: surface, dictating: dictating) }
+
+    /// Picks the resting view for this appearance (`KeyboardSurface.opening`): Typing for number, email, link, and
+    /// password fields, without Full Access, and after a dictation went in; Home otherwise. The last insertion time
+    /// lives in the extension's own defaults, which need no Full Access and outlive a fresh keyboard process.
+    func chooseSurface() {
+        let last = UserDefaults.standard.double(forKey: KeyboardSurface.lastInsertedKey)
+        let s = KeyboardSurface.opening(field: typing.field, secure: controller?.fieldIsSecure() ?? false,
+                                        dictationAvailable: hasFullAccess,
+                                        lastInsertedAt: last > 0 ? Date(timeIntervalSince1970: last) : nil, now: Date())
+        if s != surface { surface = s }
+        closePanels()
+    }
+
+    /// Home's close and ABC buttons.
+    func showTyping() {
+        surface = .typing
         notice = nil
+        closePanels()
+    }
+
+    /// Shows Home: where Start goes when dictation can't start from here (no Full Access, or no session in a build
+    /// that can't open Verbose), so its card can say why.
+    func showHome() {
+        surface = .home
+        closePanels()
+    }
+
+    private func closePanels() {
+        showingMenu = false
         showingSnippets = false
         showingRecent = false
+    }
+
+    /// The Typing bar's Start pill: dictates like Home's Tap to talk. When dictation can't start here, Home
+    /// explains (Full Access, or how to start a session).
+    func start() {
+        guard hasFullAccess else { showHome(); return }
+        if needsSessionCard && !KeyboardBridge.sessionLive { showHome(); return }
+        record()
+    }
+
+    func toggleMenu() {
+        showingMenu.toggle()
+        if showingMenu { showingSnippets = false; showingRecent = false }
+    }
+
+    func closeMenu() { if showingMenu { showingMenu = false } }
+
+    /// Home's Settings button and the menu's Open Verbose: opens the app with the keyboard's link mechanism
+    /// (`openContainingApp`). Without Full Access, Home's card shows where to turn it on instead; in builds that
+    /// can't open Verbose, a line says to open it yourself.
+    func openVerbose() {
+        showingMenu = false
+        guard hasFullAccess else { showHome(); return }
+        guard let url = URL(string: "\(KeyboardBridge.scheme)://open"),
+              controller?.openContainingApp(url) == true else {
+            flashInfo("Open Verbose from your Home Screen.")
+            return
+        }
+    }
+
+    // MARK: Home stats
+
+    /// Tap or swipe left: the next page (wrapping). Swipe right: the one before.
+    func nextStatsPage() { pageBy(1) }
+    func previousStatsPage() { pageBy(-1) }
+
+    private func pageBy(_ d: Int) {
+        let n = statsPages.count
+        guard n > 1 else { return }
+        statsPage = (statsPage + d + n) % n
+    }
+
+    /// Re-reads the app's stats record (decoding it only when it changed) and works out the pages again, so a week
+    /// that ended reads 0. Without Full Access there's no record.
+    private func reloadStats() {
+        let data = hasFullAccess ? KeyboardBridge.defaults?.data(forKey: KeyboardBridge.statsKey) : nil
+        if data != statsData {
+            statsData = data
+            stats = data.flatMap { try? JSONDecoder().decode(KeyboardBridge.Stats.self, from: $0) }
+        }
+        var pages: [KeyboardStatPage] = []
+        if let s = stats {
+            pages = KeyboardStatsCopy.pages(KeyboardStatNumbers(
+                weekWords: s.weekWords, weekSecondsSaved: s.weekSecondsSaved, weekCurrent: Date() < s.weekEnds,
+                totalWords: s.totalWords, paceWords: s.paceWords, paceSeconds: s.paceSeconds, typingWPM: s.typingWPM))
+        }
+        if pages != statsPages { statsPages = pages }
+        if statsPage >= max(1, pages.count) { statsPage = 0 }
     }
 
     /// A key in the typing view changed the text: an Undo for words inserted earlier no longer lines up.
@@ -147,10 +242,12 @@ final class KeyboardModel: ObservableObject {
             showingSnippets = false
             showingRecent = false
             sessionLive = false
+            reloadStats()
             return
         }
         reloadSnippets()
         reloadRecent()
+        reloadStats()
         refreshFormat()
         markVisible()
         if !observing {
@@ -162,7 +259,6 @@ final class KeyboardModel: ObservableObject {
         if dictation == nil, let running = KeyboardBridge.currentRunningDictation {
             dictation = running.id
             set(running.phase == .listening ? .listening : .writing)
-            surface = .dictation
         }
         // A session request sent by an earlier keyboard process.
         if request == nil, stage == .idle, let r = KeyboardBridge.uuid(KeyboardBridge.Key.request),
@@ -170,7 +266,6 @@ final class KeyboardModel: ObservableObject {
            !KeyboardBridge.sessionLive {
             request = r
             set(.starting)
-            surface = .dictation
         }
         poll()
         retime()
@@ -178,6 +273,7 @@ final class KeyboardModel: ObservableObject {
 
     func pause() {
         visible = false
+        closeMenu()
         stopTimer()
         // Gone from the screen: a take from the Action button now goes to the clipboard instead.
         defaults?.set(0.0, forKey: KeyboardBridge.Key.keyboardVisibleAt)
@@ -205,7 +301,7 @@ final class KeyboardModel: ObservableObject {
         dictation = take.id
         level = 0
         elapsed = 0
-        surface = .dictation
+        closePanels()
         set(take.phase == .listening ? .listening : .writing)
     }
 
@@ -220,8 +316,7 @@ final class KeyboardModel: ObservableObject {
         insertion = nil
         polishing = false
         notice = nil
-        showingSnippets = false
-        showingRecent = false
+        closePanels()
         clearLive()
         if KeyboardBridge.sessionLive { startDictation(defaults) }
         else if needsSessionCard { return }   // The card shows the ways to start one.
@@ -230,11 +325,13 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: Format chip
 
-    /// Tapping the chip moves to the next format: Auto, Email, Message, Note. Kept for the session.
+    /// Tapping the chip moves to the next format: Auto, Email, Message, Note. Kept for the session. While you
+    /// talk it also applies to this dictation: the app reads the category when the dictation finishes.
     func cycleFormat() {
         guard hasFullAccess else { return }
         KeyboardBridge.format = format.next
         refreshFormat()
+        if stage == .listening, let d = dictation { KeyboardBridge.writeCategory(formatCategory, for: d) }
         UISelectionFeedbackGenerator().selectionChanged()
     }
 
@@ -338,6 +435,14 @@ final class KeyboardModel: ObservableObject {
         retime()
     }
 
+    /// Listening's done button while polishing: stop waiting and keep the words as they went in.
+    func skipPolish() {
+        guard polishing else { return }
+        polishing = false
+        if let d = insertion?.dictation { report(d, "kept: you tapped done before the polished text arrived") }
+        retime()
+    }
+
     /// Removes the inserted text.
     func undo() {
         guard let ins = insertion else { return }
@@ -366,6 +471,7 @@ final class KeyboardModel: ObservableObject {
     /// Shows or hides the snippet row. From the inserted state, the row replaces Undo.
     func toggleSnippets() {
         reloadSnippets()
+        showingMenu = false
         if showingSnippets || snippets.isEmpty { showingSnippets = false; return }
         if stage == .inserted { insertion = nil; polishing = false; set(.idle) }
         guard stage == .idle else { return }
@@ -379,7 +485,9 @@ final class KeyboardModel: ObservableObject {
     /// Shows or hides the Recent row (the clock button). From the inserted state, the row replaces Undo.
     func toggleRecent() {
         reloadRecent()
-        if showingRecent || recent.isEmpty { showingRecent = false; return }
+        showingMenu = false
+        if showingRecent { showingRecent = false; return }
+        if recent.isEmpty { showingRecent = false; flashInfo("No dictations yet."); return }
         if stage == .inserted { insertion = nil; polishing = false; set(.idle) }
         guard stage == .idle else { return }
         notice = nil
@@ -410,7 +518,7 @@ final class KeyboardModel: ObservableObject {
         flashInfo("Copied.")
     }
 
-    private func flashInfo(_ text: String) {
+    func flashInfo(_ text: String) {
         notice = nil
         info = text
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
@@ -465,6 +573,18 @@ final class KeyboardModel: ObservableObject {
     private func set(_ s: Stage) {
         if s != stage { stage = s; stageSince = Date() }
         if s != .inserted, correction != nil { correction = nil }
+        if s != .inserted { insertedBarSince = nil }
+    }
+
+    /// "✓ Inserted" in the Typing bar goes back to the plain bar after a few seconds (`InsertedBar`); Undo goes
+    /// with it. The clock starts once polishing is over, when the bar first shows.
+    private func expireInsertedBar() {
+        guard stage == .inserted, !polishing else { return }
+        guard let since = insertedBarSince else { insertedBarSince = Date(); return }
+        if InsertedBar.expired(shownFor: Date().timeIntervalSince(since), hasCorrection: correction != nil) {
+            insertion = nil
+            set(.idle)
+        }
     }
 
     // MARK: Spoken corrections
@@ -500,6 +620,8 @@ final class KeyboardModel: ObservableObject {
         case .idle, .inserted: break
         }
         if polishing { pollPolish(defaults) }
+        expireInsertedBar()
+        if stage == .idle { reloadStats() }
         retime()
     }
 
@@ -628,6 +750,10 @@ final class KeyboardModel: ObservableObject {
         proxy?.insertText(inserted)
         insertion = Insertion(inserted: inserted, text: final, raw: raw, words: Self.wordCount(final),
                               dictation: d, document: proxy?.safeDocumentIdentifier, at: Date())
+        // Back to Typing with "✓ Inserted", and Typing again the next time the keyboard opens this session.
+        surface = .typing
+        closePanels()
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: KeyboardSurface.lastInsertedKey)
         polishing = final == text && defaults.string(forKey: KeyboardBridge.Key.polishing) == d.uuidString
         set(.inserted)
         notice = nil
