@@ -94,21 +94,6 @@ struct ContentView: View {
         .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app) }
     }
 
-    private var title: String {
-        switch app.screen {
-        case .home: return "Verbose"
-        case .library: return app.projectFilter.flatMap { id in app.store.projects.first { $0.id == id }?.name } ?? "Library"
-        case .queue: return "Queue"
-        case .links: return "Links"
-        case .moments: return "Moments"
-        case .trash: return "Recently Deleted"
-        case .dictionary: return "Dictionary"
-        case .dictations: return "Dictations"
-        case .activity: return "You"
-        case .transcript(let id): return app.store.transcript(id)?.title ?? "Transcript"
-        }
-    }
-
     private var screenKey: String {
         switch app.screen {
         case .home: return "home"
