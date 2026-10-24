@@ -237,7 +237,7 @@ struct KeyboardSetupScreen: View {
                 .cardSurface(radius: Radius.row)
 
                 Text("Privacy").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
-                Text("While a session is on, Verbose keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and never leaves this iPhone. Each dictation is saved in Library › Dictations.")
+                Text("While a session is on, Verbose keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and stays on this iPhone unless iCloud sync is on. Each dictation is saved in Library › Dictations; deleting it also removes it from the keyboard's recent dictations, which keep at most 10 from the last day.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 

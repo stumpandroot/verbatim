@@ -871,6 +871,8 @@ final class KeyboardSession: ObservableObject {
                 guard ok, let name = app.store.adoptRecording(url) else { Log.note("keyboard dictation: couldn't save the audio"); return }
                 var t = Transcript(title: Transcript.titleFrom(fixed) ?? "Dictation", source: .dictation, sourceLabel: "Dictation · Keyboard",
                                    duration: duration, audioFileName: name, model: model)
+                // The keyboard's dictation ID, so deleting the dictation also removes it from the keyboard's Recent row.
+                if app.store.transcript(dictation) == nil { t.id = dictation }
                 t.kind = .dictation
                 t.original = original
                 t.segments = fixed

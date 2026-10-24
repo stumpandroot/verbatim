@@ -680,11 +680,18 @@ final class PhoneState: ObservableObject {
     // MARK: Organizing and notes
 
     func delete(_ ids: [UUID]) {
-        for id in ids { linkTasks.removeValue(forKey: id)?.cancel(); coordinator.cancelIfActive(id); store.moveToTrash(id) }
+        for id in ids { forgetKeyboardCopy(id); linkTasks.removeValue(forKey: id)?.cancel(); coordinator.cancelIfActive(id); store.moveToTrash(id) }
         say(ids.count == 1 ? "Moved to Recently Deleted" : "Moved \(ids.count) to Recently Deleted")
     }
     func restore(_ id: UUID) { store.restore(id); say("Restored") }
-    func purge(_ id: UUID) { if let t = store.transcript(id) { store.delete(t) } }
+    func purge(_ id: UUID) { forgetKeyboardCopy(id); if let t = store.transcript(id) { store.delete(t) } }
+
+    /// A deleted dictation leaves the keyboard's Recent row and the App Group's last-dictation fields too, so the
+    /// keyboard can't show or insert its words again.
+    private func forgetKeyboardCopy(_ id: UUID) {
+        guard let t = store.transcript(id), t.kind == .dictation else { return }
+        KeyboardBridge.forgetDictation(id: id, texts: [t.flow?.pasted, t.flow?.raw, t.document].compactMap { $0 })
+    }
     func move(_ id: UUID, to project: UUID?) { store.update(id) { $0.projectId = project } }
     /// Adds Library transcripts to a project (Add from Library, Add to project). One project at a time: a transcript
     /// from another project moves. Saves through the Store, so iCloud carries it to the Mac.
@@ -775,6 +782,7 @@ final class PhoneState: ObservableObject {
             recorder.discard()
         }
         session.end(reason: nil)
+        session.forgetTakes()
         player.stop()
         homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
@@ -788,6 +796,17 @@ final class PhoneState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
         // Also files with no transcript in memory, speech models, and local-only copies (Store.removeAllFiles).
         store.removeAllFiles()
+        // What the keyboard and the extensions share through the App Group: the Recent row, the last dictation's
+        // words, the Home stats, snippets, shared files and links waiting in the inbox, and finished broadcasts.
+        KeyboardBridge.clearDictationData()
+        for folder in [VerbatimInbox.inbox, VerbatimInbox.broadcasts].compactMap({ $0 }) {
+            for f in (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] {
+                try? FileManager.default.removeItem(at: f)
+            }
+        }
+        // The diagnostic log (Settings › Send diagnostic log) starts over.
+        Log.trimNow()
+        try? FileManager.default.removeItem(at: Log.file)
         say("Deleted everything")
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
