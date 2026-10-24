@@ -261,7 +261,7 @@ final class FolderWatcher: ObservableObject {
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard let self, self.scanGen[id] == g else { return }
-            self.scan(id)
+            await self.scan(id)
         }
     }
 
@@ -295,11 +295,34 @@ final class FolderWatcher: ObservableObject {
         }
     }
 
-    private func scan(_ id: UUID) {
+    /// Folders being listed in the background, and those that changed again meanwhile (listed once more after).
+    private var scanning: Set<UUID> = []
+    private var rescan: Set<UUID> = []
+
+    /// Lists the folder and stats its files on a background task (a big watched folder, such as Dropbox or
+    /// Downloads, held the main thread while it did), then merges the results here. One listing per folder at a
+    /// time; a change during it lists the folder once more when it finishes.
+    private func scan(_ id: UUID) async {
+        guard !scanning.contains(id) else { rescan.insert(id); return }
         guard let f = folders.first(where: { $0.id == id }), f.enabled, let root = resolved[id] else { return }
+        let subfolders = f.includeSubfolders
+        scanning.insert(id)
+        let found = await Task.detached(priority: .utility) { () -> [(url: URL, size: Int, mtime: TimeInterval)] in
+            Self.mediaFiles(in: root, subfolders: subfolders).compactMap { u in
+                Self.stat(u).map { (url: u, size: $0.size, mtime: $0.mtime) }
+            }
+        }.value
+        scanning.remove(id)
+        if folders.first(where: { $0.id == id })?.enabled == true, resolved[id] == root { merge(found, folder: id) }
+        if rescan.remove(id) != nil { await scan(id) }
+    }
+
+    /// Adds new or changed files from a listing to the candidates waiting to settle.
+    private func merge(_ found: [(url: URL, size: Int, mtime: TimeInterval)], folder id: UUID) {
         let inFlightPaths = Set(inFlight.values.compactMap { $0.count > 1 ? $0[1] : nil })
-        for u in Self.mediaFiles(in: root, subfolders: f.includeSubfolders) {
-            guard let s = Self.stat(u), s.size > 0 else { continue }
+        for (u, size, mtime) in found {
+            let s = (size: size, mtime: mtime)
+            guard s.size > 0 else { continue }
             let key = Self.processedKey(path: u.path, size: s.size, mtime: s.mtime)
             if processedSet.contains(key) || inFlightPaths.contains(u.path) { continue }
             if var c = candidates[u.path] {
