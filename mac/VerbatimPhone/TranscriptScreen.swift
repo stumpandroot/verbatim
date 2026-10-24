@@ -649,7 +649,7 @@ struct PhoneLinkCard: View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
-                if let f = info.thumbnailFile { StillImage(file: f).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)) }
+                if let f = info.thumbnailFile { StillImage(file: f, maxPixel: 240).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)) }
                 else { IconGlyph(art: .iconPlay, size: 18, color: Ink.mute) }
             }
             .frame(width: 72, height: 42)
