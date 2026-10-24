@@ -31,22 +31,24 @@ enum RibbonOutcome: Equatable {
     case ignored
     /// No session holds the microphone: Verbose must come forward to start one.
     case needsForeground
-    /// Sent as a Darwin notification from the widget's process; the app acts on it if it's running.
+    /// Left in the App Group from the widget's process; the app acts on it if it's running.
     case forwarded
 }
 
 /// Hands an intent's command to the keyboard session, in the app's process.
+///
+/// From the widget's process, the command goes into the App Group with a one-time ID and the time
+/// (`KeyboardBridge.sendCommand`), and a Darwin notification with no data wakes the app. Any app can post a Darwin
+/// notification, so the app acts only on a fresh, unhandled command it reads from the App Group, which only
+/// Verbose's own processes can write (`BridgeTrust`).
 enum RibbonSignal {
-    /// Darwin notification names, one per command, for an intent that runs in the widget's process.
-    static func note(_ c: RibbonCommand) -> String { "co.stumpandroot.verbatim.ribbon." + c.rawValue }
-
     /// Set by `KeyboardSession`; nil in the widget extension and before the session exists.
     @MainActor static var handler: ((RibbonCommand) -> RibbonOutcome)?
 
     @MainActor static func send(_ c: RibbonCommand) -> RibbonOutcome {
         if let handler { return handler(c) }
         #if VERBATIM_WIDGETS
-        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(note(c) as CFString), nil, nil, true)
+        KeyboardBridge.sendCommand(c.rawValue)
         return .forwarded
         #else
         // In the app before the session exists: nothing holds the microphone.

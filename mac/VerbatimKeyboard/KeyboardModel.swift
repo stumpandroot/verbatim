@@ -368,6 +368,11 @@ final class KeyboardModel: ObservableObject {
     private func startSession(_ defaults: UserDefaults) {
         let r = UUID()
         request = r
+        // The app starts the microphone from the link only when its request matches this one, written just now,
+        // and switches back only to the app named here (BridgeTrust.decide).
+        defaults.set(Date().timeIntervalSince1970, forKey: KeyboardBridge.Key.requestAt)
+        if let host, !host.isEmpty { defaults.set(host, forKey: KeyboardBridge.Key.requestHost) }
+        else { defaults.removeObject(forKey: KeyboardBridge.Key.requestHost) }
         defaults.set(r.uuidString, forKey: KeyboardBridge.Key.request)
         var d: UUID? = nil
         if KeyboardBridge.autoStart {

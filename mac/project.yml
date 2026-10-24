@@ -321,6 +321,7 @@ targets:
       # Shared with the keyboard extension: the App Group channel, the voice bars, and the format chip's rules
       # and the App Store switch (KeyboardFormat.swift).
       - VerbatimKeyboard/KeyboardBridge.swift
+      - VerbatimKeyboard/BridgeTrust.swift
       - VerbatimKeyboard/VoiceBars.swift
       - VerbatimKeyboard/KeyboardFormat.swift
       # Shared with the widget extension: the Start dictation session intent (Control Center, Action button).
@@ -487,6 +488,7 @@ targets:
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Brand.swift
       - VerbatimKeyboard/KeyboardBridge.swift
+      - VerbatimKeyboard/BridgeTrust.swift
     info:
       path: VerbatimWidgets/Info.plist
       properties:

@@ -4,11 +4,54 @@ import UIKit
 // MARK: - Session start screen
 
 /// Over the app for the moment a keyboard session starts. Normally you see it for under a second before Verbatim
-/// switches back to your app; when it can't switch back by itself, it tells you how.
+/// switches back to your app; when it can't switch back by itself, it tells you how. A link that didn't come from
+/// the keyboard just now (the Lock Screen widget, another app) asks first, and the microphone stays off until you
+/// tap Start session.
 struct SessionStartScreen: View {
     @ObservedObject var session: KeyboardSession
 
     var body: some View {
+        if session.confirming != nil { confirmation } else { starting }
+    }
+
+    private var confirmation: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
+                Overline(text: "Keyboard session", color: Ink.dim)
+            }
+            .padding(.top, 24)
+            .accessibilityElement(children: .combine)
+
+            Text("Start a keyboard session?")
+                .font(Ink.serif(34)).foregroundStyle(Ink.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 14)
+                .accessibilityAddTraits(.isHeader)
+
+            Text("Verbose turns on the microphone so you can dictate with the Verbose keyboard in any app. The orange microphone dot stays on until the session ends. Audio is saved only while you dictate.")
+                .font(.system(size: 16)).foregroundStyle(Ink.dim)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
+
+            HStack(spacing: 12) {
+                Button("Not now") { session.declineStart() }
+                    .buttonStyle(.brandSecondaryLarge)
+                    .accessibilityHint("Closes this screen. The microphone stays off.")
+                Button("Start session") { session.confirmStart() }
+                    .buttonStyle(.brandPrimaryLarge)
+                    .accessibilityHint("Turns on the microphone for the Verbose keyboard")
+            }
+            .padding(.top, 26)
+
+            Spacer(minLength: 20)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Ink.paper.ignoresSafeArea())
+    }
+
+    private var starting: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)

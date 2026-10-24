@@ -47,8 +47,8 @@ struct VerbatimSessionAttributes: ActivityAttributes {
 /// Ends the session from the Live Activity's End session button.
 ///
 /// A `LiveActivityIntent` runs in the app's process, so `perform` calls the session directly through
-/// `SessionEndSignal.handler`. It also posts a Darwin notification, which reaches the app even if iOS ever runs
-/// the intent in the widget's process.
+/// `SessionEndSignal.handler`. If iOS ever runs it in the widget's process, the command goes through the App Group
+/// instead (`KeyboardBridge.sendCommand`), as the ribbon's do.
 struct EndVerbatimSessionIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "End session"
     static var description = IntentDescription("Ends the Verbose keyboard session and turns off the microphone.")
@@ -62,13 +62,13 @@ struct EndVerbatimSessionIntent: LiveActivityIntent {
 }
 
 enum SessionEndSignal {
-    /// Posted when the Live Activity's End session button is tapped.
-    static let note = "co.stumpandroot.verbatim.session.end"
+    /// The command's name in the App Group (`RibbonCommand.endSession`).
+    static let command = "endSession"
     /// Set by the app's session; nil in the widget extension.
     @MainActor static var handler: (() -> Void)?
 
     @MainActor static func fire() {
         if let handler { handler(); return }
-        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(note as CFString), nil, nil, true)
+        KeyboardBridge.sendCommand(command)
     }
 }
