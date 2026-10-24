@@ -327,8 +327,8 @@ private struct KeyCap: View {
 
     private var fill: Color {
         if kind == .returnKey { return pressed ? KB.ink.opacity(0.8) : KB.ink }
-        if isFunction { return pressed ? KB.card : KB.wash }
-        return pressed ? KB.wash : KB.card
+        if isFunction { return pressed ? KB.key : KB.wash }
+        return pressed ? KB.wash : KB.key
     }
 
     @ViewBuilder private var label: some View {
@@ -352,7 +352,7 @@ private struct KeyCap: View {
             Image(systemName: "globe").font(.system(size: 18)).foregroundStyle(KB.ink)
         case .space:
             // The space bar carries the name, as on Wispr Flow's keyboard; VoiceOver still says "Space".
-            Text("Verbose").font(.system(size: 15)).foregroundStyle(KB.muted)
+            Text("Verbose").font(.system(size: 15)).foregroundStyle(KB.keyMuted)
         case .returnKey:
             Text(typing.returnKind.label ?? "return")
                 .font(.system(size: 15, weight: .semibold))
@@ -382,7 +382,7 @@ private struct KeyPopup: View {
             .font(.system(size: 32))
             .foregroundStyle(KB.ink)
             .frame(width: w, height: h)
-            .background(KBKeyFace(fill: KB.card))
+            .background(KBKeyFace(fill: KB.key))
             .overlay(shape.strokeBorder(KB.hairline))
             .position(x: x, y: y)
             .allowsHitTesting(false)

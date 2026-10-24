@@ -59,9 +59,14 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// The panel color in light or dark, following the field you're typing in: its `keyboardAppearance` when it asks for
-    /// one, otherwise the host app's light or dark mode. Set on the SwiftUI host only, so this controller's own
-    /// trait collection keeps reporting the host's mode.
+    /// Light or dark, following the field you're typing in: its `keyboardAppearance` when it asks for one, otherwise
+    /// the host app's light or dark mode (the system draws its keyboard backdrop by the same rule). Set on the
+    /// SwiftUI host only, so this controller's own trait collection keeps reporting the host's mode.
+    ///
+    /// The backdrop is Apple's: iOS draws the keyboard container (its rounded top and the globe and dictation strip)
+    /// and this view stays see-through over it, so there's no second, green slab inside Apple's gray frame. The
+    /// 0.1% alpha is invisible; it only keeps the view from being fully transparent, so taps between the keys still
+    /// land on the keyboard.
     private func applyAppearance() {
         let style: UIUserInterfaceStyle
         switch textDocumentProxy.keyboardAppearance {
@@ -70,8 +75,10 @@ final class KeyboardViewController: UIInputViewController {
         default: style = traitCollection.userInterfaceStyle == .dark ? .dark : .light
         }
         if host?.overrideUserInterfaceStyle != style { host?.overrideUserInterfaceStyle = style }
-        view.backgroundColor = KB.uiPanel.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
+        view.backgroundColor = Self.backdrop
     }
+
+    private static let backdrop = UIColor(white: 0, alpha: 0.001)
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)

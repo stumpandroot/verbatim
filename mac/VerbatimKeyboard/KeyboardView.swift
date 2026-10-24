@@ -4,36 +4,53 @@ import UIKit
 /// The keyboard's palette: Verbatim's tokens (Tokens.swift is in this target), so it matches the app in light,
 /// dark, and Increase Contrast. Each color follows the keyboard's appearance, which `KeyboardViewController` sets
 /// from the host app. Dictation is butter (DESIGN.md §1: butter means Dictate); errors are `Ink.danger`.
+///
+/// There's no panel color: the keyboard's backdrop is Apple's (system chrome stays Apple's). iOS draws the keyboard
+/// container, its rounded top, and the globe and dictation strip below in a neutral gray (about #1F1F1F in dark,
+/// a light gray in light), and our keys, pills, and cards sit on it. Text that sits straight on the backdrop (Home's
+/// numbers, Listening, the bar's notices) uses `ink`, `dim`, `muted`, and `deep`, which hold 4.5:1 on that gray
+/// in both appearances.
 enum KB {
-    /// The panel behind the keyboard, for the controller's own view (it shows before SwiftUI draws).
-    static let uiPanel = UIColor { tc in UIColor(Ink.side).resolvedColor(with: tc) }
     static let uiInk = Ink.inkUI
 
-    /// The panel behind the bar, the cards, and the keys.
-    static let panel = Ink.side
     static let paper = Ink.paper
     static let ink = Ink.ink
+    /// Cards and outlined circles: the menu, the lists, the Full Access notice, ABC, Recent, and Settings.
     static let card = Ink.card
     /// Secondary text: the line under Home's number, the live words while you talk.
     static let dim = Ink.dim
-    /// Notices (a failure).
-    static let deep = Ink.danger
-    static let muted = Ink.mute
+    /// Notices (a failure). `Ink.danger`, a step deeper in light so it holds 4.5:1 on the system's light gray.
+    static let deep = Ink.dynC(0x9E361E, 0xFF8A6B, 0x8A2E18, 0xFFA48A)
+    /// Metadata. `Ink.mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
+    static let muted = Ink.dynC(0x48514A, 0xA1A29A, 0x3E4A43, 0xD4CDC0)
     static let hairline = Ink.hairline
-    /// Ink in both appearances: text and outlines on butter, which stays butter in dark.
+    /// Ink in both appearances: text and glyphs on butter, which stays butter in dark. Never the adaptive `ink`
+    /// on butter: that turns light in dark.
     static let inkFixed = Ink.inkFixed
 
-    // Keyboard-only colors from the keyboard mockup (not in Tokens.swift; defined here, not shared).
+    // Keyboard-only colors (not in Tokens.swift; defined here, not shared). The keys and soft surfaces are tuned
+    // for Apple's keyboard backdrop rather than a panel of ours.
     /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Dark is #DDB563, a
-    /// little lighter than `Ink.butter`'s dark value, so it holds up on the dark panel.
+    /// little lighter than `Ink.butter`'s dark value, so it holds up on the dark backdrop.
     static let dictate = Ink.dyn(Ink.butterHex, 0xDDB563)
-    /// Chips, soft circles, and function keys: one step darker than the panel (`Ink.wash` matches the panel in light).
-    static let wash = Ink.dynC(0xE6DFD1, 0x22312A, 0xDCD3C2, 0x2C3C34)
+    /// The butter's 1.5 pt outline: fixed ink in light, as the mockup; none in dark, where a dark ring would
+    /// melt into the dark backdrop and shrink the butter. The butter itself holds 8:1 against the dark gray.
+    static let dictateRim = Ink.make { dark, _ in dark ? PColor.clear : PColor(hex: Ink.inkHex) }
+    /// Letter keys and the key popup: reader white in light; a raised gray-green in dark, lighter than the
+    /// system's dark gray (1.7:1), with ink labels at 8.7:1 (7:1 with Increase Contrast, on a lighter key).
+    static let key = Ink.dynC(Ink.readerHex, 0x3A4641, Ink.readerHex, 0x47544E)
+    /// The space bar's name on a key: `muted`, lighter in dark so it holds 5:1 on `key`.
+    static let keyMuted = Ink.dynC(0x606962, 0xB9BAB2, 0x3E4A43, 0xD4CDC0)
+    /// Chips, soft circles, and function keys: a warm step darker than the system's light gray in light (like
+    /// Apple's function keys), and a quiet step above the backdrop in dark (1.3:1), under the letter keys.
+    static let wash = Ink.dynC(0xCCC3B1, 0x2B3530, 0xC0B6A2, 0x36423C)
     /// The butter pills' and the menu card's hard offset shadow.
     static let hard = Ink.dyn(Ink.inkHex, 0x0C1310)
-    /// A key's 1 pt bottom edge: ink at 25% (50% with Increase Contrast).
+    /// A key's 1 pt bottom edge: ink at 25% in light (50% with Increase Contrast); a dark shadow in dark, as the
+    /// system keys have (a light edge under a dark key reads as a rim), with a paper edge under Increase Contrast.
     static let keyShadow = Ink.make { dark, hc in
-        PColor(hex: dark ? Ink.paperHex : Ink.inkHex).withAlphaComponent(hc ? 0.5 : 0.25)
+        if dark { return hc ? PColor(hex: Ink.paperHex).withAlphaComponent(0.35) : PColor.black.withAlphaComponent(0.5) }
+        return PColor(hex: Ink.inkHex).withAlphaComponent(hc ? 0.5 : 0.25)
     }
 
     /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the Record panel's radius.
@@ -66,7 +83,7 @@ struct KeyboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             if model.showingMenu && model.mode == .typing { menuLayer }
         }
-        .background(KB.panel)
+        // No background: Apple's keyboard backdrop shows through (see `KB`).
     }
 
     // MARK: Bars
@@ -134,11 +151,11 @@ struct KeyboardView: View {
             .accessibilityLabel("Letter keys")
             .accessibilityHint("Shows the typing keyboard")
             if model.hasFullAccess {
-                CircleButton(look: .outline, action: model.toggleRecent) { ArtIcon(art: .iconRecent, size: 20) }
+                CircleButton(look: .outline, action: model.toggleRecent) { KBGlyph(art: .iconRecent, size: 20, color: KB.ink, minLineWidth: 1.3) }
                     .accessibilityLabel("Recent dictations")
                     .accessibilityHint("Shows your last dictations to insert again")
             }
-            CircleButton(look: .outline, action: model.openVerbose) { ArtIcon(art: .iconSettings, size: 20) }
+            CircleButton(look: .outline, action: model.openVerbose) { KBGlyph(art: .iconSettings, size: 20, color: KB.ink, minLineWidth: 1.3) }
                 .accessibilityLabel("Settings")
                 .accessibilityHint(model.hasFullAccess ? "Opens Verbose" : "Shows how to turn on dictation")
         }
@@ -509,7 +526,7 @@ private struct TalkPill: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                BrandGlyph(art: .capture, color: KB.inkFixed, minLineWidth: 1.5).frame(width: 20, height: 20)
+                KBGlyph(art: .capture, size: 20, color: KB.inkFixed, minLineWidth: 1.5)
                 Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(KB.inkFixed).lineLimit(1)
             }
             .padding(.horizontal, 26).frame(height: 50)
@@ -545,7 +562,8 @@ private struct StartPill: View {
 }
 
 private extension View {
-    /// Butter capsule with a 1.5 pt ink outline, the grain, and a hard ink shadow offset by `shadow`.
+    /// Butter capsule with a 1.5 pt fixed-ink outline (none in dark, `KB.dictateRim`), the grain, and a hard ink
+    /// shadow offset by `shadow`.
     func butterPill(shadow: CGSize) -> some View {
         background {
             ZStack {
@@ -553,7 +571,7 @@ private extension View {
                 GrainOverlay().clipShape(Capsule())
             }
         }
-        .overlay(Capsule().strokeBorder(KB.inkFixed, lineWidth: 1.5))
+        .overlay(Capsule().strokeBorder(KB.dictateRim, lineWidth: 1.5))
         .background(Capsule().fill(KB.hard).offset(x: shadow.width, y: shadow.height))
         .contentShape(Capsule())
     }
@@ -600,7 +618,7 @@ private struct CircleButton<Label: View>: View {
     @ViewBuilder private var ring: some View {
         switch look {
         case .outline: Circle().strokeBorder(KB.ink, lineWidth: 1.5)
-        case .go: Circle().strokeBorder(KB.inkFixed, lineWidth: 1.5)
+        case .go: Circle().strokeBorder(KB.dictateRim, lineWidth: 1.5)
         default: EmptyView()
         }
     }
@@ -650,7 +668,7 @@ private struct MenuCard: View {
                      hint: String, adjustable: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                IconGlyph(art: art, size: 18, color: KB.ink)
+                KBGlyph(art: art, size: 18, color: KB.ink)
                 Text(title).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
                 Spacer(minLength: 6)
                 if let value {
@@ -696,6 +714,42 @@ private struct MenuRowPress: ButtonStyle {
 }
 
 // MARK: - Surfaces
+
+/// A brand line icon drawn as SwiftUI shapes, so its color resolves like any fill (`Circle().fill`) in the
+/// keyboard's light or dark appearance. Build 186's Canvas-drawn microphone vanished on the ink circle in dark
+/// mode; shapes take the same path as the circles and keys, which did draw. Fills and strokes only (the icons the
+/// keyboard uses have no dashes or clipped hatching). Decorative: the label beside it carries the meaning.
+struct KBGlyph: View {
+    var art: BrandArt
+    var size: CGFloat
+    var color: Color
+    var minLineWidth: CGFloat = 1.2
+
+    var body: some View {
+        let s = min(size / art.box.width, size / art.box.height)
+        let width = max(minLineWidth, art.strokeWidth * s)
+        ZStack {
+            if !art.fills.isEmpty { ArtShape(art: art, fills: true).fill(color) }
+            if !art.strokes.isEmpty {
+                ArtShape(art: art, fills: false)
+                    .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// One BrandArt's fills or strokes as a shape, scaled to fit its frame (as `BrandGlyph` scales it).
+private struct ArtShape: Shape {
+    var art: BrandArt
+    var fills: Bool
+    func path(in rect: CGRect) -> Path {
+        Path(BrandArt.cgPath(fills ? art.fills : art.strokes))
+            .applying(ArtSpace(box: art.box, size: rect.size).transform)
+            .offsetBy(dx: rect.minX, dy: rect.minY)
+    }
+}
 
 /// A key's face: its fill in a 7 pt rounded rectangle over a 1 pt ink-tinted bottom edge. Shared with the
 /// typing keys.
@@ -792,7 +846,7 @@ private struct FullAccessCard: View {
             if disc {
                 ZStack {
                     Circle().fill(KB.wash)
-                    IconGlyph(art: .iconPrivacy, size: 22, color: KB.ink)
+                    KBGlyph(art: .iconPrivacy, size: 22, color: KB.ink)
                 }
                 .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
@@ -828,7 +882,7 @@ private struct StartSessionCard: View {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     Circle().fill(Ink.butterTint)
-                    BrandGlyph(art: .iconDictations, color: Ink.butterText, minLineWidth: 1.2).padding(11)
+                    KBGlyph(art: .iconDictations, size: 22, color: Ink.butterText)
                 }
                 .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
@@ -927,7 +981,7 @@ private struct CleanupChip: View {
     var body: some View {
         Button(action: next) {
             HStack(spacing: 5) {
-                IconGlyph(art: .iconAI, size: 14, color: KB.ink)
+                KBGlyph(art: .iconAI, size: 14, color: KB.ink)
                 Text(level).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
                 Text("· \(format)").font(.system(size: 13.5, weight: .medium)).foregroundStyle(KB.muted)
                     .lineLimit(1).minimumScaleFactor(0.8)
@@ -971,6 +1025,7 @@ private struct VoiceWave: View {
     /// The widest a bar gets; narrower when the bars are close together.
     var barWidth: CGFloat = 6
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.self) private var environment
 
     var body: some View {
         Group {
@@ -987,7 +1042,8 @@ private struct VoiceWave: View {
 
     private func bars(t: Double, still: Bool) -> some View {
         let lifted = pow(min(1, max(0, level)), 0.6)
-        let color = self.color
+        // Resolved here, so the Canvas gets a plain color for this appearance rather than an adaptive one.
+        let color = Color(self.color.resolve(in: environment))
         let n = max(1, count), maxBar = barWidth
         return Canvas { ctx, size in
             let gap = size.width / CGFloat(n)
