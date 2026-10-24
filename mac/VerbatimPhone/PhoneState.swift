@@ -63,6 +63,8 @@ final class PhoneState: ObservableObject {
     /// The export sheet (PhoneExportSheet), for one transcript or several.
     @Published var exportRequest: PhoneExportRequest? = nil
     @Published var showImporter = false
+    /// Import › Choose from Photos (videos saved from TikTok and other apps live in Photos, not Files).
+    @Published var showPhotoPicker = false
     /// Transcribe what's playing (PhoneWhatsPlaying.swift): the sheet with the system broadcast picker.
     @Published var showPlayingSheet = false
     @Published var showOnboarding = Onboarding.shouldShow

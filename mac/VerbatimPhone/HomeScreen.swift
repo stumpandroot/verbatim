@@ -174,18 +174,17 @@ struct HomeScreen: View {
                 }
                 .buttonStyle(PhoneCardPress())
                 .accessibilityHint("Opens your dictations and how to use the Verbose keyboard.")
-                // Touch and hold to paste a link instead (the existing link sheet).
+                // Tap for the choices: Photos (where saved videos land), Files, or a link.
                 Menu {
+                    Button("Choose from Photos") { app.showPhotoPicker = true }
                     Button("Choose files…") { app.showImporter = true }
                     Button("Paste a link") { app.showLinkSheet = true }
                 } label: {
                     tile("Import", art: .iconDownload, fill: PhoneInk.sage)
-                } primaryAction: {
-                    app.showImporter = true
                 }
                 .menuStyle(.button)
                 .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Choose audio or video files to transcribe. Touch and hold to paste a link.")
+                .accessibilityHint("Choose a video from Photos, audio or video files, or paste a link to transcribe.")
                 .accessibilityAction(named: "Paste a link") { app.showLinkSheet = true }
             }
             GridRow {

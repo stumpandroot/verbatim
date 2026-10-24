@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 @main
 struct VerbatimPhoneApp: App {
@@ -23,6 +24,7 @@ struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
     @State private var newProjectName = ""
+    @State private var photoPicks: [PhotosPickerItem] = []
     @ObservedObject private var rename = RenameCenter.shared
     /// The full-screen recorder zooms out of the bar and back into it.
     @Namespace private var recorderZoom
@@ -122,7 +124,14 @@ struct PhoneRoot: View {
             .presentationDetents([.large])
         }
         .fileImporter(isPresented: $app.showImporter, allowedContentTypes: MediaImport.pickerTypes, allowsMultipleSelection: true) { r in
-            if case .success(let urls) = r { app.importFiles(urls) }
+            if case .success(let urls) = r { app.importPicked(urls) }
+        }
+        .photosPicker(isPresented: $app.showPhotoPicker, selection: $photoPicks, maxSelectionCount: 5,
+                      matching: .videos, preferredItemEncoding: .current)
+        .onChange(of: photoPicks) { _, picks in
+            guard !picks.isEmpty else { return }
+            app.importPhotos(picks)
+            photoPicks = []
         }
         .overlay(alignment: .top) {
             if let t = app.toast {
