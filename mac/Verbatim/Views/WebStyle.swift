@@ -234,7 +234,6 @@ struct FlatRowButton<Content: View, Accessory: View>: View {
     @ViewBuilder var accessory: (_ highlighted: Bool) -> Accessory
     @State private var hover = false
     @State private var accessoryHover = false
-    @State private var size: CGSize = .zero
 
     var body: some View {
         let lit = hover || accessoryHover || selected
@@ -243,12 +242,15 @@ struct FlatRowButton<Content: View, Accessory: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .flatRow(highlighted: lit)
             .allowsHitTesting(false)
-            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
             .overlay {
-                shape.fill(Color.white.opacity(0.001))
-                    .contentShape(shape)
-                    .onHover { hover = $0 }
-                    .modifier(FlatRowHit(dragPayload: dragPayload, size: size, action: action))
+                // The hit layer reads its own size, so no row state changes when a row appears or resizes (in a
+                // long list that was one extra render per row).
+                GeometryReader { g in
+                    shape.fill(Color.white.opacity(0.001))
+                        .contentShape(shape)
+                        .onHover { hover = $0 }
+                        .modifier(FlatRowHit(dragPayload: dragPayload, size: g.size, action: action))
+                }
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
@@ -373,6 +375,20 @@ enum WebStatus {
         guard t.status == .ready, !t.isDictation, t.document == nil else { return 0 }
         return t.segments.reduce(0) { $0 + fillerCount($1.text) }
     }
+
+    /// `fillers`, remembered per transcript until its words, cleanup, or status change: counting splits every segment,
+    /// and Home's Recent rows asked on every render.
+    static func cachedFillers(_ t: Transcript) -> Int {
+        let key = FillerKey(id: t.id, segments: t.segments.count, chars: t.segments.reduce(0) { $0 + $1.text.utf8.count },
+                            cleaned: t.document != nil, ready: t.status == .ready, dictation: t.isDictation)
+        if let hit = fillerCache[key] { return hit }
+        let n = fillers(t)
+        if fillerCache.count > 256 { fillerCache.removeAll(keepingCapacity: true) }
+        fillerCache[key] = n
+        return n
+    }
+    private struct FillerKey: Hashable { var id: UUID; var segments: Int; var chars: Int; var cleaned: Bool; var ready: Bool; var dictation: Bool }
+    private static var fillerCache: [FillerKey: Int] = [:]
 
     /// Moments (notes pinned to a time) in a transcript.
     static func moments(_ t: Transcript) -> Int { t.notes.filter { $0.at != nil }.count }
@@ -660,19 +676,23 @@ struct EmptyStateCard: View {
 
 // MARK: - Color panels: grain and line art
 
-/// The website's paper grain, for color panels only (never under text on a blur, never on paper). A 128-pt noise
-/// tile made once, multiplied over the fill at 32%. Off under Increase Contrast and Reduce Transparency.
+/// The website's paper grain, for color panels only (never under text on a blur, never on paper). A 256-pixel noise
+/// tile made once and drawn at the display's scale, so one noise pixel is one screen pixel (the website's grain is that
+/// fine). Normal blending at 32%: the tile is premultiplied ink with alpha, which reads like the website's multiply,
+/// and it never forces an offscreen pass when a panel's drawing moves. Off under Increase Contrast and Reduce
+/// Transparency.
 struct GrainOverlay: View {
     var opacity: Double = 0.32
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         if !reduceTransparency, contrast != .increased, let tile = GrainTile.image {
-            Image(decorative: tile, scale: 1)
+            Image(decorative: tile, scale: max(1, displayScale))
                 .resizable(resizingMode: .tile)
+                .interpolation(.none)
                 .opacity(opacity)
-                .blendMode(.multiply)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
@@ -681,7 +701,7 @@ struct GrainOverlay: View {
 
 /// The grain tile: deterministic noise in ink, mostly faint, as the website's feTurbulence filter reads.
 enum GrainTile {
-    static let image: CGImage? = make(size: 128)
+    static let image: CGImage? = make(size: 256)
 
     static func make(size n: Int) -> CGImage? {
         var px = [UInt8](repeating: 0, count: n * n * 4)
@@ -708,19 +728,19 @@ extension View {
     /// A color panel (DESIGN.md §11): an opaque brand fill with paper grain and, optionally, one line drawing behind
     /// the content, clipped to the panel. Position the art from the top trailing corner with `frame` and `offset`
     /// (positive x pushes it past the right edge, as the mockup's `right: -50px`).
+    ///
+    /// The fill takes exactly the content's size; the grain and the art are overlays on it, clipped to its shape, so a
+    /// drawing larger than the panel (Home's 250-pt rings in a 196-pt card) can never make the panel bigger.
     func colorPanel<Art: View>(_ fill: Color, radius: CGFloat = Radius.record, grain: Bool = true,
                                @ViewBuilder art: () -> Art) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let drawing = art()
         return background {
-            ZStack(alignment: .topTrailing) {
-                shape.fill(fill)
-                if grain { GrainOverlay() }
-                drawing
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .clipShape(shape)
-            .allowsHitTesting(false)
+            shape.fill(fill)
+                .overlay { if grain { GrainOverlay() } }
+                .overlay(alignment: .topTrailing) { drawing }
+                .clipShape(shape)
+                .allowsHitTesting(false)
         }
     }
 
