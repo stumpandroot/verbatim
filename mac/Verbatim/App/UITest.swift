@@ -34,6 +34,8 @@ enum UITest {
 
     static func run(app: AppState) {
         guard enabled else { return }
+        // Launch load time for CI (never a pass or fail): Store.load decodes the whole library before the first frame.
+        Log.note("UITEST TIMING store-load \(Int(app.store.loadMs.rounded())) transcripts=\(app.store.transcripts.count)")
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             // The main window, never a floating panel (the dictation bar or thought pad can come first in the list).

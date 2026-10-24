@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import os
 #if os(macOS)
 import AppKit
 #else
@@ -430,6 +431,8 @@ final class Store: ObservableObject {
     static let enc: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.prettyPrinted, .sortedKeys]; return e }()
     static let dec: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
     private var loading = true
+    /// How long the launch `load()` took, in milliseconds (the Mac self-test logs it as UITEST TIMING).
+    private(set) var loadMs = 0.0
     private var pendingSaves: [UUID: DispatchWorkItem] = [:]
     /// Writes and deletes queued on `TranscriptFiles.queue` and not finished yet. The disk is behind memory for
     /// these, so a file change seen meanwhile isn't read back over newer edits.
@@ -472,10 +475,17 @@ final class Store: ObservableObject {
     }
 
     func load() {
+        let started = Date()
+        let interval = Perf.signposter.beginInterval("Store.load")
+        defer {
+            Perf.signposter.endInterval("Store.load", interval)
+            loadMs = Date().timeIntervalSince(started) * 1000
+        }
         let fm = FileManager.default
         let files = ((try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "json" }
         // Decoded in parallel: launch waits for this, and a big library is hundreds of files.
         let slots = LoadSlots(files.count)
+        let decode = Perf.signposter.beginInterval("Store.decode", "\(files.count) files")
         DispatchQueue.concurrentPerform(iterations: files.count) { i in
             let u = files[i]
             guard let data = Cloud.read(u) else { return }
@@ -488,6 +498,7 @@ final class Store: ObservableObject {
             let mod = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
             slots.set(i, (t, mod))
         }
+        Perf.signposter.endInterval("Store.decode", decode)
         var list: [Transcript] = [], dates: [UUID: Date] = [:]
         var stuck: [UUID] = []
         for case let slot? in slots.items {

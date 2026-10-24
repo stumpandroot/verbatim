@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ImageIO
+import os
 
 // brand: web style
 //
@@ -234,6 +235,8 @@ enum ThumbCache {
 
     static func load(_ file: String, maxPixel: Int) async -> NSImage? {
         if let hit = cached(file, maxPixel: maxPixel) { return hit }
+        let interval = Perf.signposter.beginInterval("ThumbCache.load")
+        defer { Perf.signposter.endInterval("ThumbCache.load", interval) }
         guard let url = LibraryFile.url(file, in: Paths.thumbs, field: "thumbnail") else { return nil }
         let cg: CGImage? = await Task.detached(priority: .userInitiated) { () -> CGImage? in
             guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }

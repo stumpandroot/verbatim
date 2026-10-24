@@ -21,8 +21,9 @@ struct ContentView: View {
                 // outward and the sidebar slides off the left edge.
                 GeometryReader { g in
                     screenView.frame(width: g.size.width, height: g.size.height)
-                        // The self-test times each screen change from the click to here (UITEST TIMING).
-                        .onAppear { if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
+                        // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
+                        // UITEST TIMING line in the self-test.
+                        .onAppear { app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
                         .id(screenKey).transition(transition).zIndex(Double(app.navCount))
                 }
             }

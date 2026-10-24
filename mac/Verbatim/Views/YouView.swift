@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import os
 
 // brand: web style
 //
@@ -649,6 +650,8 @@ private struct YouAppIcon: View {
     private static func icon(_ name: String) -> NSImage? {
         if let hit = cache[name] { return hit }
         guard !missing.contains(name), !name.isEmpty else { return nil }
+        let interval = Perf.signposter.beginInterval("YouAppIcon.icon")
+        defer { Perf.signposter.endInterval("YouAppIcon.icon", interval) }
         for folder in folders {
             let path = folder + "/" + name + ".app"
             if FileManager.default.fileExists(atPath: path) {

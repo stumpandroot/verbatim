@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 import UniformTypeIdentifiers
+import os
 
 enum Screen: Equatable {
     case home
@@ -32,6 +33,8 @@ final class AppState: ObservableObject {
     var direction: SlideDirection { nav.direction }
     var navCount: Int { nav.count }
     var navStartedAt = Date()
+    /// The open "Navigate" signpost (Perf), from `go` to the new screen's root `onAppear`. Not published.
+    private var navInterval: OSSignpostIntervalState?
     @Changed var search = ""
     @Changed var projectFilter: UUID? = nil
     /// Library › kind chips: nil is All.
@@ -218,10 +221,19 @@ final class AppState: ObservableObject {
         // No withAnimation here: the container animates on `navCount`, so a publish made just before this
         // (a project filter, a search) can't trigger a flush that strands the screen change.
         navStartedAt = Date()
+        if let open = navInterval { Perf.signposter.endInterval("Navigate", open) }
+        navInterval = Perf.signposter.beginInterval("Navigate", "\(self.key(next), privacy: .public)")
         nav = Nav(screen: next, direction: direction, count: nav.count + 1)
     }
 
     func goHome() { go(.home) }
+
+    /// Ends the "Navigate" signpost; ContentView calls it from the new screen's root `onAppear`.
+    func screenAppeared() {
+        guard let open = navInterval else { return }
+        navInterval = nil
+        Perf.signposter.endInterval("Navigate", open)
+    }
 
     /// Where a screen sits in your sidebar order (SidebarLayout), so screens slide the way the sidebar reads.
     private func rank(_ s: Screen) -> Int {
