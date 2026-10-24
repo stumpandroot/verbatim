@@ -8,8 +8,14 @@
 set -euo pipefail
 : "${GITHUB_TOKEN:?}" "${GITHUB_REPOSITORY:?}"
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/appcast.py"
-REMOTE="${APPCAST_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
+REMOTE="${APPCAST_REMOTE:-https://github.com/${GITHUB_REPOSITORY}.git}"
 BRANCH=updates
+# The token reaches git through a credential helper that reads it from the environment, so it never appears in a
+# command line, a remote URL, or .git/config.
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=""
+export GIT_CONFIG_KEY_1=credential.helper
+export GIT_CONFIG_VALUE_1='!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
 
 for attempt in 1 2 3 4 5 6; do
   W="$(mktemp -d)"

@@ -26,11 +26,11 @@ You need a Mac. Run these commands in Terminal:
 
    Copy the public key (a base64 string) from the output. If you already generated a key, the command prints the existing public key instead.
 
-3. Export the private key, store it as a GitHub secret, and delete the file:
+3. Export the private key, store it as a secret of the `release` environment (Settings › Environments; CI creates it on the first build of `main`), and delete the file:
 
    ```sh
    ./bin/generate_keys -x sparkle_private.key
-   gh secret set SPARKLE_PRIVATE_KEY -R stumpandroot/verbatim < sparkle_private.key
+   gh secret set SPARKLE_PRIVATE_KEY -R stumpandroot/verbatim --env release < sparkle_private.key
    rm -P sparkle_private.key
    ```
 

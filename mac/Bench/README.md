@@ -107,4 +107,4 @@ Caveats:
 - Synthetic voices are clean and evenly paced. Low WER here doesn't mean low WER on your voice, which is why the private-clip folder exists.
 - A model that times out while loading may finish loading in the background and interfere with the next model's first clips. If a row looks odd after a load timeout, rerun that model alone.
 
-Other files on `ci-screens`: `bench-clips-<run>.log` (clip generation), `bench-voices-<run>.txt` (installed voices), `bench-native-<run>.log` (the app's log during the bench), and `bench-crash-<run>.ips` if the app crashed.
+The bench's other files are in the `bench-diagnostics-<run>` artifact on the workflow run, kept for 7 days, not on `ci-screens`: `bench-clips-<run>.log` (clip generation), `bench-voices-<run>.txt` (installed voices), `bench-native-<run>.log` (the app's log during the bench), `bench-open-<run>.txt`, and `bench-crash-<run>.ips` if the app crashed. A crash also shows as a warning in the job log.
