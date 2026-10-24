@@ -4,7 +4,8 @@
 #
 # Needs: Xcode 16+, xcodegen (brew install xcodegen).
 # Env:   VERSION (default 1.0.0), BUILD (default 1), DMG_SUFFIX (e.g. -universal), NOTARY_PROFILE,
-#        PROVISION_PROFILE (path to a Developer ID provisioning profile with iCloud; turns on iCloud sync)
+#        PROVISION_PROFILE (path to a Developer ID provisioning profile with iCloud; turns on iCloud sync),
+#        SKIP_NOTARIZE=1 (build and sign only; run notarize.sh afterward)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -147,22 +148,12 @@ done
 rm -rf "$STAGE"
 if [ -n "$IDENTITY" ]; then codesign --force --timestamp --sign "$SIGN_ID" "$DMG"; fi
 
-# 5. Notarize and staple
-if [ -n "$IDENTITY" ] && xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-  echo "Notarizing…"
-  # Apple's notary service sometimes hangs before it accepts the upload. Give each attempt
-  # 20 minutes (perl's alarm kills a stuck notarytool), and try up to 3 times.
-  notarized=0
-  for attempt in 1 2 3; do
-    if perl -e 'alarm shift; exec @ARGV' 1200 \
-         xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait --timeout 18m; then
-      notarized=1; break
-    fi
-    echo "Notarization attempt $attempt did not finish; retrying…"
-    sleep 20
-  done
-  [ "$notarized" = 1 ] || { echo "Notarization failed after 3 attempts."; exit 1; }
-  xcrun stapler staple "$DMG"
+# 5. Notarize and staple (notarize.sh). CI sets SKIP_NOTARIZE=1 and notarizes in a separate step, so the Apple ID
+# credentials never sit in a keychain while this script runs third-party build code.
+if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
+  echo "Skipping notarization here (SKIP_NOTARIZE=1)."
+elif [ -n "$IDENTITY" ] && xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+  NOTARY_PROFILE="$NOTARY_PROFILE" bash notarize.sh "$DMG"
 else
   echo "Skipping notarization (no certificate or no '$NOTARY_PROFILE' profile)."
 fi
