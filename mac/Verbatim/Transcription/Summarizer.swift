@@ -44,13 +44,13 @@ enum Summarizer {
 
     // MARK: Input
 
-    /// The transcript as lines for the model: filler-only lines left out, "Name: " at each change of speaker when
-    /// there are two or more speakers.
+    /// The transcript as lines for the model: filler-only lines and sponsor reads left out, "Name: " at each change of
+    /// speaker when there are two or more speakers.
     static func lines(_ t: Transcript) -> [String] {
         let named = t.speakers.count >= 2
         var out: [String] = []
         var last: String? = "\u{0}"
-        for s in t.segments where !s.isFillerOnly {
+        for s in t.segmentsWithoutSponsors where !s.isFillerOnly {
             let text = s.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             if named, s.speaker != last, let n = t.speakerName(s.speaker) {
