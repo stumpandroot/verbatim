@@ -152,16 +152,17 @@ struct HistoryRow: View {
 /// Keep video (links) and Keep audio, or Show in Finder once kept.
 struct KeepMenuItems: View {
     @EnvironmentObject var app: AppState
+    @ObservedObject private var kept = KeptMedia.shared
     var transcript: Transcript
     var body: some View {
         if let busy = app.keeping[transcript.id] {
             Button(busy) {}.disabled(true)
-        } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
+        } else if let v = transcript.keptVideo, kept.exists(v) {
             Button("Show video in Finder") { app.showKept(v) }
         } else if transcript.linkInfo != nil {
             Button("Keep video (MP4)") { app.keepVideo(transcript.id) }
         }
-        if let a = transcript.keptAudio, FileManager.default.fileExists(atPath: a) {
+        if let a = transcript.keptAudio, kept.exists(a) {
             Button("Show audio in Finder") { app.showKept(a) }
         } else if transcript.audioFileName != nil {
             Button("Keep audio (\((transcript.audioFileName.map { URL(fileURLWithPath: $0).pathExtension.uppercased() }) ?? "M4A"))") { app.keepAudio(transcript.id) }

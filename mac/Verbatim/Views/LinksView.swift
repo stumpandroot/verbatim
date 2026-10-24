@@ -57,6 +57,7 @@ struct LinksView: View {
             .frame(maxWidth: .infinity)
         }
         .animation(Motion.settle, value: shown.map(\.id))
+        .onAppear { KeptMedia.shared.refresh() }
     }
 
     private func pasteLink() { app.goHome(); app.focusLink.toggle() }
@@ -73,6 +74,7 @@ private struct LinkItem: Identifiable {
 /// Open video, Transcript, and the ⋯ menu. Clicking the row opens the transcript; dragging it files it in a project.
 struct LinkRow: View {
     @EnvironmentObject var app: AppState
+    @ObservedObject private var kept = KeptMedia.shared
     var transcript: Transcript
     /// `transcript.linkInfo`, worked out once by the list.
     var info: LinkInfo
@@ -132,7 +134,7 @@ struct LinkRow: View {
             StatusText(text: "Transcription failed", tone: .danger)
         } else if let busy = app.keeping[transcript.id] {
             StatusText(text: busy, tone: .dim).monospacedDigit()
-        } else if let v = transcript.keptVideo, !v.isEmpty, FileManager.default.fileExists(atPath: v) {
+        } else if kept.exists(transcript.keptVideo) {
             // The row's click layer covers this line; Show video in Finder is in the ⋯ menu and the context menu.
             StatusText(text: "Video kept", tone: .kept, check: true)
         }

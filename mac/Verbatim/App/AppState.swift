@@ -140,6 +140,8 @@ final class AppState: ObservableObject {
         dictation.attach(self)
         mirrorSnippets()
         FolderWatcher.shared.attach(self)
+        // Which kept and imported files are still there, checked off the main thread for rows and menus.
+        KeptMedia.shared.attach(store)
         applyAppearance()
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.

@@ -83,6 +83,17 @@ struct MomentsView: View {
             .frame(maxWidth: .infinity)
         }
         }
+        .onAppear { KeptMedia.shared.refresh() }
+    }
+}
+
+/// Show video in Finder, when the transcript's video is on this Mac (from `KeptMedia`, not a stat per render).
+private struct ShowVideoMenuItem: View {
+    @EnvironmentObject var app: AppState
+    @ObservedObject private var kept = KeptMedia.shared
+    var transcript: Transcript
+    var body: some View {
+        if let v = kept.videoFile(transcript) { Button("Show video in Finder") { app.showKept(v.path) } }
     }
 }
 
@@ -197,7 +208,7 @@ struct MomentCard: View {
                 Button("Open video at \(at.timecode)") { NSWorkspace.shared.open(u) }
                 Button("Copy link to this moment") { copy(u.absoluteString) }
             }
-            if let v = transcript.videoFile { Button("Show video in Finder") { app.showKept(v.path) } }
+            ShowVideoMenuItem(transcript: transcript)
             Divider()
             Button("Delete", role: .destructive) { app.deleteNote(transcript: transcript.id, note: note.id) }
         }

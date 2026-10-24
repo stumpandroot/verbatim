@@ -83,6 +83,7 @@ struct LibraryView: View {
             if selecting { actionBar.padding(.bottom, 18).transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity)) }
         }
         .onChange(of: app.projectFilter) { _, _ in selection = [] }
+        .onAppear { KeptMedia.shared.refresh() }
     }
 
     // MARK: Header and chips

@@ -24,18 +24,20 @@ struct LinkCard: View {
         .padding(8)
         .cardSurface(radius: Radius.row)
         .frame(maxWidth: 640, alignment: .leading)
+        .onAppear { KeptMedia.shared.refresh() }
     }
 }
 
 /// Keep the video, watch it save, then find it.
 struct KeepButton: View {
     @EnvironmentObject var app: AppState
+    @ObservedObject private var kept = KeptMedia.shared
     var transcript: Transcript
     var body: some View {
         if let busy = app.keeping[transcript.id] {
             HStack(spacing: 6) { ProgressView().controlSize(.mini); Text(busy.replacingOccurrences(of: "Keeping video", with: "Keeping")).monospacedDigit() }
                 .font(.system(size: 12)).foregroundStyle(Ink.iris).fixedSize()
-        } else if let v = transcript.keptVideo, FileManager.default.fileExists(atPath: v) {
+        } else if let v = transcript.keptVideo, kept.exists(v) {
             Button { app.showKept(v) } label: { Label("Kept", systemImage: "checkmark") }
                 .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Show the MP4 in Finder")
         } else {
