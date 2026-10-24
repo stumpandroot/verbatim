@@ -84,25 +84,25 @@ enum LinkFetcher {
         }
         let out: String
         do {
-            out = try await run(helper, YtDlpCommand.audio(link: link, template: template, signIn: LinkSignIn.arguments(signIn)),
+            out = try await run(helper, YtDlpCommand.audio(link: link, template: template, signIn: LinkSignIn.arguments(signIn), setup: setup()),
                                 progress: progress, events: events)
         } catch {
             if error is CancellationError { removePartials() }
             throw error
         }
-        guard let line = out.split(separator: "\n").last(where: { $0.contains("\t") && !$0.hasPrefix(metaTag) }) else {
+        guard let parts = YtDlpCommand.lastFields(out, tag: YtDlpCommand.fileTag, count: YtDlpCommand.fileFields.count) else {
+            removePartials()
             throw NSError(domain: "Verbatim", code: 11, userInfo: [NSLocalizedDescriptionKey: "No audio came back for that link."])
         }
-        let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-        let path = parts.count > 2 ? parts[2] : ""
-        guard FileManager.default.fileExists(atPath: path) else {
+        // Only a file this run wrote into the downloads folder: never a path the output names anywhere else.
+        guard let downloaded = YtDlpCommand.acceptedDownload(parts[0], in: Paths.downloads, prefix: stamp + ".") else {
+            removePartials()
             throw NSError(domain: "Verbatim", code: 12, userInfo: [NSLocalizedDescriptionKey: "The download finished but the file is missing."])
         }
-        func part(_ i: Int) -> String? { parts.count > i && parts[i] != "NA" && !parts[i].isEmpty ? parts[i] : nil }
+        func part(_ i: Int) -> String? { parts[i] }
         if let signIn { signInByLink[link] = signIn }
         // Every download goes through MediaImport, like cloud links: WebM and Opus (and anything else AVFoundation
         // can't read) are decoded by FFmpeg, and video keeps only its sound.
-        let downloaded = URL(fileURLWithPath: path)
         progress("Preparing the audio")
         let prepared: MediaImport.Prepared
         do {
@@ -112,8 +112,9 @@ enum LinkFetcher {
             throw error
         }
         if prepared.url != downloaded { try? FileManager.default.removeItem(at: downloaded) }
-        return Fetched(url: prepared.url, title: parts[0], uploader: part(1),
-                       pageURL: part(3), site: part(4).map(siteName), uploadDate: part(5), thumbnail: part(6))
+        return Fetched(url: prepared.url, title: part(1) ?? "Untitled", uploader: part(2),
+                       pageURL: part(3), site: part(4).map(siteName), uploadDate: part(5),
+                       thumbnail: YtDlpCommand.webURL(part(6))?.absoluteString)
     }
 
     /// A cloud share link: resolve it, download the file with progress, and prepare its audio (video files keep
@@ -162,10 +163,12 @@ enum LinkFetcher {
     static func siteName(_ key: String) -> String { Platform.name(key) ?? key }
 
     /// Saves the page's thumbnail beside the transcripts. Best effort; no thumbnail is fine.
+    /// Only http and https: a site can't make it read a file on this Mac.
     static func saveThumbnail(_ remote: String, as name: String) async -> String? {
-        guard let u = URL(string: remote), let (data, resp) = try? await URLSession.shared.data(from: u),
+        guard let u = YtDlpCommand.webURL(remote), let (data, resp) = try? await URLSession.shared.data(from: u),
               (resp as? HTTPURLResponse)?.statusCode == 200, NSImage(data: data) != nil else { return nil }
-        let file = name + "." + (u.pathExtension.isEmpty ? "jpg" : u.pathExtension.lowercased())
+        let ext = u.pathExtension.lowercased()
+        let file = name + "." + (ext.isEmpty || ext.count > 5 || !ext.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) ? "jpg" : ext)
         do { try data.write(to: Paths.thumbs.appendingPathComponent(file)); return file } catch { return nil }
     }
 
@@ -174,18 +177,17 @@ enum LinkFetcher {
     static func downloadStreams(_ link: String, progress: @escaping @Sendable (String) -> Void) async throws -> (video: URL, audio: URL?) {
         guard let helper = helperURL else { throw NSError(domain: "Verbatim", code: 10, userInfo: [NSLocalizedDescriptionKey: "The link helper is missing from this build."]) }
         try FileManager.default.createDirectory(at: Paths.downloads, withIntermediateDirectories: true)
-        let stamp = Int(Date().timeIntervalSince1970)
-        let template = Paths.downloads.appendingPathComponent("keep-\(stamp).%(format_id)s.%(ext)s").path
+        let stamp = "keep-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
+        let template = Paths.downloads.appendingPathComponent("\(stamp).%(format_id)s.%(ext)s").path
         progress("Keeping video")
         Log.note("yt-dlp keep \(link)")
-        let out = try await run(helper, YtDlpCommand.keep(link: link, template: template, signIn: LinkSignIn.arguments(signInByLink[link])),
+        let out = try await run(helper, YtDlpCommand.keep(link: link, template: template, signIn: LinkSignIn.arguments(signInByLink[link]), setup: setup()),
                                 progress: { p in progress(p.replacingOccurrences(of: "Fetching audio", with: "Keeping video")) })
         var video: URL?, audio: URL?
-        for line in out.split(separator: "\n") where line.contains("\t") {
-            let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-            guard FileManager.default.fileExists(atPath: f[0]) else { continue }
-            let u = URL(fileURLWithPath: f[0])
-            let vcodec = f.count > 1 ? f[1] : "none", acodec = f.count > 2 ? f[2] : "none"
+        for line in out.split(separator: "\n") {
+            guard let f = YtDlpCommand.fields(line, tag: YtDlpCommand.keepTag, count: YtDlpCommand.keepFields.count),
+                  let u = YtDlpCommand.acceptedDownload(f[0], in: Paths.downloads, prefix: stamp + ".") else { continue }
+            let vcodec = f[1] ?? "none", acodec = f[2] ?? "none"
             if vcodec != "none" { video = u; if acodec != "none" { audio = nil } }
             else if acodec != "none" { audio = u }
         }
@@ -199,12 +201,27 @@ enum LinkFetcher {
     /// Marks the metadata line in yt-dlp's output.
     private static let metaTag = YtDlpCommand.metaTag
 
+    /// yt-dlp's private folder (cache and empty XDG homes) and the JavaScript runtime it may use: a Deno bundled in
+    /// Contents/Helpers (sealed by the app's signature), else one installed where only an administrator can change
+    /// it (`YtDlpCommand.isLockedDown`), else none. Never a runtime found on PATH.
+    private static func setup() -> YtDlpCommand.Setup {
+        let support = Paths.local.appendingPathComponent("yt-dlp", isDirectory: true)
+        var s = YtDlpCommand.Setup(support: support.path)
+        for d in [s.cacheDir, s.configDir] { try? FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true) }
+        let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/deno").path
+        if FileManager.default.isExecutableFile(atPath: bundled) {
+            s.deno = bundled
+        } else {
+            s.deno = ["/usr/local/bin/deno", "/opt/homebrew/bin/deno"].first(where: YtDlpCommand.isLockedDown)
+        }
+        return s
+    }
+
     /// Reads one line of yt-dlp output: progress percentages and the metadata line.
     private static func scan(_ line: Substring, progress: @Sendable (String) -> Void, events: (@Sendable (Event) -> Void)?) {
-        if line.hasPrefix(metaTag) {
-            let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-            func part(_ i: Int) -> String? { f.count > i && f[i] != "NA" && !f[i].isEmpty ? f[i] : nil }
-            events?(.meta(title: part(1), uploader: part(2), site: part(3).map(siteName), thumbnail: part(4), duration: part(5).flatMap(Double.init)))
+        if let f = YtDlpCommand.fields(line, tag: metaTag, count: YtDlpCommand.metaFields.count) {
+            events?(.meta(title: f[0], uploader: f[1], site: f[2].map(siteName), thumbnail: YtDlpCommand.webURL(f[3])?.absoluteString,
+                          duration: f[4].flatMap(Double.init)))
         } else if line.contains("[download]"), let r = line.range(of: #"\d+(\.\d+)?%"#, options: .regularExpression) {
             progress("Fetching audio " + line[r])
             if let v = Double(line[r].dropLast()) { events?(.progress(min(1, max(0, v / 100)))) }
@@ -215,7 +232,7 @@ enum LinkFetcher {
     /// both of its outputs are read to the end (HelperProcess). Cancelling the Task stops it.
     private static func run(_ exe: URL, _ args: [String], progress: @escaping @Sendable (String) -> Void,
                             events: (@Sendable (Event) -> Void)? = nil) async throws -> String {
-        let env = YtDlpCommand.environment(from: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+        let env = YtDlpCommand.environment(from: ProcessInfo.processInfo.environment, home: NSHomeDirectory(), setup: setup())
         // --print implies --quiet, so with --progress the progress lines can arrive on either stream.
         let r = try await HelperProcess.run(exe, args, environment: env,
                                             onStdoutLine: { scan($0, progress: progress, events: events) },

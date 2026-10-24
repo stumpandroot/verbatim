@@ -157,51 +157,168 @@ enum HelperProcess {
     }
 }
 
-/// yt-dlp's command lines and environment, pure so the helper test checks them.
+/// yt-dlp's command lines, environment, and output parsing, pure so the helper test checks them.
 enum YtDlpCommand {
-    /// Options every run starts with: no config file from the person's machine (`--ignore-config`) can change what
-    /// runs, no playlists, and line-by-line output.
-    static let base = ["--ignore-config", "--no-playlist", "--no-warnings", "--newline"]
+    /// Where yt-dlp may keep anything, and the JavaScript runtime it may run. yt-dlp runs as Verbose (its
+    /// privacy permissions, its browser sign-ins), so nothing outside the app may add code or settings to it.
+    struct Setup: Sendable, Equatable {
+        /// The app's own yt-dlp folder (Application Support/Verbatim/yt-dlp): its cache and empty XDG homes.
+        var support: String
+        /// A JavaScript runtime (Deno) that passed `isLockedDown`, or nil for none. Never looked up on PATH.
+        var deno: String? = nil
 
-    /// Marks the metadata line in yt-dlp's output.
+        var cacheDir: String { support + "/cache" }
+        var configDir: String { support + "/config" }
+
+        /// No config files (`--ignore-config`), no plugins from any folder (`--no-plugin-dirs`), no components
+        /// fetched from the internet, a private cache, and only the JavaScript runtime named here.
+        var options: [String] {
+            var o = ["--ignore-config", "--no-plugin-dirs", "--no-remote-components", "--cache-dir", cacheDir, "--no-js-runtimes"]
+            if let deno { o += ["--js-runtimes", "deno:" + deno] }
+            return o
+        }
+    }
+
+    /// Options every run has after `Setup.options`: no playlists, and line-by-line output.
+    static let base = ["--no-playlist", "--no-warnings", "--newline"]
+
+    /// Mark yt-dlp's own lines in its output. Every value on them is printed as JSON (`%(field)j`), so a title or
+    /// any other value a site chooses can't add a tab or a line break: it can never pose as another field or line.
     static let metaTag = "VBMETA"
+    static let fileTag = "VBFILE"
+    static let keepTag = "VBKEEP"
+
+    /// The video's details, printed once they're known, before the download starts.
+    static let metaFields = ["title", "uploader", "extractor_key", "thumbnail", "duration"]
+    /// The downloaded file and the page's details, printed after the download.
+    static let fileFields = ["filepath", "title", "uploader", "webpage_url", "extractor_key", "upload_date", "thumbnail"]
+    /// Keep: each downloaded file and its codecs.
+    static let keepFields = ["filepath", "vcodec", "acodec"]
+
+    static func template(_ tag: String, _ fields: [String]) -> String {
+        ([tag] + fields.map { "%(\($0))j" }).joined(separator: "\t")
+    }
 
     /// Download a link's best audio to `template`. `--` ends the options, so a link can never be read as one.
-    static func audio(link: String, template: String, signIn: [String]) -> [String] {
-        signIn + base + [
+    static func audio(link: String, template: String, signIn: [String], setup: Setup) -> [String] {
+        signIn + setup.options + base + [
             "--progress",
             "-f", "bestaudio[ext=m4a]/bestaudio/best",
-            // Printed once the video's details are known, before the download starts.
-            "--print", "video:\(metaTag)\t%(title)s\t%(uploader)s\t%(extractor_key)s\t%(thumbnail)s\t%(duration)s",
-            "--print", "after_move:%(title)s\t%(uploader)s\t%(filepath)s\t%(webpage_url)s\t%(extractor_key)s\t%(upload_date)s\t%(thumbnail)s",
+            "--print", "video:" + Self.template(metaTag, metaFields),
+            "--print", "after_move:" + Self.template(fileTag, fileFields),
             "--no-simulate",
             "-o", template, "--", link,
         ]
     }
 
     /// Keep: a link's best H.264 video (up to 1080p) and AAC audio as separate files.
-    static func keep(link: String, template: String, signIn: [String]) -> [String] {
+    static func keep(link: String, template: String, signIn: [String], setup: Setup) -> [String] {
         // "," downloads each format separately (no merging needed). Falls back to one combined MP4.
         let format = "bv*[ext=mp4][vcodec^=avc1][height<=1080],ba[ext=m4a]/b[ext=mp4][height<=1080]/b[ext=mp4]"
-        return signIn + base + [
+        return signIn + setup.options + base + [
             "-f", format,
-            "--print", "after_move:%(filepath)s\t%(vcodec)s\t%(acodec)s",
+            "--print", "after_move:" + Self.template(keepTag, keepFields),
             "--no-simulate", "-o", template, "--", link,
         ]
     }
 
-    /// The fixed search path yt-dlp gets: the system's, plus Homebrew's and /usr/local for a JavaScript runtime
-    /// (Deno or Node) that some sites need. Never the person's own PATH.
-    static let path = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
+    /// The values of one of our lines: exactly `count` JSON values after `tag`, tab-separated. yt-dlp prints NA for
+    /// a missing value; it, JSON null, and "" read as nil. Nil for any other line, or one that doesn't parse.
+    static func fields(_ line: Substring, tag: String, count: Int) -> [String?]? {
+        let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
+        guard parts.count == count + 1, parts[0] == tag else { return nil }
+        var out: [String?] = []
+        for p in parts.dropFirst() {
+            if p == "NA" { out.append(nil); continue }
+            guard let v = try? JSONDecoder().decode(Scalar.self, from: Data(p.utf8)) else { return nil }
+            out.append(v.text.flatMap { $0.isEmpty ? nil : $0 })
+        }
+        return out
+    }
+
+    /// The last line with `tag` that parses.
+    static func lastFields(_ output: String, tag: String, count: Int) -> [String?]? {
+        output.split(separator: "\n").reversed().lazy.compactMap { fields($0, tag: tag, count: count) }.first
+    }
+
+    /// One printed JSON value: a string, a number, or null.
+    private struct Scalar: Decodable {
+        let text: String?
+        init(from d: Decoder) throws {
+            let c = try d.singleValueContainer()
+            if c.decodeNil() { text = nil }
+            else if let s = try? c.decode(String.self) { text = s }
+            else { let n = try c.decode(Double.self); text = n == n.rounded() && abs(n) < 1e15 ? String(Int64(n)) : String(n) }
+        }
+    }
+
+    /// A file yt-dlp says it wrote, used only when it's a regular file directly in `folder` whose name starts with
+    /// `prefix` (this run's stamp), both as written and with symbolic links resolved. Anything else is ignored,
+    /// never read, moved, or deleted.
+    static func acceptedDownload(_ path: String?, in folder: URL, prefix: String) -> URL? {
+        guard let path, path.hasPrefix("/"), !prefix.isEmpty else { return nil }
+        let fm = FileManager.default
+        let dir = folder.standardizedFileURL, u = URL(fileURLWithPath: path).standardizedFileURL
+        guard u.deletingLastPathComponent().path == dir.path, u.lastPathComponent.hasPrefix(prefix) else { return nil }
+        let realDir = dir.resolvingSymlinksInPath().standardizedFileURL, real = u.resolvingSymlinksInPath().standardizedFileURL
+        guard real.deletingLastPathComponent().path == realDir.path, real.lastPathComponent == u.lastPathComponent else { return nil }
+        guard (try? fm.destinationOfSymbolicLink(atPath: u.path)) == nil else { return nil }
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: u.path, isDirectory: &isDir), !isDir.boolValue else { return nil }
+        return u
+    }
+
+    /// A thumbnail or other address a site gave: only http and https with a host, never file: or anything else.
+    static func webURL(_ s: String?) -> URL? {
+        guard let s, let u = URL(string: s), let scheme = u.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = u.host, !host.isEmpty else { return nil }
+        return u
+    }
+
+    /// Whether `path` may run as yt-dlp's JavaScript runtime: with symbolic links resolved, it's an executable file,
+    /// and it and every folder above it are owned by root and not writable by group or others. So no process
+    /// running as you can replace it (a Homebrew install is yours to write, so it doesn't pass).
+    static func isLockedDown(_ path: String) -> Bool {
+        let fm = FileManager.default
+        let real = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
+        guard fm.isExecutableFile(atPath: real.path) else { return false }
+        var u = real
+        while true {
+            guard let a = try? fm.attributesOfItem(atPath: u.path), number(a[.ownerAccountID]) == 0,
+                  let perms = number(a[.posixPermissions]), perms & 0o022 == 0 else { return false }
+            if u.path == "/" { return true }
+            u = u.deletingLastPathComponent()
+        }
+    }
+
+    private static func number(_ v: Any?) -> Int? {
+        switch v {
+        case let n as NSNumber: return n.intValue
+        case let n as Int: return n
+        case let n as UInt: return Int(n)
+        case let n as UInt32: return Int(n)
+        case let n as UInt64: return Int(n)
+        case let n as Int16: return Int(n)
+        default: return nil
+        }
+    }
+
+    /// The fixed search path yt-dlp gets: the system's folders only (protected by macOS). Never the person's own
+    /// PATH, and no Homebrew or /usr/local folders, which are writable without an administrator: a program placed
+    /// there would run inside every link fetch, as Verbose. A JavaScript runtime is passed by its full path instead.
+    static let path = "/usr/bin:/bin:/usr/sbin:/sbin"
 
     /// Variables passed through from the app's environment when set: proxies (so a network that needs one still
     /// works), the temporary folder, and the locale. Nothing else (no PYTHON*, no YTDLP_*, no shell setup).
     static let passThrough = ["TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "http_proxy", "https_proxy", "all_proxy", "no_proxy",
                               "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "SSL_CERT_FILE"]
 
-    /// The whole environment yt-dlp runs with.
-    static func environment(from parent: [String: String], home: String) -> [String: String] {
-        var env: [String: String] = ["HOME": home, "PATH": path, "PYTHONUNBUFFERED": "1"]
+    /// The whole environment yt-dlp runs with. HOME stays the real home folder: `--cookies-from-browser` finds each
+    /// browser's sign-in there (and Python falls back to the account's home without it anyway). The XDG folders
+    /// point inside the app's own yt-dlp folder, so nothing in ~/.config or ~/.cache is read.
+    static func environment(from parent: [String: String], home: String, setup: Setup) -> [String: String] {
+        var env: [String: String] = ["HOME": home, "PATH": path, "PYTHONUNBUFFERED": "1",
+                                     "XDG_CONFIG_HOME": setup.configDir, "XDG_CACHE_HOME": setup.cacheDir]
         for k in passThrough { if let v = parent[k] { env[k] = v } }
         if env["LANG"] == nil, env["LC_ALL"] == nil { env["LANG"] = "en_US.UTF-8" }
         return env
