@@ -133,12 +133,8 @@ struct HomeScreen: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 8)
-                    ZStack {
-                        Circle().fill(Ink.inkFixed)
-                        Circle().fill(PhoneInk.record).frame(width: 18, height: 18)
-                    }
-                    .frame(width: 52, height: 52)
-                    .accessibilityHidden(true)
+                    // Room for the record disc, which is drawn with the rings (below) so it stays centered on them.
+                    Color.clear.frame(width: 70, height: 52)
                 }
             }
             .foregroundStyle(onRecord)
@@ -148,7 +144,19 @@ struct HomeScreen: View {
                 // The art is an overlay, so its fixed 200-pt box never sizes the fill past the card.
                 PhonePanelFill(color: PhoneInk.record, shape: shape)
                     .overlay(alignment: .topTrailing) {
-                        PhonePanelArt(kind: .rings).frame(width: 200, height: 200).offset(x: 40, y: 6)
+                        // The disc sits at the smallest ring's center: x 150, y 210 in the 300-pt design box, scaled
+                        // to this 200-pt frame.
+                        ZStack(alignment: .topLeading) {
+                            PhonePanelArt(kind: .rings)
+                            ZStack {
+                                Circle().fill(Ink.inkFixed)
+                                Circle().fill(PhoneInk.record).frame(width: 18, height: 18)
+                            }
+                            .frame(width: 52, height: 52)
+                            .position(x: 100, y: 140)
+                            .accessibilityHidden(true)
+                        }
+                        .frame(width: 200, height: 200).offset(x: 40, y: 6)
                     }
                     .clipShape(shape)
             }
