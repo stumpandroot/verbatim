@@ -43,7 +43,7 @@ for k in ["chapters", "translation", "rating", "starred", "colorLabel"] {
     check("unknown key \(k) is written back as it was", same(out[k], original[k]), "\(String(describing: out[k])) vs \(String(describing: original[k]))")
 }
 check("unknown enum values are written back", out["source"] as? String == "screenRecording" && out["status"] as? String == "archived"
-      && out["kind"] as? String == "podcast" && out["documentCleanedBy"] as? String == "cloudModel")
+      && out["kind"] as? String == "webinar" && out["documentCleanedBy"] as? String == "cloudModel")
 check("a newer schemaVersion is kept", out["schemaVersion"] as? Int == 3)
 check("known fields round-trip", out["title"] as? String == original["title"] as? String && same(out["segments"], original["segments"])
       && same(out["speakers"], original["speakers"]) && same(out["tags"], original["tags"]) && out["pinned"] as? Bool == true)
@@ -100,6 +100,18 @@ if let u = try? dec.decode(Transcript.self, from: unsafe) {
 let safe = Data(#"{"title":"OK","audioFileName":"2026-10-23 10.15.32 ab12.m4a","pendingAppend":"part 2.wav"}"#.utf8)
 let s2 = try? dec.decode(Transcript.self, from: safe)
 check("bare names decode unchanged", s2?.audioFileName == "2026-10-23 10.15.32 ab12.m4a" && s2?.pendingAppend == "part 2.wav")
+
+// The kinds added in October 2026 read and write as themselves here; a build before them reads them as unlabeled
+// and writes the raw value back (the "webinar" checks above are that path), so synced files stay safe both ways.
+for k in [RecordingKind.podcast, .video, .talk, .interview] {
+    var x = fresh; x.kind = k
+    let o = object((try? enc.encode(x)) ?? Data())
+    let back = try? dec.decode(Transcript.self, from: try enc.encode(x))
+    check("kind \(k.rawValue) round-trips", o["kind"] as? String == k.rawValue && back?.kind == k)
+}
+check("every new kind is pickable, none is a model kind",
+      [RecordingKind.podcast, .video, .talk, .interview].allSatisfy { RecordingKind.pickable.contains($0) && !RecordingKind.modelKinds.contains($0) })
+check("labels", [RecordingKind.podcast, .video, .talk, .interview].map(\.label) == ["Podcast", "Video", "Talk", "Interview"])
 
 // JSONValue keeps every JSON shape.
 let shapes = Data(#"{"a":"s","b":1.5,"c":true,"d":null,"e":[1,"x",{"f":false}],"g":{"h":[]}}"#.utf8)

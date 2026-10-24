@@ -19,6 +19,10 @@ extension RecordingKind {
         case .meeting: return .kindMeeting
         case .note: return .kindNote
         case .dictation: return .kindDictation
+        case .podcast: return .kindPodcast
+        case .video: return .kindVideo
+        case .talk: return .kindTalk
+        case .interview: return .kindInterview
         }
     }
     var plural: String {
@@ -28,6 +32,10 @@ extension RecordingKind {
         case .meeting: return "Meetings"
         case .note: return "Notes"
         case .dictation: return "Dictations"
+        case .podcast: return "Podcasts"
+        case .video: return "Videos"
+        case .talk: return "Talks"
+        case .interview: return "Interviews"
         }
     }
     var index: String {
@@ -37,6 +45,10 @@ extension RecordingKind {
         case .meeting: return "03"
         case .note: return "04"
         case .dictation: return "05"
+        case .podcast: return "06"
+        case .video: return "07"
+        case .talk: return "08"
+        case .interview: return "09"
         }
     }
     /// The hero card's one line.
@@ -47,6 +59,10 @@ extension RecordingKind {
         case .meeting: return "Calls and conversations."
         case .note: return "Everything else."
         case .dictation: return "Words you sent elsewhere."
+        case .podcast: return "Shows and conversations you listened to."
+        case .video: return "Things you watched."
+        case .talk: return "One voice, at length."
+        case .interview: return "Questions and answers."
         }
     }
 }
@@ -73,8 +89,8 @@ extension Transcript {
 
 // MARK: - Kind chip
 
-/// The transcript's kind: a chip filled with the kind's color and carrying its diagram. Opens a menu of the four
-/// kinds a person can pick; a pick is never overwritten.
+/// The transcript's kind: a chip filled with the kind's color and carrying its diagram. Opens a menu of the kinds a
+/// person can pick (`RecordingKind.pickable`); a pick is never overwritten.
 struct KindChip: View {
     var kind: RecordingKind?
     var isAuto: Bool

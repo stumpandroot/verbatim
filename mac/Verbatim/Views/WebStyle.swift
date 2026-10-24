@@ -317,6 +317,10 @@ struct KindDot: View {
         case .journal, .note: return .iconNotes
         case .idea: return .iconAI
         case .dictation: return .iconDictations
+        case .podcast: return .iconSpeakers
+        case .interview: return .iconQuote
+        case .video: return .iconPlay
+        case .talk: return .iconVoice
         case nil:
             if transcript.isDictation { return .iconDictations }
             if LibrarySource.isLink(transcript) { return .iconLinks }

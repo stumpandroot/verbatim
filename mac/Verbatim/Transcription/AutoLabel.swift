@@ -34,10 +34,9 @@ enum AutoLabel {
         return windows.map { flat[$0].joined(separator: " ") }.joined(separator: "\n[…]\n")
     }
 
-    /// The rule used without the model: two or more speakers for 10 minutes or more is a meeting; anything
-    /// else is a note.
-    static func heuristicKind(speakers: Int, duration: Double) -> RecordingKind {
-        speakers >= 2 && duration >= 600 ? .meeting : .note
+    /// The rule used without the model, and for links and imported media always (KindRule).
+    static func heuristicKind(speakers: Int, duration: Double, origin: KindRule.Origin = .recording) -> RecordingKind {
+        KindRule.kind(origin: origin, speakers: speakers, duration: duration)
     }
 
     /// Cleans a model title: at most 6 words, sentence case, no surrounding quotes or trailing period.
@@ -129,8 +128,8 @@ enum AutoLabel {
     }
 
     /// Runs the labeler. Off the main actor: the model call takes a second or two.
-    static func suggest(segments: [Segment], speakers: Int, duration: Double) async -> Result {
-        let fallback = Result(title: nil, kind: heuristicKind(speakers: speakers, duration: duration), tags: [], usedModel: false)
+    static func suggest(segments: [Segment], speakers: Int, duration: Double, origin: KindRule.Origin = .recording) async -> Result {
+        let fallback = Result(title: nil, kind: heuristicKind(speakers: speakers, duration: duration, origin: origin), tags: [], usedModel: false)
         let text = excerpt(segments)
         guard text.split(whereSeparator: { $0.isWhitespace }).count >= 8 else { return fallback }
         #if canImport(FoundationModels)
@@ -139,8 +138,7 @@ enum AutoLabel {
                 let session = LanguageModelSession(instructions: labelInstructions)
                 let r = try await session.respond(to: AboutMeContext.promptPrefix + "Transcript excerpt (\(speakers) speaker\(speakers == 1 ? "" : "s"), \(Int(duration / 60)) min):\n\(text)",
                                                   generating: GeneratedLabels.self)
-                let kind = RecordingKind(rawValue: r.content.kind.lowercased().trimmingCharacters(in: .whitespaces))
-                    .flatMap { RecordingKind.pickable.contains($0) ? $0 : nil } ?? fallback.kind
+                let kind = KindRule.fromModel(r.content.kind, origin: origin, fallback: fallback.kind)
                 return Result(title: cleanTitle(r.content.title), kind: kind, tags: cleanTags(r.content.tags), usedModel: true)
             } catch is CancellationError {
                 return fallback
@@ -151,7 +149,7 @@ enum AutoLabel {
                 guard let answer = try? await OnDeviceText.respond(instructions: labelInstructions + "\n" + plainLabelFormat, prompt: prompt),
                       !OnDeviceTextRefusal.isRefusal(answer) else { return fallback }
                 let p = parsePlainLabels(answer)
-                let kind = p.kind.flatMap { RecordingKind(rawValue: $0) }.flatMap { RecordingKind.pickable.contains($0) ? $0 : nil } ?? fallback.kind
+                let kind = KindRule.fromModel(p.kind, origin: origin, fallback: fallback.kind)
                 return Result(title: p.title.flatMap(cleanTitle), kind: kind, tags: cleanTags(p.tags), usedModel: true)
             }
         }

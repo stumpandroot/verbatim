@@ -271,6 +271,50 @@ extension BrandArt {
         .circle(66, 52, 4),
         .circle(88, 52, 4),
     ], strokeWidth: 2.2)
+    // Podcast, video, talk, and interview (October 2026): the same line family; a microphone, a frame and timeline,
+    // a lectern, two people across a table.
+    static let kindPodcast = BrandArt(box: glyphBox, strokes: [
+        .path("M38 26 C38 19.37 43.37 14 50 14 C56.63 14 62 19.37 62 26 L62 46 C62 52.63 56.63 58 50 58 C43.37 58 38 52.63 38 46 Z"),
+        .path("M44 30 L56 30"),
+        .path("M44 38 L56 38"),
+        .path("M44 46 L56 46"),
+        .path("M72 46 C72 58.15 62.15 68 50 68 C37.85 68 28 58.15 28 46"),
+        .path("M50 68 L50 84"),
+        .path("M34 84 L66 84"),
+        .path("M42 94 L58 94"),
+        .path("M77.85 16.5 C86.05 28.21 86.05 43.79 77.85 55.5"),
+        .path("M22.15 55.5 C13.95 43.79 13.95 28.21 22.15 16.5"),
+        .path("M87.97 15.81 C94.68 28.43 94.68 43.57 87.97 56.19"),
+        .path("M12.03 56.19 C5.32 43.57 5.32 28.43 12.03 15.81"),
+    ], strokeWidth: 2.2)
+    static let kindVideo = BrandArt(box: glyphBox, strokes: [
+        .path("M8 18 L92 18 L92 70 L8 70 Z"),
+        .path("M42 32 L62 44 L42 56 Z"),
+        .path("M8 84 L92 84"),
+        .circle(34, 84, 5),
+        .path("M8 94 L34 94"),
+    ], fills: [.circle(34, 84, 1.8)], strokeWidth: 2.2)
+    static let kindTalk = BrandArt(box: glyphBox, strokes: [
+        .circle(50, 22, 9),
+        .path("M32 52 C32 42.06 40.06 34 50 34 C59.94 34 68 42.06 68 52"),
+        .path("M22 52 L78 52"),
+        .path("M32 60 L68 60 L62 94 L38 94 Z"),
+        .path("M66.85 7.86 C73.72 16.04 73.72 27.96 66.85 36.14"),
+        .path("M33.15 36.14 C26.28 27.96 26.28 16.04 33.15 7.86"),
+        .path("M78.58 5.5 C84.47 15.71 84.47 28.29 78.58 38.5"),
+        .path("M21.42 38.5 C15.53 28.29 15.53 15.71 21.42 5.5"),
+    ], strokeWidth: 2.2)
+    static let kindInterview = BrandArt(box: glyphBox, strokes: [
+        .circle(24, 32, 11),
+        .circle(76, 32, 11),
+        .path("M8 72 C8 63.16 15.16 56 24 56 C32.84 56 40 63.16 40 72"),
+        .path("M60 72 C60 63.16 67.16 56 76 56 C84.84 56 92 63.16 92 72"),
+        .path("M6 72 L94 72"),
+        .circle(50, 48, 6),
+        .path("M50 54 L50 72"),
+        .path("M20 72 L20 92"),
+        .path("M80 72 L80 92"),
+    ], fills: [.circle(24, 32, 2.2), .circle(76, 32, 2.2)], strokeWidth: 2.2)
     static let featureBackground = BrandArt(box: glyphBox, strokes: [
         .circle(50, 50, 38),
         .circle(50, 50, 18),

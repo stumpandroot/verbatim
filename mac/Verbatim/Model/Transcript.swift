@@ -35,7 +35,7 @@ struct Segment: Codable, Identifiable, Equatable {
 
 /// What a recording is, for filtering the library. Suggested automatically (`Transcript.kindIsAuto`), changeable later.
 enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
-    case journal, idea, meeting, note, dictation
+    case journal, idea, meeting, note, dictation, podcast, video, talk, interview
     static var fallback: RecordingKind { .note }
     init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
@@ -46,10 +46,17 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
         case .meeting: return "Meeting"
         case .note: return "Note"
         case .dictation: return "Dictation"
+        case .podcast: return "Podcast"
+        case .video: return "Video"
+        case .talk: return "Talk"
+        case .interview: return "Interview"
         }
     }
     /// The kinds a person can pick; dictation is set automatically for dictations.
-    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note]
+    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview]
+    /// The kinds Apple Intelligence may suggest for a recording (AutoLabel). Links and imported media get theirs from
+    /// `AutoLabel.mediaKind`; interview is only ever picked.
+    static let modelKinds: [RecordingKind] = [.journal, .idea, .meeting, .note]
 }
 
 /// A voice found by diarization. `label` is the engine's anonymous ID; `name` is what the person typed.

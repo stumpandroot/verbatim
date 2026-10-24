@@ -282,8 +282,9 @@ final class TranscriptionCoordinator: ObservableObject {
               t.kind == nil, t.kindIsAuto, !t.segments.isEmpty else { return }
         let wantTitle = t.titleIsAuto && config.autoTitleSources.contains(t.source)
         let segs = t.segments, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
+        let origin = KindRule.origin(of: t)
         Task.detached(priority: .utility) {
-            let r = await AutoLabel.suggest(segments: segs, speakers: speakers, duration: duration)
+            let r = await AutoLabel.suggest(segments: segs, speakers: speakers, duration: duration, origin: origin)
             await MainActor.run {
                 self.store.update(id) { x in
                     guard x.status == .ready else { return }
