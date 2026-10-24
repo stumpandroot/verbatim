@@ -12,8 +12,8 @@ struct Sidebar: View {
     @Environment(\.limitMotion) private var limitMotion
 
     var body: some View {
-        // `store.trash` filters and sorts every transcript; read it once per render.
-        let trashCount = app.store.trash.count
+        // Counted in place: `store.trash` filters and sorts every transcript, and the sidebar renders on every change.
+        let trashCount = app.store.transcripts.reduce(0) { $0 + ($1.deletedAt == nil ? 0 : 1) }
         VStack(alignment: .leading, spacing: 2) {
             // Compact lockup: the bars mark and the serif wordmark.
             HStack(spacing: 10) {
