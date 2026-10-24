@@ -80,6 +80,10 @@ struct LinkRow: View {
     var info: LinkInfo
     /// Open video, Transcript, and the ⋯ button, with their gaps.
     private static let actionsWidth: CGFloat = 222
+    /// Under the pointer: only then is the right-click menu built, so each row carries one menu (the ⋯ menu),
+    /// not two. The ⋯ menu stays a real menu on every row: AppKit draws its label, and a stand-in would look
+    /// different.
+    @State private var hovering = false
 
     var body: some View {
         FlatRowButton(dragPayload: { TranscriptDrag.payload([transcript.id]) }, action: { app.go(.transcript(transcript.id)) }) { _ in
@@ -100,11 +104,15 @@ struct LinkRow: View {
         } accessory: { _ in
             actions(info).padding(.trailing, 12)
         }
+        .onHover { hovering = $0 }
         .contextMenu {
-            Button("Open video") { open(info) }
-            Button("Copy link") { copy(info.url) }
-            Divider()
-            RowMenu(transcript: transcript)
+            // VoiceOver opens it without the pointer.
+            if hovering || NSWorkspace.shared.isVoiceOverEnabled {
+                Button("Open video") { open(info) }
+                Button("Copy link") { copy(info.url) }
+                Divider()
+                RowMenu(transcript: transcript)
+            }
         }
     }
 
