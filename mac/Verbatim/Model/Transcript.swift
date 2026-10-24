@@ -547,10 +547,27 @@ struct Transcript: Codable, Identifiable, Equatable {
         return time.max { $0.value < $1.value }?.key
     }
 
-    /// Lines spoken by anyone other than the main speaker (background voices). Empty without a main speaker.
+    /// Lines spoken by anyone other than the main speaker (background voices). Empty without a main speaker, and
+    /// wherever the other voices are part of the recording (`hasBackgroundVoices`).
     var backgroundSegments: [Segment] {
-        guard let main = mainSpeaker else { return [] }
+        guard hasBackgroundVoices, let main = mainSpeaker else { return [] }
         return segments.filter { $0.speaker != nil && $0.speaker != main }
+    }
+
+    /// Main speaker only folds other voices away only in a recording made by one person with people nearby: a voice
+    /// memo where the others talk for under a third of the time. Never in a link, an imported file, app audio, a
+    /// multi-track recording, or a meeting, podcast, interview, talk, or video, where every voice is a participant
+    /// (a podcast's host is not a background voice).
+    var hasBackgroundVoices: Bool {
+        guard source == .voiceMemo, link == nil, sourceURL == nil, multitrack == nil else { return false }
+        if let kind, [.meeting, .podcast, .interview, .talk, .video].contains(kind) { return false }
+        guard let main = mainSpeaker else { return false }
+        var mine = 0.0, others = 0.0
+        for s in segments {
+            guard let sp = s.speaker else { continue }
+            if sp == main { mine += max(0, s.end - s.start) } else { others += max(0, s.end - s.start) }
+        }
+        return others < (mine + others) / 3
     }
 
     static func titleFrom(_ segments: [Segment]) -> String? {

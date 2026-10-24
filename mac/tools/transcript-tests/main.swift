@@ -113,6 +113,33 @@ check("every new kind is pickable, none is a model kind",
       [RecordingKind.podcast, .video, .talk, .interview].allSatisfy { RecordingKind.pickable.contains($0) && !RecordingKind.modelKinds.contains($0) })
 check("labels", [RecordingKind.podcast, .video, .talk, .interview].map(\.label) == ["Podcast", "Video", "Talk", "Interview"])
 
+// Background voices (Settings › Main speaker only): a voice memo with people nearby folds them; a podcast's host,
+// a meeting, a link, or an imported file never does.
+func voices(_ source: SourceKind, _ lines: [(String, Double)], kind: RecordingKind? = nil) -> Transcript {
+    var x = Transcript(title: "v", source: source, sourceLabel: "", duration: 60, audioFileName: nil, model: "")
+    var at = 0.0
+    x.segments = lines.map { l in defer { at += l.1 }; return Segment(start: at, end: at + l.1, text: "line", speaker: l.0) }
+    x.speakers = [Speaker(id: "S1", name: "Speaker 1"), Speaker(id: "S2", name: "Speaker 2")]
+    x.kind = kind
+    return x
+}
+// The self-test's "Errands and a long walk": S2 talks about 22% of the time.
+let walk = voices(.voiceMemo, [("S1", 8), ("S2", 3.2), ("S1", 6.8), ("S2", 2.8), ("S1", 6)])
+check("a voice memo with a few lines nearby folds them", walk.hasBackgroundVoices && walk.backgroundSegments.count == 2)
+check("the main speaker is the one who talks most", walk.mainSpeaker == "S1")
+// A podcast: the guest talks most, the host asks short questions (the 1:01:59 YouTube report).
+let host = voices(.link, [("S2", 4), ("S1", 30), ("S2", 5), ("S1", 40), ("S2", 3), ("S1", 25)])
+check("a link's host is never a background voice", !host.hasBackgroundVoices && host.backgroundSegments.isEmpty)
+check("the guest is still the main speaker", host.mainSpeaker == "S1")
+check("an imported file's voices never fold", voices(.file, [("S1", 50), ("S2", 3)]).backgroundSegments.isEmpty)
+check("app audio's voices never fold", voices(.app, [("S1", 50), ("S2", 3)]).backgroundSegments.isEmpty)
+check("a meeting's voices never fold", voices(.voiceMemo, [("S1", 50), ("S2", 3)], kind: .meeting).backgroundSegments.isEmpty)
+check("an interview's voices never fold", voices(.voiceMemo, [("S1", 50), ("S2", 3)], kind: .interview).backgroundSegments.isEmpty)
+check("a voice memo conversation doesn't fold the other half",
+      voices(.voiceMemo, [("S1", 20), ("S2", 15), ("S1", 20), ("S2", 15)]).backgroundSegments.isEmpty)
+var linkMemo = voices(.voiceMemo, [("S1", 50), ("S2", 3)]); linkMemo.sourceURL = "https://youtu.be/x"
+check("a voice-memo record with a link doesn't fold", linkMemo.backgroundSegments.isEmpty)
+
 // JSONValue keeps every JSON shape.
 let shapes = Data(#"{"a":"s","b":1.5,"c":true,"d":null,"e":[1,"x",{"f":false}],"g":{"h":[]}}"#.utf8)
 if let v = try? dec.decode(JSONValue.self, from: shapes), let back = try? enc.encode(v) {
