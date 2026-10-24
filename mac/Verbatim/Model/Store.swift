@@ -146,9 +146,9 @@ enum Cloud {
 
     /// Turning sync off, step 2: at launch, before the library loads, copies what changed in iCloud after step 1
     /// (edits and recordings made before Verbatim quit). Only files already on this device are read, so it's quick.
-    static func finishTurnOffIfNeeded() {
+    static func finishTurnOffIfNeeded(budget: LaunchBudget) {
         guard !wantsSync, container != nil, UserDefaults.standard.bool(forKey: copyPendingKey) else { return }
-        let r = mirrorToDevice(download: false)
+        let r = mirrorToDevice(download: false, budget: budget)
         UserDefaults.standard.set(Date(), forKey: offAtKey)
         UserDefaults.standard.removeObject(forKey: copyPendingKey)
         Log.note("iCloud sync off; final copy \(r.copied) files, \(r.failed) not downloaded")
@@ -156,26 +156,32 @@ enum Cloud {
 
     /// Copies iCloud's library into `Paths.local` and removes local files iCloud no longer has, so the local
     /// folders match. With `download: false`, files not on this device are skipped (and kept locally if present).
-    private static func mirrorToDevice(download: Bool) -> (copied: Int, failed: Int) {
+    /// With a `budget` (at launch), coordination waits only until it runs out, then files on this device are copied directly.
+    private static func mirrorToDevice(download: Bool, budget: LaunchBudget? = nil) -> (copied: Int, failed: Int) {
         guard let cloud = container else { return (0, 0) }
         let fm = FileManager.default
         var copied = 0, failed = 0
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
-        func same(_ a: URL, _ b: URL) -> Bool {
-            guard let va = try? a.resourceValues(forKeys: keys), let vb = try? b.resourceValues(forKeys: keys) else { return false }
-            return va.fileSize == vb.fileSize && va.contentModificationDate == vb.contentModificationDate
-        }
         func copy(_ src: URL, _ dst: URL) {
             if !download, !isDownloadedInCloud(src) { if !fm.fileExists(atPath: dst.path) { failed += 1 }; return }
-            var err: NSError?, ok = false
-            NSFileCoordinator().coordinate(readingItemAt: src, options: [], error: &err) { u in
+            let body = { (u: URL) -> (ok: Bool, copied: Bool) in
+                let fm = FileManager.default
                 if fm.fileExists(atPath: dst.path) {
-                    if same(u, dst) { ok = true; return }
+                    if sameFile(u, dst) { return (true, false) }
                     try? fm.removeItem(at: dst)
                 }
-                if (try? fm.copyItem(at: u, to: dst)) != nil { ok = true; copied += 1 }
+                return (try? fm.copyItem(at: u, to: dst)) != nil ? (true, true) : (false, false)
             }
-            if !ok { failed += 1 }
+            let r: (ok: Bool, copied: Bool)?
+            if let budget {
+                r = withLaunchRead(src, budget: budget, body)
+                if r == nil { if !fm.fileExists(atPath: dst.path) { failed += 1 }; return }
+            } else {
+                var err: NSError?, out: (ok: Bool, copied: Bool)?
+                NSFileCoordinator().coordinate(readingItemAt: src, options: [], error: &err) { u in out = body(u) }
+                r = out
+            }
+            if r?.copied == true { copied += 1 }
+            if r?.ok != true { failed += 1 }
         }
         for sub in ["transcripts", "audio", "thumbs"] {
             let src = cloud.appendingPathComponent(sub, isDirectory: true), dst = Paths.local.appendingPathComponent(sub, isDirectory: true)
@@ -203,6 +209,13 @@ enum Cloud {
         return (copied, failed)
     }
 
+    /// Same size and modification date: the copy is already up to date.
+    private static func sameFile(_ a: URL, _ b: URL) -> Bool {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
+        guard let va = try? a.resourceValues(forKeys: keys), let vb = try? b.resourceValues(forKeys: keys) else { return false }
+        return va.fileSize == vb.fileSize && va.contentModificationDate == vb.contentModificationDate
+    }
+
     /// True when an iCloud file's bytes are on this device (`isDownloaded` only answers while sync is on).
     private static func isDownloadedInCloud(_ url: URL) -> Bool {
         let v = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
@@ -225,6 +238,93 @@ enum Cloud {
         var out: Data?, err: NSError?
         NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &err) { u in out = try? Data(contentsOf: u) }
         return out
+    }
+
+    // MARK: Launch reads and writes (LaunchBudget)
+
+    /// Accessors for launch's coordinated reads and writes, and for the reads after the first frame. Never the main thread.
+    private static let accessQueue: OperationQueue = {
+        let q = OperationQueue()
+        q.name = "co.stumpandroot.verbatim.cloud-access"
+        q.qualityOfService = .userInitiated
+        return q
+    }()
+
+    /// A launch read: the file's data (nil when it couldn't be read, as `read` answers), or skipped because iCloud
+    /// held it past the budget and its bytes aren't on this device.
+    enum LaunchRead { case read(Data?), skipped }
+
+    /// `read` for launch: never waits on coordination past `budget` (see LaunchBudget).
+    static func launchRead(_ url: URL, budget: LaunchBudget) -> LaunchRead {
+        guard enabled else { return .read(try? Data(contentsOf: url)) }
+        guard let d = withLaunchRead(url, budget: budget, { u in try? Data(contentsOf: u) }) else { return .skipped }
+        return .read(d)
+    }
+
+    /// Runs `body` inside a coordinated read of `url` when the coordinator grants it before `budget` runs out;
+    /// after that, on the file directly when its bytes are on this device. Nil when it didn't run.
+    static func withLaunchRead<T>(_ url: URL, budget: LaunchBudget, _ body: @escaping (URL) -> T) -> T? {
+        if !budget.isSpent {
+            let gate = LaunchGate(), box = LaunchBox<T>()
+            let coordinator = NSFileCoordinator()
+            let intent = NSFileAccessIntent.readingIntent(with: url, options: [])
+            coordinator.coordinate(with: [intent], queue: accessQueue) { error in
+                guard gate.enter() else { return }
+                if error == nil { box.value = body(intent.url) }
+                gate.leave()
+            }
+            if gate.wait(budget) { return box.value }
+            coordinator.cancel()
+            Log.note("launch: iCloud held \(url.lastPathComponent) past the launch budget")
+        }
+        guard LaunchBudget.fallback(localState(url)) == .readDirectly else { return nil }
+        return body(url)
+    }
+
+    /// `write` for launch: a coordinated write that waits only until `budget` runs out; then the same write is queued
+    /// on `TranscriptFiles.queue` (behind and ahead of the other writes, in order) and the file is noted in
+    /// `deferredAtLaunch`, so launch reads it after the write lands instead of reading the old version. Never dropped.
+    @MainActor static func launchWrite(_ data: Data, to url: URL, budget: LaunchBudget) {
+        guard enabled else { try? data.write(to: url, options: .atomic); return }
+        if !budget.isSpent {
+            let gate = LaunchGate()
+            let coordinator = NSFileCoordinator()
+            let intent = NSFileAccessIntent.writingIntent(with: url, options: .forReplacing)
+            coordinator.coordinate(with: [intent], queue: accessQueue) { error in
+                guard gate.enter() else { return }
+                if error == nil { try? data.write(to: intent.url, options: .atomic) }
+                gate.leave()
+            }
+            if gate.wait(budget) { return }
+            coordinator.cancel()
+        }
+        Log.note("launch: iCloud held \(url.lastPathComponent); writing it in the background")
+        deferredAtLaunch.insert(launchKey(url))
+        TranscriptFiles.queue.async { write(data, to: url) }
+    }
+
+    /// Files whose launch write was queued (`launchWrite`): launch reads them after the first frame, behind the write.
+    @MainActor static var deferredAtLaunch: Set<String> = []
+    /// "folder/name", so the same file matches however its URL was built.
+    static func launchKey(_ url: URL) -> String { url.deletingLastPathComponent().lastPathComponent + "/" + url.lastPathComponent }
+
+    /// A coordinated read with no deadline that never blocks a thread while it waits: `done` gets the data (nil
+    /// when it couldn't be read) on a background queue once iCloud grants access.
+    static func readInBackground(_ url: URL, _ done: @escaping (Data?) -> Void) {
+        guard enabled else { accessQueue.addOperation { done(try? Data(contentsOf: url)) }; return }
+        let coordinator = NSFileCoordinator()
+        let intent = NSFileAccessIntent.readingIntent(with: url, options: [])
+        coordinator.coordinate(with: [intent], queue: accessQueue) { error in
+            withExtendedLifetime(coordinator) { done(error == nil ? try? Data(contentsOf: intent.url) : nil) }
+        }
+    }
+
+    /// Where an iCloud file's bytes are, for `LaunchBudget.fallback`.
+    private static func localState(_ url: URL) -> LaunchBudget.Local {
+        guard let s = (try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]))?.ubiquitousItemDownloadingStatus else { return .unknown }
+        if s == .current { return .current }
+        if s == .downloaded { return .downloaded }
+        return .notDownloaded
     }
 
     static func remove(_ url: URL) {
@@ -257,7 +357,7 @@ enum Cloud {
     /// First launch with iCloud on: copies what's in Application Support into iCloud (merging projects and
     /// Dictionary entries by ID), then moves the local originals into a "Before iCloud" folder rather than
     /// deleting them. Runs once per device.
-    @MainActor static func migrateIfNeeded() {
+    @MainActor static func migrateIfNeeded(budget: LaunchBudget) {
         guard let root, !UserDefaults.standard.bool(forKey: "cloud.migrated") else { return }
         let fm = FileManager.default
         let old = Paths.local
@@ -276,7 +376,7 @@ enum Cloud {
                 if cloudHas {
                     let mt = (try? to.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
                     guard offAt != nil, mf > mt, let d = try? Data(contentsOf: f) else { continue }
-                    write(d, to: to); moved += 1
+                    launchWrite(d, to: to, budget: budget); moved += 1
                 } else if (try? fm.copyItem(at: f, to: to)) != nil { moved += 1 }
             }
         }
@@ -295,7 +395,7 @@ enum Cloud {
             } else {
                 for x in local where !all.contains(where: { $0.id == x.id }) { all.append(x) }
             }
-            if let d = try? Store.enc.encode(all) { write(d, to: dst) }
+            if let d = try? Store.enc.encode(all) { launchWrite(d, to: dst, budget: budget) }
         }
         merge(Project.self, "projects.json")
         merge(DictionaryEntry.self, "dictionary.json")
@@ -395,6 +495,9 @@ private final class LoadSlots: @unchecked Sendable {
     private(set) var items: [(t: Transcript, mod: Date?)?]
     init(_ n: Int) { items = Array(repeating: nil, count: n) }
     func set(_ i: Int, _ v: (t: Transcript, mod: Date?)) { lock.lock(); items[i] = v; lock.unlock() }
+    /// Files launch didn't read in time (LaunchBudget), by index.
+    private(set) var skipped: [Int] = []
+    func skip(_ i: Int) { lock.lock(); skipped.append(i); lock.unlock() }
 }
 
 /// Transcripts live as one JSON file each in /transcripts, with audio beside them in /audio.
@@ -451,6 +554,12 @@ final class Store: ObservableObject {
     private var searchCache: [UUID: String] = [:]
     /// Modification dates of files read unchanged at launch, handed to CloudSync so its first pass skips them.
     private var loadedDates: [UUID: Date] = [:]
+    /// Transcripts launch didn't read within its budget (LaunchBudget), being read in the background (`readLate`).
+    private var lateTranscripts: Set<UUID> = []
+    /// Synced lists launch didn't read within its budget, by file path: true when CloudSync asked for them meanwhile.
+    private var lateLists: [String: Bool] = [:]
+    /// Reads of synced lists and the profile that launch left for later: coordinated with no deadline, one at a time.
+    nonisolated private static let lateQueue = DispatchQueue(label: "co.stumpandroot.verbatim.late-reads", qos: .utility)
     /// Called after a transcript arrives or changes from the other device (Mac: claim pending links).
     var onRemoteChange: ((Transcript) -> Void)?
     /// Recordings recovered after launch (queued to transcribe, or added to the transcript they continued): the
@@ -459,16 +568,19 @@ final class Store: ObservableObject {
     private var sync: CloudSync?
 
     init() {
-        Cloud.finishTurnOffIfNeeded()
-        Cloud.migrateIfNeeded()
+        // Launch never waits on iCloud file coordination past this (LaunchBudget): iOS kills a scene that takes 10 s.
+        let budget = LaunchBudget()
+        Cloud.finishTurnOffIfNeeded(budget: budget)
+        Cloud.migrateIfNeeded(budget: budget)
         for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads, Paths.thumbs, Paths.recordings] {
             try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         }
         Paths.excludeModelsFromBackup()
-        load()
+        load(budget: budget)
         loading = false
         if Cloud.enabled { let s = CloudSync(store: self); sync = s; s.seed(loadedDates); s.start() }
         loadedDates = [:]
+        Cloud.deferredAtLaunch = []
         // Deferred edits are written before the app quits or is suspended, and queued writes finish first.
         let nc = NotificationCenter.default
         #if os(macOS)
@@ -481,7 +593,7 @@ final class Store: ObservableObject {
         }
     }
 
-    func load() {
+    func load(budget: LaunchBudget = LaunchBudget()) {
         let started = Date()
         let interval = Perf.signposter.beginInterval("Store.load")
         defer {
@@ -492,10 +604,14 @@ final class Store: ObservableObject {
         let files = ((try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "json" }
         // Decoded in parallel: launch waits for this, and a big library is hundreds of files.
         let slots = LoadSlots(files.count)
+        let deferred = Cloud.deferredAtLaunch
         let decode = Perf.signposter.beginInterval("Store.decode", "\(files.count) files")
         DispatchQueue.concurrentPerform(iterations: files.count) { i in
             let u = files[i]
-            guard let data = Cloud.read(u) else { return }
+            // iCloud held it past the launch budget (or its launch write is still queued): read after the first frame.
+            if deferred.contains(Cloud.launchKey(u)) { slots.skip(i); return }
+            guard case .read(let read) = Cloud.launchRead(u, budget: budget) else { slots.skip(i); return }
+            guard let data = read else { return }
             let t: Transcript
             do { t = try TranscriptFiles.dec.decode(Transcript.self, from: data) } catch {
                 // Left on disk untouched (never rewritten), so a newer build still has it.
@@ -520,20 +636,73 @@ final class Store: ObservableObject {
         searchCache = [:]
         transcripts = list.sorted { $0.createdAt > $1.createdAt }
         loadedDates = dates
+        let late = slots.skipped.map { files[$0] }
+        lateTranscripts = Set(late.compactMap { UUID(uuidString: $0.deletingPathExtension().lastPathComponent) })
+        Perf.signposter.emitEvent("Store.late", "\(late.count) files")
         // Files from older builds that still hold absolute paths: rewritten once without them.
         for id in LocalMedia.takeLegacy() { if let t = transcript(id) { loadedDates[id] = nil; save(t) } }
         sync?.seed(dates)
-        loadList(list: \.projects, sync: \.projectSync)
-        loadList(list: \.dictionary, sync: \.dictionarySync)
-        loadList(list: \.snippets, sync: \.snippetSync)
+        loadList(list: \.projects, sync: \.projectSync, budget: budget)
+        loadList(list: \.dictionary, sync: \.dictionarySync, budget: budget)
+        loadList(list: \.snippets, sync: \.snippetSync, budget: budget)
         cleanUpStuckImports(stuck)
-        startProfileSync()
+        startProfileSync(budget: budget)
         // Housekeeping the first frame doesn't wait for: old downloads are removed on a background queue, the
         // recordings folder is checked for orphans on one (they're adopted here afterward), and expired items
         // leave Recently Deleted a run-loop turn later, once the window has drawn.
         DispatchQueue.global(qos: .utility).async { Self.cleanDownloads() }
-        recoverOrphans()
+        if late.isEmpty { recoverOrphans() } else {
+            // A recording a late transcript points at isn't an orphan: recovery waits until they're all read.
+            Log.note("load: \(late.count) transcript\(late.count == 1 ? "" : "s") not read within the launch budget; reading in the background")
+            readLate(late)
+        }
         DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.purgeExpired() } }
+    }
+
+    // MARK: Late launch reads
+
+    /// Transcripts launch skipped (iCloud held them past the budget): read once every write launch queued has landed,
+    /// each through its own coordinated read that holds no thread while it waits, and merged in on main as they arrive.
+    private func readLate(_ urls: [URL]) {
+        TranscriptFiles.queue.async { [weak self] in
+            for u in urls {
+                Cloud.readInBackground(u) { data in
+                    let t = data.flatMap { try? TranscriptFiles.dec.decode(Transcript.self, from: $0) }
+                    if data != nil, t == nil { Log.note("load: couldn't read \(u.lastPathComponent)") }
+                    let mod = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                    DispatchQueue.main.async { MainActor.assumeIsolated { self?.finishLate(u, t, modified: mod) } }
+                }
+            }
+        }
+    }
+
+    /// One late transcript arrived: added as launch would have added it, then anything CloudSync saw meanwhile is read.
+    private func finishLate(_ url: URL, _ read: Transcript?, modified: Date?) {
+        guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), lateTranscripts.remove(id) != nil else { return }
+        // Deleted for good (on the other device) while it was being read: stays gone.
+        if var t = read, t.id == id, index(of: id) == nil, FileManager.default.fileExists(atPath: url.path) {
+            let stuck = Self.isStuckImport(t)   // left as it is; the next launch cleans it up (its entry is kept)
+            if !stuck, t.status == .processing { t.stage = "Queued" }
+            if t.status == .ready, t.pendingAppend == nil, t.stage != nil { t.stage = nil }
+            if t == read, let modified { sync?.seed([id: modified]) }
+            searchCache[id] = nil
+            transcripts.append(t)
+            transcripts.sort { $0.createdAt > $1.createdAt }
+            for legacy in LocalMedia.takeLegacy() { if let lt = transcript(legacy) { save(lt) } }
+            onRemoteChange?(t)
+            // This device's own job, which the queue's resume at launch couldn't see: queued now.
+            if !stuck, t.processingDevice == Device.id, (t.status == .processing && t.audioFileName != nil) || t.pendingAppend != nil {
+                onRecovered?([id], false)
+            }
+        }
+        if inFlight[id] == nil, pendingSaves[id] == nil, let u = deferredIngest.removeValue(forKey: id) {
+            let now = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+            if read == nil || now != modified { ingest(u) }
+        }
+        if lateTranscripts.isEmpty {
+            Log.note("load: late transcripts read")
+            recoverOrphans()
+        }
     }
 
     // MARK: Launch cleanup
@@ -581,7 +750,7 @@ final class Store: ObservableObject {
                 Log.note("launch: removed an import placeholder whose file is gone")
             }
         }
-        PendingImports.keep(only: Set(transcripts.map(\.id)))
+        PendingImports.keep(only: Set(transcripts.map(\.id)).union(lateTranscripts))
     }
 
     /// At launch: link downloads and their partial files older than a day are removed from `Paths.downloads` (a
@@ -720,7 +889,8 @@ final class Store: ObservableObject {
     /// Reads one changed file into `transcripts`. Nil when nothing changed or this device's edits win.
     private func take(_ url: URL) -> (t: Transcript, appended: Bool)? {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return nil }
-        if pendingSaves[id] != nil || inFlight[id] != nil { deferredIngest[id] = url; return nil }
+        // A late launch read (`readLate`) is on its way: CloudSync's read waits for it, never on the main thread.
+        if pendingSaves[id] != nil || inFlight[id] != nil || lateTranscripts.contains(id) { deferredIngest[id] = url; return nil }
         CloudSync.resolveConflicts(url)
         guard let data = Cloud.read(url), var t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return nil }
         if let i = index(of: id) {
@@ -759,6 +929,8 @@ final class Store: ObservableObject {
     struct SyncedProfile: Codable, Equatable { var name: String; var aboutMe: String }
     static let profileNameKey = "profile.name", profileAboutKey = "profile.aboutMe"
     private var lastProfile: SyncedProfile?
+    /// Launch's read of the profile is on its way (LaunchBudget): nil, or true when CloudSync asked for it meanwhile.
+    private var profileLate: Bool?
     private var profileObserver: NSObjectProtocol?
 
     private var localProfile: SyncedProfile {
@@ -767,8 +939,31 @@ final class Store: ObservableObject {
     }
 
     /// At launch: takes the synced profile where this device has nothing, then writes back when either field changes.
-    func startProfileSync() {
-        if let d = Cloud.read(Paths.profileFile), let p = try? Self.dec.decode(SyncedProfile.self, from: d) {
+    func startProfileSync(budget: LaunchBudget? = nil) {
+        let read: Cloud.LaunchRead = budget.map { Cloud.launchRead(Paths.profileFile, budget: $0) } ?? .read(Cloud.read(Paths.profileFile))
+        guard case .read(let d) = read else {
+            // iCloud held it past the launch budget: read in the background, then merged as below. Nothing is written
+            // before then, so the file's About me can't be replaced by an empty one.
+            profileLate = false
+            Self.lateQueue.async { [weak self] in
+                let d = Cloud.read(Paths.profileFile)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        let again = self.profileLate ?? false
+                        self.profileLate = nil
+                        self.startProfileSync(read: d)
+                        if again { self.ingestProfile() }
+                    }
+                }
+            }
+            return
+        }
+        startProfileSync(read: d)
+    }
+
+    private func startProfileSync(read d: Data?) {
+        if let d, let p = try? Self.dec.decode(SyncedProfile.self, from: d) {
             let here = localProfile
             let merged = SyncedProfile(name: here.name.isEmpty ? p.name : here.name, aboutMe: here.aboutMe.isEmpty ? p.aboutMe : here.aboutMe)
             apply(merged)
@@ -790,11 +985,13 @@ final class Store: ObservableObject {
         let p = localProfile
         guard p != lastProfile, !(p.name.isEmpty && p.aboutMe.isEmpty && lastProfile == nil) else { return }
         lastProfile = p
-        if let d = try? JSONEncoder().encode(p) { Cloud.write(d, to: Paths.profileFile) }
+        // On the write queue, in order, so the main thread never waits on iCloud (LaunchBudget).
+        if let d = try? JSONEncoder().encode(p) { TranscriptFiles.queue.async { Cloud.write(d, to: Paths.profileFile) } }
     }
 
     /// The other device changed your name or About me: the newer file wins.
     func ingestProfile() {
+        if profileLate != nil { profileLate = true; return }
         guard let d = Cloud.read(Paths.profileFile), let p = try? Self.dec.decode(SyncedProfile.self, from: d), p != localProfile else { return }
         lastProfile = p
         apply(p)
@@ -1054,23 +1251,35 @@ final class Store: ObservableObject {
 
     /// Reads a synced list file: missing, unavailable (not downloaded, unreadable, or not a list), or its entries.
     nonisolated static func readList<T: SyncEntry>(_ type: T.Type, at url: URL) -> ListRead<[T]> {
+        readList(type, at: url, budget: nil).read
+    }
+
+    /// `readList`, with a launch budget: `late` when iCloud held the file past it (the list is then unavailable).
+    nonisolated static func readList<T: SyncEntry>(_ type: T.Type, at url: URL, budget: LaunchBudget?) -> (read: ListRead<[T]>, late: Bool) {
         let fm = FileManager.default
         let placeholder = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
         guard fm.fileExists(atPath: url.path) else {
             if fm.fileExists(atPath: placeholder.path) {
                 try? fm.startDownloadingUbiquitousItem(at: url)
-                return .unavailable("not downloaded yet")
+                return (.unavailable("not downloaded yet"), false)
             }
-            return .missing
+            return (.missing, false)
         }
         guard Cloud.isDownloaded(url) else {
             try? fm.startDownloadingUbiquitousItem(at: url)
-            return .unavailable("not downloaded yet")
+            return (.unavailable("not downloaded yet"), false)
         }
-        guard let data = Cloud.read(url) else { return .unavailable("couldn't be read") }
+        let data: Data?
+        if let budget {
+            guard case .read(let d) = Cloud.launchRead(url, budget: budget) else { return (.unavailable("held by iCloud at launch"), true) }
+            data = d
+        } else {
+            data = Cloud.read(url)
+        }
+        guard let data else { return (.unavailable("couldn't be read"), false) }
         // Same date format as `Store.dec` (ISO 8601); TranscriptFiles' decoder isn't tied to the main actor.
-        guard let items = SyncMerge.decode(T.self, from: data, decoder: TranscriptFiles.dec) else { return .unavailable("couldn't be decoded") }
-        return .ok(items)
+        guard let items = SyncMerge.decode(T.self, from: data, decoder: TranscriptFiles.dec) else { return (.unavailable("couldn't be decoded"), false) }
+        return (.ok(items), false)
     }
 
     nonisolated static func readTombstones(_ url: URL) -> [Tombstone] {
@@ -1078,12 +1287,23 @@ final class Store: ObservableObject {
         return (try? TranscriptFiles.dec.decode([Tombstone].self, from: d)) ?? []
     }
 
-    private func loadList<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+    /// `readTombstones` for launch: nil when iCloud held the file past the budget.
+    nonisolated static func readTombstones(_ url: URL, budget: LaunchBudget) -> [Tombstone]? {
+        guard case .read(let d) = Cloud.launchRead(url, budget: budget) else { return nil }
+        return d.flatMap { try? TranscriptFiles.dec.decode([Tombstone].self, from: $0) } ?? []
+    }
+
+    private func loadList<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>, budget: LaunchBudget) {
         var s = self[keyPath: skp]
-        s.tombstones = Self.readTombstones(s.tombFile)
         let wasLoading = loading
         loading = true
-        let read = Self.readList(T.self, at: s.file)
+        // Its launch write is still queued, or iCloud held it or its deletes past the budget: unavailable for now (so
+        // never written over), and read in the background after the first frame (`readListLate`).
+        let deferred = Cloud.deferredAtLaunch.contains(Cloud.launchKey(s.file)) || Cloud.deferredAtLaunch.contains(Cloud.launchKey(s.tombFile))
+        let tombs = deferred ? nil : Self.readTombstones(s.tombFile, budget: budget)
+        let r: (read: ListRead<[T]>, late: Bool) = tombs == nil ? (.unavailable("held by iCloud at launch"), true) : Self.readList(T.self, at: s.file, budget: budget)
+        let read = r.read
+        s.tombstones = tombs ?? []
         s.writable = SyncMerge.mayWrite(after: read)
         switch read {
         case .missing:
@@ -1096,6 +1316,28 @@ final class Store: ObservableObject {
         }
         loading = wasLoading
         self[keyPath: skp] = s
+        if r.late { readListLate(list: kp, sync: skp) }
+    }
+
+    /// A list launch left for later: read off the main thread once every write launch queued has landed, then merged
+    /// on main exactly as CloudSync's `ingestList` merges a change. CloudSync's own requests meanwhile wait for it.
+    private func readListLate<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+        let s = self[keyPath: skp]
+        lateLists[s.file.path] = false
+        TranscriptFiles.queue.async { [weak self] in
+            Self.lateQueue.async {
+                let read = Self.readList(T.self, at: s.file)
+                let tombs = Self.readTombstones(s.tombFile)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        let again = self.lateLists.removeValue(forKey: s.file.path) ?? false
+                        self.applyList(read, remoteTombstones: { tombs }, list: kp, sync: skp)
+                        if again { self.readListLate(list: kp, sync: skp) }
+                    }
+                }
+            }
+        }
     }
 
     /// The list changed here: new and changed entries are stamped, removed ones get tombstones, then it's written
@@ -1115,9 +1357,10 @@ final class Store: ObservableObject {
             self[keyPath: skp].dirty = true
             return
         }
-        if let d = try? Self.enc.encode(self[keyPath: kp]) { Cloud.write(d, to: s.file) }
+        // On the write queue, in order, so the main thread never waits on iCloud (LaunchBudget).
+        if let d = try? Self.enc.encode(self[keyPath: kp]) { TranscriptFiles.queue.async { Cloud.write(d, to: s.file) } }
         if !s.tombstones.isEmpty || FileManager.default.fileExists(atPath: s.tombFile.path), let d = try? Self.enc.encode(s.tombstones) {
-            Cloud.write(d, to: s.tombFile)
+            TranscriptFiles.queue.async { Cloud.write(d, to: s.tombFile) }
         }
         self[keyPath: skp].dirty = false
     }
@@ -1125,8 +1368,17 @@ final class Store: ObservableObject {
     /// The list's file changed (usually on the other device): merged entry by entry with this device's copy, along
     /// with any conflicting versions iCloud kept. Written back only when the merge has something the file lacks.
     private func ingestList<T: SyncEntry>(list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
+        let s = self[keyPath: skp]
+        // Launch's late read of this list is on its way: it reads again once that lands, never on the main thread.
+        if lateLists[s.file.path] != nil { lateLists[s.file.path] = true; return }
+        applyList(Self.readList(T.self, at: s.file), remoteTombstones: { Self.readTombstones(s.tombFile) }, list: kp, sync: skp)
+    }
+
+    /// Merges a read of a list's file (and, when it read, its deletes) into this device's copy.
+    private func applyList<T: SyncEntry>(_ listRead: ListRead<[T]>, remoteTombstones: () -> [Tombstone],
+                                         list kp: ReferenceWritableKeyPath<Store, [T]>, sync skp: ReferenceWritableKeyPath<Store, ListSync>) {
         var s = self[keyPath: skp]
-        switch Self.readList(T.self, at: s.file) {
+        switch listRead {
         case .missing:
             // Nothing to merge with: a device that was waiting writes what it has.
             guard !s.writable else { return }
@@ -1137,7 +1389,7 @@ final class Store: ObservableObject {
             if s.writable { Log.note("sync: \(s.file.lastPathComponent) \(why); not writing it until it reads") }
             self[keyPath: skp].writable = false
         case .ok(let fileContent):
-            let remoteTombs = Self.readTombstones(s.tombFile)
+            let remoteTombs = remoteTombstones()
             // Versions iCloud kept from a conflict: every one is merged in, then they're resolved.
             let conflicts = (NSFileVersion.unresolvedConflictVersionsOfItem(at: s.file) ?? []).compactMap { v -> [T]? in
                 (try? Data(contentsOf: v.url)).flatMap { SyncMerge.decode(T.self, from: $0, decoder: TranscriptFiles.dec) }
