@@ -37,7 +37,6 @@ extension AppState {
             pending.append((t.id, src))
         }
         if announce && files.count > 1 { toast = Toast("Added \(files.count) files to the queue", action: "View") { [weak self] in self?.go(.queue) } }
-        verbiePose = .receiving
         runImports(pending)
         return pending
     }
@@ -99,7 +98,6 @@ extension AppState {
             NetworkGate.log?.add(.linkDownload, host: NetworkHost.of(link), refused: true)
             toast = Toast(LocalOnly.message(.linkDownload)); return
         }
-        verbiePose = .working
         var t = Transcript(title: link, source: .link, sourceLabel: u.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
                            duration: 0, audioFileName: nil, model: "")
         t.sourceURL = link

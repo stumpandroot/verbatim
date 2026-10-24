@@ -10,7 +10,7 @@ struct MicSheet: View {
             Text("Voice memos are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
-                Button("Not now") { app.showMicSheet = false; app.verbiePose = .ready }.buttonStyle(.bordered).uiTarget("sheet-notnow")
+                Button("Not now") { app.showMicSheet = false }.buttonStyle(.bordered).uiTarget("sheet-notnow")
                 Button("Allow") { app.allowMic() }.buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
             }.padding(.top, 8)
         }

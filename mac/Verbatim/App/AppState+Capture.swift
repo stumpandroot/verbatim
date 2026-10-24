@@ -11,10 +11,8 @@ extension AppState {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: startRecording()
         case .notDetermined:
-            verbiePose = .permission
             showMicSheet = true
         default:
-            verbiePose = .interrupted
             toast = Toast("Microphone access is off. Turn it on in System Settings › Privacy & Security › Microphone.")
         }
     }
@@ -22,7 +20,7 @@ extension AppState {
     func allowMic() {
         showMicSheet = false
         AVCaptureDevice.requestAccess(for: .audio) { ok in
-            Task { @MainActor in if ok { self.startRecording() } else { self.pendingContinue = nil; self.verbiePose = .ready } }
+            Task { @MainActor in if ok { self.startRecording() } else { self.pendingContinue = nil } }
         }
     }
 
@@ -36,7 +34,6 @@ extension AppState {
             guard let self else { return }
             if let error {
                 self.pendingContinue = nil
-                self.verbiePose = .interrupted
                 self.toast = Toast(error.localizedDescription)
                 return
             }
@@ -44,7 +41,6 @@ extension AppState {
             self.pendingContinue = nil
             // If Verbatim quits mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
             if let target = self.continuing { Store.markContinuation(url, to: target) }
-            self.verbiePose = .listening
             Sounds.start()
             if let warning = Store.lowSpaceWarning() { self.toast = Toast(warning) }
         }
@@ -52,7 +48,6 @@ extension AppState {
 
     func togglePause() {
         recorder.togglePause()
-        verbiePose = recorder.isPaused ? .paused : .listening
     }
 
     /// Starts a recording that's added to the end of an existing transcript when you stop.
@@ -76,33 +71,30 @@ extension AppState {
         let wasStarting = recorder.isStarting
         let target = continuing
         continuing = nil
-        if recorder.isRecording, !wasStarting { savingRecording = true; verbiePose = .working }
+        if recorder.isRecording, !wasStarting { savingRecording = true }
         let stopped = await recorder.stopAndSave()
         savingRecording = false
         guard let r = stopped else {
             if wasStarting { pendingContinue = nil }
-            verbiePose = .ready
             return
         }
         if r.joinFailed {
             // Every part stays in the recordings folder; launch recovery joins it into one recording (and the
             // continuation marker sends it to the right transcript).
             toast = Toast(Store.joinFailedNotice)
-            verbiePose = .ready
             return
         }
         Store.clearContinuation(r.startedAs ?? r.url)
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             toast = Toast(Store.nothingRecordedNotice)
-            verbiePose = .ready
             return
         }
         if let target {
             appendRecording(r.url, to: target, skipped: r.skipped)
             return
         }
-        guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the recording."); verbiePose = .ready; return }
+        guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the recording."); return }
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
                            duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
@@ -113,9 +105,8 @@ extension AppState {
     /// Queues a new recording to be transcribed and joined onto the end of `id`.
     private func appendRecording(_ url: URL, to id: UUID, skipped: [ClosedRange<Double>] = []) {
         let offset = store.transcript(id)?.duration ?? 0
-        guard coordinator.queueAppend(recording: url, to: id) else { toast = Toast("Couldn't save the recording."); verbiePose = .ready; return }
+        guard coordinator.queueAppend(recording: url, to: id) else { toast = Toast("Couldn't save the recording."); return }
         for n in Store.skippedNotes(skipped, offset: offset) { store.addNote(n, to: id) }
-        verbiePose = .working
         go(.transcript(id))
     }
 
@@ -143,9 +134,7 @@ extension AppState {
         Task {
             do {
                 try await capture.start(app: app, to: store.newRecordingURL())
-                verbiePose = .listening
             } catch {
-                verbiePose = .interrupted
                 toast = Toast("Could not capture \(app.name): \(error.localizedDescription). Allow Verbose under System Settings › Privacy & Security › Screen & System Audio Recording.")
             }
         }
@@ -163,12 +152,11 @@ extension AppState {
     /// Adopts a stopped capture and queues it. False when nothing was kept (a toast says why).
     @discardableResult
     private func adoptCapture(_ stopped: StoppedCapture?) -> Bool {
-        guard let r = stopped else { verbiePose = .ready; return false }
-        if r.joinFailed { toast = Toast(Store.joinFailedNotice); verbiePose = .ready; return false }
+        guard let r = stopped else { return false }
+        if r.joinFailed { toast = Toast(Store.joinFailedNotice); return false }
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             toast = Toast(Store.nothingRecordedNotice)
-            verbiePose = .ready
             return false
         }
         guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the capture."); return false }

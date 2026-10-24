@@ -52,7 +52,6 @@ final class AppState: ObservableObject {
     /// The export sheet, for one transcript or a Library selection (ExportSheet).
     @Changed var exportRequest: ExportRequest? = nil
     @Changed var toast: Toast? = nil
-    @Changed var verbiePose: VerbiePose = .ready
 
     // Preferences, persisted in UserDefaults by key. Never @AppStorage or @Published here: see Changed.swift.
     @Changed("showMenuBar") var showMenuBar = true
@@ -133,7 +132,6 @@ final class AppState: ObservableObject {
         coordinator.host = self
         recorder.onAutoPaused = { [weak self] reason in self?.toast = Toast(reason) }
         recorder.onInputSwitched = { [weak self] note in self?.toast = Toast(note) }
-        recorder.onResumed = { [weak self] in self?.verbiePose = .listening }
         AudioDucker.shared.follow(.voiceNote, recorder.$isRecording.combineLatest(recorder.$isPaused, recorder.$isStarting).map { $0.0 && !$0.1 && !$0.2 })
         HangWatch.start()
         dictation.attach(self)

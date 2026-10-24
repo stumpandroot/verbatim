@@ -32,7 +32,6 @@ extension AppState {
         coordinator.cancelIfActive(id)
         if let t = store.transcript(id) { store.delete(t) }
         linkBadgeHeld.remove(id)
-        verbiePose = .ready
     }
 
     /// Retry on the card, after a failed download: the same transcript, fetched again.
@@ -102,7 +101,6 @@ extension AppState {
                 imp.progress = 1
                 imp.phase = .queued
                 coordinator.enqueueExisting(id)
-                verbiePose = .ready
                 // A cloud file is already the original; Keep is for video sites.
                 if keepVideo, !CloudShareLink.isCloudLink(link) { self.keepVideo(id) }
                 finishLinkTask(id)
@@ -149,7 +147,6 @@ extension AppState {
             x.processingDevice = nil; x.processingDeviceName = nil
         }
         imp.phase = .failed(message)
-        verbiePose = .interrupted
         if linkCardID != id { toast = Toast("Couldn't fetch that link: \(message)") }
     }
 

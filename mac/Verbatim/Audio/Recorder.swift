@@ -490,8 +490,6 @@ final class Recorder: ObservableObject {
     /// Mac normal recordings: the mic is being opened. `isRecording` is already true (the panel shows
     /// "Starting…"); Stop cancels.
     @Published private(set) var isStarting = false
-    /// Called when Resume finishes reopening a microphone that went away while paused.
-    var onResumed: (() -> Void)?
     let live = LiveMeter()
     /// The last `stop()` couldn't join a long recording's segments. The caller must not adopt the file then:
     /// every part stays in the recordings folder, and launch recovery joins it.
@@ -1285,7 +1283,6 @@ final class Recorder: ObservableObject {
             if resuming {
                 isPaused = false
                 writer?.paused = false
-                onResumed?()
             }
         case .failure(let error):
             Log.note("recorder: couldn't reopen: \(error.localizedDescription)")

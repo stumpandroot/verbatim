@@ -84,7 +84,7 @@ enum UITest {
             NSPasteboard.general.clearContents()
             await step("clicking a recent dictation copies its text", window, target: "home-dictation-0",
                        check: { !expected.isEmpty && NSPasteboard.general.string(forType: .string) == expected })
-            app.verbiePose = .working; try? await Task.sleep(nanoseconds: 300_000_000); app.verbiePose = .ready
+            try? await Task.sleep(nanoseconds: 300_000_000)
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
 
             await settingsSteps(main: window)

@@ -203,7 +203,6 @@ extension AppState {
         t.processingDevice = Device.id; t.processingDeviceName = Device.name
         if let p = projectFilter { t.projectId = p }
         store.add(t)
-        verbiePose = .receiving
         toast = Toast("Preparing \(sources.count) tracks", action: "View") { [weak self] in self?.go(.queue) }
 
         let id = t.id, folder = Paths.tracks(id), mixDest = store.newAudioURL(ext: "m4a")
