@@ -139,11 +139,11 @@ struct DictationsListScreen: View {
             .padding(.horizontal, 16).padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                ZStack(alignment: .topTrailing) {
-                    PhonePanelFill(color: PhoneInk.sage, shape: shape)
-                    PhonePanelArt(kind: .lines).frame(width: 150, height: 100).offset(x: 20, y: -6)
-                }
-                .clipShape(shape)
+                PhonePanelFill(color: PhoneInk.sage, shape: shape)
+                    .overlay(alignment: .topTrailing) {
+                        PhonePanelArt(kind: .lines).frame(width: 150, height: 100).offset(x: 20, y: -6)
+                    }
+                    .clipShape(shape)
             }
             .contentShape(shape)
         }

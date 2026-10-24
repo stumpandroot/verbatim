@@ -246,9 +246,11 @@ struct AITitleNote: View {
 /// page, never on a blur.
 struct CleanedLabel: View {
     var source: CleanupSource
+    /// Mono, as the Mac's Cleaned tab shows it (DESIGN.md §11); the iPhone keeps the sans.
+    var mono = false
     var body: some View {
         Label { Text(source.label) } icon: { ArtIcon(art: source == .model ? .iconAI : .iconApplyDictionary, size: 14) }
-            .font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim)
+            .font(mono ? Ink.mono(12) : .system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("cleaned-label")
     }

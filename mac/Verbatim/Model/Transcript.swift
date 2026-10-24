@@ -489,7 +489,7 @@ struct Transcript: Codable, Identifiable, Equatable {
     }
 
     /// The document text: edited version if there is one, else built from the segments.
-    var documentText: String { document ?? DocumentText.build(from: self) }
+    var documentText: String { document.map { DocumentText.shown($0, in: self) } ?? DocumentText.build(from: self) }
 
     var text: String { segments.map(\.text).joined(separator: " ") }
 

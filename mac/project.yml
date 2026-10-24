@@ -265,6 +265,7 @@ targets:
       - Verbatim/Resources/ModernVocabulary.json
       - Verbatim/Transcription
       - Verbatim/Document/DocumentText.swift
+      - Verbatim/Document/CleanupGuard.swift
       - Verbatim/Document/Harper.swift
       - Verbatim/Document/Polish.swift
       - Verbatim/Sources/MediaImport.swift

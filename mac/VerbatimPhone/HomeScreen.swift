@@ -145,11 +145,12 @@ struct HomeScreen: View {
             .padding(.horizontal, 16).padding(.vertical, 14)
             .frame(maxWidth: .infinity, minHeight: 184, alignment: .leading)
             .background {
-                ZStack(alignment: .topTrailing) {
-                    PhonePanelFill(color: PhoneInk.record, shape: shape)
-                    PhonePanelArt(kind: .rings).frame(width: 200, height: 200).offset(x: 40, y: 6)
-                }
-                .clipShape(shape)
+                // The art is an overlay, so its fixed 200-pt box never sizes the fill past the card.
+                PhonePanelFill(color: PhoneInk.record, shape: shape)
+                    .overlay(alignment: .topTrailing) {
+                        PhonePanelArt(kind: .rings).frame(width: 200, height: 200).offset(x: 40, y: 6)
+                    }
+                    .clipShape(shape)
             }
             .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
             .background(shape.fill(PhoneInk.hard).offset(x: 4, y: 5))

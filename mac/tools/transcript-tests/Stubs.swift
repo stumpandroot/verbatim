@@ -19,6 +19,7 @@ enum LocalMedia {
 
 enum DocumentText {
     static func build(from t: Transcript) -> String { t.segments.map(\.text).joined(separator: "\n\n") }
+    static func shown(_ document: String, in t: Transcript) -> String { document }
 }
 
 enum MediaImport {

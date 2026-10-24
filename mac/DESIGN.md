@@ -19,13 +19,15 @@ The palette lives in `mac/Verbatim/Views/Tokens.swift` (`Ink`). Use tokens only.
 | `petal` | `#EFB6C8` | **App audio** | App audio tile, app-audio chips |
 | ink outline on `card` | — | **Live captions** | Live captions tile and its chips |
 
-Neutral (`ink` at 6% with `dim` text, plus the item's own diagram or initials): kinds (journal, idea, meeting, note), tags, speakers, projects, filters, and counts. They never borrow an action hue.
+Neutral (`ink` at 6% with `dim` text, plus the item's own diagram or initials): kinds (journal, idea, meeting, note), tags, projects, filters, and counts. They never borrow an action hue.
+
+Speaker pills in a transcript are the one exception: they may use the four panel colors (`panelRecord`, `panelPetal`, `panelSage`, `panelButter`) in a fixed rotation by speaker order (first speaker record, then petal, sage, butter, and around again), with ink text and the speaker's name. The name carries the meaning; the hue only tells speakers apart. Everywhere else, color still means a capture mode.
 
 Reading washes are a separate role and appear only on the transcript and document surfaces, never beside the action tiles: saved = `saved` (butter), playing = `playing` (sage), search match = `match` (persimmon).
 
 Rules:
 
-1. One color, one meaning. Never reuse a hue for a different action on the same screen. Tags, filters, and counts are neutral (filter chips use the `chip` wash, §11). The exception is project cards on color panels (§11), which cycle butter, petal, and sage as decoration; their text and eyebrow say "Project", so the hue never stands alone.
+1. One color, one meaning. Never reuse a hue for a different action on the same screen. Tags, filters, and counts are neutral (filter chips use the `chip` wash, §11). Two exceptions: project cards on color panels (§11), which cycle butter, petal, and sage as decoration (their text and eyebrow say "Project", so the hue never stands alone), and speaker pills in a transcript, which rotate record, petal, sage, and butter (above; the name is always on the pill).
 2. About 70% neutral, 20% ink, 10% accent on working screens. Home and onboarding may run richer.
 3. One saturated fill per screen: persimmon, for the primary action. The pastel start tiles on Home (butter, sage, petal) are allowed because each one is a different action; everything else is a tint, a color panel (§11), or neutral.
 4. Text on paper uses `ink`, `dim`, `mute`, or a text-safe variant (`accentText`, `sageText`), never a bright fill.
@@ -134,16 +136,17 @@ The Mac app wears the website's clothes (mockup "The app, in the website's cloth
 
 5. Buttons are pills (`PillButton`, `PillLabel`, `PillButtonStyle`): **dark** (ink fill, paper text), **line** (1.5 pt ink inset outline), regular 36 pt or **mini** 28 pt. On a color panel use the fixed ink pill.
 6. Filters are soft chips (`FilterChip`): the 4 pt button radius, the `chip` wash, no border; selected is ink with paper text. Never a capsule. A type chip may carry its source's color as a 9 pt dot (links: an ink ring); kinds, tags, and platforms have no dot.
-7. Status is plain colored text, never a capsule (`StatusText`): "Cleaned" in `accentText`, "Original" and counts in `dim`, "✓ Video kept" in `keptText`, "Needs retry" in `danger`. A check or an icon may lead it; the word carries the meaning.
-8. The search field is a pill with a 1.5 pt ink outline on card white (`WebSearchField`).
-9. Mono labels are never smaller than 12 pt. **[checked]** in files marked `// brand: web style`.
+7. Speaker pills on transcript lines rotate the four panel colors in a fixed order (record, petal, sage, butter; §1) with the name in ink. They're the only colored pills that don't mean a capture mode.
+8. Status is plain colored text, never a capsule (`StatusText`): "Cleaned" in `accentText`, "Original" and counts in `dim`, "✓ Video kept" in `keptText`, "Needs retry" in `danger`. A check or an icon may lead it; the word carries the meaning.
+9. The search field is a pill with a 1.5 pt ink outline on card white (`WebSearchField`).
+10. Mono labels are never smaller than 12 pt. **[checked]** in files marked `// brand: web style`.
 
 **Panels and art**
 
-10. Color panels (Record, butter, sage, petal) are opaque fills with paper grain (`colorPanel`, `GrainOverlay`), ink text, and the panel radius. Dark mode uses the deeper `panel*` fills (§1.7).
-11. A color panel may carry one oversized line drawing, clipped by the panel (`PanelArt`): `rings` (concentric circles anchored at the bottom that breathe, 2.6 s, ±7 %), `lines` (horizontal lines that draw in, hold, and draw out, staggered, 7 s), `circles` (three circles that drift apart and back, 7 s), `strands` (two curved strands with flowing dashes into short lines). **At most one drawing moves per screen** (Library: the project card under the pointer, otherwise the first); the rest hold still. All of them stop under Reduce Motion and Limit animation.
-12. Empty screens get one horizontal card (`EmptyStateCard`): an 80 pt butter plate with an ink outline and the screen's icon, a serif 26 title, one or two sentences, and one dark pill.
+11. Color panels (Record, butter, sage, petal) are opaque fills with paper grain (`colorPanel`, `GrainOverlay`), ink text, and the panel radius. Dark mode uses the deeper `panel*` fills (§1.7).
+12. A color panel may carry one oversized line drawing, clipped by the panel (`PanelArt`): `rings` (concentric circles anchored at the bottom that breathe, 2.6 s, ±7 %), `lines` (horizontal lines that draw in, hold, and draw out, staggered, 7 s), `circles` (three circles that drift apart and back, 7 s), `strands` (two curved strands with flowing dashes into short lines). **At most one drawing moves per screen** (Library: the project card under the pointer, otherwise the first); the rest hold still. All of them stop under Reduce Motion and Limit animation.
+13. Empty screens get one horizontal card (`EmptyStateCard`): an 80 pt butter plate with an ink outline and the screen's icon, a serif 26 title, one or two sentences, and one dark pill.
 
 **Windows**
 
-13. Settings is its own window, never a screen inside the main window.
+14. Settings is its own window, never a screen inside the main window.

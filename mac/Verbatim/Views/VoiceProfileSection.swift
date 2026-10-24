@@ -2,12 +2,15 @@ import SwiftUI
 import AppKit
 import Combine
 
+// brand: web style
+
 // Mac: the voice profile in Settings (`VoiceProfileSection`) and the enrollment sheet it opens
 // (`VoiceEnrollmentSheet`). Shared pieces and the recording live in VoiceEnrollment.swift.
 
 /// Your voice profile in Settings: how well Verbatim knows your voice (or what setting it up does), Set Up / Read
 /// More, and, unless `showsControls` is false, the switches that use it and Delete voice profile.
-/// Self-contained: no environment objects, so any Settings pane can host it.
+/// Self-contained: no environment objects, so any Settings pane can host it. Website style (DESIGN.md §11): a card
+/// with the 1.5 pt ink outline (`settingsCard`), a serif line, and mini pills, like the other Settings panes.
 struct VoiceProfileSection: View {
     var showsControls = true
     @ObservedObject private var status = VoiceProfileStatus.shared
@@ -15,28 +18,45 @@ struct VoiceProfileSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if status.isEnrolled || status.isPartial {
-                VoiceQualityPanel(line: status.line)
-                HStack(spacing: 10) {
-                    Button("Read More…") { VoiceEnrollmentSheet.present(readMore: true) }
-                        .buttonStyle(.brandSecondary)
-                        .help("Read one more passage so Verbose knows your voice better.")
-                    Button("Start Over…") { VoiceEnrollmentSheet.present() }
-                        .buttonStyle(.brandSecondary)
-                        .help("Record your voice again from the beginning.")
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .center, spacing: 18) {
+                        VoiceRingsMark(lineWidth: 1.5, color: Ink.ink).frame(width: 66, height: 44)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Eyebrow(text: "How well it knows you")
+                            Text(status.line).font(Ink.serif(24)).tracking(-0.3).foregroundStyle(Ink.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("How well Verbose knows your voice: \(status.line)")
+                    }
+                    HStack(spacing: 8) {
+                        Button("Read More…") { VoiceEnrollmentSheet.present(readMore: true) }
+                            .buttonStyle(.settingsPill)
+                            .help("Read one more passage so Verbose knows your voice better.")
+                        Button("Start Over…") { VoiceEnrollmentSheet.present() }
+                            .buttonStyle(.settingsPill)
+                            .help("Record your voice again from the beginning.")
+                    }
                 }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .settingsCard()
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Teach Verbose your voice.").font(Ink.serif(22)).foregroundStyle(Ink.ink)
+                    Eyebrow(text: "Your voice")
+                    Text("Teach Verbose your voice.").font(Ink.serif(24)).tracking(-0.3).foregroundStyle(Ink.ink)
+                        .accessibilityAddTraits(.isHeader)
                     Text("Read three short passages aloud, about 30 seconds in all. Verbose can then keep only your voice in dictation and mark your lines as “You” in transcripts. Your voice profile stays on this Mac.")
-                        .font(.system(size: 13)).foregroundStyle(Ink.dim)
+                        .font(.system(size: 13.5)).lineSpacing(2).foregroundStyle(Ink.dim)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Set Up Your Voice…") { VoiceEnrollmentSheet.present() }
-                        .buttonStyle(.brandPrimary)
-                        .padding(.top, 2)
+                        .buttonStyle(.settingsPrimaryPill)
+                        .padding(.top, 4)
                 }
-                .padding(18)
+                .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .cardSurface(radius: Radius.tile)
+                .settingsCard()
             }
             if showsControls { VoiceProfileControls() }
         }
@@ -44,7 +64,8 @@ struct VoiceProfileSection: View {
     }
 }
 
-/// The switches that use the profile, and Delete voice profile with its confirmation in place.
+/// The switches that use the profile, and Delete voice profile with its confirmation in place: rows in a Settings
+/// card (label and detail on the left, a standard switch or a mini pill on the right).
 struct VoiceProfileControls: View {
     /// Called after the profile is deleted (the sheet closes itself).
     var onDelete: (() -> Void)? = nil
@@ -55,71 +76,66 @@ struct VoiceProfileControls: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            row {
-                Toggle(isOn: $onlyMyVoice) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Only keep my voice in dictation")
-                        Text(status.isEnrolled
-                             ? "When someone nearby talks while you dictate, Verbose pastes only your words."
-                             : "Available once Verbose knows your voice.")
-                            .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
-                    }
-                }
-                .disabled(!status.isEnrolled)
+            row(first: true) {
+                SettingsRowText(label: "Only keep my voice in dictation",
+                                detail: status.isEnrolled
+                                    ? "When someone nearby talks while you dictate, Verbose pastes only your words."
+                                    : "Available once Verbose knows your voice.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Toggle("Only keep my voice in dictation", isOn: $onlyMyVoice)
+                    .toggleStyle(.switch).labelsHidden().tint(Ink.switchOn)
+                    .disabled(!status.isEnrolled)
             }
-            Divider().overlay(Ink.hairline)
             row {
-                Toggle(isOn: $labelYou) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Label my lines as “You”")
-                        Text("New transcripts name your speaker You.")
-                            .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
-                    }
-                }
-                .disabled(!status.isEnrolled)
+                SettingsRowText(label: "Label my lines as “You”", detail: "New transcripts name your speaker You.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Toggle("Label my lines as “You”", isOn: $labelYou)
+                    .toggleStyle(.switch).labelsHidden().tint(Ink.switchOn)
+                    .disabled(!status.isEnrolled)
             }
             if status.isEnrolled || status.isPartial {
-                Divider().overlay(Ink.hairline)
                 if confirming {
                     row {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Delete your voice profile from this Mac?").fontWeight(.medium)
-                            Text("Dictation keeps every voice and transcripts stop naming you You. You can set it up again any time.")
-                                .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
-                                .fixedSize(horizontal: false, vertical: true)
-                            HStack {
+                        VStack(alignment: .leading, spacing: 10) {
+                            SettingsRowText(label: "Delete your voice profile from this Mac?",
+                                            detail: "Dictation keeps every voice and transcripts stop naming you You. You can set it up again any time.")
+                            HStack(spacing: 8) {
                                 Spacer()
-                                Button("Cancel") { confirming = false }.keyboardShortcut(.cancelAction)
+                                Button("Cancel") { confirming = false }
+                                    .keyboardShortcut(.cancelAction)
+                                    .buttonStyle(.settingsPill)
                                 Button("Delete", role: .destructive) {
                                     status.delete()
                                     confirming = false
                                     onDelete?()
                                 }
-                                .foregroundStyle(Ink.accentText)
+                                .buttonStyle(SettingsDangerPillStyle())
+                                .accessibilityLabel("Delete voice profile")
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
                     row {
-                        HStack {
-                            Text("Delete voice profile")
-                            Spacer()
-                            Button("Delete…") { confirming = true }
-                                .buttonStyle(.plain).foregroundStyle(Ink.accentText)
-                                .accessibilityLabel("Delete voice profile")
-                        }
+                        SettingsRowText(label: "Delete voice profile", detail: "Removes it from this Mac. Your transcripts stay.")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button("Delete…", role: .destructive) { confirming = true }
+                            .buttonStyle(SettingsDangerPillStyle())
+                            .accessibilityLabel("Delete voice profile")
                     }
                 }
             }
         }
-        .font(.system(size: 13.5))
-        .toggleStyle(.switch)
-        .tint(Ink.switchOn)
-        .cardSurface(radius: Radius.tile)
+        .settingsCard()
     }
 
-    private func row<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        content().padding(.horizontal, 14).padding(.vertical, 11).frame(maxWidth: .infinity, alignment: .leading)
+    /// One row: content in an HStack, the Settings row's padding and height, and a hairline above all but the first.
+    private func row<C: View>(first: Bool = false, @ViewBuilder _ content: () -> C) -> some View {
+        HStack(alignment: .center, spacing: 16) { content() }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+            .frame(minHeight: 60)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { if !first { RowRule() } }
     }
 }
 

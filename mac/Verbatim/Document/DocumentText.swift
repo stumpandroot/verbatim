@@ -39,9 +39,19 @@ enum DocumentText {
 
     /// Splits "Name: text" when the document carries speaker labels.
     static func split(_ paragraph: String, speakers: [String]) -> (speaker: String?, text: String) {
-        for name in speakers where paragraph.hasPrefix(name + ": ") {
-            return (name, String(paragraph.dropFirst(name.count + 2)))
-        }
-        return (nil, paragraph)
+        CleanupGuard.splitLabel(paragraph, speakers: speakers)
+    }
+
+    /// The names paragraphs can start with: every speaker's name when there are two or more (as `build` writes
+    /// them), none otherwise.
+    static func labelNames(_ t: Transcript) -> [String] {
+        t.speakers.count >= 2 ? t.speakers.map(\.label) : []
+    }
+
+    /// Saved Cleaned text as it's shown: a literal "Name: " left by builds up to 184 at a paragraph start is hidden
+    /// when no speaker is called "Name" (`CleanupGuard.hidePlaceholderLabels`). Typing in the Cleaned text saves
+    /// the text as shown, so the stored copy is fixed by the next edit.
+    static func shown(_ document: String, in t: Transcript) -> String {
+        CleanupGuard.hidePlaceholderLabels(document, speakers: t.speakers.map(\.label))
     }
 }

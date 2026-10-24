@@ -30,12 +30,13 @@ struct DocumentView: View {
             toolbar(current)
             if let by = transcript.cleanedBy {
                 VStack(alignment: .leading, spacing: 4) {
-                    CleanedLabel(source: by)
+                    CleanedLabel(source: by, mono: true)
                     if by == .model { AIGeneratedNote() }
                 }
                 .frame(maxWidth: 720, alignment: .leading)
             }
-            DocumentEditor(text: text, lints: proofread ? current : [], onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
+            DocumentEditor(text: text, speakers: DocumentText.labelNames(transcript), lints: proofread ? current : [],
+                           onEdit: { new in commit(new, history: false) }, onAccept: accept, onIgnore: ignore)
                 .frame(maxWidth: 720)
         }
         .onAppear(perform: relint)
@@ -51,50 +52,54 @@ struct DocumentView: View {
 
     // MARK: Toolbar
 
+    /// Proofread as a soft chip, Clean up and Tone as line mini pills with a chevron, and Accept all, Undo, and Reset
+    /// as mini pills at the end (DESIGN.md §11). Sits on the page: no box, no hairline. Every control takes clicks
+    /// through a direct gesture or a menu, never a Button under a parent gesture (macOS 26).
     private func toolbar(_ currentLints: [Harper.Lint]) -> some View {
-        HStack(spacing: 6) {
-            Toggle(isOn: $proofread) {
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                    Text("Proofread")
-                    if proofread && !currentLints.isEmpty { Text("\(currentLints.count)").foregroundStyle(Ink.mute) }
-                }
-            }
-            .toggleStyle(ToolChip())
-            .help("Underline spelling and grammar (Harper, offline)")
+        let canUndo = !transcript.documentHistory.isEmpty
+        return HStack(spacing: 8) {
+            ProofreadChip(on: proofread, count: proofread && !currentLints.isEmpty ? currentLints.count : nil) { proofread.toggle() }
+                .help("Underline spelling and grammar (Harper, offline)")
 
             Menu {
                 ForEach(Polish.Level.allCases) { l in
                     Button { run(level: l, tone: tone) } label: { HStack { Text(l.rawValue); Text("· " + l.note).foregroundStyle(.secondary) } }
                 }
-            } label: { Text(level == .none ? "Clean up" : "Clean up · \(level.rawValue)") }
-            .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
+            } label: {
+                PillLabel(title: level == .none ? "Clean up" : "Clean up · \(level.rawValue)", kind: .line, size: .mini, trailing: .chevron)
+            }
+            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
             .help("Rewrite the corrected lines with Apple's on-device model. Your Original stays as it is.")
+            .accessibilityLabel("Clean up").accessibilityValue(level.rawValue)
 
             Menu {
                 ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
-            } label: { Text(tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)") }
-            .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
+            } label: {
+                PillLabel(title: tone == .spoken ? "Tone" : "Tone · \(tone.rawValue)", kind: .line, size: .mini, trailing: .chevron)
+            }
+            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+            .accessibilityLabel("Tone").accessibilityValue(tone.rawValue)
 
             if let w = working {
-                ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small)
+                ProgressView(value: w).progressViewStyle(.linear).frame(width: 90).controlSize(.small).tint(Ink.ink)
+                    .accessibilityLabel("Cleaning up")
             }
             Spacer(minLength: 8)
             if proofread, !currentLints.isEmpty {
-                Button("Accept all") { acceptAll() }.buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.iris)
+                PillButton(title: "Accept all", kind: .dark, size: .mini, hint: "Applies every spelling and grammar fix") { acceptAll() }
             }
-            Button("Undo") { undo() }.buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(transcript.documentHistory.isEmpty ? Ink.mute : Ink.iris).disabled(transcript.documentHistory.isEmpty)
-                .keyboardShortcut("z", modifiers: [.command, .shift])
+            PillButton(title: "Undo", kind: .line, size: .mini, enabled: canUndo, hint: "Brings back the Cleaned text before the last change") { undo() }
+                .help("Undo the last Clean up, Tone, or fix (⇧⌘Z)")
             if transcript.document != nil {
-                Button("Reset") { reset() }.buttonStyle(.plain).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.mute)
+                PillButton(title: "Reset", kind: .line, size: .mini, hint: "Back to the corrected lines from Original") { reset() }
                     .help("Back to the corrected lines from Original")
             }
         }
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        // Opaque: text never sits on a blur (DESIGN.md §5.1).
-        .background(Ink.bar, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+        .background {
+            // ⇧⌘Z for Undo, once, out of sight (the pill takes clicks through its own gesture).
+            Button("") { if canUndo { undo() } }.keyboardShortcut("z", modifiers: [.command, .shift])
+                .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
+        }
         .frame(maxWidth: 720)
     }
 
@@ -175,11 +180,12 @@ struct DocumentView: View {
         }
         let base = transcript.cleanupBase   // always from the corrected lines, never from an earlier cleanup
         let paras = DocumentText.paragraphs(base)
+        let speakers = DocumentText.labelNames(transcript)
         let id = transcript.id
         working = 0
         Task {
             do {
-                let out = try await Polish.rewrite(paras, level: level, tone: tone) { p in Task { @MainActor in working = p } }
+                let out = try await Polish.rewrite(paras, level: level, tone: tone, speakers: speakers) { p in Task { @MainActor in working = p } }
                 let joined = out.joined(separator: "\n\n")
                 // Every level runs the model, None included, so the result is always marked as Apple Intelligence's.
                 app.store.update(id) { $0.applyCleanup(joined, level: level.rawValue, tone: tone.rawValue, byModel: true) }
@@ -189,6 +195,23 @@ struct DocumentView: View {
             }
             working = nil
         }
+    }
+}
+
+/// Proofread as a soft filter chip: ink when on, with the number of suggestions. Clicks through a direct gesture.
+private struct ProofreadChip: View {
+    var on: Bool
+    var count: Int?
+    var action: () -> Void
+    @State private var hover = false
+    var body: some View {
+        FilterChipLabel(title: "Proofread", count: count, selected: on, small: true, hover: hover)
+            .onHover { hover = $0 }
+            .tapArea(action)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(count.map { "Proofread, \($0) suggestions" } ?? "Proofread")
+            .accessibilityValue(on ? "On" : "Off")
+            .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -209,6 +232,8 @@ struct ToolChip: ToggleStyle {
 
 struct DocumentEditor: NSViewRepresentable {
     var text: String
+    /// The speaker names paragraphs can start with (`DocumentText.labelNames`). Only these are styled as labels.
+    var speakers: [String] = []
     var lints: [Harper.Lint]
     var onEdit: (String) -> Void
     var onAccept: (Harper.Lint) -> Void
@@ -266,7 +291,7 @@ struct DocumentEditor: NSViewRepresentable {
             self.lints = lints
             let lints = lints.filter { $0.source == text }
             self.lints = lints
-            let key = lints.map { "\($0.id):\($0.nsRange.location)" }.joined(separator: ",")
+            let key = lints.map { "\($0.id):\($0.nsRange.location)" }.joined(separator: ",") + "|" + parent.speakers.joined(separator: ",")
             guard !editing, (text != lastText || key != lastLintKey) else { return }
             lastText = text; lastLintKey = key
             let sel = tv.selectedRanges
@@ -280,12 +305,14 @@ struct DocumentEditor: NSViewRepresentable {
                 if ns.character(at: k) == 10, ns.character(at: k - 1) == 10 { attr.addAttribute(.font, value: small, range: NSRange(location: k, length: 1)) }
                 k += 1
             }
-            // Speaker labels at paragraph starts
+            // Speaker labels at paragraph starts: only real speaker names (any "Word:" isn't a label), in mono.
             var loc = 0
+            let speakers = parent.speakers
+            let labelFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
             for p in text.components(separatedBy: "\n\n") {
-                if let colon = p.range(of: ": "), p.distance(from: p.startIndex, to: colon.lowerBound) <= 48 {
-                    let len = p.distance(from: p.startIndex, to: colon.lowerBound)
-                    attr.addAttributes([.font: NSFont.systemFont(ofSize: 14.5, weight: .semibold), .foregroundColor: NSColor(Ink.iris)], range: NSRange(location: loc, length: min((p as NSString).length, len + 1)))
+                if !speakers.isEmpty, let name = DocumentText.split(p, speakers: speakers).speaker {
+                    let len = (name as NSString).length + 1
+                    attr.addAttributes([.font: labelFont, .foregroundColor: NSColor(Ink.dim)], range: NSRange(location: loc, length: min((p as NSString).length, len)))
                 }
                 loc += (p as NSString).length + 2
             }
@@ -332,6 +359,20 @@ struct DocumentEditor: NSViewRepresentable {
 
 final class LintTextView: NSTextView {
     weak var coordinator: DocumentEditor.Coordinator?
+
+    /// The editor sits inside the transcript's scroll view. AppKit's scroll-to-selection walks up to that outer
+    /// scroll view, so replacing the text (Clean up, Undo, a fix) or a layout pass could scroll the whole screen and
+    /// push the header (title and Original / Cleaned / Review) under the toolbar. Only scroll while the person is
+    /// typing here.
+    private var editingHere: Bool { window?.firstResponder === self }
+    override func scrollRangeToVisible(_ range: NSRange) {
+        guard editingHere else { return }
+        super.scrollRangeToVisible(range)
+    }
+    override func scrollToVisible(_ rect: NSRect) -> Bool {
+        guard editingHere else { return false }
+        return super.scrollToVisible(rect)
+    }
     override var intrinsicContentSize: NSSize {
         guard let lm = layoutManager, let tc = textContainer else { return super.intrinsicContentSize }
         lm.ensureLayout(for: tc)
