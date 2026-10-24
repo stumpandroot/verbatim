@@ -332,7 +332,7 @@ if __name__ == '__main__':
         if '// BEGIN ICONS' in src:
             src = re.sub(r'    // BEGIN ICONS.*?// END ICONS', lambda m: out, src, flags=re.S)
         else:
-            marker = '    static let understandHatch'
+            marker = '    static let play = '
             idx = src.index(marker)
             end = src.index('\n', idx) + 1
             src = src[:end] + '\n' + out + '\n' + src[end:]
