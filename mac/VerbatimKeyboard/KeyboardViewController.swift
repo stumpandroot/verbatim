@@ -25,7 +25,9 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Before the first frame: which view to show, and the field's traits for the letter keys.
+        // Before the first frame: the field's traits for the letter keys, then which mode to open in (Home or
+        // Typing, KeyboardSurface.opening). Everything read from the text proxy here is optional-safe: the field may
+        // not be connected yet (see `safeDocumentIdentifier` and `safeTextContentType`).
         model.hasFullAccess = hasFullAccess
         model.showsGlobe = needsInputModeSwitchKey
         model.typing.showsGlobe = needsInputModeSwitchKey
@@ -43,7 +45,9 @@ final class KeyboardViewController: UIInputViewController {
             host.view.topAnchor.constraint(equalTo: view.topAnchor),
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        let height = view.heightAnchor.constraint(equalToConstant: 272)
+        // 280 pt: the mockup's 46 pt top bar over four rows of 46 pt keys (the system adds its own globe and
+        // dictation row below on Face ID iPhones). Priority 999, so the system's own height wins if it must.
+        let height = view.heightAnchor.constraint(equalToConstant: 280)
         height.priority = UILayoutPriority(999)
         height.isActive = true
         host.didMove(toParent: self)
@@ -85,9 +89,18 @@ final class KeyboardViewController: UIInputViewController {
     /// What the text field tells every keyboard, for the format chip's Auto (`KeyboardFormat.infer`).
     func fieldTraits() -> KeyboardFormat.FieldTraits {
         let p = textDocumentProxy
-        let contentType: UITextContentType? = p.textContentType ?? nil
+        let contentType = p.safeTextContentType.map(UITextContentType.init(rawValue:))
         return KeyboardFormat.FieldTraits(keyboardType: p.keyboardType, textContentType: contentType,
                                           returnKeyType: p.returnKeyType, before: p.documentContextBeforeInput)
+    }
+
+    /// True for a password or one-time-code field: the keyboard opens in Typing there. Read through optional
+    /// chaining and the bridge-free content type reader, so a field that isn't connected yet reads as not secure.
+    func fieldIsSecure() -> Bool {
+        let p = textDocumentProxy
+        if p.isSecureTextEntry == true { return true }
+        guard let t = p.safeTextContentType else { return false }
+        return [UITextContentType.password, .newPassword, .oneTimeCode].contains { $0.rawValue == t }
     }
 
     override func viewDidDisappear(_ animated: Bool) {

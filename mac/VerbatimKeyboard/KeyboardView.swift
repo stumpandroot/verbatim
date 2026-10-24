@@ -9,242 +9,187 @@ enum KB {
     static let uiPanel = UIColor { tc in UIColor(Ink.side).resolvedColor(with: tc) }
     static let uiInk = Ink.inkUI
 
-    /// The panel behind the strip, the card, and the keys.
+    /// The panel behind the bar, the cards, and the keys.
     static let panel = Ink.side
     static let paper = Ink.paper
     static let ink = Ink.ink
     static let card = Ink.card
+    /// Secondary text: the line under Home's number, the live words while you talk.
+    static let dim = Ink.dim
     /// Notices (a failure).
     static let deep = Ink.danger
     static let muted = Ink.mute
     static let hairline = Ink.hairline
-    /// Ink in both appearances: text and outlines on the butter card, which stays butter in dark.
+    /// Ink in both appearances: text and outlines on butter, which stays butter in dark.
     static let inkFixed = Ink.inkFixed
 
     // Keyboard-only colors from the keyboard mockup (not in Tokens.swift; defined here, not shared).
-    /// The keyboard's one action, dictation: the butter card, the Dictate key, the Done pill, and the listening
-    /// ring. Dark is #DDB563, a little lighter than `Ink.butter`'s dark value, so it holds up on the dark panel.
+    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Dark is #DDB563, a
+    /// little lighter than `Ink.butter`'s dark value, so it holds up on the dark panel.
     static let dictate = Ink.dyn(Ink.butterHex, 0xDDB563)
-    /// Chips and function keys: one step darker than the panel (`Ink.wash` matches the panel in light).
+    /// Chips, soft circles, and function keys: one step darker than the panel (`Ink.wash` matches the panel in light).
     static let wash = Ink.dynC(0xE6DFD1, 0x22312A, 0xDCD3C2, 0x2C3C34)
-    /// The butter card's hard offset shadow.
+    /// The butter pills' and the menu card's hard offset shadow.
     static let hard = Ink.dyn(Ink.inkHex, 0x0C1310)
-    /// The listening dot in the strip.
-    static let record = Ink.dyn(0xFB7350, 0xE2694B)
     /// A key's 1 pt bottom edge: ink at 25% (50% with Increase Contrast).
     static let keyShadow = Ink.make { dark, hc in
         PColor(hex: dark ? Ink.paperHex : Ink.inkHex).withAlphaComponent(hc ? 0.5 : 0.25)
     }
 
-    /// Keys use a 7 pt radius, like the system keyboard's keys; the big card uses the Record panel's radius.
+    /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the Record panel's radius.
     static let keyRadius: CGFloat = 7
     static let cardRadius = Radius.record
+    /// The top bar: 46 pt circles and pills, 10 pt from the edges.
+    static let barHeight: CGFloat = 46
+    static let barInset: CGFloat = 10
 }
 
-/// Two views behind a compact toggle. Dictation: a top strip for status, one big card for the action, and a
-/// bottom row with globe, letter keys, space, delete, and return. Typing: a strip with the Dictate key (and Recent
-/// with Full Access) over QWERTY keys. Typing works without Allow Full Access; dictation explains why it needs it.
+/// Three modes, like Wispr Flow's keyboard, in Verbose's look (the approved mockup, kb2):
+/// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one butter Tap to talk.
+/// - Typing: the menu and a butter Start over the full keyboard. Words that go in come back here with
+///   "✓ Inserted · 14 words" and Undo for a few seconds.
+/// - Listening: cancel, the cleanup chip, and a butter done button over your words, the voice bars, "Listening", and
+///   the microphone and time. Starting, writing, and polishing use the same screen.
+/// Typing works without Allow Full Access; Home explains why dictation needs it.
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
-    private var busy: Bool { model.stage == .listening || model.stage == .writing || model.stage == .starting }
-
-    /// A dictation in progress always shows the dictation view.
-    private var showsTyping: Bool { model.surface == .typing && !busy }
-
     var body: some View {
-        Group {
-            if showsTyping { typingSurface } else { dictationSurface }
+        ZStack(alignment: .topLeading) {
+            Group {
+                switch model.mode {
+                case .home: home
+                case .typing: typingMode
+                case .listening: listening
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            if model.showingMenu && model.mode == .typing { menuLayer }
         }
         .background(KB.panel)
     }
 
-    // MARK: Typing
+    // MARK: Bars
 
-    private var typingSurface: some View {
+    /// The top bar's frame, shared by all three modes.
+    private func bar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 8) { content() }
+            .frame(height: KB.barHeight)
+            .padding(.horizontal, KB.barInset).padding(.top, 8)
+    }
+
+    /// The bar above an open list (recent dictations, snippets): its name and a soft close circle.
+    @ViewBuilder private var listBar: some View {
+        if model.showingSnippets {
+            listHeader("Snippets", closeLabel: "Close snippets") { model.toggleSnippets() }
+        } else {
+            listHeader("Recent dictations", closeLabel: "Close recent dictations") { model.toggleRecent() }
+        }
+    }
+
+    private func listHeader(_ title: String, closeLabel: String, close: @escaping () -> Void) -> some View {
+        bar {
+            Text(title).font(Ink.serif(21)).foregroundStyle(KB.ink).lineLimit(1)
+                .padding(.leading, 4)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 6)
+            CircleButton(look: .soft, action: close) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
+                .accessibilityLabel(closeLabel)
+        }
+    }
+
+    private var listOpen: Bool { model.hasFullAccess && (model.showingRecent || model.showingSnippets) }
+
+    // MARK: Home
+
+    private var home: some View {
         VStack(spacing: 0) {
-            typingStrip
-                .frame(height: 34)
-                .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 2)
-            if model.hasFullAccess && model.showingRecent {
-                recentCard
-                    .padding(.leading, 8).padding(.trailing, 8).padding(.top, 6).padding(.bottom, 8)
-                    .frame(maxHeight: .infinity)
+            if listOpen {
+                listBar
+                list.padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 8)
             } else {
-                TypingKeysView(typing: model.typing)
+                homeBar
+                homeBody
             }
         }
     }
 
-    /// The butter Dictate key on the left (always there, so you can find dictation); with Full Access, Recent on
-    /// the right to insert your last transcript. Without Full Access, Recent is hidden rather than broken.
-    private var typingStrip: some View {
-        HStack(spacing: 8) {
-            if model.hasFullAccess && model.showingRecent {
-                listHeader("Recent dictations", closeLabel: "Close recent dictations") { model.toggleRecent() }
-            } else {
-                DictateKey(fullAccess: model.hasFullAccess) { model.toggleSurface() }
-                if let i = model.info {
-                    Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
-                        .lineLimit(1).minimumScaleFactor(0.85)
-                        .accessibilityAddTraits(.updatesFrequently)
-                }
-                Spacer(minLength: 6)
-                if model.hasFullAccess { recentButton }
-            }
-        }
-    }
-
-    // MARK: Dictation
-
-    private var dictationSurface: some View {
-        VStack(spacing: 8) {
-            topStrip.frame(height: 34)
-            mainArea
-                .padding(.leading, 2).padding(.trailing, 4).padding(.top, 2).padding(.bottom, 4)
-                .frame(maxHeight: .infinity)
-            if let c = model.correction {
-                correctionStrip(c)
-            } else if let n = model.notice {
-                Text(n).font(.system(size: 12)).foregroundStyle(KB.deep)
-                    .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityAddTraits(.updatesFrequently)
-            } else if let i = model.info {
-                Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
-                    .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                    .accessibilityAddTraits(.updatesFrequently)
-            }
-            bottomRow.frame(height: 44)
-                .opacity(busy ? 0.4 : 1)
-                .disabled(busy)
-        }
-        .padding(.horizontal, 6).padding(.top, 8).padding(.bottom, 4)
-    }
-
-    /// The card area: your snippets or recent dictations when you open them, otherwise the big card.
-    @ViewBuilder private var mainArea: some View {
-        if model.stage == .idle && model.showingSnippets {
-            snippetCard
-        } else if model.stage == .idle && model.showingRecent {
-            recentCard
-        } else {
-            card
-        }
-    }
-
-    /// After a spoken correction changed the inserted words: what changed, Use as spoken, and Turn off.
-    private func correctionStrip(_ summary: String) -> some View {
-        HStack(spacing: 6) {
-            Text(summary).font(.system(size: 12)).foregroundStyle(KB.ink)
-                .lineLimit(1).truncationMode(.middle).minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Chip(title: "Use as spoken") { model.useAsSpoken() }
-                .accessibilityHint("Replaces the corrected words with the words as you said them")
-            Chip(title: "Turn off") { model.turnOffSpokenCorrections() }
-                .accessibilityHint("Stops Verbose from acting on spoken corrections")
-        }
-        .padding(.horizontal, 4)
-        .accessibilityElement(children: .contain)
-    }
-
-    // MARK: Top strip
-
-    @ViewBuilder private var topStrip: some View {
-        HStack(spacing: 8) {
-            switch model.stage {
-            case .listening, .starting, .writing:
-                if model.stage == .listening { RecordDot() }
-                Text(stripLabel).font(.system(size: 13.5, weight: .semibold)).monospacedDigit().foregroundStyle(KB.ink).lineLimit(1)
-                    .accessibilityLabel(stripAccessibility)
-                Spacer(minLength: 6)
-                if model.stage == .starting {
-                    Chip(title: "Cancel") { model.cancel() }
-                        .accessibilityHint("Stops waiting for Verbose")
-                } else if model.hasFullAccess {
-                    LevelTag(level: model.levelLabel)
-                }
-            case .inserted:
-                if model.polishing {
-                    // Polish after inserting: a still, half-lit dot while the cleaned-up version is on its way.
-                    PolishingMark()
-                    Text("Polishing…")
-                        .font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.8)
-                        .accessibilityLabel("Inserted. Polishing your words")
-                } else {
-                    CheckDisc()
-                    Text("Inserted · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "word" : "words")")
-                        .font(.system(size: 13.5, weight: .semibold)).monospacedDigit().foregroundStyle(KB.ink)
-                        .lineLimit(1).minimumScaleFactor(0.75)
-                        .layoutPriority(-1)
-                }
-                Spacer(minLength: 6)
-                Chip(title: "Undo") { model.undo() }
-                    .accessibilityHint("Removes the inserted words")
-                if let ins = model.insertion, ins.raw != ins.text, !ins.raw.isEmpty {
-                    Chip(title: "Use as spoken") { model.useAsSpoken() }
-                        .accessibilityHint("Replaces the cleaned-up words with the words as you said them")
-                }
-                snippetsButton
-                recentButton
-            case .idle:
-                if model.showingSnippets {
-                    listHeader("Snippets", closeLabel: "Close snippets") { model.toggleSnippets() }
-                } else if model.showingRecent {
-                    listHeader("Recent dictations", closeLabel: "Close recent dictations") { model.toggleRecent() }
-                } else {
-                    idleStrip
-                }
-            }
-        }
-        .padding(.horizontal, 4)
-    }
-
-    /// Idle: the cleanup level (tap to change the format), the session's time left, Recent, and Snippets.
-    @ViewBuilder private var idleStrip: some View {
-        if !model.hasFullAccess {
-            // No session or cleanup level to show without Full Access.
-            BarsMark(color: Ink.persimmon).frame(width: 14, height: 14)
-            Ink.wordmark(16).accessibilityHidden(true)
+    /// Close (to Typing) on the left; ABC, Recent, and Settings on the right. The session's time left sits between,
+    /// when the app set an idle timeout.
+    private var homeBar: some View {
+        bar {
+            CircleButton(look: .soft, action: model.showTyping) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
+                .accessibilityLabel("Close")
+                .accessibilityHint("Shows the typing keyboard")
             Spacer(minLength: 6)
-        } else {
-            CleanupChip(level: model.levelLabel, format: model.formatLabel) { model.cycleFormat() }
-            if model.sessionLive, model.sessionEndsAt != nil {
-                Text(sessionLabel).font(.system(size: 12, weight: .medium)).monospacedDigit().foregroundStyle(KB.muted)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+            if model.hasFullAccess, model.sessionLive, model.sessionEndsAt != nil {
+                Text(sessionLabel).font(Ink.mono(12)).foregroundStyle(KB.muted)
+                    .lineLimit(1).minimumScaleFactor(0.8)
                     .accessibilityLabel(sessionAccessibility)
+                Spacer(minLength: 6)
             }
-            Spacer(minLength: 6)
-            recentButton
-            snippetsButton
+            CircleButton(look: .outline, action: model.showTyping) {
+                Text("ABC").font(.system(size: 15, weight: .bold))
+            }
+            .accessibilityLabel("Letter keys")
+            .accessibilityHint("Shows the typing keyboard")
+            if model.hasFullAccess {
+                CircleButton(look: .outline, action: model.toggleRecent) { ArtIcon(art: .iconRecent, size: 20) }
+                    .accessibilityLabel("Recent dictations")
+                    .accessibilityHint("Shows your last dictations to insert again")
+            }
+            CircleButton(look: .outline, action: model.openVerbose) { ArtIcon(art: .iconSettings, size: 20) }
+                .accessibilityLabel("Settings")
+                .accessibilityHint(model.hasFullAccess ? "Opens Verbose" : "Shows how to turn on dictation")
         }
     }
 
-    /// The clock button: shows your last few dictations.
-    @ViewBuilder private var recentButton: some View {
-        if !model.recent.isEmpty {
-            IconButton(art: .iconRecent) { model.toggleRecent() }
-                .accessibilityLabel("Recent dictations")
-                .accessibilityHint("Shows your last dictations to insert again")
+    @ViewBuilder private var homeBody: some View {
+        if !model.hasFullAccess {
+            FullAccessCard()
+                .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 10)
+        } else if model.needsSessionCard {
+            StartSessionCard()
+                .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 10)
+        } else {
+            VStack(spacing: 0) {
+                StatsPager(pages: model.statsPages, page: model.statsPage,
+                           next: model.nextStatsPage, previous: model.previousStatsPage)
+                    .frame(maxHeight: .infinity)
+                statusLine.padding(.horizontal, 18).padding(.bottom, 6)
+                ZStack {
+                    TalkPill(label: "Tap to talk", action: model.record)
+                        .accessibilityHint(model.sessionLive ? "Starts listening right away"
+                                           : "Opens Verbose for a second to turn on the microphone, then comes back here")
+                    if model.showsGlobe {
+                        HStack {
+                            globe
+                            Spacer()
+                        }
+                    }
+                }
+                .padding(.horizontal, KB.barInset).padding(.bottom, 10)
+            }
         }
     }
 
-    /// The quote button: shows your snippets.
-    @ViewBuilder private var snippetsButton: some View {
-        if !model.snippets.isEmpty {
-            IconButton(art: .iconQuote) { model.toggleSnippets() }
-                .accessibilityLabel("Snippets")
-                .accessibilityHint("Shows your snippets to insert")
+    /// A failure, or a short confirmation ("Copied."), above Tap to talk.
+    @ViewBuilder private var statusLine: some View {
+        if let n = model.notice {
+            Text(n).font(.system(size: 12.5)).foregroundStyle(KB.deep)
+                .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+        } else if let i = model.info {
+            Text(i).font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.muted)
+                .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
         }
     }
 
-    /// The strip above an open list: its name and a close button.
-    @ViewBuilder private func listHeader(_ title: String, closeLabel: String, close: @escaping () -> Void) -> some View {
-        Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
-            .accessibilityAddTraits(.isHeader)
-        Spacer(minLength: 6)
-        IconButton(symbol: "xmark", action: close)
-            .accessibilityLabel(closeLabel)
+    private var globe: some View {
+        GlobeKey(controller: model.controllerForGlobe)
+            .frame(width: 34, height: 34)
+            .accessibilityLabel("Next keyboard")
     }
 
     /// Time left in the session: "4:12 left".
@@ -254,28 +199,9 @@ struct KeyboardView: View {
     }
 
     private var sessionAccessibility: String {
-        guard model.sessionLive else {
-            return model.needsSessionCard ? "No session" : "No session. Tap the record button to start one."
-        }
         guard let ends = model.sessionEndsAt else { return "Session on" }
         let m = max(0, Int(ends.timeIntervalSince(model.now)) / 60)
         return m >= 1 ? "Session on, \(m) minutes left" : "Session on, less than a minute left"
-    }
-
-    private var stripLabel: String {
-        switch model.stage {
-        case .starting: return "Starting a session"
-        case .writing: return "Writing it down"
-        default: return "Listening · \(Self.clock(model.elapsed))"
-        }
-    }
-
-    private var stripAccessibility: String {
-        switch model.stage {
-        case .starting: return "Starting a session"
-        case .writing: return "Writing it down"
-        default: return "Listening, \(Int(model.elapsed)) seconds"
-        }
     }
 
     static func clock(_ t: TimeInterval) -> String {
@@ -283,164 +209,201 @@ struct KeyboardView: View {
         return "\(s / 60):" + String(format: "%02d", s % 60)
     }
 
-    // MARK: Card
+    // MARK: Typing
 
-    @ViewBuilder private var card: some View {
-        switch model.stage {
-        case .idle, .inserted:
-            if !model.hasFullAccess {
-                FullAccessCard()
-            } else if model.needsSessionCard {
-                StartSessionCard()
+    private var typingMode: some View {
+        VStack(spacing: 0) {
+            if listOpen {
+                listBar
+                list.padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 8)
             } else {
-                dictateCard
+                typingBar.padding(.bottom, 2)
+                TypingKeysView(typing: model.typing)
             }
-        case .starting:
-            startingCard
-        case .listening, .writing:
-            listeningCard
         }
     }
 
-    /// The butter card: dictates at once with a session, or opens Verbose for a second to start one.
-    private var dictateCard: some View {
-        Button { model.record() } label: {
-            CardShell(look: .butter) {
-                ViewThatFits(in: .vertical) {
-                    VStack(spacing: 8) {
-                        MicDisc(size: 58)
-                        cardTitle
-                        cardSubtitle
-                    }
-                    // A short card (a notice under it): the mic beside the words.
-                    HStack(spacing: 14) {
-                        MicDisc(size: 46)
-                        VStack(alignment: .leading, spacing: 3) {
-                            cardTitle
-                            cardSubtitle
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
+    /// The menu and Start; "✓ Inserted · 14 words" and Undo just after words went in; a spoken correction's notice
+    /// when one changed them.
+    @ViewBuilder private var typingBar: some View {
+        if model.stage == .inserted, let c = model.correction {
+            bar { correctionStrip(c) }
+        } else if model.stage == .inserted {
+            bar {
+                CheckDisc()
+                Text("Inserted · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "word" : "words")")
+                    .font(.system(size: 13.5, weight: .semibold)).monospacedDigit().foregroundStyle(KB.ink)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+                    .layoutPriority(-1)
+                Spacer(minLength: 6)
+                Chip(title: "Undo") { model.undo() }
+                    .accessibilityHint("Removes the inserted words")
+                StartPill(action: model.start)
+                    .accessibilityHint(startHint)
             }
-            .contentShape(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
-        }
-        .buttonStyle(CardPress())
-        .accessibilityLabel(model.sessionLive ? (model.stage == .inserted ? "Keep dictating" : "Dictate") : "Start a session")
-        .accessibilityHint(model.sessionLive ? "Starts listening right away" : "Opens Verbose for a second to turn on the microphone, then comes back here")
-    }
-
-    private var cardTitle: some View {
-        let words: (String, String) = !model.sessionLive ? ("Tap to ", "start.")
-            : model.stage == .inserted ? ("Keep ", "going?") : ("Tap and ", "talk.")
-        return Text("\(Text(words.0))\(Text(words.1).italic())")
-            .font(Ink.serif(22)).foregroundStyle(KB.inkFixed)
-            .lineLimit(1).minimumScaleFactor(0.7)
-    }
-
-    private var cardSubtitle: some View {
-        let line: String
-        if !model.sessionLive {
-            line = "Verbose opens for a second, then comes back"
-        } else if model.stage == .inserted, let note = cleanupNote {
-            line = note
         } else {
-            line = "Tap again when you're done"
-        }
-        return Text(line)
-            .font(.system(size: 12.5)).foregroundStyle(KB.inkFixed.opacity(0.8))
-            .lineLimit(1).minimumScaleFactor(0.8)
-    }
-
-    /// What cleanup did to the words just inserted: "3 filler words removed", or the level when it changed
-    /// other words. Nil when the words went in as spoken.
-    private var cleanupNote: String? {
-        guard let ins = model.insertion, !ins.raw.isEmpty, ins.raw != ins.text else { return nil }
-        let n = Self.fillerCount(ins.raw) - Self.fillerCount(ins.text)
-        if n > 0 { return n == 1 ? "1 filler word removed" : "\(n) filler words removed" }
-        return "Cleaned up · \(model.levelLabel)"
-    }
-
-    private static let fillers: Set<String> = ["um", "umm", "uh", "uhh", "uhm", "er", "erm", "ah", "hmm", "mm"]
-
-    static func fillerCount(_ s: String) -> Int {
-        s.lowercased().split(whereSeparator: { !$0.isLetter }).filter { fillers.contains(String($0)) }.count
-    }
-
-    private var startingCard: some View {
-        CardShell(look: .listening) {
-            VStack(spacing: 6) {
-                Text("Opening Verbose…")
-                    .font(Ink.serif(22)).foregroundStyle(KB.ink)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Text("Verbose opens for a second, then comes back")
-                    .font(.system(size: 12.5)).foregroundStyle(KB.muted)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .padding(.horizontal, 16)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    /// Listening: your words in the serif, then Cancel, the voice bars, and Done. Writing keeps the words and
-    /// stills the bars while Verbose writes them down.
-    private var listeningCard: some View {
-        CardShell(look: .listening) {
-            VStack(alignment: .leading, spacing: 8) {
-                Group {
-                    if hasLiveWords {
-                        LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile,
-                                      corrections: model.stage == .listening && model.liveCorrections)
-                    } else if model.stage == .writing {
-                        Text("Writing it down")
-                            .font(Ink.serif(21)).foregroundStyle(KB.muted)
-                            .lineLimit(1).minimumScaleFactor(0.75)
-                    } else {
-                        Text("Listening · \(model.micName)")
-                            .font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
-                            .lineLimit(1).minimumScaleFactor(0.75)
-                    }
+            bar {
+                CircleButton(look: model.showingMenu ? .active : .soft, action: model.toggleMenu) {
+                    Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .medium))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                HStack(spacing: 10) {
-                    Button { model.cancel() } label: {
-                        Image(systemName: "xmark").font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(KB.ink)
-                            .frame(width: 44, height: 44)
-                            .overlay(Circle().strokeBorder(KB.ink, lineWidth: 1.5))
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(PressFade())
-                    .accessibilityLabel("Cancel")
-                    .accessibilityHint("Stops listening and inserts nothing")
-                    VoiceWave(level: model.level, active: model.stage == .listening, color: KB.ink)
-                        .frame(maxWidth: .infinity).frame(height: 30)
-                    Button { model.done() } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: "checkmark").font(.system(size: 14, weight: .bold))
-                            Text("Done").font(.system(size: 15, weight: .bold))
-                        }
-                        .foregroundStyle(KB.inkFixed)
-                        .padding(.horizontal, 18).frame(height: 44)
-                        .background(KB.dictate, in: Capsule())
-                        .overlay(Capsule().strokeBorder(KB.inkFixed, lineWidth: 1.5))
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(PressFade())
-                    .disabled(model.stage == .writing)
-                    .opacity(model.stage == .writing ? 0.4 : 1)
-                    .accessibilityLabel("Done")
-                    .accessibilityHint("Stops listening and inserts your words")
+                .accessibilityLabel("Menu")
+                .accessibilityValue(model.showingMenu ? "Open" : "")
+                .accessibilityHint("Cleanup, snippets, recent dictations, and Open Verbose")
+                if let n = model.notice {
+                    Text(n).font(.system(size: 12)).foregroundStyle(KB.deep)
+                        .lineLimit(2).minimumScaleFactor(0.8)
+                        .accessibilityAddTraits(.updatesFrequently)
+                } else if let i = model.info {
+                    Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+                        .lineLimit(2).minimumScaleFactor(0.8)
+                        .accessibilityAddTraits(.updatesFrequently)
                 }
+                Spacer(minLength: 6)
+                StartPill(action: model.start)
+                    .accessibilityHint(startHint)
             }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+        }
+    }
+
+    private var startHint: String {
+        guard model.hasFullAccess else { return "Explains how to turn on dictation" }
+        if model.needsSessionCard && !model.sessionLive { return "Shows how to start a session" }
+        return model.sessionLive ? "Starts listening right away" : "Opens Verbose for a second to turn on the microphone, then comes back here"
+    }
+
+    /// After a spoken correction changed the inserted words: what changed, Use as spoken, and Turn off.
+    private func correctionStrip(_ summary: String) -> some View {
+        HStack(spacing: 6) {
+            Text(summary).font(.system(size: 12.5)).foregroundStyle(KB.ink)
+                .lineLimit(2).truncationMode(.middle).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Chip(title: "Use as spoken") { model.useAsSpoken() }
+                .accessibilityHint("Replaces the corrected words with the words as you said them")
+            Chip(title: "Turn off") { model.turnOffSpokenCorrections() }
+                .accessibilityHint("Stops Verbose from acting on spoken corrections")
         }
         .accessibilityElement(children: .contain)
     }
 
+    // MARK: Menu
+
+    /// The menu card under the menu circle, over the keys. A tap anywhere else closes it.
+    private var menuLayer: some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { model.closeMenu() }
+                .accessibilityHidden(true)
+            MenuCard(model: model)
+                .padding(.leading, KB.barInset).padding(.top, 8 + KB.barHeight + 6)
+        }
+    }
+
+    // MARK: Listening
+
+    private var listening: some View {
+        VStack(spacing: 0) {
+            listeningBar
+            VStack(spacing: 12) {
+                listeningWords
+                VoiceWave(level: model.level, active: model.stage == .listening, color: KB.ink, count: 13, barWidth: 6)
+                    .frame(width: 170, height: 36)
+                VStack(spacing: 3) {
+                    Text(listeningTitle)
+                        .font(Ink.serif(22)).foregroundStyle(KB.ink)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Text(listeningDetail)
+                        .font(detailIsData ? Ink.mono(12) : .system(size: 12.5))
+                        .foregroundStyle(KB.muted)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(listeningAccessibility)
+                .accessibilityAddTraits(.updatesFrequently)
+            }
+            .padding(.horizontal, 22)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottomLeading) {
+                if model.showsGlobe { globe.padding(.leading, KB.barInset).padding(.bottom, 8) }
+            }
+        }
+    }
+
+    /// Cancel on the left (hidden while polishing: the words are already in); the cleanup chip and done on the right.
+    private var listeningBar: some View {
+        bar {
+            if model.polishing {
+                Color.clear.frame(width: KB.barHeight, height: KB.barHeight).accessibilityHidden(true)
+            } else {
+                CircleButton(look: .soft, action: model.cancel) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
+                    .accessibilityLabel("Cancel")
+                    .accessibilityHint(model.stage == .starting ? "Stops waiting for Verbose" : "Stops listening and inserts nothing")
+            }
+            Spacer(minLength: 6)
+            if model.hasFullAccess {
+                CleanupChip(level: model.levelLabel, format: model.formatLabel, enabled: model.stage == .listening || model.stage == .starting) {
+                    model.cycleFormat()
+                }
+            }
+            CircleButton(look: .go, action: { model.polishing ? model.skipPolish() : model.done() }) {
+                Image(systemName: "checkmark").font(.system(size: 19, weight: .bold))
+            }
+            .disabled(!doneEnabled)
+            .opacity(doneEnabled ? 1 : 0.4)
+            .accessibilityLabel("Done")
+            .accessibilityHint(model.polishing ? "Stops waiting for the polished version and keeps your words"
+                               : "Stops listening and inserts your words")
+        }
+    }
+
+    private var doneEnabled: Bool { model.stage == .listening || model.polishing }
+
+    /// Your words while you talk, centered in the serif; the newest two lighter.
+    @ViewBuilder private var listeningWords: some View {
+        if model.stage == .listening, hasLiveWords {
+            LiveWordsLine(settled: model.liveSettled, volatile: model.liveVolatile,
+                          corrections: model.liveCorrections, size: 19, base: KB.dim, alignment: .center)
+                .frame(maxWidth: .infinity, minHeight: 52)
+        }
+    }
+
     private var hasLiveWords: Bool { !model.liveSettled.isEmpty || !model.liveVolatile.isEmpty }
 
+    private var listeningTitle: String {
+        if model.polishing { return "Polishing…" }
+        switch model.stage {
+        case .starting: return "Opening Verbose…"
+        case .writing: return "Writing it down"
+        default: return "Listening"
+        }
+    }
+
+    /// The microphone and the time while listening or writing (mono: it's data); a plain line otherwise.
+    private var listeningDetail: String {
+        if model.polishing {
+            let n = model.insertion?.words ?? 0
+            return "Inserted · \(n) \(n == 1 ? "word" : "words")"
+        }
+        if model.stage == .starting { return "Verbose opens for a second, then comes back" }
+        return "\(model.micName) · \(Self.clock(model.elapsed))"
+    }
+
+    private var detailIsData: Bool { !model.polishing && model.stage != .starting }
+
+    private var listeningAccessibility: String {
+        if model.polishing { return "Inserted. Polishing your words" }
+        switch model.stage {
+        case .starting: return "Starting a session"
+        case .writing: return "Writing it down"
+        default: return "Listening, \(Int(model.elapsed)) seconds"
+        }
+    }
+
     // MARK: Lists
+
+    @ViewBuilder private var list: some View {
+        if model.showingSnippets { snippetCard } else { recentCard }
+    }
 
     /// Your last few dictations: tap one to insert it, touch and hold to copy it.
     private var recentCard: some View {
@@ -472,39 +435,263 @@ struct KeyboardView: View {
         if cal.isDateInYesterday(d) { return "Yesterday · \(time)" }
         return "\(d.formatted(.dateTime.month(.abbreviated).day())) · \(time)"
     }
+}
 
-    // MARK: Bottom row
+// MARK: - Home pieces
 
-    private var bottomRow: some View {
-        HStack(spacing: 6) {
-            if model.showsGlobe {
-                GlobeKey(controller: model.controllerForGlobe)
-                    .frame(width: 44)
-                    .background(KBKeyFace(fill: KB.wash))
-                    .accessibilityLabel("Next keyboard")
+/// Home's numbers: "3,620 *words*" in the big serif, the line under it, and paging dots. Tap or swipe left for the
+/// next page, swipe right for the one before; the page swaps in place, with no slide (the voice bars are the
+/// keyboard's only motion). VoiceOver swipes up or down to page.
+private struct StatsPager: View {
+    var pages: [KeyboardStatPage]
+    var page: Int
+    var next: () -> Void
+    var previous: () -> Void
+
+    private var current: KeyboardStatPage? { pages.indices.contains(page) ? pages[page] : nil }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if let p = current {
+                Text("\(Text(p.number)) \(Text(p.unit).italic())")
+                    .font(Ink.serif(50)).tracking(-1).foregroundStyle(KB.ink)
+                    .lineLimit(1).minimumScaleFactor(0.5)
+                Text(p.line)
+                    .font(.system(size: 15)).foregroundStyle(KB.dim)
+                    .multilineTextAlignment(.center).lineSpacing(2)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                    .frame(maxWidth: 300)
+            } else {
+                // Before the first dictation.
+                Text("\(Text("Talk, "))\(Text("don't type.").italic())")
+                    .font(Ink.serif(40)).tracking(-0.8).foregroundStyle(KB.ink)
+                    .lineLimit(1).minimumScaleFactor(0.5)
+                Text("Your numbers show up here after your first dictation.")
+                    .font(.system(size: 15)).foregroundStyle(KB.dim)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                    .frame(maxWidth: 300)
             }
-            Key(fill: KB.wash, action: model.toggleSurface) {
-                Text("ABC").font(.system(size: 15)).foregroundStyle(KB.ink)
+            if pages.count > 1 {
+                HStack(spacing: 7) {
+                    ForEach(pages.indices, id: \.self) { i in
+                        Circle().fill(i == page ? KB.ink : KB.hairline).frame(width: 7, height: 7)
+                    }
+                }
+                .padding(.top, 6)
             }
-            .frame(width: 52)
-            .accessibilityLabel("Letter keys")
-            .accessibilityHint("Shows the typing keyboard")
-            Key(fill: KB.card, action: model.space) {
-                Text("space").font(.system(size: 15)).foregroundStyle(KB.muted)
-            }
-            .accessibilityLabel("Space")
-            RepeatKey(fill: KB.wash, action: model.deleteOne) {
-                Image(systemName: "delete.left").font(.system(size: 18, weight: .regular)).foregroundStyle(KB.ink)
-            }
-            .frame(width: 52)
-            .accessibilityLabel("Delete")
-            Key(fill: KB.ink, action: model.newline) {
-                Text("return").font(.system(size: 15, weight: .semibold)).foregroundStyle(KB.paper)
-            }
-            .frame(width: 76)
-            .accessibilityLabel("Return")
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: next)
+        .gesture(DragGesture(minimumDistance: 20).onEnded { v in
+            if v.translation.width < -30 { next() } else if v.translation.width > 30 { previous() }
+        })
+        .transaction { $0.animation = nil }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(current?.spoken ?? "Talk, don't type. Your numbers show up here after your first dictation.")
+        .accessibilityValue(pages.count > 1 ? "Page \(page + 1) of \(pages.count)" : "")
+        .accessibilityAdjustableAction { d in
+            switch d {
+            case .increment: next()
+            case .decrement: previous()
+            @unknown default: break
+            }
+        }
+    }
+}
+
+/// Home's one big action: butter, ink outline, hard shadow, grain, and the microphone.
+private struct TalkPill: View {
+    var label: String
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                BrandGlyph(art: .capture, color: KB.inkFixed, minLineWidth: 1.5).frame(width: 20, height: 20)
+                Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(KB.inkFixed).lineLimit(1)
+            }
+            .padding(.horizontal, 26).frame(height: 50)
+            .butterPill(shadow: CGSize(width: 3, height: 4))
+        }
+        .buttonStyle(PressFade())
+        .accessibilityLabel(label)
+    }
+}
+
+/// Typing's Start: butter, with five still voice bars (a glyph, not a meter).
+private struct StartPill: View {
+    var action: () -> Void
+    private static let bars: [CGFloat] = [9, 16, 20, 12, 17]
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(KB.inkFixed).lineLimit(1)
+                HStack(spacing: 2.5) {
+                    ForEach(Self.bars.indices, id: \.self) { i in
+                        Capsule().fill(KB.inkFixed).frame(width: 3, height: Self.bars[i])
+                    }
+                }
+                .frame(height: 20)
+                .accessibilityHidden(true)
+            }
+            .padding(.leading, 20).padding(.trailing, 16).frame(height: KB.barHeight)
+            .butterPill(shadow: CGSize(width: 2, height: 3))
+        }
+        .buttonStyle(PressFade())
+        .accessibilityLabel("Start dictation")
+    }
+}
+
+private extension View {
+    /// Butter capsule with a 1.5 pt ink outline, the grain, and a hard ink shadow offset by `shadow`.
+    func butterPill(shadow: CGSize) -> some View {
+        background {
+            ZStack {
+                Capsule().fill(KB.dictate)
+                GrainOverlay().clipShape(Capsule())
+            }
+        }
+        .overlay(Capsule().strokeBorder(KB.inkFixed, lineWidth: 1.5))
+        .background(Capsule().fill(KB.hard).offset(x: shadow.width, y: shadow.height))
+        .contentShape(Capsule())
+    }
+}
+
+/// A 46 pt circle in the top bar: soft (wash), outline (card with an ink ring), active (ink, for the open menu),
+/// or go (butter with the hard shadow, for done).
+private struct CircleButton<Label: View>: View {
+    enum Look { case soft, outline, active, go }
+    var look: Look
+    var action: () -> Void
+    @ViewBuilder var label: () -> Label
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .foregroundStyle(foreground)
+                .frame(width: KB.barHeight, height: KB.barHeight)
+                .background(Circle().fill(fill))
+                .overlay { ring }
+                .background { if look == .go { Circle().fill(KB.hard).offset(x: 2, y: 3) } }
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressFade())
+    }
+
+    private var fill: Color {
+        switch look {
+        case .soft: return KB.wash
+        case .outline: return KB.card
+        case .active: return KB.ink
+        case .go: return KB.dictate
+        }
+    }
+
+    private var foreground: Color {
+        switch look {
+        case .active: return KB.paper
+        case .go: return KB.inkFixed
+        default: return KB.ink
+        }
+    }
+
+    @ViewBuilder private var ring: some View {
+        switch look {
+        case .outline: Circle().strokeBorder(KB.ink, lineWidth: 1.5)
+        case .go: Circle().strokeBorder(KB.inkFixed, lineWidth: 1.5)
+        default: EmptyView()
+        }
+    }
+}
+
+/// The Typing menu: Cleanup (the level and format; tap for the next format), Snippets, Recent dictations, Use as
+/// spoken (after cleaned-up words went in), and Open Verbose. Card fill, ink outline, hard shadow.
+private struct MenuCard: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if model.hasFullAccess {
+                row(.iconAI, "Cleanup", value: "\(model.levelLabel) · \(model.formatLabel)",
+                    spoken: ("Format: \(model.formatLabel)", "Cleanup: \(model.levelLabel)"),
+                    hint: "Changes how Verbose cleans up your dictations: Auto, Email, Message, or Note",
+                    adjustable: true, action: model.cycleFormat)
+                if !model.snippets.isEmpty {
+                    row(.iconQuote, "Snippets", value: "\(model.snippets.count)", hint: "Shows your snippets to insert",
+                        action: model.toggleSnippets)
+                }
+                if !model.recent.isEmpty {
+                    row(.iconRecent, "Recent dictations", hint: "Shows your last dictations to insert again", action: model.toggleRecent)
+                }
+                if model.stage == .inserted, let ins = model.insertion, ins.raw != ins.text, !ins.raw.isEmpty {
+                    row(.iconSwap, "Use as spoken", hint: "Replaces the cleaned-up words with the words as you said them") {
+                        model.closeMenu()
+                        model.useAsSpoken()
+                    }
+                }
+            }
+            row(.iconSettings, "Open Verbose", hint: model.hasFullAccess ? "Opens the Verbose app" : "Shows how to turn on dictation",
+                action: model.openVerbose)
+        }
+        .padding(6)
+        .frame(width: 228)
+        .background(KB.card, in: RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.ink, lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).fill(KB.hard).offset(x: 4, y: 5))
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(.escape) { model.closeMenu() }
+    }
+
+    /// One row: a brand icon, the name, and a mono value on the right. `spoken` overrides VoiceOver's label and
+    /// value; `adjustable` lets VoiceOver swipe up or down to run the action again.
+    private func row(_ art: BrandArt, _ title: String, value: String? = nil, spoken: (String, String)? = nil,
+                     hint: String, adjustable: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                IconGlyph(art: art, size: 18, color: KB.ink)
+                Text(title).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
+                Spacer(minLength: 6)
+                if let value {
+                    Text(value).font(Ink.mono(12)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
+                }
+            }
+            .padding(.horizontal, 10).frame(height: 40)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(MenuRowPress())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken?.0 ?? title)
+        .accessibilityValue(spoken?.1 ?? value ?? "")
+        .accessibilityHint(hint)
+        .accessibilityAddTraits(.isButton)
+        .modifier(AdjustableRow(enabled: adjustable, action: action))
+    }
+}
+
+/// VoiceOver's swipe up or down runs the row's action, on the one row that cycles (Cleanup); other rows stay plain
+/// buttons.
+private struct AdjustableRow: ViewModifier {
+    var enabled: Bool
+    var action: () -> Void
+    func body(content: Content) -> some View {
+        if enabled {
+            content.accessibilityAdjustableAction { d in
+                if d == .increment || d == .decrement { action() }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// A menu row presses to the wash.
+private struct MenuRowPress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                .fill(configuration.isPressed ? KB.wash : Color.clear))
     }
 }
 
@@ -523,7 +710,7 @@ struct KBKeyFace: View {
     }
 }
 
-/// Paper grain for the cards: one 128 px tile of ink noise, made once and tiled (64 KB), never redrawn per
+/// Paper grain for the butter pills and notice cards: one 128 px tile of ink noise, made once and tiled (64 KB), never redrawn per
 /// frame. Off under Increase Contrast and Reduce Transparency.
 private enum KBGrain {
     static let tile: CGImage? = {
@@ -564,12 +751,8 @@ private struct GrainOverlay: View {
     }
 }
 
-/// The big card's three looks: butter at rest (ink outline, hard offset shadow), card color with a butter ring
-/// while listening, and card color with an ink outline for notices. All three carry the grain.
-private enum CardLook { case butter, listening, notice }
-
+/// A notice card on Home (Full Access, how to start a session): card color, ink outline, and the grain.
 private struct CardShell<Content: View>: View {
-    var look: CardLook
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -578,69 +761,23 @@ private struct CardShell<Content: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
                 ZStack {
-                    shape.fill(look == .butter ? KB.dictate : KB.card)
+                    shape.fill(KB.card)
                     GrainOverlay().clipShape(shape)
                 }
             }
-            .overlay { border(shape) }
-            .background { backing(shape) }
-    }
-
-    @ViewBuilder private func border(_ shape: RoundedRectangle) -> some View {
-        switch look {
-        case .butter: shape.strokeBorder(KB.inkFixed, lineWidth: 1.5)
-        case .listening: shape.strokeBorder(KB.dictate, lineWidth: 2)
-        case .notice: shape.strokeBorder(KB.ink, lineWidth: 1.5)
-        }
-    }
-
-    @ViewBuilder private func backing(_ shape: RoundedRectangle) -> some View {
-        switch look {
-        case .butter:
-            shape.fill(KB.hard).offset(x: 3, y: 4)
-        case .listening:
-            RoundedRectangle(cornerRadius: KB.cardRadius + 2, style: .continuous)
-                .fill(KB.dictate.opacity(0.35)).padding(-2)
-        case .notice:
-            EmptyView()
-        }
-    }
-}
-
-/// The card presses in a little; under Reduce Motion it dims instead.
-private struct CardPress: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
-            .opacity(configuration.isPressed && reduceMotion ? 0.85 : 1)
-            .animation(reduceMotion ? nil : Motion.press, value: configuration.isPressed)
-    }
-}
-
-/// The ink circle on the butter card, with the microphone in butter.
-private struct MicDisc: View {
-    var size: CGFloat
-    var body: some View {
-        ZStack {
-            Circle().fill(KB.inkFixed)
-            BrandGlyph(art: .capture, color: KB.dictate, minLineWidth: 1.6)
-                .frame(width: size * 0.45, height: size * 0.45)
-        }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+            .overlay { shape.strokeBorder(KB.ink, lineWidth: 1.5) }
     }
 }
 
 // MARK: - Cards
 
-/// Dictation without Allow Full Access: why it needs it, and where to turn it on. Inline in the keyboard, not a
+/// Home without Allow Full Access: why dictation needs it, and where to turn it on. Inline in the keyboard, not a
 /// modal. A keyboard can't open Settings without private API, so the path shows as text.
 private struct FullAccessCard: View {
     @State private var showsPath = false
 
     var body: some View {
-        CardShell(look: .notice) {
+        CardShell {
             ViewThatFits(in: .vertical) {
                 content(disc: true)
                 content(disc: false)
@@ -687,7 +824,7 @@ private struct FullAccessCard: View {
 /// a session instead of offering a record button.
 private struct StartSessionCard: View {
     var body: some View {
-        CardShell(look: .notice) {
+        CardShell {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     Circle().fill(Ink.butterTint)
@@ -778,91 +915,42 @@ private struct Rule: View {
 
 // MARK: - Pieces
 
-/// The butter Dictate key in the typing view's strip. With Full Access it shows the dictation view; without it,
-/// the dictation view explains Full Access.
-private struct DictateKey: View {
-    var fullAccess: Bool
-    var action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                BrandGlyph(art: .capture, color: KB.inkFixed, minLineWidth: 1.3).frame(width: 16, height: 16)
-                Text("Dictate").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.inkFixed).lineLimit(1)
-            }
-            .padding(.leading, 8).padding(.trailing, 12).frame(height: 30)
-            .background(KB.dictate, in: Capsule())
-            .overlay(Capsule().strokeBorder(KB.inkFixed, lineWidth: 1.3))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(PressFade())
-        .accessibilityLabel("Dictate")
-        .accessibilityHint(fullAccess ? "Shows the dictation view" : "Explains how to turn on dictation")
-    }
-}
-
-/// The cleanup level as a soft chip ("✦ Polished · Auto ▾"). Tap it to move to the next format; VoiceOver can
-/// also swipe up or down on it.
+/// Listening's cleanup chip, a soft rounded chip ("✦ Polished · Auto ▾"). Tap it to move to the next format, which
+/// applies to the dictation you're speaking (the app reads it when you finish); VoiceOver can also swipe up or down
+/// on it. While Verbose writes your words down it only shows the level.
 private struct CleanupChip: View {
     var level: String
     var format: String
+    var enabled = true
     var next: () -> Void
 
     var body: some View {
         Button(action: next) {
             HStack(spacing: 5) {
                 IconGlyph(art: .iconAI, size: 14, color: KB.ink)
-                Text(level).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
-                Text("· \(format)").font(.system(size: 13, weight: .medium)).foregroundStyle(KB.muted)
+                Text(level).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
+                Text("· \(format)").font(.system(size: 13.5, weight: .medium)).foregroundStyle(KB.muted)
                     .lineLimit(1).minimumScaleFactor(0.8)
-                Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(KB.ink)
+                if enabled {
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(KB.ink)
+                }
             }
-            .padding(.horizontal, 11).frame(height: 30)
+            .padding(.horizontal, 12).frame(height: 34)
             .background(KB.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(PressFade())
+        .disabled(!enabled)
         .accessibilityLabel("Format: \(format)")
         .accessibilityValue("Cleanup: \(level)")
-        .accessibilityHint("Changes how Verbose cleans up this dictation: Auto, Email, Message, or Note")
+        .accessibilityHint(enabled ? "Changes how Verbose cleans up this dictation: Auto, Email, Message, or Note" : "")
         .accessibilityAdjustableAction { direction in
-            if direction == .increment || direction == .decrement { next() }
+            if enabled, direction == .increment || direction == .decrement { next() }
         }
     }
 }
 
-/// The cleanup level while listening: a wash chip, not a control.
-private struct LevelTag: View {
-    var level: String
-    var body: some View {
-        Text(level).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
-            .padding(.horizontal, 11).frame(height: 30)
-            .background(KB.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .accessibilityLabel("Cleanup: \(level)")
-    }
-}
-
-/// The listening dot: record color, pulsing slowly; still under Reduce Motion.
-private struct RecordDot: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var body: some View {
-        Group {
-            if reduceMotion {
-                dot(1)
-            } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 15)) { tl in
-                    dot(0.65 + 0.35 * cos(2 * .pi * tl.date.timeIntervalSinceReferenceDate / 1.4))
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func dot(_ opacity: Double) -> some View {
-        Circle().fill(KB.record).frame(width: 8, height: 8).opacity(opacity)
-    }
-}
-
-/// The ink check disc beside "Inserted".
+/// The ink check disc beside "Inserted" (paper on ink; ink on paper in dark, so it doesn't vanish).
 private struct CheckDisc: View {
     var body: some View {
         Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(KB.paper)
@@ -872,23 +960,17 @@ private struct CheckDisc: View {
     }
 }
 
-/// The session dot, half-lit while Verbatim polishes the inserted text (still: nothing loops, DESIGN.md §7).
-private struct PolishingMark: View {
-    var body: some View {
-        Circle().fill(KB.dictate).frame(width: 8, height: 8).opacity(0.6)
-            .overlay(Circle().strokeBorder(KB.dictate, lineWidth: 1.5))
-            .accessibilityHidden(true)
-    }
-}
-
-/// The voice bars: 26 thin ink bars that move with your voice, flat in a quiet room. The keyboard's only motion;
-/// still under Reduce Motion and while Verbose writes your words down. Redrawn at most 30 times a second.
+/// The voice bars: ink bars that move with your voice, flat in a quiet room. The keyboard's only motion; still under
+/// Reduce Motion and whenever nothing is listening (starting, writing, polishing). Redrawn at most 30 times a
+/// second, in one Canvas.
 private struct VoiceWave: View {
     var level: Double
     var active: Bool
     var color: Color
+    var count = 13
+    /// The widest a bar gets; narrower when the bars are close together.
+    var barWidth: CGFloat = 6
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private static let count = 26
 
     var body: some View {
         Group {
@@ -906,14 +988,14 @@ private struct VoiceWave: View {
     private func bars(t: Double, still: Bool) -> some View {
         let lifted = pow(min(1, max(0, level)), 0.6)
         let color = self.color
+        let n = max(1, count), maxBar = barWidth
         return Canvas { ctx, size in
-            let n = Self.count
             let gap = size.width / CGFloat(n)
-            let bw = min(4, gap * 0.5)
+            let bw = min(maxBar, gap * 0.5)
             for i in 0..<n {
                 let v: Double
                 if still {
-                    v = 0.4
+                    v = 0.25
                 } else {
                     let x = Double(i)
                     let wave = abs(sin(t * 3.1 + x * 0.55) * cos(t * 1.7 + x * 0.21))
@@ -927,30 +1009,33 @@ private struct VoiceWave: View {
     }
 }
 
-/// Your words while you talk, as Verbatim's live words hear them: in the serif, the newest two words lighter
-/// (they may still change). Up to three lines, the start cut off as it grows. The text swaps in place, with no
+/// Your words while you talk, as Verbatim's live words hear them: in the serif, the newest two words at 45% (they
+/// may still change). Up to three lines, the start cut off as it grows. The text swaps in place, with no
 /// per-character animation, so words land one by one without shimmer.
 private struct LiveWordsLine: View {
     var settled: String
     var volatile: String
     /// Strike out what a spoken correction removes ("scratch that", "at 2, actually 3").
     var corrections = false
+    var size: CGFloat = 19
+    var base: Color = KB.ink
+    var alignment: TextAlignment = .center
 
     var body: some View {
         let joiner = settled.isEmpty || volatile.isEmpty ? "" : " "
         line(joiner)
-            .font(Ink.serif(21))
-            .lineSpacing(5)
+            .font(Ink.serif(size))
+            .lineSpacing(3)
             .lineLimit(3)
             .truncationMode(.head)
-            .multilineTextAlignment(.leading)
+            .multilineTextAlignment(alignment)
             .contentTransition(.identity)
             .transaction { $0.animation = nil }
             .accessibilityLabel(settled + joiner + volatile)
             .accessibilityAddTraits(.updatesFrequently)
     }
 
-    /// Ink, with the newest two words at 45%; with a correction, removed words faded and struck through and the
+    /// The base color, with the newest two words at 45%; with a correction, removed words faded and struck through and the
     /// replacement in ink. Style only, no animation (the line already swaps in place).
     private func line(_ joiner: String) -> Text {
         let full = settled + joiner + volatile
@@ -960,12 +1045,12 @@ private struct LiveWordsLine: View {
                 return spans.reduce(Text("")) { t, s in
                     s.style == .removed
                         ? t + Text(s.text).foregroundColor(KB.muted.opacity(0.75)).strikethrough(true, color: KB.muted)
-                        : t + Text(s.text).foregroundColor(KB.ink)
+                        : t + Text(s.text).foregroundColor(base)
                 }
             }
         }
         let (head, tail) = Self.splitNewest(full, count: 2)
-        return Text(head).foregroundColor(KB.ink) + Text(tail).foregroundColor(KB.ink.opacity(0.45))
+        return Text(head).foregroundColor(base) + Text(tail).foregroundColor(base.opacity(0.45))
     }
 
     /// The text before the newest `count` words (with its trailing space), and those words.
@@ -977,14 +1062,14 @@ private struct LiveWordsLine: View {
     }
 }
 
-/// A wash chip in the strip (Undo, Use as spoken, Cancel, Turn off).
+/// A soft rounded chip in the top bar (Undo, Use as spoken, Turn off).
 private struct Chip: View {
     var title: String
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
-                .padding(.horizontal, 11).frame(height: 30)
+            Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
+                .padding(.horizontal, 12).frame(height: 34)
                 .background(KB.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
@@ -1009,98 +1094,13 @@ private struct DarkPill: View {
     }
 }
 
-/// A bare round button in the strip: a brand glyph (Recent, Snippets), or a standard control symbol (xmark).
-private struct IconButton: View {
-    var art: BrandArt? = nil
-    var symbol: String? = nil
-    var action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Group {
-                if let art { ArtIcon(art: art, size: 19) }
-                else if let symbol { Image(systemName: symbol).font(.system(size: 15, weight: .semibold)) }
-            }
-            .foregroundStyle(KB.ink)
-            .frame(width: 34, height: 34)
-            .contentShape(Circle())
-        }
-        .buttonStyle(PressFade())
-    }
-}
-
-/// A key in the dictation view's bottom row: its fill, pressed to the next shade.
-private struct Key<Label: View>: View {
-    var fill: Color
-    var action: () -> Void
-    @ViewBuilder var label: () -> Label
-    var body: some View {
-        Button(action: action) {
-            label().frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .buttonStyle(KeyPress(fill: fill))
-    }
-}
-
-private struct KeyPress: ButtonStyle {
-    var fill: Color
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(KBKeyFace(fill: fill))
-            .overlay {
-                RoundedRectangle(cornerRadius: KB.keyRadius, style: .continuous)
-                    .fill(KB.ink.opacity(configuration.isPressed ? 0.1 : 0))
-            }
-            .contentShape(RoundedRectangle(cornerRadius: KB.keyRadius, style: .continuous))
-    }
-}
-
-/// Delete: once on touch down, then repeats while held.
-private struct RepeatKey<Label: View>: View {
-    var fill: Color
-    var action: () -> Void
-    @ViewBuilder var label: () -> Label
-    @State private var pressed = false
-    @State private var timer: Timer?
-
-    var body: some View {
-        label()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(KBKeyFace(fill: pressed ? KB.card : fill))
-            .contentShape(RoundedRectangle(cornerRadius: KB.keyRadius, style: .continuous))
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { _ in if !pressed { begin() } }
-                .onEnded { _ in end() })
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { action() }
-            .onDisappear { end() }
-    }
-
-    private func begin() {
-        pressed = true
-        action()
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: false) { _ in
-            Task { @MainActor in
-                guard pressed else { return }
-                timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { _ in Task { @MainActor in action() } }
-            }
-        }
-    }
-
-    private func end() {
-        pressed = false
-        timer?.invalidate()
-        timer = nil
-    }
-}
-
 private struct PressFade: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 
-/// The globe key. A UIKit button so it can hand the touch to `handleInputModeList(from:with:)`, which shows the
+/// The globe key on Home and Listening, when the system doesn't draw one (Typing has its own). A UIKit button so it can hand the touch to `handleInputModeList(from:with:)`, which shows the
 /// keyboard list on a long press and moves to the next keyboard on a tap (required for every keyboard).
 struct GlobeKey: UIViewRepresentable {
     weak var controller: UIInputViewController?

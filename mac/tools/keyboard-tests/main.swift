@@ -1,30 +1,71 @@
 import Foundation
 
-// The keyboard's typing layout (VerbatimKeyboard/TypingLayout.swift): which view it opens in, shift and caps lock,
-// auto-capitalization, double-space for a period, layer switching, rows, key frames, and hit testing. Not part of
-// any app target; run mac/tools/test-keyboard.sh.
+// The keyboard's modes and Home stats (VerbatimKeyboard/KeyboardHome.swift) and typing layout (TypingLayout.swift):
+// which mode it opens in, the stats pages, shift and caps lock, auto-capitalization, double-space for a period, layer
+// switching, rows, key frames, and hit testing. Not part of any app target; run mac/tools/test-keyboard.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
     if ok { passed += 1; print("PASS  \(name)") }
     else { failed += 1; print("FAIL  \(name)" + { let d = detail(); return d.isEmpty ? "" : "\n    " + d }()) }
 }
 
-// MARK: Which view the keyboard opens in
+// MARK: Which mode the keyboard opens in (KeyboardHome.swift)
 
-check("without Full Access: typing, whatever was used last",
-      KeyboardSurface.initial(remembered: "dictation", hasFullAccess: false, field: .standard) == .typing)
-check("without Full Access, first time: typing",
-      KeyboardSurface.initial(remembered: nil, hasFullAccess: false, field: .standard) == .typing)
-check("with Full Access, first time: dictation",
-      KeyboardSurface.initial(remembered: nil, hasFullAccess: true, field: .standard) == .dictation)
-check("with Full Access: the last view used",
-      KeyboardSurface.initial(remembered: "typing", hasFullAccess: true, field: .standard) == .typing)
-check("with Full Access: an unknown stored value falls back to dictation",
-      KeyboardSurface.initial(remembered: "letters", hasFullAccess: true, field: .standard) == .dictation)
-check("number pads open in typing",
-      KeyboardSurface.initial(remembered: "dictation", hasFullAccess: true, field: .numberPad) == .typing
-      && KeyboardSurface.initial(remembered: "dictation", hasFullAccess: true, field: .decimalPad) == .typing)
-check("toggle flips the view", KeyboardSurface.dictation.toggled == .typing && KeyboardSurface.typing.toggled == .dictation)
+let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+func opening(_ field: FieldKind = .standard, secure: Bool = false, available: Bool = true, inserted: Date? = nil) -> KeyboardSurface {
+    KeyboardSurface.opening(field: field, secure: secure, dictationAvailable: available, lastInsertedAt: inserted, now: t0)
+}
+check("first time in a session: Home", opening() == .home)
+check("without Full Access: Typing", opening(available: false) == .typing)
+check("number, email, and link fields: Typing", [FieldKind.numberPad, .decimalPad, .numbersAndPunctuation, .email, .url]
+      .allSatisfy { opening($0) == .typing })
+check("password fields: Typing", opening(secure: true) == .typing)
+check("after a dictation went in: Typing", opening(inserted: t0.addingTimeInterval(-60)) == .typing)
+check("a new session after the window: Home", opening(inserted: t0.addingTimeInterval(-KeyboardSurface.sessionWindow - 1)) == .home)
+check("a clock that moved back counts as a new session", opening(inserted: t0.addingTimeInterval(3600)) == .home)
+check("a running dictation shows Listening", KeyboardMode.current(surface: .typing, dictating: true) == .listening
+      && KeyboardMode.current(surface: .home, dictating: true) == .listening)
+check("otherwise the resting view", KeyboardMode.current(surface: .home, dictating: false) == .home
+      && KeyboardMode.current(surface: .typing, dictating: false) == .typing)
+check("Inserted bar: 5 s, 12 s with a correction", !InsertedBar.expired(shownFor: 4.9, hasCorrection: false)
+      && InsertedBar.expired(shownFor: 5, hasCorrection: false) && !InsertedBar.expired(shownFor: 8, hasCorrection: true)
+      && InsertedBar.expired(shownFor: 12, hasCorrection: true))
+
+// MARK: Home's stats pages (KeyboardHome.swift)
+
+let full = KeyboardStatNumbers(weekWords: 3620, weekSecondsSaved: 8040, weekCurrent: true, totalWords: 48210,
+                               paceWords: 14200, paceSeconds: 6000, typingWPM: 40)
+let pages = KeyboardStatsCopy.pages(full, grouping: ",")
+check("three pages", pages.count == 3, "\(pages)")
+check("this week", pages.first == KeyboardStatPage(number: "3,620", unit: "words",
+      line: "dictated this week. That's 2h 14m you didn't have to type."), "\(pages.first!)")
+check("since you started", pages[1] == KeyboardStatPage(number: "48,210", unit: "words",
+      line: "since you started. That's about half a novel."), "\(pages[1])")
+check("speaking pace", pages[2] == KeyboardStatPage(number: "142", unit: "wpm",
+      line: "your speaking pace, about four times faster than typing."), "\(pages[2])")
+check("nothing dictated yet: no pages",
+      KeyboardStatsCopy.pages(KeyboardStatNumbers(weekWords: 0, weekSecondsSaved: 0, weekCurrent: true, totalWords: 0,
+                                                  paceWords: 0, paceSeconds: 0, typingWPM: 40)).isEmpty)
+var stale = full; stale.weekCurrent = false
+check("a week the app counted that has ended reads 0", KeyboardStatsCopy.pages(stale, grouping: ",").first
+      == KeyboardStatPage(number: "0", unit: "words", line: "dictated this week."))
+var brief = full; brief.paceSeconds = 30
+check("no pace page under a minute of speech", KeyboardStatsCopy.pages(brief, grouping: ",").count == 2)
+var one = full; one.weekWords = 1; one.weekSecondsSaved = 1
+check("one word, no time saved", KeyboardStatsCopy.pages(one, grouping: ",").first
+      == KeyboardStatPage(number: "1", unit: "word", line: "dictated this week."))
+check("pace is words a minute", KeyboardStatsCopy.pace(words: 300, seconds: 120) == 150 && KeyboardStatsCopy.pace(words: 5, seconds: 10) == nil)
+check("faster than typing", KeyboardStatsCopy.faster(pace: 120, typing: 40) == "about three times faster than typing"
+      && KeyboardStatsCopy.faster(pace: 80, typing: 40) == "about twice as fast as typing"
+      && KeyboardStatsCopy.faster(pace: 50, typing: 40) == nil
+      && KeyboardStatsCopy.faster(pace: 520, typing: 40) == "about 13 times faster than typing")
+check("pages and novels", KeyboardStatsCopy.comparison(100) == nil && KeyboardStatsCopy.comparison(250) == "about a page"
+      && KeyboardStatsCopy.comparison(3000) == "about 12 pages" && KeyboardStatsCopy.comparison(25_000) == "about a quarter of a novel"
+      && KeyboardStatsCopy.comparison(90_000) == "about a whole novel" && KeyboardStatsCopy.comparison(287_860) == "about 3 novels")
+check("durations", KeyboardStatsCopy.duration(42) == "42s" && KeyboardStatsCopy.duration(18 * 60) == "18m"
+      && KeyboardStatsCopy.duration(3600) == "1h" && KeyboardStatsCopy.duration(8040) == "2h 14m")
+check("grouping", KeyboardStatsCopy.number(287860, grouping: ",") == "287,860" && KeyboardStatsCopy.number(999, grouping: ",") == "999"
+      && KeyboardStatsCopy.number(1000, grouping: ".") == "1.000" && KeyboardStatsCopy.number(0, grouping: ",") == "0")
 
 // MARK: Shift and caps lock
 
