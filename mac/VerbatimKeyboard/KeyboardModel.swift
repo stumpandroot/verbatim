@@ -111,6 +111,7 @@ final class KeyboardModel: ObservableObject {
     private var statsVersion = 0
     private var statsPagesFrom: (version: Int, weekCurrent: Bool?)?
     private static let log = Logger(subsystem: "co.stumpandroot.verbatim.keyboard", category: "polish")
+    private static let memoryLog = Logger(subsystem: "co.stumpandroot.verbatim.keyboard", category: "memory")
 
     init(controller: KeyboardViewController) {
         self.controller = controller
@@ -248,6 +249,7 @@ final class KeyboardModel: ObservableObject {
     /// session and the dictation live in the App Group, not only in memory.
     func resume() {
         visible = true
+        logMemory("appeared")
         // Without Full Access there's no App Group: no session, no snippets, no recent dictations.
         guard hasFullAccess else {
             snippets = []
@@ -286,6 +288,7 @@ final class KeyboardModel: ObservableObject {
 
     func pause() {
         visible = false
+        logMemory("left")
         closeMenu()
         stopTimer()
         // Gone from the screen: a take from the Action button now goes to the clipboard instead.
@@ -588,7 +591,7 @@ final class KeyboardModel: ObservableObject {
     private func stopTimer() { timer?.invalidate(); timer = nil }
 
     private func set(_ s: Stage) {
-        if s != stage { stage = s; stageSince = Date() }
+        if s != stage { stage = s; stageSince = Date(); logMemory("\(s)") }
         if s != .inserted, correction != nil { correction = nil }
         if s != .inserted { insertedBarSince = nil }
     }
@@ -602,6 +605,14 @@ final class KeyboardModel: ObservableObject {
             insertion = nil
             set(.idle)
         }
+    }
+
+    /// The memory the extension has left before iOS ends it (`os_proc_available_memory`), as a debug line in the
+    /// "memory" log, so its footprint can be compared between builds: when it appears and leaves and at each stage
+    /// (listening is where the poll runs fastest). One call and one line; debug lines aren't kept unless streamed.
+    private func logMemory(_ event: String) {
+        let mb = Double(os_proc_available_memory()) / 1_048_576
+        Self.memoryLog.debug("\(event, privacy: .public): \(mb, format: .fixed(precision: 1), privacy: .public) MB available")
     }
 
     // MARK: Spoken corrections
