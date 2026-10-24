@@ -201,12 +201,16 @@ enum PhoneLinkFetcher {
     }
 
     /// The latest episodes of a show or feed, newest first (at most 20). Nil when the link isn't a podcast after all.
+    /// Settings › Privacy › Local Only refuses it before anything is fetched (`LocalOnlyRefusal`), and it's logged
+    /// in Network activity by host.
     static func episodes(_ u: URL) async throws -> PodcastShow? {
         let host = (u.host ?? "").lowercased()
         if host == "podcasts.apple.com" || host == "itunes.apple.com" {
             guard let show = u.path.range(of: #"id(\d+)"#, options: .regularExpression).map({ String(u.path[$0].dropFirst(2)) }) else { return nil }
+            try NetworkGate.begin(.linkDownload, host: "itunes.apple.com")
             return try appleShow(try await lookup(id: show), link: u)
         }
+        try NetworkGate.begin(.linkDownload, host: NetworkHost.of(u))
         var req = URLRequest(url: u, timeoutInterval: 30)
         req.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         let (bytes, resp) = try await URLSession.shared.bytes(for: req)

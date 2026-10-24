@@ -492,11 +492,10 @@ final class PhoneState: ObservableObject {
         guard let t = store.transcript(id), let link = t.sourceURL ?? t.link?.url, let u = URL(string: link) else { return }
         linkTasks[id]?.cancel()
         let imp = LinkImport(id: id, url: link, site: PhoneLinkFetcher.siteName(u))
-        imp.thumbnailURL = LinkImport.quickThumbnail(u)   // YouTube's, from the video ID, before anything loads
         linkImports[id] = imp
         latestLinkImport = imp
-        // The screenshot tour never touches the network.
-        guard !PhoneUITest.enabled else { return }
+        // The screenshot tour never fetches the link (its card shows YouTube's thumbnail, as before).
+        guard !PhoneUITest.enabled else { imp.thumbnailURL = LinkImport.quickThumbnail(u); return }
         // Settings › Privacy: logged by host, and refused before it starts while Local Only is on.
         let netEvent: UUID?
         do { netEvent = try NetworkGate.begin(.linkDownload, host: NetworkHost.of(link)) } catch {
@@ -504,6 +503,8 @@ final class PhoneState: ObservableObject {
             imp.phase = .failed(LocalOnly.message(.linkDownload))
             return
         }
+        // YouTube's thumbnail, from the video ID, before anything else loads; only once Local Only allows the link.
+        imp.thumbnailURL = LinkImport.quickThumbnail(u)
         let bg = BackgroundTime("Download link")
         linkTasks[id] = Task { [weak self] in
             guard let self else { return }
