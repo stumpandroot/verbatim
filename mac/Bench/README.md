@@ -1,6 +1,6 @@
 # Verbatim bench
 
-The bench measures accuracy and latency of the dictation pipeline on a fixed set of clips, so you can compare model, VAD, Dictionary, and cleanup changes from one build to the next. Every CI build runs it and publishes `bench-<run>.json` and `bench-<run>.md` to the `ci-screens` branch, next to `screens-<run>.zip`.
+The bench measures accuracy and latency of the dictation pipeline on a fixed set of clips, so you can compare model, VAD, Dictionary, and cleanup changes from one build to the next. CI runs it on `mac-v*` tags, once a week (Mondays), and when you start the full build by hand with **bench** ticked (Actions › Build Mac app › Run workflow). It publishes `bench-<run>.json` and `bench-<run>.md` to the `ci-screens` branch, next to `screens-<run>.zip`; builds without a bench keep the newest ones there.
 
 ## What runs
 

@@ -1,9 +1,17 @@
 name: Build Mac app (SwiftUI)
 
 # Builds, signs, notarizes, and publishes the native Verbatim.app as a universal DMG.
-# Runs on pushes to main that touch mac/, on version tags such as mac-v2.0.0, and on demand. The Mac and iPhone parts
-# run on separate runners at the same time; the speech bench runs only when speech or dictation code changed (or with
-# [bench] in the commit message). Branch pushes get the quick compile check instead (check-swift.yml).
+# Runs on pushes to main that touch mac/ (except docs), on version tags such as mac-v2.0.0, weekly, and on demand.
+# Branch pushes get the quick compile check instead (check-swift.yml).
+#
+# What runs (macOS minutes cost about $0.062 each in a private repo):
+#   - The Mac build and its self-test: always.
+#   - The iPhone simulator tour, and TestFlight after it on main: when the iPhone app, its extensions, the Mac folders
+#     they share, or the project, packages, vendored builds, or CI changed since the last successful build of main
+#     (.github/workflows/scripts/ci-targets.py), and always on mac-v* tags and runs started by hand.
+#   - The speech bench: on mac-v* tags, on the weekly run (Mondays), and when started by hand with "bench" ticked.
+#   - A newer push to main cancels an older build still running; mac-v* tag builds are never cancelled.
+# ci-screens keeps the newest iPhone and bench results when a build skips them (their file names carry their build).
 #
 # Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
 # MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
@@ -32,16 +40,31 @@ on:
   push:
     branches: [main]
     tags: ["mac-v*"]
-    paths: ["mac/**", ".github/workflows/build-swift.yml"]
+    # Later patterns win: no app bundles a .md file, but the vendored crates under mac/harper-ffi carry theirs.
+    paths:
+      - "mac/**"
+      - "!mac/**/*.md"
+      - "mac/harper-ffi/**"
+      - ".github/workflows/build-swift.yml"
+      - ".github/workflows/scripts/**"
+  # The weekly speech bench, on main (Mondays, 07:23 UTC).
+  schedule:
+    - cron: "23 7 * * 1"
   workflow_dispatch:
+    inputs:
+      bench:
+        description: Run the speech bench too (about 9 more macOS minutes)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 # A newer push cancels an older build still running, so an old build can't overwrite a newer DMG on ci-screens.
+# A mac-v* tag build is never cancelled, and the weekly run has its own group, so it and a push never cancel each other.
 concurrency:
-  group: build-swift-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-swift-${{ github.ref }}${{ github.event_name == 'schedule' && '-weekly' || '' }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
@@ -72,24 +95,12 @@ jobs:
           fetch-depth: 50
           persist-credentials: false
 
+      # mac-v* tags, the weekly run, and runs started by hand with "bench" ticked.
       - name: Decide whether the speech bench runs
         id: changes
         env:
-          BEFORE: ${{ github.event.before }}
+          RUN: ${{ startsWith(github.ref, 'refs/tags/mac-v') || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.bench) }}
         run: |
-          RUN=false
-          case "$GITHUB_REF" in refs/tags/*) RUN=true ;; esac
-          git log -1 --format=%B | grep -qi '\[bench\]' && RUN=true
-          BASE="$BEFORE"
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
-            git fetch -q --depth 50 origin main || true
-            BASE="$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD~1)"
-            [ "$BASE" = "$(git rev-parse HEAD)" ] && BASE="$(git rev-parse HEAD~1)"
-          fi
-          CHANGED="$(git diff --name-only "$BASE" HEAD || true)"
-          echo "$CHANGED" | sed 's/^/changed: /'
-          # Speech recognition, dictation, cleanup, audio, the bench itself, package versions, or this workflow.
-          if echo "$CHANGED" | grep -Eq '^mac/Verbatim/(Transcription|Audio)/|^mac/Verbatim/Flow/(Cleanup|CleanupPrepass|MeaningCheck|Paster|FlowSettings)\.swift|^mac/Verbatim/App/(Dictation|Bench)\.swift|^mac/Bench/|^mac/project\.yml|^\.github/workflows/build-swift\.yml'; then RUN=true; fi
           echo "bench=$RUN" >> "$GITHUB_OUTPUT"
           echo "Speech bench: $RUN"
 
@@ -150,6 +161,30 @@ jobs:
           bash ffmpeg/build.sh
           bash Vendor/harper/build.sh
           bash fetch-yt-dlp.sh
+
+      # Saves (never restores, so this build always makes its own) the grammar library for check-swift.yml's Mac
+      # compile, whose branch runs can read main's caches. Same paths and key as there.
+      - name: "Quick check cache: look up the grammar library"
+        id: harpercache
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          lookup-only: true
+          path: |
+            mac/Vendor/harper/libharper_ffi.a
+            mac/Vendor/harper/ios
+            mac/Vendor/harper/ios-sim
+          key: harper-mac-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml', 'mac/harper-ffi/src/**', 'mac/harper-ffi/vendor/**', 'mac/Vendor/harper/build.sh', 'mac/Vendor/harper/build-ios.sh') }}
+      - name: "Quick check cache: save the grammar library"
+        if: steps.harpercache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            mac/Vendor/harper/libharper_ffi.a
+            mac/Vendor/harper/ios
+            mac/Vendor/harper/ios-sim
+          key: harper-mac-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml', 'mac/harper-ffi/src/**', 'mac/harper-ffi/vendor/**', 'mac/Vendor/harper/build.sh', 'mac/Vendor/harper/build-ios.sh') }}
 
       - name: Import signing certificate
         if: env.HAS_SIGNING == 'true'
@@ -263,6 +298,24 @@ jobs:
           rm -rf "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP"/*.provisionprofile "$RUNNER_TEMP/sparkle-tools"
           security list-keychains -d user
 
+      # Saves the Swift packages build.sh fetched (mac/build/spm) for check-swift.yml and the iPhone job, under their
+      # key, so a branch's first quick check doesn't fetch them again. Never restored here.
+      - name: "Quick check cache: look up the Swift packages"
+        id: spmcache
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          lookup-only: true
+          path: mac/build/spm
+          key: spm-${{ hashFiles('mac/project.yml', 'mac/Package.resolved') }}
+      - name: "Quick check cache: save the Swift packages"
+        if: steps.spmcache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: mac/build/spm
+          key: spm-${{ hashFiles('mac/project.yml', 'mac/Package.resolved') }}
+
       # The signed app runs here with no secrets, keys, or tokens on the runner. ci-screens gets the screenshots
       # and a short summary (the publish-screens job); logs, samples, and crash reports go to a workflow artifact.
       - name: Screenshot tour
@@ -363,11 +416,58 @@ jobs:
           grep -q "UITEST DONE" "$LOG" || { echo "::error::self-test did not finish"; exit 1; }
           if grep -q "UITEST FAIL" "$LOG"; then grep "UITEST FAIL" "$LOG" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; fi
 
+  # Whether the iPhone tour (and TestFlight) runs: what changed since the last successful build of main (Linux,
+  # about 15 seconds). Commits and trees only, no file contents, and the checkout keeps no token; the API token here
+  # can only read Actions runs. Anything unexpected means the tour runs.
+  changes:
+    name: Pick the iPhone tour
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      phone: ${{ steps.pick.outputs.phone }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            mac/project.yml
+            .github/workflows/scripts/
+          sparse-checkout-cone-mode: false
+      - name: Compare with the last successful build of main
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -u
+          phone=true
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "Tag build: the iPhone tour runs."
+          elif [ "$EVENT" = workflow_dispatch ]; then
+            echo "Started by hand: the iPhone tour runs."
+          else
+            BASE="$(gh run list -R "$GITHUB_REPOSITORY" -w build-swift.yml -b main -s success -L 1 --json headSha -q '.[0].headSha' 2>/dev/null || true)"
+            if [ -n "$BASE" ] && git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              echo "Last successful build of main: ${BASE::7}"
+              OUT="$(python3 .github/workflows/scripts/ci-targets.py "$BASE" HEAD)" || OUT=""
+              grep -qx 'phone=false' <<< "$OUT" && phone=false
+            else
+              echo "::notice::No earlier successful build of main to compare with; the iPhone tour runs."
+            fi
+          fi
+          echo "iPhone tour: $phone"
+          echo "phone=$phone" >> "$GITHUB_OUTPUT"
+
   # Pushes this build's DMG, screenshots, and summary to the ci-screens branch (a fresh commit each build). The
-  # branch is reachable where workflow artifacts aren't. Runs even when the self-test failed, as before.
+  # branch is reachable where workflow artifacts aren't. Runs even when the self-test failed, as before. When this
+  # build skips the iPhone tour or the bench, the newest results from ci-screens are kept (named for their build).
   publish-screens:
     name: Publish to ci-screens
-    needs: build
+    needs: [build, changes]
     if: always() && (needs.build.result == 'success' || needs.build.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
@@ -388,6 +488,8 @@ jobs:
       - name: Push to the ci-screens branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PHONE: ${{ needs.changes.outputs.phone }}
+          BENCH: ${{ needs.build.outputs.bench }}
         run: |
           set -euo pipefail
           N="${GITHUB_RUN_NUMBER}"
@@ -401,6 +503,21 @@ jobs:
           # The token reaches git through a credential helper that reads it from the environment, never argv.
           export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0="" GIT_CONFIG_KEY_1=credential.helper
           export GIT_CONFIG_VALUE_1='!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
+          # Results this build won't make: keep the newest ones from ci-screens (without fetching its DMGs).
+          KEEP=""
+          [ "$PHONE" = "true" ] || KEEP="phone-"
+          [ "$BENCH" = "true" ] || KEEP="${KEEP:+$KEEP|}bench-"
+          if [ -n "$KEEP" ]; then
+            OLD="$RUNNER_TEMP/old-screens"; rm -rf "$OLD"
+            if git clone -q --depth 1 --filter=blob:none --no-checkout --branch ci-screens "https://github.com/${GITHUB_REPOSITORY}.git" "$OLD" 2>/dev/null; then
+              mapfile -t files < <(git -C "$OLD" ls-tree --name-only HEAD | grep -E "^(${KEEP})" || true)
+              if [ ${#files[@]} -gt 0 ] && git -C "$OLD" checkout -q HEAD -- "${files[@]}"; then
+                for f in "${files[@]}"; do cp "$OLD/$f" .; echo "kept from ci-screens: $f"; done
+              fi
+            else
+              echo "::warning::couldn't read ci-screens; earlier iPhone and bench results aren't carried over"
+            fi
+          fi
           git init -q && git config user.name "verbatim-ci" && git config user.email "ci@stumpandroot.co"
           git add . && git commit -q -m "Build ${N} from ${GITHUB_SHA::7}"
           git push -q -f "https://github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screens
@@ -409,10 +526,11 @@ jobs:
   # stumpandroot/verbose-updates repo (feed and DMGs only, never source) and points its appcast at it. Builds of main
   # become beta-<run> prereleases and refresh beta-latest; mac-v* tags become releases. This repo gets no releases.
   # Without UPDATES_TOKEN, SPARKLE_PRIVATE_KEY, or a Sparkle signature from the build, it skips with a notice.
+  # The weekly bench run rebuilds main as it is; it publishes no update.
   updates:
     name: "Updates: publish to verbose-updates"
     needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mac-v')
+    if: (github.ref == 'refs/heads/main' && github.event_name != 'schedule') || startsWith(github.ref, 'refs/tags/mac-v')
     runs-on: ubuntu-latest
     environment: release
     continue-on-error: true
@@ -620,9 +738,12 @@ jobs:
 
   phone:
     name: iPhone (simulator tour)
+    needs: changes
+    if: needs.changes.outputs.phone == 'true'
     runs-on: macos-26
     # An iPhone compile error or any UITEST FAIL in its self-test fails this job (and skips TestFlight). The Mac job
-    # is separate, so its download is never held up. No secrets here.
+    # is separate, so its download is never held up. No secrets here. Skipped (with TestFlight) when the changes job
+    # finds nothing the iPhone app builds from has changed since the last successful build of main.
     permissions:
       contents: read
     defaults:
@@ -636,13 +757,28 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"; xcodebuild -version
 
+      # This simulator build is never signed or shipped (TestFlight builds its own from source), so like
+      # check-swift.yml it reuses a grammar library built from the same mac/harper-ffi files, and saves one for the
+      # quick checks when it builds it. Same paths and key as check-swift.yml.
+      - name: Cache the grammar library
+        id: harper
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            mac/Vendor/harper/libharper_ffi.a
+            mac/Vendor/harper/ios
+            mac/Vendor/harper/ios-sim
+          key: harper-ios-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml', 'mac/harper-ffi/src/**', 'mac/harper-ffi/vendor/**', 'mac/Vendor/harper/build.sh', 'mac/Vendor/harper/build-ios.sh') }}
+
       # Same toolchain as mac/harper-ffi/rust-toolchain.toml; change both together.
       - name: Install Rust (Harper grammar engine)
+        if: steps.harper.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
           toolchain: 1.97.0
           targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
       - name: Cache cargo
+        if: steps.harper.outputs.cache-hit != 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
@@ -657,6 +793,12 @@ jobs:
           key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
       - name: Build FFmpeg (audio only, LGPL)
         run: bash ffmpeg/build.sh
+      # Same key as check-swift.yml (exact inputs only, no prefix fallback).
+      - name: Cache Swift packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: mac/build/spm
+          key: spm-${{ hashFiles('mac/project.yml', 'mac/Package.resolved') }}
       - name: Generate the project
         run: |
           brew install xcodegen
@@ -666,13 +808,19 @@ jobs:
 
       # ci-screens gets the screenshots and a short summary (publish-phone job); full logs go to a workflow artifact.
       - name: Build the iPhone app and run its screenshot tour (simulator)
+        env:
+          HARPER_CACHED: ${{ steps.harper.outputs.cache-hit }}
         run: |
           set +e
           N="${GITHUB_RUN_NUMBER}"
           P="$RUNNER_TEMP/phone"; rm -rf "$P"; mkdir -p "$P/out/phone-screens-${N}" "$P/diag"
           SUMMARY="$P/out/phone-summary-${N}.txt"
           echo "iPhone build ${N} from ${GITHUB_SHA::7} (${GITHUB_REF_NAME})" > "$SUMMARY"
-          bash Vendor/harper/build-ios.sh > "$P/diag/phone-harper-${N}.log" 2>&1
+          if [ "$HARPER_CACHED" = "true" ]; then
+            echo "grammar library restored from the cache" > "$P/diag/phone-harper-${N}.log"
+          else
+            bash Vendor/harper/build-ios.sh > "$P/diag/phone-harper-${N}.log" 2>&1
+          fi
           xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build-phone \
             -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build > "$P/xcodebuild.log" 2>&1
@@ -775,11 +923,12 @@ jobs:
           echo "::warning::couldn't push $WHAT results to ci-screens"
 
   # TestFlight, on its own runner after the iPhone self-test passes. It builds the third-party code first, and the
-  # App Store Connect key exists only in the archive-and-upload step.
+  # App Store Connect key exists only in the archive-and-upload step. Every build of main whose iPhone app changed
+  # (the changes job) uploads; a build that skips the iPhone tour skips this too. It uses none of the tour's files.
   testflight:
     name: TestFlight (iPhone)
-    needs: phone
-    if: github.ref == 'refs/heads/main'
+    needs: [changes, phone]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.phone == 'true' && needs.phone.result == 'success'
     runs-on: macos-26
     environment: release
     # A TestFlight problem never fails the build.
