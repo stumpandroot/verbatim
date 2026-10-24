@@ -6,7 +6,11 @@ struct VerbatimPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
     @StateObject private var app = PhoneState()
     /// The iCloud container lookup starts on a background thread before the Store loads (Cloud.prefetchContainer).
-    init() { Cloud.prefetchContainer() }
+    /// First, iCloud sync gets an explicit setting: off for a new install, unchanged for everyone else.
+    init() {
+        Cloud.settleSyncDefault()
+        Cloud.prefetchContainer()
+    }
     var body: some Scene {
         WindowGroup {
             PhoneRoot()
@@ -184,5 +188,24 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate {
         guard identifier == LinkDownloads.identifier else { completionHandler(); return }
         LinkDownloads.backgroundCompletion = completionHandler
         LinkDownloads.shared.activate()
+    }
+}
+
+extension Cloud {
+    /// iCloud sync is off on a new iPhone install until you turn it on (onboarding's last step, or Settings › Sync
+    /// and data). It was on unless turned off, so an install that already ran keeps what it had: anyone who never
+    /// touched the switch had sync on, and still does. Runs first thing at launch, before `Cloud.root` is read.
+    ///
+    /// An install already ran when any of these exist: the onboarding was finished, the iCloud container was looked
+    /// up (cached path), the library was moved into iCloud (`cloud.migrated`), or Verbose's local folder.
+    static func settleSyncDefault() {
+        let d = UserDefaults.standard
+        guard d.object(forKey: syncKey) == nil else { return }
+        let ranBefore = d.integer(forKey: "onboarding.seenVersion") > 0
+            || d.string(forKey: "cloud.containerPath") != nil
+            || d.object(forKey: "cloud.migrated") != nil
+            || FileManager.default.fileExists(atPath: Paths.local.path)
+        d.set(ranBefore, forKey: syncKey)
+        Log.note("iCloud sync: no setting yet; " + (ranBefore ? "an earlier install, so it stays on" : "a new install, so it starts off"))
     }
 }

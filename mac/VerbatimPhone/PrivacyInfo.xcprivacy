@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The app: its own UserDefaults (CA92.1) and the App Group's, shared with the keyboard and the extensions
+     (1C8F.1, KeyboardBridge.swift, SpokenCorrections.swift); file times and free space; the active keyboards'
+     languages, to offer the languages you use (54BD.1, LanguageCheck.deviceLanguages); and the system uptime,
+     to time steps within a recording (35F9.1, Recorder.swift). -->
 <plist version="1.0">
 <dict>
 	<key>NSPrivacyTracking</key>
@@ -14,7 +18,7 @@
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array><string>CA92.1</string></array>
+			<array><string>CA92.1</string><string>1C8F.1</string></array>
 		</dict>
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
@@ -27,6 +31,18 @@
 			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array><string>E174.1</string></array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryActiveKeyboards</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array><string>54BD.1</string></array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array><string>35F9.1</string></array>
 		</dict>
 	</array>
 </dict>

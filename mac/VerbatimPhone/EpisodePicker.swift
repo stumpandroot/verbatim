@@ -45,6 +45,8 @@ struct EpisodePicker: View {
             guard show == nil else { return }
             do {
                 if let s = try await PhoneLinkFetcher.episodes(link) { show = s } else { onNotAShow() }
+            } catch let refused as LocalOnlyRefusal {
+                failure = refused.localizedDescription
             } catch {
                 failure = "Couldn't load the episodes: \(error.localizedDescription)"
             }

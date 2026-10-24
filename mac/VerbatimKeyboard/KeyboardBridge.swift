@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// The channel between the Verbatim keyboard and the Verbatim iPhone app. Compiled into both targets.
 ///
@@ -21,7 +24,9 @@ import Foundation
 ///
 /// Storage is the App Group's shared UserDefaults, so it needs Allow Full Access on the keyboard. Darwin
 /// notifications carry no data; they only say "look again". Both sides also poll, so a missed notification costs
-/// at most a fraction of a second.
+/// at most a fraction of a second. Any app can post a Darwin notification or open a `verbatim://` link, so the app
+/// acts only on what Verbose's own processes wrote here (`BridgeTrust`): a session link starts the microphone only
+/// when its request matches a fresh one the keyboard wrote just before.
 enum KeyboardBridge {
     /// Must match `com.apple.security.application-groups` in both entitlements (project.yml).
     static let appGroup = "group.co.stumpandroot.verbatim.ios"
@@ -50,6 +55,8 @@ enum KeyboardBridge {
         static let endReason = "kb.s.endReason"           // String: why the last session ended, when it matters
         // Session request (keyboard writes `request`; the app answers with `requestDone` or `requestFailed`)
         static let request = "kb.s.request"               // String UUID
+        static let requestAt = "kb.s.requestAt"           // Double: when the keyboard wrote `request`
+        static let requestHost = "kb.s.requestHost"       // String: the app the keyboard was in, for that request
         static let requestDone = "kb.s.requestDone"       // String UUID
         static let requestFailed = "kb.s.requestFailed"   // String UUID
         static let requestMessage = "kb.s.requestMessage" // String: why it failed
@@ -265,6 +272,39 @@ enum KeyboardBridge {
         return c.url!
     }
 
+    /// The session request the keyboard wrote just before opening a link, as the app checks it (`BridgeTrust.decide`).
+    static func storedRequest() -> BridgeTrust.StoredRequest {
+        let r = uuid(Key.request)
+        let answered = r != nil && (uuid(Key.requestDone) == r || uuid(Key.requestFailed) == r)
+        return BridgeTrust.StoredRequest(id: r, at: defaults?.double(forKey: Key.requestAt) ?? 0,
+                                         host: defaults?.string(forKey: Key.requestHost), startID: uuid(Key.startID), answered: answered)
+    }
+
+    // MARK: Commands from the widget's process
+
+    /// The command an intent running in the widget's process left for the app (`BridgeTrust.Command`, encoded).
+    static let commandKey = "kb.r.command"
+    /// Posted after writing `commandKey`. Carries nothing: the app reads the command from the App Group.
+    static let commandNote = "co.stumpandroot.verbatim.ribbon.wake"
+
+    /// Writes a command with a new one-time ID and the time, then wakes the app. Called only by Verbose's own code.
+    static func sendCommand(_ name: String, now: Date = Date()) {
+        guard let d = defaults else { return }
+        d.set(BridgeTrust.encode(.init(id: UUID(), name: name, at: now.timeIntervalSince1970)), forKey: commandKey)
+        post(commandNote)
+    }
+
+    /// The app: the waiting command's name when it's fresh and not handled yet, or nil. A command is read once:
+    /// it's removed and its ID remembered in `consumed`, whether or not it was used.
+    static func takeCommand(consumed: inout Set<UUID>, now: Date = Date()) -> String? {
+        guard let d = defaults, let raw = d.string(forKey: commandKey) else { return nil }
+        if d.string(forKey: commandKey) == raw { d.removeObject(forKey: commandKey) }
+        guard let c = BridgeTrust.decode(raw) else { return nil }
+        let accepted = BridgeTrust.acceptCommand(c, consumed: consumed, now: now.timeIntervalSince1970)
+        consumed.insert(c.id)
+        return accepted?.name
+    }
+
     // MARK: Reading
 
     /// True while the app holds a session: it says so, and its heartbeat is recent.
@@ -322,7 +362,7 @@ extension KeyboardBridge {
         var date: Date
     }
 
-    static let recentCap = 10
+    static let recentCap = BridgeTrust.recentCap
     static let recentMaxBytes = 2_048
 
     static let recentKey = "kb.recent"              // Data: JSON [Recent], newest first, written by the app
@@ -350,12 +390,20 @@ extension KeyboardBridge {
         return out + "…"
     }
 
-    /// The list with `item` first (replacing an older copy of the same dictation), clipped and capped. Pure.
-    static func addingRecent(_ list: [Recent], _ item: Recent, cap: Int = recentCap) -> [Recent] {
+    /// The list with `item` first (replacing an older copy of the same dictation), clipped and capped, without
+    /// entries older than a day (`BridgeTrust.recentMaxAge`). Pure.
+    static func addingRecent(_ list: [Recent], _ item: Recent, cap: Int = recentCap, now: Date = Date()) -> [Recent] {
         let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return list }
         let clipped = Recent(id: item.id, text: clip(text), date: item.date)
-        return Array(([clipped] + list.filter { $0.id != item.id }).prefix(cap))
+        return BridgeTrust.keepRecent([clipped] + list.filter { $0.id != item.id }, date: \.date, now: now, cap: cap)
+    }
+
+    /// The list without the dictation `id`, or any entry whose text is one of `texts` (an older entry for the same
+    /// words). Pure.
+    static func removingRecent(_ list: [Recent], id: UUID, texts: [String] = []) -> [Recent] {
+        let gone = Set(texts.map { clip($0.trimmingCharacters(in: .whitespacesAndNewlines)) }.filter { !$0.isEmpty })
+        return list.filter { $0.id != id && !gone.contains($0.text) }
     }
 
     /// The list with one dictation's text replaced (the polished text), in place. Pure.
@@ -365,9 +413,12 @@ extension KeyboardBridge {
         return list.map { $0.id == id ? Recent(id: id, text: clip(clean), date: $0.date) : $0 }
     }
 
-    static func readRecent() -> [Recent] {
+    /// The Recent list, without entries older than a day: the keyboard never shows one, even before the app
+    /// writes the list again.
+    static func readRecent(now: Date = Date()) -> [Recent] {
         guard let data = defaults?.data(forKey: recentKey) else { return [] }
-        return (try? JSONDecoder().decode([Recent].self, from: data)) ?? []
+        let list = (try? JSONDecoder().decode([Recent].self, from: data)) ?? []
+        return BridgeTrust.keepRecent(list, date: \.date, now: now)
     }
 
     private static func writeRecent(_ list: [Recent]) {
@@ -386,7 +437,61 @@ extension KeyboardBridge {
         let updated = replacingRecent(list, id: id, text: text)
         if updated != list { writeRecent(updated) }
     }
+
+    /// Called by the app at launch: drops expired entries from the stored list.
+    static func pruneRecent() {
+        guard let data = defaults?.data(forKey: recentKey),
+              let stored = try? JSONDecoder().decode([Recent].self, from: data) else { return }
+        let kept = readRecent()
+        if kept != stored { if kept.isEmpty { defaults?.removeObject(forKey: recentKey) } else { writeRecent(kept) } }
+    }
+
+    /// Called by the app when you delete a dictation: its Recent entry goes, and so does its text in the last
+    /// dictation's fields, so the keyboard can't show or insert it again.
+    static func forgetDictation(id: UUID, texts: [String]) {
+        guard let d = defaults else { return }
+        let list = readRecent()
+        let kept = removingRecent(list, id: id, texts: texts)
+        if kept != list { writeRecent(kept) }
+        let clean = Set(texts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+        func matches(_ key: String) -> Bool { d.string(forKey: key).map { clean.contains($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? false }
+        if uuid(Key.dictation) == id || matches(Key.text) || matches(Key.raw) {
+            for k in [Key.text, Key.raw] { d.removeObject(forKey: k) }
+        }
+        if uuid(Key.polishedID) == id || matches(Key.polishedText) || matches(Key.polishedInserted) {
+            for k in [Key.polishedText, Key.polishedInserted] { d.removeObject(forKey: k) }
+        }
+        post(Note.state)
+    }
+
+    /// Called by the app's Delete all data: every dictation's words, the Recent list, the Home stats, the snippets,
+    /// and the last app a session started from leave the App Group. Settings stay.
+    static func clearDictationData() {
+        guard let d = defaults else { return }
+        for k in [recentKey, Key.text, Key.raw, Key.message, Key.polishedText, Key.polishedInserted, Key.polishedID, Key.polishing,
+                  Key.liveSettled, Key.liveVolatile, statsKey, Key.snippets, copiedKey, Key.requestHost, commandKey] {
+            d.removeObject(forKey: k)
+        }
+        post(Note.state)
+    }
 }
+
+#if canImport(UIKit)
+extension KeyboardBridge {
+    /// Puts a dictation on the clipboard the way Verbose does by itself (a ribbon take, Also copy each dictation):
+    /// on this iPhone only, never through Universal Clipboard, and only for `BridgeTrust.clipboardLifetime`. A copy
+    /// you ask for in Verbose stays an ordinary copy. False when iOS didn't take the write (it can refuse in the
+    /// background).
+    @discardableResult
+    static func copyDictation(_ text: String, now: Date = Date()) -> Bool {
+        let pb = UIPasteboard.general
+        let before = pb.changeCount
+        pb.setItems([["public.utf8-plain-text": text]],
+                    options: [.localOnly: true, .expirationDate: now.addingTimeInterval(BridgeTrust.clipboardLifetime)])
+        return pb.changeCount != before
+    }
+}
+#endif
 
 // MARK: - Home stats
 

@@ -732,7 +732,8 @@ struct LinkSheet: View {
     /// A podcast show or feed opens its episode list; anything else is added as is.
     private func add() {
         let trimmed = link.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let u = URL(string: trimmed), PhoneLinkFetcher.isShowLink(u) {
+        // With Local Only on, the episode list isn't fetched: the link is added and refused like any other.
+        if let u = URL(string: trimmed), PhoneLinkFetcher.isShowLink(u), NetworkGate.permits(.linkDownload) {
             focused = false
             detent = .large
             pickFrom = u
