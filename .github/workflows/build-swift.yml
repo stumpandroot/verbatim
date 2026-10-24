@@ -278,7 +278,9 @@ jobs:
           perl -e 'alarm 15; exec @ARGV' screencapture -x "$PUB/transcript-${N}.png" || true
           # Screenshot tour: the app writes the current screen's name to show.txt; capture each one.
           SHOW="$HOME/Library/Logs/Verbatim/show.txt"; TOUR="$PUB/screens-${N}"; mkdir -p "$TOUR"; last=""
-          for i in $(seq 1 300); do
+          # Wait for "done" (up to 15 minutes) so the sampler below never pauses the app mid-tour.
+          deadline=$(( $(date +%s) + 900 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
             cur="$(cat "$SHOW" 2>/dev/null || true)"
             if [ -n "$cur" ] && [ "$cur" != "$last" ]; then
               last="$cur"; [ "$cur" = "done" ] && break
