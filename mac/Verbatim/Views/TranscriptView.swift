@@ -22,6 +22,11 @@ struct TranscriptView: View {
     @State private var textSize: CGFloat = 16
     /// True once the mode bar has scrolled under the top edge; a pinned copy shows there instead.
     @State private var barPinned = false
+    /// True once the header's Original / Cleaned / Review toggle reaches the top of the screen's content area (it
+    /// would sit under the toolbar); a copy floats at the top, right where it was, until the whole bar pins.
+    @State private var togglePinned = false
+    /// The top of the screen's content area (below the toolbar), in window coordinates.
+    @State private var contentTop: CGFloat = 0
     @State private var runningAction: FlowAction? = nil
     /// Why Summarize can't run here (Apple Intelligence unavailable), shown when the action is chosen.
     @State private var summaryUnavailable: String? = nil
@@ -115,6 +120,10 @@ struct TranscriptView: View {
                             let pinned = y < 6
                             if pinned != barPinned { barPinned = pinned }
                         }
+                        .onPreferenceChange(ToggleOffsetKey.self) { y in
+                            let pinned = y < contentTop + 4
+                            if pinned != togglePinned { togglePinned = pinned }
+                        }
                         .overlay(alignment: .top) {
                             // The mode bar and tools stay reachable while reading: pinned under the top edge.
                             if barPinned {
@@ -127,6 +136,13 @@ struct TranscriptView: View {
                                     Rectangle().fill(Ink.hairline).frame(height: 1)
                                 }
                                 .transition(.opacity)
+                            } else if togglePinned {
+                                // Only the header has scrolled up: the toggle stays put, inside the content area.
+                                HStack(spacing: 0) { Spacer(minLength: 0); modeToggle }
+                                    .frame(maxWidth: 760, alignment: .trailing)
+                                    .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.top, 8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .transition(.opacity)
                             }
                         }
                         .onReceive(app.player.clock.$time) { now in
@@ -170,8 +186,6 @@ struct TranscriptView: View {
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .identity))
                 }
             }
-
-            }
             .background {
                 // Shortcuts live here once, not on the mode bar (which can exist twice while pinned).
                 ZStack {
@@ -181,6 +195,8 @@ struct TranscriptView: View {
                     Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
                 }
                 .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
+            }
+            .onChange(of: g.frame(in: .global).minY, initial: true) { _, y in contentTop = y }
             }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
@@ -248,7 +264,11 @@ struct TranscriptView: View {
                     title(t)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                modeToggle.padding(.top, 2)
+                // Top-aligned with the eyebrow, inside the content area (the mockup's .tr-head). When it reaches the
+                // top edge, a floating copy takes its place (togglePinned), so it never sits under the toolbar.
+                modeToggle
+                    .background(GeometryReader { b in Color.clear.preference(key: ToggleOffsetKey.self, value: b.frame(in: .global).minY) })
+                    .opacity(togglePinned ? 0 : 1).allowsHitTesting(!togglePinned)
             }
             if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 8) }
             if t.status == .ready {
@@ -596,6 +616,12 @@ private struct UndoChip: View {
 extension Notification.Name { static let verbatimFocusNote = Notification.Name("verbatimFocusNote") }
 
 struct BarOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
+}
+
+/// The header toggle's top, in window coordinates.
+struct ToggleOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = .infinity
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
 }
