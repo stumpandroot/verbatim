@@ -17,6 +17,14 @@ final class KeptMedia: ObservableObject {
     @Published private(set) var present: Set<String> = []
     /// Paths checked or being checked.
     private var known: Set<String> = []
+    /// Each transcript's paths as last scanned. Most `transcripts` publishes are progress ticks that change no path,
+    /// so a scan compares these by id (cheap: the strings share storage with the last list) instead of hashing every
+    /// path of every transcript into `known` again.
+    private var scanned: [UUID: MediaPaths] = [:]
+    private struct MediaPaths: Equatable {
+        var video, audio, original: String?
+        init(_ t: Transcript) { video = t.keptVideo; audio = t.keptAudio; original = t.originalMedia }
+    }
     private let queue = DispatchQueue(label: "co.stumpandroot.verbatim.kept-media", qos: .userInitiated)
     private var bag = Set<AnyCancellable>()
 
@@ -51,7 +59,10 @@ final class KeptMedia: ObservableObject {
     private func checkNew(in list: [Transcript]) {
         var fresh: [String] = []
         for t in list {
-            for p in [t.keptVideo, t.keptAudio, t.originalMedia] {
+            let paths = MediaPaths(t)
+            if scanned[t.id] == paths { continue }
+            scanned[t.id] = paths
+            for p in [paths.video, paths.audio, paths.original] {
                 if let p, !p.isEmpty, !known.contains(p) { fresh.append(p) }
             }
         }

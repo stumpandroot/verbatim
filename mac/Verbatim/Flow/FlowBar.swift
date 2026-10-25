@@ -533,13 +533,15 @@ final class FlowBarController {
     /// Decides whether the panel takes clicks (only over the drawn Ribbon) and whether the Ribbon is hovered,
     /// for the pointer at `location` on screen.
     func updatePointer(at location: CGPoint) {
+        // `ignoresMouseEvents` is set only when it differs, as the Ribbon does below: this runs on every mouse move
+        // anywhere on screen, and each set is a window-server call.
         switch shown {
         case .notch, .pill:
-            panel?.ignoresMouseEvents = true
+            if let p = panel, !p.ignoresMouseEvents { p.ignoresMouseEvents = true }
             setHover(notch.updatePointer(at: location) || menu.isOpen)
             return
         case .button:
-            panel?.ignoresMouseEvents = true
+            if let p = panel, !p.ignoresMouseEvents { p.ignoresMouseEvents = true }
             setHover(button.updatePointer(at: location) || menu.isOpen)
             return
         case .ribbon:
