@@ -63,9 +63,16 @@ final class AppState: ObservableObject {
     @Changed("advModel") var advModel = "v2"
     @Changed("identifySpeakers") var identifySpeakers = true
     @Changed("applyDictionary") var applyDictionary = true
-    /// Home's This week strip (words, time saved typing, recordings, moments). On by default; Settings › General ›
-    /// Show This week on Home turns it off. (It replaced the Method cards, whose setting had nothing left to show.)
-    @Changed("home.showWeek") var showHomeWeek = true
+    /// Settings › General › Show This week on Home: whether This week is among Home's shown sections in the current
+    /// look (Edit Home's layout, HomeLayout.swift, which read the old `home.showWeek` value once).
+    var showHomeWeek: Bool {
+        get { HomeLayoutStore.shared.layout(AppLook.current.homeLook).isVisible(.week) }
+        set {
+            guard newValue != showHomeWeek else { return }
+            objectWillChange.send()
+            HomeLayoutStore.shared.update(AppLook.current.homeLook) { $0.setVisible(.week, newValue, inPlace: true) }
+        }
+    }
     @Changed("projectVocab") var projectScopedVocabulary = false
     @Changed("captureMode") var captureMode = "voice"
     /// "system" | "light" | "dark"
@@ -203,8 +210,6 @@ final class AppState: ObservableObject {
 
     var preset: QualityPreset { QualityPreset(rawValue: presetRaw) ?? .defaultPreset }
 
-    /// The self-test and screenshot tour always show This week, so its click step and Home captures stay comparable.
-    var showsHomeWeek: Bool { UITest.enabled || showHomeWeek }
     var engineChoice: (engine: String, model: String) {
         preset == .advanced ? (advEngine, advModel) : (preset.config.0, preset.config.1)
     }

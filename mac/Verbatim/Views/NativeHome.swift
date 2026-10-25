@@ -3,26 +3,32 @@ import AppKit
 
 // brand: native file
 //
-// Home in Premium Native (mockup "Premium Native", Mac Home): the bold greeting (SF Pro) and the date, then This week as
-// a wide persimmon gradient card beside two stacked stat cards (recordings in ink green, typing saved in sage), the
-// four start tiles as white cards with a tinted symbol, and Recent recordings as two columns of Voicenotes items. The
-// floating record button sits at the bottom right of the window (ContentView). Same state and actions as the Verbose
-// style Home (HomeView.swift); while you record, the recording panel shows above the cards.
+// Home in Premium Native (mockup "Premium Native", Mac Home): the bold greeting (SF Pro) and the date, then the sections
+// Edit Home lists for Native (HomeLayout.swift), in its order and sizes. By default: This week as a wide persimmon
+// gradient card beside two stacked stat cards (recordings in ink green, typing saved in sage), the four start tiles as
+// white cards with a tinted symbol, and Recent recordings as two columns of Voicenotes items. The floating record button
+// sits at the bottom right of the window (ContentView) whether or not the Record section is shown. Same state and
+// actions as the Verbose style Home (HomeView.swift); while you record, the recording panel shows above the cards.
 
 extension HomeView {
     var nativeBody: some View {
         GeometryReader { geo in
             let width = min(1080, max(320, geo.size.width - 64))
             let wide = width >= 700
+            let layout = layouts.layout(.native)
+            let rows = HomeRows.rows(drawn(layout), wide: wide)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     nativeHeader
+                        .background { popoverAnchors(layout) }
                     WhatsNewHomeLine(top: 14) { app.dictation.openSettings(tab: .whatsNew) }
                     if app.recorder.isRecording { RecordPanel().padding(.top, 14) }
                     else if app.capture.isCapturing { CapturePanel().padding(.top, 14) }
-                    if app.showsHomeWeek { nativeCards(width, wide: wide).padding(.top, 18) }
-                    nativeTiles(wide: wide).padding(.top, 14)
-                    nativeRecent(wide: wide).padding(.top, 24)
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                        nativeRow(row, width: width, wide: wide, layout: layout)
+                            .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil, native: true))
+                    }
+                    editHomeButton.padding(.top, 32)
                 }
                 .animation(Motion.settle, value: app.recorder.isRecording)
                 .animation(Motion.settle, value: app.capture.isCapturing)
@@ -47,85 +53,136 @@ extension HomeView {
         .accessibilityAddTraits(.isHeader)
     }
 
+    // MARK: Bands
+
+    /// Two sections side by side: This week and Stats at the mockup's 1.55 : 1, 208 pt tall; any other pair at 7 / 5.
+    @ViewBuilder private func nativeRow(_ row: HomeRow, width: CGFloat, wide: Bool, layout: HomeLayout) -> some View {
+        if row.items.count == 2 {
+            let split = row.items[0].section == .week && row.items[1].section == .stats
+            let left = split ? ((width - 14) * 1.55 / 2.55).rounded(.down) : ((width - 14) * 7 / 12).rounded(.down)
+            HStack(alignment: .top, spacing: 14) {
+                nativeSection(row.items[0], width: left, wide: wide, paired: true, layout: layout).frame(width: left)
+                nativeSection(row.items[1], width: width - 14 - left, wide: wide, paired: true, layout: layout).frame(width: width - 14 - left)
+            }
+            .frame(height: split ? 208 : nil)
+        } else {
+            nativeSection(row.items[0], width: width, wide: wide, paired: false, layout: layout)
+        }
+    }
+
+    private func nativeSection(_ item: HomeLayout.Item, width: CGFloat, wide: Bool, paired: Bool, layout: HomeLayout) -> some View {
+        nativeContent(item, width: width, wide: wide, paired: paired, layout: layout)
+            .homeEditFrame(item, editing: edit.editing)
+            .homeProbe(item)
+    }
+
+    @ViewBuilder private func nativeContent(_ item: HomeLayout.Item, width: CGFloat, wide: Bool, paired: Bool, layout: HomeLayout) -> some View {
+        switch item.section {
+        case .week: nativeWeek(large: item.size == .large)
+        case .stats: nativeStats(large: item.size == .large, paired: paired, wide: wide)
+        case .tiles: nativeTiles(layout.tiles, wide: wide && !paired, large: item.size == .large)
+        case .recent: nativeRecent(wide: width >= 700, compact: item.size == .compact)
+        case .record: NativeHomeRecord(size: item.size, status: recordStatus, recording: recording)
+        case .lastDictation: NativeHomeLastDictation(size: item.size)
+        case .projects: HomeProjectsMac(size: item.size)
+        case .moments: HomeMomentsMac(size: item.size)
+        case .queue: HomeQueueMac(size: item.size)
+        }
+    }
+
     // MARK: This week and the stats
 
-    @ViewBuilder private func nativeCards(_ width: CGFloat, wide: Bool) -> some View {
-        let week = HomeWeek(log.events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
+    private var nativeWeekData: HomeWeek {
+        HomeWeek(log.events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
+    }
+
+    /// Large: the persimmon card. Compact: a slim persimmon strip with the words and the days.
+    private func nativeWeek(large: Bool) -> some View {
+        let week = nativeWeekData
         let n = weekNumbers(week)
         let saved = WebFormat.compactDuration(n.saved)
-        let weekCard = Button { app.go(.activity) } label: { PremiumWeekCard(week: week) }
-            .buttonStyle(PremiumCardPress(radius: 26))
-            .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")) dictated, \(HomeCounts.countLabel(n.recordings, "recording", "recordings")), \(saved) saved typing, \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
-            .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
-            .uiTarget("home-week")
-        let stats = VStack(spacing: 14) {
-            PremiumStatCard(card: .ink, value: n.recordings.formatted(), title: n.recordings == 1 ? "Recording" : "Recordings", detail: "This week")
-            PremiumStatCard(card: .sage, value: saved, title: "Saved", detail: "Typing")
+        return Button { app.go(.activity) } label: {
+            if large { PremiumWeekCard(week: week) } else { NativeWeekStrip(week: week) }
         }
-        if wide {
-            // The mockup's 1.55 : 1 split.
-            let weekWidth = ((width - 14) * 1.55 / 2.55).rounded(.down)
-            HStack(spacing: 14) {
-                weekCard.frame(width: weekWidth)
-                stats.frame(width: width - 14 - weekWidth)
-            }
-            .frame(height: 208)
+        .buttonStyle(PremiumCardPress(radius: large ? 26 : 20))
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")) dictated, \(HomeCounts.countLabel(n.recordings, "recording", "recordings")), \(saved) saved typing, \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
+        .accessibilityHint("Opens You: your week, cleanup, and where you dictate.")
+        .uiTarget("home-week")
+    }
+
+    /// Large: the two stat cards (stacked beside This week, side by side on their own in a wide window). Compact: one
+    /// strip with both numbers.
+    @ViewBuilder private func nativeStats(large: Bool, paired: Bool, wide: Bool) -> some View {
+        let n = weekNumbers(nativeWeekData)
+        let saved = WebFormat.compactDuration(n.saved)
+        let recordings = PremiumStatCard(card: .ink, value: n.recordings.formatted(), title: n.recordings == 1 ? "Recording" : "Recordings", detail: "This week")
+        let typing = PremiumStatCard(card: .sage, value: saved, title: "Saved", detail: "Typing")
+        if !large {
+            NativeStatsStrip(recordings: n.recordings, saved: saved)
+        } else if paired {
+            VStack(spacing: 14) { recordings; typing }.frame(maxHeight: .infinity)
+        } else if wide {
+            HStack(spacing: 14) { recordings; typing }.frame(height: 96)
         } else {
-            VStack(spacing: 14) {
-                weekCard
-                stats.frame(height: 168)
-            }
+            VStack(spacing: 14) { recordings; typing }.frame(height: 168)
         }
     }
 
     // MARK: Tiles
 
-    @ViewBuilder private func nativeTiles(wide: Bool) -> some View {
-        let key = dictateKey
-        let dictate = PremiumTile(title: "Dictate", detail: key.0, badge: key.1.map { $0.prefix(1).uppercased() + String($0.dropFirst()) },
-                                  symbol: "mic", hint: "Shows your dictation key and your last dictation.") {
-            app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate"
-        }
-        .popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
-        .contextMenu { DictateMenu() }
-        .uiTarget("mode-dictate")
-        let importTile = PremiumTile(title: "Import", detail: fileOver ? "Drop to transcribe" : "A file or a link", badge: nil,
-                                     symbol: "square.and.arrow.down", hint: "Choose files, or paste a link to transcribe.", highlighted: fileOver) {
-            importOpen = true
-        }
-        .popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
-        .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
-        .uiTarget("tile-import")
-        let appAudio = PremiumTile(title: "App audio", detail: "Another app's sound", badge: nil,
-                                   symbol: "speaker.wave.2", hint: "Choose an app to record its sound, like a call or a video.") {
-            app.pickApp()
-        }
-        .contextMenu {
-            Button("Choose an App…") { app.pickApp() }
-            Divider()
-            Button("Screen & System Audio Recording Settings…") {
-                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
-            }
-        }
-        .uiTarget("tile-app")
-        let captionsTile = PremiumTile(title: "Live captions", detail: captions.isOpen ? "On screen now" : "Words as they're said", badge: nil,
-                                       symbol: "captions.bubble", hint: "Shows captions in a floating panel, from your microphone or an app's sound.") {
-            app.toggleLiveCaptions()
-        }
-        .uiTarget("tile-captions")
-        if wide {
-            HStack(spacing: 12) { dictate; importTile; appAudio; captionsTile }
+    /// The four tiles you picked. Compact: one row of four (two by two in a narrow window). Large: two by two, taller.
+    @ViewBuilder private func nativeTiles(_ picks: [HomeTile], wide: Bool, large: Bool) -> some View {
+        if wide && !large {
+            HStack(spacing: 12) { nativeTileViews(picks, 0..<4, tall: false) }
         } else {
             VStack(spacing: 12) {
-                HStack(spacing: 12) { dictate; importTile }
-                HStack(spacing: 12) { appAudio; captionsTile }
+                HStack(spacing: 12) { nativeTileViews(picks, 0..<2, tall: large) }
+                HStack(spacing: 12) { nativeTileViews(picks, 2..<4, tall: large) }
             }
+        }
+    }
+
+    private func nativeTileViews(_ picks: [HomeTile], _ slots: Range<Int>, tall: Bool) -> some View {
+        let anchor = importAnchor(picks)
+        return ForEach(HomeTileSlot.slots(picks, slots), id: \.tile) { s in premiumTile(s.tile, tall: tall, importAnchor: anchor == s.tile) }
+    }
+
+    @ViewBuilder private func premiumTile(_ t: HomeTile, tall: Bool, importAnchor: Bool) -> some View {
+        let badge: String? = t == .dictate ? dictateKey.1.map { $0.prefix(1).uppercased() + String($0.dropFirst()) } : nil
+        let base = PremiumTile(title: t.title, detail: tileDetail(t), badge: badge, symbol: t.symbol, hint: Self.tileHint(t),
+                               highlighted: t == .importMedia && fileOver, tall: tall) { runTile(t) }
+        switch t {
+        case .dictate:
+            base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
+                .contextMenu { DictateMenu() }
+                .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+        case .appAudio:
+            base.contextMenu {
+                Button("Choose an App…") { app.pickApp() }
+                Divider()
+                Button("Screen & System Audio Recording Settings…") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+                }
+            }
+            .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+        case .importMedia, .pasteLink:
+            if importAnchor {
+                base.popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
+                    .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
+                    .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+            } else {
+                base.contextMenu { ImportMenu(openPanel: { importOpen = true }) }
+                    .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+            }
+        default:
+            base.uiTarget(Self.tileTarget(t)).homeTileProbe(t)
         }
     }
 
     // MARK: Recent recordings
 
-    private func nativeRecent(wide: Bool) -> some View {
+    /// Large: the four newest as Voicenotes items, in two columns when wide. Compact: the four newest as slim rows.
+    private func nativeRecent(wide: Bool, compact: Bool) -> some View {
         let items = Array(app.archive.prefix(4))
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -144,6 +201,16 @@ extension HomeView {
                 NativeEmptyState(art: .search, title: "Nothing found", message: "Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
                     .premiumCard()
                     .padding(.top, 8)
+            } else if compact {
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                        NativeRecentLine(transcript: t, divider: i < items.count - 1)
+                            .uiTarget("row-\(i)")
+                    }
+                }
+                .padding(.horizontal, 6).padding(.vertical, 4)
+                .premiumCard()
+                .padding(.top, 8)
             } else if wide {
                 // Two columns, filled across: 1 and 3 on the left, 2 and 4 on the right.
                 HStack(alignment: .top, spacing: 34) {
@@ -223,21 +290,35 @@ private struct PremiumTile: View {
     var symbol: String
     var hint: String
     var highlighted = false
+    /// Large tiles: the symbol over the name and detail, 112 pt tall.
+    var tall = false
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).font(.system(size: 17, weight: .medium)).foregroundStyle(PremiumInk.accentText)
-                    .frame(width: 40, height: 40).background(Circle().fill(PremiumInk.accentSoft))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                    Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.85)
+            Group {
+                if tall {
+                    VStack(alignment: .leading, spacing: 0) {
+                        symbolDisc
+                        Spacer(minLength: 8)
+                        Text(title).font(.system(size: 16, weight: .bold)).foregroundStyle(.primary).lineLimit(1)
+                        Text(detail).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.85).padding(.top, 1)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
+                } else {
+                    HStack(spacing: 12) {
+                        symbolDisc
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                            Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.85)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, minHeight: 76, maxHeight: 76, alignment: .leading)
                 }
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 76, maxHeight: 76, alignment: .leading)
             .overlay(alignment: .topTrailing) {
                 if let badge {
                     Text(badge).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
@@ -255,5 +336,10 @@ private struct PremiumTile: View {
         .accessibilityLabel(title)
         .accessibilityValue([detail, badge.map(Keycap.spoken)].compactMap { $0 }.joined(separator: " "))
         .accessibilityHint(hint)
+    }
+
+    private var symbolDisc: some View {
+        Image(systemName: symbol).font(.system(size: 17, weight: .medium)).foregroundStyle(PremiumInk.accentText)
+            .frame(width: 40, height: 40).background(Circle().fill(PremiumInk.accentSoft))
     }
 }

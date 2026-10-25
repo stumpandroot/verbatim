@@ -423,6 +423,7 @@ enum UITest {
         // The This week strip under the tiles.
         await reveal("home-week", in: window)
         await show("02c-home-week")
+        await editHomeSteps(app: app, window: window, look: .verbose, suffix: "")
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
@@ -659,6 +660,7 @@ enum UITest {
         await nativeClicks(app: app, window: window)
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
+        await editHomeSteps(app: app, window: window, look: .native, suffix: "-native")
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.library)
         await show("05-library-native")
@@ -708,6 +710,57 @@ enum UITest {
         }
         app.go(.home)
         try? await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    /// Edit Home (EditHome.swift, HomeLayout.swift), clicked: Edit Home at the end of Home opens the inspector; then
+    /// hide a section (This week), reorder two, change a size (the tiles) and a tile (Search in the last slot), check
+    /// Home draws exactly that, click Done, and reset. The layout store starts from the defaults in the self-test and
+    /// never writes the Mac's layout.
+    private static func editHomeSteps(app: AppState, window: NSWindow, look: AppLook, suffix: String) async {
+        let store = HomeLayoutStore.shared
+        let session = HomeEditSession.shared
+        let hl = look.homeLook
+        let other: HomeLook = hl == .native ? .verbose : .native
+        store.reset(hl)
+        session.editing = false
+        app.go(.home); app.captureMode = "voice"
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        await step("edit home\(suffix): Edit Home at the end of Home opens the inspector", window, target: "home-edit",
+                   check: { session.editing && EditHomeView.visible })
+        await show("02e-edit-home\(suffix)")
+        let before = store.layout(hl)
+        store.update(hl) { $0.setVisible(.week, false) }
+        let order = store.layout(hl).shown.map(\.section)
+        store.update(hl) { $0.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
+        let tileSize: HomeCardSize = before.size(.tiles) == .large ? .compact : .large
+        store.update(hl) { $0.setSize(.tiles, tileSize) }
+        session.pickingTiles = true
+        await show("02f-edit-home-tiles\(suffix)")
+        check("edit home\(suffix): Choose… opens the tile picker", HomeTilePickerMac.visible)
+        session.pickingTiles = false
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let dropped = before.tiles[HomeLayout.tileCount - 1]
+        store.update(hl) { l in l.tiles = HomeLayout.toggle(.search, in: HomeLayout.toggle(dropped, in: l.tiles)) }
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        await show("02g-edit-home-edited\(suffix)")
+        await step("edit home\(suffix): Done closes the inspector", window, target: "home-edit-done", check: { !session.editing })
+        let after = store.layout(hl)
+        let onScreen = HomeProbe.sections
+        let drawn = after.shown.filter { $0.section != .queue || app.store.transcripts.contains { $0.deletedAt == nil && $0.status == .processing } }
+        check("edit home\(suffix): a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
+        check("edit home\(suffix): two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
+        check("edit home\(suffix): Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
+              Set(onScreen.keys) == Set(drawn.map(\.section)))
+        check("edit home\(suffix): a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
+        check("edit home\(suffix): a new tile reaches Home (Search for \(dropped.title))", HomeProbe.tiles.contains(.search) && !HomeProbe.tiles.contains(dropped))
+        check("edit home\(suffix): the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.mac, other))
+        store.reset(hl)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("edit home\(suffix): Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.mac, hl)
+              && Set(HomeProbe.sections.keys) == Set(store.layout(hl).shown.map(\.section)))
+        if look == .native {
+            check("edit home\(suffix): Record starts hidden in Native, where the floating record button stands in", !store.layout(hl).isVisible(.record) && HomeProbe.sections[.record] == nil)
+        }
     }
 
     /// Checks that only hold while Native is on: tokens turn into Native's colors, resolved for the appearance asked

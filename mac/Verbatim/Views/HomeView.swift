@@ -6,12 +6,15 @@ import CoreAudio
 // brand: web style
 //
 /// Home in the website style (mockup "The app, in the website's clothes", October 23, 2026; mac/DESIGN.md §6 and §11):
-/// a mono date eyebrow over the big two-line greeting, the Record panel (breathing meter, looping rings) beside four
-/// start tiles, one slim This week strip, then Recent recordings (two flat rows) beside Last dictation (one card on a
-/// butter panel). One 12-column grid: every band splits at the same 7 / 5 edge. Big cards tilt and pick up the ink
-/// outline and hard shadow on hover (`HomeCard` + `inkEdge`); rows stay flat. Narrow windows stack the bands.
+/// a mono date eyebrow over the big two-line greeting, then the sections Edit Home lists (HomeLayout.swift), in its
+/// order and sizes. By default: the Record panel (breathing meter, looping rings) beside four start tiles, one slim
+/// This week strip, then Recent recordings (two flat rows) beside Last dictation (one card on a butter panel). One
+/// 12-column grid: two Large neighbors share a band at the same 7 / 5 edge; a Compact section is a strip across it.
+/// Big cards tilt and pick up the ink outline and hard shadow on hover (`HomeCard` + `inkEdge`); rows stay flat.
+/// Narrow windows stack the bands. Edit Home's button closes the page; editing outlines each section and opens the
+/// inspector on the right (EditHome.swift). Sections arrive at once and keep their identity when the layout changes.
 ///
-/// Native (NativeHome.swift): plain group boxes under a bold "Good afternoon, Tim", with the same state and actions.
+/// Native (NativeHome.swift): Premium Native's cards under a bold "Good afternoon, Tim", with the same state and actions.
 struct HomeView: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
     /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
@@ -21,6 +24,9 @@ struct HomeView: View {
     @ObservedObject var sites = SiteLog.shared
     @ObservedObject var captions = LiveCaptions.shared
     @ObservedObject var flow = FlowSettings.shared
+    /// Edit Home's layouts (both looks) and whether Home is being edited.
+    @ObservedObject var layouts = HomeLayoutStore.shared
+    @ObservedObject var edit = HomeEditSession.shared
     @AppStorage(YouProfile.nameKey) var storedName = ""
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.look) var look
@@ -38,31 +44,41 @@ struct HomeView: View {
     @StateObject var monitor = HomeLevelMonitor()
 
     /// The gutter between columns.
-    private static let gap: CGFloat = 16
+    static let gap: CGFloat = 16
     /// Side margin around the grid, and the widest the grid gets.
     private static let margin: CGFloat = 40
     private static let maxContent: CGFloat = 1100
     /// The Record panel and the tile block share this height.
     private static let startHeight: CGFloat = 196
+    /// Edit Home's inspector beside Home while editing.
+    static let inspectorWidth: CGFloat = 320
     /// The grid's width for a scroll view `available` points wide: the space inside the margins, at most 1100.
     static func contentWidth(_ available: CGFloat) -> CGFloat { min(maxContent, max(280, available - 2 * margin)) }
     private func wide(_ width: CGFloat) -> Bool { width >= 680 }
     /// The 7 / 5 split of a 12-column grid with `gap` gutters: (7 columns + 6 gutters, 5 columns + 4 gutters).
-    private func columns(_ total: CGFloat) -> (CGFloat, CGFloat) {
-        let column = (total - 11 * Self.gap) / 12
-        let left = (7 * column + 6 * Self.gap).rounded(.down)
-        return (left, total - Self.gap - left)
+    static func columns(_ total: CGFloat) -> (CGFloat, CGFloat) {
+        let column = (total - 11 * gap) / 12
+        let left = (7 * column + 6 * gap).rounded(.down)
+        return (left, total - gap - left)
     }
 
     var body: some View {
-        Group {
-            if look == .native { nativeBody } else { verboseBody }
+        HStack(spacing: 0) {
+            Group {
+                if look == .native { nativeBody } else { verboseBody }
+            }
+            .frame(maxWidth: .infinity)
+            if edit.editing {
+                EditHomeView(onDone: { edit.editing = false })
+                    .frame(width: Self.inspectorWidth)
+                    .padding(.vertical, 16).padding(.trailing, 16)
+            }
         }
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
         .onChange(of: recording) { _, on in if on { monitor.stop() } }
         .onAppear { mics.refresh() }
-        .onDisappear { monitor.stop() }
+        .onDisappear { monitor.stop(); edit.editing = false }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
@@ -75,16 +91,22 @@ struct HomeView: View {
         // out in the body, never stored: a stored width laid Home out twice on every visit (900 pt, then the real one).
         GeometryReader { geo in
             let width = Self.contentWidth(geo.size.width)
+            let layout = layouts.layout(.verbose)
+            let rows = HomeRows.rows(drawn(layout), wide: wide(width))
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header.staggerIn(0)
+                        .background { popoverAnchors(layout) }
                     // After an update: "What's new in build N", once (WhatsNewPane.swift).
                     WhatsNewHomeLine(top: 18) { app.dictation.openSettings(tab: .whatsNew) }
                     if app.recorder.isRecording { RecordPanel().padding(.top, 18) }
                     else if app.capture.isCapturing { CapturePanel().padding(.top, 18) }
-                    startRow(width).padding(.top, 20).staggerIn(1)
-                    if app.showsHomeWeek { weekStrip.padding(.top, 16).staggerIn(2) }
-                    recentRow(width).padding(.top, 30).staggerIn(3)
+                    // Only the shown sections, each band identified by its first section.
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                        verboseRow(row, width: width, layout: layout)
+                            .padding(.top, Self.rowGap(row, after: i > 0 ? rows[i - 1] : nil, native: false))
+                    }
+                    editHomeButton.padding(.top, 36)
                 }
                 .animation(Motion.settle, value: app.recorder.isRecording)
                 .animation(Motion.settle, value: app.capture.isCapturing)
@@ -93,6 +115,100 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
             }
         }
+    }
+
+    // MARK: Layout
+
+    /// The shown sections Home draws: Queue only while something is transcribing.
+    func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] {
+        let working = app.store.transcripts.contains { $0.deletedAt == nil && $0.status == .processing }
+        return layout.shown.filter { $0.section != .queue || working }
+    }
+
+    /// Sections with a heading of their own get more room above them.
+    static func headed(_ item: HomeLayout.Item) -> Bool {
+        switch item.section {
+        case .recent: return true
+        case .lastDictation, .projects, .moments, .queue: return item.size == .large
+        default: return false
+        }
+    }
+
+    /// The gap above a band, as Home spaced it before Edit Home (Verbose: 20 first, 16 between cards, 30 above
+    /// Recent recordings, 12 between a stacked Record and the tiles; Native: 18, 14, 24).
+    static func rowGap(_ row: HomeRow, after previous: HomeRow?, native: Bool) -> CGFloat {
+        guard let previous else { return native ? 18 : 20 }
+        if row.items.contains(where: headed) { return native ? 24 : 30 }
+        if !native, previous.items.count == 1, previous.id == .record, row.id == .tiles { return 12 }
+        return native ? 14 : 16
+    }
+
+    @ViewBuilder private func verboseRow(_ row: HomeRow, width: CGFloat, layout: HomeLayout) -> some View {
+        if row.items.count == 2 {
+            let cols = Self.columns(width)
+            HStack(alignment: .top, spacing: Self.gap) {
+                verboseSection(row.items[0], width: cols.0, layout: layout).frame(width: cols.0)
+                verboseSection(row.items[1], width: cols.1, layout: layout).frame(width: cols.1)
+            }
+        } else {
+            verboseSection(row.items[0], width: width, layout: layout)
+        }
+    }
+
+    private func verboseSection(_ item: HomeLayout.Item, width: CGFloat, layout: HomeLayout) -> some View {
+        verboseContent(item, width: width, layout: layout)
+            .homeEditFrame(item, editing: edit.editing)
+            .homeProbe(item)
+    }
+
+    @ViewBuilder private func verboseContent(_ item: HomeLayout.Item, width: CGFloat, layout: HomeLayout) -> some View {
+        switch item.section {
+        case .record:
+            if item.size == .large { recordPanel(width: width).frame(height: Self.startHeight) } else { recordStrip }
+        case .tiles:
+            if item.size == .large { tiles(layout, large: true).frame(height: Self.startHeight) } else { tiles(layout, large: false) }
+        case .week: if item.size == .compact { weekStrip } else { weekCard }
+        case .recent: recentRecordings(item.size)
+        case .lastDictation: lastDictation(item.size)
+        case .projects: HomeProjectsMac(size: item.size)
+        case .moments: HomeMomentsMac(size: item.size)
+        case .queue: HomeQueueMac(size: item.size)
+        case .stats: EmptyView()
+        }
+    }
+
+    /// The last thing on Home: Edit Home, which outlines the sections and opens the inspector.
+    var editHomeButton: some View {
+        HStack {
+            Spacer(minLength: 0)
+            PillButton(title: edit.editing ? "Done Editing" : "Edit Home", kind: .line, size: .regular,
+                       hint: "Show, hide, reorder, and resize Home's sections, and choose its four tiles.") {
+                edit.editing.toggle()
+            }
+            .uiTarget("home-edit")
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Where the Dictate and Import panels open when their tiles aren't on Home (the menu's New Transcript and Dictate
+    /// still open them): an anchor under the greeting. With the tile on Home, the tile is the anchor.
+    @ViewBuilder func popoverAnchors(_ layout: HomeLayout) -> some View {
+        let shown = layout.isVisible(.tiles) ? layout.tiles : []
+        Color.clear
+            .popover(isPresented: shown.contains(.dictate) ? .constant(false) : dictateOpen, arrowEdge: .bottom) {
+                DictateControls().padding(16).environmentObject(app)
+            }
+            .background {
+                Color.clear
+                    .popover(isPresented: shown.contains(.importMedia) || shown.contains(.pasteLink) ? .constant(false) : $importOpen, arrowEdge: .bottom) {
+                        ImportPanel(done: { importOpen = false }).environmentObject(app)
+                    }
+            }
+    }
+
+    /// The tile that anchors the Import panel: Import, else Paste a link.
+    func importAnchor(_ tiles: [HomeTile]) -> HomeTile? {
+        tiles.contains(.importMedia) ? .importMedia : tiles.contains(.pasteLink) ? .pasteLink : nil
     }
 
     // MARK: Header
@@ -125,22 +241,7 @@ struct HomeView: View {
         .foregroundStyle(Ink.ink)
     }
 
-    // MARK: Record and tiles
-
-    @ViewBuilder private func startRow(_ width: CGFloat) -> some View {
-        if wide(width) {
-            let cols = columns(width)
-            HStack(alignment: .top, spacing: Self.gap) {
-                recordPanel(width: cols.0).frame(width: cols.0, height: Self.startHeight)
-                tiles.frame(width: cols.1, height: Self.startHeight)
-            }
-        } else {
-            VStack(spacing: 12) {
-                recordPanel(width: width).frame(height: Self.startHeight)
-                tiles.frame(height: Self.startHeight)
-            }
-        }
-    }
+    // MARK: Record
 
     var recording: Bool { app.recorder.isRecording || app.capture.isCapturing }
     /// Ink on the Record fill: every line passes at its size (status sits on a light wash). White would fail.
@@ -217,6 +318,42 @@ struct HomeView: View {
         .uiTarget("tile-record")
     }
 
+    /// Record, Compact: one strip in the record color with the status, the name, the shortcut, and the pill.
+    private var recordStrip: some View {
+        HomeCard(tilt: 1, radius: Radius.record, enabled: !recording, shadow: false, onPress: { recordDown = $0 }, action: {
+            monitor.stop()
+            app.requestRecord()
+        }) { hovering in
+            HStack(spacing: 14) {
+                HStack(spacing: 8) {
+                    Circle().fill(onRecord).frame(width: 8, height: 8).accessibilityHidden(true)
+                    Text(recordStatus).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                }
+                .padding(.horizontal, 12).frame(height: 28)
+                .background(Ink.readerFixed.opacity(0.55), in: Capsule())
+                Text(recording ? "Recording" : "Record").font(Ink.serif(28)).tracking(-0.4).lineLimit(1)
+                if !recording {
+                    Text("a thought, a call, a walk.").font(Ink.serif(18).italic()).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 8)
+                Keycap(keys: "⌥⇧R", size: 12)
+                if !recording { PillLabel(title: "Start recording", kind: .dark, size: .mini, trailing: .arrow, fixedInk: true) }
+            }
+            .foregroundStyle(onRecord)
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, minHeight: 72, maxHeight: 72, alignment: .leading)
+            .colorPanel(Ink.panelRecord, radius: Radius.record)
+            .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: recordDown, rest: CGSize(width: 4, height: 5)), radius: Radius.record)
+        }
+        .contextMenu { RecordMenu(onChange: { mics.refresh() }) }
+        .help("Recording from \(micName). Right-click to change the microphone.")
+        .accessibilityLabel(recording ? "Recording" : "Record")
+        .accessibilityValue(recording ? "" : "Microphone: \(micName)")
+        .accessibilityHint("Starts a voice note. Shortcut: Option Shift R.")
+    }
+
+    // MARK: Tiles
+
     var dictateOpen: Binding<Bool> {
         Binding(get: { app.captureMode == "dictate" && !recording },
                 set: { open in if !open && app.captureMode == "dictate" { app.captureMode = "voice" } })
@@ -231,56 +368,134 @@ struct HomeView: View {
         return (title.prefix(1).uppercased() + title.dropFirst(), nil)
     }
 
-    /// Four start tiles, two by two, as tall together as the Record panel.
-    private var tiles: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                WebTile(title: "Dictate", detail: dictateKey.0, keycap: dictateKey.1, fill: Ink.panelButter,
-                        hint: "Shows your dictation key and your last dictation.") {
-                    app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate"
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconDictations, color: Ink.inkFixed, lineWidth: 1.5, replay: replay, duration: 0.55)
-                }
-                .popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
+    /// What a tile does on the Mac.
+    func runTile(_ t: HomeTile) {
+        switch t {
+        case .dictate: app.captureMode = app.captureMode == "dictate" ? "voice" : "dictate"
+        case .importMedia, .pasteLink: importOpen = true
+        case .appAudio: app.pickApp()
+        case .captions: app.toggleLiveCaptions()
+        case .thoughtPad: ThoughtPadController.shared.toggle()
+        case .search: HomeTileSearch.open(app)
+        case .moments: app.go(.moments)
+        case .queue: app.go(.queue)
+        case .dictations: app.go(.dictations)
+        case .dictionary: app.go(.dictionary)
+        case .projects: app.projectFilter = nil; app.go(.library)
+        case .whatsPlaying: break
+        }
+    }
+
+    /// The tile's second line, live where it can be (Dictate's key, a file over Import, captions on screen).
+    func tileDetail(_ t: HomeTile) -> String {
+        switch t {
+        case .dictate: return dictateKey.0
+        case .importMedia: return fileOver ? "Drop to transcribe" : t.detail
+        case .captions: return captions.isOpen ? "On screen now" : t.detail
+        default: return t.detail
+        }
+    }
+
+    static func tileHint(_ t: HomeTile) -> String {
+        switch t {
+        case .dictate: return "Shows your dictation key and your last dictation."
+        case .importMedia: return "Choose files, or paste a link to transcribe."
+        case .appAudio: return "Choose an app to record its sound, like a call or a video."
+        case .captions: return "Shows captions in a floating panel, from your microphone or an app's sound."
+        case .pasteLink: return "Paste a YouTube, Vimeo, or podcast link to transcribe."
+        case .thoughtPad: return "Opens the Thought pad, for notes you speak or type."
+        case .search: return "Opens the Library with the search field ready."
+        case .moments: return "Opens Moments."
+        case .queue: return "Opens the Queue."
+        case .dictations: return "Opens every dictation."
+        case .dictionary: return "Opens your dictionary."
+        case .projects: return "Opens the Library, with your projects in the sidebar."
+        case .whatsPlaying: return ""
+        }
+    }
+
+    /// The self-test's click target for a tile (the four from before Edit Home keep their names).
+    static func tileTarget(_ t: HomeTile) -> String {
+        switch t {
+        case .dictate: return "mode-dictate"
+        case .importMedia: return "tile-import"
+        case .appAudio: return "tile-app"
+        case .captions: return "tile-captions"
+        default: return "tile-\(t.rawValue)"
+        }
+    }
+
+    /// The four tiles you picked. Large: two by two, as tall together as the Record panel. Compact: one row of four.
+    @ViewBuilder private func tiles(_ layout: HomeLayout, large: Bool) -> some View {
+        let picks = layout.tiles
+        if large {
+            VStack(spacing: 10) {
+                HStack(spacing: 10) { tileViews(picks, 0..<2) }
+                HStack(spacing: 10) { tileViews(picks, 2..<4) }
+            }
+        } else {
+            HStack(spacing: 10) { tileViews(picks, 0..<4) }.frame(height: 84)
+        }
+    }
+
+    private func tileViews(_ picks: [HomeTile], _ slots: Range<Int>) -> some View {
+        let anchor = importAnchor(picks)
+        return ForEach(HomeTileSlot.slots(picks, slots), id: \.tile) { s in webTile(s.tile, slot: s.slot, importAnchor: anchor == s.tile) }
+    }
+
+    /// Fills go by slot: butter, sage, petal, then card white with an ink outline, so it never outweighs Record.
+    static func tileFill(_ slot: Int) -> Color? {
+        switch slot {
+        case 0: return Ink.panelButter
+        case 1: return Ink.panelSage
+        case 2: return Ink.panelPetal
+        default: return nil
+        }
+    }
+
+    @ViewBuilder private func webTile(_ t: HomeTile, slot: Int, importAnchor: Bool) -> some View {
+        let fill = Self.tileFill(slot)
+        let on = fill == nil ? Ink.ink : Ink.inkFixed
+        let keycap: String? = {
+            switch t {
+            case .dictate: return dictateKey.1
+            case .importMedia: return "⌘O"
+            case .captions: return "⌥⌘C"
+            case .thoughtPad: return "⌃⌥P"
+            default: return nil
+            }
+        }()
+        let base = WebTile(title: t.title, detail: tileDetail(t), keycap: keycap, fill: fill ?? Ink.card, onFill: on,
+                           outlined: fill == nil || (t == .importMedia && fileOver), grain: fill != nil, hint: Self.tileHint(t)) {
+            runTile(t)
+        } icon: { replay in
+            DrawOnGlyph(art: t.art, color: on, lineWidth: 1.5, replay: replay, duration: 0.55)
+        }
+        switch t {
+        case .dictate:
+            base.popover(isPresented: dictateOpen, arrowEdge: .bottom) { DictateControls().padding(16).environmentObject(app) }
                 .contextMenu { DictateMenu() }
-                .uiTarget("mode-dictate")
-
-                WebTile(title: "Import", detail: fileOver ? "Drop to transcribe" : "A file or a link", keycap: "⌘O", fill: Ink.panelSage,
-                        outlined: fileOver, hint: "Choose files, or paste a link to transcribe.") {
-                    importOpen = true
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconDownload, color: Ink.inkFixed, lineWidth: 1.5, replay: replay, duration: 0.55)
+                .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+        case .appAudio:
+            base.contextMenu {
+                Button("Choose an app…") { app.pickApp() }
+                Divider()
+                Button("Screen & System Audio Recording settings…") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
                 }
-                .popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
-                .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
-                .uiTarget("tile-import")
             }
-            HStack(spacing: 10) {
-                WebTile(title: "App audio", detail: "Another app's sound", fill: Ink.panelPetal,
-                        hint: "Choose an app to record its sound, like a call or a video.") {
-                    app.pickApp()
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconVoice, color: Ink.inkFixed, lineWidth: 1.5, replay: replay, duration: 0.55)
-                }
-                .contextMenu {
-                    Button("Choose an app…") { app.pickApp() }
-                    Divider()
-                    Button("Screen & System Audio Recording settings…") {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
-                    }
-                }
-                .uiTarget("tile-app")
-
-                // Card white with an ink outline, so it never outweighs Record.
-                WebTile(title: "Live captions", detail: captions.isOpen ? "On screen now" : "Words as they're said", keycap: "⌥⌘C",
-                        fill: Ink.card, onFill: Ink.ink, outlined: true, grain: false,
-                        hint: "Shows captions in a floating panel, from your microphone or an app's sound.") {
-                    app.toggleLiveCaptions()
-                } icon: { replay in
-                    DrawOnGlyph(art: .iconCaptions, color: Ink.ink, lineWidth: 1.5, replay: replay, duration: 0.55)
-                }
-                .uiTarget("tile-captions")
+            .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+        case .importMedia, .pasteLink:
+            if importAnchor {
+                base.popover(isPresented: $importOpen, arrowEdge: .bottom) { ImportPanel(done: { importOpen = false }).environmentObject(app) }
+                    .contextMenu { ImportMenu(openPanel: { importOpen = true }) }
+                    .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
+            } else {
+                base.contextMenu { ImportMenu(openPanel: { importOpen = true }) }
+                    .uiTarget(Self.tileTarget(t)).homeTileProbe(t)
             }
+        default:
+            base.uiTarget(Self.tileTarget(t)).homeTileProbe(t)
         }
     }
 
@@ -301,11 +516,16 @@ struct HomeView: View {
     }
 
     /// One slim strip, and one button: anywhere on it opens You.
-    private var weekStrip: some View {
+    private var weekStrip: some View { weekSection(large: false) }
+
+    /// This week, Large: the words big in the serif beside taller bars, the stats under them.
+    private var weekCard: some View { weekSection(large: true) }
+
+    private func weekSection(large: Bool) -> some View {
         let week = HomeWeek(log.events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
         let n = weekNumbers(week)
         return HomeCard(tilt: 1, radius: Radius.record, shadow: false, onPress: { weekDown = $0 }, action: { app.go(.activity) }) { hovering in
-            WeekStrip(week: week, recordings: n.recordings, saved: WebFormat.compactDuration(n.saved), moments: n.moments)
+            WeekStrip(week: week, recordings: n.recordings, saved: WebFormat.compactDuration(n.saved), moments: n.moments, large: large)
                 .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: weekDown), radius: Radius.record)
         }
         .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(HomeCounts.countLabel(n.recordings, "recording", "recordings")), \(WebFormat.compactDuration(n.saved)) saved typing, \(HomeCounts.countLabel(n.moments, "moment", "moments")).")
@@ -315,26 +535,13 @@ struct HomeView: View {
 
     // MARK: Recent
 
-    @ViewBuilder private func recentRow(_ width: CGFloat) -> some View {
-        if wide(width) {
-            let cols = columns(width)
-            HStack(alignment: .top, spacing: Self.gap) {
-                recentRecordings.frame(width: cols.0)
-                lastDictation.frame(width: cols.1)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 28) {
-                recentRecordings
-                lastDictation
-            }
-        }
-    }
-
-    private var recentRecordings: some View {
-        let items = Array(app.archive.prefix(2))
+    /// Large: the two newest as flat rows with a Clean up pill where there are filler words. Compact: the four newest
+    /// as slim rows with their length.
+    private func recentRecordings(_ size: HomeCardSize) -> some View {
+        let items = Array(app.archive.prefix(size == .large ? 2 : 4))
         return VStack(alignment: .leading, spacing: 2) {
             SectionTitle(title: "Recent", italic: "recordings", link: "Library", linkHint: "Opens your library.") { app.go(.library) }
-                .padding(.bottom, 10)
+                .padding(.bottom, size == .large ? 10 : 6)
             if items.isEmpty && app.search.isEmpty {
                 EmptyStateCard(art: .iconLibrary, title: "Record something new",
                                message: "Recordings and imports land here, ready to review.",
@@ -342,7 +549,7 @@ struct HomeView: View {
             } else if items.isEmpty {
                 EmptyStateCard(art: .search, title: "Nothing found",
                                message: "Nothing matches “\(app.search)”. Search looks at titles and every transcript's text.")
-            } else {
+            } else if size == .large {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
                     let fillers = WebStatus.cachedFillers(t)
                     FlatRowButton(action: { app.go(.transcript(t.id)) }) { _ in
@@ -353,6 +560,23 @@ struct HomeView: View {
                                 .padding(.trailing, 14)
                         }
                     }
+                    .contextMenu { RowMenu(transcript: t) }
+                    .accessibilityHint("Opens the transcript.")
+                    .uiTarget("row-\(i)")
+                }
+            } else {
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                    FlatRowButton(action: { app.go(.transcript(t.id)) }) { _ in
+                        HStack(spacing: 10) {
+                            KindDot(transcript: t, size: 24)
+                            Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+                            Spacer(minLength: 8)
+                            Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
+                                .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 44)
+                    } accessory: { _ in EmptyView() }
                     .contextMenu { RowMenu(transcript: t) }
                     .accessibilityHint("Opens the transcript.")
                     .uiTarget("row-\(i)")
@@ -368,31 +592,46 @@ struct HomeView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NotificationCenter.default.post(name: .verbatimShowMode, object: "Document") }
     }
 
-    private var lastDictation: some View {
+    /// Large: one card on a butter panel under its heading. Compact: one strip with where it went and its length;
+    /// a click copies.
+    @ViewBuilder private func lastDictation(_ size: HomeCardSize) -> some View {
         let last = app.store.transcripts.lazy.filter { $0.deletedAt == nil && $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
-        let key = app.dictation.hotkey.shortTitle
-        return VStack(alignment: .leading, spacing: 0) {
-            SectionTitle(title: "Last", italic: "dictation", link: "All", linkLabel: "All dictations", linkHint: "Opens every dictation.") { app.go(.dictations) }
-                .padding(.bottom, 12)
-            VStack(spacing: 0) {
-                if let t = last {
-                    LastDictationCard(transcript: t, place: sites.hosts[t.id] ?? t.flow?.app, copy: { Paster.copy($0) })
-                        .uiTarget("home-dictation-0")
-                } else {
-                    HStack(spacing: 10) {
-                        IconGlyph(art: .iconDictations, size: 18, color: Ink.inkFixed)
-                        Text("\(key.prefix(1).uppercased() + String(key.dropFirst())) in any app and speak. What you say shows up here.")
-                            .font(.system(size: 13.5)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 6).padding(.vertical, 8)
-                }
+        if size == .compact {
+            if let t = last {
+                LastDictationCard(transcript: t, place: sites.hosts[t.id] ?? t.flow?.app, copy: { Paster.copy($0) }, strip: true)
+                    .uiTarget("home-dictation-0")
+            } else {
+                lastDictationEmpty.padding(.horizontal, 12).padding(.vertical, 6).colorPanel(Ink.panelButter, radius: Radius.record)
             }
-            .padding(12)
-            .colorPanel(Ink.panelButter, radius: Radius.record)
-            .animation(Motion.settle, value: last?.id)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionTitle(title: "Last", italic: "dictation", link: "All", linkLabel: "All dictations", linkHint: "Opens every dictation.") { app.go(.dictations) }
+                    .padding(.bottom, 12)
+                VStack(spacing: 0) {
+                    if let t = last {
+                        LastDictationCard(transcript: t, place: sites.hosts[t.id] ?? t.flow?.app, copy: { Paster.copy($0) })
+                            .uiTarget("home-dictation-0")
+                    } else {
+                        lastDictationEmpty
+                    }
+                }
+                .padding(12)
+                .colorPanel(Ink.panelButter, radius: Radius.record)
+                .animation(Motion.settle, value: last?.id)
+            }
+            .uiTarget("home-dictations")
         }
-        .uiTarget("home-dictations")
+    }
+
+    private var lastDictationEmpty: some View {
+        let key = app.dictation.hotkey.shortTitle
+        return HStack(spacing: 10) {
+            IconGlyph(art: .iconDictations, size: 18, color: Ink.inkFixed)
+            Text("\(key.prefix(1).uppercased() + String(key.dropFirst())) in any app and speak. What you say shows up here.")
+                .font(.system(size: 13.5)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 6).padding(.vertical, 8)
     }
 }
 
@@ -440,14 +679,43 @@ private struct WebTile<Icon: View>: View {
 }
 
 /// This week as one slim strip: the eyebrow, the words in the serif, seven small bars (today in the Record color,
-/// days to come as faint dashes), and the stats on the right. Two lines when the window is narrow.
+/// days to come as faint dashes), and the stats on the right. Two lines when the window is narrow. Large: a card with
+/// the words big beside taller bars and the stats under them.
 private struct WeekStrip: View {
     var week: HomeWeek
     var recordings: Int
     var saved: String
     var moments: Int
+    var large = false
 
     var body: some View {
+        if large { card } else { strip }
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Eyebrow(text: "This week")
+            HStack(alignment: .bottom, spacing: 18) {
+                Text("\(Text(week.words.formatted()).font(Ink.serif(52))) \(Text(week.words == 1 ? "word" : "words").font(Ink.serif(52).italic()))")
+                    .tracking(-0.8).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 8)
+                bars(height: 56)
+            }
+            ViewThatFits(in: .horizontal) {
+                stats
+                VStack(alignment: .leading, spacing: 6) {
+                    stat("\(recordings.formatted())", recordings == 1 ? "recording" : "recordings")
+                    stat(saved, "saved typing")
+                    stat("\(moments.formatted())", moments == 1 ? "moment" : "moments")
+                }
+            }
+        }
+        .padding(.horizontal, 22).padding(.vertical, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+    }
+
+    private var strip: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 28) {
                 lead
@@ -471,7 +739,7 @@ private struct WeekStrip: View {
             Eyebrow(text: "This week")
             Text("\(Text(week.words.formatted()).font(Ink.serif(28))) \(Text(week.words == 1 ? "word" : "words").font(Ink.serif(28).italic()))")
                 .tracking(-0.4).foregroundStyle(Ink.ink).lineLimit(1).fixedSize()
-            bars
+            bars(height: 24)
         }
     }
 
@@ -491,7 +759,7 @@ private struct WeekStrip: View {
         .lineLimit(1).fixedSize()
     }
 
-    private var bars: some View {
+    private func bars(height: CGFloat) -> some View {
         let peak = max(1, week.peak)
         return HStack(alignment: .bottom, spacing: 3) {
             ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
@@ -500,18 +768,18 @@ private struct WeekStrip: View {
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(day.isToday ? Ink.panelRecord : Ink.ink)
                         .opacity(day.isFuture ? 0.3 : 1)
-                        .frame(width: 8, height: empty ? 2 : max(3, 24 * CGFloat(day.words) / CGFloat(peak)))
+                        .frame(width: height > 30 ? 11 : 8, height: empty ? 2 : max(3, height * CGFloat(day.words) / CGFloat(peak)))
                     Text(Formats.pattern("EEEEE").string(from: day.start))
                         .font(Ink.mono(12, weight: day.isToday ? .semibold : .regular))
                         .foregroundStyle(day.isToday ? Ink.ink : Ink.mute)
                 }
-                .frame(width: 12)
+                .frame(width: height > 30 ? 15 : 12)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Formats.pattern("EEEE").string(from: day.start))
                 .accessibilityValue(day.isFuture ? "Still to come" : HomeCounts.countLabel(day.words, "word", "words"))
             }
         }
-        .frame(height: 44, alignment: .bottom)
+        .frame(height: height + 20, alignment: .bottom)
     }
 }
 
@@ -561,6 +829,8 @@ private struct LastDictationCard: View {
     var transcript: Transcript
     var place: String?
     var copy: (String) -> Void
+    /// Compact: one strip on the butter panel, "Last dictation" with where it went, its length, and the pill.
+    var strip = false
     @Environment(\.limitMotion) private var limitMotion
     @State private var copied = false
     @State private var copies = 0
@@ -570,33 +840,52 @@ private struct LastDictationCard: View {
         let failed = transcript.status == .failed
         let text = HomeDictationText.pasted(transcript)
         let canCopy = !failed && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        HomeCard(tilt: 1.5, radius: Radius.tile, enabled: canCopy, shadow: false, onPress: { down = $0 }, action: { copyNow(text) }) { hovering in
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    HStack(spacing: 6) {
-                        AppIconView(bundleID: transcript.flow?.bundleID).frame(width: 16, height: 16)
-                        Text(head).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    Text(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
-                }
-                Text(HomeDictationText.body(transcript)).font(.system(size: 15.5)).lineSpacing(4)
-                    .foregroundStyle(failed ? Ink.danger : Ink.ink)
-                    .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
-                    if let status = WebStatus.dictationCleanup(transcript) { StatusText(text: status, check: true) }
-                    Spacer(minLength: 8)
-                    if canCopy { copyPill }
-                }
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: down), radius: Radius.tile, color: Ink.inkFixed)
+        HomeCard(tilt: 1.5, radius: strip ? Radius.record : Radius.tile, enabled: canCopy, shadow: false, onPress: { down = $0 }, action: { copyNow(text) }) { hovering in
+            if strip { stripFace(canCopy: canCopy, hovering: hovering) } else { face(failed: failed, canCopy: canCopy, hovering: hovering) }
         }
         .accessibilityLabel(HomeDictationText.body(transcript))
         .accessibilityValue(copied ? "Copied" : head)
         .accessibilityHint(canCopy ? "Copies the dictation." : "")
+    }
+
+    private func stripFace(canCopy: Bool, hovering: Bool) -> some View {
+        HStack(spacing: 14) {
+            AppIconView(bundleID: transcript.flow?.bundleID).frame(width: 18, height: 18)
+            Text("Last dictation").font(Ink.serif(22)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+            Text(HomeDictationText.body(transcript)).font(.system(size: 14)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")) · \(head)").font(Ink.mono(12)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+            if canCopy { copyPill }
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity, minHeight: 64, maxHeight: 64, alignment: .leading)
+        .colorPanel(Ink.panelButter, radius: Radius.record)
+        .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: down), radius: Radius.record, color: Ink.inkFixed)
+    }
+
+    private func face(failed: Bool, canCopy: Bool, hovering: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    AppIconView(bundleID: transcript.flow?.bundleID).frame(width: 16, height: 16)
+                    Text(head).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Text(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+            }
+            Text(HomeDictationText.body(transcript)).font(.system(size: 15.5)).lineSpacing(4)
+                .foregroundStyle(failed ? Ink.danger : Ink.ink)
+                .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                if let status = WebStatus.dictationCleanup(transcript) { StatusText(text: status, check: true) }
+                Spacer(minLength: 8)
+                if canCopy { copyPill }
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: down), radius: Radius.tile, color: Ink.inkFixed)
     }
 
     /// "Mail · 10:16 AM": where it went, then when.
@@ -609,10 +898,10 @@ private struct LastDictationCard: View {
 
     private var copyPill: some View {
         ZStack(alignment: .trailing) {
-            PillLabel(title: "Copy", kind: .line, size: .mini, icon: .iconCopy)
+            PillLabel(title: "Copy", kind: .line, size: .mini, icon: .iconCopy, fixedInk: strip)
                 .opacity(copied ? 0 : 1)
                 .offset(y: copied && !limitMotion ? -4 : 0)
-            PillLabel(title: "Copied", kind: .dark, size: .mini, icon: .homeCheck)
+            PillLabel(title: "Copied", kind: .dark, size: .mini, icon: .homeCheck, fixedInk: strip)
                 .opacity(copied ? 1 : 0)
                 .offset(y: copied || limitMotion ? 0 : 4)
         }

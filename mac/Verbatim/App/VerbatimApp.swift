@@ -62,6 +62,10 @@ struct VerbatimApp: App {
                 Button("Find in Transcripts") { app.goHome() }
                     .keyboardShortcut("f", modifiers: .command)
             }
+            // View › Edit Home: outlines Home's sections and opens Edit Home's inspector (Views/EditHome.swift).
+            CommandGroup(after: .sidebar) {
+                Button("Edit Home") { app.goHome(); HomeEditSession.shared.editing = true }
+            }
         }
 
         Settings {
