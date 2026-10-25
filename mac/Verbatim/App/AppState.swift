@@ -135,7 +135,7 @@ final class AppState: ObservableObject {
         Sounds.enabled = sounds
         // Settings › Privacy: the network activity log, before anything can use the network.
         NetworkActivityLog.install()
-        Log.note("AppState init; transcripts=\(store.transcripts.count)")
+        Log.note("AppState init")
         // The Store isn't forwarded: it's Observable, so views that read the library re-render on its changes and
         // the rest don't (Store.swift).
         for o in [recorder.objectWillChange.eraseToAnyPublisher(),
@@ -150,27 +150,36 @@ final class AppState: ObservableObject {
         HangWatch.start()
         dictation.attach(self)
         mirrorSnippets()
-        FolderWatcher.shared.attach(self)
+        // Watched folders compare new files with the library, so they start once it has loaded.
+        store.whenLoaded { [weak self] in if let self { FolderWatcher.shared.attach(self) } }
         // Which kept and imported files are still there, checked off the main thread for rows and menus.
         KeptMedia.shared.attach(store)
         applyAppearance()
         // What's new: a new install starts at its own build, so Home's note waits for the next update.
         ReleaseNotes.settleLastSeen(ranBefore: Onboarding.finishedBefore)
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
-        // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
-        // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
-        coordinator.resume(includeUnowned: true)
         // Recordings recovered once launch recovery finishes in the background: transcribe them too.
         store.onRecovered = { [weak self] ids, announce in self?.queueRecovered(ids, announce: announce) }
-        // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
-        if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
         // Notices calls and asks to record them; never records on its own (App/MeetingCoordinator.swift).
         DispatchQueue.main.async { MeetingCoordinator.shared.attach(self) }
         QuitGuard.app = self
         // Services, Spotlight, and Shortcuts (App/SystemHooks.swift).
         SystemHooks.attach(self)
-        // Links added on the iPhone wait for a Mac: claim them now and whenever more arrive.
+        // Links added on the iPhone wait for a Mac: claimed once the library has loaded, and whenever more arrive.
         store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
+        // The queue, unfinished imports, link claims, and stills start once the library has loaded (the transcripts
+        // are decoded off the main thread, after the first frame).
+        store.whenLoaded { [weak self] in self?.resumeAfterLoad() }
+    }
+
+    /// What launch starts once the library has loaded (`Store.whenLoaded`), in the order it always ran.
+    private func resumeAfterLoad() {
+        Log.note("library loaded; transcripts=\(store.transcripts.count)")
+        // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
+        // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
+        coordinator.resume(includeUnowned: true)
+        // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
+        if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
         if !UITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }

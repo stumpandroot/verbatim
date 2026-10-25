@@ -15,20 +15,27 @@ enum SystemHooks {
         self.app = app
         NSApp.servicesProvider = ServiceProvider.shared
         NSUpdateDynamicServices()
-        ServiceProvider.shared.deliverPending()
-        SpotlightIndex.shared.attach(app.store)
-        WidgetFeed.shared.attach(app.store)
+        // Service requests, the Spotlight index, and the widgets' snapshot wait for the library to load (an empty
+        // library at launch must never reach the index or the widgets).
+        app.store.whenLoaded {
+            ServiceProvider.shared.deliverPending()
+            SpotlightIndex.shared.attach(app.store)
+            WidgetFeed.shared.attach(app.store)
+        }
     }
 
     /// Waits up to `seconds` for the app's state (an intent or Service can launch Verbatim before its window exists).
+    /// It also waits for the library to load, so an intent finds the transcripts it asks about.
     static func waitForApp(seconds: Double = 10) async -> AppState? {
         let end = Date().addingTimeInterval(seconds)
-        while app == nil, Date() < end { try? await Task.sleep(nanoseconds: 100_000_000) }
+        while app?.store.isLoaded != true, Date() < end { try? await Task.sleep(nanoseconds: 100_000_000) }
         return app
     }
 
     /// Brings the main window forward and opens a transcript.
     static func open(_ id: UUID) {
+        // A link that launched the app opens its transcript once the library has loaded.
+        if let app, !app.store.isLoaded { app.store.whenLoaded { open(id) }; return }
         NSApp.activate(ignoringOtherApps: true)
         app?.mainWindow?.makeKeyAndOrderFront(nil)
         if app?.store.transcript(id) != nil { app?.go(.transcript(id)) }
@@ -83,7 +90,7 @@ final class ServiceProvider: NSObject {
     }
 
     func deliverPending() {
-        guard let app = SystemHooks.app, !pending.isEmpty else { return }
+        guard let app = SystemHooks.app, app.store.isLoaded, !pending.isEmpty else { return }
         let urls = pending
         pending = []
         NSApp.activate(ignoringOtherApps: true)

@@ -34,9 +34,11 @@ enum UITest {
 
     static func run(app: AppState) {
         guard enabled else { return }
-        // Launch load time for CI (never a pass or fail): Store.load decodes the whole library before the first frame.
-        Log.note("UITEST TIMING store-load \(Int(app.store.loadMs.rounded())) transcripts=\(app.store.transcripts.count)")
         Task { @MainActor in
+            // The library loads off the main thread at launch (Store.isLoaded); the self-test starts once it has.
+            while !app.store.isLoaded { try? await Task.sleep(nanoseconds: 50_000_000) }
+            // Launch timing for CI (never a pass or fail), with the big library (BigLibrarySeed) in it.
+            LaunchClock.logTimings(app.store)
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             // The main window, never a floating panel (the dictation bar or thought pad can come first in the list).
             guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && !($0 is NSPanel) })
@@ -48,6 +50,8 @@ enum UITest {
                 AppLook.current = .verbose
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
+            // Screen changes with 1,000 transcripts while a file transcribes; then the big library goes again.
+            await bigLibrarySteps(app: app)
 
             if app.store.transcripts.isEmpty {
                 var t = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 12, audioFileName: nil, model: "Test")
@@ -1675,6 +1679,44 @@ enum UITest {
             Log.note("UITEST TIMING \(screen) \(Int(appeared.rounded())) settled=\(Int(settled.rounded()))")
             timings.append((appeared, settled))
         }
+    }
+
+    /// Screen changes with the big library (BigLibrarySeed) while a file transcribes: a placeholder job's progress
+    /// ticks at the queue's rate (4 a second, as `ProgressGate` lets a running job's through) and the self-test moves
+    /// through the main screens and a transcript. Logs each change and `UITEST TIMING summary big-library-transcribing`.
+    /// Then the placeholder and the 1,000 seeded transcripts are deleted, so every later step sees the library it
+    /// always did. (A real job would need a speech model, which CI doesn't download.)
+    private static func bigLibrarySteps(app: AppState) async {
+        let seeded = app.store.transcripts.filter { BigLibrarySeed.isSeeded($0.id) }
+        guard !seeded.isEmpty else { Log.note("UITEST note: no big library; its timings are skipped"); return }
+        timings = []
+        var job = Transcript(title: "Transcribing (perf)", source: .file, sourceLabel: "MP3 file", duration: 3600, audioFileName: nil, model: "Parakeet TDT v3")
+        job.status = .processing
+        job.stage = "Transcribing 0%"
+        app.store.add(job)
+        let id = job.id
+        let ticker = Task { @MainActor in
+            var p = 0
+            while !Task.isCancelled {
+                p = (p + 1) % 100
+                app.store.setStage(id, "Transcribing \(p)%")
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
+        var screens: [Screen] = [.library, .home, .links, .moments, .queue, .dictations, .activity, .trash]
+        if let big = seeded.first?.id { screens += [.transcript(big), .library] }
+        screens.append(.home)
+        for screen in screens {
+            app.go(screen)
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        ticker.cancel()
+        timingSummary("big-library-transcribing")
+        if let t = app.store.transcript(id) { app.store.delete(t) }
+        BigLibrarySeed.remove(from: app.store)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        timings = []
     }
 
     /// Screen changes timed since the last summary: (appeared, settled) in ms.

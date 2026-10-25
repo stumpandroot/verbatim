@@ -655,17 +655,24 @@ final class Store: Observable {
     init() {
         // Launch never waits on iCloud file coordination past this (LaunchBudget): iOS kills a scene that takes 10 s.
         let budget = LaunchBudget()
+        loadStarted = Date()
+        loadInterval = Perf.signposter.beginInterval("Store.load")
         Cloud.finishTurnOffIfNeeded(budget: budget)
         Cloud.migrateIfNeeded(budget: budget)
         for d in [Paths.transcripts, Paths.audio, Paths.models, Paths.downloads, Paths.thumbs, Paths.recordings] {
             try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         }
         Paths.excludeModelsFromBackup()
-        load(budget: budget)
+        // The synced lists and the profile are small, and the app's start-up reads them (snippets, the Dictionary):
+        // loaded now, before the first frame, as always.
+        loadList(list: \.projects, sync: \.projectSync, budget: budget)
+        loadList(list: \.dictionary, sync: \.dictionarySync, budget: budget)
+        loadList(list: \.snippets, sync: \.snippetSync, budget: budget)
+        startProfileSync(budget: budget)
         loading = false
-        if Cloud.enabled { let s = CloudSync(store: self); sync = s; s.seed(loadedDates); s.start() }
-        loadedDates = [:]
-        Cloud.deferredAtLaunch = []
+        // The transcripts are decoded off the main thread, so the first frame never waits for a big library; screens
+        // show a light placeholder until `isLoaded`, and the apps start their queues then (`whenLoaded`).
+        decodeTranscripts(budget: budget)
         // Deferred edits are written before the app quits or is suspended, and queued writes finish first.
         let nc = NotificationCenter.default
         #if os(macOS)
@@ -678,48 +685,81 @@ final class Store: Observable {
         }
     }
 
-    func load(budget: LaunchBudget = LaunchBudget()) {
-        let started = Date()
-        let interval = Perf.signposter.beginInterval("Store.load")
-        defer {
-            Perf.signposter.endInterval("Store.load", interval)
-            loadMs = Date().timeIntervalSince(started) * 1000
-        }
-        let fm = FileManager.default
-        let files = ((try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "json" }
-        // Decoded in parallel: launch waits for this, and a big library is hundreds of files.
-        let slots = LoadSlots(files.count)
+    // MARK: Launch load
+
+    private var _isLoaded = false
+    /// The launch load has finished: every transcript launch could read is in `transcripts` (the rest are on their way,
+    /// `readLate`), CloudSync is running, and the launch cleanup has run.
+    private(set) var isLoaded: Bool {
+        get { registrar.access(self, keyPath: \.isLoaded); return _isLoaded }
+        set { registrar.withMutation(of: self, keyPath: \.isLoaded) { _isLoaded = newValue } }
+    }
+    private var loadStarted = Date()
+    private var loadInterval: OSSignpostIntervalState?
+    private var loadedCallbacks: [@MainActor () -> Void] = []
+
+    /// Runs `body` once the library has loaded, on a later turn of the main queue (at once after it, as the launch
+    /// steps that used to wait for the first frame did). The apps start their queues, resume imports, claim links,
+    /// and run the self-tests from here.
+    func whenLoaded(_ body: @escaping @MainActor () -> Void) {
+        if isLoaded { DispatchQueue.main.async { MainActor.assumeIsolated { body() } } } else { loadedCallbacks.append(body) }
+    }
+
+    /// Reads and decodes every transcript file on a background queue, in parallel, within the launch budget; then
+    /// `finishLoad` takes them on main.
+    private func decodeTranscripts(budget: LaunchBudget) {
         let deferred = Cloud.deferredAtLaunch
-        let decode = Perf.signposter.beginInterval("Store.decode", "\(files.count) files")
-        DispatchQueue.concurrentPerform(iterations: files.count) { i in
-            let u = files[i]
-            // iCloud held it past the launch budget (or its launch write is still queued): read after the first frame.
-            if deferred.contains(Cloud.launchKey(u)) { slots.skip(i); return }
-            guard case .read(let read) = Cloud.launchRead(u, budget: budget) else { slots.skip(i); return }
-            guard let data = read else { return }
-            let t: Transcript
-            do { t = try TranscriptFiles.dec.decode(Transcript.self, from: data) } catch {
-                // Left on disk untouched (never rewritten), so a newer build still has it.
-                Log.note("load: couldn't read \(u.lastPathComponent): \(error)")
-                return
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let fm = FileManager.default
+            let files = ((try? fm.contentsOfDirectory(at: Paths.transcripts, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "json" }
+            // Decoded in parallel: a big library is hundreds of files.
+            let slots = LoadSlots(files.count)
+            let decode = Perf.signposter.beginInterval("Store.decode", "\(files.count) files")
+            DispatchQueue.concurrentPerform(iterations: files.count) { i in
+                let u = files[i]
+                // iCloud held it past the launch budget (or its launch write is still queued): read after launch.
+                if deferred.contains(Cloud.launchKey(u)) { slots.skip(i); return }
+                guard case .read(let read) = Cloud.launchRead(u, budget: budget) else { slots.skip(i); return }
+                guard let data = read else { return }
+                let t: Transcript
+                do { t = try TranscriptFiles.dec.decode(Transcript.self, from: data) } catch {
+                    // Left on disk untouched (never rewritten), so a newer build still has it.
+                    Log.note("load: couldn't read \(u.lastPathComponent): \(error)")
+                    return
+                }
+                let mod = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                slots.set(i, (t, mod))
             }
-            let mod = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-            slots.set(i, (t, mod))
+            Perf.signposter.endInterval("Store.decode", decode)
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.finishLoad(files: files, slots: slots) } }
         }
-        Perf.signposter.endInterval("Store.decode", decode)
+    }
+
+    /// The decoded transcripts join the library, then everything launch did after reading them runs in the same
+    /// order as before: legacy rewrites, stuck imports, housekeeping, orphan recovery or the late reads, CloudSync.
+    private func finishLoad(files: [URL], slots: LoadSlots) {
         var list: [Transcript] = [], dates: [UUID: Date] = [:]
         var stuck: [UUID] = []
         for case let slot? in slots.items {
             var t = slot.t
             if Self.isStuckImport(t) { stuck.append(t.id) }
-            else if t.status == .processing { t.stage = "Queued" }   // AppState resumes these
+            else if t.status == .processing { t.stage = "Queued" }   // the app resumes these
             if t.status == .ready, t.pendingAppend == nil, t.stage != nil { t.stage = nil }   // a speaker pass that didn't finish
             // Only files that match memory exactly may be skipped by CloudSync's first pass; the rest are read again.
             if t == slot.t, let mod = slot.mod { dates[t.id] = mod }
             list.append(t)
         }
+        // Anything added while the library loaded (a dictation, a recording) stays as it is in memory, which is newer
+        // than its file (if its write landed before the folder was read).
+        let early = _transcripts
+        if !early.isEmpty {
+            let ids = Set(early.map(\.id))
+            list.removeAll { ids.contains($0.id) }
+            stuck.removeAll { ids.contains($0) }
+            for id in ids { dates[id] = nil }
+            list += early
+        }
         searchCache = [:]
-        StageClock.shared.removeAll()
         transcripts = list.sorted { $0.createdAt > $1.createdAt }
         loadedDates = dates
         let late = slots.skipped.map { files[$0] }
@@ -727,15 +767,10 @@ final class Store: Observable {
         Perf.signposter.emitEvent("Store.late", "\(late.count) files")
         // Files from older builds that still hold absolute paths: rewritten once without them.
         for id in LocalMedia.takeLegacy() { if let t = transcript(id) { loadedDates[id] = nil; save(t) } }
-        sync?.seed(dates)
-        loadList(list: \.projects, sync: \.projectSync, budget: budget)
-        loadList(list: \.dictionary, sync: \.dictionarySync, budget: budget)
-        loadList(list: \.snippets, sync: \.snippetSync, budget: budget)
         cleanUpStuckImports(stuck)
-        startProfileSync(budget: budget)
-        // Housekeeping the first frame doesn't wait for: old downloads are removed on a background queue, the
+        // Housekeeping the library doesn't wait for: old downloads are removed on a background queue, the
         // recordings folder is checked for orphans on one (they're adopted here afterward), and expired items
-        // leave Recently Deleted a run-loop turn later, once the window has drawn.
+        // leave Recently Deleted a run-loop turn later.
         DispatchQueue.global(qos: .utility).async { Self.cleanDownloads() }
         if late.isEmpty { recoverOrphans() } else {
             // A recording a late transcript points at isn't an orphan: recovery waits until they're all read.
@@ -743,6 +778,17 @@ final class Store: Observable {
             readLate(late)
         }
         DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.purgeExpired() } }
+        if Cloud.enabled { let s = CloudSync(store: self); sync = s; s.seed(loadedDates); s.start() }
+        loadedDates = [:]
+        Cloud.deferredAtLaunch = []
+        if let interval = loadInterval { Perf.signposter.endInterval("Store.load", interval); loadInterval = nil }
+        loadMs = Date().timeIntervalSince(loadStarted) * 1000
+        Log.note("load: \(transcripts.count) transcripts in \(Int(loadMs.rounded())) ms")
+        LaunchClock.libraryLoaded()
+        isLoaded = true
+        let waiting = loadedCallbacks
+        loadedCallbacks = []
+        for body in waiting { DispatchQueue.main.async { MainActor.assumeIsolated { body() } } }
     }
 
     // MARK: Late launch reads

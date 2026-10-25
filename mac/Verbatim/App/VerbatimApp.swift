@@ -15,6 +15,9 @@ struct VerbatimApp: App {
         // The iCloud container lookup starts on a background thread before the Store loads (Cloud.prefetchContainer).
         Cloud.prefetchContainer()
         Log.note("launch \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))")
+        // The self-test's big library goes in before the Store loads, so launch is timed with it (LibraryLoading.swift).
+        if UITest.enabled { BigLibrarySeed.write() }
+        LaunchClock.markStart()
         // `-bench <clips dir> -benchOut <report.json>`: run the accuracy and latency bench, then quit (Bench.swift).
         if Bench.isRequested { Bench.start() }
         // Sparkle automatic updates; stays off without SUPublicEDKey and in UI-test or bench mode (Updater.swift).

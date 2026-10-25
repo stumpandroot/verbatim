@@ -121,6 +121,26 @@ final class PhoneState: ObservableObject {
         store.snippetsPublisher.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
+        recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
+        recorder.onInputSwitched = { [weak self] note in
+            if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
+            self?.say(note)
+        }
+        // Recordings recovered once launch recovery finishes in the background: transcribe them too.
+        store.onRecovered = { [weak self] ids, announce in self?.queueRecovered(ids, announce: announce) }
+        // Files and links shared to Verbatim, and sound from Transcribe what's playing (PhoneInbox.swift). PhoneRoot
+        // imports again each time the app becomes active; the broadcast extension's notification covers an open app.
+        // Each import waits for the library to load (`importInbox`).
+        watchInbox()
+        // The recording's Live Activity and its paused-for-a-call notification (RecordingPresence.swift).
+        RecordingPresence.shared.attach(self)
+        // The queue, unfinished imports, link fetches, the keyboard's numbers, the widgets, and the self-test start
+        // once the library has loaded (the transcripts are decoded off the main thread, after the first frame).
+        store.whenLoaded { [weak self] in self?.resumeAfterLoad() }
+    }
+
+    /// What launch starts once the library has loaded (`Store.whenLoaded`), in the order it always ran.
+    private func resumeAfterLoad() {
         // Home's numbers for the keyboard's Home screen (KeyboardBridge.Stats): the same counts as This week. Worked
         // out on a background queue a second after the library or the typing pace changes (progress ticks don't change
         // the library; they go to the StageClock), and written only when the numbers differ. Comparing the numbers,
@@ -133,15 +153,8 @@ final class PhoneState: ObservableObject {
             .removeDuplicates()
             .sink { (stats: KeyboardBridge.Stats) in KeyboardBridge.writeStats(stats) }
             .store(in: &bag)
-        recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
-        recorder.onInputSwitched = { [weak self] note in
-            if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
-            self?.say(note)
-        }
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
-        // Recordings recovered once launch recovery finishes in the background: transcribe them too.
-        store.onRecovered = { [weak self] ids, announce in self?.queueRecovered(ids, announce: announce) }
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
         // Picked files the app quit in the middle of importing start again (their placeholders are still "Importing").
         let resumable = store.takeResumableImports().compactMap { pair -> (UUID, ImportSource)? in
@@ -151,12 +164,7 @@ final class PhoneState: ObservableObject {
         }
         if !resumable.isEmpty { DispatchQueue.main.async { self.runImportSources(resumable) } }
         if !PhoneUITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
-        // Files and links shared to Verbatim, and sound from Transcribe what's playing (PhoneInbox.swift). PhoneRoot
-        // imports again each time the app becomes active; the broadcast extension's notification covers an open app.
-        watchInbox()
         if !PhoneUITest.enabled { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.importInbox() } }
-        // The recording's Live Activity and its paused-for-a-call notification (RecordingPresence.swift).
-        RecordingPresence.shared.attach(self)
         // The Home Screen widgets' snapshot in the App Group (App/WidgetFeed.swift).
         WidgetFeed.shared.attach(store)
         if PhoneUITest.enabled { PhoneUITest.run(self) }

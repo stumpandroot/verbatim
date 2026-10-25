@@ -71,7 +71,7 @@ struct ContentView: View {
             Button("Rename") { rename.commit(app.store) }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
-        .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
+        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         .lookTint(look)   // switches and checkboxes in brand sage (Verbose style) or the persimmon accent (Native)
         .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app).lookRoot() }
@@ -152,6 +152,11 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var screenView: some View {
+        // Until the library has loaded at launch: the screen's background and, after a moment, a small spinner.
+        if !app.store.isLoaded { LibraryLoadingView() } else { screen }
+    }
+
+    @ViewBuilder private var screen: some View {
         switch app.screen {
         case .home: HomeView()
         case .library: if look == .native { NativeLibraryView() } else { LibraryView() }

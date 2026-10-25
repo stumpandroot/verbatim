@@ -24,6 +24,8 @@ extension PhoneState {
     }
 
     func importInbox() {
+        // Shared files and links join the library once it has loaded (the app becomes active before it has).
+        guard store.isLoaded else { store.whenLoaded { [weak self] in self?.importInbox() }; return }
         guard !InboxRun.busy else { return }
         InboxRun.busy = true
         defer { InboxRun.busy = false }

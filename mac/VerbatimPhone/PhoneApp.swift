@@ -14,6 +14,9 @@ struct VerbatimPhoneApp: App {
     init() {
         Cloud.settleSyncDefault()
         Cloud.prefetchContainer()
+        // The self-test's big library goes in before the Store loads, so launch is timed with it (LibraryLoading.swift).
+        if PhoneUITest.enabled { BigLibrarySeed.write() }
+        LaunchClock.markStart()
         // What's new: a new install starts at its own build, so Home's note waits for the next update.
         ReleaseNotes.settleLastSeen(ranBefore: Onboarding.finishedBefore)
     }
@@ -92,6 +95,15 @@ struct PhoneRoot: View {
         .onChange(of: app.tab) { old, new in
             tabLooks[old] = look
             tabLooks[new] = nil
+        }
+        // Until the library has loaded at launch: the look's page and, after a moment, a small spinner.
+        .overlay { loadingCover }
+        .onAppear { LaunchClock.rootAppeared() }
+    }
+
+    @ViewBuilder private var loadingCover: some View {
+        if !app.store.isLoaded {
+            LibraryLoadingView().background(look.isNative ? NativeInk.paper : Ink.paper).ignoresSafeArea()
         }
     }
 

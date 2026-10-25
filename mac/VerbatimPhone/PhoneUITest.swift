@@ -9,7 +9,69 @@ enum PhoneUITest {
     static let enabled = ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1"
     static var onboardingStep = 0
 
+    /// Runs once the library has loaded (PhoneState's `resumeAfterLoad`): the launch timings and the big library's
+    /// screen changes first, then the checks and the screenshot tour.
     static func run(_ app: PhoneState) {
+        // Launch timing for CI (never a pass or fail), with the big library (BigLibrarySeed) in it.
+        LaunchClock.logTimings(app.store)
+        Task { @MainActor in
+            await bigLibrarySteps(app)
+            checksAndTour(app)
+        }
+    }
+
+    /// Tab changes with the big library (BigLibrarySeed) while a file transcribes: a placeholder job's progress ticks
+    /// at the queue's rate (4 a second) and the self-test moves through the tabs and opens a transcript. Each change is
+    /// timed to the second main-loop turn after it (`UITEST TIMING tab-<name> settled=<ms>`), then
+    /// `UITEST TIMING summary big-library-transcribing`. Then the placeholder and the 1,000 seeded transcripts are
+    /// deleted, so the checks and the tour see the library they always did.
+    private static func bigLibrarySteps(_ app: PhoneState) async {
+        let seeded = app.store.transcripts.filter { BigLibrarySeed.isSeeded($0.id) }
+        guard !seeded.isEmpty else { Log.note("UITEST note: no big library; its timings are skipped"); return }
+        var job = Transcript(title: "Transcribing (perf)", source: .file, sourceLabel: "MP3 file", duration: 3600, audioFileName: nil, model: "Parakeet TDT v3")
+        job.status = .processing
+        job.stage = "Transcribing 0%"
+        app.store.add(job)
+        let id = job.id
+        let ticker = Task { @MainActor in
+            var p = 0
+            while !Task.isCancelled {
+                p = (p + 1) % 100
+                app.store.setStage(id, "Transcribing \(p)%")
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
+        var settled: [Double] = []
+        func timed(_ name: String, _ change: () -> Void) async {
+            let start = ProcessInfo.processInfo.systemUptime
+            change()
+            // Two main-loop turns: the change has been rendered by the second.
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                DispatchQueue.main.async { DispatchQueue.main.async { c.resume() } }
+            }
+            let ms = (ProcessInfo.processInfo.systemUptime - start) * 1000
+            settled.append(ms)
+            Log.note("UITEST TIMING \(name) settled=\(Int(ms.rounded()))")
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        for tab in [PhoneState.Tab.library, .moments, .settings, .home, .library] {
+            await timed("tab-\(tab)") { app.tab = tab }
+        }
+        if let big = seeded.first?.id {
+            await timed("transcript") { app.libraryPath.append(big) }
+            await timed("transcript-back") { app.libraryPath = NavigationPath() }
+        }
+        await timed("tab-home") { app.tab = .home }
+        ticker.cancel()
+        let sorted = settled.sorted()
+        func pick(_ q: Double) -> Int { Int(sorted[min(sorted.count - 1, Int((Double(sorted.count - 1) * q).rounded()))].rounded()) }
+        Log.note("UITEST TIMING summary big-library-transcribing n=\(sorted.count) settled-median=\(pick(0.5)) settled-p90=\(pick(0.9)) settled-max=\(pick(1)) settled-total=\(Int(sorted.reduce(0, +).rounded()))")
+        if let t = app.store.transcript(id) { app.store.delete(t) }
+        BigLibrarySeed.remove(from: app.store)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+    }
+
+    private static func checksAndTour(_ app: PhoneState) {
         seed(app)
         keyboardChecks()
         KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
