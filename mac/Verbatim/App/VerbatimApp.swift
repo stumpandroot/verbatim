@@ -1,8 +1,13 @@
 import SwiftUI
+import Combine
 
 @main
 struct VerbatimApp: App {
-    @StateObject private var app = AppState()
+    /// AppState, held without observing it: an AppState publish (each navigation, each Store, Recorder, Player, or
+    /// transcription tick) used to re-evaluate every scene and the main menu's commands before any window. The
+    /// holder publishes only the menu bar switch (`AppHolder`).
+    @StateObject private var holder = AppHolder()
+    private var app: AppState { holder.app }
     /// Asks before quitting cuts off a recording (QuitGuard.swift).
     @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 
@@ -63,7 +68,7 @@ struct VerbatimApp: App {
             SettingsView().environmentObject(app).limitMotionRoot().lookRoot()
         }
 
-        MenuBarExtra(isInserted: $app.showMenuBar) {
+        MenuBarExtra(isInserted: holder.menuBarBinding) {
             // Live captions sits below the panel's own rows (kept out of SettingsView.swift).
             VStack(spacing: 0) {
                 MenuBarPanel()
@@ -79,6 +84,41 @@ struct VerbatimApp: App {
                 .accessibilityLabel("Verbose")
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// Owns the app's AppState for the `App` struct without forwarding its changes, so the scenes and commands are built
+/// once instead of on every publish. Commands only call into AppState; anything a menu shows live observes its own
+/// object (`MeetingCaptureCommands`, `CheckForUpdatesButton`). The one value a scene reads, Settings › General ›
+/// Show in menu bar, is mirrored in `showMenuBar` and announced only when it changes.
+@MainActor
+final class AppHolder: ObservableObject {
+    let app: AppState
+    @Published private(set) var showMenuBar: Bool
+    private var bag: AnyCancellable?
+
+    init() {
+        let state = AppState()
+        app = state
+        showMenuBar = state.showMenuBar
+        // objectWillChange comes before the change, so the value is read on the next turn of the main queue.
+        bag = state.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncMenuBar() }
+        }
+    }
+
+    private func syncMenuBar() {
+        if showMenuBar != app.showMenuBar { showMenuBar = app.showMenuBar }
+    }
+
+    /// The menu bar item's binding. MenuBarExtra writes it back on every update (Changed.swift); AppState's
+    /// `@Changed` and `syncMenuBar` both ignore a write of the same value, so a write-back publishes nothing.
+    var menuBarBinding: Binding<Bool> {
+        Binding(get: { [unowned self] in self.showMenuBar },
+                set: { [unowned self] v in
+                    self.app.showMenuBar = v
+                    self.syncMenuBar()
+                })
     }
 }
 

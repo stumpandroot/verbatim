@@ -4,7 +4,11 @@ import PhotosUI
 @main
 struct VerbatimPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
-    @StateObject private var app = PhoneState()
+    /// PhoneState, held without observing it (as on the Mac, VerbatimApp.swift): a PhoneState publish used to
+    /// re-evaluate the scene, then PhoneRoot's TabView with all four stacks. PhoneRoot observes it and applies the
+    /// color scheme itself.
+    @StateObject private var holder = PhoneHolder()
+    private var app: PhoneState { holder.app }
     /// The iCloud container lookup starts on a background thread before the Store loads (Cloud.prefetchContainer).
     /// First, iCloud sync gets an explicit setting: off for a new install, unchanged for everyone else.
     init() {
@@ -17,7 +21,6 @@ struct VerbatimPhoneApp: App {
         WindowGroup {
             PhoneRoot()
                 .environmentObject(app)
-                .preferredColorScheme(app.colorScheme)
                 .phoneLookRoot()     // the tint: ink, or the Native accent
                 .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
                 .lookRoot()          // Settings › Appearance › Look → \.look everywhere (and in the keyboard)
@@ -189,7 +192,17 @@ struct PhoneRoot: View {
         .animation(Motion.settle, value: app.toast)
         // Switching looks: the card in the new look, with the rebuild behind it (LookSwitch.swift).
         .lookSwitchLayer()
+        // Settings › Appearance: read here rather than in the App struct, which doesn't observe PhoneState.
+        .preferredColorScheme(app.colorScheme)
     }
+}
+
+/// Owns PhoneState for the `App` struct without forwarding its changes (it publishes nothing), so the scene is built
+/// once instead of on every publish. The Mac does the same with `AppHolder`.
+@MainActor
+final class PhoneHolder: ObservableObject {
+    let app: PhoneState
+    init() { app = PhoneState() }
 }
 
 /// Screen state a look switch would otherwise lose: Home, Library, and Moments start fresh in a new look (their paths
