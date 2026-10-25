@@ -61,7 +61,9 @@ enum KB {
     static let barInset: CGFloat = 10
 }
 
-/// Three modes, like Wispr Flow's keyboard, in Verbose's look (the approved mockup, kb2):
+/// Three modes, like Wispr Flow's keyboard, in Verbose's look (the approved mockup, kb2). The dictate button's size,
+/// position, and style follow Settings › Keyboard › Dictate button (`DictateButton`, the notch mockup's section 05):
+/// Typing's Start, Home's Tap to talk, and Listening's done button move and change with it.
 /// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one butter Tap to talk.
 /// - Typing: the menu and a butter Start over the full keyboard. Words that go in come back here with
 ///   "✓ Inserted · 14 words" and Undo for a few seconds.
@@ -88,10 +90,13 @@ struct KeyboardView: View {
 
     // MARK: Bars
 
-    /// The top bar's frame, shared by all three modes.
-    private func bar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    /// The dictate button's settings, read each time the keyboard appears.
+    private var look: DictateButton { model.dictateButton }
+
+    /// The top bar's frame, shared by all three modes: 46 pt, or 62 pt in Typing and Listening with the large disc.
+    private func bar<Content: View>(height: CGFloat = KB.barHeight, @ViewBuilder _ content: () -> Content) -> some View {
         HStack(spacing: 8) { content() }
-            .frame(height: KB.barHeight)
+            .frame(height: height)
             .padding(.horizontal, KB.barInset).padding(.top, 8)
     }
 
@@ -173,9 +178,15 @@ struct KeyboardView: View {
                     .frame(maxHeight: .infinity)
                 statusLine.padding(.horizontal, 18).padding(.bottom, 6)
                 ZStack {
-                    TalkPill(label: "Tap to talk", action: model.record)
-                        .accessibilityHint(model.sessionLive ? "Starts listening right away"
-                                           : "Opens Verbose for a second to turn on the microphone, then comes back here")
+                    // Tap to talk sits where the dictate button does (left, center, or right), clear of the globe.
+                    HStack(spacing: 0) {
+                        if look.position != .left { Spacer(minLength: 0) }
+                        TalkPill(label: "Tap to talk", style: look.style, action: model.record)
+                            .accessibilityHint(model.sessionLive ? "Starts listening right away"
+                                               : "Opens Verbose for a second to turn on the microphone, then comes back here")
+                        if look.position != .right { Spacer(minLength: 0) }
+                    }
+                    .padding(.leading, look.position == .left && model.showsGlobe ? 42 : 0)
                     if model.showsGlobe {
                         HStack {
                             globe
@@ -230,9 +241,12 @@ struct KeyboardView: View {
     /// when one changed them.
     @ViewBuilder private var typingBar: some View {
         if model.stage == .inserted, let c = model.correction {
-            bar { correctionStrip(c) }
+            bar(height: barHeight) { correctionStrip(c) }
         } else if model.stage == .inserted {
-            bar {
+            bar(height: barHeight) {
+                if look.position == .left {
+                    startButton
+                }
                 CheckDisc()
                 Text("Inserted · \(model.insertion?.words ?? 0) \((model.insertion?.words ?? 0) == 1 ? "word" : "words")")
                     .font(.system(size: 13.5, weight: .semibold)).monospacedDigit().foregroundStyle(KB.ink)
@@ -241,31 +255,60 @@ struct KeyboardView: View {
                 Spacer(minLength: 6)
                 Chip(title: "Undo") { model.undo() }
                     .accessibilityHint("Removes the inserted words")
-                StartPill(action: model.start)
-                    .accessibilityHint(startHint)
+                if look.position != .left {
+                    startButton
+                }
             }
         } else {
-            bar {
-                CircleButton(look: model.showingMenu ? .active : .soft, action: model.toggleMenu) {
-                    Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .medium))
+            // The menu and the dictate button, in the order the position gives (`DictateButton.typingBar`).
+            bar(height: barHeight) {
+                ForEach(Array(look.typingBar.enumerated()), id: \.offset) { i, slot in
+                    switch slot {
+                    case .menu:
+                        if i == 0 {
+                            menuButton
+                            typingNotice
+                        } else {
+                            typingNotice
+                            menuButton
+                        }
+                    case .spacer: Spacer(minLength: 6)
+                    case .button: startButton
+                    case .balance: Color.clear.frame(width: KB.barHeight, height: KB.barHeight).accessibilityHidden(true)
+                    }
                 }
-                .accessibilityLabel("Menu")
-                .accessibilityValue(model.showingMenu ? "Open" : "")
-                .accessibilityHint("Cleanup, snippets, recent dictations, and Open Verbose")
-                if let n = model.notice {
-                    Text(n).font(.system(size: 12)).foregroundStyle(KB.deep)
-                        .lineLimit(2).minimumScaleFactor(0.8)
-                        .accessibilityAddTraits(.updatesFrequently)
-                } else if let i = model.info {
-                    Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
-                        .lineLimit(2).minimumScaleFactor(0.8)
-                        .accessibilityAddTraits(.updatesFrequently)
-                }
-                Spacer(minLength: 6)
-                StartPill(action: model.start)
-                    .accessibilityHint(startHint)
             }
         }
+    }
+
+    /// Typing's and Listening's bar height: 62 pt with the large disc, otherwise 46 pt.
+    private var barHeight: CGFloat { CGFloat(look.barHeight) }
+
+    private var menuButton: some View {
+        CircleButton(look: model.showingMenu ? .active : .soft, action: model.toggleMenu) {
+            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .medium))
+        }
+        .accessibilityLabel("Menu")
+        .accessibilityValue(model.showingMenu ? "Open" : "")
+        .accessibilityHint("Cleanup, snippets, recent dictations, and Open Verbose")
+    }
+
+    @ViewBuilder private var typingNotice: some View {
+        if let n = model.notice {
+            Text(n).font(.system(size: 12)).foregroundStyle(KB.deep)
+                .lineLimit(2).minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.updatesFrequently)
+        } else if let i = model.info {
+            Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+                .lineLimit(2).minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.updatesFrequently)
+        }
+    }
+
+    /// Start: the 46 pt pill or the 62 pt disc, filled or outlined.
+    private var startButton: some View {
+        DictateStart(look: look, action: model.start)
+            .accessibilityHint(startHint)
     }
 
     private var startHint: String {
@@ -292,13 +335,15 @@ struct KeyboardView: View {
 
     /// The menu card under the menu circle, over the keys. A tap anywhere else closes it.
     private var menuLayer: some View {
-        ZStack(alignment: .topLeading) {
+        // The menu button sits on the right when the dictate button is on the left.
+        let trailing = look.position == .left
+        return ZStack(alignment: trailing ? .topTrailing : .topLeading) {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture { model.closeMenu() }
                 .accessibilityHidden(true)
             MenuCard(model: model)
-                .padding(.leading, KB.barInset).padding(.top, 8 + KB.barHeight + 6)
+                .padding(trailing ? .trailing : .leading, KB.barInset).padding(.top, 8 + barHeight + 6)
         }
     }
 
@@ -322,31 +367,50 @@ struct KeyboardView: View {
         }
     }
 
-    /// Cancel on the left (hidden while polishing: the words are already in); the cleanup chip and done on the right.
+    /// Cancel (hidden while polishing: the words are already in), the cleanup chip, and done. Done trails, or leads
+    /// when the dictate button is on the left, so the thumb that started the take ends it.
     private var listeningBar: some View {
-        bar {
-            if model.polishing {
-                Color.clear.frame(width: KB.barHeight, height: KB.barHeight).accessibilityHidden(true)
+        bar(height: barHeight) {
+            if look.doneLeads {
+                doneButton
+                Spacer(minLength: 6)
+                cleanupChip
+                cancelButton
             } else {
-                CircleButton(look: .soft, action: model.cancel) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
-                    .accessibilityLabel("Cancel")
-                    .accessibilityHint(model.stage == .starting ? "Stops waiting for Verbose" : "Stops listening and inserts nothing")
+                cancelButton
+                Spacer(minLength: 6)
+                cleanupChip
+                doneButton
             }
-            Spacer(minLength: 6)
-            if model.hasFullAccess {
-                CleanupChip(level: model.levelLabel, format: model.formatLabel, enabled: model.stage == .listening || model.stage == .starting) {
-                    model.cycleFormat()
-                }
+        }
+    }
+
+    @ViewBuilder private var cancelButton: some View {
+        if model.polishing {
+            Color.clear.frame(width: KB.barHeight, height: KB.barHeight).accessibilityHidden(true)
+        } else {
+            CircleButton(look: .soft, action: model.cancel) { Image(systemName: "xmark").font(.system(size: 16, weight: .medium)) }
+                .accessibilityLabel("Cancel")
+                .accessibilityHint(model.stage == .starting ? "Stops waiting for Verbose" : "Stops listening and inserts nothing")
+        }
+    }
+
+    @ViewBuilder private var cleanupChip: some View {
+        if model.hasFullAccess {
+            CleanupChip(level: model.levelLabel, format: model.formatLabel, enabled: model.stage == .listening || model.stage == .starting) {
+                model.cycleFormat()
             }
-            CircleButton(look: .go, action: { model.polishing ? model.skipPolish() : model.done() }) {
-                Image(systemName: "checkmark").font(.system(size: 19, weight: .bold))
-            }
+        }
+    }
+
+    /// Done: the 46 pt circle or the 62 pt disc, in the dictate button's style.
+    private var doneButton: some View {
+        DictateDone(look: look, action: { model.polishing ? model.skipPolish() : model.done() })
             .disabled(!doneEnabled)
             .opacity(doneEnabled ? 1 : 0.4)
             .accessibilityLabel("Done")
             .accessibilityHint(model.polishing ? "Stops waiting for the polished version and keeps your words"
                                : "Stops listening and inserts your words")
-        }
     }
 
     private var doneEnabled: Bool { model.stage == .listening || model.polishing }
@@ -537,68 +601,109 @@ private struct StatsPager: View {
     }
 }
 
-/// Home's one big action: butter, ink outline, hard shadow, grain, and the microphone.
+/// Home's one big action: Tap to talk with five still voice bars, butter with grain (Filled) or card white with an
+/// ink ring (Outline), with the hard shadow either way.
 private struct TalkPill: View {
     var label: String
+    var style: DictateButton.Style
     var action: () -> Void
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                KBGlyph(art: .capture, size: 20, color: KB.inkFixed, minLineWidth: 1.5)
-                Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(KB.inkFixed).lineLimit(1)
+                StillBars(height: 18, barWidth: 3, color: dictateForeground(style))
+                Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(dictateForeground(style)).lineLimit(1)
             }
-            .padding(.horizontal, 26).frame(height: 50)
-            .butterPill(shadow: CGSize(width: 3, height: 4))
+            .padding(.horizontal, 24).frame(height: 50)
+            .dictateSurface(style, shape: Capsule(), shadow: CGSize(width: 3, height: 4))
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(label)
     }
 }
 
-/// Typing's Start: butter, with five still voice bars (a glyph, not a meter).
-private struct StartPill: View {
+/// Typing's Start (Settings › Keyboard › Dictate button): Standard is the 46 pt pill with the word Start and five
+/// still voice bars (a glyph, not a meter); Large is a 62 pt disc with the bars only. Filled or Outline.
+private struct DictateStart: View {
+    var look: DictateButton
     var action: () -> Void
-    private static let bars: [CGFloat] = [9, 16, 20, 12, 17]
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(KB.inkFixed).lineLimit(1)
-                HStack(spacing: 2.5) {
-                    ForEach(Self.bars.indices, id: \.self) { i in
-                        Capsule().fill(KB.inkFixed).frame(width: 3, height: Self.bars[i])
-                    }
+            if look.size == .large {
+                StillBars(height: 24, barWidth: 3.5, color: dictateForeground(look.style))
+                    .frame(width: CGFloat(DictateButton.disc), height: CGFloat(DictateButton.disc))
+                    .dictateSurface(look.style, shape: Circle(), shadow: CGSize(width: 3, height: 4))
+            } else {
+                HStack(spacing: 10) {
+                    Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(dictateForeground(look.style)).lineLimit(1)
+                    StillBars(height: 20, barWidth: 3, color: dictateForeground(look.style))
                 }
-                .frame(height: 20)
-                .accessibilityHidden(true)
+                .padding(.leading, 20).padding(.trailing, 16).frame(height: KB.barHeight)
+                .dictateSurface(look.style, shape: Capsule(), shadow: CGSize(width: 2, height: 3))
             }
-            .padding(.leading, 20).padding(.trailing, 16).frame(height: KB.barHeight)
-            .butterPill(shadow: CGSize(width: 2, height: 3))
         }
         .buttonStyle(PressFade())
-        .accessibilityLabel("Start dictation")
+        .accessibilityLabel(DictateButton.accessibilityLabel)
     }
 }
 
-private extension View {
-    /// Butter capsule with a 1.5 pt fixed-ink outline (none in dark, `KB.dictateRim`), the grain, and a hard ink
-    /// shadow offset by `shadow`.
-    func butterPill(shadow: CGSize) -> some View {
-        background {
-            ZStack {
-                Capsule().fill(KB.dictate)
-                GrainOverlay().clipShape(Capsule())
+/// Listening's done, in the dictate button's place and look: the 46 pt circle (no grain, as before) or the 62 pt
+/// disc (with grain), filled or outlined.
+private struct DictateDone: View {
+    var look: DictateButton
+    var action: () -> Void
+    var body: some View {
+        let large = look.size == .large
+        let d = large ? CGFloat(DictateButton.disc) : KB.barHeight
+        Button(action: action) {
+            Image(systemName: "checkmark").font(.system(size: large ? 23 : 19, weight: .bold))
+                .foregroundStyle(dictateForeground(look.style))
+                .frame(width: d, height: d)
+                .dictateSurface(look.style, shape: Circle(), shadow: large ? CGSize(width: 3, height: 4) : CGSize(width: 2, height: 3), grain: large)
+        }
+        .buttonStyle(PressFade())
+    }
+}
+
+/// Five still voice bars (a glyph, not a meter), scaled to `height`.
+private struct StillBars: View {
+    var height: CGFloat
+    var barWidth: CGFloat
+    var color: Color
+    private static let bars: [CGFloat] = [9, 16, 20, 12, 17]
+    var body: some View {
+        HStack(spacing: barWidth * 0.85) {
+            ForEach(Self.bars.indices, id: \.self) { i in
+                Capsule().fill(color).frame(width: barWidth, height: Self.bars[i] * height / 20)
             }
         }
-        .overlay(Capsule().strokeBorder(KB.dictateRim, lineWidth: 1.5))
-        .background(Capsule().fill(KB.hard).offset(x: shadow.width, y: shadow.height))
-        .contentShape(Capsule())
+        .frame(height: height)
+        .accessibilityHidden(true)
     }
 }
 
-/// A 46 pt circle in the top bar: soft (wash), outline (card with an ink ring), active (ink, for the open menu),
-/// or go (butter with the hard shadow, for done).
+/// Text and glyphs on the dictate button: fixed ink on butter (butter stays butter in dark), adaptive ink on card.
+private func dictateForeground(_ style: DictateButton.Style) -> Color { style == .filled ? KB.inkFixed : KB.ink }
+
+private extension View {
+    /// The dictate button's surface. Filled: butter with a 1.5 pt fixed-ink outline (none in dark, `KB.dictateRim`)
+    /// and the grain. Outline: card white with a 1.5 pt ink ring. Both with a hard shadow offset by `shadow`.
+    func dictateSurface<S: InsettableShape>(_ style: DictateButton.Style, shape: S, shadow: CGSize, grain: Bool = true) -> some View {
+        background {
+            ZStack {
+                shape.fill(style == .filled ? KB.dictate : KB.card)
+                if style == .filled && grain { GrainOverlay().clipShape(shape) }
+            }
+        }
+        .overlay(shape.strokeBorder(style == .filled ? KB.dictateRim : KB.ink, lineWidth: 1.5))
+        .background(shape.fill(KB.hard).offset(x: shadow.width, y: shadow.height))
+        .contentShape(shape)
+    }
+}
+
+/// A 46 pt circle in the top bar: soft (wash), outline (card with an ink ring), or active (ink, for the open menu).
+/// Listening's done is `DictateDone`.
 private struct CircleButton<Label: View>: View {
-    enum Look { case soft, outline, active, go }
+    enum Look { case soft, outline, active }
     var look: Look
     var action: () -> Void
     @ViewBuilder var label: () -> Label
@@ -610,7 +715,6 @@ private struct CircleButton<Label: View>: View {
                 .frame(width: KB.barHeight, height: KB.barHeight)
                 .background(Circle().fill(fill))
                 .overlay { ring }
-                .background { if look == .go { Circle().fill(KB.hard).offset(x: 2, y: 3) } }
                 .contentShape(Circle())
         }
         .buttonStyle(PressFade())
@@ -621,14 +725,12 @@ private struct CircleButton<Label: View>: View {
         case .soft: return KB.wash
         case .outline: return KB.card
         case .active: return KB.ink
-        case .go: return KB.dictate
         }
     }
 
     private var foreground: Color {
         switch look {
         case .active: return KB.paper
-        case .go: return KB.inkFixed
         default: return KB.ink
         }
     }
@@ -636,7 +738,6 @@ private struct CircleButton<Label: View>: View {
     @ViewBuilder private var ring: some View {
         switch look {
         case .outline: Circle().strokeBorder(KB.ink, lineWidth: 1.5)
-        case .go: Circle().strokeBorder(KB.dictateRim, lineWidth: 1.5)
         default: EmptyView()
         }
     }

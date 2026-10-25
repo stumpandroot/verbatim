@@ -176,9 +176,12 @@ struct KeyboardSetupScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("The Verbose keyboard puts dictation in every app. You tap the record button, talk, and tap the check; Verbose writes your words into the field.")
+                Text("The Verbose keyboard puts dictation in every app. You tap the dictate button, talk, and tap the check.")
                     .font(.system(size: 16)).foregroundStyle(Ink.ink)
                     .fixedSize(horizontal: false, vertical: true)
+
+                DictateButtonSettings()
+                    .padding(.top, 6)
 
                 Text("Add the keyboard").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {

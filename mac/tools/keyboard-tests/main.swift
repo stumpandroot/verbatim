@@ -223,5 +223,37 @@ check("VoiceOver: globe", KeyKind.globe.spokenLabel(shift: .off, layer: .letters
 check("layer key titles", KeyKind.layer(.numbers).layerTitle == "123" && KeyKind.layer(.symbols).layerTitle == "#+="
       && KeyKind.layer(.letters).layerTitle == "ABC" && KeyKind.space.layerTitle == nil)
 
+// MARK: The dictate button (DictateButton.swift, Settings › Keyboard › Dictate button)
+
+check("the default is today's keyboard: standard, right, filled", DictateButton.standard == DictateButton(size: .standard, position: .right, style: .filled))
+check("nothing stored reads as the default", DictateButton(size: nil, position: nil, style: nil) == .standard)
+check("unknown stored values read as the default", DictateButton(size: "huge", position: "top", style: "neon") == .standard)
+check("stored values read back", DictateButton(size: "large", position: "left", style: "outline") == DictateButton(size: .large, position: .left, style: .outline))
+let suite = "dictate-button-tests-\(UUID().uuidString)"
+if let d = UserDefaults(suiteName: suite) {
+    check("no defaults reads as the default", DictateButton.read(nil) == .standard)
+    check("an empty App Group reads as the default", DictateButton.read(d) == .standard)
+    var all: [DictateButton] = []
+    for size in DictateButton.Size.allCases { for pos in DictateButton.Position.allCases { for style in DictateButton.Style.allCases {
+        all.append(DictateButton(size: size, position: pos, style: style))
+    } } }
+    check("every combination round-trips through the App Group", all.allSatisfy { b in b.write(d); return DictateButton.read(d) == b })
+    check("the stored keys are the keyboard's", d.string(forKey: "kb.dictate.size") != nil && d.string(forKey: "kb.dictate.position") != nil
+          && d.string(forKey: "kb.dictate.style") != nil)
+    check("twelve combinations", all.count == 12)
+    d.removePersistentDomain(forName: suite)
+}
+check("Large is a 62 pt bar and 16 pt more keyboard", DictateButton(size: .large).barHeight == 62 && DictateButton(size: .large).keyboardHeight == 296)
+check("Standard keeps the 46 pt bar and the 280 pt keyboard", DictateButton.standard.barHeight == 46 && DictateButton.standard.keyboardHeight == 280)
+check("every combination's hit area is at least 46 pt", DictateButton.Size.allCases.allSatisfy { DictateButton(size: $0).barHeight >= DictateButton.minimumHit })
+check("right: menu left, button right", DictateButton(position: .right).typingBar == [.menu, .spacer, .button])
+check("left: button left, menu right", DictateButton(position: .left).typingBar == [.button, .spacer, .menu])
+check("center: the button stays centered", DictateButton(position: .center).typingBar == [.menu, .spacer, .button, .spacer, .balance])
+check("Done leads only for Left", DictateButton(position: .left).doneLeads && !DictateButton(position: .center).doneLeads && !DictateButton(position: .right).doneLeads)
+check("segment titles match the mockup", DictateButton.Size.allCases.map(\.title) == ["Standard", "Large"]
+      && DictateButton.Position.allCases.map(\.title) == ["Left", "Center", "Right"]
+      && DictateButton.Style.allCases.map(\.title) == ["Filled", "Outline"])
+check("VoiceOver label", DictateButton.accessibilityLabel == "Start dictation")
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

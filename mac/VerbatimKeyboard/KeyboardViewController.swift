@@ -16,6 +16,8 @@ final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
 final class KeyboardViewController: UIInputViewController {
     private lazy var model = KeyboardModel(controller: self)
     private var host: UIHostingController<AnyView>?
+    /// The keyboard's height: 280 pt, or 296 pt with the large dictate button (`DictateButton.keyboardHeight`).
+    private var height: NSLayoutConstraint?
 
     override func loadView() {
         let v = KeyboardInputView(frame: .zero, inputViewStyle: .default)
@@ -46,10 +48,12 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         // 280 pt: the mockup's 46 pt top bar over four rows of 46 pt keys (the system adds its own globe and
-        // dictation row below on Face ID iPhones). Priority 999, so the system's own height wins if it must.
-        let height = view.heightAnchor.constraint(equalToConstant: 280)
+        // dictation row below on Face ID iPhones); 16 pt more with the large dictate button, set on each appearance.
+        // Priority 999, so the system's own height wins if it must.
+        let height = view.heightAnchor.constraint(equalToConstant: CGFloat(DictateButton.baseKeyboardHeight))
         height.priority = UILayoutPriority(999)
         height.isActive = true
+        self.height = height
         host.didMove(toParent: self)
         self.host = host
         applyAppearance()
@@ -91,6 +95,10 @@ final class KeyboardViewController: UIInputViewController {
         model.host = hostBundleID()
         applyAppearance()
         model.resume()
+        // Settings › Keyboard › Dictate button, read by `resume`. iOS may keep the old height in some hosts until
+        // the keyboard appears again.
+        let h = CGFloat(model.dictateButton.keyboardHeight)
+        if height?.constant != h { height?.constant = h }
     }
 
     /// What the text field tells every keyboard, for the format chip's Auto (`KeyboardFormat.infer`).
