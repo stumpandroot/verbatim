@@ -10,6 +10,8 @@ struct VerbatimPhoneApp: App {
     init() {
         Cloud.settleSyncDefault()
         Cloud.prefetchContainer()
+        // What's new: a new install starts at its own build, so Home's note waits for the next update.
+        ReleaseNotes.settleLastSeen(ranBefore: Onboarding.finishedBefore)
     }
     var body: some Scene {
         WindowGroup {

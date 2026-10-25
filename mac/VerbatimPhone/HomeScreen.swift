@@ -36,6 +36,8 @@ struct HomeScreen: View {
                 VStack(alignment: .leading, spacing: 0) {
                     header.id("home-top")
                         .riseIn("header", index: 0, seen: seen, epoch: entrance)
+                    // After an update: "What's new in build N", once (WhatsNewScreen.swift).
+                    WhatsNewBanner(top: 16) { Self.openWhatsNew(app) }
                     recordPanel.padding(.top, 18)
                         .riseIn("record", index: 1, seen: seen, epoch: entrance)
                     tiles.padding(.top, 10)
@@ -104,6 +106,12 @@ struct HomeScreen: View {
     /// Your profile, the You page in Settings (YouScreen.swift): This week opens it.
     static func openProfile(_ app: PhoneState) {
         SettingsPage.open("you")
+        app.tab = .settings
+    }
+
+    /// Home's note after an update opens Settings › What's new.
+    static func openWhatsNew(_ app: PhoneState) {
+        SettingsPage.open("whatsNew")
         app.tab = .settings
     }
 
@@ -389,6 +397,7 @@ extension HomeScreen {
             Text(HomeGreeting.dateLine(now)).font(.subheadline).foregroundStyle(NativeInk.secondary)
                 .id("home-top")
                 .accessibilityAddTraits(.isHeader)
+            WhatsNewBanner(top: 14) { Self.openWhatsNew(app) }
             nativeRecordCard.padding(.top, 14)
             nativeTiles.padding(.top, 12)
             nativeWeek.padding(.top, 22)

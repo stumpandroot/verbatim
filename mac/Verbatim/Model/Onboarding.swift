@@ -20,6 +20,9 @@ enum Onboarding {
         return showOnLaunch || d.integer(forKey: seenKey) < version
     }
 
+    /// The tour was finished or skipped on this device before: an install that ran before (What's new's first launch).
+    static var finishedBefore: Bool { d.integer(forKey: seenKey) > 0 }
+
     static func finish() {
         d.set(version, forKey: seenKey)
         showOnLaunch = false

@@ -10,7 +10,8 @@ enum Profile {
 
 /// Settings in the website style, close to a native iOS list: the compact serif title, search, a card for You at the
 /// top (your initial and your name; it opens the You page, YouScreen.swift), then grouped cards with mono section labels,
-/// colored icon squares, values, chevrons, and standard switches. The version sits at the foot.
+/// colored icon squares, values, chevrons, and standard switches. The version sits at the foot; tapping it opens What's
+/// new (WhatsNewScreen.swift), as Support › What's new does.
 struct SettingsScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.openURL) private var openURL
@@ -72,6 +73,8 @@ struct SettingsScreen: View {
     @Environment(\.look) private var look
     /// Settings › Appearance (AppearanceScreen.swift): the look, light or dark, and Limit animation.
     @State private var showAppearance = false
+    /// What's new (WhatsNewScreen.swift): the version at the foot, Support › What's new, and Home's note.
+    @State private var showWhatsNew = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -120,6 +123,7 @@ struct SettingsScreen: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar(look.isNative ? .visible : .hidden, for: .navigationBar)
         .navigationDestination(isPresented: $showAppearance) { AppearanceScreen() }
+        .navigationDestination(isPresented: $showWhatsNew) { WhatsNewScreen() }
         .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
         .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
@@ -512,6 +516,14 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var support: some View {
+        Button { bump("whatsNew"); showWhatsNew = true } label: {
+            SettingsRow(icon: "sparkles", tint: Ink.butterTint, art: .iconNotes, title: "What's new",
+                        subtitle: ReleaseNotes.bundled.first(where: { $0.number != nil })?.heading,
+                        bounce: bumps["whatsNew", default: 0]) { SettingsChevron() }
+        }
+        .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget("whatsNew", flash: searchFlash)
+        SettingsDivider()
         Button { bump("support"); if let u = Links.mail(subject: "Verbose support") { openURL(u) } } label: {
             SettingsRow(icon: "bubble.left", tint: Ink.sageTint, art: .iconSupport, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
         }
@@ -586,12 +598,21 @@ struct SettingsScreen: View {
                 .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
                 Text(Ink.tagline).lookSerif(16).foregroundStyle(.lookDim).padding(.bottom, 6)
             }
-            Text("Version \(version) (\(build))")
+            // The version opens What's new.
+            Button { showWhatsNew = true } label: {
+                Text("Version \(version) (\(build))")
+                    .padding(.horizontal, 12).padding(.vertical, 4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, -4)
+            .accessibilityLabel("Version \(version), build \(build)")
+            .accessibilityHint("Shows what's new in each build")
             Text("Verbose · Stump & Root Co.")
         }
         .font(.system(size: 12.5)).foregroundStyle(.lookMute)
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Helpers
@@ -636,8 +657,9 @@ struct SettingsScreen: View {
         case "keyboard"?: showKeyboard = true
         case "actionButton"?: showActionButton = true
         case "appearance"?: showAppearance = true
+        case "whatsNew"?: showWhatsNew = true
         // Back to Settings itself (the screenshot tour, between subpages).
-        case "root"?: showKeyboard = false; showActionButton = false; showAppearance = false
+        case "root"?: showKeyboard = false; showActionButton = false; showAppearance = false; showWhatsNew = false
         default: break
         }
     }
@@ -653,6 +675,7 @@ struct SettingsScreen: View {
         case .page(.actionButton): showActionButton = true
         case .page(.snippets): showSnippets = true
         case .page(.appearance): showAppearance = true
+        case .page(.whatsNew): showWhatsNew = true
         case .row: flashRow(entry.id, label: entry.label, proxy)
         }
     }

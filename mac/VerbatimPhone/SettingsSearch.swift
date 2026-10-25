@@ -10,7 +10,7 @@ enum SettingsSearchTarget: Equatable {
 
 /// The Settings subpages a result can open. SettingsScreen maps each one to its navigation destination.
 enum SettingsSubpage: Equatable {
-    case aboutMe, dictionary, keyboard, snippets, actionButton, appearance
+    case aboutMe, dictionary, keyboard, snippets, actionButton, appearance, whatsNew
 }
 
 /// One searchable setting. `id` matches the row's `.settingsSearchTarget(_:flash:)` id on the Settings page.
@@ -136,6 +136,8 @@ enum SettingsSearchIndex {
         .init(id: "deleteAll", section: "Sync and data", label: "Delete all data", keywords: ["erase", "reset", "remove", "wipe"]),
 
         // Support
+        .init(id: "whatsNew", section: "Support", label: "What's new", keywords: ["release notes", "changes", "changelog", "version", "build", "update", "new features"],
+              description: "What each build added", target: .page(.whatsNew)),
         .init(id: "support", section: "Support", label: "Contact support", keywords: ["help", "email", "problem", "bug"]),
         .init(id: "feedback", section: "Support", label: "Share feedback", keywords: ["idea", "suggestion", "email"]),
         .init(id: "log", section: "Support", label: "Send diagnostic log", keywords: ["logs", "debug", "diagnostics", "bug"],
@@ -334,6 +336,7 @@ struct SettingsSearchResultRow: View {
         case .page(.snippets): return "Opens Snippets"
         case .page(.actionButton): return "Opens Action button settings"
         case .page(.appearance): return "Opens Appearance"
+        case .page(.whatsNew): return "Opens What's new"
         }
     }
 
