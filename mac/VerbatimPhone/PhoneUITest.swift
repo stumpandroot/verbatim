@@ -151,6 +151,22 @@ enum PhoneUITest {
                     if prefix == "p" {
                         let landed = TranscriptScrubber.lastLanding ?? ""
                         Log.note("UITEST \(landed.contains(" · ") ? "PASS" : "FAIL") scrubber: a drag lands on a line and names its time and speaker (\(landed))")
+                        // One scale: a drag to a fraction of the track lands on the line at that fraction of the
+                        // recording (the last line at the bottom), and once let go, the handle measured from the
+                        // line at the top of the screen sits where the finger was.
+                        var off: [String] = []
+                        for f in [0.25, 0.75, 1.0, 0.5] {
+                            NotificationCenter.default.post(name: .verbatimScrubPreview, object: f)
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            let at = TranscriptScrubber.lastLandingFraction ?? -1
+                            let ok = f == 1 ? TranscriptScrubber.lastLandingIsLast : abs(at - f) <= 0.03
+                            if !ok { off.append("\(f) landed at \(String(format: "%.3f", at))") }
+                        }
+                        Log.note("UITEST \(off.isEmpty ? "PASS" : "FAIL") scrubber: drags to 0.25, 0.5, 0.75, and 1.0 land within 3% of that time and on the last line\(off.isEmpty ? "" : " (\(off.joined(separator: ", ")))")")
+                        NotificationCenter.default.post(name: .verbatimScrubPreview, object: nil)
+                        try? await Task.sleep(nanoseconds: 800_000_000)
+                        let measured = TranscriptScrubModel.onScreen?.progress ?? -1
+                        Log.note("UITEST \(abs(measured - 0.5) <= 0.03 ? "PASS" : "FAIL") scrubber: scrolled to the middle line, the handle sits at about 0.5 (\(String(format: "%.3f", measured)))")
                     }
                     NotificationCenter.default.post(name: .verbatimScrubPreview, object: nil)
                     app.libraryPath = NavigationPath()
