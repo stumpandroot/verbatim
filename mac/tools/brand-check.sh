@@ -11,7 +11,7 @@
 # Run from anywhere: bash mac/tools/brand-check.sh   (exit 1 lists each problem as file:line)
 set -u
 cd "$(dirname "$0")/.." || exit 2
-DIRS="Verbatim VerbatimPhone VerbatimKeyboard VerbatimShare VerbatimWidgets"
+DIRS="Verbatim VerbatimPhone VerbatimKeyboard VerbatimShare VerbatimWidgets VerbatimMacWidgets"
 SRC=$(for d in $DIRS; do [ -d "$d" ] && echo "$d"; done)
 fail=0
 report() { echo "brand-check: $1"; echo "$2" | sed 's/^/  /'; echo; fail=1; }

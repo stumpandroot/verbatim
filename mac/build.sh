@@ -78,13 +78,23 @@ test -d "$APP"
 # 2b. Bundle the helper and sign it like the app
 mkdir -p "$APP/Contents/Helpers"
 cp Helpers/yt-dlp "$APP/Contents/Helpers/yt-dlp"
-ENTITLEMENTS=Verbatim/Verbatim.entitlements
+# The entitlements name the App Group the app shares with its desktop widgets as Xcode's
+# $(TeamIdentifierPrefix)co.stumpandroot.verbatim; codesign needs the prefix filled in ("TEAMID.", or nothing unsigned),
+# matching the VerbatimAppGroup value Xcode wrote into both Info.plists.
+ENT_DIR="$(mktemp -d)"
+fill_team() { sed "s/\$(TeamIdentifierPrefix)/${TEAM:+$TEAM.}/g" "$1" > "$2"; }
+ENTITLEMENTS="$ENT_DIR/Verbatim.entitlements"
+fill_team Verbatim/Verbatim.entitlements "$ENTITLEMENTS"
+WIDGETS="$APP/Contents/PlugIns/VerbatimMacWidgets.appex"
+WIDGET_ENTITLEMENTS="$ENT_DIR/VerbatimMacWidgets.entitlements"
+fill_team VerbatimMacWidgets/VerbatimMacWidgets.entitlements "$WIDGET_ENTITLEMENTS"
+if [ ! -d "$WIDGETS" ]; then echo "error: VerbatimMacWidgets.appex is missing from $APP/Contents/PlugIns" >&2; exit 1; fi
 if [ -n "$IDENTITY" ] && [ -n "${PROVISION_PROFILE:-}" ] && [ -f "$PROVISION_PROFILE" ]; then
   # iCloud sync in a Developer ID build: embed the provisioning profile and sign with the iCloud entitlements,
   # plus the identifiers the profile grants and the Production iCloud environment Developer ID requires.
   cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
-  ENTITLEMENTS="$(mktemp -d)/Verbatim-signed.entitlements"
-  cp Verbatim/Verbatim-iCloud.entitlements "$ENTITLEMENTS"
+  ENTITLEMENTS="$ENT_DIR/Verbatim-signed.entitlements"
+  fill_team Verbatim/Verbatim-iCloud.entitlements "$ENTITLEMENTS"
   /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $TEAM.co.stumpandroot.verbatim" "$ENTITLEMENTS"
   /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM" "$ENTITLEMENTS"
   /usr/libexec/PlistBuddy -c "Add :com.apple.developer.icloud-container-environment string Production" "$ENTITLEMENTS"
@@ -121,6 +131,15 @@ if [ -n "$IDENTITY" ]; then
     if [ ! -d "$FW" ]; then echo "error: $LIB.framework is missing from $APP/Contents/Frameworks" >&2; exit 1; fi
     codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$FW"
   done
+  # The desktop widgets (VerbatimMacWidgets.appex): signed again here like every nested bundle, with the hardened
+  # runtime, a timestamp, and its own entitlements (the App Sandbox, which WidgetKit requires, and the App Group).
+  codesign --force --options runtime --timestamp --entitlements "$WIDGET_ENTITLEMENTS" --sign "$SIGN_ID" "$WIDGETS"
+  WENT="$(codesign -d --entitlements - "$WIDGETS" 2>&1 || true)"
+  for KEY in com.apple.security.app-sandbox com.apple.security.application-groups "$TEAM.co.stumpandroot.verbatim"; do
+    if ! grep -q "$KEY" <<< "$WENT"; then echo "error: the widget extension's signature lacks $KEY" >&2; exit 1; fi
+  done
+  echo "Widget extension signature:"
+  codesign -dvv "$WIDGETS" 2>&1 | grep -E "^(Authority=Developer ID Application|TeamIdentifier|Timestamp|CodeDirectory)" | sed 's/^/  /' || true
   codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
 
@@ -132,6 +151,10 @@ if [ -n "$IDENTITY" ]; then
   codesign --verify --deep --strict --verbose=2 "$APP"
 else
   codesign --force --deep --sign - "$APP"
+  # --deep signs the widget extension without entitlements, and WidgetKit loads only a sandboxed extension: sign it
+  # again with its own (the group has no team prefix here, as in the Info.plists), then seal it into the app.
+  codesign --force --sign - --entitlements "$WIDGET_ENTITLEMENTS" "$WIDGETS"
+  codesign --force --sign - "$APP"
 fi
 
 # 4. DMG
