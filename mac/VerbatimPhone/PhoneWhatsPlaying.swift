@@ -25,13 +25,13 @@ struct WhatsPlayingSheet: View {
                     .accessibilityHidden(true)
 
                     Text("Transcribe what's playing")
-                        .font(Ink.serif(30)).foregroundStyle(Ink.ink)
+                        .lookSerif(30).foregroundStyle(.lookInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 14)
                         .accessibilityAddTraits(.isHeader)
 
                     Text("Start, then open TikTok or any app and play videos. Verbose records the sound they play — not your microphone or screen — and transcribes it when you stop.")
-                        .font(.system(size: 16)).foregroundStyle(Ink.dim)
+                        .font(.system(size: 16)).foregroundStyle(.lookDim)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
 
@@ -58,13 +58,13 @@ struct WhatsPlayingSheet: View {
                     .accessibilityHint("Opens the screen broadcast picker with Verbose chosen. Only app sound is kept.")
 
                     Text("You can also start it from Control Center: press and hold Screen Recording, then choose Verbose.")
-                        .font(.system(size: 13.5)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 13.5)).foregroundStyle(.lookMute)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 14)
                 }
                 .padding(20)
             }
-            .background(Ink.paper.ignoresSafeArea())
+            .phonePage()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
@@ -95,8 +95,8 @@ struct WhatsPlayingSheet: View {
 
     private func step(_ n: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(n).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.mute).frame(width: 14, alignment: .leading)
-            Text(text).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+            Text(n).lookMono(12, weight: .medium).foregroundStyle(.lookMute).frame(width: 14, alignment: .leading)
+            Text(text).font(.system(size: 15)).foregroundStyle(.lookInk).fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
     }

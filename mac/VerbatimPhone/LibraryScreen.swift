@@ -18,6 +18,7 @@ struct LibraryScreen: View {
     /// Newest, Oldest, Longest, or Title A–Z, remembered on this iPhone.
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
+    @Environment(\.look) private var look
 
     enum Filter: Hashable { case all, pinned, working, project(UUID), kind(RecordingKind) }
 
@@ -79,6 +80,10 @@ struct LibraryScreen: View {
         let items = sort.sorted(typeFilter.apply(scoped, searching: searching))
         let passages = search.trimmingCharacters(in: .whitespaces).count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
         let project: UUID? = { if case .project(let p) = filter { return p }; return nil }()
+        Group {
+        if look.isNative {
+            nativeList(scoped: scoped, items: items, passages: passages, project: project)
+        } else {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 14) {
@@ -97,9 +102,9 @@ struct LibraryScreen: View {
                             ArtIcon(art: .iconLibrary, size: 18)
                             Text("Add from Library").font(.system(size: 15, weight: .semibold))
                             Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
                         }
-                        .foregroundStyle(Ink.ink)
+                        .foregroundStyle(.lookInk)
                         .padding(.horizontal, 14).frame(minHeight: 48)
                         .phoneOutlined(radius: Radius.row, line: 1)
                         .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
@@ -137,7 +142,7 @@ struct LibraryScreen: View {
                         Text(!search.isEmpty ? "Nothing matches “\(search)”."
                              : typeFilter != .all ? "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label)."
                              : project != nil ? "Nothing in this project yet. Add transcripts from your library."
-                             : "Nothing here yet.").font(.system(size: 15)).foregroundStyle(Ink.dim)
+                             : "Nothing here yet.").font(.system(size: 15)).foregroundStyle(.lookDim)
                     }
                     .padding(.top, 16)
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -156,16 +161,21 @@ struct LibraryScreen: View {
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
+        }
+        }
+        .modifier(NativeSearchable(enabled: look.isNative, text: $search))
         .tabEntrance(.library) { seen.entered(); entrance += 1 }
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Library")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
         .toolbar {
-            // The serif title sits on the paper; the bar keeps only Apple's buttons.
-            ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
+            // Verbose style: the serif title sits on the paper; the bar keeps only Apple's buttons. Native: the large title.
+            if !look.isNative {
+                ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker("Sort by", selection: $sortRaw) {
@@ -269,7 +279,7 @@ struct LibraryScreen: View {
                             }
                     }
                     Button { newProject = true } label: {
-                        Image(systemName: "plus").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+                        Image(systemName: "plus").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookInk)
                             .frame(width: 32, height: 32)
                             .background(PhoneInk.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     }
@@ -322,6 +332,127 @@ struct LibraryScreen: View {
     }
 }
 
+// MARK: - Native look
+// brand: native begin
+
+/// Applies `.searchable` in the Native look, where the search field sits under the large title.
+private struct NativeSearchable: ViewModifier {
+    var enabled: Bool
+    @Binding var text: String
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        } else {
+            content
+        }
+    }
+}
+
+/// The Library in the Native look (the native mockup's section 01): the count under the large title, capsule filters,
+/// Dictations as the first row, and inset grouped sections per day ("Today", "Yesterday"), each row with a tinted SF
+/// Symbol, a subtitle, and the length in monospaced digits over its state. Same rows, menus, and swipes.
+extension LibraryScreen {
+    private struct DaySection: Identifiable {
+        var id: String
+        var title: String?
+        var rows: [(Transcript, Int)]
+    }
+
+    private func daySections(_ items: [Transcript]) -> [DaySection] {
+        var out: [DaySection] = []
+        for line in lines(items) {
+            switch line {
+            case .day(let d, let label):
+                out.append(DaySection(id: "day-\(d.timeIntervalSince1970)", title: PhoneDayHeader.nativeLabel(label), rows: []))
+            case .row(let t, let i):
+                if out.isEmpty { out.append(DaySection(id: "all", title: nil, rows: [])) }
+                out[out.count - 1].rows.append((t, i))
+            }
+        }
+        return out
+    }
+
+    func nativeList(scoped: [Transcript], items: [Transcript], passages: [LibrarySearch.PassageHit], project: UUID?) -> some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(PhoneCompactTitle.nativeCount("Library", "\(app.store.live.filter { !$0.isDictation }.count)"))
+                        .font(.subheadline).foregroundStyle(NativeInk.secondary)
+                        .padding(.horizontal, 20)
+                    chips(scoped)
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
+            if let p = project {
+                Section {
+                    Button { app.addFromLibrary = p } label: {
+                        Label("Add from Library", systemImage: "plus.circle").foregroundStyle(NativeInk.accent)
+                    }
+                    .accessibilityHint("Adds transcripts you already have to this project")
+                }
+            }
+            if filter == .all, search.isEmpty, typeFilter == .all, !dictations.isEmpty {
+                Section {
+                    NavigationLink(value: DictationsRoute()) {
+                        HStack {
+                            Label { Text("Dictations").foregroundStyle(NativeInk.label) } icon: {
+                                Image(systemName: "mic").foregroundStyle(NativeInk.accent)
+                            }
+                            Spacer()
+                            Text("\(dictations.count)").monospacedDigit().foregroundStyle(NativeInk.secondary)
+                        }
+                    }
+                }
+            }
+            if !passages.isEmpty {
+                Section {
+                    ForEach(passages) { hit in
+                        PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    }
+                } header: { Text("Passages").textCase(nil) }
+            }
+            if items.isEmpty {
+                Section {
+                    Text(!search.isEmpty ? "Nothing matches “\(search)”."
+                         : typeFilter != .all ? "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label)."
+                         : project != nil ? "Nothing in this project yet. Add transcripts from your library."
+                         : "Nothing here yet.")
+                        .font(.subheadline).foregroundStyle(NativeInk.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 24)
+                        .listRowBackground(Color.clear)
+                }
+            }
+            ForEach(daySections(items)) { section in
+                Section {
+                    ForEach(section.rows, id: \.0.id) { t, i in nativeRow(t, index: i) }
+                } header: {
+                    if let title = section.title { Text(title).textCase(nil) }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private func nativeRow(_ t: Transcript, index i: Int) -> some View {
+        Button { app.open(t.id) } label: {
+            PhoneFlatRow(transcript: t, meta: Self.meta(t)) { PhoneRowState(transcript: t) }
+        }
+        .buttonStyle(.plain)
+        .contextMenu { RowActions(transcript: t) }
+        .draggable(TranscriptDrag.payload([t.id]))
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
+        }
+        .swipeActions(edge: .leading) {
+            Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Color(uiColor: .systemOrange))
+        }
+    }
+}
+// brand: native end
+
 /// One transcript's matching lines from a search: tap a line to open the transcript there, with the audio cued to it.
 struct PhonePassageCard: View {
     @EnvironmentObject var app: PhoneState
@@ -333,20 +464,20 @@ struct PhonePassageCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Text(transcript.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+                Text(transcript.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
                 Spacer(minLength: 6)
-                Text(count == 1 ? "1 match" : "\(count) matches").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                Text(count == 1 ? "1 match" : "\(count) matches").font(.system(size: 12.5)).foregroundStyle(.lookMute)
             }
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
             ForEach(lines) { s in
                 Button { app.open(transcript.id, segment: s.id) } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.accentText).frame(width: 46, alignment: .leading)
+                        Text(s.start.timecode).lookMono(12).foregroundStyle(.lookAccentText).frame(width: 46, alignment: .leading)
                         VStack(alignment: .leading, spacing: 2) {
                             if transcript.speakers.count >= 2, let sp = transcript.speakerName(s.speaker) {
-                                Text(sp).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
+                                Text(sp).font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
                             }
-                            Text(marked(s.text)).font(.system(size: 15)).foregroundStyle(Ink.ink).lineLimit(3)
+                            Text(marked(s.text)).font(.system(size: 15)).foregroundStyle(.lookInk).lineLimit(3)
                                 .multilineTextAlignment(.leading)
                         }
                         Spacer(minLength: 0)

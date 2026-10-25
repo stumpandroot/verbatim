@@ -35,11 +35,11 @@ struct PhoneActionSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.accentText)
+                    Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookAccentText)
                         .frame(width: 34, height: 34).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(action.name).font(Ink.serif(22)).foregroundStyle(Ink.ink)
-                        Text("From the original transcript · \(words.formatted()) words").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        Text(action.name).lookSerif(22).foregroundStyle(.lookInk)
+                        Text("From the original transcript · \(words.formatted()) words").font(.system(size: 13)).foregroundStyle(.lookMute)
                     }
                     Spacer(minLength: 0)
                 }
@@ -48,7 +48,7 @@ struct PhoneActionSheet: View {
                     case .running:
                         VStack(spacing: 10) {
                             ProgressView()
-                            Text(part.isEmpty ? "Working on your iPhone…" : part).font(.system(size: 14)).foregroundStyle(Ink.mute)
+                            Text(part.isEmpty ? "Working on your iPhone…" : part).font(.system(size: 14)).foregroundStyle(.lookMute)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .done:
@@ -59,12 +59,12 @@ struct PhoneActionSheet: View {
                                 Text(TranscriptActions.madeByLabel).font(.system(size: 13, weight: .semibold)).lineLimit(2)
                                 Spacer(minLength: 0)
                             }
-                            .foregroundStyle(Ink.accentText)
+                            .foregroundStyle(.lookAccentText)
                             .padding(.horizontal, 12).padding(.vertical, 8)
                             .background(Ink.persimmonTint)
                             .accessibilityElement(children: .combine)
                             if !skipped.isEmpty {
-                                Text(skipped).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                                Text(skipped).font(.system(size: 12.5)).foregroundStyle(.lookMute)
                                     .padding(.horizontal, 12).padding(.top, 6)
                             }
                             TextEditor(text: $result)
@@ -73,15 +73,15 @@ struct PhoneActionSheet: View {
                                 .padding(8)
                                 .accessibilityLabel("Result, editable. \(TranscriptActions.madeByLabel)")
                         }
-                        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                        .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                         .clipShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
                     case .failed:
                         VStack(spacing: 8) {
-                            Text("Couldn't run this action").font(Ink.serif(19)).foregroundStyle(Ink.ink)
+                            Text("Couldn't run this action").lookSerif(19).foregroundStyle(.lookInk)
                             Text(failure ?? "Apple's on-device model didn't answer. Try again.")
-                                .font(.system(size: 14)).foregroundStyle(Ink.mute).multilineTextAlignment(.center)
-                            Button("Try again") { start() }.buttonStyle(.brandSecondary).padding(.top, 4)
+                                .font(.system(size: 14)).foregroundStyle(.lookMute).multilineTextAlignment(.center)
+                            Button("Try again") { start() }.buttonStyle(.phoneSecondary).padding(.top, 4)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -89,26 +89,26 @@ struct PhoneActionSheet: View {
                 .frame(maxHeight: .infinity)
                 if phase == .done {
                     Text("Apple Intelligence can be wrong. Edit the result before you keep it.")
-                        .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 12.5)).foregroundStyle(.lookMute)
                     HStack(spacing: 10) {
                         Button { UIPasteboard.general.string = result; app.say("Copied"); dismiss() } label: {
                             Label("Copy", art: .iconCopy).frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.brandPrimary)
+                        .buttonStyle(.phonePrimary)
                         ShareLink(item: result) { Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
-                            .buttonStyle(.brandSecondary)
+                            .buttonStyle(.phoneSecondary)
                         Button {
                             app.store.addNote(Note(text: result, aiAction: action.name), to: transcript.id)
                             app.say("Saved as a note"); dismiss()
                         } label: { Label("Save as note", art: .iconNotes).frame(maxWidth: .infinity) }
-                        .buttonStyle(.brandSecondary)
+                        .buttonStyle(.phoneSecondary)
                     }
                     .labelStyle(.titleAndIcon)
                     .font(.system(size: 14, weight: .semibold))
                 }
             }
             .padding(20)
-            .background(Ink.paper.ignoresSafeArea())
+            .phonePage()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { stop(); dismiss() } }

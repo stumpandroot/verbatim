@@ -10,7 +10,7 @@ enum SettingsSearchTarget: Equatable {
 
 /// The Settings subpages a result can open. SettingsScreen maps each one to its navigation destination.
 enum SettingsSubpage: Equatable {
-    case aboutMe, dictionary, keyboard, snippets, actionButton
+    case aboutMe, dictionary, keyboard, snippets, actionButton, appearance
 }
 
 /// One searchable setting. `id` matches the row's `.settingsSearchTarget(_:flash:)` id on the Settings page.
@@ -50,10 +50,13 @@ enum SettingsSearchIndex {
               description: "Say a trigger, get your saved text", target: .page(.snippets)),
         .init(id: "summaries", section: "Personalization", label: "Summaries", keywords: ["recap", "overview", "summary"],
               description: "For recordings over 5 minutes"),
-        .init(id: "appearance", section: "Personalization", label: "Appearance", keywords: ["dark mode", "light mode", "theme", "night", "color"],
-              description: "Match the system, light, or dark"),
-        .init(id: "limitMotion", section: "Personalization", label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
-              description: "Fades instead of movement; illustrations stay still"),
+        // Settings › Appearance: the look, light or dark, and Limit animation.
+        .init(id: "look", section: "Appearance", label: "Look", keywords: ["native", "verbose style", "apple", "plain", "illustrated", "theme", "style", "keyboard look"],
+              description: "Verbose style or Native", target: .page(.appearance)),
+        .init(id: "appearance", section: "Appearance", label: "Light or dark", keywords: ["appearance", "dark mode", "light mode", "theme", "night", "color"],
+              description: "Match the system, light, or dark", target: .page(.appearance)),
+        .init(id: "limitMotion", section: "Appearance", label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
+              description: "Fades instead of movement; illustrations stay still", target: .page(.appearance)),
 
         // Recording
         .init(id: "recordLiveWords", section: "Recording", label: "Show words while you record",
@@ -188,6 +191,7 @@ enum SettingsSearchIndex {
         case "aboutMe": return (d.string(forKey: Profile.aboutMeKey) ?? "").isEmpty ? "Add" : "Added"
         case "dictionary": return "\(app.store.dictionary.count)"
         case "builtInVocabulary": return onOff(BuiltInVocabulary.isOn)
+        case "look": return AppLook.current.label
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
         case "recordLiveWords": return onOff(RecordingLiveText.enabled)
@@ -253,7 +257,7 @@ struct SettingsSearchResults: View {
         VStack(alignment: .leading, spacing: 0) {
             if groups.isEmpty {
                 Text("No settings match \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
-                    .font(.body).foregroundStyle(Ink.dim)
+                    .font(.body).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)
@@ -262,13 +266,13 @@ struct SettingsSearchResults: View {
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(group.section) \u{00B7} \(group.entries.count)")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
                         .padding(.horizontal, 4)
                         .accessibilityLabel("\(group.section), \(group.entries.count) \(group.entries.count == 1 ? "result" : "results")")
                         .accessibilityAddTraits(.isHeader)
                     VStack(spacing: 0) {
                         ForEach(Array(group.entries.enumerated()), id: \.element.id) { i, entry in
-                            if i > 0 { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 14) }
+                            if i > 0 { Rectangle().fill(.lookHairline).frame(height: 1).padding(.leading, 14) }
                             Button { onPick(entry) } label: {
                                 SettingsSearchResultRow(entry: entry, query: query, value: value(entry.id))
                             }
@@ -281,7 +285,7 @@ struct SettingsSearchResults: View {
                 .padding(.top, 22)
             }
             Text("Clear the search to see every setting.")
-                .font(.footnote).foregroundStyle(Ink.mute)
+                .font(.footnote).foregroundStyle(.lookMute)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 30)
@@ -300,16 +304,16 @@ struct SettingsSearchResultRow: View {
         let descHit = entry.description.map { Self.highlighted($0, query: query) }
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(labelHit.text).font(.body).foregroundStyle(Ink.ink)
+                Text(labelHit.text).font(.body).foregroundStyle(.lookInk)
                     .fixedSize(horizontal: false, vertical: true)
                 if !labelHit.matched, let descHit, descHit.matched {
-                    Text(descHit.text).font(.footnote).foregroundStyle(Ink.mute)
+                    Text(descHit.text).font(.footnote).foregroundStyle(.lookMute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .multilineTextAlignment(.leading)
             Spacer(minLength: 8)
-            if let value { Text(value).font(.body).foregroundStyle(Ink.mute).lineLimit(1) }
+            if let value { Text(value).font(.body).foregroundStyle(.lookMute).lineLimit(1) }
             SettingsChevron()
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -329,6 +333,7 @@ struct SettingsSearchResultRow: View {
         case .page(.keyboard): return "Opens Keyboard settings"
         case .page(.snippets): return "Opens Snippets"
         case .page(.actionButton): return "Opens Action button settings"
+        case .page(.appearance): return "Opens Appearance"
         }
     }
 

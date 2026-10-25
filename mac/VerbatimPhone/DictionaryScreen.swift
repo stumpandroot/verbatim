@@ -24,7 +24,7 @@ struct DictionaryScreen: View {
                     Toggle(isOn: Binding(get: { e.enabled }, set: { v in if let i = app.store.dictionary.firstIndex(where: { $0.id == e.id }) { app.store.dictionary[i].enabled = v } })) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(e.preferred).font(.system(size: 16, weight: .semibold))
-                            Text(e.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                            Text(e.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(.lookMute)
                         }
                     }
                     .tint(Ink.switchOn)
@@ -36,7 +36,7 @@ struct DictionaryScreen: View {
             PhoneDictionaryCSVSection()
         }
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Dictionary")
     }
 }

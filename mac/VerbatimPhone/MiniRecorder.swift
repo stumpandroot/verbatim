@@ -256,12 +256,12 @@ struct MiniRecorderBar: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
                             Text(status).font(.system(size: 15, weight: .semibold)).foregroundStyle(paused || saving ? Ink.dim : Ink.ink)
-                            Text(RecorderPresentation.clock(live.elapsed)).font(Ink.mono(14, weight: .medium)).foregroundStyle(Ink.ink)
+                            Text(RecorderPresentation.clock(live.elapsed)).lookMono(14, weight: .medium).foregroundStyle(.lookInk)
                                 .monospacedDigit()
                         }
                         .lineLimit(1)
                         if let line {
-                            Text(line).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                            Text(line).font(.system(size: 12.5)).foregroundStyle(.lookMute)
                                 .lineLimit(1).truncationMode(.head)
                         }
                     }
@@ -287,8 +287,8 @@ struct MiniRecorderBar: View {
         }
         .disabled(saving)
         .frame(height: 56)
-        .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+        .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
         .shadow(color: Ink.inkFixed.opacity(0.10), radius: 12, y: 4)
         .modifier(RecorderZoomSource(zoom: zoom, active: isZoomSource))
         .padding(.horizontal, 12)
@@ -317,7 +317,7 @@ private struct MiniControl<Mark: View>: View {
         Button(action: action) {
             ZStack {
                 Circle().fill(primary ? Ink.persimmon : Ink.paper)
-                if !primary { Circle().strokeBorder(Ink.hairline) }
+                if !primary { Circle().strokeBorder(.lookHairline) }
                 mark()
             }
             .frame(width: 40, height: 40)
@@ -450,7 +450,7 @@ struct RecordLiveText: View {
         let w = text.shown.tail(260)
         if showWords && !w.isEmpty {
             let gap = w.settled.isEmpty || w.volatile.isEmpty ? "" : " "
-            (Text(w.settled).foregroundStyle(Ink.ink) + Text(gap) + Text(w.volatile).foregroundStyle(Ink.mute))
+            (Text(w.settled).foregroundStyle(.lookInk) + Text(gap) + Text(w.volatile).foregroundStyle(.lookMute))
                 .font(.system(size: size))
                 .lineSpacing(3)
                 .lineLimit(3)

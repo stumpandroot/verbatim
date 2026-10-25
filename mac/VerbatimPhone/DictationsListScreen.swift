@@ -17,19 +17,19 @@ struct DictationsCard: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Dictations").font(Ink.serif(titleSize)).foregroundStyle(Ink.ink)
-                    Text("\(dictations.count)").font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                    Text("Dictations").lookSerif(titleSize).foregroundStyle(.lookInk)
+                    Text("\(dictations.count)").lookMono(12).foregroundStyle(.lookMute)
                 }
                 if let latest = dictations.first {
-                    Text(Self.firstWords(latest)).font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)
+                    Text(Self.firstWords(latest)).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
                 }
             }
             Spacer(minLength: 6)
-            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute)
+            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookMute)
         }
         .padding(.vertical, 10).padding(.horizontal, 2)
         .frame(minHeight: 64)
-        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Dictations, \(dictations.count)")
@@ -67,7 +67,7 @@ struct DictationsListScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 PhoneCompactTitle(title: "Dictations", count: "\(app.store.live.filter(\.isDictation).count) kept")
                 Text("Everything you dictated with the Verbose keyboard, with the audio.")
-                    .font(.system(size: ledeSize)).foregroundStyle(Ink.dim).lineSpacing(3)
+                    .font(.system(size: ledeSize)).foregroundStyle(.lookDim).lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
@@ -75,7 +75,7 @@ struct DictationsListScreen: View {
             if items.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     if search.isEmpty { IconPlate(art: .iconDictations, size: 96) } else { EmptyStateArt(art: .search, tint: Ink.butterTint) }
-                    Text(search.isEmpty ? "No dictations yet." : "Nothing matches “\(search)”.").font(.system(size: 15)).foregroundStyle(Ink.dim)
+                    Text(search.isEmpty ? "No dictations yet." : "Nothing matches “\(search)”.").font(.system(size: 15)).foregroundStyle(.lookDim)
                 }
                 .padding(.top, 16)
                 .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -108,7 +108,7 @@ struct DictationsListScreen: View {
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Dictations")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
@@ -130,9 +130,9 @@ struct DictationsListScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 PhoneEyebrow(text: "Keyboard", color: Ink.inkFixed)
                 (Text("Dictate into ") + Text("any app.").italic())
-                    .font(Ink.serif(21)).foregroundStyle(Ink.inkFixed)
+                    .lookSerif(21).foregroundStyle(.lookOnPanel)
                 Text("Hold the globe key to switch to the Verbose keyboard, then tap the mic.")
-                    .font(.system(size: 13.5)).foregroundStyle(Ink.inkFixed).lineSpacing(2)
+                    .font(.system(size: 13.5)).foregroundStyle(.lookOnPanel).lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.trailing, 70)
             }
@@ -171,7 +171,7 @@ struct PhoneDictationRow: View {
                         RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Self.square(app))
                             .frame(width: 14, height: 14).accessibilityHidden(true)
                         Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")
-                            .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+                            .lookMono(12).foregroundStyle(.lookMute).lineLimit(1)
                     }
                     Text(HomeDictationText.body(transcript))
                         .font(.system(size: textSize)).foregroundStyle(transcript.status == .failed ? Ink.danger : Ink.ink)
@@ -196,7 +196,7 @@ struct PhoneDictationRow: View {
                 .accessibilityHidden(true)
             }
             .padding(.vertical, 14).padding(.horizontal, 2)
-            .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -216,10 +216,10 @@ struct PhoneDictationRow: View {
         let level = transcript.flow.flatMap { CleanupLevel(stored: $0.level)?.title }
         let notPasted = transcript.flow.map { !$0.pastedOK } ?? false
         HStack(spacing: 0) {
-            Text(level ?? "Dictation").foregroundStyle(Ink.mute)
+            Text(level ?? "Dictation").foregroundStyle(.lookMute)
             if notPasted {
-                Text(" · ").foregroundStyle(Ink.mute)
-                Text("not pasted").fontWeight(.semibold).foregroundStyle(Ink.accentText)
+                Text(" · ").foregroundStyle(.lookMute)
+                Text("not pasted").fontWeight(.semibold).foregroundStyle(.lookAccentText)
             }
         }
     }

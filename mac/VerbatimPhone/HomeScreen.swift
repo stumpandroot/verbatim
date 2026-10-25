@@ -24,10 +24,15 @@ struct HomeScreen: View {
     @ScaledMetric(relativeTo: .body) private var tileSize: CGFloat = 19
     @ScaledMetric(relativeTo: .title2) private var sectionSize: CGFloat = 22
     @ScaledMetric(relativeTo: .footnote) private var small: CGFloat = 12.5
+    @Environment(\.look) private var look
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
+                if look.isNative {
+                    nativeBody
+                        .padding(.horizontal, 16).padding(.bottom, 32)
+                } else {
                 VStack(alignment: .leading, spacing: 0) {
                     header.id("home-top")
                         .riseIn("header", index: 0, seen: seen, epoch: entrance)
@@ -41,6 +46,7 @@ struct HomeScreen: View {
                         .riseIn("recent", index: 4, seen: seen, epoch: entrance)
                 }
                 .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeScroll)) { note in
                 guard let id = note.object as? String else { return }
@@ -48,8 +54,16 @@ struct HomeScreen: View {
             }
         }
         .tabEntrance(.home) { seen.entered(); entrance += 1 }
-        .background(Ink.paper.ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
+        .phonePage()
+        // Verbose style draws its own greeting; Native uses the navigation bar's large title and the account button.
+        .navigationTitle(look.isNative ? "Home" : "")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar(look.isNative ? .visible : .hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if look.isNative { nativeAccountButton }
+            }
+        }
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
         .onAppear { now = Date(); micName = Self.currentMic() }
         .onDisappear { monitor.stop() }
@@ -78,8 +92,8 @@ struct HomeScreen: View {
                 Text(line)
                 Text("What are we keeping?").italic()
             }
-            .font(Ink.serif(displaySize)).tracking(-0.8)
-            .foregroundStyle(Ink.ink)
+            .lookSerif(displaySize).tracking(-0.8)
+            .foregroundStyle(.lookInk)
             .lineSpacing(0)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
@@ -128,8 +142,8 @@ struct HomeScreen: View {
                 Spacer(minLength: 0)
                 HStack(alignment: .bottom, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Record").font(Ink.serif(recordSize))
-                        Text("a thought, a call, a walk.").font(Ink.serif(recordLine)).italic()
+                        Text("Record").lookSerif(recordSize)
+                        Text("a thought, a call, a walk.").lookSerif(recordLine).italic()
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 8)
@@ -219,7 +233,7 @@ struct HomeScreen: View {
         return VStack(alignment: .leading, spacing: 8) {
             IconGlyph(art: art, size: 22, color: on)
             Spacer(minLength: 0)
-            Text(title).font(Ink.serif(tileSize)).foregroundStyle(on)
+            Text(title).lookSerif(tileSize).foregroundStyle(on)
                 .lineLimit(2).minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -244,16 +258,16 @@ struct HomeScreen: View {
         return Button { Self.openProfile(app) } label: {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("This week").font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                    Text("This week").lookMono(12).foregroundStyle(.lookMute)
                     (Text(week.words.formatted()) + Text(week.words == 1 ? " word" : " words").italic())
-                        .font(Ink.serif(24)).foregroundStyle(Ink.ink)
+                        .lookSerif(24).foregroundStyle(.lookInk)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 6)
                 dayBars(week)
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(saved).font(Ink.serif(17)).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text("saved").font(.system(size: small)).foregroundStyle(Ink.dim)
+                    Text(saved).lookSerif(17).foregroundStyle(.lookInk).lineLimit(1)
+                    Text("saved").font(.system(size: small)).foregroundStyle(.lookDim)
                 }
                 .fixedSize()
             }
@@ -298,18 +312,18 @@ struct HomeScreen: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 (Text("Recent ") + Text("recordings").italic())
-                    .font(Ink.serif(sectionSize)).foregroundStyle(Ink.ink)
+                    .lookSerif(sectionSize).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 Button("Library") { app.tab = .library }
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.accentText)
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookAccentText)
                     .buttonStyle(.plain)
                     .accessibilityHint("Opens your library.")
             }
             if items.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Record something new.").font(Ink.serif(20)).foregroundStyle(Ink.ink)
-                    Text("Recordings and imports land here, and on your Mac.").font(.system(size: 14)).foregroundStyle(Ink.dim)
+                    Text("Record something new.").lookSerif(20).foregroundStyle(.lookInk)
+                    Text("Recordings and imports land here, and on your Mac.").font(.system(size: 14)).foregroundStyle(.lookDim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 12)
@@ -342,11 +356,12 @@ struct HomeScreen: View {
         .accessibilityHint("Opens the transcript.")
     }
 
+    /// Native: a tinted `.bordered` capsule.
     private var cleanUpPill: some View {
         Text("Clean up").font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Ink.onInteractive)
+            .foregroundStyle(look.isNative ? NativeInk.accent : Ink.onInteractive)
             .padding(.horizontal, 12).frame(minHeight: 30)
-            .background(Ink.interactive, in: Capsule())
+            .background(look.isNative ? NativeInk.fill : Ink.interactive, in: Capsule())
     }
 
     /// "Meeting · Today · 3:39 PM", or where it is while it's being made.
@@ -361,6 +376,213 @@ struct HomeScreen: View {
         }
     }
 }
+
+// MARK: - Native look
+// brand: native begin
+
+/// Home in the Native look (the native mockup's section 01): the large title "Home" with the date under it and your
+/// initials in the account button, a Voice Memos-style Record card, a Reminders-style tile grid, This week, and the
+/// recent recordings as an inset grouped list. Same actions as Verbose style.
+extension HomeScreen {
+    @ViewBuilder var nativeBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(HomeGreeting.dateLine(now)).font(.subheadline).foregroundStyle(NativeInk.secondary)
+                .id("home-top")
+                .accessibilityAddTraits(.isHeader)
+            nativeRecordCard.padding(.top, 14)
+            nativeTiles.padding(.top, 12)
+            nativeWeek.padding(.top, 22)
+            nativeRecent.padding(.top, 22).id("home-recent")
+        }
+    }
+
+    /// Your initials in a gray circle; opens the You page.
+    var nativeAccountButton: some View {
+        Button { Self.openProfile(app) } label: {
+            Text(Self.initials(storedName))
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.white)
+                .frame(width: 30, height: 30)
+                .background(Color(uiColor: .systemGray), in: Circle())
+        }
+        .accessibilityLabel("You")
+        .accessibilityHint("Opens your You page: About me, your voice, your week, and cleanup.")
+    }
+
+    /// "TM" from "Tim Medina"; one letter for one name; a person glyph's stand-in ("?") when there's no name.
+    static func initials(_ name: String) -> String {
+        let parts = name.split(whereSeparator: \.isWhitespace).prefix(2)
+        let s = parts.compactMap(\.first).map { String($0).uppercased() }.joined()
+        return s.isEmpty ? "?" : s
+    }
+
+    /// A plain card with a Voice Memos record button: the brand persimmon disc in a gray ring. The bars stay still and
+    /// gray, and show the real level while a finger rests on the card or a recording runs.
+    private var nativeRecordCard: some View {
+        let shape = RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous)
+        return Button {
+            monitor.stop()
+            app.requestRecord()
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Record").font(.title2.bold()).foregroundStyle(NativeInk.label)
+                        Text("Ready · \(micName)").font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    ZStack {
+                        Circle().strokeBorder(NativeInk.gray, lineWidth: 3)
+                        Circle().fill(NativeInk.record).padding(6)
+                    }
+                    .frame(width: 54, height: 54)
+                    .accessibilityHidden(true)
+                }
+                Group {
+                    if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 3, gap: 4, heights: HomeMeter.phoneHeights, color: NativeInk.secondary) }
+                    else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 3, gap: 4, heights: HomeMeter.phoneHeights, color: NativeInk.secondary) }
+                    else { HomeMeter(barWidth: 3, gap: 4, heights: HomeMeter.phoneHeights, color: NativeInk.gray) }
+                }
+                .frame(height: 26)
+                Text("Keeps recording with the screen locked").font(.footnote).foregroundStyle(NativeInk.secondary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NativeInk.card, in: shape)
+            .contentShape(shape)
+        }
+        .buttonStyle(PhonePressReporting { pressed in
+            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
+        })
+        .accessibilityLabel("Record")
+        .accessibilityValue("Microphone: \(micName)")
+        .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
+    }
+
+    /// Reminders-style tiles: a persimmon circle with the SF Symbol, the name in SF Pro. Labels and symbols carry the
+    /// meaning here (Verbose style's tile colors don't exist in Native).
+    private var nativeTiles: some View {
+        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+            GridRow {
+                Button { app.homePath.append(DictationsRoute()) } label: { nativeTile("Dictate", symbol: "mic.fill") }
+                    .buttonStyle(PhoneCardPress())
+                    .accessibilityHint("Opens your dictations and how to use the Verbose keyboard.")
+                Menu {
+                    Button("Choose from Photos") { app.showPhotoPicker = true }
+                    Button("Choose files…") { app.showImporter = true }
+                    Button("Paste a link") { app.showLinkSheet = true }
+                } label: { nativeTile("Import", symbol: "square.and.arrow.down") }
+                .menuStyle(.button)
+                .buttonStyle(PhoneCardPress())
+                .accessibilityHint("Choose a video from Photos, audio or video files, or paste a link to transcribe.")
+                .accessibilityAction(named: "Paste a link") { app.showLinkSheet = true }
+            }
+            GridRow {
+                Button { app.showPlayingSheet = true } label: { nativeTile("What's playing", symbol: "waveform") }
+                    .buttonStyle(PhoneCardPress())
+                    .accessibilityHint("Transcribes sound from TikTok or any app.")
+                Button { app.requestCaptions() } label: { nativeTile("Live captions", symbol: "captions.bubble.fill") }
+                    .buttonStyle(PhoneCardPress())
+                    .accessibilityHint("Shows what's said in the room as captions.")
+            }
+        }
+    }
+
+    private func nativeTile(_ title: String, symbol: String) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.white)
+                .frame(width: 32, height: 32)
+                .background(NativeInk.accent, in: Circle())
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.label)
+                .lineLimit(2).minimumScaleFactor(0.85)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+        .background(NativeInk.card, in: shape)
+        .contentShape(shape)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// The week's words, the time saved, and a small bar chart in system gray with today in the accent. Opens You.
+    private var nativeWeek: some View {
+        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
+        let peak = CGFloat(max(1, week.peak))
+        let letters = ["S", "M", "T", "W", "T", "F", "S"]
+        return VStack(alignment: .leading, spacing: 7) {
+            NativeSectionHeader("This week")
+            Button { Self.openProfile(app) } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(HomeCounts.countLabel(week.words, "word", "words")).font(.title2.bold()).foregroundStyle(NativeInk.label)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                        Text("\(saved) saved typing").font(.subheadline).foregroundStyle(NativeInk.secondary)
+                    }
+                    Spacer(minLength: 6)
+                    HStack(alignment: .bottom, spacing: 6) {
+                        ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
+                            let empty = day.isFuture || day.words == 0
+                            VStack(spacing: 3) {
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(day.isToday && !empty ? NativeInk.accent : NativeInk.gray)
+                                    .frame(width: 7, height: empty ? 2 : max(4, 28 * CGFloat(day.words) / peak))
+                                    .frame(height: 28, alignment: .bottom)
+                                Text(letters[(Calendar.current.component(.weekday, from: day.start) - 1) % 7])
+                                    .font(.system(size: 9)).foregroundStyle(NativeInk.secondary)
+                            }
+                        }
+                    }
+                    .accessibilityHidden(true)
+                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
+                        .accessibilityHidden(true)
+                }
+                .padding(16)
+                .background(NativeInk.card, in: RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
+            }
+            .buttonStyle(PhoneCardPress())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(saved) saved.")
+            .accessibilityHint("Opens your You page, with the whole week.")
+        }
+    }
+
+    /// The two newest recordings as inset grouped rows, with Library on the header's right.
+    private var nativeRecent: some View {
+        let items = Array(app.store.live.filter { !$0.isDictation }.prefix(2))
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                NativeSectionHeader("Recent recordings")
+                Spacer(minLength: 8)
+                Button("Library") { app.tab = .library }
+                    .font(.footnote.weight(.semibold)).foregroundStyle(NativeInk.accent)
+                    .padding(.horizontal, 16)
+                    .accessibilityHint("Opens your library.")
+            }
+            VStack(spacing: 0) {
+                if items.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Record something new.").font(.body.weight(.semibold)).foregroundStyle(NativeInk.label)
+                        Text("Recordings and imports land here, and on your Mac.").font(.subheadline).foregroundStyle(NativeInk.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
+                        recentRow(t).padding(.horizontal, 16)
+                        if i < items.count - 1 { NativeDivider(leading: 52) }
+                    }
+                }
+            }
+            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
+        }
+    }
+}
+// brand: native end
 
 /// Card press feedback (`PhoneCardPress`) that also reports the press, so Record can open the mic while a finger
 /// rests on it.
@@ -459,22 +681,22 @@ struct RecordScreen: View {
                         .stroke(Ink.ink, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                         .frame(width: 16, height: 16)
                         .frame(width: 36, height: 36)
-                        .background(Ink.reader, in: Circle())
-                        .overlay(Circle().strokeBorder(Ink.hairline))
+                        .background(.lookReader, in: Circle())
+                        .overlay(Circle().strokeBorder(.lookHairline))
                         .contentShape(Circle())
                 }
                 .buttonStyle(SoftPress())
                 .accessibilityLabel("Minimize")
                 .accessibilityHint("Keeps recording. Use the bar above the tab bar to come back.")
-                Text(adding == nil ? "New recording" : "Continue recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
+                Text(adding == nil ? "New recording" : "Continue recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
                 DottedRule().frame(height: 1)
-                Text(adding == nil ? "Voice note" : "Adds to \(HomeRecentStyle.length(adding!.duration))").font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.mute)
+                Text(adding == nil ? "Voice note" : "Adds to \(HomeRecentStyle.length(adding!.duration))").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
             }
             .padding(.top, 8)
             .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
             Text(headline)
-                .font(Ink.serif(30)).foregroundStyle(Ink.ink).lineLimit(2).minimumScaleFactor(0.8)
+                .lookSerif(30).foregroundStyle(.lookInk).lineLimit(2).minimumScaleFactor(0.8)
                 .padding(.top, 14)
                 .contentTransition(.opacity)
                 .animation(Motion.settle, value: paused)
@@ -489,18 +711,18 @@ struct RecordScreen: View {
                         }
                         ElapsedLabel(live: app.recorder.live, size: 54)
                         // The recording is written to disk as it goes, in 5-minute parts.
-                        Text("Saved as you go").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        Text("Saved as you go").font(.system(size: 13)).foregroundStyle(.lookMute)
                             .accessibilityLabel("Saved as you go. The recording is written to this iPhone while you talk.")
                     }
                     Spacer(minLength: 8)
                     LiveCaptureMark(live: app.recorder.live, paused: paused).frame(width: 78, height: 100)
                 }
                 RecordWave(live: app.recorder.live, paused: paused).frame(height: 84).padding(.top, 14)
-                Text("Transcribed on this iPhone").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.top, 10)
+                Text("Transcribed on this iPhone").font(.system(size: 13)).foregroundStyle(.lookMute).padding(.top, 10)
             }
             .padding(20)
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
+            .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
             .padding(.top, 20)
             .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
 
@@ -509,16 +731,16 @@ struct RecordScreen: View {
                 HStack(alignment: .center, spacing: 12) {
                     IconGlyph(art: .iconAttention, size: 20, color: Ink.ink)
                         .accessibilityHidden(true)
-                    Text(reason).font(.system(size: 15)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
+                    Text(reason).font(.system(size: 15)).foregroundStyle(.lookInk).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
-                    Button("Resume") { app.togglePause() }.buttonStyle(.brandPrimary)
+                    Button("Resume") { app.togglePause() }.buttonStyle(.phonePrimary)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 14)
                 .accessibilityElement(children: .combine)
             } else {
-                Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(.lookMute)
                     .frame(maxWidth: .infinity).padding(.top, 14)
                     .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
             }
@@ -533,7 +755,7 @@ struct RecordScreen: View {
             // Centered: the Record button you tapped is now Stop, with Discard and Pause on either side.
             HStack(alignment: .top, spacing: 0) {
                 RoundControl(label: "Discard", size: 62) {
-                    Image(systemName: "xmark").font(.system(size: 20, weight: .semibold)).foregroundStyle(Ink.dim)
+                    Image(systemName: "xmark").font(.system(size: 20, weight: .semibold)).foregroundStyle(.lookDim)
                 } action: {
                     discardLength = app.recorder.elapsed.timecode
                     confirmDiscard = true
@@ -545,7 +767,7 @@ struct RecordScreen: View {
                 } action: { app.stopRecording() }
                 .frame(maxWidth: .infinity)
                 RoundControl(label: paused ? "Resume" : "Pause", size: 62) {
-                    Image(systemName: paused ? "play.fill" : "pause.fill").font(.system(size: 20)).foregroundStyle(Ink.ink)
+                    Image(systemName: paused ? "play.fill" : "pause.fill").font(.system(size: 20)).foregroundStyle(.lookInk)
                 } action: { app.togglePause() }
                 .frame(maxWidth: .infinity)
             }
@@ -554,7 +776,7 @@ struct RecordScreen: View {
             .riseIn("controls", index: 4, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
         }
         .padding(.horizontal, 20)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .offset(y: pull)
         // Swipe down to minimize where the system's zoom transition doesn't provide it. Never stops the recording.
         .gesture(swipeDown, including: RecorderZoomDestination.systemSwipe(limitMotion: limitMotion) ? .subviews : .all)
@@ -604,12 +826,12 @@ struct RoundControl<Icon: View>: View {
             VStack(spacing: 10) {
                 ZStack {
                     Circle().fill(primary ? Ink.persimmon : Ink.reader)
-                    if !primary { Circle().strokeBorder(Ink.hairline) }
+                    if !primary { Circle().strokeBorder(.lookHairline) }
                     icon()
                 }
                 .frame(width: size, height: size)
                 .frame(height: 100)   // labels line up whatever the circle size
-                Text(label).font(.system(size: 14, weight: primary ? .semibold : .regular)).foregroundStyle(Ink.ink).lineLimit(1).fixedSize()
+                Text(label).font(.system(size: 14, weight: primary ? .semibold : .regular)).foregroundStyle(.lookInk).lineLimit(1).fixedSize()
             }
         }
         .buttonStyle(PressScale())
@@ -705,20 +927,20 @@ struct LinkSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone.")
-                    .font(.system(size: 15)).foregroundStyle(Ink.dim)
+                    .font(.system(size: 15)).foregroundStyle(.lookDim)
                 HStack(spacing: 8) {
                     IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)
                     TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
                 }
                 .padding(12)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
+                .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(.lookHairline))
                 PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
                     .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
                 Spacer()
             }
             .padding(20)
-            .background(Ink.paper.ignoresSafeArea())
+            .phonePage()
             .navigationTitle("Add a link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

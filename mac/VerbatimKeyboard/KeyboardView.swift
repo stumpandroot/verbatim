@@ -11,54 +11,103 @@ import UIKit
 /// numbers, Listening, the bar's notices) uses `ink`, `dim`, `muted`, and `deep`, which hold 4.5:1 on that gray
 /// in both appearances.
 enum KB {
-    static let uiInk = Ink.inkUI
+    /// The look chosen on this iPhone (Settings › Appearance; `KeyboardLook`), read once per appearance from the App
+    /// Group like the dictate button's settings. Set by `KeyboardModel.resume` before it publishes the change; the
+    /// keyboard view takes a new identity then, so every color and font below is read again. Verbose style without
+    /// Full Access (no App Group).
+    static var native = false
 
-    static let paper = Ink.paper
-    static let ink = Ink.ink
+    static var uiInk: UIColor { native ? UIColor.label : Ink.inkUI }
+
+    static var paper: Color { native ? N.paper : Ink.paper }
+    static var ink: Color { native ? N.ink : Ink.ink }
     /// Cards and outlined circles: the menu, the lists, the Full Access notice, ABC, Recent, and Settings.
-    static let card = Ink.card
+    static var card: Color { native ? N.card : Ink.card }
     /// Secondary text: the line under Home's number, the live words while you talk.
-    static let dim = Ink.dim
+    static var dim: Color { native ? N.dim : Ink.dim }
     /// Notices (a failure). `Ink.danger`, a step deeper in light so it holds 4.5:1 on the system's light gray.
     static let deep = Ink.dynC(0x9E361E, 0xFF8A6B, 0x8A2E18, 0xFFA48A)
     /// Metadata. `Ink.mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
-    static let muted = Ink.dynC(0x48514A, 0xA1A29A, 0x3E4A43, 0xD4CDC0)
-    static let hairline = Ink.hairline
-    /// Ink in both appearances: text and glyphs on butter, which stays butter in dark. Never the adaptive `ink`
-    /// on butter: that turns light in dark.
-    static let inkFixed = Ink.inkFixed
+    static var muted: Color { native ? N.muted : V.muted }
+    static var hairline: Color { native ? N.hairline : Ink.hairline }
+    /// Text and glyphs on the filled dictate button: fixed ink on butter (butter stays butter in dark); white on the
+    /// Native accent.
+    static var inkFixed: Color { native ? Color.white : Ink.inkFixed }
 
     // Keyboard-only colors (not in Tokens.swift; defined here, not shared). The keys and soft surfaces are tuned
     // for Apple's keyboard backdrop rather than a panel of ours.
-    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Dark is #DDB563, a
-    /// little lighter than `Ink.butter`'s dark value, so it holds up on the dark backdrop.
-    static let dictate = Ink.dyn(Ink.butterHex, 0xDDB563)
+    /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Butter in Verbose style
+    /// (dark is #DDB563, a little lighter than `Ink.butter`'s dark value, so it holds up on the dark backdrop); the
+    /// Native accent in Native.
+    static var dictate: Color { native ? Ink.nativeAccent : V.dictate }
     /// The butter's 1.5 pt outline: fixed ink in light, as the mockup; none in dark, where a dark ring would
-    /// melt into the dark backdrop and shrink the butter. The butter itself holds 8:1 against the dark gray.
-    static let dictateRim = Ink.make { dark, _ in dark ? PColor.clear : PColor(hex: Ink.inkHex) }
+    /// melt into the dark backdrop and shrink the butter. The butter itself holds 8:1 against the dark gray. None in
+    /// Native.
+    static var dictateRim: Color { native ? Color.clear : V.dictateRim }
     /// Letter keys and the key popup: reader white in light; a raised gray-green in dark, lighter than the
-    /// system's dark gray (1.7:1), with ink labels at 8.7:1 (7:1 with Increase Contrast, on a lighter key).
-    static let key = Ink.dynC(Ink.readerHex, 0x3A4641, Ink.readerHex, 0x47544E)
+    /// system's dark gray (1.7:1), with ink labels at 8.7:1 (7:1 with Increase Contrast, on a lighter key). Native:
+    /// Apple's white and gray keys.
+    static var key: Color { native ? N.key : V.key }
     /// The space bar's name on a key: `muted`, lighter in dark so it holds 5:1 on `key`.
-    static let keyMuted = Ink.dynC(0x606962, 0xB9BAB2, 0x3E4A43, 0xD4CDC0)
+    static var keyMuted: Color { native ? N.keyMuted : V.keyMuted }
     /// Chips, soft circles, and function keys: a warm step darker than the system's light gray in light (like
-    /// Apple's function keys), and a quiet step above the backdrop in dark (1.3:1), under the letter keys.
-    static let wash = Ink.dynC(0xCCC3B1, 0x2B3530, 0xC0B6A2, 0x36423C)
-    /// The butter pills' and the menu card's hard offset shadow.
-    static let hard = Ink.dyn(Ink.inkHex, 0x0C1310)
+    /// Apple's function keys), and a quiet step above the backdrop in dark (1.3:1), under the letter keys. Native:
+    /// Apple's gray function keys.
+    static var wash: Color { native ? N.wash : V.wash }
+    /// The butter pills' and the menu card's hard offset shadow. None in Native.
+    static var hard: Color { native ? Color.clear : V.hard }
     /// A key's 1 pt bottom edge: ink at 25% in light (50% with Increase Contrast); a dark shadow in dark, as the
     /// system keys have (a light edge under a dark key reads as a rim), with a paper edge under Increase Contrast.
-    static let keyShadow = Ink.make { dark, hc in
-        if dark { return hc ? PColor(hex: Ink.paperHex).withAlphaComponent(0.35) : PColor.black.withAlphaComponent(0.5) }
-        return PColor(hex: Ink.inkHex).withAlphaComponent(hc ? 0.5 : 0.25)
-    }
+    static var keyShadow: Color { native ? N.keyShadow : V.keyShadow }
+    /// The voice bars while you talk: ink in Verbose style, the accent in Native (the one place color moves).
+    static var voice: Color { native ? Ink.nativeAccent : Ink.ink }
 
-    /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the Record panel's radius.
+    /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the Record panel's radius (12 pt in Native).
     static let keyRadius: CGFloat = 7
-    static let cardRadius = Radius.record
+    static var cardRadius: CGFloat { native ? 12 : Radius.record }
     /// The top bar: 46 pt circles and pills, 10 pt from the edges.
     static let barHeight: CGFloat = 46
     static let barInset: CGFloat = 10
+
+    /// The display serif in Verbose style; SF Pro in Native (bold where the serif was regular, as Apple's numbers are).
+    static func serif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        native ? .system(size: size, weight: weight == .regular ? .bold : weight) : Ink.serif(size, weight: weight)
+    }
+    /// Mono data in Verbose style; SF Pro with monospaced digits in Native.
+    static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        native ? .system(size: size, weight: weight).monospacedDigit() : Ink.mono(size, weight: weight)
+    }
+
+    /// Verbose style's keyboard colors.
+    private enum V {
+        static let muted = Ink.dynC(0x48514A, 0xA1A29A, 0x3E4A43, 0xD4CDC0)
+        static let dictate = Ink.dyn(Ink.butterHex, 0xDDB563)
+        static let dictateRim = Ink.make { dark, _ in dark ? PColor.clear : PColor(hex: Ink.inkHex) }
+        static let key = Ink.dynC(Ink.readerHex, 0x3A4641, Ink.readerHex, 0x47544E)
+        static let keyMuted = Ink.dynC(0x606962, 0xB9BAB2, 0x3E4A43, 0xD4CDC0)
+        static let wash = Ink.dynC(0xCCC3B1, 0x2B3530, 0xC0B6A2, 0x36423C)
+        static let hard = Ink.dyn(Ink.inkHex, 0x0C1310)
+        static let keyShadow = Ink.make { dark, hc in
+            if dark { return hc ? PColor(hex: Ink.paperHex).withAlphaComponent(0.35) : PColor.black.withAlphaComponent(0.5) }
+            return PColor(hex: Ink.inkHex).withAlphaComponent(hc ? 0.5 : 0.25)
+        }
+    }
+
+    /// Native's keyboard colors: Apple's gray keyboard approximated with flat colors (an extension can't use the
+    /// system keyboard's glass or key art), over Apple's own backdrop. Secondary text holds 4.5:1 on the backdrop
+    /// and on the function keys in both appearances.
+    private enum N {
+        static let paper = Ink.dyn(0xFFFFFF, 0x000000)
+        static let ink = Ink.dyn(0x000000, 0xFFFFFF)
+        static let card = Ink.dyn(0xFFFFFF, 0x3A3A3C)
+        static let dim = Ink.dynC(0x48484D, 0xAEAEB2, 0x3C3C43, 0xC7C7CC)
+        static let muted = Ink.dynC(0x3C3C43, 0xC7C7CC, 0x2C2C2E, 0xE5E5EA)
+        static let key = Ink.dynC(0xFFFFFF, 0x6B6B6B, 0xFFFFFF, 0x7C7C80)
+        static let keyMuted = Ink.dynC(0x6C6C70, 0xD1D1D6, 0x48484D, 0xE5E5EA)
+        static let wash = Ink.dynC(0xACB1B9, 0x474747, 0x9EA3AB, 0x545456)
+        static let keyShadow = Ink.make { dark, _ in dark ? PColor.black.withAlphaComponent(0.45) : PColor(white: 0.54, alpha: 1) }
+        static let hairline = Ink.make { dark, _ in dark ? PColor.white.withAlphaComponent(0.16) : PColor.black.withAlphaComponent(0.14) }
+    }
 }
 
 /// Three modes, like Wispr Flow's keyboard, in Verbose's look (the approved mockup, kb2). The dictate button's size,
@@ -87,6 +136,10 @@ struct KeyboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             if model.showingMenu && model.mode == .typing { menuLayer }
         }
+        // A new identity when the look changes (once per appearance, at most), so every KB color and font is read
+        // again; the state worth keeping lives in the model.
+        .id(model.native)
+        .environment(\.look, model.native ? .native : .verbose)
         // No background: Apple's keyboard backdrop shows through (see `KB`).
     }
 
@@ -113,7 +166,7 @@ struct KeyboardView: View {
 
     private func listHeader(_ title: String, closeLabel: String, close: @escaping () -> Void) -> some View {
         bar {
-            Text(title).font(Ink.serif(21)).foregroundStyle(KB.ink).lineLimit(1)
+            Text(title).font(KB.serif(21)).foregroundStyle(KB.ink).lineLimit(1)
                 .padding(.leading, 4)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 6)
@@ -156,11 +209,11 @@ struct KeyboardView: View {
             .accessibilityLabel("Letter keys")
             .accessibilityHint("Shows the typing keyboard")
             if model.hasFullAccess {
-                CircleButton(look: .outline, action: model.toggleRecent) { KBGlyph(art: .iconRecent, size: 20, color: KB.ink, minLineWidth: 1.3) }
+                CircleButton(look: .outline, action: model.toggleRecent) { KBIcon(art: .iconRecent, symbol: "clock", size: 20, color: KB.ink, minLineWidth: 1.3) }
                     .accessibilityLabel("Recent dictations")
                     .accessibilityHint("Shows your last dictations to insert again")
             }
-            CircleButton(look: .outline, action: model.openVerbose) { KBGlyph(art: .iconSettings, size: 20, color: KB.ink, minLineWidth: 1.3) }
+            CircleButton(look: .outline, action: model.openVerbose) { KBIcon(art: .iconSettings, symbol: "gearshape", size: 20, color: KB.ink, minLineWidth: 1.3) }
                 .accessibilityLabel("Settings")
                 .accessibilityHint(model.hasFullAccess ? "Opens Verbose" : "Shows how to turn on dictation")
         }
@@ -390,7 +443,7 @@ struct KeyboardView: View {
             listeningBar
             VStack(spacing: 12) {
                 listeningWords
-                VoiceWave(clock: model.clock, active: model.stage == .listening, color: KB.ink, count: 13, barWidth: 6)
+                VoiceWave(clock: model.clock, active: model.stage == .listening, color: KB.voice, count: 13, barWidth: 6)
                     .frame(width: 170, height: 36)
                 ListeningStatus(clock: model.clock, stage: model.stage, polishing: model.polishing,
                                 words: model.insertion?.words ?? 0, micName: model.micName, engineReady: model.engineReady)
@@ -509,7 +562,7 @@ private struct SessionCountdown: View {
 
     var body: some View {
         Text("\(KeyboardView.clock(endsAt.timeIntervalSince(clock.now))) left")
-            .font(Ink.mono(12)).foregroundStyle(KB.muted)
+            .font(KB.mono(12)).foregroundStyle(KB.muted)
             .lineLimit(1).minimumScaleFactor(0.8)
             .accessibilityLabel(accessibility)
     }
@@ -539,10 +592,10 @@ private struct ListeningStatus: View {
     var body: some View {
         VStack(spacing: 3) {
             Text(title)
-                .font(Ink.serif(22)).foregroundStyle(KB.ink)
+                .font(KB.serif(22)).foregroundStyle(KB.ink)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(detail)
-                .font(detailIsData ? Ink.mono(12) : .system(size: 12.5))
+                .font(detailIsData ? KB.mono(12) : .system(size: 12.5))
                 .foregroundStyle(KB.muted)
                 .lineLimit(1).minimumScaleFactor(0.75)
         }
@@ -603,8 +656,8 @@ private struct StatsPager: View {
     var body: some View {
         VStack(spacing: 6) {
             if let p = current {
-                Text("\(Text(p.number)) \(Text(p.unit).italic())")
-                    .font(Ink.serif(50)).tracking(-1).foregroundStyle(KB.ink)
+                Text("\(Text(p.number)) \(Text(p.unit).italic(!KB.native))")
+                    .font(KB.native ? .system(size: 36, weight: .bold) : KB.serif(50)).tracking(KB.native ? 0 : -1).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.5)
                 Text(p.line)
                     .font(.system(size: 15)).foregroundStyle(KB.dim)
@@ -613,8 +666,8 @@ private struct StatsPager: View {
                     .frame(maxWidth: 300)
             } else {
                 // Before the first dictation.
-                Text("\(Text("Talk, "))\(Text("don't type.").italic())")
-                    .font(Ink.serif(40)).tracking(-0.8).foregroundStyle(KB.ink)
+                Text("\(Text("Talk, "))\(Text("don't type.").italic(!KB.native))")
+                    .font(KB.native ? .system(size: 30, weight: .bold) : KB.serif(40)).tracking(KB.native ? 0 : -0.8).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.5)
                 Text("Your numbers show up here after your first dictation.")
                     .font(.system(size: 15)).foregroundStyle(KB.dim)
@@ -661,7 +714,11 @@ private struct TalkPill: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                StillBars(height: 18, barWidth: 3, color: dictateForeground(style))
+                if KB.native {
+                    Image(systemName: "mic.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(dictateForeground(style))   // brand: native
+                } else {
+                    StillBars(height: 18, barWidth: 3, color: dictateForeground(style))
+                }
                 Text(label).font(.system(size: 16, weight: .bold)).foregroundStyle(dictateForeground(style)).lineLimit(1)
             }
             .padding(.horizontal, 24).frame(height: 50)
@@ -733,7 +790,11 @@ private struct StillBars: View {
 }
 
 /// Text and glyphs on the dictate button: fixed ink on butter (butter stays butter in dark), adaptive ink on card.
-private func dictateForeground(_ style: DictateButton.Style) -> Color { style == .filled ? KB.inkFixed : KB.ink }
+private func dictateForeground(_ style: DictateButton.Style) -> Color {
+    // Native: white on the accent, or the accent on a white key.
+    if KB.native { return style == .filled ? Color.white : Ink.nativeAccent }
+    return style == .filled ? KB.inkFixed : KB.ink
+}
 
 private extension View {
     /// The dictate button's surface. Filled: butter with a 1.5 pt fixed-ink outline (none in dark, `KB.dictateRim`)
@@ -742,10 +803,11 @@ private extension View {
         background {
             ZStack {
                 shape.fill(style == .filled ? KB.dictate : KB.card)
-                if style == .filled && grain { GrainOverlay().clipShape(shape) }
+                if style == .filled && grain && !KB.native { GrainOverlay().clipShape(shape) }
             }
         }
-        .overlay(shape.strokeBorder(style == .filled ? KB.dictateRim : KB.ink, lineWidth: 1.5))
+        // Native: a flat .borderedProminent capsule (filled) or a white key (outline), no ring and no hard shadow.
+        .overlay(shape.strokeBorder(style == .filled ? KB.dictateRim : (KB.native ? Color.clear : KB.ink), lineWidth: 1.5))
         .background(shape.fill(KB.hard).offset(x: shadow.width, y: shadow.height))
         .contentShape(shape)
     }
@@ -788,7 +850,8 @@ private struct CircleButton<Label: View>: View {
 
     @ViewBuilder private var ring: some View {
         switch look {
-        case .outline: Circle().strokeBorder(KB.ink, lineWidth: 1.5)
+        // Native: a plain white key, no ink ring.
+        case .outline: if !KB.native { Circle().strokeBorder(KB.ink, lineWidth: 1.5) }
         default: EmptyView()
         }
     }
@@ -802,47 +865,49 @@ private struct MenuCard: View {
     var body: some View {
         VStack(spacing: 0) {
             if model.hasFullAccess {
-                row(.iconAI, "Cleanup", value: "\(model.levelLabel) · \(model.formatLabel)",
+                row(.iconAI, "wand.and.stars", "Cleanup", value: "\(model.levelLabel) · \(model.formatLabel)",
                     spoken: ("Format: \(model.formatLabel)", "Cleanup: \(model.levelLabel)"),
                     hint: "Changes how Verbose cleans up your dictations: Auto, Email, Message, or Note",
                     adjustable: true, action: model.cycleFormat)
                 if !model.snippets.isEmpty {
-                    row(.iconQuote, "Snippets", value: "\(model.snippets.count)", hint: "Shows your snippets to insert",
+                    row(.iconQuote, "text.quote", "Snippets", value: "\(model.snippets.count)", hint: "Shows your snippets to insert",
                         action: model.toggleSnippets)
                 }
                 if !model.recent.isEmpty {
-                    row(.iconRecent, "Recent dictations", hint: "Shows your last dictations to insert again", action: model.toggleRecent)
+                    row(.iconRecent, "clock", "Recent dictations", hint: "Shows your last dictations to insert again", action: model.toggleRecent)
                 }
                 if model.stage == .inserted, let ins = model.insertion, ins.raw != ins.text, !ins.raw.isEmpty {
-                    row(.iconSwap, "Use as spoken", hint: "Replaces the cleaned-up words with the words as you said them") {
+                    row(.iconSwap, "arrow.uturn.backward", "Use as spoken", hint: "Replaces the cleaned-up words with the words as you said them") {
                         model.closeMenu()
                         model.useAsSpoken()
                     }
                 }
             }
-            row(.iconSettings, "Open Verbose", hint: model.hasFullAccess ? "Opens the Verbose app" : "Shows how to turn on dictation",
+            row(.iconSettings, "gearshape", "Open Verbose", hint: model.hasFullAccess ? "Opens the Verbose app" : "Shows how to turn on dictation",
                 action: model.openVerbose)
         }
         .padding(6)
         .frame(width: 228)
         .background(KB.card, in: RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.ink, lineWidth: 1.5))
+        // Verbose style: the ink outline and hard shadow. Native: a soft system shadow.
+        .overlay(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).strokeBorder(KB.native ? Color.clear : KB.ink, lineWidth: 1.5))
         .background(RoundedRectangle(cornerRadius: KB.cardRadius, style: .continuous).fill(KB.hard).offset(x: 4, y: 5))
+        .shadow(color: KB.native ? Color.black.opacity(0.18) : Color.clear, radius: 10, y: 4)
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { model.closeMenu() }
     }
 
     /// One row: a brand icon, the name, and a mono value on the right. `spoken` overrides VoiceOver's label and
     /// value; `adjustable` lets VoiceOver swipe up or down to run the action again.
-    private func row(_ art: BrandArt, _ title: String, value: String? = nil, spoken: (String, String)? = nil,
+    private func row(_ art: BrandArt, _ symbol: String, _ title: String, value: String? = nil, spoken: (String, String)? = nil,
                      hint: String, adjustable: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                KBGlyph(art: art, size: 18, color: KB.ink)
+                KBIcon(art: art, symbol: symbol, size: 18, color: KB.ink)
                 Text(title).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
                 Spacer(minLength: 6)
                 if let value {
-                    Text(value).font(Ink.mono(12)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
+                    Text(value).font(KB.mono(12)).foregroundStyle(KB.muted).lineLimit(1).minimumScaleFactor(0.75)
                 }
             }
             .padding(.horizontal, 10).frame(height: 40)
@@ -986,10 +1051,10 @@ private struct CardShell<Content: View>: View {
             .background {
                 ZStack {
                     shape.fill(KB.card)
-                    GrainOverlay().clipShape(shape)
+                    if !KB.native { GrainOverlay().clipShape(shape) }
                 }
             }
-            .overlay { shape.strokeBorder(KB.ink, lineWidth: 1.5) }
+            .overlay { if !KB.native { shape.strokeBorder(KB.ink, lineWidth: 1.5) } }
     }
 }
 
@@ -1016,13 +1081,13 @@ private struct FullAccessCard: View {
             if disc {
                 ZStack {
                     Circle().fill(KB.wash)
-                    KBGlyph(art: .iconPrivacy, size: 22, color: KB.ink)
+                    KBIcon(art: .iconPrivacy, symbol: "lock", size: 22, color: KB.ink)
                 }
                 .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
             }
-            Text("\(Text("Dictation needs "))\(Text("Full Access.").italic())")
-                .font(Ink.serif(21)).foregroundStyle(KB.ink)
+            Text("\(Text("Dictation needs "))\(Text("Full Access.").italic(!KB.native))")
+                .font(KB.serif(21)).foregroundStyle(KB.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(1).minimumScaleFactor(0.75)
             Text("So the Verbose app can pass your words to this keyboard. Typing works without it.")
@@ -1051,8 +1116,8 @@ private struct StartSessionHeadline: View {
     var returnsByItself: Bool
     var body: some View {
         VStack(spacing: 6) {
-            Text("\(Text("Start a session "))\(Text("to dictate.").italic())")
-                .font(Ink.serif(34)).tracking(-0.6).foregroundStyle(KB.ink)
+            Text("\(Text("Start a session "))\(Text("to dictate.").italic(!KB.native))")
+                .font(KB.serif(34)).tracking(KB.native ? 0 : -0.6).foregroundStyle(KB.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(2).minimumScaleFactor(0.6)
             Text(StartCard.detail(returnsByItself: returnsByItself))
@@ -1075,8 +1140,8 @@ private struct StartSessionWays: View {
     var body: some View {
         CardShell {
             VStack(alignment: .leading, spacing: 6) {
-                Text("\(Text("Verbose didn't open. "))\(Text("Try one of these.").italic())")
-                    .font(Ink.serif(19)).foregroundStyle(KB.ink)
+                Text("\(Text("Verbose didn't open. "))\(Text("Try one of these.").italic(!KB.native))")
+                    .font(KB.serif(19)).foregroundStyle(KB.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 ForEach(Array(StartCard.ways.enumerated()), id: \.offset) { i, text in
                     way(Self.symbols[i], text)
@@ -1123,13 +1188,14 @@ private struct ListRow: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(meta).font(Ink.mono(11.5)).foregroundStyle(KB.muted).lineLimit(1)
+                Text(meta).font(KB.mono(11.5)).foregroundStyle(KB.muted).lineLimit(1)
                 Text(Self.oneLine(text)).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.ink)
+            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.native ? Ink.nativeAccent : KB.ink)
                 .padding(.horizontal, 11).frame(height: 28)
-                .overlay(Capsule().strokeBorder(KB.ink, lineWidth: 1.3))
+                .background(Capsule().fill(KB.native ? KB.wash : Color.clear))
+                .overlay(Capsule().strokeBorder(KB.native ? Color.clear : KB.ink, lineWidth: 1.3))
         }
         .padding(.horizontal, 14).padding(.vertical, 9)
         .contentShape(Rectangle())
@@ -1167,7 +1233,7 @@ private struct CleanupChip: View {
     var body: some View {
         Button(action: next) {
             HStack(spacing: 5) {
-                KBGlyph(art: .iconAI, size: 14, color: KB.ink)
+                KBIcon(art: .iconAI, symbol: "wand.and.stars", size: 14, color: KB.ink)
                 Text(level).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
                 Text("· \(format)").font(.system(size: 13.5, weight: .medium)).foregroundStyle(KB.muted)
                     .lineLimit(1).minimumScaleFactor(0.8)
@@ -1176,8 +1242,8 @@ private struct CleanupChip: View {
                 }
             }
             .padding(.horizontal, 12).frame(height: 34)
-            .background(KB.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .background(KB.wash, in: RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
         }
         .buttonStyle(PressFade())
         .disabled(!enabled)
@@ -1267,7 +1333,7 @@ private struct LiveWordsLine: View {
     var body: some View {
         let joiner = settled.isEmpty || volatile.isEmpty ? "" : " "
         line(joiner)
-            .font(Ink.serif(size))
+            .font(KB.native ? .system(size: size) : KB.serif(size))
             .lineSpacing(3)
             .lineLimit(3)
             .truncationMode(.head)
@@ -1330,8 +1396,8 @@ private struct Chip: View {
         Button(action: action) {
             Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(KB.ink).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 34)
-                .background(KB.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .background(KB.wash, in: RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: KB.native ? 17 : Radius.button, style: .continuous))
         }
         .buttonStyle(PressFade())
         .accessibilityLabel(title)
@@ -1344,9 +1410,9 @@ private struct DarkPill: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.paper).lineLimit(1)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.native ? Color.white : KB.paper).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
-                .background(KB.ink, in: Capsule())
+                .background(KB.native ? Ink.nativeAccent : KB.ink, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(PressFade())
@@ -1379,3 +1445,24 @@ struct GlobeKey: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIButton, context: Context) {}
 }
+
+// brand: native begin
+/// A brand line icon in Verbose style; its SF Symbol in Native (Recent → clock, Settings → gearshape).
+struct KBIcon: View {
+    var art: BrandArt
+    var symbol: String
+    var size: CGFloat
+    var color: Color
+    var minLineWidth: CGFloat = 1.2
+
+    var body: some View {
+        if KB.native {
+            Image(systemName: symbol).font(.system(size: size * 0.82, weight: .medium)).foregroundStyle(color)
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else {
+            KBGlyph(art: art, size: size, color: color, minLineWidth: minLineWidth)
+        }
+    }
+}
+// brand: native end

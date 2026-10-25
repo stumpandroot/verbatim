@@ -5,6 +5,10 @@ import UIKit
 // serif titles, mono labels, soft chips, flat rows with hairlines, and color panels with grain and one slowly moving
 // line drawing per screen. Apple owns the chrome (tab bar, navigation buttons, sheets, menus); everything here is the
 // content layer, opaque, and never sits under glass.
+//
+// Each component also draws the Native look (DESIGN.md §13, NativeLook.swift) when `@Environment(\.look)` says so:
+// grouped cards for panels, no grain, line art, ink edges, or hard shadows, SF Pro for the serif and mono, capsules
+// for chips, a segmented picker, and SF Symbols. The Native branches are marked `// brand: native`.
 
 // MARK: - Phone names for shared tokens
 
@@ -66,8 +70,18 @@ struct PhonePanelFill<S: Shape>: View {
     var grain = true
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative {
+            // Native: a grouped card, no color and no grain.
+            shape.fill(NativeInk.card).allowsHitTesting(false).accessibilityHidden(true)
+        } else {
+            verbose
+        }
+    }
+
+    private var verbose: some View {
         shape.fill(color)
             .overlay {
                 if grain, contrast != .increased, !reduceTransparency {
@@ -82,10 +96,24 @@ struct PhonePanelFill<S: Shape>: View {
 }
 
 extension View {
-    /// A paper card with an ink outline (the website's `inset 0 0 0 1.5px ink`).
+    /// A paper card with an ink outline (the website's `inset 0 0 0 1.5px ink`). Native: a grouped card, no outline.
     func phoneOutlined(radius: CGFloat, fill: Color = Ink.card, line: CGFloat = 1.5) -> some View {
-        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Ink.ink, lineWidth: line))
+        modifier(PhoneOutlined(radius: radius, fill: fill, line: line))
+    }
+}
+
+private struct PhoneOutlined: ViewModifier {
+    var radius: CGFloat
+    var fill: Color
+    var line: CGFloat
+    @Environment(\.look) private var look
+    func body(content: Content) -> some View {
+        if look.isNative {
+            content.background(NativeInk.card, in: RoundedRectangle(cornerRadius: max(radius, 12), style: .continuous))
+        } else {
+            content.background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Ink.ink, lineWidth: line))
+        }
     }
 }
 
@@ -131,10 +159,14 @@ struct PhonePanelArt: View {
     var kind: Kind
     var color: Color = Ink.inkFixed
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
 
     var body: some View {
         Group {
-            if limitMotion || !PhoneMotion.on {
+            if look.isNative {
+                // Native: no line drawings.
+                Color.clear
+            } else if limitMotion || !PhoneMotion.on {
                 Canvas { ctx, size in Self.draw(kind, in: ctx, size: size, t: nil, color: color) }
             } else {
                 PhoneLoopClock { now in
@@ -245,8 +277,19 @@ struct PhoneEyebrow: View {
     var text: String
     var color: Color = Ink.dim
     @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 12
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative {
+            // Native: a plain secondary line, no diamond and no mono.
+            Text(text).font(.subheadline).foregroundStyle(NativeInk.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            verbose
+        }
+    }
+
+    private var verbose: some View {
         HStack(spacing: 8) {
             Rectangle().strokeBorder(color, lineWidth: 1.3)
                 .frame(width: 7, height: 7).rotationEffect(.degrees(45))
@@ -263,12 +306,39 @@ struct PhoneCompactTitle: View {
     var count: String? = nil
     @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 34
     @ScaledMetric(relativeTo: .caption) private var countSize: CGFloat = 12
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative {
+            // Native: a large title, with the count as its subtitle.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.largeTitle.bold()).foregroundStyle(NativeInk.label)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                if let count { Text(Self.nativeCount(title, count)).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1) }
+            }
+            .padding(.top, 6)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+        } else {
+            verbose
+        }
+    }
+
+    /// "46 transcripts" under Library, "128 dictations" under Dictations; a bare number elsewhere.
+    static func nativeCount(_ title: String, _ count: String) -> String {
+        guard Int(count) != nil else { return count }
+        switch title {
+        case "Library": return count == "1" ? "1 transcript" : "\(count) transcripts"
+        case "Moments": return count == "1" ? "1 moment" : "\(count) moments"
+        default: return count
+        }
+    }
+
+    private var verbose: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(title).font(Ink.serif(size)).foregroundStyle(Ink.ink)
+            Text(title).font(Ink.serif(size)).foregroundStyle(.lookInk)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            if let count { Text(count).font(Ink.mono(countSize)).foregroundStyle(Ink.mute).lineLimit(1) }
+            if let count { Text(count).font(Ink.mono(countSize)).foregroundStyle(.lookMute).lineLimit(1) }
         }
         .padding(.top, 6)
         .accessibilityElement(children: .combine)
@@ -280,10 +350,23 @@ struct PhoneCompactTitle: View {
 struct PhoneDayHeader: View {
     var text: String
     @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 12
+    @Environment(\.look) private var look
     var body: some View {
-        Text(text).font(Ink.mono(size)).foregroundStyle(Ink.mute)
-            .padding(.top, 16).padding(.bottom, 2)
-            .accessibilityAddTraits(.isHeader)
+        if look.isNative {
+            // Native: a section header ("Today"), sentence case, no mono.
+            Text(Self.nativeLabel(text)).font(.footnote).foregroundStyle(NativeInk.secondary)
+                .padding(.top, 16).padding(.bottom, 2).padding(.horizontal, 16)
+                .accessibilityAddTraits(.isHeader)
+        } else {
+            Text(text).font(Ink.mono(size)).foregroundStyle(.lookMute)
+                .padding(.top, 16).padding(.bottom, 2)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    /// "Today · Fri Oct 23" → "Today"; other days keep their date.
+    static func nativeLabel(_ text: String) -> String {
+        text.components(separatedBy: " · ").first ?? text
     }
 
     /// "Today · Fri Oct 23", "Yesterday · Thu Oct 22", or "Mon Oct 19".
@@ -307,8 +390,32 @@ struct PhoneChip: View {
     var action: () -> Void
     @ScaledMetric(relativeTo: .subheadline) private var size: CGFloat = 13
     @ScaledMetric(relativeTo: .subheadline) private var height: CGFloat = 32
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative { native } else { verbose }
+    }
+
+    /// Native: a small capsule, gray at rest and persimmon when selected. No color dot: hue no longer names a source.
+    private var native: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(label)
+                if let count { Text("\(count)").monospacedDigit().opacity(0.7) }
+            }
+            .font(.system(size: size + 1, weight: selected ? .semibold : .regular))
+            .lineLimit(1)
+            .foregroundStyle(selected ? Color.white : NativeInk.label)
+            .padding(.horizontal, 13).frame(minHeight: height)
+            .background(selected ? NativeInk.accent : NativeInk.fill, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(count.map { "\(label), \($0)" } ?? label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var verbose: some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let dot { Circle().fill(dot).frame(width: 8, height: 8).accessibilityHidden(true) }
@@ -334,8 +441,22 @@ struct PhoneSegmented<T: Hashable>: View {
     @Binding var selection: T
     @Environment(\.limitMotion) private var limitMotion
     @ScaledMetric(relativeTo: .subheadline) private var size: CGFloat = 13
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative {
+            // Native: the system's segmented picker.
+            Picker("", selection: $selection) {
+                ForEach(options, id: \.0) { value, label in Text(label).tag(value) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        } else {
+            verbose
+        }
+    }
+
+    private var verbose: some View {
         HStack(spacing: 2) {
             ForEach(options, id: \.0) { value, label in
                 Button { withAnimation(limitMotion ? Motion.fade : Motion.snap) { selection = value } } label: {
@@ -360,10 +481,12 @@ struct PhoneCardPress: ButtonStyle {
     private struct Pressed: View {
         let configuration: ButtonStyleConfiguration
         @Environment(\.limitMotion) private var limitMotion
+        @Environment(\.look) private var look
         var body: some View {
             configuration.label
-                .scaleEffect(configuration.isPressed && !limitMotion ? 0.98 : 1)
-                .opacity(configuration.isPressed && limitMotion ? 0.75 : 1)
+                // Native: the system's highlight (a dim), never a press-in.
+                .scaleEffect(configuration.isPressed && !limitMotion && !look.isNative ? 0.98 : 1)
+                .opacity(configuration.isPressed && (limitMotion || look.isNative) ? 0.6 : 1)
                 .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.12), value: configuration.isPressed)
         }
     }
@@ -377,17 +500,22 @@ struct PhoneSearchField: View {
     @FocusState private var focused: Bool
     @ScaledMetric(relativeTo: .body) private var height: CGFloat = 40
     @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 15
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative { field.nativeSearchField(focused: focused) } else { field.verboseSearchField(focused: focused, height: height, empty: text.isEmpty) }
+    }
+
+    private var field: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: glyph, weight: .medium))
-                .foregroundStyle(Ink.mute)
+                .foregroundStyle(.lookMute)
                 .accessibilityHidden(true)
-            TextField(prompt, text: $text, prompt: Text(prompt).foregroundStyle(Ink.mute))
-                .font(.system(size: 15)).dynamicTypeSize(...DynamicTypeSize.accessibility3)
-                .foregroundStyle(Ink.ink)
-                .tint(Ink.accentText)
+            TextField(prompt, text: $text, prompt: Text(prompt).foregroundStyle(.lookMute))
+                .font(.system(size: look.isNative ? 17 : 15)).dynamicTypeSize(...DynamicTypeSize.accessibility3)
+                .foregroundStyle(.lookInk)
+                .tint(look.isNative ? NativeInk.accent : Ink.accentText)
                 .focused($focused)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
@@ -398,7 +526,7 @@ struct PhoneSearchField: View {
                 Button { text = ""; focused = true } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: glyph + 1))
-                        .foregroundStyle(Ink.faint)
+                        .foregroundStyle(.lookFaint)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -406,10 +534,22 @@ struct PhoneSearchField: View {
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.leading, 14).padding(.trailing, text.isEmpty ? 14 : 0)
-        .frame(minHeight: height)
-        .background(PhoneInk.wash, in: Capsule())
-        .overlay(Capsule().strokeBorder(focused ? Ink.ink.opacity(0.35) : Color.clear, lineWidth: 1))
+    }
+}
+
+private extension View {
+    func verboseSearchField(focused: Bool, height: CGFloat, empty: Bool) -> some View {
+        padding(.leading, 14).padding(.trailing, empty ? 14 : 0)
+            .frame(minHeight: height)
+            .background(PhoneInk.wash, in: Capsule())
+            .overlay(Capsule().strokeBorder(focused ? Ink.ink.opacity(0.35) : Color.clear, lineWidth: 1))
+    }
+
+    /// Native: the system search field's gray rounded rectangle.
+    func nativeSearchField(focused: Bool) -> some View {
+        padding(.leading, 10).padding(.trailing, 2)
+            .frame(minHeight: 36)
+            .background(NativeInk.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -420,8 +560,22 @@ struct PhoneSearchField: View {
 struct PhoneKindDot: View {
     var transcript: Transcript
     var size: CGFloat = 36
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative {
+            // Native: the kind's SF Symbol, tinted; no circle.
+            Image(systemName: NativeSymbol.kind(transcript))   // brand: native
+                .font(.system(size: size * 0.5))
+                .foregroundStyle(NativeInk.accent)
+                .frame(width: size * 0.75, height: size * 0.75)
+                .accessibilityHidden(true)
+        } else {
+            verbose
+        }
+    }
+
+    private var verbose: some View {
         let style = Self.style(transcript)
         return BrandGlyph(art: style.art, color: style.onFill, minLineWidth: 1.3)
             .padding(size * 0.25)
@@ -456,8 +610,36 @@ struct PhoneFlatRow<Trailing: View>: View {
     @ScaledMetric(relativeTo: .body) private var sansSize: CGFloat = 15.5
     @ScaledMetric(relativeTo: .footnote) private var metaSize: CGFloat = 13
     @ScaledMetric(relativeTo: .body) private var dot: CGFloat = 36
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative { native } else { verbose }
+    }
+
+    /// Native: a standard list row (the container draws the card and separators): the tinted symbol, the title, the
+    /// meta line in secondary, and the trailing state.
+    private var native: some View {
+        HStack(spacing: 12) {
+            PhoneKindDot(transcript: transcript, size: min(dot, 48))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    if transcript.pinned {
+                        Image(systemName: "pin.fill").font(.caption2).foregroundStyle(NativeInk.secondary).accessibilityLabel("Pinned")   // brand: native
+                    }
+                    Text(transcript.title).font(.body).foregroundStyle(NativeInk.label).lineLimit(1)
+                }
+                Text(meta).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            trailing()
+        }
+        .padding(.vertical, 8)
+        .frame(minHeight: 56)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var verbose: some View {
         HStack(spacing: 12) {
             PhoneKindDot(transcript: transcript, size: min(dot, 48))
             VStack(alignment: .leading, spacing: 2) {
@@ -465,16 +647,16 @@ struct PhoneFlatRow<Trailing: View>: View {
                     if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
                     Text(transcript.title)
                         .font(serif ? Ink.serif(titleSize) : .system(size: sansSize, weight: .semibold))
-                        .foregroundStyle(Ink.ink).lineLimit(1)
+                        .foregroundStyle(.lookInk).lineLimit(1)
                 }
-                Text(meta).font(.system(size: metaSize)).foregroundStyle(Ink.mute).lineLimit(1)
+                Text(meta).font(.system(size: metaSize)).foregroundStyle(.lookMute).lineLimit(1)
             }
             Spacer(minLength: 6)
             trailing()
         }
         .padding(.vertical, 10).padding(.horizontal, 2)
         .frame(minHeight: 64)
-        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -486,8 +668,37 @@ struct PhoneRowState: View {
     var transcript: Transcript
     @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 12.5
     @ScaledMetric(relativeTo: .caption) private var mono: CGFloat = 12
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative { native } else { verbose }
+    }
+
+    /// Native: the length in monospaced digits over the state, both small; Cleaned in the accent.
+    private var native: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            if transcript.duration > 0 {
+                Text(transcript.duration.timecode).font(.subheadline).monospacedDigit().foregroundStyle(NativeInk.secondary)
+            }
+            switch transcript.status {
+            case .processing:
+                HStack(spacing: 4) {
+                    if transcript.processingDevice == Device.id { ProgressView().controlSize(.mini) }
+                    Text(Self.shortStage(transcript)).lineLimit(1)
+                }
+                .font(.caption).foregroundStyle(NativeInk.secondary)
+            case .failed:
+                Label("Retry", systemImage: "exclamationmark.triangle")   // brand: native
+                    .font(.caption.weight(.semibold)).foregroundStyle(NativeInk.danger)
+            case .ready:
+                Text(Self.cleaned(transcript) ? "Cleaned" : "Original").font(.caption)
+                    .foregroundStyle(Self.cleaned(transcript) ? NativeInk.accent : NativeInk.secondary)
+            }
+        }
+        .fixedSize()
+    }
+
+    private var verbose: some View {
         VStack(alignment: .trailing, spacing: 3) {
             switch transcript.status {
             case .processing:
@@ -495,7 +706,7 @@ struct PhoneRowState: View {
                     if transcript.processingDevice == Device.id { ProgressView().controlSize(.mini) } else { IconGlyph(art: .iconWaitingForMac, size: 14, color: Ink.dim) }
                     Text(Self.shortStage(transcript)).lineLimit(1)
                 }
-                .font(.system(size: size, weight: .semibold)).foregroundStyle(Ink.dim)
+                .font(.system(size: size, weight: .semibold)).foregroundStyle(.lookDim)
             case .failed:
                 HStack(spacing: 4) { IconGlyph(art: .iconAttention, size: 13, color: Ink.danger); Text("Retry") }
                     .font(.system(size: size, weight: .semibold)).foregroundStyle(Ink.danger)
@@ -505,7 +716,7 @@ struct PhoneRowState: View {
                     .foregroundStyle(Self.cleaned(transcript) ? Ink.accentText : Ink.dim)
             }
             if transcript.duration > 0 {
-                Text(transcript.duration.timecode).font(Ink.mono(mono)).foregroundStyle(Ink.dim)
+                Text(transcript.duration.timecode).font(Ink.mono(mono)).foregroundStyle(.lookDim)
             }
         }
         .fixedSize()

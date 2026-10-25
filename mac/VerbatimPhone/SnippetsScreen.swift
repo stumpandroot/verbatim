@@ -29,12 +29,12 @@ struct SnippetsScreen: View {
             }
             Section("Snippets") {
                 if app.store.snippets.isEmpty {
-                    Text("No snippets yet.").foregroundStyle(Ink.mute)
+                    Text("No snippets yet.").foregroundStyle(.lookMute)
                 }
                 ForEach(app.store.snippets) { s in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(s.trigger).font(.system(size: 16, weight: .semibold))
-                        Text(s.expansion).font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(3)
+                        Text(s.expansion).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(3)
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -42,7 +42,7 @@ struct SnippetsScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Snippets")
     }
 }

@@ -69,18 +69,24 @@ struct SettingsScreen: View {
     @ObservedObject private var search = SettingsSearchModel.shared
     @State private var searchFlash: String? = nil
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
+    /// Settings › Appearance (AppearanceScreen.swift): the look, light or dark, and Limit animation.
+    @State private var showAppearance = false
 
     var body: some View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                PhoneCompactTitle(title: "Settings")
-                    .padding(.top, 2)
-                    .riseIn("title", index: 0, seen: seen, epoch: entrance)
+                // Native uses the navigation bar's large title.
+                if !look.isNative {
+                    PhoneCompactTitle(title: "Settings")
+                        .padding(.top, 2)
+                        .riseIn("title", index: 0, seen: seen, epoch: entrance)
+                }
                 SettingsSearchField(text: $search.query) {
                     if let first = SettingsSearchIndex.search(search.query).first?.entries.first { pickSearchResult(first, proxy) }
                 }
-                .padding(.top, 14)
+                .padding(.top, look.isNative ? 4 : 14)
                 .riseIn("search", index: 0, seen: seen, epoch: entrance)
                 if search.isActive {
                     SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
@@ -99,7 +105,7 @@ struct SettingsScreen: View {
                     .riseIn("footer", index: 7, seen: seen, epoch: entrance)
                 }
             }
-            .padding(.horizontal, 20).padding(.bottom, 32)
+            .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.immediately)
         .onChange(of: pendingRow) { _, row in
@@ -109,9 +115,11 @@ struct SettingsScreen: View {
         }
         }
         .tabEntrance(.settings) { seen.entered(); entrance += 1 }
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Settings")
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar(look.isNative ? .visible : .hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showAppearance) { AppearanceScreen() }
         .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
         .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
         .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
@@ -179,7 +187,40 @@ struct SettingsScreen: View {
 
     /// You: your initial on the record color, your name in the serif (the last name in italic), and what's inside.
     /// Opens the You page.
-    private var youCard: some View {
+    @ViewBuilder private var youCard: some View {
+        if look.isNative { nativeYouCard } else { verboseYouCard }
+    }
+
+    // brand: native begin
+    /// Native: the Apple Account-style row: a gray initials avatar, your name in semibold, and the same subtitle.
+    private var nativeYouCard: some View {
+        let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Button { showYou = true } label: {
+            HStack(spacing: 14) {
+                Text(HomeScreen.initials(name)).font(.system(size: 22, weight: .semibold)).foregroundStyle(Color.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color(uiColor: .systemGray), in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name.isEmpty ? "You" : name).font(.title3.weight(.semibold)).foregroundStyle(NativeInk.label).lineLimit(1)
+                    Text("About me, your voice, your week, and cleanup").font(.footnote).foregroundStyle(NativeInk.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                SettingsChevron()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: NativeMetrics.groupRadius, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(name.isEmpty ? "You" : name)
+        .accessibilityHint("Opens your You page: About me, your voice, your week, and cleanup.")
+    }
+    // brand: native end
+
+    private var verboseYouCard: some View {
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = name.split(separator: " ", maxSplits: 1).map(String.init)
         return Button { showYou = true } label: {
@@ -188,7 +229,7 @@ struct SettingsScreen: View {
                     Circle().fill(PhoneInk.record)
                     Circle().strokeBorder(Ink.inkFixed, lineWidth: 1.5)
                     if let first = name.first {
-                        Text(String(first).uppercased()).font(Ink.serif(26)).foregroundStyle(Ink.inkFixed)
+                        Text(String(first).uppercased()).lookSerif(26).foregroundStyle(Ink.inkFixed)
                     } else {
                         IconGlyph(art: .iconAboutMe, size: 24, color: Ink.inkFixed)
                     }
@@ -200,8 +241,8 @@ struct SettingsScreen: View {
                         if parts.count == 2 { Text("\(parts[0]) ") + Text(parts[1]).italic() }
                         else { Text(name.isEmpty ? "You" : name) }
                     }
-                    .font(Ink.serif(youSize)).foregroundStyle(Ink.ink).lineLimit(1).minimumScaleFactor(0.8)
-                    Text("About me, your voice, your week, and cleanup").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    .lookSerif(youSize).foregroundStyle(.lookInk).lineLimit(1).minimumScaleFactor(0.8)
+                    Text("About me, your voice, your week, and cleanup").font(.system(size: 13)).foregroundStyle(.lookMute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
@@ -277,21 +318,14 @@ struct SettingsScreen: View {
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("actionButtonRow", flash: searchFlash)
         SettingsDivider()
-        Menu {
-            Picker("Appearance", selection: $app.appearance) {
-                Text("Match the system").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
-            }
-        } label: {
-            SettingsRow(icon: "moon", tint: Ink.petalTint, art: .iconAppearance, title: "Appearance", bounce: app.appearance) {
-                SettingsValue(app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"); SettingsMenuMark()
+        // A page now (the look, light or dark, and Limit animation), not a menu.
+        Button { bump("appearance"); showAppearance = true } label: {
+            SettingsRow(icon: "circle.lefthalf.filled", tint: Ink.petalTint, art: .iconAppearance, title: "Appearance", bounce: bumps["appearance", default: 0]) {
+                SettingsValue(look.label); SettingsChevron()
             }
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("appearance", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "tortoise", tint: Ink.sageTint, art: .iconLimitMotion, title: "Limit animation",
-                          subtitle: "Fades instead of movement; illustrations stay still.", isOn: $motionLimited)
-            .settingsSearchTarget("limitMotion", flash: searchFlash)
     }
 
     @ViewBuilder private var recording: some View {
@@ -543,34 +577,48 @@ struct SettingsScreen: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = info?["CFBundleVersion"] as? String ?? "1"
         return VStack(spacing: 6) {
-            // The lockup (DESIGN.md §4) and the tagline in the serif.
-            HStack(spacing: 8) {
-                BarsMark(color: Ink.persimmon).frame(width: 17, height: 18)
-                Ink.wordmark(22)
+            // The lockup (DESIGN.md §4) and the tagline in the serif. Native keeps only the version lines.
+            if !look.isNative {
+                HStack(spacing: 8) {
+                    BarsMark(color: Ink.persimmon).frame(width: 17, height: 18)
+                    Ink.wordmark(22)
+                }
+                .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
+                Text(Ink.tagline).lookSerif(16).foregroundStyle(.lookDim).padding(.bottom, 6)
             }
-            .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
-            Text(Ink.tagline).font(Ink.serif(16)).foregroundStyle(Ink.dim).padding(.bottom, 6)
             Text("Version \(version) (\(build))")
             Text("Verbose · Stump & Root Co.")
         }
-        .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+        .font(.system(size: 12.5)).foregroundStyle(.lookMute)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 
     // MARK: Helpers
 
-    private func group<Rows: View>(_ index: Int, _ title: String, footer: String? = nil, @ViewBuilder _ rows: () -> Rows) -> some View {
+    @ViewBuilder private func group<Rows: View>(_ index: Int, _ title: String, footer: String? = nil, @ViewBuilder _ rows: () -> Rows) -> some View {
+        if look.isNative {
+            // Native: an inset grouped section with a sentence-case header.
+            let content = rows()
+            NativeGroup(header: title, footer: footer) { content }
+                .padding(.top, 26)
+                .riseIn("group-\(index)", index: index, seen: seen, epoch: entrance)
+        } else {
+            verboseGroup(index, title, footer: footer, rows)
+        }
+    }
+
+    private func verboseGroup<Rows: View>(_ index: Int, _ title: String, footer: String? = nil, _ rows: () -> Rows) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+            Text(title).lookMono(12).foregroundStyle(.lookMute)
                 .padding(.horizontal, 4)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) { rows() }
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+                .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(Ink.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(.lookHairline))
             if let footer {
-                Text(footer).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                Text(footer).font(.system(size: 13)).foregroundStyle(.lookMute)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }
@@ -587,8 +635,9 @@ struct SettingsScreen: View {
         case "you"?: showYou = true
         case "keyboard"?: showKeyboard = true
         case "actionButton"?: showActionButton = true
+        case "appearance"?: showAppearance = true
         // Back to Settings itself (the screenshot tour, between subpages).
-        case "root"?: showKeyboard = false; showActionButton = false
+        case "root"?: showKeyboard = false; showActionButton = false; showAppearance = false
         default: break
         }
     }
@@ -603,6 +652,7 @@ struct SettingsScreen: View {
         case .page(.keyboard): showKeyboard = true
         case .page(.actionButton): showActionButton = true
         case .page(.snippets): showSnippets = true
+        case .page(.appearance): showAppearance = true
         case .row: flashRow(entry.id, label: entry.label, proxy)
         }
     }
@@ -647,8 +697,36 @@ struct SettingsLabel: View {
     var bounce: AnyHashable = 0
     var danger = false
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look.isNative { native } else { verbose }
+    }
+
+    // brand: native begin
+    /// Native: the row's SF Symbol tinted (no colored square, so persimmon stays the only color), then the title.
+    private var native: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon).font(.system(size: 17))
+                .foregroundStyle(danger ? NativeInk.danger : NativeInk.accent)
+                .symbolEffect(.bounce, value: bounce)
+                .symbolEffectsRemoved(limitMotion)
+                .frame(width: 26)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body).foregroundStyle(danger ? NativeInk.danger : NativeInk.label)
+                if let subtitle {
+                    Text(subtitle).font(.footnote).foregroundStyle(NativeInk.secondary)
+                        .lineLimit(subtitleLines)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .multilineTextAlignment(.leading)
+        }
+    }
+    // brand: native end
+
+    private var verbose: some View {
         HStack(spacing: 12) {
             ZStack {
                 // The website style's colored squares: the row's tint at full strength, ink on top. Destructive
@@ -670,7 +748,7 @@ struct SettingsLabel: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 16)).foregroundStyle(danger ? Ink.danger : Ink.ink)
                 if let subtitle {
-                    Text(subtitle).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    Text(subtitle).font(.system(size: 13)).foregroundStyle(.lookMute)
                         .lineLimit(subtitleLines)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -721,12 +799,14 @@ struct SettingsToggleRow: View {
     var title: String
     var subtitle: String? = nil
     @Binding var isOn: Bool
+    @Environment(\.look) private var look
 
     var body: some View {
         Toggle(isOn: $isOn) {
             SettingsLabel(icon: icon, tint: tint, art: art, title: title, subtitle: subtitle, subtitleLines: nil, bounce: isOn)
         }
-        .toggleStyle(.switch).tint(PhoneInk.switchOn)
+        // Native: system switches stay green, as in Apple's own apps.
+        .toggleStyle(.switch).tint(look.isNative ? NativeInk.toggle : PhoneInk.switchOn)
         .padding(.horizontal, 14).padding(.vertical, 10)
         .frame(minHeight: 50)
     }
@@ -735,33 +815,47 @@ struct SettingsToggleRow: View {
 struct SettingsValue: View {
     var text: String
     init(_ text: String) { self.text = text }
-    var body: some View { Text(text).font(.system(size: 16)).foregroundStyle(Ink.mute).lineLimit(1) }
+    var body: some View { Text(text).font(.system(size: 16)).foregroundStyle(.lookMute).lineLimit(1) }
 }
 
 struct SettingsChevron: View {
+    @Environment(\.look) private var look
     var body: some View {
-        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityHidden(true)
+        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(look.isNative ? NativeInk.tertiary : Ink.mute).accessibilityHidden(true)
     }
 }
 
 /// Marks a row that opens a menu of choices.
 struct SettingsMenuMark: View {
     var body: some View {
-        Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityHidden(true)
+        Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).accessibilityHidden(true)
     }
 }
 
 /// The hairline between rows, inset past the icon tile.
 struct SettingsDivider: View {
-    var body: some View { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 56) }
+    @Environment(\.look) private var look
+    var body: some View {
+        if look.isNative { NativeDivider(leading: 54) } else { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 56) }
+    }
 }
 
-/// Rows highlight while pressed (a color change, not movement).
+/// Rows highlight while pressed (a color change, not movement). Native: the system's gray row highlight.
 struct SettingsRowPress: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(Ink.ink.opacity(configuration.isPressed ? 0.05 : 0))
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+    func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration) }
+    private struct Styled: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.look) private var look
+        var body: some View {
+            if look.isNative {
+                NativeRowPress().makeBody(configuration: configuration)
+            } else {
+                configuration.label
+                    .background(Ink.ink.opacity(configuration.isPressed ? 0.05 : 0))
+                    .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+            }
+        }
     }
 }
 
@@ -779,41 +873,41 @@ struct AboutMeScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Your name").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 4)
+                Text("Your name").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).padding(.horizontal, 4)
                 TextField("Your name", text: $name)
                     .textContentType(.name)
-                    .font(.system(size: 16)).foregroundStyle(Ink.ink)
+                    .font(.system(size: 16)).foregroundStyle(.lookInk)
                     .padding(.horizontal, 14).frame(height: 48)
-                    .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                    .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
                     .accessibilityLabel("Your name")
-                Text("About me").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 4).padding(.top, 10)
+                Text("About me").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).padding(.horizontal, 4).padding(.top, 10)
                 ZStack(alignment: .topLeading) {
                     if aboutMe.isEmpty {
                         Text("For example: I'm a teacher. I record lessons and parent meetings, and often mention Room 12 and the spring fair.")
-                            .font(.system(size: 16)).foregroundStyle(Ink.faint)
+                            .font(.system(size: 16)).foregroundStyle(.lookFaint)
                             .padding(.horizontal, 5).padding(.vertical, 8)
                             .accessibilityHidden(true)
                     }
                     TextEditor(text: $aboutMe)
                         .focused($focused)
-                        .font(.system(size: 16)).foregroundStyle(Ink.ink)
+                        .font(.system(size: 16)).foregroundStyle(.lookInk)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: 160)
                         .accessibilityLabel("About me")
                 }
                 .padding(10)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
                 .onChange(of: aboutMe) { _, v in
                     if v.count > Profile.aboutMeLimit { aboutMe = String(v.prefix(Profile.aboutMeLimit)) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text("Verbose uses this on device to spell names and word titles and summaries. It syncs with your Mac when iCloud sync is on.")
-                        .font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 13)).foregroundStyle(.lookMute)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
-                    Text("\(aboutMe.count)/\(Profile.aboutMeLimit)").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
+                    Text("\(aboutMe.count)/\(Profile.aboutMeLimit)").font(.system(size: 12)).monospacedDigit().foregroundStyle(.lookMute)
                         .accessibilityLabel("\(aboutMe.count) of \(Profile.aboutMeLimit) characters")
                 }
                 .padding(.horizontal, 4)
@@ -821,7 +915,7 @@ struct AboutMeScreen: View {
             .padding(20)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("About me")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { Self.visible = true; if aboutMe.isEmpty, !PhoneUITest.enabled { focused = true } }

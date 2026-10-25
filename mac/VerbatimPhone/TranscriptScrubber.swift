@@ -258,6 +258,7 @@ struct TranscriptScrubber: View {
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.look) private var look
     @State private var voiceOver = UIAccessibility.isVoiceOverRunning
     /// The lines and their starts for the drag in progress.
     @State private var held: [Segment] = []
@@ -348,13 +349,23 @@ struct TranscriptScrubber: View {
     private var handle: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
         let shadow: CGSize = model.dragging ? CGSize(width: 2, height: 3) : CGSize(width: 3, height: 4)
-        return BarsMark(color: Ink.paper)
-            .frame(width: 12, height: 13)
-            .accessibilityHidden(true)
-            .frame(width: Self.handleSize.width, height: Self.handleSize.height)
-            .background(shape.fill(Ink.ink))
-            .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
-            .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
+        return Group {
+            if look.isNative {
+                // Native: a gray capsule like the system's scroll indicator, wider while held. Same hit area.
+                Capsule().fill(NativeInk.secondary.opacity(model.dragging ? 0.9 : 0.6))
+                    .frame(width: model.dragging ? 8 : 6, height: Self.handleSize.height)
+                    .frame(width: Self.handleSize.width, height: Self.handleSize.height)
+                    .accessibilityHidden(true)
+            } else {
+                BarsMark(color: Ink.paper)
+                    .frame(width: 12, height: 13)
+                    .accessibilityHidden(true)
+                    .frame(width: Self.handleSize.width, height: Self.handleSize.height)
+                    .background(shape.fill(Ink.ink))
+                    .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
+                    .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
+            }
+        }
             .scaleEffect(model.dragging && !limitMotion ? 1.08 : 1)
             .animation(limitMotion ? nil : Motion.press, value: model.dragging)
             .frame(width: 44, height: 60)
@@ -384,15 +395,23 @@ struct TranscriptScrubber: View {
 
     /// "23:41" and the speaker's chip ("Ginna Cross" on her color, as on her lines) on card white with an ink
     /// outline and the hard shadow (DESIGN.md §11), never glass. No speakers: the time alone (or "Line 12 of 340").
-    private func bubble(time: String, name: String?, color: Color) -> some View {
+    @ViewBuilder private func bubble(time: String, name: String?, color: Color) -> some View {
+        if look.isNative {
+            NativeScrubBubble(time: time, name: name)
+        } else {
+            verboseBubble(time: time, name: name, color: color)
+        }
+    }
+
+    private func verboseBubble(time: String, name: String?, color: Color) -> some View {
         HStack(spacing: 8) {
-            Text(time).font(Ink.mono(13, weight: .medium)).foregroundStyle(Ink.ink)
+            Text(time).lookMono(13, weight: .medium).foregroundStyle(.lookInk)
             if let name {
                 PhoneSpeakerChip(name: name, color: color).truncationMode(.tail)
             }
         }
         .padding(.leading, 12).padding(.trailing, name == nil ? 12 : 6).frame(height: 34)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
         .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(Ink.hard).offset(x: 4, y: 5))
     }
@@ -507,3 +526,26 @@ struct TranscriptScrubber: View {
         model.objectWillChange.send()
     }
 }
+
+// brand: native begin
+/// The scrubber's bubble in the Native look: the time in monospaced digits and the speaker's name in semibold, on a
+/// Photos-style glass capsule (a material before iOS 26). Native follows Apple in putting text on glass here.
+private struct NativeScrubBubble: View {
+    var time: String
+    var name: String?
+    var body: some View {
+        let content = HStack(spacing: 6) {
+            Text(time).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(NativeInk.label)
+            if let name {
+                Text(name).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1).truncationMode(.tail)
+            }
+        }
+        .padding(.horizontal, 14).frame(height: 34)
+        if #available(iOS 26, *) {
+            content.glassEffect(.regular, in: Capsule())
+        } else {
+            content.background(.regularMaterial, in: Capsule())
+        }
+    }
+}
+// brand: native end

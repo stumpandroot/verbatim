@@ -15,6 +15,7 @@ enum PhoneUITest {
         KeyboardSessionChecks.run()   // Build E2: format chip, host map, App Store seams, session timeouts.
         ribbonChecks(app)             // The recording ribbon: routing, takes, timeouts, and the session's take API.
         libraryChecks()
+        lookChecks()
         homeChecks()
         homeActionChecks(app)
         recorderChecks(app)
@@ -186,6 +187,12 @@ enum PhoneUITest {
                 SettingsSearchModel.shared.query = "keyboard"
                 await show("\(prefix)09b-settings-search")
                 SettingsSearchModel.shared.query = ""
+                // Settings › Appearance: the look picker, light or dark, and Limit animation.
+                SettingsPage.open("appearance")
+                await show("\(prefix)09m-appearance")
+                if prefix == "p" { lookCheck("Settings opens Appearance", AppearanceScreen.visible) }
+                SettingsPage.open("root")
+                try? await Task.sleep(nanoseconds: 800_000_000)
                 // Settings › Your voice, step 2, with made-up progress (no microphone in the simulator).
                 NotificationCenter.default.post(name: .verbatimShowVoiceProfile, object: true)
                 await show("\(prefix)09c-voice-enroll")
@@ -241,11 +248,55 @@ enum PhoneUITest {
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
+            // The Native look (DESIGN.md §13): the key screens again, named p…-native and d…-native. The look is
+            // stored per device in the App Group; the one this simulator had is put back after.
+            let keepLook = AppLook.current
+            AppLook.current = .native
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            for (prefix, mode) in [("p", "light"), ("d", "dark")] {
+                app.appearance = mode
+                app.tab = .home
+                await show("\(prefix)01-home-native")
+                app.tab = .library
+                await show("\(prefix)04-library-native")
+                if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
+                    app.libraryPath.append(rich.id)
+                    await show("\(prefix)05-transcript-native")
+                    app.libraryPath = NavigationPath()
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+                app.tab = .settings
+                await show("\(prefix)09-settings-native")
+                SettingsPage.open("appearance")
+                await show("\(prefix)09m-appearance-native")
+                SettingsPage.open("root")
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                // The keyboard preview follows the look, as the keyboard does.
+                let keepButton = DictateButton.read(KeyboardBridge.defaults)
+                DictateButton.standard.write(KeyboardBridge.defaults)
+                SettingsPage.open("keyboard")
+                await show("\(prefix)09h-keyboard-dictate-button-native")
+                DictateButton(size: .large, position: .center, style: .filled).write(KeyboardBridge.defaults)
+                await show("\(prefix)09j-keyboard-dictate-large-center-native")
+                keepButton.write(KeyboardBridge.defaults)
+                SettingsPage.open("root")
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                onboardingStep = PhoneOnboarding.lookStep
+                app.showOnboarding = true
+                await show("\(prefix)10b-onboarding-look-native")
+                app.showOnboarding = false
+                onboardingStep = 0
+                try? await Task.sleep(nanoseconds: 700_000_000)
+            }
+            AppLook.current = keepLook
+            app.tab = .home
+            try? await Task.sleep(nanoseconds: 600_000_000)
             app.appearance = "light"
-            for i in 0..<3 {
+            // The tour in Verbose style: the welcome, Pick a look, the microphone, and the last step.
+            for (i, name) in [(0, "p10-onboarding"), (PhoneOnboarding.lookStep, "p10b-onboarding-look"), (2, "p11-onboarding"), (3, "p12-onboarding")] {
                 onboardingStep = i
                 app.showOnboarding = true
-                await show("p1\(i)-onboarding")
+                await show(name)
                 app.showOnboarding = false
                 try? await Task.sleep(nanoseconds: 700_000_000)
             }
@@ -348,6 +399,37 @@ enum PhoneUITest {
               SettingsSearchIndex.search("action button").flatMap(\.entries).contains { $0.id == "actionButton" })
         check("settings search finds the idle timeout", SettingsSearchIndex.search("idle").flatMap(\.entries).contains { $0.id == "actionButtonTimeout" })
         Log.note("UITEST ribbon checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// The look (Look.swift, DESIGN.md §13): new installs start in Verbose style, the keyboard reads the app's choice
+    /// from the App Group, search finds the setting, and the Native accent's values meet 4.5:1 for small text.
+    static func lookChecks() {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") look: \(name)")
+        }
+        let store = AppLook.store
+        let keep = store.string(forKey: AppLook.key)
+        store.removeObject(forKey: AppLook.key)
+        check("a new install starts in Verbose style", AppLook.current == .verbose)
+        check("the keyboard reads Verbose style with nothing stored", !KeyboardLook.isNative(KeyboardBridge.defaults))
+        AppLook.current = .native
+        check("the keyboard reads the app's Native choice from the App Group", KeyboardLook.isNative(KeyboardBridge.defaults))
+        check("the keyboard's key is the app's", KeyboardLook.key == AppLook.key)
+        AppLook.current = .verbose
+        check("and Verbose style again", !KeyboardLook.isNative(KeyboardBridge.defaults))
+        check("without Full Access (no App Group) the keyboard keeps Verbose style", !KeyboardLook.isNative(nil))
+        if let keep { store.set(keep, forKey: AppLook.key) } else { store.removeObject(forKey: AppLook.key) }
+        check("settings search finds the look", SettingsSearchIndex.search("native").flatMap(\.entries).contains { $0.id == "look" })
+        check("Limit animation opens Appearance", SettingsSearchIndex.all.first { $0.id == "limitMotion" }?.target == .page(.appearance))
+        check("white on the light accent reaches 4.5:1", KeyboardLook.contrast(Ink.nativeAccentLightHex, 0xFFFFFF) >= 4.5)
+        check("the dark accent reaches 4.5:1 on dark gray", KeyboardLook.contrast(Ink.nativeAccentDarkHex, 0x1C1C1E) >= 4.5)
+        Log.note("UITEST look checks: \(pass) passed, \(fail) failed")
+    }
+
+    private static func lookCheck(_ name: String, _ ok: Bool) {
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") look: \(name)")
     }
 
     /// The You page (YouScreen.swift), checked on screen during the tour.

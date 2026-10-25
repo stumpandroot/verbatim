@@ -8,12 +8,12 @@ struct TrashScreen: View {
         let trash = app.store.trash
         List {
             if trash.isEmpty {
-                Text("Nothing here.").foregroundStyle(Ink.mute).listRowBackground(Color.clear)
+                Text("Nothing here.").foregroundStyle(.lookMute).listRowBackground(Color.clear)
             }
             ForEach(trash) { t in
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
-                    Text(daysLeft(t)).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                    Text(daysLeft(t)).font(.system(size: 13)).foregroundStyle(.lookMute)
                 }
                 .listRowBackground(Ink.card)
                 .swipeActions(edge: .leading) { Button { app.restore(t.id) } label: { Label("Restore", systemImage: "arrow.uturn.backward") }.tint(Ink.sageText) }
@@ -21,7 +21,7 @@ struct TrashScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Recently Deleted")
         .toolbar {
             if !trash.isEmpty {

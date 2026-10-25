@@ -46,7 +46,7 @@ struct PhoneDocument: View {
                 }
             }
             if let w = working {
-                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.ink); Text("Cleaning up \(Int(w * 100))%").font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute) }
+                HStack(spacing: 10) { ProgressView(value: w).tint(Ink.ink); Text("Cleaning up \(Int(w * 100))%").font(.system(size: 12)).monospacedDigit().foregroundStyle(.lookMute) }
             }
             if !visibleLints.isEmpty {
                 Button { showLints = true } label: {
@@ -65,8 +65,8 @@ struct PhoneDocument: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 420)
                 .padding(10)
-                .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
                 .onChange(of: text) { _, v in
                     // Compared with the stored text (not this view's copy), so a Clean up or Undo landing here isn't
                     // mistaken for typing.
@@ -77,10 +77,10 @@ struct PhoneDocument: View {
                     relint()
                 }
             Text("Clean up and Tone start from the corrected lines in Original, which stay as they are. They run on this iPhone with Apple Intelligence (iOS 26).")
-                .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                .font(.system(size: 12.5)).foregroundStyle(.lookMute)
             if let notice = Polish.status.polishNotice {
                 Text(notice)
-                    .font(.system(size: 12.5)).foregroundStyle(Ink.accentText)
+                    .font(.system(size: 12.5)).foregroundStyle(.lookAccentText)
             }
         }
         .onAppear { text = transcript.documentText; loaded = true; relint() }
@@ -106,13 +106,13 @@ struct PhoneDocument: View {
                     ForEach(visibleLints) { l in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 6) {
-                                Text(l.original).strikethrough(l.fix != nil).foregroundStyle(Ink.mute)
+                                Text(l.original).strikethrough(l.fix != nil).foregroundStyle(.lookMute)
                                 if let f = l.fix { Image(systemName: "arrow.right").font(.system(size: 10)); Text(f.isEmpty ? "remove" : f).fontWeight(.semibold) }
                             }
-                            Text(l.message).font(.system(size: 13)).foregroundStyle(Ink.dim)
+                            Text(l.message).font(.system(size: 13)).foregroundStyle(.lookDim)
                             HStack {
-                                if l.fix != nil { Button("Accept") { accept(l) }.buttonStyle(.brandPrimary) }
-                                Button("Ignore") { ignored.insert(l.original) }.buttonStyle(.brandSecondary)
+                                if l.fix != nil { Button("Accept") { accept(l) }.buttonStyle(.phonePrimary) }
+                                Button("Ignore") { ignored.insert(l.original) }.buttonStyle(.phoneSecondary)
                             }
                         }
                         .padding(.vertical, 4)
@@ -129,9 +129,9 @@ struct PhoneDocument: View {
     }
 
     private func chip(_ label: String, symbol: String) -> some View {
-        Label(label, systemImage: symbol).font(.system(size: 13.5, weight: .medium)).foregroundStyle(Ink.ink)
+        Label(label, systemImage: symbol).font(.system(size: 13.5, weight: .medium)).foregroundStyle(.lookInk)
             .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(Ink.hairline))
+            .background(.lookCard, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
     }
 
     private func relint() {

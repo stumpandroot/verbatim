@@ -40,7 +40,7 @@ struct PhoneExportSheet: View {
                 .listRowBackground(Ink.card)
                 Section {
                     Text(preview.isEmpty ? "Nothing to export yet." : preview)
-                        .font(Ink.mono(11.5)).foregroundStyle(Ink.ink).lineSpacing(3)
+                        .lookMono(11.5).foregroundStyle(.lookInk).lineSpacing(3)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Preview")
@@ -50,7 +50,7 @@ struct PhoneExportSheet: View {
                 .listRowBackground(Ink.reader)
             }
             .scrollContentBackground(.hidden)
-            .background(Ink.paper.ignoresSafeArea())
+            .phonePage()
             .navigationTitle(ts.count > 1 ? "Export \(ts.count) transcripts" : "Export")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
