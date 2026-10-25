@@ -1,8 +1,9 @@
 import SwiftUI
 import AVFoundation
 
-/// The welcome tour on the Mac: what Verbatim does, permissions, a first dictation, where the Ribbon
-/// lives, and transcription quality. Shown once after an update and whenever Settings asks for it.
+/// The welcome tour on the Mac: what Verbatim does, the look (Verbose style or Native), permissions, a first
+/// dictation, where the Ribbon lives, and transcription quality. Shown once after an update and whenever Settings asks
+/// for it. Steps are `OnboardingStep` (LookRules.swift). Choosing a look crossfades the tour itself into it.
 struct OnboardingView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var flow = FlowSettings.shared
@@ -13,25 +14,33 @@ struct OnboardingView: View {
     @State private var edge: BarEdge = .bottom
     @FocusState private var practiceFocused: Bool
     @Environment(\.limitMotion) private var reduceMotion
-    private let total = 5
+    @Environment(\.look) private var look
+    private let total = OnboardingStep.count
+    private var current: OnboardingStep { OnboardingStep.at(step) }
 
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: label, color: Ink.dim)
-                DottedRule().frame(height: 1)
-                Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+            if look == .native {
+                Text(current.counter).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: current == .look ? .center : .leading)
+            } else {
+                HStack(spacing: 10) {
+                    Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
+                    Overline(text: label, color: Ink.dim)
+                    DottedRule().frame(height: 1)
+                    Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                }
             }
             Group {
-                switch step {
-                case 0: welcome
-                case 1: permissions
-                case 2: tryIt
-                case 3: placement
-                default: quality
+                switch current {
+                case .welcome: welcome
+                case .look: pickLook
+                case .permissions: permissions
+                case .tryIt: tryIt
+                case .placement: placement
+                case .quality: quality
                 }
             }
             .id(step)
@@ -43,14 +52,15 @@ struct OnboardingView: View {
         .frame(width: 640, height: 460)
         .background(Ink.paper)
         .animation(Motion.settle, value: step)
+        // Choosing a look redraws the tour in it, with a crossfade (the step stays).
+        .lookRebuild()
+        .lookTint(look)
         .onAppear { refresh(); edge = currentEdge }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in refresh() }
         .interactiveDismissDisabled()
     }
 
-    private var label: String {
-        ["Welcome to Verbose", "Permissions", "Try it", "The Ribbon", "Last step"][step]
-    }
+    private var label: String { current.label }
 
     // MARK: Steps
 
@@ -72,6 +82,22 @@ struct OnboardingView: View {
             }
             .padding(.top, 22)
         }
+    }
+
+    /// "Pick a look": the two looks side by side; choosing one applies it at once, so the tour itself is the preview.
+    /// New installs start in Verbose style, so this opens with it chosen; Continue keeps whichever is chosen.
+    private var pickLook: some View {
+        let native = look == .native
+        return VStack(alignment: native ? .center : .leading, spacing: 0) {
+            title(native ? "Pick a look" : "Pick a look.")
+            para("Both work the same. Choose the one you'd rather look at.")
+            LookPicker(thumbnail: 210)
+                .padding(.top, 24)
+            Text("You can change this anytime in Settings › General.")
+                .font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.top, 20)
+        }
+        .multilineTextAlignment(native ? .center : .leading)
+        .frame(maxWidth: .infinity, alignment: native ? .center : .leading)
     }
 
     private var permissions: some View {
@@ -183,31 +209,44 @@ struct OnboardingView: View {
 
     private var footer: some View {
         HStack {
-            if step == 0 {
+            if current == .welcome {
                 Button("Skip the tour") { done() }.buttonStyle(.plain).foregroundStyle(Ink.dim)
             } else {
-                Button("Back") { step -= 1 }.buttonStyle(.plain).foregroundStyle(Ink.dim)
-                if step == 1 && !(trusted && micStatus == .authorized) {
+                if look == .native {
+                    Button("Back") { step -= 1 }.buttonStyle(.bordered).controlSize(.large)
+                } else {
+                    Button("Back") { step -= 1 }.buttonStyle(.plain).foregroundStyle(Ink.dim)
+                }
+                if current == .permissions && !(trusted && micStatus == .authorized) {
                     Button("Do this later") { step += 1 }.buttonStyle(.plain).foregroundStyle(Ink.mute).padding(.leading, 14)
                 }
-                if step == 2 && practice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if current == .tryIt && practice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button("Skip this step") { step += 1 }.buttonStyle(.plain).foregroundStyle(Ink.mute).padding(.leading, 14)
                 }
             }
             Spacer()
-            Button(primaryTitle) { if step == total - 1 { done() } else { step += 1 } }
-                .buttonStyle(.brandPrimaryLarge)
-                .disabled(step == 1 && !(trusted && micStatus == .authorized))
+            primaryButton
+                .disabled(current == .permissions && !(trusted && micStatus == .authorized))
                 .keyboardShortcut(.defaultAction)
         }
         .font(.system(size: 13.5, weight: .medium))
     }
 
+    /// Continue: the ink button in Verbose style, `.borderedProminent` with the accent in Native.
+    @ViewBuilder private var primaryButton: some View {
+        let action = { if step == total - 1 { done() } else { step += 1 } }
+        if look == .native {
+            Button(NativeText.titleCase(primaryTitle), action: action).buttonStyle(.borderedProminent).controlSize(.large)
+        } else {
+            Button(primaryTitle, action: action).buttonStyle(.brandPrimaryLarge)
+        }
+    }
+
     private var primaryTitle: String {
-        switch step {
-        case 0: return "Get started"
-        case 2: return practice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Continue" : "Nice, continue"
-        case total - 1: return "Start using Verbose"
+        switch current {
+        case .welcome: return "Get started"
+        case .tryIt: return practice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Continue" : "Nice, continue"
+        case .quality: return "Start using Verbose"
         default: return "Continue"
         }
     }
