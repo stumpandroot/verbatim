@@ -6,8 +6,9 @@ import SwiftUI
 /// Drag a row onto a project chip to move it there.
 struct LibraryScreen: View {
     @EnvironmentObject var app: PhoneState
-    @State private var search = ""
-    @State private var filter: Filter = .all
+    /// The search and the chip, kept when a look switch rebuilds Library (`LookKeep`).
+    @State private var search = LookKeep.librarySearch
+    @State private var filter: Filter = LookKeep.libraryFilter
     /// Type and platform chips, remembered on this iPhone.
     @State private var typeFilter = LibraryFilter.saved(LibraryFilter.libraryKey)
     @State private var newProject = false
@@ -165,6 +166,8 @@ struct LibraryScreen: View {
         }
         .modifier(NativeSearchable(enabled: look.isNative, text: $search))
         .tabEntrance(.library) { seen.entered(); entrance += 1 }
+        .onChange(of: search) { _, v in LookKeep.librarySearch = v }
+        .onChange(of: filter) { _, v in LookKeep.libraryFilter = v }
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
         .phonePage()

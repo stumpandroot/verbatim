@@ -18,7 +18,7 @@ struct VerbatimPhoneApp: App {
             PhoneRoot()
                 .environmentObject(app)
                 .preferredColorScheme(app.colorScheme)
-                .phoneLookRoot()     // the tint (ink, or the Native accent) and the crossfade when the look changes
+                .phoneLookRoot()     // the tint: ink, or the Native accent
                 .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
                 .lookRoot()          // Settings › Appearance › Look → \.look everywhere (and in the keyboard)
         }
@@ -36,6 +36,14 @@ struct PhoneRoot: View {
     /// The full-screen recorder zooms out of the bar and back into it.
     @Namespace private var recorderZoom
     @Environment(\.look) private var look
+    /// The look each tab you've left was last drawn in. A look switch rebuilds only the tab on screen; the others keep
+    /// their look (and do no work) until you come back to them, when they rebuild in the new one.
+    @State private var tabLooks: [PhoneState.Tab: AppLook] = [:]
+
+    /// The look a tab draws in: the current one on screen, or the one it was left in until it's shown again.
+    private func builtLook(_ tab: PhoneState.Tab) -> AppLook {
+        tab == app.tab ? look : (tabLooks[tab] ?? look)
+    }
 
     /// A tab's icon: the brand line icon in Verbose style, its SF Symbol in Native.
     private func tabIcon(_ art: BrandArt, _ key: String, _ symbol: String) -> Image {
@@ -44,36 +52,42 @@ struct PhoneRoot: View {
 
     var body: some View {
         TabView(selection: $app.tab) {
-            // Home, Library, and Moments are rebuilt when the look changes (like the Mac's `lookRebuild()`), so each
-            // screen and its navigation bar start fresh in the new look; the paths are kept. Changed in place, Home
-            // kept its Verbose layout under a half-made bar, and Library kept its inline title. Settings isn't
+            // Home, Library, and Moments are rebuilt in a new look (like the Mac's `lookRebuild()`), so each screen
+            // and its navigation bar start fresh in it; the paths live in PhoneState, so they're kept. Changed in place,
+            // Home kept its Verbose layout under a half-made bar, and Library kept its inline title. Only the tab on
+            // screen rebuilds when the look changes; the others wait until they're shown (`builtLook`). Settings isn't
             // rebuilt: the look changes from Settings › Appearance, which would pop.
             NavigationStack(path: $app.homePath) {
                 HomeScreen()
                     .navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
                     .navigationDestination(for: DocumentRoute.self) { TranscriptScreen(id: $0.id, startMode: .document) }
             }
-            .id(look)
+            .tabLook(builtLook(.home))
             .miniRecorderInset(.home, zoom: recorderZoom)
             .tabItem { Label { Text("Home") } icon: { tabIcon(.iconHome, "iconHome", "house") } }.tag(PhoneState.Tab.home)
 
             NavigationStack(path: $app.libraryPath) {
                 LibraryScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
-            .id(look)
+            .tabLook(builtLook(.library))
             .miniRecorderInset(.library, zoom: recorderZoom)
             .tabItem { Label { Text("Library") } icon: { tabIcon(.iconLibrary, "iconLibrary", "books.vertical") } }.tag(PhoneState.Tab.library)
 
             NavigationStack(path: $app.momentsPath) {
                 MomentsScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
-            .id(look)
+            .tabLook(builtLook(.moments))
             .miniRecorderInset(.moments, zoom: recorderZoom)
             .tabItem { Label { Text("Moments") } icon: { tabIcon(.iconMoments, "iconMoments", "bookmark") } }.tag(PhoneState.Tab.moments)
 
             NavigationStack { SettingsScreen() }
                 .miniRecorderInset(.settings, zoom: recorderZoom)
                 .tabItem { Label { Text("Settings") } icon: { tabIcon(.iconSettings, "iconSettings", "gearshape") } }.tag(PhoneState.Tab.settings)
+        }
+        // The tab you leave keeps the look it was drawn in; the one you open follows the current look.
+        .onChange(of: app.tab) { old, new in
+            tabLooks[old] = look
+            tabLooks[new] = nil
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen(zoom: recorderZoom) }
         .fullScreenCover(isPresented: $app.showCaptions) {
@@ -131,7 +145,8 @@ struct PhoneRoot: View {
         }
         // The tour's Pick a look step switches the look live, so the cover reads it itself too.
         .fullScreenCover(isPresented: $app.showOnboarding) {
-            PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app).phoneLookRoot().lookRoot()
+            PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app)
+                .lookSwitchLayer().phoneLookRoot().lookRoot()
         }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
@@ -167,6 +182,25 @@ struct PhoneRoot: View {
             }
         }
         .animation(Motion.settle, value: app.toast)
+        // Switching looks: the card in the new look, with the rebuild behind it (LookSwitch.swift).
+        .lookSwitchLayer()
+    }
+}
+
+/// Screen state a look switch would otherwise lose: Home, Library, and Moments start fresh in a new look (their paths
+/// live in PhoneState), and these come back with them. In memory only; nothing new is stored.
+enum LookKeep {
+    static var librarySearch = ""
+    static var libraryFilter: LibraryScreen.Filter = .all
+    static var momentsShow: MomentsScreen.Show = .all
+}
+
+private extension View {
+    /// A tab's stack in its own look: the look, its tint, and a fresh identity when the look changes.
+    func tabLook(_ look: AppLook) -> some View {
+        environment(\.look, look)
+            .tint(look.isNative ? Ink.nativeAccent : Ink.ink)
+            .id(look)
     }
 }
 

@@ -104,19 +104,16 @@ enum SurfaceFont {
 
 // MARK: - Switching
 
-/// Rebuilds the content when the look changes, with a crossfade (at once under Limit animation), so every token and
-/// font re-resolves; and tints controls with the accent in Native. Apply inside `lookRoot()`, around a window's
-/// content but outside its sheets, so a sheet that's open (the welcome tour) stays open.
+/// Rebuilds the content when the look changes, so every token and font re-resolves, and shows the look-switch card
+/// over it (LookSwitch.swift): a pick shows the card, the rebuild runs behind it with no animation of its own (two whole
+/// windows crossfading was most of the switch's cost), and the card's fade out crossfades into the result. Apply inside
+/// `lookRoot()`, around a window's content but outside its sheets, so a sheet that's open (the welcome tour) stays open.
 struct LookRebuild: ViewModifier {
     @Environment(\.look) private var look
-    @Environment(\.limitMotion) private var limitMotion
     func body(content: Content) -> some View {
-        ZStack {
-            content
-                .id(look)
-                .transition(.opacity)
-        }
-        .animation(limitMotion ? nil : .easeInOut(duration: 0.24), value: look)
+        content
+            .id(look)
+            .overlay { LookSwitchLayer() }
     }
 }
 
@@ -425,8 +422,8 @@ struct LookThumbnail: View {
     }
 }
 
-/// The two looks side by side, each a button with its thumbnail and name. Choosing one applies it at once: every
-/// window crossfades into it (`LookRebuild`; at once under Limit animation).
+/// The two looks side by side, each a button with its thumbnail and name. Choosing one shows the switching card, and
+/// every window rebuilds in the new look behind it (`LookRebuild`, LookSwitch.swift).
 struct LookPicker: View {
     var thumbnail: CGFloat = 190
     var captions = true
@@ -439,6 +436,7 @@ struct LookPicker: View {
         HStack(alignment: .top, spacing: thumbnail >= 160 ? 18 : 12) {
             ForEach(AppLook.allCases) { l in choice(l) }
         }
+        .onAppear { LookSwitch.prewarm() }   // the other look's type, before it's picked
     }
 
     static func caption(_ l: AppLook) -> String { l == .verbose ? "Paper, color, and line art" : "Like Apple's own apps" }
@@ -446,7 +444,8 @@ struct LookPicker: View {
     private func choice(_ l: AppLook) -> some View {
         let on = chosen == l
         let radius = 7 * thumbnail / 190
-        return Button { if raw != l.rawValue { raw = l.rawValue } } label: {
+        // The card shows, then the windows rebuild behind it (LookSwitch.swift).
+        return Button { if raw != l.rawValue { LookSwitch.shared.pick(l) } } label: {
             VStack(spacing: 6) {
                 LookThumbnail(look: l, width: thumbnail)
                     .background {

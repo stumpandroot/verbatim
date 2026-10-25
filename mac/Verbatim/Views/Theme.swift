@@ -139,7 +139,8 @@ struct Pill: View {
 /// Quick on purpose: it plays on every screen change, and a screen never makes you wait for its content.
 struct StaggerIn: ViewModifier {
     var index: Int          // negative = no entrance animation
-    @State private var shown = false
+    /// A screen rebuilt behind the look-switch card is simply there when the card fades (LookSwitch.swift).
+    @State private var shown = LookSwitch.rebuilding
     @Environment(\.limitMotion) private var reduce
     func body(content: Content) -> some View {
         content

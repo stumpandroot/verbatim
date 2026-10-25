@@ -223,6 +223,17 @@ extension Ink {
     static let nativeAccent = dyn(nativeAccentLightHex, nativeAccentDarkHex)
 }
 
+// MARK: - Look switch card
+
+/// Verbose style's paper, card, ink, and hard shadow, which never turn into Native's system colors on the Mac (`dyn`
+/// does, under NativeSwap). The look-switch card (LookSwitch.swift) draws Verbose style while Native is still stored.
+extension Ink {
+    static let paperVerbose = make { dark, _ in PColor(hex: dark ? 0x18241F : paperHex) }
+    static let cardVerbose = make { dark, _ in PColor(hex: dark ? 0x202F28 : readerHex) }
+    static let inkVerbose = make { dark, _ in PColor(hex: dark ? 0xF5F0E6 : inkHex) }
+    static let hardVerbose = make { dark, _ in PColor(hex: dark ? 0x0C1310 : inkHex) }
+}
+
 extension View {
     /// The neutral card surface: a fill (reader white by default) in a continuous rounded rectangle, with an
     /// ink hairline. iPhone Native draws a grouped card instead (the Mac's tokens already switch).

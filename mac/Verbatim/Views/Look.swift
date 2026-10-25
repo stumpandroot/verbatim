@@ -44,11 +44,19 @@ extension EnvironmentValues {
     }
 }
 
+/// The look a switch is applying (LookSwitch.swift in the apps), set in the same moment as the stored value so every
+/// root changes in one update, before the stored value's change notification reaches them. Nil the rest of the time.
+final class LookOverride: ObservableObject {
+    static let shared = LookOverride()
+    @Published var look: AppLook?
+}
+
 /// Reads the stored look and hands it to everything below; updates live when Settings changes it.
 struct LookRoot: ViewModifier {
     @AppStorage(AppLook.key, store: AppLook.store) private var raw = AppLook.verbose.rawValue
+    @ObservedObject private var override = LookOverride.shared
     func body(content: Content) -> some View {
-        content.environment(\.look, AppLook(rawValue: raw) ?? .verbose)
+        content.environment(\.look, override.look ?? AppLook(rawValue: raw) ?? .verbose)
     }
 }
 

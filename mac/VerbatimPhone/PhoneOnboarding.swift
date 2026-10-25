@@ -83,7 +83,7 @@ struct PhoneOnboarding: View {
         VStack(alignment: .leading, spacing: 0) {
             title(look.isNative ? "Pick a look" : "Pick a look.")
             para("Both work the same. Choose the one you'd rather look at.")
-            LookPicker(selection: Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { lookRaw = $0.rawValue }), thumbWidth: 112)
+            LookPicker(selection: Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { LookSwitch.shared.pick($0) }), thumbWidth: 112)
                 .padding(.top, 28)
         }
     }

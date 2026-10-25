@@ -308,6 +308,8 @@ targets:
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Look.swift
+      # Switching looks: the card, the rebuild behind it, and its timing (shared with the Mac).
+      - Verbatim/Views/LookSwitch.swift
       - Verbatim/Views/Brand.swift
       - Verbatim/Views/ThumbCache.swift
       - Verbatim/Views/HomeKit.swift

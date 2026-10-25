@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Settings › Appearance (the native mockup's section 04), modeled on Display & Brightness: the look picker with two
 /// live thumbnails, then light or dark, then Limit animation (moved here from Personalization). Both looks use this
-/// layout, each in its own clothes. Picking a look applies it at once with a crossfade (instant with motion limited;
-/// `phoneLookRoot()`), no relaunch. The look is stored per device in the App Group (`AppLook`), so the keyboard
+/// layout, each in its own clothes. Picking a look applies it at once, no relaunch: a small card in the new look shows
+/// while the screens rebuild behind it, then fades (LookSwitch.swift). The look is stored per device in the App Group (`AppLook`), so the keyboard
 /// follows it; it never syncs.
 struct AppearanceScreen: View {
     @EnvironmentObject var app: PhoneState
@@ -16,7 +16,8 @@ struct AppearanceScreen: View {
     static let lookNote = "How Verbose looks on this iPhone. Your Mac has its own setting. The Verbose keyboard uses the same look."
 
     private var selection: Binding<AppLook> {
-        Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { lookRaw = $0.rawValue })
+        // The switching card shows first, then the look is stored behind it (LookSwitch.swift).
+        Binding(get: { AppLook(rawValue: lookRaw) ?? .verbose }, set: { LookSwitch.shared.pick($0) })
     }
 
     var body: some View {

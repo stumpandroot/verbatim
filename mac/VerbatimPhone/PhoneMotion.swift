@@ -45,7 +45,8 @@ struct RiseIn: ViewModifier {
     init(id: AnyHashable, index: Int, seen: SeenRows, epoch: Int, base: Double, scrollRise: Bool) {
         self.id = id; self.index = index; self.seen = seen; self.epoch = epoch; self.base = base; self.scrollRise = scrollRise
         let firstScreenful = seen.entering && index <= SeenRows.staggerLimit
-        _shown = State(initialValue: !PhoneMotion.on || seen.ids.contains(id) || (!scrollRise && !firstScreenful))
+        // A screen rebuilt behind the look-switch card is simply there when the card fades (LookSwitch.swift).
+        _shown = State(initialValue: !PhoneMotion.on || LookSwitch.rebuilding || seen.ids.contains(id) || (!scrollRise && !firstScreenful))
     }
 
     func body(content: Content) -> some View {
@@ -108,6 +109,8 @@ struct TabEntrance: ViewModifier {
     private func enterIfNeeded() {
         guard handled != app.tabEpoch else { return }
         handled = app.tabEpoch
+        // Rebuilt in a new look while on screen (LookSwitch.swift): not a tab switch, so nothing enters.
+        guard !LookSwitch.rebuilding else { return }
         guard app.tab == tab, app.tabFrom != tab else { return }
         onEnter()
         guard PhoneMotion.on else { return }

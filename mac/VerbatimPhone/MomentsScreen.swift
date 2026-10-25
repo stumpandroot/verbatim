@@ -9,7 +9,8 @@ struct MomentsScreen: View {
     /// Cards rise in once; the first screenful staggers when you switch to Moments.
     @State private var seen = SeenRows()
     @State private var entrance = 0
-    @State private var show: Show = .all
+    /// The chip, kept when a look switch rebuilds Moments (`LookKeep`).
+    @State private var show: Show = LookKeep.momentsShow
 
     enum Show: Hashable { case all, bookmarks, notes, stills }
 
@@ -71,6 +72,7 @@ struct MomentsScreen: View {
             }
         }
         .tabEntrance(.moments) { seen.entered(); entrance += 1 }
+        .onChange(of: show) { _, v in LookKeep.momentsShow = v }
         .phonePage()
         .navigationTitle("Moments")
         .toolbar(.hidden, for: .navigationBar)

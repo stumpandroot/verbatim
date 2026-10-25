@@ -6,7 +6,9 @@
       "items": [
         "iPhone: Home and Library switch fully to the Native look.",
         "Tags, categories, and sponsor rows match the Native look.",
-        "iPhone: cards in Settings › Keyboard and other pages match the Native look."
+        "iPhone: cards in Settings › Keyboard and other pages match the Native look.",
+        "Choosing a look shows a short card while Verbose changes to it, and the change takes less time.",
+        "iPhone: after you change the look, you stay on the same tab and screen, and Library keeps your search and filter."
       ]
     },
     {

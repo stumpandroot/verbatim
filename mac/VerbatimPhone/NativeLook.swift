@@ -92,8 +92,9 @@ extension View {
     func lookMono(_ size: CGFloat, weight: Font.Weight = .regular) -> some View { modifier(LookFont(serif: false, size: size, weight: weight)) }
     /// A screen's background: paper, or the system's grouped background.
     func phonePage() -> some View { modifier(PhonePage()) }
-    /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or the Native accent) and the
-    /// crossfade when the look changes (instant with motion limited).
+    /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or the Native accent). A look
+    /// switch has no animation of its own here: the switching card covers the rebuild and fades out over it
+    /// (LookSwitch.swift). Animating every changed view in both looks at once was most of what made switching slow.
     func phoneLookRoot() -> some View { modifier(PhoneLookRoot()) }
 }
 
@@ -106,11 +107,8 @@ private struct PhonePage: ViewModifier {
 
 private struct PhoneLookRoot: ViewModifier {
     @Environment(\.look) private var look
-    @Environment(\.limitMotion) private var limitMotion
     func body(content: Content) -> some View {
-        content
-            .tint(look.isNative ? Ink.nativeAccent : Ink.ink)
-            .animation(limitMotion ? nil : .easeOut(duration: 0.24), value: look)
+        content.tint(look.isNative ? Ink.nativeAccent : Ink.ink)
     }
 }
 
@@ -411,7 +409,7 @@ struct LookPicker: View {
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
             ForEach(AppLook.allCases) { l in
-                Button { selection = l } label: { option(l) }
+                Button { if selection != l { selection = l } } label: { option(l) }
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(l.label)
@@ -420,6 +418,7 @@ struct LookPicker: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .onAppear { LookSwitch.prewarm() }   // the other look's type, before it's picked
     }
 
     @ViewBuilder private func option(_ l: AppLook) -> some View {
