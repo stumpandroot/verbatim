@@ -13,7 +13,12 @@
 # Usage: publish-update.sh <path to the DMG>
 # Env:   UPDATES_TOKEN (Contents read/write on the updates repo only), UPDATES_REPO (default
 #        stumpandroot/verbose-updates), GITHUB_REF, GITHUB_REF_NAME, GITHUB_RUN_NUMBER, and the build's Sparkle
-#        values SIG, LEN, SHORT, BUNDLE.
+#        values SIG, LEN, SHORT, BUNDLE. RELEASE_NOTES overrides the release notes file (default
+#        mac/ReleaseNotes/ReleaseNotes.json).
+#
+# The build's release notes (mac/ReleaseNotes/README.md) go into the appcast item's description, which Sparkle's
+# update window shows, and the GitHub release body: the entry for this run number, or the "next" entry (this
+# checkout isn't stamped). Without either, the one-line text below stands in.
 set -euo pipefail
 : "${UPDATES_TOKEN:?}" "${GITHUB_REF:?}" "${GITHUB_RUN_NUMBER:?}" "${SIG:?}" "${LEN:?}" "${SHORT:?}" "${BUNDLE:?}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +34,17 @@ KEEP_BETAS=5
 W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT
 DMG="$W/$ASSET"
 cp "$SRC" "$DMG"
+
+NOTES_JSON="${RELEASE_NOTES:-$HERE/../ReleaseNotes/ReleaseNotes.json}"
+NOTES_PY="$HERE/../ReleaseNotes/release_notes.py"
+notes_as() { # notes_as html|markdown: this build's notes, or nothing
+  if [ -f "$NOTES_PY" ] && [ -f "$NOTES_JSON" ]; then python3 "$NOTES_PY" notes "$NOTES_JSON" --build "$N" --format "$1" || true; fi
+}
+NOTES_HTML="$(notes_as html)"
+NOTES_MD="$(notes_as markdown)"
+# with_notes <first line>: the release body, the build's notes under the line when there are any.
+with_notes() { if [ -n "$NOTES_MD" ]; then printf '%s\n\n%s' "$1" "$NOTES_MD"; else printf '%s' "$1"; fi; }
+if [ -n "$NOTES_HTML" ]; then echo "Release notes for build ${N}: $(printf '%s' "$NOTES_MD" | head -n 1)"; else echo "No release notes for build ${N}; using the default text."; fi
 
 download_url() { echo "https://github.com/${R}/releases/download/$1/${ASSET}"; }
 release_page() { echo "https://github.com/${R}/releases/tag/$1"; }
@@ -60,13 +76,14 @@ check_download() {
 if [ "$GITHUB_REF" = refs/heads/main ]; then
   TAG="beta-${N}"
   release_put "$TAG" "Beta build ${N}" \
-    "Automatic beta build ${N} of main. For testing; tagged releases are the stable channel." prerelease
+    "$(with_notes "Automatic beta build ${N} of main. For testing; tagged releases are the stable channel.")" prerelease
   check_download "$(download_url "$TAG")"
   release_put beta-latest "Newest beta build" \
     "Always the newest build of main (now beta build ${N}): $(download_url beta-latest)" prerelease
   bash "$HERE/publish-appcast.sh" --channel beta --version "$BUNDLE" --short-version "$SHORT" \
     --url "$(download_url "$TAG")" --length "$LEN" --signature "$SIG" \
-    --title "Verbose beta ${N}" --notes "Beta build ${N} of main." --notes-link "$(release_page "$TAG")"
+    --title "Verbose beta ${N}" --notes "Beta build ${N} of main." --notes-html "$NOTES_HTML" \
+    --notes-link "$(release_page "$TAG")"
   # Keep the newest beta-<run> prereleases; delete older ones and their tags. beta-latest doesn't match.
   gh release list -R "$R" --limit 200 --json tagName,isPrerelease \
     --jq '.[] | select(.isPrerelease and (.tagName | test("^beta-[0-9]+$"))) | .tagName' \
@@ -79,11 +96,11 @@ elif [[ "$GITHUB_REF" == refs/tags/mac-v* ]]; then
   # A version with a suffix (mac-v1.3.0-beta.1) is a prerelease on the beta channel; others are stable. Look
   # after "mac-v", which has a hyphen of its own.
   if [[ "${TAG#mac-v}" == *-* ]]; then CHANNEL=beta KIND=prerelease; else CHANNEL=stable KIND=latest; fi
-  release_put "$TAG" "Verbose ${SHORT}" "Verbose ${SHORT} for Mac." "$KIND"
+  release_put "$TAG" "Verbose ${SHORT}" "$(with_notes "Verbose ${SHORT} for Mac.")" "$KIND"
   check_download "$(download_url "$TAG")"
   bash "$HERE/publish-appcast.sh" --channel "$CHANNEL" --version "$BUNDLE" --short-version "$SHORT" \
     --url "$(download_url "$TAG")" --length "$LEN" --signature "$SIG" \
-    --title "Verbose ${SHORT}" --notes-link "$(release_page "$TAG")"
+    --title "Verbose ${SHORT}" --notes-html "$NOTES_HTML" --notes-link "$(release_page "$TAG")"
 else
   echo "::error::publish-update.sh runs only for main and mac-v* tags, not $GITHUB_REF"; exit 1
 fi

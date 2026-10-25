@@ -68,10 +68,13 @@ def build_item(a):
     ET.SubElement(item, sp("version")).text = str(a.version)
     ET.SubElement(item, sp("shortVersionString")).text = a.short_version
     ET.SubElement(item, sp("minimumSystemVersion")).text = MIN_SYSTEM
-    if a.notes or a.notes_link:
+    if a.notes or a.notes_html or a.notes_link:
         # Sparkle shows <description> as HTML in its update window. ElementTree escapes it; XML parsing undoes that.
+        # The build's release notes (mac/ReleaseNotes) win over the one-line --notes when there are any.
         parts = []
-        if a.notes:
+        if a.notes_html.strip():
+            parts.append(a.notes_html.strip())
+        elif a.notes:
             parts.append("<p>%s</p>" % html.escape(a.notes))
         if a.notes_link:
             parts.append('<p><a href="%s">Release notes on GitHub</a></p>' % html.escape(a.notes_link, quote=True))
@@ -96,6 +99,8 @@ def main(argv=None):
     p.add_argument("--signature", required=True, help="sparkle:edSignature (from sign_update)")
     p.add_argument("--title", default="", help="item title (default: Verbose <short> (<version>))")
     p.add_argument("--notes", default="", help="one line of plain text for the update window")
+    p.add_argument("--notes-html", default="",
+                   help="this build's release notes as simple HTML (release_notes.py notes); replaces --notes")
     p.add_argument("--notes-link", default="", help="link shown under the notes, e.g. the GitHub release page")
     p.add_argument("--force", action="store_true", help="replace the channel's item even if it is newer")
     a = p.parse_args(argv)

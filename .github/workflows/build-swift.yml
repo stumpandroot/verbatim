@@ -12,6 +12,9 @@ name: Build Mac app (SwiftUI)
 #   - The speech bench: on mac-v* tags, on the weekly run (Mondays), and when started by hand with "bench" ticked.
 #   - A newer push to main cancels an older build still running; mac-v* tag builds are never cancelled.
 # ci-screens keeps the newest iPhone and bench results when a build skips them (their file names carry their build).
+# Release notes (mac/ReleaseNotes/README.md): each build, iPhone tour, and TestFlight archive first stamps the bundled
+# ReleaseNotes.json's "next" entry with the run number in its own checkout (never committed), and the updates job puts
+# that entry in the appcast and the GitHub release, so the Mac's update window lists what's new.
 #
 # Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
 # MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
@@ -216,6 +219,11 @@ jobs:
             printf '%s' "$MACOS_PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/verbatim.provisionprofile"
             echo "PROVISION_PROFILE=$RUNNER_TEMP/verbatim.provisionprofile" >> "$GITHUB_ENV"
           fi
+
+      # Release notes (mac/ReleaseNotes/README.md): the bundled JSON's "next" entry becomes this build, dated today, in
+      # this checkout only (never committed), so the app's What's new names its own build number. No secrets.
+      - name: Stamp the release notes with this build
+        run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER"
 
       # No secrets in this step; the keychain above signs. Notarization is the next step.
       - name: Build, sign, and package
@@ -560,7 +568,11 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-          sparse-checkout: mac/Updates
+          # The release notes too: this build's entry (the "next" one, unstamped here) goes into the appcast and the
+          # GitHub release.
+          sparse-checkout: |
+            mac/Updates
+            mac/ReleaseNotes
       - if: steps.gate.outputs.publish == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -807,6 +819,10 @@ jobs:
           xcodegen generate --quiet
           bash tools/package-resolved.sh install
 
+      # The same stamping as the Mac build: What's new names this build (mac/ReleaseNotes/README.md).
+      - name: Stamp the release notes with this build
+        run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER"
+
       # ci-screens gets the screenshots and a short summary (publish-phone job); full logs go to a workflow artifact.
       - name: Build the iPhone app and run its screenshot tour (simulator)
         env:
@@ -842,8 +858,9 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           SIMCTL_CHILD_VERBATIM_UITEST=1 xcrun simctl launch "$UDID" co.stumpandroot.verbatim.ios
           DATA="$(xcrun simctl get_app_container "$UDID" co.stumpandroot.verbatim.ios data)"
-          # The app renders its own screenshots into Documents/screens and writes "done" when the tour ends.
-          for i in $(seq 1 200); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
+          # The app renders its own screenshots into Documents/screens and writes "done" when the tour ends. The tour
+          # outgrew 200 seconds with the Native and What's new screens (build 203 stopped before p12-onboarding).
+          for i in $(seq 1 420); do [ "$(cat "$DATA/Documents/show.txt" 2>/dev/null)" = "done" ] && break; sleep 1; done
           cp "$DATA/Documents/screens/"*.png "$P/out/phone-screens-${N}/" 2>/dev/null || true
           xcrun simctl io "$UDID" screenshot "$P/out/phone-screens-${N}/z-device-last.png" > /dev/null 2>&1 || true
           cp "$DATA/Library/Logs/Verbatim/native.log" "$P/diag/phone-native-${N}.log" 2>/dev/null || true
@@ -982,6 +999,11 @@ jobs:
           bash tools/package-resolved.sh install
           xcodebuild -resolvePackageDependencies -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" \
             -clonedSourcePackagesDirPath build/spm > "$RUNNER_TEMP/resolve.log" 2>&1 || { tail -n 30 "$RUNNER_TEMP/resolve.log"; exit 1; }
+
+      # The same stamping as the Mac build, before the archive: What's new names this build (mac/ReleaseNotes/README.md).
+      - name: Stamp the release notes with this build
+        if: env.HAS_ASC == 'true'
+        run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER"
 
       - name: Send the iPhone app to TestFlight
         if: env.HAS_ASC == 'true'

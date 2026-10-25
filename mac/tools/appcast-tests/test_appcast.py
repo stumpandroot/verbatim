@@ -72,6 +72,19 @@ class AppcastTests(unittest.TestCase):
         self.assertIn("<p>a &lt;b&gt; &amp; c</p>", desc)
         self.assertIn('href="%s/releases/tag/beta-5"' % REPO, desc)
 
+    def test_release_notes_html_replaces_the_one_line_notes(self):
+        notes = "<h3>Version notes</h3><ul><li>Tap the version.</li></ul>"
+        self.run_appcast("beta", 6, extra=["--notes", "Beta build 6 of main.", "--notes-html", notes,
+                                           "--notes-link", REPO + "/releases/tag/beta-6"])
+        desc = ET.parse(self.feed).getroot().find("channel").find("item").find("description").text
+        self.assertTrue(desc.startswith(notes))
+        self.assertNotIn("Beta build 6 of main.", desc)
+        self.assertIn("Release notes on GitHub", desc)
+        # Empty release notes fall back to the one line.
+        self.run_appcast("beta", 7, extra=["--notes", "Beta build 7 of main.", "--notes-html", ""])
+        desc = ET.parse(self.feed).getroot().find("channel").find("item").find("description").text
+        self.assertEqual(desc, "<p>Beta build 7 of main.</p>")
+
     def test_rejects_bad_input(self):
         r = self.run_appcast("beta", 5, extra=["--url", "http://example.com/x.dmg"], check=False)
         self.assertNotEqual(r.returncode, 0)

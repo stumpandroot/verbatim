@@ -16,7 +16,8 @@ check() { if eval "$2"; then echo "ok: $1"; else echo "FAIL: $1"; fails=$((fails
 # gh stand-in: keeps the release list in state/releases and logs every call.
 cat > "$T/bin/gh" <<'EOF'
 #!/bin/bash
-echo "gh $*" >> "$STATE/gh.log"
+# One line per call: release notes span lines.
+printf 'gh %s\n' "$(printf '%s' "$*" | tr '\n' ' ')" >> "$STATE/gh.log"
 [ "$1" = release ] || exit 2
 cmd="$2"; tag="$3"; rel="$STATE/releases"; touch "$rel"
 case "$cmd" in
@@ -40,8 +41,8 @@ git -C "$T/seed" add README.md && git -C "$T/seed" -c user.name=t -c user.email=
 git -C "$T/seed" push -q origin HEAD:main
 echo "fake dmg" > "$T/Verbatim-universal.dmg"
 
-publish() { # publish <ref> <run number> <short version>
-  PATH="$T/bin:$PATH" STATE="$T/state" APPCAST_REMOTE="$T/remote.git" UPDATES_TOKEN=test-token-value \
+publish() { # publish <ref> <run number> <short version>; RELEASE_NOTES (optional) picks the release notes file
+  PATH="$T/bin:$PATH" RELEASE_NOTES="${RELEASE_NOTES:-$here/../ReleaseNotes/ReleaseNotes.json}" STATE="$T/state" APPCAST_REMOTE="$T/remote.git" UPDATES_TOKEN=test-token-value \
     GITHUB_REF="$1" GITHUB_RUN_NUMBER="$2" SIG="SIG$2==" LEN=9 SHORT="$3" BUNDLE="$2" \
     bash "$updates/publish-update.sh" "$T/Verbatim-universal.dmg"
 }
@@ -56,10 +57,26 @@ check "main build: the asset is Verbose.dmg" 'grep -q "release create beta-101 [
 check "main build: the feed's beta item points at beta-101" 'grep -q "url=\"$R/releases/download/beta-101/Verbose.dmg\"" <<< "$F"'
 check "main build: the download was checked before the feed changed" 'grep -q "$R/releases/download/beta-101/Verbose.dmg" "$T/state/curl.log"'
 check "main build: the README stays" '[ -f "$T/seed/README.md" ]'
+# The repo's release notes have a "next" entry (unstamped checkout): its title and items reach Sparkle and GitHub.
+NEXT_TITLE="$(python3 -c 'import json,sys; n=json.load(open(sys.argv[1]))["notes"][0]; print(n["title"] if n["build"]=="next" else "")' "$here/../ReleaseNotes/ReleaseNotes.json")"
+desc() { python3 -c 'import sys,xml.etree.ElementTree as E; i=[x for x in E.fromstring(sys.argv[1]).find("channel").findall("item") if x.find("{http://www.andymatuschak.org/xml-namespaces/sparkle}channel") is not None][0]; print(i.find("description").text)' "$1"; }
+if [ -n "$NEXT_TITLE" ]; then
+  D="$(desc "$F")"
+  check "main build: the appcast description carries the next entry's title and items" \
+    'grep -qF "<h3>$NEXT_TITLE</h3>" <<< "$D" && grep -q "<ul><li>" <<< "$D" && grep -q "Release notes on GitHub" <<< "$D"'
+  check "main build: the GitHub release body carries them as Markdown" \
+    'grep "release create beta-101 " "$T/state/gh.log" | grep -qF -- "**$NEXT_TITLE**  - "'
+fi
 
 printf 'beta-%s\n' 95 96 97 98 99 100 >> "$T/state/releases"
 : > "$T/state/gh.log"
-publish refs/heads/main 102 0.0.0
+# A notes file with no entry for 102 and no "next": the one-line text stands in.
+printf '{"notes": [{"build": "90", "date": "2026-10-01", "title": "Old", "items": ["Old item."]}]}\n' > "$T/old-notes.json"
+RELEASE_NOTES="$T/old-notes.json" publish refs/heads/main 102 0.0.0
+F="$(feed)"
+check "no notes for the build: the appcast falls back to the one-line text" 'grep -q "Beta build 102 of main." <<< "$(desc "$F")" && ! grep -q "Old item" <<< "$(desc "$F")"'
+check "no notes for the build: the release body falls back too" \
+  'grep "release create beta-102 " "$T/state/gh.log" | grep -q "stable channel. --prerelease"' 
 check "re-publishing beta-latest replaces its DMG" 'grep -q "release upload beta-latest .*--clobber" "$T/state/gh.log"'
 check "only the newest five betas are kept" \
   '[ "$(grep -E "^beta-[0-9]+$" "$T/state/releases" | sort -t- -k2,2 -n | tr "\n" " ")" = "beta-98 beta-99 beta-100 beta-101 beta-102 " ]'
