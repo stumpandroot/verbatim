@@ -48,7 +48,7 @@ struct MomentsScreen: View {
                     VStack(spacing: 12) {
                         IconPlate(art: .iconMoments, size: 96)
                         Text(all.isEmpty ? "Bookmark a moment while a transcript plays, or long-press a line." : "Nothing here yet.")
-                            .font(.system(size: 15)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
+                            .font(.system(size: 15)).foregroundStyle(.lookDim).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(40)
@@ -71,7 +71,7 @@ struct MomentsScreen: View {
             }
         }
         .tabEntrance(.moments) { seen.entered(); entrance += 1 }
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Moments")
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -87,15 +87,17 @@ struct PhoneMomentCard: View {
     @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 15
     @ScaledMetric(relativeTo: .body) private var quoteSize: CGFloat = 19
     @ScaledMetric(relativeTo: .footnote) private var titleSize: CGFloat = 15
+    @Environment(\.look) private var look
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
         let bookmark = note.isBookmark
-        let on: Color = bookmark ? Ink.inkFixed : Ink.ink
+        // Native: every card is a grouped card, so text takes the label color.
+        let on: Color = look.isNative ? NativeInk.label : bookmark ? Ink.inkFixed : Ink.ink
         return VStack(alignment: .leading, spacing: 0) {
             if let f = note.frameFile {
                 StillImage(file: f).frame(height: 120).frame(maxWidth: .infinity).clipped()
-            } else if art {
+            } else if art, !look.isNative {
                 PhonePanelFill(color: PhoneInk.sage, shape: Rectangle())
                     .overlay(alignment: .topTrailing) {
                         PhonePanelArt(kind: .circles).frame(width: 220, height: 190).offset(x: 20, y: -40)
@@ -106,7 +108,7 @@ struct PhoneMomentCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     IconGlyph(art: bookmark ? .iconPin : (note.aiAction != nil ? .iconAI : .iconNotes), size: 16, color: on)
-                    Text((note.at ?? 0).timecode).font(Ink.mono(12)).foregroundStyle(on)
+                    Text((note.at ?? 0).timecode).lookMono(12).foregroundStyle(on)
                     Spacer(minLength: 6)
                     ArtIcon(art: .iconPlay, size: 12, lineWidth: 1.4)
                         .foregroundStyle(on)
@@ -115,7 +117,7 @@ struct PhoneMomentCard: View {
                         .accessibilityHidden(true)
                 }
                 if bookmark {
-                    Text("“\(note.text)”").font(Ink.serif(quoteSize)).italic().foregroundStyle(on)
+                    Text("“\(note.text)”").lookSerif(quoteSize).italic().foregroundStyle(on)
                         .lineSpacing(2).lineLimit(6).multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
@@ -123,16 +125,16 @@ struct PhoneMomentCard: View {
                         .lineSpacing(4).lineLimit(8).multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(transcript.title).font(Ink.serif(titleSize)).foregroundStyle(on).opacity(0.7).lineLimit(1)
+                Text(transcript.title).lookSerif(titleSize).foregroundStyle(on).opacity(0.7).lineLimit(1)
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            if bookmark { PhonePanelFill(color: PhoneInk.butter, shape: shape) } else { shape.fill(Ink.card) }
+            if bookmark { PhonePanelFill(color: PhoneInk.butter, shape: shape) } else { shape.fill(.lookCard) }
         }
         .clipShape(shape)
-        .overlay { if !bookmark { shape.strokeBorder(Ink.ink, lineWidth: 1.5) } }
+        .overlay { if !bookmark, !look.isNative { shape.strokeBorder(Ink.ink, lineWidth: 1.5) } }
         .contentShape(shape)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(bookmark ? "Bookmark" : "Note") at \((note.at ?? 0).timecode): \(note.text). \(transcript.title)")

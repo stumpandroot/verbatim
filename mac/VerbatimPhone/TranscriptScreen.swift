@@ -46,6 +46,7 @@ struct TranscriptScreen: View {
     /// The transcript is long enough for the scrubber, which then replaces the system scroll indicator.
     @State private var scrubLong = false
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 32
+    @Environment(\.look) private var look
 
     private static let scrollSpace = "transcript-scroll"
 
@@ -141,15 +142,15 @@ struct TranscriptScreen: View {
                     }
                     .coordinateSpace(.named(TranscriptScrubber.frameSpace))
                 }
-                .background(Ink.paper.ignoresSafeArea())
+                .phonePage()
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil {
-                            Button { app.player.stop(); app.continueRecording(t.id) } label: { Image(uiImage: BrandArt.capture.templateImage(size: 22, key: "toolbar-continue")) }
+                            Button { app.player.stop(); app.continueRecording(t.id) } label: { toolbarIcon(.capture, "toolbar-continue", "mic.badge.plus") }
                                 .accessibilityLabel("Continue recording")
                         }
-                        Button { showNotes = true } label: { Image(uiImage: BrandArt.iconNotes.templateImage(size: 22, key: "toolbar-notes")) }.accessibilityLabel("Notes")
+                        Button { showNotes = true } label: { toolbarIcon(.iconNotes, "toolbar-notes", "note.text") }.accessibilityLabel("Notes")
                         Menu {
                             Section("From the original transcript") {
                                 PhoneActionItems { a in
@@ -161,7 +162,7 @@ struct TranscriptScreen: View {
                                 else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
                             } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }   // brand: system surface (menu)
                             .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                        } label: { Image(uiImage: BrandArt.refine.templateImage(size: 22, key: "toolbar-actions")) }
+                        } label: { toolbarIcon(.refine, "toolbar-actions", "sparkles") }
                         .accessibilityLabel("Actions")
                         .disabled(t.status != .ready)
                         Menu {
@@ -210,9 +211,14 @@ struct TranscriptScreen: View {
                 .onDisappear { app.player.stop() }
                 .skipsSponsors(t, player: app.player)
             } else {
-                Text("This transcript was deleted.").foregroundStyle(Ink.mute).frame(maxWidth: .infinity, maxHeight: .infinity).background(Ink.paper)
+                Text("This transcript was deleted.").foregroundStyle(.lookMute).frame(maxWidth: .infinity, maxHeight: .infinity).background(Ink.paper)
             }
         }
+    }
+
+    /// A toolbar button's icon: the brand line icon in Verbose style, its SF Symbol in Native.
+    private func toolbarIcon(_ art: BrandArt, _ key: String, _ symbol: String) -> Image {
+        look.isNative ? Image(systemName: symbol) : Image(uiImage: art.templateImage(size: 22, key: key))   // brand: native
     }
 
     /// Shares the recording's audio file, after it downloads from iCloud when it lives on the other device.
@@ -242,14 +248,16 @@ struct TranscriptScreen: View {
 
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            PhoneEyebrow(text: Self.eyebrow(t))
+            // Verbose style: the mono eyebrow over the serif title. Native: a bold title, then the same line under it.
+            if !look.isNative { PhoneEyebrow(text: Self.eyebrow(t)) }
             TextField("Title", text: Binding(get: { t.title }, set: { v in
                 guard v != t.title else { return }
                 app.store.updateDeferred(t.id) { $0.title = v; $0.titleIsAuto = false; $0.titleByModel = false }
             }), axis: .vertical)
-                .font(Ink.serif(titleSize)).tracking(-0.6).foregroundStyle(Ink.ink).lineLimit(1...4)
+                .font(look.isNative ? .title.bold() : Ink.serif(titleSize)).tracking(look.isNative ? 0 : -0.6).foregroundStyle(.lookInk).lineLimit(1...4)
                 .padding(.top, 2)
                 .accessibilityLabel("Title")
+            if look.isNative { PhoneEyebrow(text: Self.eyebrow(t)) }
             HStack(spacing: 6) {
                 // The kind, day, and length are in the eyebrow above.
                 Text(t.sourceLabel)
@@ -261,7 +269,7 @@ struct TranscriptScreen: View {
                     Text("·"); Text(LanguageDetection.name(l))
                 }
             }
-            .font(.system(size: 13)).foregroundStyle(Ink.mute)
+            .font(.system(size: 13)).foregroundStyle(.lookMute)
             // Source, engine, language, date, and where the data went (PhoneTrust.swift).
             if t.status == .ready { PhoneProvenanceLine(transcript: t) }
             if t.titleIsAuto && t.titleByModel { AITitleNote() }
@@ -280,7 +288,7 @@ struct TranscriptScreen: View {
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 18, color: Ink.accentText) }
-                    Text(t.stageText).font(.system(size: 14)).foregroundStyle(Ink.dim).lineLimit(2)
+                    Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2)
                     Spacer(minLength: 4)
                     if t.processingDevice == nil {
                         Menu {
@@ -296,7 +304,7 @@ struct TranscriptScreen: View {
                 .padding(.top, 6)
             } else if t.status == .ready, t.stage == "Finding speakers" {
                 HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 13)).foregroundStyle(.lookMute)
             }
             if let info = t.linkInfo { PhoneLinkCard(info: info).padding(.top, 8) }
         }
@@ -308,18 +316,18 @@ struct TranscriptScreen: View {
             HStack(spacing: 14) {
                 SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(t.stageText).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
+                    Text(t.stageText).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
                     Text(t.processingDevice == Device.id ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
-                        .font(.system(size: 14)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 14)).foregroundStyle(.lookMute)
                 }
             }
             .padding(.top, 20)
         } else if t.status == .failed {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) { IconGlyph(art: .iconAttention, size: 20, color: Ink.accentText); Text("Transcription did not finish") }.font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.accentText)
-                Text(t.error ?? "").font(.system(size: 14)).foregroundStyle(Ink.mute)
+                HStack(spacing: 8) { IconGlyph(art: .iconAttention, size: 20, color: Ink.accentText); Text("Transcription did not finish") }.font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookAccentText)
+                Text(t.error ?? "").font(.system(size: 14)).foregroundStyle(.lookMute)
                 HStack(spacing: 8) {
-                    Button("Retry") { app.retry(t) }.buttonStyle(.brandPrimary)
+                    Button("Retry") { app.retry(t) }.buttonStyle(.phonePrimary)
                     // Local Only refused this transcript's model download (PhoneTrust.swift).
                     PhoneAllowDownloadButton(transcript: t)
                 }
@@ -372,9 +380,9 @@ struct TranscriptScreen: View {
                         Text(showEngine ? "Engine words" : "With corrections").font(.system(size: 14, weight: .medium))
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundStyle(Ink.ink)
+                    .foregroundStyle(.lookInk)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(Ink.hairline))
+                    .background(.lookCard, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
                 }
                 .accessibilityLabel("Words: \(showEngine ? "engine words" : "with corrections")")
                 .accessibilityIdentifier("original-words")
@@ -382,7 +390,7 @@ struct TranscriptScreen: View {
                     Label(selecting ? "Done selecting" : "Select text", art: .iconSelect, size: 15)
                         .font(.system(size: 14, weight: .medium)).foregroundStyle(selecting ? Ink.onInteractive : Ink.ink)
                         .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(selecting ? Ink.interactive : Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(Ink.hairline))
+                        .background(selecting ? Ink.interactive : Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("original-select")
@@ -391,7 +399,7 @@ struct TranscriptScreen: View {
             if showEngine {
                 Text(t.hasEngineWords ? "Exactly what the engine heard, before your corrections and Dictionary fixes."
                                       : "This transcript has no separate engine words, so these are the lines as they are.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    .font(.system(size: 13)).foregroundStyle(.lookMute)
             }
         }
         .padding(.bottom, 4)
@@ -402,21 +410,21 @@ struct TranscriptScreen: View {
             if t.corrections.isEmpty {
                 HStack(spacing: 14) {
                     EmptyStateArt(art: .refine, tint: Ink.petalTint)
-                    Text("Nothing changed yet. Dictionary fixes and your corrections show here beside the original.").font(.system(size: 14)).foregroundStyle(Ink.dim)
+                    Text("Nothing changed yet. Dictionary fixes and your corrections show here beside the original.").font(.system(size: 14)).foregroundStyle(.lookDim)
                 }
             }
             ForEach(t.corrections) { c in
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: c.byDictionary ? "book.closed" : "pencil").foregroundStyle(Ink.ink).frame(width: 20)
+                    Image(systemName: c.byDictionary ? "book.closed" : "pencil").foregroundStyle(.lookInk).frame(width: 20)
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) { Text(c.from).strikethrough().foregroundStyle(Ink.mute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
-                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) { Text(seg.text).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(2) }
+                        HStack(spacing: 6) { Text(c.from).strikethrough().foregroundStyle(.lookMute); Image(systemName: "arrow.right").font(.system(size: 10)); Text(c.to).fontWeight(.semibold) }
+                        if let seg = t.segments.first(where: { $0.id == c.segmentId }) { Text(seg.text).font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(2) }
                     }
                     Spacer()
                     Button("Undo") {
                         app.store.undoCorrection(c, in: t.id)
                     }
-                    .buttonStyle(.brandSecondary)
+                    .buttonStyle(.phoneSecondary)
                 }
                 .padding(12)
                 .cardSurface(radius: Radius.row)
@@ -432,7 +440,23 @@ struct PhoneSpeakerChip: View {
     var color: Color
     var size: CGFloat = 12.5
     var menu = false
+    @Environment(\.look) private var look
     var body: some View {
+        if look.isNative {
+            // Native: the name in semibold, no colored chip. Names carry who's talking.
+            HStack(spacing: 3) {
+                Text(name).font(.system(size: size + 2, weight: .semibold)).lineLimit(1)
+                if menu { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(NativeInk.tertiary) }
+            }
+            .foregroundStyle(NativeInk.label)
+            .frame(minHeight: 24)
+            .contentShape(Rectangle())
+        } else {
+            verbose
+        }
+    }
+
+    private var verbose: some View {
         HStack(spacing: 4) {
             Text(name).font(.system(size: size, weight: .bold)).lineLimit(1)
             if menu { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7) }
@@ -525,11 +549,11 @@ struct PhoneLines: View {
                             }
                             .accessibilityLabel("Speaker: \(n). Rename or reassign")
                         }
-                        Text(s.start.timecode).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+                        Text(s.start.timecode).lookMono(12).foregroundStyle(.lookMute)
                             .onTapGesture { play(s) }
                             .accessibilityLabel("Play from \(s.start.timecode)").accessibilityAddTraits(.isButton)
                     }
-                    lineText(s, playing: playing).font(.system(size: textSize)).foregroundStyle(Ink.ink).lineSpacing(textSize * 0.38)
+                    lineText(s, playing: playing).font(.system(size: textSize)).foregroundStyle(.lookInk).lineSpacing(textSize * 0.38)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         // Tap a line to play from it (Select text, above, is for selecting).
@@ -602,14 +626,21 @@ struct PhoneDock: View {
     @ObservedObject var clock: PlayerClock
     var downloading: Bool
     @Binding var follow: Bool
+    @Environment(\.look) private var look
+
+    /// Native repaints the dock in system colors on glass; Verbose style keeps the opaque ink capsule.
+    private var onDock: Color { look.isNative ? NativeInk.label : Ink.paperFixed }
 
     var body: some View {
         let total = max(app.player.duration, transcript.duration, 0.1)
-        HStack(spacing: 10) {
+        let dock = HStack(spacing: 10) {
             Button { app.player.toggle() } label: {
                 ZStack {
-                    Circle().fill(PhoneInk.record)
-                    if downloading { ProgressView().tint(Ink.inkFixed) }
+                    Circle().fill(look.isNative ? NativeInk.accent : PhoneInk.record)
+                    if downloading { ProgressView().tint(look.isNative ? Color.white : Ink.inkFixed) }
+                    else if look.isNative {
+                        Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.white)   // brand: native
+                    }
                     else { ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 15, lineWidth: 2).foregroundStyle(Ink.inkFixed) }
                 }
                 .frame(width: 38, height: 38)
@@ -621,11 +652,13 @@ struct PhoneDock: View {
             if let note = clock.note {
                 SkippedSponsorNote(text: note)
             } else {
-                Text(clock.time.timecode).font(Ink.mono(12)).foregroundStyle(Ink.paperFixed)
+                Text(clock.time.timecode).lookMono(12).foregroundStyle(onDock)
                     .fixedSize()
                     .accessibilityHidden(true)
             }
-            PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total)) { f in
+            PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total),
+                          played: look.isNative ? NativeInk.accent : Ink.butter,
+                          rest: look.isNative ? NativeInk.gray : Ink.paperFixed.opacity(0.35)) { f in
                 app.player.seek(to: f * total)
             }
             .frame(height: 26)
@@ -641,10 +674,10 @@ struct PhoneDock: View {
             }
             Button { follow.toggle() } label: {
                 Text("Follow").font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(follow ? Ink.inkFixed : Ink.paperFixed)
+                    .foregroundStyle(look.isNative ? (follow ? Color.white : NativeInk.accent) : follow ? Ink.inkFixed : Ink.paperFixed)
                     .padding(.horizontal, 14).frame(minHeight: 36)
-                    .background { if follow { Capsule().fill(Ink.paperFixed) } }
-                    .overlay { if !follow { Capsule().strokeBorder(Ink.paperFixed.opacity(0.6), lineWidth: 1.2) } }
+                    .background { if follow { Capsule().fill(look.isNative ? NativeInk.accent : Ink.paperFixed) } }
+                    .overlay { if !follow { Capsule().strokeBorder(look.isNative ? NativeInk.accent.opacity(0.6) : Ink.paperFixed.opacity(0.6), lineWidth: 1.2) } }
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -663,23 +696,46 @@ struct PhoneDock: View {
                     app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
                 } label: { Label("Bookmark this moment", systemImage: "bookmark") }   // brand: system surface (menu)
             } label: {
-                Image(systemName: "ellipsis").font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.paperFixed)
+                Image(systemName: "ellipsis").font(.system(size: 16, weight: .semibold)).foregroundStyle(onDock)
                     .frame(width: 32, height: 38).contentShape(Rectangle())
             }
             .accessibilityLabel("Playback options, \(PlaybackSync.speedLabel(app.player.rate))")
         }
         .padding(.leading, 8).padding(.trailing, 6)
         .frame(minHeight: 54)
-        .background(Ink.inkFixed, in: Capsule())
-        .shadow(color: Ink.inkFixed.opacity(0.2), radius: 12, y: 8)
+        if look.isNative {
+            NativeDockSurface(content: dock)
+        } else {
+            dock
+                .background(Ink.inkFixed, in: Capsule())
+                .shadow(color: Ink.inkFixed.opacity(0.2), radius: 12, y: 8)
+        }
     }
 }
+
+// brand: native begin
+/// The player in the Native look: Liquid Glass like Music's bar above the tab bar (a material before iOS 26). Native
+/// follows Apple in putting text on glass here; keep the scroll edge effect on.
+private struct NativeDockSurface<Content: View>: View {
+    var content: Content
+    var body: some View {
+        if #available(iOS 26, *) {
+            content.glassEffect(.regular, in: Capsule())
+        } else {
+            content.background(.bar, in: Capsule())
+                .shadow(color: Color.black.opacity(0.12), radius: 12, y: 6)
+        }
+    }
+}
+// brand: native end
 
 /// The player's waveform: the recording's levels as thin bars, butter up to the playhead and faint paper after it.
 /// Tap or drag to move the playhead.
 struct PhoneDockWave: View {
     var levels: [Float]
     var progress: Double
+    var played: Color = Ink.butter
+    var rest: Color = Ink.paperFixed.opacity(0.35)
     var seek: (Double) -> Void
 
     var body: some View {
@@ -698,9 +754,9 @@ struct PhoneDockWave: View {
                     }
                     let h = v * size.height
                     let rect = CGRect(x: CGFloat(i) * (w + gap), y: (size.height - h) / 2, width: w, height: h)
-                    let played = Double(i) / Double(n) < progress
+                    let isPlayed = Double(i) / Double(n) < progress
                     ctx.fill(Path(roundedRect: rect, cornerRadius: min(2, w / 2)),
-                             with: .color(played ? Ink.butter : Ink.paperFixed.opacity(0.35)))
+                             with: .color(isPlayed ? played : rest))
                 }
             }
             .contentShape(Rectangle())
@@ -739,12 +795,12 @@ struct PhoneLinkCard: View {
             }
             .frame(width: 72, height: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text([info.channel, info.site].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 14, weight: .medium)).foregroundStyle(Ink.ink).lineLimit(1)
-                Text(info.uploadDisplay ?? URL(string: info.url)?.host ?? "").font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+                Text([info.channel, info.site].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 14, weight: .medium)).foregroundStyle(.lookInk).lineLimit(1)
+                Text(info.uploadDisplay ?? URL(string: info.url)?.host ?? "").font(.system(size: 12.5)).foregroundStyle(.lookMute).lineLimit(1)
             }
             Spacer(minLength: 4)
             if let u = URL(string: info.url) {
-                Link(destination: u) { ArtIcon(art: .iconPlay, size: 20) }.foregroundStyle(Ink.ink).accessibilityLabel("Open video")
+                Link(destination: u) { ArtIcon(art: .iconPlay, size: 20) }.foregroundStyle(.lookInk).accessibilityLabel("Open video")
             }
         }
         .padding(8)
@@ -776,16 +832,16 @@ struct NotesSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 5) {
                                 if n.isBookmark { ArtIcon(art: .bookmark, size: 13) }
-                                if let at = n.at { Text(at.timecode).font(Ink.mono(12)) }
+                                if let at = n.at { Text(at.timecode).lookMono(12) }
                             }
                             .foregroundStyle(n.isBookmark ? Ink.butterText : Ink.dim)
                             if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: Radius.button)) }
                             if let action = n.aiAction {
                                 // Saved from an action: stays marked as Apple Intelligence's, not the transcript's.
                                 Label("\(action) · Made by Apple Intelligence", art: .iconAI, size: 14)
-                                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.dim)
+                                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.lookDim)
                             }
-                            Text(n.text).font(.system(size: 15)).foregroundStyle(Ink.ink)
+                            Text(n.text).font(.system(size: 15)).foregroundStyle(.lookInk)
                         }
                         .listRowBackground(n.isBookmark ? Ink.butterTint : Ink.card)
                         .onTapGesture { if let at = n.at { app.player.seek(to: at) } }
@@ -822,6 +878,7 @@ struct PhoneSummaryPanel: View {
     @Environment(\.limitMotion) private var limitMotion
     @ScaledMetric(relativeTo: .title2) private var headSize: CGFloat = 22
     @ScaledMetric(relativeTo: .body) private var bodySize: CGFloat = 14.5
+    @Environment(\.look) private var look
 
     private var running: Bool { center.isRunning(transcript.id) }
     private var animation: Animation { limitMotion ? Motion.fade : Motion.settle }
@@ -830,11 +887,21 @@ struct PhoneSummaryPanel: View {
         if SummaryBlock.shows(transcript, center: center) {
             let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
             VStack(alignment: .leading, spacing: 10) {
-                PhoneEyebrow(text: "Summary", color: Ink.inkFixed)
+                if look.isNative {
+                    // Native: a grouped card marked with the sparkles symbol and "Apple Intelligence".
+                    HStack {
+                        Label("Summary", systemImage: "sparkles").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.label)   // brand: native
+                        Spacer(minLength: 6)
+                        if transcript.summaryByModel { Text("Apple Intelligence").font(.caption).foregroundStyle(NativeInk.secondary) }
+                    }
                     .accessibilityAddTraits(.isHeader)
+                } else {
+                    PhoneEyebrow(text: "Summary", color: Ink.inkFixed)
+                        .accessibilityAddTraits(.isHeader)
+                }
                 content
             }
-            .foregroundStyle(Ink.inkFixed)
+            .foregroundStyle(.lookOnPanel)
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
@@ -861,7 +928,7 @@ struct PhoneSummaryPanel: View {
             let head = parts.0, rest = parts.1
             VStack(alignment: .leading, spacing: 10) {
                 if !head.isEmpty {
-                    Text(head).font(Ink.serif(headSize)).lineSpacing(1)
+                    Text(head).lookSerif(headSize).lineSpacing(1)
                         .padding(.trailing, 64)
                         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
@@ -873,7 +940,7 @@ struct PhoneSummaryPanel: View {
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
                             HStack(alignment: .firstTextBaseline, spacing: 9) {
-                                Circle().fill(Ink.inkFixed).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
+                                Circle().fill(.lookOnPanel).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
                                 Text(p).font(.system(size: bodySize)).lineSpacing(2)
                                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                             }
@@ -898,7 +965,8 @@ struct PhoneSummaryPanel: View {
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 14, weight: .semibold))
-                .underline()
+                .underline(!look.isNative)
+                .foregroundStyle(look.isNative ? NativeInk.accent : Ink.inkFixed)
             }
         } else if running {
             progressRow
