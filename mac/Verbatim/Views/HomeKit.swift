@@ -760,12 +760,18 @@ extension HomeTile {
 }
 
 /// What Home has on screen, by section and size, and which tiles: the self-test checks an edit reaches Home. Counted,
-/// because a section that moves to another band can appear again before its old place disappears.
+/// because a section (or a tile) that moves to another band can appear again before its old place disappears. Tiles
+/// weren't: closing Edit Home's inspector widens Native Home so Stats and the tiles pair into one band, every tile
+/// appeared in its new band before leaving the old one, and leaving took it off the list (build 213's "a new tile
+/// reaches Home" failure, with Search drawn on Home).
 @MainActor
 enum HomeProbe {
     private static var counts: [HomeSection: Int] = [:]
     private static var sizes: [HomeSection: HomeCardSize] = [:]
-    static var tiles: [HomeTile] = []
+    private static var tileCounts: [HomeTile: Int] = [:]
+    static var tiles: [HomeTile] { tileCounts.filter { $0.value > 0 }.map(\.key) }
+    static func tileAppeared(_ t: HomeTile) { tileCounts[t, default: 0] += 1 }
+    static func tileDisappeared(_ t: HomeTile) { tileCounts[t] = max(0, (tileCounts[t] ?? 0) - 1) }
     static var sections: [HomeSection: HomeCardSize] { sizes.filter { (counts[$0.key] ?? 0) > 0 } }
     static func appeared(_ item: HomeLayout.Item) { counts[item.section, default: 0] += 1; sizes[item.section] = item.size }
     static func resized(_ s: HomeSection, _ size: HomeCardSize) { sizes[s] = size }
@@ -775,8 +781,8 @@ enum HomeProbe {
 extension View {
     /// Records the tile on screen while it is (HomeProbe).
     func homeTileProbe(_ tile: HomeTile) -> some View {
-        onAppear { if !HomeProbe.tiles.contains(tile) { HomeProbe.tiles.append(tile) } }
-            .onDisappear { HomeProbe.tiles.removeAll { $0 == tile } }
+        onAppear { HomeProbe.tileAppeared(tile) }
+            .onDisappear { HomeProbe.tileDisappeared(tile) }
     }
 
     /// Records the section on screen while it is (HomeProbe). Adds no state and no identity.
