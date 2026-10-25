@@ -154,6 +154,7 @@ struct HomeProjectsMac: View {
 // MARK: - Moments
 
 /// The newest saved moment and where it came from. A click opens the transcript at that line.
+@MainActor
 enum HomeMomentPick {
     static func latest(_ store: Store) -> (t: Transcript, n: Note)? {
         var best: (t: Transcript, n: Note)?
@@ -171,7 +172,7 @@ enum HomeMomentPick {
         return seg.map { "“\($0.text.trimmingCharacters(in: .whitespaces))”" } ?? "Bookmark"
     }
 
-    @MainActor static func open(_ app: AppState, _ t: Transcript, _ n: Note) {
+    static func open(_ app: AppState, _ t: Transcript, _ n: Note) {
         app.focusSegment = n.segmentId ?? t.segments.last { $0.start <= (n.at ?? 0) }?.id
         app.go(.transcript(t.id))
     }
