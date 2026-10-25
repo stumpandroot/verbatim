@@ -35,8 +35,6 @@ final class NativeNav: ObservableObject {
     /// An action running on the open transcript (its sheet), and why Summarize can't run here.
     @Published var runningAction: FlowAction?
     @Published var summaryUnavailable: String?
-    /// The detail's width in 20 pt steps, for the scope bar (segmented when it fits).
-    @Published var detailWidth: CGFloat = 800
     /// Back and forward. Not published itself: only whether Back and Forward can go is, and only when that changes, so
     /// a navigation doesn't re-render the toolbar a second time.
     private var history = NavHistory<Screen>()
@@ -177,8 +175,19 @@ struct NativeWindow<Detail: View>: View {
 
     private func setWidth(_ w: CGFloat) {
         let stepped = (w / 20).rounded() * 20
-        if nav.detailWidth != stepped { LookSwitch.mark("detail-width"); nav.detailWidth = stepped }
+        let detail = NativeDetailWidth.shared
+        if detail.width != stepped { LookSwitch.mark("detail-width"); detail.width = stepped }
     }
+}
+
+/// The detail's width in 20 pt steps, for the Library's scope bar (segmented when it fits): its own object, so only that
+/// toolbar item observes it. On NativeNav, which the whole Native window observes, each change (the inspector opening
+/// or closing, a transcript's column settling) re-rendered the window, its split view, and its toolbar a second time
+/// in the same update (build 214: the late `detail-width` mark, 100 to 300 ms before the Library's and a transcript's
+/// first frame, and in the look switch).
+final class NativeDetailWidth: ObservableObject {
+    static let shared = NativeDetailWidth()
+    @Published var width: CGFloat = 800
 }
 
 /// The inspector's content for the screen: the Library's preview or the transcript's side column.
@@ -273,6 +282,7 @@ private struct NativeLeadingItem: View {
 private struct NativeCenterItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
+    @ObservedObject private var detail = NativeDetailWidth.shared
     var screen: Screen
 
     var body: some View {
@@ -289,7 +299,7 @@ private struct NativeCenterItem: View {
                 NativeLibraryScope.choose(s, app: app)
             })
             // One picker, styled from the room the detail has (it used to build both and measure them).
-            let segmented = ScopeBarStyle.segmented(options.map(\.1), available: Double(nav.detailWidth) - 520)
+            let segmented = ScopeBarStyle.segmented(options.map(\.1), available: Double(detail.width) - 520)
             Picker("Show", selection: binding) {
                 ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
             }
