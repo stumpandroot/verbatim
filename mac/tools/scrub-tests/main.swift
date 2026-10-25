@@ -108,5 +108,17 @@ check("finger height and handle center agree", [0.0, 0.1, 0.37, 0.5, 0.9, 1].all
 check("a finger past the ends clamps", ScrubMath.fraction(atY: -10, track: 600, handle: 44) == 0 && ScrubMath.fraction(atY: 700, track: 600, handle: 44) == 1
       && ScrubMath.fraction(atY: 10, track: 30, handle: 44) == 0)
 
+// The track's drawn ticks: on the drag's scale, at the haptic's steps, never closer than 18 points.
+let podTicks = ScrubMath.tickFractions(starts: podStarts, end: podEnd, trackHeight: 560)
+check("ticks mark every 2 minutes of a 62-minute recording on a 560-point track", podTicks.count == 30 && abs(podTicks[0] - 120 / podEnd) < 1e-12, "\(podTicks.count)")
+check("ticks sit inside the track, in order", podTicks.allSatisfy { $0 > 0 && $0 < 1 } && zip(podTicks, podTicks.dropFirst()).allSatisfy { $0 < $1 })
+let shortTrack = ScrubMath.tickFractions(starts: podStarts, end: podEnd, trackHeight: 300)
+check("ticks space out to at least 18 points on a short track", zip(shortTrack, shortTrack.dropFirst()).allSatisfy { ($1 - $0) * 300 >= 18 - 1e-9 }, "\(shortTrack.count)")
+let tickLines = ScrubMath.tickFractions(starts: flat, end: 0, trackHeight: 540)
+check("paced by line, a tick every run of lines", !tickLines.isEmpty && zip(tickLines, tickLines.dropFirst()).allSatisfy { ($1 - $0) * 540 >= 18 - 1e-9 })
+check("a tick lands where the haptic changes", podTicks.prefix(5).allSatisfy { f in
+    let i = ScrubMath.index(at: f, starts: podStarts, end: podEnd)
+    return ScrubMath.tick(index: i, starts: podStarts, end: podEnd, trackHeight: 560) != ScrubMath.tick(index: max(0, i - 1), starts: podStarts, end: podEnd, trackHeight: 560) })
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -96,6 +96,18 @@ enum ScrubMath {
         return max(1, Int((Double(count) / most).rounded(.up)))
     }
 
+    /// Where the ticks the haptic marks sit on the track, 0...1 on the drag's scale, ends left out: each step of
+    /// time when paced by time, each `lineStep` lines otherwise. `trackHeight` is the handle's travel.
+    static func tickFractions(starts: [Double], end: Double, trackHeight: Double, minSpacing: Double = 18) -> [Double] {
+        guard starts.count > 1 else { return [] }
+        if pacedByTime(starts: starts, end: end) {
+            let s = step(duration: end, trackHeight: trackHeight, minSpacing: minSpacing)
+            return stride(from: s, to: end, by: s).map { $0 / end }
+        }
+        let n = lineStep(count: starts.count, trackHeight: trackHeight, minSpacing: minSpacing)
+        return stride(from: n, to: starts.count - 1, by: n).map { Double($0) / Double(starts.count - 1) }
+    }
+
     /// The tick a line falls in; the haptic fires when it changes.
     static func tick(index: Int, starts: [Double], end: Double, trackHeight: Double) -> Int {
         guard starts.indices.contains(index) else { return 0 }

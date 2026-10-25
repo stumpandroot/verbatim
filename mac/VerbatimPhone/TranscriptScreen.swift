@@ -124,6 +124,7 @@ struct TranscriptScreen: View {
                                                lines: { shownLines(t) },
                                                end: ScrubMath.scaleEnd(starts: t.segments.map(\.start), ends: t.segments.map(\.end)),
                                                speaker: { s in t.speakers.count >= 2 ? t.speakerName(s.speaker) : nil },
+                                               speakerColor: { s in PhoneLines.speakerColor(t, s.speaker) },
                                                jump: { s in
                                                    var tr = Transaction(); tr.disablesAnimations = true
                                                    withTransaction(tr) { proxy.scrollTo(s.id, anchor: .top) }
@@ -424,6 +425,25 @@ struct TranscriptScreen: View {
     }
 }
 
+/// A speaker's colored pill on a transcript line (and in the scrubber's bubble): the name in fixed ink on the
+/// speaker's color (`PhoneLines.speakerColor`), with a small chevron where it opens a menu.
+struct PhoneSpeakerChip: View {
+    var name: String
+    var color: Color
+    var size: CGFloat = 12.5
+    var menu = false
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(name).font(.system(size: size, weight: .bold)).lineLimit(1)
+            if menu { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7) }
+        }
+        .foregroundStyle(Ink.inkFixed)
+        .padding(.horizontal, 10).frame(minHeight: 24)
+        .background(color, in: Capsule())
+        .contentShape(Capsule())
+    }
+}
+
 /// The reading lines. Reads the playhead without observing it: the lines re-render only when the playing
 /// passage changes (`playingIDs`), not on every 20 Hz tick, so the playing tint moves without re-rendering the screen.
 struct PhoneLines: View {
@@ -501,14 +521,7 @@ struct PhoneLines: View {
                                     Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
                                 }
                             } label: {
-                                HStack(spacing: 4) {
-                                    Text(n).font(.system(size: pillSize, weight: .bold)).lineLimit(1)
-                                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7)
-                                }
-                                .foregroundStyle(Ink.inkFixed)
-                                .padding(.horizontal, 10).frame(minHeight: 24)
-                                .background(Self.speakerColor(transcript, s.speaker), in: Capsule())
-                                .contentShape(Capsule())
+                                PhoneSpeakerChip(name: n, color: Self.speakerColor(transcript, s.speaker), size: pillSize, menu: true)
                             }
                             .accessibilityLabel("Speaker: \(n). Rename or reassign")
                         }

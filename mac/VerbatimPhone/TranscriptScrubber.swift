@@ -4,8 +4,8 @@ import UIKit
 // The transcript scrubber, like Photos' date scrubber: on transcripts taller than about three screens, a small
 // handle appears at the right edge while you scroll and fades about 1.5 s after scrolling stops. Hold it (or hold
 // the edge while it shows) and drag: the finger's height picks a place in the recording, paced by time
-// (ScrubMath.swift), the transcript jumps there, and a bubble beside the finger names the time and the speaker
-// ("23:41 · Ginna Cross"). A light selection haptic marks each minute (or a longer step on long recordings), never
+// (ScrubMath.swift), the transcript jumps there, and a bubble beside the finger names the time and shows the speaker's
+// chip ("23:41  Ginna Cross"). Faint minute ticks line the track while you drag. A light selection haptic marks each minute (or a longer step on long recordings), never
 // each line. VoiceOver: the handle stays put and is adjustable; swipe up or down to move a minute. Limit animation
 // and Reduce Motion: no fades. Hidden in Select text. The track sits between the navigation bar and the player
 // dock (or the tab bar), inside the safe area.
@@ -248,16 +248,22 @@ struct TranscriptScrubber: View {
     var end: Double
     /// The speaker's name for the bubble, when there are speakers.
     var speaker: (Segment) -> String?
+    /// The speaker's chip color, as on the transcript's lines (`PhoneLines.speakerColor`).
+    var speakerColor: (Segment) -> Color
     /// Jumps the transcript to a line, at once.
     var jump: (Segment) -> Void
     /// A drag began (turns Follow off while playing).
     var onBegin: () -> Void
 
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.displayScale) private var displayScale
     @State private var voiceOver = UIAccessibility.isVoiceOverRunning
     /// The lines and their starts for the drag in progress.
     @State private var held: [Segment] = []
     @State private var starts: [Double] = []
+    /// Where the minute (or step) ticks sit on the track for the drag in progress, 0...1.
+    @State private var ticks: [Double] = []
     @State private var landed = -1
     @State private var tick = 0
     /// Bumped at each minute (or step) crossing; the haptic's trigger.
@@ -285,6 +291,11 @@ struct TranscriptScrubber: View {
             let f = model.dragging ? model.dragFraction : (model.pinned ?? model.progress)
             let y = Self.handleY(f, height: h)
             ZStack(alignment: .topLeading) {
+                // While dragging: faint minute ticks down the track, on the handle's scale, like the player's
+                // waveform marks. Still; they only appear and go.
+                if model.dragging, !ticks.isEmpty {
+                    tickMarks(width: g.size.width, height: h)
+                }
                 // The edge: hold it while the handle shows, then drag.
                 Color.clear
                     .frame(width: 34, height: h)
@@ -300,7 +311,7 @@ struct TranscriptScrubber: View {
                 if model.dragging, let text = bubbleText {
                     // Beside the finger, its right edge 10 pt from the handle.
                     let room = max(0, g.size.width - 48)
-                    bubble(text)
+                    bubble(time: text.time, name: text.name, color: held.indices.contains(landed) ? speakerColor(held[landed]) : .clear)
                         .frame(maxWidth: min(280, room))
                         .frame(width: room, alignment: .trailing)
                         .position(x: room / 2, y: min(max(y, 22), max(22, h - 22)))
@@ -313,7 +324,7 @@ struct TranscriptScrubber: View {
             .animation(limitMotion ? nil : .easeOut(duration: 0.2), value: shown)
             .allowsHitTesting(shown)
             .onAppear { trackHeight = h }
-            .onChange(of: h) { _, new in trackHeight = new }
+            .onChange(of: h) { _, new in trackHeight = new; if model.dragging { ticks = tickFractions() } }
         }
         .onAppear {
             model.lines = lines
@@ -332,15 +343,18 @@ struct TranscriptScrubber: View {
 
     // MARK: Handle and bubble
 
+    /// The bars mark on an ink key (paper in dark): the keycap radius, the ink outline, and a hard offset shadow
+    /// that tightens while held, as a pressed card's does (DESIGN.md §7, §11).
     private var handle: some View {
-        Capsule()
-            .fill(Ink.ink)
-            .overlay {
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Ink.paper)
-            }
+        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        let shadow: CGSize = model.dragging ? CGSize(width: 2, height: 3) : CGSize(width: 3, height: 4)
+        return BarsMark(color: Ink.paper)
+            .frame(width: 12, height: 13)
+            .accessibilityHidden(true)
             .frame(width: Self.handleSize.width, height: Self.handleSize.height)
+            .background(shape.fill(Ink.ink))
+            .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
+            .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
             .scaleEffect(model.dragging && !limitMotion ? 1.08 : 1)
             .animation(limitMotion ? nil : Motion.press, value: model.dragging)
             .frame(width: 44, height: 60)
@@ -368,20 +382,43 @@ struct TranscriptScrubber: View {
             .accessibilityIdentifier("transcript-scrubber")
     }
 
-    /// "23:41 · Ginna Cross" on card white with an ink outline and the hard shadow (DESIGN.md §11), never glass.
-    private func bubble(_ text: (time: String, name: String?)) -> some View {
-        HStack(spacing: 6) {
-            Text(text.time).font(Ink.mono(13, weight: .medium))
-            if let name = text.name {
-                Text("·").foregroundStyle(Ink.mute)
-                Text(name).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+    /// "23:41" and the speaker's chip ("Ginna Cross" on her color, as on her lines) on card white with an ink
+    /// outline and the hard shadow (DESIGN.md §11), never glass. No speakers: the time alone (or "Line 12 of 340").
+    private func bubble(time: String, name: String?, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Text(time).font(Ink.mono(13, weight: .medium)).foregroundStyle(Ink.ink)
+            if let name {
+                PhoneSpeakerChip(name: name, color: color).truncationMode(.tail)
             }
         }
-        .foregroundStyle(Ink.ink)
-        .padding(.horizontal, 12).frame(height: 34)
+        .padding(.leading, 12).padding(.trailing, name == nil ? 12 : 6).frame(height: 34)
         .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
         .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(Ink.hard).offset(x: 4, y: 5))
+    }
+
+    /// Hairline ink ticks centered under the handle's path, one per minute (or step), never closer than 18 pt.
+    /// Stronger under Increase Contrast.
+    private func tickMarks(width: CGFloat, height: CGFloat) -> some View {
+        let x = width - 4 - Self.handleSize.width / 2
+        let color = Ink.ink.opacity(contrast == .increased ? 0.5 : 0.22)
+        let line = max(1 / displayScale, 0.5)
+        return Canvas { ctx, _ in
+            for f in ticks {
+                let y = Self.handleY(f, height: height)
+                ctx.fill(Path(CGRect(x: x - 6, y: y - line / 2, width: 12, height: line)), with: .color(color))
+            }
+        }
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// The handle's travel: the track less the handle, the span the scale's 0...1 covers.
+    private var travel: Double { max(1, Double(trackHeight - Self.handleSize.height)) }
+
+    private func tickFractions() -> [Double] {
+        ScrubMath.tickFractions(starts: starts, end: end, trackHeight: travel)
     }
 
     private var bubbleText: (time: String, name: String?)? {
@@ -417,6 +454,7 @@ struct TranscriptScrubber: View {
             starts = held.map(\.start)
             landed = -1
             tick = Int.min
+            ticks = tickFractions()
             model.dragging = true
             onBegin()
         }
@@ -432,7 +470,7 @@ struct TranscriptScrubber: View {
             Self.lastLandingFraction = ScrubMath.fraction(of: i, starts: starts, end: end)
             Self.lastLandingIsLast = i == held.count - 1
         }
-        let t = ScrubMath.tick(index: i, starts: starts, end: end, trackHeight: Double(trackHeight))
+        let t = ScrubMath.tick(index: i, starts: starts, end: end, trackHeight: travel)
         if tick != Int.min, t != tick { crossings &+= 1 }
         tick = t
     }
@@ -441,7 +479,7 @@ struct TranscriptScrubber: View {
         guard model.dragging else { return }
         model.pin(model.dragFraction)
         model.dragging = false
-        held = []; starts = []; landed = -1
+        held = []; starts = []; ticks = []; landed = -1
         model.hideSoon()
     }
 
@@ -462,7 +500,7 @@ struct TranscriptScrubber: View {
         guard !all.isEmpty else { return }
         let s = all.map(\.start)
         let from = min(all.count - 1, model.voiceOverIndex ?? ScrubMath.index(at: model.progress, starts: s, end: end))
-        let to = ScrubMath.stepped(from: from, direction: direction, starts: s, end: end, trackHeight: Double(trackHeight))
+        let to = ScrubMath.stepped(from: from, direction: direction, starts: s, end: end, trackHeight: travel)
         onBegin()
         model.voiceOverIndex = to
         jump(all[to])
