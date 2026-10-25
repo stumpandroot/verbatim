@@ -604,20 +604,15 @@ struct PillButton: View {
     var action: () -> Void
     @State private var hover = false
     @State private var down = false
-    @State private var area: CGSize = .zero
+    /// The pill's size for the click test, kept without state (`HitBox`, Theme.swift).
+    @State private var area = HitBox()
 
     var body: some View {
         PillLabel(title: title, kind: kind, size: size, icon: icon, trailing: trailing, fixedInk: fixedInk, fullWidth: fullWidth,
                   hover: hover && enabled, pressed: down && enabled)
             .opacity(enabled ? 1 : 0.4)
-            .background(GeometryReader { g in Color.clear.onAppear { area = g.size }.onChange(of: g.size) { _, s in area = s } })
             .onHover { hover = $0 }
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { _ in if !down { down = true } }
-                .onEnded { v in
-                    down = false
-                    if enabled && CGRect(origin: .zero, size: area).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
-                })
+            .hitArea(area, enabled: enabled, pressed: { p in if down != p { down = p } }, action: action)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
             .accessibilityAddTraits(.isButton)

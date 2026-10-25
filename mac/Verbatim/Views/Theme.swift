@@ -30,13 +30,13 @@ struct CardButton<Content: View>: View {
 
     @State private var hover: CGPoint? = nil
     @State private var down = false
-    @State private var size: CGSize = .zero
+    /// The card's size for the tilt and the click, kept without state (see `HitBox`).
+    @State private var box = HitBox()
 
     var body: some View {
         content()
-            .cardMotion(hover: hover, size: size, pressed: down, radius: radius, tilt: tilt, lift: lift)
+            .cardMotion(hover: hover, size: box.size, pressed: down, radius: radius, tilt: tilt, lift: lift)
             .allowsHitTesting(false)
-            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
             .overlay {
                 // The hit layer: flat, on top, and the only thing that receives the pointer.
                 RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Color.white.opacity(0.001))
@@ -47,30 +47,69 @@ struct CardButton<Content: View>: View {
                         case .ended: hover = nil; down = false
                         }
                     }
-                    .modifier(CardHit(dragPayload: dragPayload, size: size, down: $down, action: action))
+                    .modifier(CardHit(dragPayload: dragPayload, box: box, down: $down, action: action))
             }
     }
 }
 
 private struct CardHit: ViewModifier {
     var dragPayload: (() -> String)?
-    var size: CGSize
+    var box: HitBox
     @Binding var down: Bool
     var action: () -> Void
     func body(content: Content) -> some View {
         if let payload = dragPayload {
             content
+                .measured(box)
                 .onTapGesture { action() }
                 .simultaneousGesture(PressTracker.gesture { down = $0 })
                 .onDrag { NSItemProvider(object: payload() as NSString) }
         } else {
-            content.gesture(DragGesture(minimumDistance: 0)
-                .onChanged { _ in if !down { down = true } }
-                .onEnded { v in
-                    down = false
-                    if CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
-                })
+            content.hitArea(box, pressed: { p in if down != p { down = p } }, action: action)
         }
+    }
+}
+
+/// Where a direct-gesture control keeps its own size: a plain reference held in `@State`, so writing it never
+/// renders the control again. Measured into `@State`, every tap area, pill, and card rendered a second time right
+/// after its screen appeared (one extra pass per sidebar row and per transcript timecode). Views that draw from the
+/// size (`CardButton`'s tilt) read it on their next render, which a hover or press always brings.
+final class HitBox {
+    var size: CGSize = .zero
+}
+
+/// The click rule every direct-gesture control shares (`TapArea`, `PillButton`, `CardButton`): a zero-distance drag
+/// that fires on release inside the control, with 4 pt of slack, as a button's tracking does. A gesture rather than a
+/// SwiftUI Button, so it stays safe under parent gestures and in panels (macOS 26 lost Button clicks in both). The
+/// size it tests against comes from `measured(_:)` into a `HitBox`, never from state.
+struct HitArea: ViewModifier {
+    var box: HitBox
+    var enabled = true
+    /// Press down (true) and release (false), for press feedback.
+    var pressed: ((Bool) -> Void)? = nil
+    var action: () -> Void
+    func body(content: Content) -> some View {
+        content
+            .measured(box)
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { _ in pressed?(true) }
+                .onEnded { v in
+                    pressed?(false)
+                    if enabled && CGRect(origin: .zero, size: box.size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
+                })
+    }
+}
+
+extension View {
+    /// Keeps `box.size` equal to this view's size. Writes a reference, not state, so it causes no render.
+    func measured(_ box: HitBox) -> some View {
+        background(GeometryReader { g in
+            Color.clear.onAppear { box.size = g.size }.onChange(of: g.size) { _, s in box.size = s }
+        })
+    }
+    /// The shared click rule (`HitArea`) on this view, sized by `box`.
+    func hitArea(_ box: HitBox, enabled: Bool = true, pressed: ((Bool) -> Void)? = nil, action: @escaping () -> Void) -> some View {
+        modifier(HitArea(box: box, enabled: enabled, pressed: pressed, action: action))
     }
 }
 
@@ -85,17 +124,14 @@ enum PressTracker {
 }
 
 
-/// Non-tilting version for sidebar rows and chips: hover tint and a direct click gesture.
+/// Non-tilting version for sidebar rows and chips: hover tint and a direct click gesture (`HitArea`).
 struct TapArea: ViewModifier {
     var action: () -> Void
-    @State private var size: CGSize = .zero
+    @State private var box = HitBox()
     func body(content: Content) -> some View {
         content
             .contentShape(Rectangle())
-            .background(GeometryReader { g in Color.clear.onAppear { size = g.size }.onChange(of: g.size) { _, s in size = s } })
-            .gesture(DragGesture(minimumDistance: 0).onEnded { v in
-                if CGRect(origin: .zero, size: size).insetBy(dx: -4, dy: -4).contains(v.location) { action() }
-            })
+            .hitArea(box, action: action)
     }
 }
 
