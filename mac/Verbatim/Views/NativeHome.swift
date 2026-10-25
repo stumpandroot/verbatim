@@ -23,6 +23,7 @@ extension HomeView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     nativeHeader
+                    WhatsNewHomeLine(top: 14) { app.dictation.openSettings(tab: .whatsNew) }
                     if app.recorder.isRecording { RecordPanel().padding(.top, 14) }
                     else if app.capture.isCapturing { CapturePanel().padding(.top, 14) }
                     nativeStart(width, wide: wide).padding(.top, 18)

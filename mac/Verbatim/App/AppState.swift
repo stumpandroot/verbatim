@@ -145,6 +145,8 @@ final class AppState: ObservableObject {
         // Which kept and imported files are still there, checked off the main thread for rows and menus.
         KeptMedia.shared.attach(store)
         applyAppearance()
+        // What's new: a new install starts at its own build, so Home's note waits for the next update.
+        ReleaseNotes.settleLastSeen(ranBefore: Onboarding.finishedBefore)
         if Onboarding.shouldShow { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.showOnboarding = true } }
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.

@@ -28,7 +28,7 @@ check("the Native accent itself has no role (no loop)", NativeRoles.role(light: 
 let sidebarItems = ["home", "library", "links", "moments", "queue", "dictations", "you", "dictionary"]
 let sidebarSymbols = sidebarItems.map(NativeSymbols.sidebar)
 check("every sidebar item has its own symbol", Set(sidebarSymbols).count == sidebarItems.count && !sidebarSymbols.contains("circle"), "\(sidebarSymbols)")
-let tabs = ["general", "dictate", "floatingButton", "actions", "privacy", "transcription", "speakers", "captions", "meetings", "watched", "export", "storage", "about"]
+let tabs = ["general", "dictate", "floatingButton", "actions", "privacy", "transcription", "speakers", "captions", "meetings", "watched", "export", "storage", "about", "whatsNew"]
 let tabSymbols = tabs.map(NativeSymbols.settings)
 check("every Settings pane has its own symbol", Set(tabSymbols).count == tabs.count, "\(tabSymbols)")
 check("a meeting shows two people", NativeSymbols.kind("meeting") == "person.2")

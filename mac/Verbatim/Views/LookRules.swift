@@ -76,6 +76,7 @@ enum NativeSymbols {
         case "export": return "square.and.arrow.up"
         case "storage": return "icloud"
         case "about": return "info.circle"
+        case "whatsNew": return "sparkles"
         default: return "gearshape"
         }
     }

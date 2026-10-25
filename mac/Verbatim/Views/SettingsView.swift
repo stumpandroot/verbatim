@@ -73,6 +73,7 @@ struct SettingsView: View {
         case .export: ExportSettingsPane()
         case .storage: StorageSettingsPane()
         case .about: AboutSettingsPane()
+        case .whatsNew: WhatsNewSettingsPane()
         }
     }
 

@@ -46,15 +46,19 @@ struct GeneralSettingsPane: View {
 /// General › Updates: Sparkle automatic updates (App/Updater.swift).
 struct UpdateSettingsSection: View {
     @ObservedObject private var updater = Updater.shared
+    @AppStorage("settingsTab") private var tab: SettingsTab = .general
     var body: some View {
         SettingsGroup(title: "Updates",
                       footer: updater.isRunning ? nil : "Automatic updates are off in this build.") {
             SettingsToggleRow("general.autoUpdate", isOn: $updater.automaticallyChecksForUpdates, disabled: !updater.isRunning)
             SettingsToggleRow("general.beta", isOn: $updater.betaUpdates, disabled: !updater.isRunning)
             SettingsRow("general.version", detail: "Version \(updater.version) (\(updater.build)). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
-                Button("Check Now") { updater.checkForUpdates() }
-                    .buttonStyle(.settingsPill)
-                    .disabled(!updater.isRunning || !updater.canCheckForUpdates)
+                HStack(spacing: 8) {
+                    Button("What's New…") { tab = .whatsNew }.buttonStyle(.settingsPill)
+                    Button("Check Now") { updater.checkForUpdates() }
+                        .buttonStyle(.settingsPill)
+                        .disabled(!updater.isRunning || !updater.canCheckForUpdates)
+                }
             }
         }
     }
@@ -679,6 +683,7 @@ struct DeleteAllDataSection: View {
 struct AboutSettingsPane: View {
     @ObservedObject private var updater = Updater.shared
     @State private var showAcknowledgements = false
+    @AppStorage("settingsTab") private var tab: SettingsTab = .about
 
     var body: some View {
         SettingsPane(tab: .about) {
@@ -693,7 +698,11 @@ struct AboutSettingsPane: View {
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Ink.tagline)")
             SettingsGroup {
                 SettingsRow("about.version", detail: "Verbose \(updater.version) (\(updater.build))") {
-                    BarsMark(color: Ink.persimmon).frame(width: 18, height: 19)
+                    HStack(spacing: 12) {
+                        // What each build added (WhatsNewPane.swift).
+                        Button("What's New…") { tab = .whatsNew }.buttonStyle(.settingsPill)
+                        BarsMark(color: Ink.persimmon).frame(width: 18, height: 19)
+                    }
                 }
                 SettingsRow("about.support") {
                     if let u = Links.mail(subject: "Verbose support") {

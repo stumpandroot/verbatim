@@ -30,6 +30,8 @@ struct VerbatimApp: App {
         .defaultSize(width: UITest.enabled ? 1000 : 1200, height: UITest.enabled ? 700 : 800)
         .commands {
             CommandGroup(after: .appInfo) {
+                // Settings › What's new (Views/WhatsNewPane.swift), then Sparkle's check.
+                WhatsNewMenuButton { app.dictation.openSettings(tab: .whatsNew) }
                 CheckForUpdatesButton()
             }
             CommandGroup(replacing: .newItem) {

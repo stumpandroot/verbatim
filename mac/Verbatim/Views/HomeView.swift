@@ -75,6 +75,8 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header.staggerIn(0)
+                    // After an update: "What's new in build N", once (WhatsNewPane.swift).
+                    WhatsNewHomeLine(top: 18) { app.dictation.openSettings(tab: .whatsNew) }
                     if app.recorder.isRecording { RecordPanel().padding(.top, 18) }
                     else if app.capture.isCapturing { CapturePanel().padding(.top, 18) }
                     startRow(width).padding(.top, 20).staggerIn(1)

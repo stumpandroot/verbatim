@@ -15,11 +15,12 @@ import AppKit
 
 /// A Settings pane. Raw values persist in "settingsTab"; `general`, `dictate`, `actions`, and `storage` keep the
 /// values the old tabbed window used, so links from the Ribbon and the welcome tour still land. `floatingButton`
-/// held the Ribbon's settings before the floating button became its own style; it keeps its raw value.
+/// held the Ribbon's settings before the floating button became its own style; it keeps its raw value. `whatsNew` is
+/// the release notes (WhatsNewPane.swift), also opened by Verbose › What's New… and Home's note after an update.
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general, dictate, floatingButton, actions, privacy
     case models = "transcription", speakers, captions, meetings
-    case watched, export, storage, about
+    case watched, export, storage, about, whatsNew
 
     var id: String { rawValue }
 
@@ -38,6 +39,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .export: return "Export"
         case .storage: return "Storage and iCloud"
         case .about: return "About"
+        case .whatsNew: return "What's new"
         }
     }
 
@@ -46,7 +48,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general, .dictate, .floatingButton, .actions, .privacy: return "App"
         case .models, .speakers, .captions, .meetings: return "Transcription"
-        case .watched, .export, .storage, .about: return "Files"
+        case .watched, .export, .storage, .about, .whatsNew: return "Files"
         }
     }
 
@@ -66,13 +68,14 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .export: return "What goes into an export or a copy: which text, speaker names, and timecodes."
         case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."
         case .about: return "Version, help, and the fine print."
+        case .whatsNew: return "What each build of Verbose added, newest first."
         }
     }
 
     static let groups: [(title: String, tabs: [SettingsTab])] = [
         ("App", [.general, .dictate, .floatingButton, .actions, .privacy]),
         ("Transcription", [.models, .speakers, .captions, .meetings]),
-        ("Files", [.watched, .export, .storage, .about]),
+        ("Files", [.watched, .export, .storage, .about, .whatsNew]),
     ]
 }
 
@@ -225,11 +228,14 @@ enum SettingsIndex {
         .init("storage.deleteAll", .storage, "Delete all data", "Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, the Thought pad, and downloaded models. Settings stay.", keywords: "erase reset privacy remove"),
 
         // About
-        .init("about.version", .about, "Version", keywords: "build number"),
+        .init("about.version", .about, "Version", "What's New… shows what each build added.", keywords: "build number what's new release notes changes changelog"),
         .init("about.support", .about, "Help", "Write to support.", keywords: "contact email support help"),
         .init("about.log", .about, "Diagnostic log", "A record of what Verbose did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
         .init("about.legal", .about, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
         .init("about.acknowledgements", .about, "Acknowledgements", "Open-source software in Verbose and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
+
+        // What's new
+        .init("whatsNew.builds", .whatsNew, "What's new", "Every build's notes, newest first.", keywords: "release notes changes changelog version build update new features"),
     ]
 
     /// Every entry: the panes above, plus Privacy and the trust rows (Views/TrustViews.swift).
