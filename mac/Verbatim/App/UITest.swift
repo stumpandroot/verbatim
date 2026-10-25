@@ -648,8 +648,9 @@ enum UITest {
     /// the Library, a transcript, Settings › General with the look picker, and the welcome tour's Pick a look step.
     /// Ends back in Verbose style.
     private static func nativeTour(app: AppState, window: NSWindow, memo: UUID?) async {
-        AppLook.current = .native
-        try? await Task.sleep(nanoseconds: 800_000_000)
+        // The switch as a pick makes it (LookSwitch.swift): the card, the rebuild behind it, and its time.
+        await lookSwitch(to: .native, on: "home")
+        try? await Task.sleep(nanoseconds: 400_000_000)
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
@@ -683,8 +684,23 @@ enum UITest {
         await show("12-dark-transcript-native")
         app.go(.home)
         NSApplication.shared.appearance = nil
-        AppLook.current = .verbose
-        try? await Task.sleep(nanoseconds: 800_000_000)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        await lookSwitch(to: .verbose, on: "home")
+        try? await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
+    /// pick to the rebuilt window's first frame: `UITEST TIMING look-switch <ms> to=<look> screen=<screen>`.
+    private static func lookSwitch(to look: AppLook, on screen: String) async {
+        let switching = Task { await LookSwitch.shared.switchTo(look) }
+        try? await Task.sleep(nanoseconds: 60_000_000)
+        let shown = LookSwitch.shared.card == look
+        let ms = await switching.value
+        try? await Task.sleep(nanoseconds: 300_000_000)   // the card's fade out
+        let ok = shown && AppLook.current == look && LookSwitch.shared.card == nil
+        if ok { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") look switch to \(look.rawValue) shows the card, then the look (card \(shown ? "shown" : "missing"))")
+        Log.note("UITEST TIMING look-switch \(Int(ms.rounded())) to=\(look.rawValue) screen=\(screen) rebuild=\(Int(LookSwitch.shared.lastRebuildMs.rounded()))")
     }
 
     /// Home's note for the newest build in the notes, then Verbose › What's New… (the same action as clicking the

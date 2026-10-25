@@ -255,9 +255,15 @@ enum PhoneUITest {
             }
             // The Native look (DESIGN.md §13): the key screens again, named p…-native and d…-native. The look is
             // stored per device in the App Group; the one this simulator had is put back after.
+            // It switches as people do, from Settings › Appearance (LookSwitch.swift): the card in the new look, the
+            // rebuild behind it, and its time.
             let keepLook = AppLook.current
-            AppLook.current = .native
-            try? await Task.sleep(nanoseconds: 600_000_000)
+            app.tab = .settings
+            SettingsPage.open("appearance")
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            await lookSwitch(to: .native, on: "appearance", card: "d09o-look-switching-native")
+            SettingsPage.open("root")
+            try? await Task.sleep(nanoseconds: 800_000_000)
             for (prefix, mode) in [("p", "light"), ("d", "dark")] {
                 app.appearance = mode
                 app.tab = .home
@@ -301,8 +307,10 @@ enum PhoneUITest {
                 onboardingStep = 0
                 try? await Task.sleep(nanoseconds: 700_000_000)
             }
-            AppLook.current = keepLook
+            // Back to the look the simulator had, from Home this time: the tab on screen rebuilds behind the card.
             app.tab = .home
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            await lookSwitch(to: keepLook, on: "home", card: nil)
             try? await Task.sleep(nanoseconds: 600_000_000)
             app.appearance = "light"
             // The tour in Verbose style: the welcome, Pick a look, the microphone, and the last step.
@@ -475,6 +483,25 @@ enum PhoneUITest {
         if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
         app.tab = .home
         try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
+    /// pick to the rebuild's first frame: `UITEST TIMING look-switch <ms> to=<look> screen=<screen>`. With a `card`
+    /// name, the card is captured mid-switch into Documents/screens.
+    private static func lookSwitch(to look: AppLook, on screen: String, card: String?) async {
+        guard look != AppLook.current else { return }
+        let switching = Task { await LookSwitch.shared.switchTo(look) }
+        try? await Task.sleep(nanoseconds: 60_000_000)
+        let shown = LookSwitch.shared.card == look
+        if let card {
+            try? await Task.sleep(nanoseconds: 190_000_000)   // past the card's fade in
+            if LookSwitch.shared.card != nil { snapshot(card) }
+        }
+        let ms = await switching.value
+        try? await Task.sleep(nanoseconds: 300_000_000)   // the card's fade out
+        lookCheck("switching to \(look.label) shows the card, then the look (card \(shown ? "shown" : "missing"))",
+                  shown && AppLook.current == look && LookSwitch.shared.card == nil)
+        Log.note("UITEST TIMING look-switch \(Int(ms.rounded())) to=\(look.rawValue) screen=\(screen) rebuild=\(Int(LookSwitch.shared.lastRebuildMs.rounded()))")
     }
 
     /// Waits up to `seconds` for `done`, checking every 50 ms: whether it came true, and after how long (ms).
