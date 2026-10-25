@@ -828,7 +828,7 @@ final class PhoneState: ObservableObject {
         } catch { say("Couldn't export: \(error.localizedDescription)"); return nil }
     }
 
-    // MARK: Settings › Sync and data
+    // MARK: Settings › Sync and storage
 
     /// Every finished transcript as Markdown and as JSON, plus the Dictionary and projects, in one zip for the
     /// share sheet. Text only: audio stays in iCloud and on the Mac. Nil when there's nothing to export.

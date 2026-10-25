@@ -2,8 +2,9 @@
 
 `ReleaseNotes.json` holds what each build of Verbose added. Both apps bundle it and show it in What's new:
 
-- iPhone: tap the version at the bottom of Settings, or open Settings › Support › What's new.
-- Mac: choose Verbose › What's New…, open Settings › What's new, or click What's New… in Settings › About.
+- iPhone: tap the version at the bottom of Settings, or search Settings for What's new.
+- Mac: choose Verbose › What's New…, click the version at the foot of the Settings sidebar, or click What's New… in
+  Settings › Support and feedback.
 - After an update to a build with notes, Home shows "What's new in build N" once (a banner on iPhone, a line on the
   Mac). Dismissing it or opening What's new stores the build in `releaseNotes.lastSeenBuild` (UserDefaults, per
   device). A new install starts at its own build, so it shows no note until the next update.

@@ -4,12 +4,13 @@ import AppKit
 // Website style (DESIGN.md §11) for the Settings window; not marked `brand: web style` because the menu bar panel
 // below keeps its small keycap.
 
-/// The Settings window: a paper sidebar (search on top, then App, Transcription, and Files groups) and the
-/// chosen pane. Typing in search swaps the sidebar for the panes with matches and shows every matching setting;
-/// a result opens its pane and flashes the row. ⌘F focuses search; Esc clears it.
+/// The Settings window: a paper sidebar (search on top, then the panes of MacSettingsMap, each with its glyph, and the
+/// version at the foot, which opens What's new) and the chosen pane. Typing in search swaps the sidebar for the panes
+/// with matches and shows every matching setting; a result opens its pane and flashes the row. ⌘F focuses search;
+/// Esc clears it.
 struct SettingsView: View {
     @EnvironmentObject var app: AppState
-    @AppStorage("settingsTab") private var tab: SettingsTab = .general
+    @AppStorage("settingsTab") private var tab: SettingsTab = .personalization
     @ObservedObject private var model = SettingsModel.shared
     @FocusState private var searchFocused: Bool
     @Environment(\.look) private var look
@@ -34,7 +35,7 @@ struct SettingsView: View {
     private var verbose: some View {
         HStack(spacing: 0) {
             SettingsSidebar(tab: $tab, searchFocused: $searchFocused)
-                .frame(width: 230)
+                .frame(width: 264)
             Group {
                 if model.isSearching {
                     SettingsSearchResults()
@@ -60,19 +61,18 @@ struct SettingsView: View {
 
     @ViewBuilder private var pane: some View {
         switch tab {
-        case .general: GeneralSettingsPane()
+        case .personalization: PersonalizationSettingsPane()
+        case .recording: RecordingSettingsPane()
         case .dictate: DictationSettings()
         case .floatingButton: FloatingButtonSettingsPane()
         case .actions: ActionSettings()
-        case .privacy: PrivacySettingsPane()
-        case .models: ModelsSettingsPane()
-        case .speakers: SpeakersSettingsPane()
-        case .captions: CaptionsSettingsPane()
         case .meetings: MeetingsSettingsPane()
         case .watched: WatchedFoldersPane()
-        case .export: ExportSettingsPane()
         case .storage: StorageSettingsPane()
-        case .about: AboutSettingsPane()
+        case .privacy: PrivacySettingsPane()
+        case .account: AccountSettingsPane()
+        case .support: SupportSettingsPane()
+        case .features: FeaturesSettingsPane()
         case .whatsNew: WhatsNewSettingsPane()
         }
     }
@@ -118,16 +118,12 @@ struct SettingsSidebar: View {
                 Spacer(minLength: 12)
                 Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.horizontal, 12)
             } else {
-                ForEach(Array(SettingsTab.groups.enumerated()), id: \.element.title) { gi, g in
-                    groupLabel(g.title, first: gi == 0)
-                    ForEach(g.tabs) { t in
-                        SettingsSideItem(title: t.title, selected: tab == t, plate: plate) {
-                            if limitMotion { tab = t } else { withAnimation(Motion.snap) { tab = t } }
-                        }
+                ForEach(SettingsTab.sidebar) { t in
+                    SettingsSideItem(title: t.title, art: t.art, selected: tab == t, plate: plate) { select(t) }
                         .uiTarget("settings-\(t.rawValue)")
-                    }
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 12)
+                SettingsVersionFooter { select(.whatsNew) }
             }
         }
         .padding(.horizontal, 14).padding(.top, 48).padding(.bottom, 14)
@@ -135,7 +131,11 @@ struct SettingsSidebar: View {
         .modifier(SidebarPaper())
     }
 
-    /// A group's mono label: "App", "Transcription", "Files".
+    private func select(_ t: SettingsTab) {
+        if limitMotion { tab = t } else { withAnimation(Motion.snap) { tab = t } }
+    }
+
+    /// The mono label over search matches.
     private func groupLabel(_ text: String, first: Bool) -> some View {
         Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
             .padding(.horizontal, 12).padding(.top, first ? 10 : 16).padding(.bottom, 6)
@@ -170,6 +170,8 @@ struct SettingsSidebar: View {
 /// it's semibold ink on the card fill with the ink outline and a small hard shadow, and that plate slides between rows.
 struct SettingsSideItem: View {
     var title: String
+    /// The pane's glyph (none for search matches).
+    var art: BrandArt? = nil
     var count: Int? = nil
     var selected: Bool
     var plate: Namespace.ID
@@ -178,8 +180,9 @@ struct SettingsSideItem: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-        HStack {
-            Text(title).lineLimit(1)
+        HStack(spacing: 9) {
+            if let art { IconGlyph(art: art, size: 16, color: selected ? Ink.ink : Ink.dim).accessibilityHidden(true) }
+            Text(title).lineLimit(1).minimumScaleFactor(0.85)
             Spacer(minLength: 6)
             if let count { Text("\(count)").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
         }
@@ -202,6 +205,33 @@ struct SettingsSideItem: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityLabel(count.map { "\(title), \($0) match\($0 == 1 ? "" : "es")" } ?? title)
+    }
+}
+
+/// The foot of the Settings sidebar: the version, and What's new, which opens the release notes pane.
+struct SettingsVersionFooter: View {
+    var open: () -> Void
+    @ObservedObject private var updater = Updater.shared
+    @Environment(\.look) private var look
+
+    var body: some View {
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Version \(updater.version) (\(updater.build))")
+                    .font(look == .native ? .system(size: 11) : Ink.mono(12)).foregroundStyle(Ink.mute)
+                Text("What's new").font(.system(size: look == .native ? 11 : 12.5, weight: .semibold))
+                    .foregroundStyle(look == .native ? Ink.nativeAccent : Ink.accentText)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Version \(updater.version), build \(updater.build). What's new")
+        .accessibilityAddTraits(.isButton)
+        .help("What each build of Verbose added")
+        .uiTarget("settings-version")
     }
 }
 

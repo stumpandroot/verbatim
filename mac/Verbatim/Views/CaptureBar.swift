@@ -172,7 +172,7 @@ struct DictateControls: View {
                     IconGlyph(art: .iconDictations, size: 20, color: Ink.ink)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(app.dictation.hotkey.title).font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.ink)
-                        Text(app.dictation.enabled ? "\(app.dictation.hotkey.shortTitle.prefix(1).uppercased() + app.dictation.hotkey.shortTitle.dropFirst()) in any app, or click \(DictationSurface.stored().clickHint). Settings › Dictation has cleanup, styles, and snippets." : "Dictation is off. Turn it on in Settings › Dictate.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                        Text(app.dictation.enabled ? "\(app.dictation.hotkey.shortTitle.prefix(1).uppercased() + app.dictation.hotkey.shortTitle.dropFirst()) in any app, or click \(DictationSurface.stored().clickHint). Settings › Dictation and keyboard has cleanup, styles, and snippets." : "Dictation is off. Turn it on in Settings › Dictation and keyboard.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                 }
                 

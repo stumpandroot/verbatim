@@ -8,10 +8,17 @@ enum Profile {
     static let aboutMeLimit = 300
 }
 
-/// Settings in the website style, close to a native iOS list: the compact serif title, search, a card for You at the
-/// top (your initial and your name; it opens the You page, YouScreen.swift), then grouped cards with mono section labels,
-/// colored icon squares, values, chevrons, and standard switches. The version sits at the foot; tapping it opens What's
-/// new (WhatsNewScreen.swift), as Support › What's new does.
+extension Notification.Name {
+    /// Scrolls Settings to a row or group id (`group-3`, `settings-footer`), for the screenshot tour.
+    static let verbatimSettingsScroll = Notification.Name("verbatimSettingsScroll")
+}
+
+/// Settings in seven groups (PhoneSettingsMap, from the premium mockup's section 02): search, the You card at the top
+/// (your initial and your name; it opens the You page, YouScreen.swift), then Personalization and preferences,
+/// Recording and transcription, Dictation and keyboard, Sync and storage, Account and plan, Support and feedback, and
+/// Features. Each root row has its icon (a thin tinted symbol in Native, a colored square in Verbose style), its value
+/// on the right, and a chevron; rarely changed switches sit one level down on a page (SettingsPages.swift). The
+/// version sits at the foot; tapping it opens What's new (WhatsNewScreen.swift).
 struct SettingsScreen: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.openURL) private var openURL
@@ -19,16 +26,9 @@ struct SettingsScreen: View {
     @AppStorage(MotionPreference.key) private var motionLimited = false
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
-    @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
-    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
-    @AppStorage(Transcript.skipSponsorsKey) private var skipSponsors = true
     /// Check each recording's language and pick a model that knows it (LanguageCheck.swift). On by default.
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
-    @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
-    /// Recognize voices I've named (SpeakerVoices): on device only, never synced.
-    @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
-    @State private var savedVoices = 0
-    @State private var confirmClearVoices = false
+    @AppStorage(CloudCleanup.enabledKey) private var cloudCleanupOn = false
     @State private var showAcknowledgements = false
     /// Show words while you record (MiniRecorder.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
@@ -41,20 +41,16 @@ struct SettingsScreen: View {
     @State private var entrance = 0
     /// Tap counts per row: each change gives that row's icon one small bounce.
     @State private var bumps: [String: Int] = [:]
-    @State private var showDictionary = false
-    @State private var showSnippets = false
-    @State private var showAboutMe = false
+    /// The page pushed from a root row, a search result, or a request (SettingsPage).
+    @State private var page: SettingsSubpage? = nil
     /// The You page (YouScreen.swift): the You card, and Home's This week card.
     @State private var showYou = false
-    /// A row the You page asked for (Cloud cleanup): scrolled to and flashed once the You page has closed.
+    /// A row the You page asked for (Cloud cleanup): its page opens, or the row is scrolled to and flashed, once the
+    /// You page has closed.
     @State private var pendingRow: String? = nil
-    @State private var showKeyboard = false
-    @State private var showActionButton = false
     /// Settings › Action button's choice (Ribbon.ActionChoice), for the row's value.
     @AppStorage(Ribbon.actionChoiceKey) private var actionChoice = Ribbon.ActionChoice.dictate.rawValue
     @State private var showVoice = false
-    /// Settings › Privacy (PhoneTrust.swift).
-    @State private var showPrivacy = false
     @State private var voicePreview = false
     @ObservedObject private var voice = VoiceProfileStatus.shared
     @State private var exporting = false
@@ -71,10 +67,6 @@ struct SettingsScreen: View {
     @State private var searchFlash: String? = nil
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.look) private var look
-    /// Settings › Appearance (AppearanceScreen.swift): the look, light or dark, and Limit animation.
-    @State private var showAppearance = false
-    /// What's new (WhatsNewScreen.swift): the version at the foot, Support › What's new, and Home's note.
-    @State private var showWhatsNew = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -90,6 +82,7 @@ struct SettingsScreen: View {
                     if let first = SettingsSearchIndex.search(search.query).first?.entries.first { pickSearchResult(first, proxy) }
                 }
                 .padding(.top, look.isNative ? 4 : 14)
+                .id("settings-top")
                 .riseIn("search", index: 0, seen: seen, epoch: entrance)
                 if search.isActive {
                     SettingsSearchResults(query: search.query, value: { SettingsSearchIndex.value(for: $0, app: app) }) { pickSearchResult($0, proxy) }
@@ -97,15 +90,18 @@ struct SettingsScreen: View {
                 youCard
                     .padding(.top, 18)
                     .riseIn("you", index: 1, seen: seen, epoch: entrance)
-                group(1, "Personalization") { personalization }
-                group(2, "Recording") { recording }
-                group(3, "Transcription", footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { transcription }
-                group(4, "Sync and data") { syncAndData }
-                group(5, "Support") { support }
-                group(6, "Welcome tour") { tour }
+                group(1, PhoneSettingsMap.personalization) { personalization }
+                group(2, PhoneSettingsMap.recording,
+                      footer: "Transcription runs on this iPhone. The first time, the model downloads once (about 200–600 MB). Links download and transcribe on this iPhone; a few sites need your Mac to fetch them. Naming and sorting use Apple Intelligence on this iPhone; where it isn't available, titles use the first words and the kind is a best guess. Nothing you rename or change is overwritten.") { recording }
+                group(3, PhoneSettingsMap.dictation, footer: "Cleanup: " + Self.cleanupNote(flow.cleanup)) { dictation }
+                group(4, PhoneSettingsMap.sync) { syncAndStorage }
+                group(5, PhoneSettingsMap.account) { account }
+                group(6, PhoneSettingsMap.support) { support }
+                group(7, PhoneSettingsMap.features) { features }
                 footer
                     .padding(.top, 30)
-                    .riseIn("footer", index: 7, seen: seen, epoch: entrance)
+                    .id("settings-footer")
+                    .riseIn("footer", index: 8, seen: seen, epoch: entrance)
                 }
             }
             .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
@@ -114,7 +110,16 @@ struct SettingsScreen: View {
         .onChange(of: pendingRow) { _, row in
             guard let row else { return }
             pendingRow = nil
-            flashRow(row, label: SettingsSearchIndex.all.first { $0.id == row }?.label ?? "", proxy)
+            // A setting on a page (You › Cloud cleanup) opens that page; one on the root flashes.
+            if let p = PhoneSettingsMap.page(of: row).flatMap(SettingsSubpage.init(rawValue:)) {
+                open(p)
+            } else {
+                flashRow(row, label: SettingsSearchIndex.all.first { $0.id == row }?.label ?? "", proxy)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimSettingsScroll)) { note in
+            guard let id = note.object as? String else { return }
+            withAnimation(nil) { proxy.scrollTo(id, anchor: .top) }
         }
         }
         .tabEntrance(.settings) { seen.entered(); entrance += 1 }
@@ -122,22 +127,15 @@ struct SettingsScreen: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
         .toolbar(look.isNative ? .visible : .hidden, for: .navigationBar)
-        .navigationDestination(isPresented: $showAppearance) { AppearanceScreen() }
-        .navigationDestination(isPresented: $showWhatsNew) { WhatsNewScreen() }
-        .navigationDestination(isPresented: $showDictionary) { DictionaryScreen() }
-        .navigationDestination(isPresented: $showSnippets) { SnippetsScreen() }
-        .navigationDestination(isPresented: $showAboutMe) { AboutMeScreen() }
+        .navigationDestination(item: $page) { p in destination(p).settingsSubpage(p) }
         .navigationDestination(isPresented: $showYou) {
             YouScreen { row in
                 showYou = false
-                // The row flashes after the pop has finished.
+                // The row's page opens (or the row flashes) after the pop has finished.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { pendingRow = row }
             }
         }
-        .navigationDestination(isPresented: $showKeyboard) { KeyboardSetupScreen() }
-        .navigationDestination(isPresented: $showActionButton) { ActionButtonScreen() }
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: voicePreview) }
-        .navigationDestination(isPresented: $showPrivacy) { PhonePrivacyScreen() }
         .navigationDestination(isPresented: $showAcknowledgements) { AcknowledgementsView().navigationTitle("Acknowledgements") }
         // Home's This week card opens the You page, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
         // On the tab's first appearance (Home's What's new note creates it), the push waits a turn of the main loop: a
@@ -162,12 +160,6 @@ struct SettingsScreen: View {
         } message: {
             Text("Verbose copies your library onto this iPhone, then stops syncing the next time it opens. Your Mac keeps what's already in iCloud.")
         }
-        .alert("Clear saved voices?", isPresented: $confirmClearVoices) {
-            Button("Clear", role: .destructive) { SpeakerVoices.clear(); savedVoices = 0 }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Verbose forgets the voices of the speakers you\u{2019}ve named. Names you gave stay.")
-        }
         .alert("Delete all data?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
             Button("Continue", role: .destructive) {
@@ -184,6 +176,27 @@ struct SettingsScreen: View {
             Button("Delete Everything", role: .destructive) { app.deleteAllData() }
         } message: {
             Text(deleteDetail)
+        }
+    }
+
+    /// Each page a root row, a search result, or a request opens.
+    @ViewBuilder private func destination(_ p: SettingsSubpage) -> some View {
+        switch p {
+        case .aboutMe: AboutMeScreen()
+        case .dictionary: DictionaryScreen()
+        case .keyboard: KeyboardSetupScreen()
+        case .snippets: SnippetsScreen()
+        case .actionButton: ActionButtonScreen()
+        case .appearance: AppearanceScreen()
+        case .whatsNew: WhatsNewScreen()
+        case .speakers: SpeakersSettingsScreen()
+        case .moreTranscription: MoreTranscriptionScreen()
+        case .cloudCleanup: CloudCleanupScreen()
+        case .privacy: PhonePrivacyScreen()
+        case .tour: WelcomeTourScreen()
+        case .widgets: WidgetsInfoScreen()
+        case .shortcuts: ShortcutsInfoScreen()
+        case .customizeHome: CustomizeHomeDestination()
         }
     }
 
@@ -268,172 +281,116 @@ struct SettingsScreen: View {
 
     // MARK: Groups
 
+    /// A root row that opens a page: icon, title, the value, and a chevron.
+    private func pageRow(_ id: String, _ p: SettingsSubpage, icon: String, tint: Color, art: BrandArt?, title: String, value: String? = nil) -> some View {
+        Button { bump(id); open(p) } label: {
+            SettingsRow(icon: icon, tint: tint, art: art, title: title, bounce: bumps[id, default: 0]) {
+                if let value { SettingsValue(value) }
+                SettingsChevron()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget(id, flash: searchFlash)
+    }
+
+    /// A root row that runs an action or opens a link: icon, title, and a chevron.
+    private func actionRow(_ id: String, icon: String, tint: Color, art: BrandArt?, title: String, value: String? = nil, action: @escaping () -> Void) -> some View {
+        Button { bump(id); action() } label: {
+            SettingsRow(icon: icon, tint: tint, art: art, title: title, bounce: bumps[id, default: 0]) {
+                if let value { SettingsValue(value) }
+                SettingsChevron()
+            }
+        }
+        .buttonStyle(SettingsRowPress())
+        .settingsSearchTarget(id, flash: searchFlash)
+    }
+
     @ViewBuilder private var personalization: some View {
-        SettingsToggleRow(icon: "globe", tint: Ink.sageTint, art: .iconLanguage, title: "Detect the language",
-                          subtitle: "Verbose listens to the first 30 seconds and uses a model that knows that language. To change one transcript's language, tap its language under the title.",
-                          isOn: $detectLanguage)
-            .settingsSearchTarget("language", flash: searchFlash)
+        pageRow("appearanceRow", .appearance, icon: "circle.lefthalf.filled", tint: Ink.petalTint, art: .iconAppearance, title: "Appearance", value: look.label)
+        // Customize Home (the Edit Home branch): off the root until its screen lands (CustomizeHomeEntry).
+        if CustomizeHomeEntry.isAvailable {
+            SettingsDivider()
+            pageRow("customizeHomeRow", .customizeHome, icon: "house", tint: Ink.butterTint, art: .iconHome, title: "Customize Home", value: "Edit")
+        }
+        SettingsDivider()
+        pageRow("aboutMeRow", .aboutMe, icon: "person", tint: Ink.petalTint, art: .iconAboutMe, title: "About me", value: aboutMe.isEmpty ? "Add" : "Added")
         SettingsDivider()
         Button { bump("voice"); voicePreview = false; showVoice = true } label: {
-            SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", subtitle: "Recognize you in recordings", bounce: bumps["voice", default: 0]) {
+            SettingsRow(icon: "waveform", tint: Ink.persimmonTint, art: .iconVoice, title: "Your voice", bounce: bumps["voice", default: 0]) {
                 SettingsValue(voice.isEnrolled ? "On" : "Set up"); SettingsChevron()
             }
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("voice", flash: searchFlash)
         SettingsDivider()
-        Button { bump("me"); showAboutMe = true } label: {
-            SettingsRow(icon: "person", tint: Ink.petalTint, art: .iconAboutMe, title: "About me", subtitle: "Context for titles and summaries", bounce: bumps["me", default: 0]) {
-                SettingsValue(aboutMe.isEmpty ? "Add" : "Added"); SettingsChevron()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("aboutMe", flash: searchFlash)
+        pageRow("dictionaryRow", .dictionary, icon: "book.closed", tint: Ink.sageTint, art: .iconDictionary, title: "Dictionary",
+                value: app.store.dictionary.count == 1 ? "1 word" : "\(app.store.dictionary.count) words")
         SettingsDivider()
-        Button { bump("dict"); showDictionary = true } label: {
-            SettingsRow(icon: "book.closed", tint: Ink.sageTint, art: .iconDictionary, title: "Dictionary", subtitle: "Names and words to spell your way", bounce: bumps["dict", default: 0]) {
-                SettingsValue("\(app.store.dictionary.count)"); SettingsChevron()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("dictionary", flash: searchFlash)
+        SettingsToggleRow(icon: "globe", tint: Ink.sageTint, art: .iconLanguage, title: "Detect the language", isOn: $detectLanguage)
+            .settingsSearchTarget("language", flash: searchFlash)
         SettingsDivider()
-        Button { bump("snippets"); showSnippets = true } label: {
-            SettingsRow(icon: "text.badge.plus", tint: Ink.petalTint, art: .iconQuote, title: "Snippets", subtitle: "Say a trigger, get your saved text", bounce: bumps["snippets", default: 0]) {
-                SettingsValue("\(app.store.snippets.count)"); SettingsChevron()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("snippets", flash: searchFlash)
-        SettingsDivider()
-        Button { bump("keyboard"); showKeyboard = true } label: {
-            SettingsRow(icon: "keyboard", tint: Ink.butterTint, art: .iconDictations, title: "Keyboard", subtitle: "Dictate into any app", bounce: bumps["keyboard", default: 0]) {
-                SettingsValue("Set up"); SettingsChevron()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("keyboardRow", flash: searchFlash)
-        SettingsDivider()
-        Button { bump("actionButton"); showActionButton = true } label: {
-            SettingsRow(icon: "button.horizontal.top.press", tint: Ink.butterTint, art: .iconActionButton, title: "Action button",
-                        subtitle: "Dictate from any app without switching", bounce: bumps["actionButton", default: 0]) {
-                SettingsValue(Ribbon.actionChoice(actionChoice).shortTitle)
-                SettingsChevron()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("actionButtonRow", flash: searchFlash)
-        SettingsDivider()
-        // A page now (the look, light or dark, and Limit animation), not a menu.
-        Button { bump("appearance"); showAppearance = true } label: {
-            SettingsRow(icon: "circle.lefthalf.filled", tint: Ink.petalTint, art: .iconAppearance, title: "Appearance", bounce: bumps["appearance", default: 0]) {
-                SettingsValue(look.label); SettingsChevron()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("appearance", flash: searchFlash)
+        SettingsToggleRow(icon: "tortoise", tint: PhoneInk.wash, art: .iconLimitMotion, title: "Limit animation", isOn: $motionLimited)
+            .settingsSearchTarget("limitMotion", flash: searchFlash)
     }
 
     @ViewBuilder private var recording: some View {
-        SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, art: .iconDictations, title: "Show words while you record",
-                          subtitle: "A preview of your words on the recorder, made on this iPhone. The saved transcript comes from the full model after you stop.",
-                          isOn: $recordLiveWords)
-            .settingsSearchTarget("recordLiveWords", flash: searchFlash)
-    }
-
-    @ViewBuilder private var transcription: some View {
         Menu {
             Picker("Quality", selection: $app.presetRaw) {
                 ForEach(QualityPreset.allCases.filter { $0 != .advanced }) { p in Text(p.title).tag(p.rawValue) }
             }
         } label: {
-            SettingsRow(icon: "chart.line.uptrend.xyaxis", tint: Ink.sageTint, art: .iconQuality, title: "Quality", subtitle: app.preset.note, bounce: app.presetRaw) {
+            SettingsRow(icon: "chart.line.uptrend.xyaxis", tint: Ink.sageTint, art: .iconQuality, title: "Quality", bounce: app.presetRaw) {
                 SettingsValue(app.preset.title); SettingsMenuMark()
             }
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("quality", flash: searchFlash)
         SettingsDivider()
+        pageRow("speakersRow", .speakers, icon: "person.2", tint: Ink.sageTint, art: .iconSpeakers, title: "Speakers", value: app.identifySpeakers ? "Identify" : "Off")
+        SettingsDivider()
+        SettingsToggleRow(icon: "text.quote", tint: Ink.butterTint, art: .iconSummaries, title: "Summaries",
+                          subtitle: Summarizer.unavailableReason, isOn: $autoSummary)
+            .settingsSearchTarget("summaries", flash: searchFlash)
+        SettingsDivider()
+        SettingsToggleRow(icon: "sparkles", tint: Ink.butterTint, art: .iconNameAndSort, title: "Name and sort recordings", isOn: $autoLabels)
+            .settingsSearchTarget("nameAndSort", flash: searchFlash)
+        SettingsDivider()
+        SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, art: .iconDictations, title: "Show words while you record", isOn: $recordLiveWords)
+            .settingsSearchTarget("recordLiveWords", flash: searchFlash)
+        SettingsDivider()
+        pageRow("moreTranscriptionRow", .moreTranscription, icon: "square.stack.3d.up", tint: PhoneInk.wash, art: .iconMultitrack, title: "More transcription options")
+    }
+
+    @ViewBuilder private var dictation: some View {
+        pageRow("keyboardRow", .keyboard, icon: "keyboard", tint: Ink.butterTint, art: .iconDictations, title: "Keyboard", value: "Set up")
+        SettingsDivider()
+        pageRow("actionButtonRow", .actionButton, icon: "button.horizontal.top.press", tint: Ink.butterTint, art: .iconActionButton, title: "Action button",
+                value: Ribbon.actionChoice(actionChoice).shortTitle)
+        SettingsDivider()
         Menu {
             Picker("Cleanup", selection: $flow.cleanup) {
                 ForEach(CleanupLevel.allCases) { l in Text(l.title).tag(l) }
             }
         } label: {
-            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, art: .refine, title: "Cleanup", subtitle: Self.cleanupNote(flow.cleanup), subtitleLines: nil, bounce: flow.cleanup.rawValue) {
+            SettingsRow(icon: "wand.and.stars", tint: Ink.butterTint, art: .refine, title: "Cleanup", bounce: flow.cleanup.rawValue) {
                 SettingsValue(flow.cleanup.title); SettingsMenuMark()
             }
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("cleanup", flash: searchFlash)
         SettingsDivider()
-        SettingsToggleRow(icon: "arrow.uturn.backward", tint: Ink.butterTint, title: "Understand spoken corrections",
-                          subtitle: "Say \u{201C}scratch that,\u{201D} \u{201C}delete the last sentence,\u{201D} or \u{201C}let me start over\u{201D} to fix what you said.",
-                          isOn: $spokenCorrections)
+        SettingsToggleRow(icon: "arrow.uturn.backward", tint: Ink.sageTint, art: .iconSwap, title: "Spoken corrections", isOn: $spokenCorrections)
             .settingsSearchTarget("spokenCorrections", flash: searchFlash)
         SettingsDivider()
-        CloudCleanupRows(searchFlash: searchFlash)
+        pageRow("snippetsRow", .snippets, icon: "text.badge.plus", tint: Ink.petalTint, art: .iconQuote, title: "Snippets", value: "\(app.store.snippets.count)")
         SettingsDivider()
-        SettingsToggleRow(icon: "person.2", tint: Ink.persimmonTint, art: .iconSpeakers, title: "Identify speakers", isOn: $app.identifySpeakers)
-            .settingsSearchTarget("speakers", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "person.2", tint: Ink.petalTint, art: .iconVoice, title: "Recognize voices I\u{2019}ve named",
-                          subtitle: "Suggests a name when a new speaker sounds like someone you named. The voices stay on this iPhone and are never synced.",
-                          isOn: $recognizeVoices)
-            .settingsSearchTarget("recognizeVoices", flash: searchFlash)
-        SettingsDivider()
-        Button { bump("clearVoices"); confirmClearVoices = true } label: {
-            SettingsRow(icon: "trash", tint: Ink.petalTint, art: .iconDeleteAll, title: "Clear saved voices",
-                        subtitle: savedVoices == 0 ? "No saved voices" : "\(savedVoices) saved voice\(savedVoices == 1 ? "" : "s"), on this iPhone only",
-                        bounce: bumps["clearVoices", default: 0]) { EmptyView() }
-        }
-        .buttonStyle(SettingsRowPress())
-        .disabled(savedVoices == 0)
-        .onAppear { savedVoices = SpeakerVoices.namedCount }
-        .settingsSearchTarget("clearVoices", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "checkmark", tint: Ink.sageTint, art: .iconApplyDictionary, title: "Apply Dictionary", isOn: $app.applyDictionary)
-            .settingsSearchTarget("applyDictionary", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "sparkle", tint: Ink.butterTint, art: .iconNameAndSort, title: "Name and sort recordings",
-                          subtitle: "Suggests a title, kind, and tags when a transcript is ready", isOn: $autoLabels)
-            .settingsSearchTarget("nameAndSort", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "text.quote", tint: Ink.butterTint, art: .iconSummaries, title: "Write a summary when a transcript finishes",
-                          subtitle: Summarizer.unavailableReason ?? "A short overview and key points at the top of the transcript", isOn: $autoSummary)
-            .settingsSearchTarget("summaries", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "eye.slash", tint: Ink.petalTint, art: .iconFiller, title: "Hide filler lines",
-                          subtitle: "Lines that are only \u{201C}um\u{201D} or \u{201C}uh\u{201D} stay out of view, never deleted", isOn: $hideFiller)
-            .settingsSearchTarget("hideFiller", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "person", tint: Ink.sageTint, art: .iconMainSpeaker, title: "Main speaker only",
-                          subtitle: "In voice memos, other voices fold into a Background voices section", isOn: $mainSpeakerOnly)
-            .settingsSearchTarget("mainSpeaker", flash: searchFlash)
-        SettingsDivider()
-        SettingsToggleRow(icon: "tag", tint: Ink.butterTint, art: .iconSponsor, title: "Skip sponsor reads",
-                          subtitle: "In podcasts and videos, playback jumps past sponsor reads, and they fold into a line", isOn: $skipSponsors)
-            .settingsSearchTarget("skipSponsors", flash: searchFlash)
-        SettingsDivider()
-        Menu {
-            Picker("Files with several audio tracks", selection: $audioTracks) {
-                ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-        } label: {
-            SettingsRow(icon: "square.stack.3d.up", tint: Ink.petalTint, art: .iconMultitrack, title: "Files with several audio tracks",
-                        subtitle: audioTracks == AudioTracksPreference.separate.rawValue
-                            ? "Each track is transcribed on its own as a speaker you can rename"
-                            : "Every track is mixed into one transcript",
-                        subtitleLines: nil, bounce: audioTracks) {
-                SettingsValue(audioTracks == AudioTracksPreference.separate.rawValue ? "Separate" : "Mix"); SettingsMenuMark()
-            }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("audioTracks", flash: searchFlash)
+        pageRow("cloudCleanupRow", .cloudCleanup, icon: "cloud", tint: PhoneInk.wash, art: .iconServer, title: "Cloud cleanup", value: cloudCleanupOn ? "On" : "Off")
     }
 
-    @ViewBuilder private var syncAndData: some View {
+    @ViewBuilder private var syncAndStorage: some View {
         // Local Only, Network activity, and what leaves this iPhone (PhoneTrust.swift).
-        PhonePrivacyRow(bounce: bumps["privacyScreen", default: 0]) { bump("privacyScreen"); showPrivacy = true }
+        PhonePrivacyRow(bounce: bumps["privacyRow", default: 0]) { bump("privacyRow"); open(.privacy) }
+            .settingsSearchTarget("privacyRow", flash: searchFlash)
         SettingsDivider()
         if Cloud.available {
             Toggle(isOn: Binding(get: { syncWanted }, set: { on in
@@ -442,7 +399,7 @@ struct SettingsScreen: View {
                 SettingsLabel(icon: syncWanted ? "icloud" : "icloud.slash", tint: Ink.sageTint, art: syncWanted ? .iconSync : .iconSyncOff, title: "iCloud sync",
                               subtitle: syncSubtitle, subtitleLines: nil, bounce: syncWanted)
             }
-            .toggleStyle(.switch).tint(PhoneInk.switchOn)
+            .toggleStyle(.switch).tint(look.isNative ? NativeInk.toggle : PhoneInk.switchOn)
             .padding(.horizontal, 14).padding(.vertical, 10)
             .frame(minHeight: 50)
             .disabled(copyingDown)
@@ -463,8 +420,8 @@ struct SettingsScreen: View {
                 exporting = false
             }
         } label: {
-            SettingsRow(icon: "square.and.arrow.down", tint: Ink.petalTint, art: .iconExport, title: "Export everything", subtitle: "Markdown and JSON in one zip", bounce: bumps["export", default: 0]) {
-                if exporting { ProgressView().controlSize(.small) } else { SettingsChevron() }
+            SettingsRow(icon: "square.and.arrow.down", tint: Ink.petalTint, art: .iconExport, title: "Export everything", bounce: bumps["export", default: 0]) {
+                if exporting { ProgressView().controlSize(.small) } else { SettingsValue("Zip"); SettingsChevron() }
             }
         }
         .buttonStyle(SettingsRowPress())
@@ -476,6 +433,12 @@ struct SettingsScreen: View {
         }
         .buttonStyle(SettingsRowPress())
         .settingsSearchTarget("deleteAll", flash: searchFlash)
+    }
+
+    @ViewBuilder private var account: some View {
+        // Verbose has no account; your name is shown here and edited in About me.
+        let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        pageRow("yourNameRow", .aboutMe, icon: "person.crop.circle", tint: Ink.petalTint, art: .iconAboutMe, title: "Your name", value: name.isEmpty ? "Add" : name)
     }
 
     /// What the cleanup level does to keyboard dictations, and what happens without Apple Intelligence. Also on the
@@ -491,15 +454,14 @@ struct SettingsScreen: View {
         return what + " Without Apple Intelligence on this iPhone, rules remove ums, repeats, and false starts, fix capitals and “a” or “an,” and make lists and paragraphs."
     }
 
-    private var syncSubtitle: String {
+    /// The sync row's line while something is happening; nil once it has settled (the switch says the rest).
+    private var syncSubtitle: String? {
         if copyingDown { return "Copying your library to this iPhone…" }
         if copyFailed > 0 { return "\(copyFailed) file\(copyFailed == 1 ? "" : "s") couldn't be downloaded from iCloud, so sync is still on. Check your connection and try again." }
         if syncWanted != Cloud.enabled {
             return syncWanted ? "Starts the next time you open Verbose." : "Your library is on this iPhone. Syncing stops the next time you open Verbose (swipe it away to finish now)."
         }
-        return syncWanted
-            ? "Transcripts, notes, projects, and the Dictionary match your Mac. Audio from the other device downloads when you play it."
-            : "Everything stays on this iPhone."
+        return nil
     }
 
     private func turnSyncOff() {
@@ -518,72 +480,43 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var support: some View {
-        Button { bump("whatsNew"); showWhatsNew = true } label: {
-            SettingsRow(icon: "sparkles", tint: Ink.butterTint, art: .iconNotes, title: "What's new",
-                        subtitle: ReleaseNotes.bundled.first(where: { $0.number != nil })?.heading,
-                        bounce: bumps["whatsNew", default: 0]) { SettingsChevron() }
+        actionRow("support", icon: "bubble.left", tint: Ink.sageTint, art: .iconSupport, title: "Contact support") {
+            if let u = Links.mail(subject: "Verbose support") { openURL(u) }
         }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("whatsNew", flash: searchFlash)
         SettingsDivider()
-        Button { bump("support"); if let u = Links.mail(subject: "Verbose support") { openURL(u) } } label: {
-            SettingsRow(icon: "bubble.left", tint: Ink.sageTint, art: .iconSupport, title: "Contact support", bounce: bumps["support", default: 0]) { SettingsChevron() }
+        actionRow("feedback", icon: "pencil", tint: Ink.butterTint, art: .iconFeedback, title: "Share feedback") {
+            if let u = Links.mail(subject: "Verbose feedback") { openURL(u) }
         }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("support", flash: searchFlash)
-        SettingsDivider()
-        Button { bump("feedback"); if let u = Links.mail(subject: "Verbose feedback") { openURL(u) } } label: {
-            SettingsRow(icon: "pencil", tint: Ink.persimmonTint, art: .iconFeedback, title: "Share feedback", bounce: bumps["feedback", default: 0]) { SettingsChevron() }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("feedback", flash: searchFlash)
         SettingsDivider()
         ShareLink(item: Log.file, subject: Text("Verbose diagnostic log"),
                   message: Text("Send to \(Links.supportEmail)")) {
-            SettingsRow(icon: "stethoscope", tint: Ink.petalTint, art: .iconDiagnosticLog, title: "Send diagnostic log",
-                        subtitle: "7 days of app events, without links or folder names", bounce: bumps["log", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "stethoscope", tint: PhoneInk.wash, art: .iconDiagnosticLog, title: "Send diagnostic log", bounce: bumps["log", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("log"); Log.trimNow() })
+        .accessibilityHint("7 days of app events, without links or folder names")
         .settingsSearchTarget("log", flash: searchFlash)
         SettingsDivider()
-        Button { bump("privacy"); openURL(Links.privacy) } label: {
-            SettingsRow(icon: "lock", tint: Ink.petalTint, art: .iconPrivacy, title: "Privacy policy", bounce: bumps["privacy", default: 0]) { SettingsChevron() }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("privacy", flash: searchFlash)
+        actionRow("privacy", icon: "lock", tint: Ink.sageTint, art: .iconPrivacy, title: "Privacy policy") { openURL(Links.privacy) }
         SettingsDivider()
-        Button { bump("terms"); openURL(Links.terms) } label: {
-            SettingsRow(icon: "doc.text", tint: Ink.sageTint, art: .iconTerms, title: "Terms of use", bounce: bumps["terms", default: 0]) { SettingsChevron() }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("terms", flash: searchFlash)
+        actionRow("terms", icon: "doc.text", tint: PhoneInk.wash, art: .iconTerms, title: "Terms of use") { openURL(Links.terms) }
         SettingsDivider()
         ShareLink(item: Links.base) {
-            SettingsRow(icon: "square.and.arrow.up", tint: Ink.persimmonTint, art: .iconShare, title: "Share Verbose", bounce: bumps["share", default: 0]) { SettingsChevron() }
+            SettingsRow(icon: "square.and.arrow.up", tint: Ink.petalTint, art: .iconShare, title: "Share Verbose", bounce: bumps["share", default: 0]) { SettingsChevron() }
         }
         .buttonStyle(SettingsRowPress())
         .simultaneousGesture(TapGesture().onEnded { bump("share") })
         .settingsSearchTarget("share", flash: searchFlash)
         SettingsDivider()
-        Button { bump("acknowledgements"); showAcknowledgements = true } label: {
-            SettingsRow(icon: "doc.plaintext", tint: Ink.sageTint, art: .iconTerms, title: "Acknowledgements", subtitle: "Open-source software and its licenses",
-                        bounce: bumps["acknowledgements", default: 0]) { SettingsChevron() }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("acknowledgements", flash: searchFlash)
+        actionRow("acknowledgements", icon: "doc.plaintext", tint: PhoneInk.wash, art: .iconDetails, title: "Acknowledgements") { showAcknowledgements = true }
     }
 
-    @ViewBuilder private var tour: some View {
-        SettingsToggleRow(icon: "sparkles", tint: Ink.petalTint, art: .iconTour, title: "Show it when Verbose opens",
-                          isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0; app.objectWillChange.send() }))
-            .settingsSearchTarget("tourOnLaunch", flash: searchFlash)
+    @ViewBuilder private var features: some View {
+        pageRow("widgetsRow", .widgets, icon: "square.grid.2x2", tint: Ink.persimmonTint, art: .iconHome, title: "Widgets and controls")
         SettingsDivider()
-        Button { bump("tour"); app.showOnboarding = true } label: {
-            SettingsRow(icon: "play.rectangle", tint: Ink.sageTint, art: .iconTour, title: "Show Tour", bounce: bumps["tour", default: 0]) { SettingsChevron() }
-        }
-        .buttonStyle(SettingsRowPress())
-        .settingsSearchTarget("tour", flash: searchFlash)
+        pageRow("shortcutsRow", .shortcuts, icon: "bolt.circle", tint: Ink.sageTint, art: .iconAI, title: "Shortcuts and Siri")
+        SettingsDivider()
+        pageRow("tourRow", .tour, icon: "play.rectangle", tint: Ink.sageTint, art: .iconTour, title: "Welcome tour")
     }
 
     private var footer: some View {
@@ -601,15 +534,21 @@ struct SettingsScreen: View {
                 Text(Ink.tagline).lookSerif(16).foregroundStyle(.lookDim).padding(.bottom, 6)
             }
             // The version opens What's new.
-            Button { showWhatsNew = true } label: {
-                Text("Version \(version) (\(build))")
-                    .padding(.horizontal, 12).padding(.vertical, 4)
-                    .contentShape(Rectangle())
+            Button { open(.whatsNew) } label: {
+                VStack(spacing: 2) {
+                    Text("Version \(version) (\(build))")
+                    Text("What's new").fontWeight(.semibold).foregroundStyle(.lookAccentText)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 4)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .padding(.vertical, -4)
-            .accessibilityLabel("Version \(version), build \(build)")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Version \(version), build \(build). What's new")
+            .accessibilityAddTraits(.isButton)
             .accessibilityHint("Shows what's new in each build")
+            .settingsSearchTarget("version", flash: searchFlash)
             Text("Verbose · Stump & Root Co.")
         }
         .font(.system(size: 12.5)).foregroundStyle(.lookMute)
@@ -625,6 +564,7 @@ struct SettingsScreen: View {
             let content = rows()
             NativeGroup(header: title, footer: footer) { content }
                 .padding(.top, 26)
+                .id("group-\(index)")
                 .riseIn("group-\(index)", index: index, seen: seen, epoch: entrance)
         } else {
             verboseGroup(index, title, footer: footer, rows)
@@ -647,22 +587,25 @@ struct SettingsScreen: View {
             }
         }
         .padding(.top, 22)
+        .id("group-\(index)")
         .riseIn("group-\(index)", index: index, seen: seen, epoch: entrance)
     }
 
     private func bump(_ key: String) { bumps[key, default: 0] += 1 }
 
+    /// Pushes a page. Asking for one while another is showing swaps it, so a request always lands on its page.
+    private func open(_ p: SettingsSubpage) {
+        if p == .customizeHome && !CustomizeHomeEntry.isAvailable { return }
+        page = p
+    }
+
     private func openRequestedPage() {
-        switch SettingsPage.take() {
-        case "aboutMe"?: showAboutMe = true
-        case "you"?: showYou = true
-        case "keyboard"?: showKeyboard = true
-        case "actionButton"?: showActionButton = true
-        case "appearance"?: showAppearance = true
-        case "whatsNew"?: showWhatsNew = true
+        guard let name = SettingsPage.take() else { return }
+        switch name {
+        case "you": showYou = true
         // Back to Settings itself (the screenshot tour, between subpages).
-        case "root"?: showKeyboard = false; showActionButton = false; showAppearance = false; showWhatsNew = false
-        default: break
+        case "root": page = nil
+        default: if let p = SettingsSubpage(rawValue: name) { open(p) }
         }
     }
 
@@ -671,13 +614,7 @@ struct SettingsScreen: View {
         search.query = ""
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         switch entry.target {
-        case .page(.aboutMe): showAboutMe = true
-        case .page(.dictionary): showDictionary = true
-        case .page(.keyboard): showKeyboard = true
-        case .page(.actionButton): showActionButton = true
-        case .page(.snippets): showSnippets = true
-        case .page(.appearance): showAppearance = true
-        case .page(.whatsNew): showWhatsNew = true
+        case .page(let p): open(p)
         case .row: flashRow(entry.id, label: entry.label, proxy)
         }
     }

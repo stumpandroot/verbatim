@@ -3,18 +3,21 @@ import AppKit
 
 // brand: web style
 //
-// The Settings panes (SettingsView.swift holds the window). Every row's label and description come from
-// SettingsIndex, so search always matches what's on screen. Website style (DESIGN.md §11): actions inside rows are
+// The Settings panes (SettingsView.swift holds the window), in the layout of MacSettingsMap (MacSettingsMap.swift).
+// Every row's label and description come from SettingsIndex, so search always matches what's on screen. Website style (DESIGN.md §11): actions inside rows are
 // line mini pills; switches, menus, and segmented controls stay native.
 
-// MARK: - App › General
+// MARK: - Personalization and preferences
 
-struct GeneralSettingsPane: View {
+/// How Verbose looks and sounds, Home, About me, your voice, and the Dictionary and language.
+struct PersonalizationSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(MotionPreference.key) private var motionLimited = false
+    @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
+    @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
 
     var body: some View {
-        SettingsPane(tab: .general) {
+        SettingsPane(tab: .personalization) {
             SettingsGroup {
                 // The look: Verbose style or Native, as two live thumbnails. Applies at once, with a crossfade.
                 SettingsRow("general.look") {
@@ -30,23 +33,34 @@ struct GeneralSettingsPane: View {
                 SettingsToggleRow("general.menuBar", isOn: $app.showMenuBar)
                 SettingsToggleRow("general.sounds", isOn: $app.sounds)
             }
+            // Customize Home: Edit Home's list (EditHome.swift), the same one Home's inspector shows. The This week
+            // switch sets the same layout.
             SettingsGroup(title: "Home") {
+                EditHomeView()
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .settingsAnchor("general.customizeHome", radius: Radius.tile)
                 SettingsToggleRow("general.homeWeek", isOn: Binding(get: { app.showHomeWeek }, set: { app.showHomeWeek = $0 }))
             }
-            SettingsGroup(title: "Welcome") {
-                SettingsToggleRow("general.tourOnLaunch", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
-                SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.settingsPill) }
+            SettingsGroup(title: "About you") {
+                AboutMeSettingsRow()
             }
-            UpdateSettingsSection()
-            YouSettingsSection()
+            // The voice profile (VoiceProfileSection.swift): setup or quality, plus its switches and Delete.
+            VoiceProfileSection()
+                .settingsAnchor("speakers.voiceProfile", radius: Radius.tile)
+                .settingsAnchor("speakers.onlyMyVoice", radius: Radius.tile)
+            SettingsGroup(title: "Dictionary and language") {
+                SettingsToggleRow("models.detectLanguage", isOn: $detectLanguage)
+                SettingsToggleRow("models.builtInVocabulary", isOn: $builtInVocabulary)
+                SettingsToggleRow("models.projectVocab", isOn: $app.projectScopedVocabulary)
+            }
         }
     }
 }
 
-/// General › Updates: Sparkle automatic updates (App/Updater.swift).
+/// Support and feedback › Updates: Sparkle automatic updates (App/Updater.swift).
 struct UpdateSettingsSection: View {
     @ObservedObject private var updater = Updater.shared
-    @AppStorage("settingsTab") private var tab: SettingsTab = .general
+    @AppStorage("settingsTab") private var tab: SettingsTab = .support
     var body: some View {
         SettingsGroup(title: "Updates",
                       footer: updater.isRunning ? nil : "Automatic updates are off in this build.") {
@@ -64,10 +78,10 @@ struct UpdateSettingsSection: View {
     }
 }
 
-// MARK: - App › Dictation
+// MARK: - Dictation and keyboard
 
-/// Dictation: where it shows, the hotkey and how it starts, cleanup, tone per kind of app, accuracy, snippets, and
-/// Accessibility.
+/// Dictation: the hotkey and how it starts, cleanup, tone per kind of app, accuracy, snippets, and Accessibility.
+/// Where dictation shows is on Floating button and Ribbon.
 struct DictationSettings: View {
     @EnvironmentObject var app: AppState
     var body: some View { DictationForm(dictation: app.dictation) }
@@ -87,9 +101,6 @@ struct DictationForm: View {
         SettingsPane(tab: .dictate) {
             SettingsGroup {
                 SettingsToggleRow("dictate.enabled", isOn: $dictation.enabled)
-            }
-            SettingsGroup(title: "Where dictation shows") {
-                DictationSurfaceRows()
             }
             SettingsGroup(title: "Starting and stopping") {
                 HotkeyPickerRow(dictation: dictation)
@@ -209,24 +220,28 @@ struct DictationForm: View {
     }
 }
 
-// MARK: - App › Floating button
+// MARK: - Floating button and Ribbon
 
 // FloatingButtonSettingsPane is in DictationSurfaceSettings.swift, with the rest of the dictation surfaces' settings.
 
-// MARK: - Transcription › Models and language
+// MARK: - Recording and transcription
 
-struct ModelsSettingsPane: View {
+/// The model, who's talking, what happens when a transcript is ready, the words while you record, and the switches
+/// people rarely change.
+struct RecordingSettingsPane: View {
     @EnvironmentObject var app: AppState
     @AppStorage(AutoLabel.enabledKey) private var autoLabels = true
     @AppStorage(Summarizer.autoKey) private var autoSummary = true
     @AppStorage(Transcript.hideFillerKey) private var hideFiller = true
     @AppStorage(Transcript.skipSponsorsKey) private var skipSponsors = true
-    @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
-    @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
     @AppStorage(RecordingWords.enabledKey) private var recordLiveWords = true
+    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
+    @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
+    @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
+    @State private var savedVoices = SpeakerVoices.namedCount
 
     var body: some View {
-        SettingsPane(tab: .models) {
+        SettingsPane(tab: .recording) {
             SettingsGroup(title: "Model") {
                 SettingsRow("models.quality", detail: "Parakeet (NVIDIA, via FluidAudio) is the default, with Parakeet v2 (English only) preselected: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses. Pick by testing on your own recordings; the labels are starting points, not benchmarks.", stacked: true) {
                     Picker("Quality", selection: $app.presetRaw) {
@@ -245,44 +260,8 @@ struct ModelsSettingsPane: View {
                         .labelsHidden().fixedSize()
                     }
                 }
-                SettingsToggleRow("models.detectLanguage", isOn: $detectLanguage)
                 SettingsRow("models.offline", detail: "Models download once from Hugging Face into Application Support and run on this Mac. Transcription never leaves your computer; fetching a link does need the internet.")
             }
-            SettingsGroup(title: "Dictionary") {
-                SettingsToggleRow("models.applyDictionary", isOn: $app.applyDictionary)
-                SettingsToggleRow("models.builtInVocabulary", isOn: $builtInVocabulary)
-                SettingsToggleRow("models.projectVocab", isOn: $app.projectScopedVocabulary)
-            }
-            SettingsGroup(title: "When a transcript is ready") {
-                SettingsToggleRow("models.nameSort", isOn: $autoLabels)
-                SettingsToggleRow("models.summary", isOn: $autoSummary, detail: Summarizer.unavailableReason)
-                SettingsToggleRow("models.hideFiller", isOn: $hideFiller)
-            }
-            SettingsGroup(title: "While you record") {
-                SettingsToggleRow("models.recordLiveWords", isOn: $recordLiveWords)
-            }
-            SettingsGroup(title: "Playback") {
-                SettingsToggleRow("models.skipSponsors", isOn: $skipSponsors)
-            }
-        }
-    }
-}
-
-// MARK: - Transcription › Speakers and your voice
-
-struct SpeakersSettingsPane: View {
-    @EnvironmentObject var app: AppState
-    @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
-    @AppStorage(AudioTracksPreference.key) private var audioTracks = AudioTracksPreference.mix.rawValue
-    @AppStorage(SpeakerVoices.enabledKey) private var recognizeVoices = true
-    @State private var savedVoices = SpeakerVoices.namedCount
-
-    var body: some View {
-        SettingsPane(tab: .speakers) {
-            // The voice profile (VoiceProfileSection.swift): setup or quality, plus its switches and Delete.
-            VoiceProfileSection()
-                .settingsAnchor("speakers.voiceProfile", radius: Radius.tile)
-                .settingsAnchor("speakers.onlyMyVoice", radius: Radius.tile)
             SettingsGroup(title: "Speakers") {
                 if FluidDiarizer.isSupported {
                     SettingsToggleRow("speakers.identify", isOn: $app.identifySpeakers)
@@ -296,47 +275,53 @@ struct SpeakersSettingsPane: View {
                         .onAppear { savedVoices = SpeakerVoices.namedCount }
                 }
                 SettingsToggleRow("speakers.mainOnly", isOn: $mainSpeakerOnly)
+                SettingsRow("speakers.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
+            }
+            SettingsGroup(title: "When a transcript is ready") {
+                SettingsToggleRow("models.nameSort", isOn: $autoLabels)
+                SettingsToggleRow("models.summary", isOn: $autoSummary, detail: Summarizer.unavailableReason)
+                SettingsToggleRow("models.hideFiller", isOn: $hideFiller)
+                SettingsToggleRow("models.applyDictionary", isOn: $app.applyDictionary)
+            }
+            SettingsGroup(title: "While you record") {
+                SettingsToggleRow("models.recordLiveWords", isOn: $recordLiveWords)
+            }
+            SettingsGroup(title: "More options") {
                 SettingsRow("speakers.audioTracks") {
                     Picker("Files with several audio tracks", selection: $audioTracks) {
                         ForEach(AudioTracksPreference.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                     .labelsHidden().fixedSize()
                 }
-            }
-            SettingsGroup(title: "Your microphone") {
-                SettingsRow("speakers.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
+                SettingsToggleRow("models.skipSponsors", isOn: $skipSponsors)
             }
         }
     }
 }
 
-// MARK: - Transcription › Live captions
+// MARK: - Meetings and captions
 
 /// Live captions: text size, the header clock, and staying above full-screen apps.
-struct CaptionsSettingsPane: View {
+struct CaptionsSettingsGroup: View {
     @AppStorage(CaptionSize.key) private var sizeRaw = CaptionSize.medium.rawValue
     @AppStorage(CaptionPrefs.timecodeKey) private var timecode = true
     @AppStorage(CaptionPrefs.aboveFullScreenKey) private var above = true
     var body: some View {
-        SettingsPane(tab: .captions) {
-            SettingsGroup {
-                SettingsRow("captions.size") {
-                    Picker("Text size", selection: $sizeRaw) {
-                        ForEach(CaptionSize.allCases) { Text($0.title).tag($0.rawValue) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+        SettingsGroup(title: "Live captions") {
+            SettingsRow("captions.size") {
+                Picker("Text size", selection: $sizeRaw) {
+                    ForEach(CaptionSize.allCases) { Text($0.title).tag($0.rawValue) }
                 }
-                SettingsToggleRow("captions.soon", isOn: $timecode)
-                SettingsToggleRow("captions.above", isOn: $above)
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
+            SettingsToggleRow("captions.soon", isOn: $timecode)
+            SettingsToggleRow("captions.above", isOn: $above)
         }
     }
 }
 
-// MARK: - Transcription › Meetings
-
 /// Meeting capture: whether Verbose notices calls and asks, the chat notice, your microphone, and each app it
-/// has noticed (don't ask for this app; bring back the consent sheet).
+/// has noticed (don't ask for this app; bring back the consent sheet); then Live captions.
 struct MeetingsSettingsPane: View {
     @AppStorage(MeetingCoordinator.noticeKey) private var notice = true
     @AppStorage(MeetingCoordinator.copyNoticeKey) private var copyNotice = true
@@ -344,7 +329,7 @@ struct MeetingsSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .meetings) {
-            SettingsGroup {
+            SettingsGroup(title: "Meetings") {
                 SettingsToggleRow("meetings.notice", isOn: $notice)
                 SettingsToggleRow("meetings.copyNotice", isOn: $copyNotice)
                 SettingsRow("meetings.mic") { MicSourceMenu(status: "No microphone found").fixedSize() }
@@ -363,6 +348,7 @@ struct MeetingsSettingsPane: View {
                     .settingsAnchor("meetings.apps")
                 }
             }
+            CaptionsSettingsGroup()
         }
     }
 }
@@ -411,66 +397,70 @@ private struct MeetingAppRow: View {
     }
 }
 
-// MARK: - Files › Export
+// MARK: - Watched folders and export › Export
 
-/// The options Export and watched folders use (Copy follows the tab you're on instead). Same keys as
-/// `ExportOptions.saved`, so a change here shows in the export popover and the other way round.
-struct ExportSettingsPane: View {
+/// The options Export and watched folders use (Copy follows the tab you're on instead), under the watched folders on
+/// their pane (WatchedFoldersPane.swift). Same keys as `ExportOptions.saved`, so a change here shows in the export
+/// popover and the other way round.
+struct ExportSettingsGroups: View {
     @State private var options = ExportOptions.saved
-    @AppStorage("settingsTab") private var tab: SettingsTab = .export
+    @ObservedObject private var model = SettingsModel.shared
 
     var body: some View {
-        SettingsPane(tab: .export) {
-            SettingsGroup(title: "Text") {
-                // The same saved options as the export sheet, laid out as Settings rows.
-                ExportPaneRow("Text") {
-                    Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.label).tag($0) } }
-                        .pickerStyle(.menu).labelsHidden().fixedSize()
-                }
-                .settingsAnchor("export.source", radius: Radius.row)
-                ExportPaneToggle("Title and details header", isOn: $options.header)
-                ExportPaneToggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote, note: "On Cleaned text the model touched: “\(Exporter.aiNoteText)”")
-                ExportPaneToggle("Summary", isOn: $options.summary, note: "Written with Apple Intelligence, when the transcript has one.")
-                ExportPaneToggle("One paragraph", isOn: $options.singleParagraph)
-                ExportPaneToggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
+        SettingsGroup(title: "Export") {
+            // The same saved options as the export sheet, laid out as Settings rows.
+            ExportPaneRow("Text") {
+                Picker("Text", selection: $options.source) { ForEach(ExportOptions.Source.allCases) { Text($0.label).tag($0) } }
+                    .pickerStyle(.menu).labelsHidden().fixedSize()
             }
-            SettingsGroup(title: "Speakers and time") {
-                ExportPaneRow("Speaker names") {
-                    Picker("Speaker names", selection: $options.speakerMode) { ForEach(ExportOptions.SpeakerMode.allCases) { Text($0.label).tag($0) } }
-                        .pickerStyle(.menu).labelsHidden().fixedSize()
-                }
-                ExportPaneRow("Timecodes") {
-                    Picker("Timecodes", selection: $options.timecodeMode) { ForEach(ExportOptions.TimecodeMode.allCases) { Text($0.label).tag($0) } }
-                        .pickerStyle(.menu).labelsHidden().fixedSize()
-                }
-                if options.timecodeMode != .off || options.moments != .off {
-                    ExportPaneRow("Timecode style") {
-                        Picker("Timecode style", selection: $options.timecodeStyle) { ForEach(ExportOptions.TimecodeStyle.allCases) { Text($0.label).tag($0) } }
-                            .pickerStyle(.menu).labelsHidden().fixedSize()
-                    }
-                }
-                ExportPaneRow("Moments") {
-                    Picker("Moments", selection: $options.moments) { ForEach(ExportOptions.MomentsMode.allCases) { Text($0.label).tag($0) } }
-                        .pickerStyle(.menu).labelsHidden().fixedSize()
-                }
-                ExportPaneRow("Start at", note: "Added to every time, such as 01:00:00 for a timeline that starts at one hour.") {
-                    ExportOffsetField(seconds: $options.timecodeOffset)
-                }
-                ExportPaneToggle("Include hidden lines", isOn: $options.includeHidden)
-                ExportPaneToggle("Include sponsor reads", isOn: $options.includeSponsors, note: "Sponsor reads found in podcasts and videos.")
-                    .settingsAnchor("export.sponsors", radius: Radius.row)
+            .settingsAnchor("export.source", radius: Radius.row)
+            ExportPaneToggle("Title and details header", isOn: $options.header)
+            ExportPaneToggle("Note when Apple Intelligence cleaned it", isOn: $options.aiNote, note: "On Cleaned text the model touched: “\(Exporter.aiNoteText)”")
+            ExportPaneToggle("Summary", isOn: $options.summary, note: "Written with Apple Intelligence, when the transcript has one.")
+            ExportPaneToggle("One paragraph", isOn: $options.singleParagraph)
+                .settingsAnchor("export.single", radius: Radius.row)
+            ExportPaneToggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
+                .settingsAnchor("export.provenance", radius: Radius.row)
+        }
+        SettingsGroup(title: "Speakers and time") {
+            ExportPaneRow("Speaker names") {
+                Picker("Speaker names", selection: $options.speakerMode) { ForEach(ExportOptions.SpeakerMode.allCases) { Text($0.label).tag($0) } }
+                    .pickerStyle(.menu).labelsHidden().fixedSize()
             }
-            SettingsGroup(title: "Subtitles", footer: "Used for SRT and VTT files.") {
-                ExportPaneStepper("Characters per line", value: $options.subtitles.charsPerLine, range: 16...80, step: 1) { "\($0)" }
-                ExportPaneStepper("Lines per caption", value: $options.subtitles.linesPerCaption, range: 1...3, step: 1) { "\($0)" }
-                ExportPaneStepper("Shortest caption", value: $options.subtitles.minDuration, range: 0.3...5, step: 0.1) { String(format: "%.1f s", $0) }
-                ExportPaneStepper("Longest caption", value: $options.subtitles.maxDuration, range: 2...20, step: 0.5) { ExportOptionRows.seconds($0) }
+            .settingsAnchor("export.speakers", radius: Radius.row)
+            ExportPaneRow("Timecodes") {
+                Picker("Timecodes", selection: $options.timecodeMode) { ForEach(ExportOptions.TimecodeMode.allCases) { Text($0.label).tag($0) } }
+                    .pickerStyle(.menu).labelsHidden().fixedSize()
             }
-            .onChange(of: options) { _, o in o.save() }
-            SettingsGroup {
-                SettingsRow("export.watched", detail: "Auto-export from a watched folder writes files with the options above.") {
-                    PillButton(title: "Watched folders", kind: .line, size: .mini, trailing: .arrow) { tab = .watched }
+            .settingsAnchor("export.timecodes", radius: Radius.row)
+            if options.timecodeMode != .off || options.moments != .off {
+                ExportPaneRow("Timecode style") {
+                    Picker("Timecode style", selection: $options.timecodeStyle) { ForEach(ExportOptions.TimecodeStyle.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.menu).labelsHidden().fixedSize()
                 }
+            }
+            ExportPaneRow("Moments") {
+                Picker("Moments", selection: $options.moments) { ForEach(ExportOptions.MomentsMode.allCases) { Text($0.label).tag($0) } }
+                    .pickerStyle(.menu).labelsHidden().fixedSize()
+            }
+            ExportPaneRow("Start at", note: "Added to every time, such as 01:00:00 for a timeline that starts at one hour.") {
+                ExportOffsetField(seconds: $options.timecodeOffset)
+            }
+            ExportPaneToggle("Include hidden lines", isOn: $options.includeHidden)
+            ExportPaneToggle("Include sponsor reads", isOn: $options.includeSponsors, note: "Sponsor reads found in podcasts and videos.")
+                .settingsAnchor("export.sponsors", radius: Radius.row)
+        }
+        SettingsGroup(title: "Subtitles", footer: "Used for SRT and VTT files.") {
+            ExportPaneStepper("Characters per line", value: $options.subtitles.charsPerLine, range: 16...80, step: 1) { "\($0)" }
+            ExportPaneStepper("Lines per caption", value: $options.subtitles.linesPerCaption, range: 1...3, step: 1) { "\($0)" }
+            ExportPaneStepper("Shortest caption", value: $options.subtitles.minDuration, range: 0.3...5, step: 0.1) { String(format: "%.1f s", $0) }
+            ExportPaneStepper("Longest caption", value: $options.subtitles.maxDuration, range: 2...20, step: 0.5) { ExportOptionRows.seconds($0) }
+        }
+        .onChange(of: options) { _, o in o.save() }
+        SettingsGroup {
+            SettingsRow("export.watched", detail: "Auto-export from a watched folder writes files with the options above.") {
+                // The folders are at the top of this pane.
+                PillButton(title: "Watched folders", kind: .line, size: .mini, trailing: .arrow) { model.focusID = "watched.folders" }
             }
         }
     }
@@ -549,7 +539,7 @@ private struct ExportOffsetField: View {
     }
 }
 
-// MARK: - Files › Storage and iCloud
+// MARK: - Sync and storage
 
 struct StorageSettingsPane: View {
     @EnvironmentObject var app: AppState
@@ -648,14 +638,14 @@ struct CloudSyncSection: View {
     }
 }
 
-/// Storage › Delete All Data, asked twice because it reaches iCloud and the iPhone too.
+/// Sync and storage › Delete All Data, asked twice because it reaches iCloud and the iPhone too.
 struct DeleteAllDataSection: View {
     @EnvironmentObject private var app: AppState
     @State private var first = false
     @State private var second = false
 
     var body: some View {
-        SettingsGroup(title: "Privacy") {
+        SettingsGroup(title: "Delete") {
             SettingsRow("storage.deleteAll") {
                 Button("Delete All Data…", role: .destructive) { first = true }
                     .buttonStyle(SettingsDangerPillStyle())
@@ -678,15 +668,16 @@ struct DeleteAllDataSection: View {
     }
 }
 
-// MARK: - Files › About
+// MARK: - Support and feedback
 
-struct AboutSettingsPane: View {
+/// Help, the diagnostic log, the fine print, and updates.
+struct SupportSettingsPane: View {
     @ObservedObject private var updater = Updater.shared
     @State private var showAcknowledgements = false
-    @AppStorage("settingsTab") private var tab: SettingsTab = .about
+    @AppStorage("settingsTab") private var tab: SettingsTab = .support
 
     var body: some View {
-        SettingsPane(tab: .about) {
+        SettingsPane(tab: .support) {
             // The lockup (DESIGN.md §4) and the tagline in the serif.
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
@@ -727,6 +718,7 @@ struct AboutSettingsPane: View {
                     Button("Acknowledgements…") { showAcknowledgements = true }.buttonStyle(.settingsPill)
                 }
             }
+            UpdateSettingsSection()
         }
         .sheet(isPresented: $showAcknowledgements) {
             VStack(spacing: 0) {
@@ -754,7 +746,45 @@ struct AboutSettingsPane: View {
     }
 }
 
-/// Settings › Dictation › Cleanup › Cloud cleanup: off by default. Your own Anthropic or OpenAI key, saved in your
+// MARK: - Account and plan
+
+/// Your name. Verbose has no account, so this pane is small on purpose (plans come with the pricing decision).
+struct AccountSettingsPane: View {
+    var body: some View {
+        SettingsPane(tab: .account) {
+            SettingsGroup {
+                YourNameSettingsRow()
+            }
+        }
+    }
+}
+
+// MARK: - Features
+
+/// Widgets, Shortcuts, and the welcome tour: the places people go to learn what Verbose can do.
+struct FeaturesSettingsPane: View {
+    @EnvironmentObject var app: AppState
+
+    var body: some View {
+        SettingsPane(tab: .features) {
+            SettingsGroup(title: "Widgets and Shortcuts") {
+                SettingsRow("features.widgets")
+                SettingsRow("features.shortcuts") {
+                    Button("Open Shortcuts") {
+                        if let u = URL(string: "shortcuts://") { NSWorkspace.shared.open(u) }
+                    }
+                    .buttonStyle(.settingsPill)
+                }
+            }
+            SettingsGroup(title: "Welcome tour") {
+                SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.settingsPill) }
+                SettingsToggleRow("general.tourOnLaunch", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
+            }
+        }
+    }
+}
+
+/// Dictation and keyboard › Cleanup › Cloud cleanup: off by default. Your own Anthropic or OpenAI key, saved in your
 /// Keychain on this Mac only (`CloudCleanup`, `CloudKeychain`).
 struct CloudCleanupSettingsRows: View {
     @AppStorage(CloudCleanup.enabledKey) private var on = false

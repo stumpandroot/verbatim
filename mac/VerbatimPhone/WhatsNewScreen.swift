@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// What's new (Settings › Support › What's new, the version at the foot of Settings, and Home's note): every build's
+/// What's new (the version at the foot of Settings, search, and Home's note): every build's
 /// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift). Verbose style: the
 /// compact serif title, then one card per build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif,
 /// and bullet items. Native: the large title and an inset grouped section per build, the build as its header.

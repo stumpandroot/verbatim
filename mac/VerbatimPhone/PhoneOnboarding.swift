@@ -143,10 +143,10 @@ struct PhoneOnboarding: View {
     }
 
     /// iCloud sync, offered here and off unless you turn it on. Already syncing (the tour again from Settings): the
-    /// status only, since turning it off copies your library down first (Settings › Sync and data).
+    /// status only, since turning it off copies your library down first (Settings › Sync and storage).
     @ViewBuilder private var sync: some View {
         if Cloud.enabled {
-            Label { Text("Syncing with iCloud. Turn it off in Settings › Sync and data.") } icon: { ArtIcon(art: .iconSync, size: 14) }
+            Label { Text("Syncing with iCloud. Turn it off in Settings › Sync and storage.") } icon: { ArtIcon(art: .iconSync, size: 14) }
                 .font(.system(size: 14)).foregroundStyle(.lookDim)
         } else if Cloud.available {
             Toggle(isOn: Binding(get: { syncWanted }, set: { on in syncWanted = on; Cloud.setWantsSync(on) })) {

@@ -3,9 +3,10 @@ import AppKit
 
 // brand: native file
 //
-// The Settings window in the Native look (mockup section 03, "Settings window"): System Settings' layout. A sidebar
-// with the search field on top and the App, Transcription, and Files groups, each pane with its SF Symbol; the pane
-// is the same SettingsPane, which draws as a grouped form under Native (SettingsKit.swift).
+// The Settings window in the Native look (premium mockup section 02, "Mac Settings window"): System Settings' layout. A
+// sidebar with the search field on top, the panes of MacSettingsMap, each with its SF Symbol, and the version at the
+// foot, which opens What's new; the pane is the same SettingsPane, which draws as a grouped form under Native
+// (SettingsKit.swift).
 
 struct NativeSettingsSplit<Detail: View>: View {
     @Binding var tab: SettingsTab
@@ -16,20 +17,23 @@ struct NativeSettingsSplit<Detail: View>: View {
     var body: some View {
         NavigationSplitView {
             List(selection: selection) {
-                ForEach(SettingsTab.groups, id: \.title) { g in
-                    Section(g.title) {
-                        ForEach(g.tabs) { t in
-                            Label(t.title, systemImage: NativeSymbols.settings(t.rawValue))
-                                .uiTarget("settings-\(t.rawValue)")
-                                .tag(t)
-                        }
-                    }
+                ForEach(SettingsTab.sidebar) { t in
+                    Label(t.title, systemImage: NativeSymbols.settings(t.rawValue))
+                        .uiTarget("settings-\(t.rawValue)")
+                        .tag(t)
                 }
             }
             .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                SettingsVersionFooter {
+                    if model.isSearching { model.query = "" }
+                    tab = .whatsNew
+                }
+                .padding(.horizontal, 4).padding(.bottom, 10)
+            }
             .searchable(text: $model.query, placement: .sidebar, prompt: "Search")
             .onSubmit(of: .search) { if let first = SettingsIndex.search(model.query).first { model.open(first) } }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 260)
+            .navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 290)
         } detail: {
             detail()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

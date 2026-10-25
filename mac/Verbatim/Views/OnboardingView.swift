@@ -93,7 +93,7 @@ struct OnboardingView: View {
             para("Both work the same. Choose the one you'd rather look at.")
             LookPicker(thumbnail: 210)
                 .padding(.top, 24)
-            Text("You can change this anytime in Settings › General.")
+            Text("You can change this anytime in Settings › Personalization and preferences.")
                 .font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.top, 20)
         }
         .multilineTextAlignment(native ? .center : .leading)

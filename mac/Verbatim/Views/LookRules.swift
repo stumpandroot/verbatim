@@ -68,19 +68,18 @@ enum NativeSymbols {
     /// A Settings pane, by `SettingsTab` raw value.
     static func settings(_ raw: String) -> String {
         switch raw {
-        case "general": return "gearshape"
-        case "dictate": return "mic"
+        case "general": return "circle.lefthalf.filled"
+        case "transcription": return "waveform"
+        case "dictate": return "keyboard"
         case "floatingButton": return "smallcircle.filled.circle"
-        case "actions": return "bolt"
-        case "privacy": return "hand.raised"
-        case "transcription": return "globe"
-        case "speakers": return "person.2"
-        case "captions": return "captions.bubble"
-        case "meetings": return "video"
+        case "actions": return "wand.and.stars"
+        case "meetings": return "captions.bubble"
         case "watched": return "folder"
-        case "export": return "square.and.arrow.up"
         case "storage": return "icloud"
-        case "about": return "info.circle"
+        case "privacy": return "lock"
+        case "account": return "person.crop.circle"
+        case "about": return "bubble.left"
+        case "features": return "square.grid.2x2"
         case "whatsNew": return "sparkles"
         default: return "gearshape"
         }

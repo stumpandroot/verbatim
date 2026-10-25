@@ -3,13 +3,13 @@ import AppKit
 
 // brand: web style
 //
-// Settings for how dictation shows and starts: Dictation › Where dictation shows (the Ribbon, the notch, or the
-// floating button, with each one's own rows), Dictation › Hotkey (a list that shows its keys, a shortcut you record,
-// or a mouse side button) and How it starts, and the Floating button pane. Website style (DESIGN.md §11): cards with
+// Settings for how dictation shows and starts: Floating button and Ribbon › Where dictation shows (the Ribbon, the
+// notch, or the floating button, with each one's own rows) and the floating button's look, and Dictation and
+// keyboard › Hotkey (a list that shows its keys, a shortcut you record, or a mouse side button) and How it starts. Website style (DESIGN.md §11): cards with
 // an ink outline when chosen, keycaps for keys, line mini pills for actions; switches, menus, and segmented
 // controls stay native.
 
-// MARK: - Dictation › Where dictation shows
+// MARK: - Floating button and Ribbon › Where dictation shows
 
 struct DictationSurfaceRows: View {
     @EnvironmentObject var app: AppState
@@ -20,7 +20,6 @@ struct DictationSurfaceRows: View {
     @AppStorage(LiveWordsSetting.key) private var liveWords = true
     @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
     @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
-    @AppStorage("settingsTab") private var tab: SettingsTab = .general
 
     private var surface: DictationSurface { DictationSurface(rawValue: surfaceRaw) ?? .ribbon }
 
@@ -54,9 +53,8 @@ struct DictationSurfaceRows: View {
             ribbonLook
             SettingsToggleRow("ribbon.liveWords", isOn: $liveWords)
         case .button:
-            SettingsRow("dictate.buttonLink") {
-                Button("Open") { tab = .floatingButton }.buttonStyle(.settingsPill)
-            }
+            // The floating button's own rows follow on this pane (FloatingButtonGroups).
+            EmptyView()
         }
     }
 
@@ -557,8 +555,11 @@ struct FloatingButtonSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .floatingButton) {
-            SettingsGroup(title: "Look", footer: surfaceRaw == DictationSurface.button.rawValue ? nil
-                          : "It shows once Settings › Dictation › Show dictation in is set to Floating button.") {
+            SettingsGroup(title: "Where dictation shows") {
+                DictationSurfaceRows()
+            }
+            SettingsGroup(title: "Floating button", footer: surfaceRaw == DictationSurface.button.rawValue ? nil
+                          : "It shows once Show dictation in, above, is set to Floating button.") {
                 SettingsRow("float.look", detail: "", stacked: true) {
                     HStack(spacing: 10) {
                         ForEach(FloatingLook.allCases) { l in
@@ -590,7 +591,7 @@ struct FloatingButtonSettingsPane: View {
     }
 }
 
-/// One look in Settings › Floating button › Button, drawn at rest on a neutral desktop.
+/// One look in Settings › Floating button and Ribbon › Floating button, drawn at rest on a neutral desktop.
 private struct LookCard: View {
     var look: FloatingLook
     var selected: Bool

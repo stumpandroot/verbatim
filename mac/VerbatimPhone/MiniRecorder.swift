@@ -93,7 +93,7 @@ enum RecorderPresentation {
 @MainActor
 final class RecordingLiveText: ObservableObject {
     static let enabledKey = "record.liveWords"
-    /// On unless you turned it off in Settings › Recording.
+    /// On unless you turned it off in Settings › Recording and transcription.
     static var enabled: Bool { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
 
     let words = LiveTranscriber()

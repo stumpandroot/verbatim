@@ -411,7 +411,7 @@ final class FolderWatcher: ObservableObject {
         var dir = source.deletingLastPathComponent()
         var scopedDir: URL? = nil
         if let d = f.destination {
-            guard let r = resolve(d) else { return ([], "Verbose lost access to the Save to folder. Choose it again in Settings › Watched folders.") }
+            guard let r = resolve(d) else { return ([], "Verbose lost access to the Save to folder. Choose it again in Settings › Watched folders and export.") }
             dir = r.url
             if r.url.startAccessingSecurityScopedResource() { scopedDir = r.url }
         }

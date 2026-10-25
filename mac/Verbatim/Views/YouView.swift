@@ -726,7 +726,7 @@ private struct YouToggle<T: Hashable>: View {
 
 // MARK: - About me
 
-/// Edits About me (300 characters, as on iPhone). Opened from the You page and from Settings › General.
+/// Edits About me (300 characters, as on iPhone). Opened from the You page and from Settings › Personalization and preferences.
 struct AboutMeSheet: View {
     @AppStorage(YouProfile.aboutMeKey) private var aboutMe = ""
     @Environment(\.dismiss) private var dismiss
@@ -776,27 +776,36 @@ struct AboutMeSheet: View {
     }
 }
 
-// MARK: - Settings › General › You
+// MARK: - Settings rows for You
 
-/// Your name, About me, and Count websites: the same settings the You page shows.
-struct YouSettingsSection: View {
+/// Account and plan › Your name: the same name the You page shows.
+struct YourNameSettingsRow: View {
     @AppStorage(YouProfile.nameKey) private var name = ""
-    @AppStorage(YouProfile.aboutMeKey) private var aboutMe = ""
-    @AppStorage(SiteCapture.countKey) private var countSites = true
-    @State private var editing = false
-
     var body: some View {
-        SettingsGroup(title: "You") {
-            SettingsRow("general.name") {
-                TextField("Your name", text: $name, prompt: Text(NSFullUserName()))
-                    .textFieldStyle(.roundedBorder).labelsHidden().frame(width: 220)
-            }
-            SettingsRow("general.aboutMe", detail: aboutMe.isEmpty ? nil : "\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters. Verbose uses this to spell names and word titles and summaries.") {
-                Button(aboutMe.isEmpty ? "Add…" : "Edit…") { editing = true }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
-            }
-            SettingsToggleRow("general.countSites", isOn: $countSites)
+        SettingsRow("general.name") {
+            TextField("Your name", text: $name, prompt: Text(NSFullUserName()))
+                .textFieldStyle(.roundedBorder).labelsHidden().frame(width: 220)
+        }
+    }
+}
+
+/// Personalization and preferences › About me, edited in a sheet as on the You page.
+struct AboutMeSettingsRow: View {
+    @AppStorage(YouProfile.aboutMeKey) private var aboutMe = ""
+    @State private var editing = false
+    var body: some View {
+        SettingsRow("general.aboutMe", detail: aboutMe.isEmpty ? nil : "\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters. Verbose uses this to spell names and word titles and summaries.") {
+            Button(aboutMe.isEmpty ? "Add…" : "Edit…") { editing = true }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
         }
         .sheet(isPresented: $editing) { AboutMeSheet() }
+    }
+}
+
+/// Privacy › Count websites: which websites the You page lists, by domain only.
+struct CountSitesSettingsRow: View {
+    @AppStorage(SiteCapture.countKey) private var countSites = true
+    var body: some View {
+        SettingsToggleRow("general.countSites", isOn: $countSites)
     }
 }
 
