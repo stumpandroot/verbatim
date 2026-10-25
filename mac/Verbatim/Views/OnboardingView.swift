@@ -1,7 +1,7 @@
 import SwiftUI
 import AVFoundation
 
-/// The welcome tour on the Mac: what Verbatim does, permissions, a first dictation, where the floating button
+/// The welcome tour on the Mac: what Verbatim does, permissions, a first dictation, where the Ribbon
 /// lives, and transcription quality. Shown once after an update and whenever Settings asks for it.
 struct OnboardingView: View {
     @EnvironmentObject var app: AppState
@@ -49,7 +49,7 @@ struct OnboardingView: View {
     }
 
     private var label: String {
-        ["Welcome to Verbose", "Permissions", "Try it", "The floating button", "Last step"][step]
+        ["Welcome to Verbose", "Permissions", "Try it", "The Ribbon", "Last step"][step]
     }
 
     // MARK: Steps
@@ -137,7 +137,7 @@ struct OnboardingView: View {
             }
             .padding(.top, 20)
             .opacity(flow.showBar ? 1 : 0.45)
-            Toggle("Hide the button; I'll use the hotkey", isOn: Binding(get: { !flow.showBar }, set: { flow.showBar = !$0 }))
+            Toggle("Hide the Ribbon; I'll use the hotkey", isOn: Binding(get: { !flow.showBar }, set: { flow.showBar = !$0 }))
                 .toggleStyle(.checkbox).font(.system(size: 13)).foregroundStyle(Ink.dim).padding(.top, 14)
         }
     }

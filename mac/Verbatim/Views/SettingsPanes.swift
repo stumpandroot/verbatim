@@ -58,7 +58,8 @@ struct UpdateSettingsSection: View {
 
 // MARK: - App › Dictation
 
-/// Dictation: the hotkey and mode, cleanup, tone per kind of app, accuracy, snippets, and Accessibility.
+/// Dictation: where it shows, the hotkey and how it starts, cleanup, tone per kind of app, accuracy, snippets, and
+/// Accessibility.
 struct DictationSettings: View {
     @EnvironmentObject var app: AppState
     var body: some View { DictationForm(dictation: app.dictation) }
@@ -79,23 +80,13 @@ struct DictationForm: View {
             SettingsGroup {
                 SettingsToggleRow("dictate.enabled", isOn: $dictation.enabled)
             }
+            SettingsGroup(title: "Where dictation shows") {
+                DictationSurfaceRows()
+            }
             SettingsGroup(title: "Starting and stopping") {
-                SettingsRow("dictate.hotkey") {
-                    Picker("Hotkey", selection: $dictation.hotkey) {
-                        ForEach(DictationController.Hotkey.allCases) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
-                }
-                SettingsRow("dictate.mode", detail: flow.mode.note + " Press Esc to cancel. Hold Shift as you start to edit selected text by voice. ⌘⌃V pastes your last dictation again.") {
-                    Picker("Mode", selection: $flow.mode) {
-                        ForEach(FlowMode.allCases) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
-                }
-                SettingsRow("dictate.shortcuts", stacked: true) {
-                    VStack(alignment: .leading, spacing: 8) { DictationHotkeyRows(dictation: dictation) }
-                        .settingsFormRows()
-                }
+                HotkeyPickerRow(dictation: dictation)
+                HowItStartsRow(dictation: dictation)
+                DictationHotkeyRows(dictation: dictation)
                 RecallShortcutRow()
                 LowerAudioRow()
                 AutoSendSettingsRow()
@@ -212,39 +203,7 @@ struct DictationForm: View {
 
 // MARK: - App › Floating button
 
-struct FloatingButtonSettingsPane: View {
-    @EnvironmentObject var app: AppState
-    @ObservedObject private var flow = FlowSettings.shared
-    @AppStorage(LiveWordsSetting.key) private var liveWords = true
-    @AppStorage(RibbonStyle.key) private var ribbonStyle: String = RibbonStyle.paper.rawValue
-    @AppStorage(RibbonMark.key) private var ribbonMark: String = RibbonMark.bars.rawValue
-
-    var body: some View {
-        SettingsPane(tab: .floatingButton) {
-            SettingsGroup {
-                SettingsToggleRow("float.show", isOn: $flow.showBar)
-            }
-            SettingsGroup(title: "Look") {
-                SettingsRow("float.style") {
-                    Picker("Style", selection: $ribbonStyle) {
-                        Text("Paper").tag(RibbonStyle.paper.rawValue)
-                        Text("Ink").tag(RibbonStyle.ink.rawValue)
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
-                }
-                SettingsRow("float.mark") {
-                    Picker("Voice mark", selection: $ribbonMark) {
-                        Text("Three bars").tag(RibbonMark.bars.rawValue)
-                        Text("Rings").tag(RibbonMark.rings.rawValue)
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
-                }
-                SettingsToggleRow("float.liveWords", isOn: $liveWords)
-                    .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords() } }
-            }
-        }
-    }
-}
+// FloatingButtonSettingsPane is in DictationSurfaceSettings.swift, with the rest of the dictation surfaces' settings.
 
 // MARK: - Transcription › Models and language
 

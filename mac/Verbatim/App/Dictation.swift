@@ -12,7 +12,8 @@ extension Notification.Name {
 
 /// Verbatim Flow: dictate into any app on the Mac.
 ///
-/// Start with the hotkey (hold to talk, tap for hands-free, or both) or by clicking the floating button.
+/// Start with the hotkey (hold to talk, press for hands-free, or either) or by clicking the Ribbon, the notch, or
+/// the floating button (Settings › Dictation › Show dictation in).
 /// Verbatim transcribes on this Mac, cleans the words up for the app you're in (email, chat, code), pastes
 /// them where your cursor is, and puts your clipboard back. Every dictation is kept, with its audio, in
 /// Dictations, so a missed paste is never a lost thought.
@@ -21,15 +22,18 @@ extension Notification.Name {
 /// fields), and to press ⌘V there. Nothing leaves the Mac.
 @MainActor
 final class DictationController: ObservableObject {
+    /// Settings › Dictation › Hotkey. The raw values are saved in `dictateHotkey`; the old ⌃⌥ Space choice is
+    /// upgraded to a recorded ⌃⌥ Space on first launch (`HotkeyStore.upgrade`), so it works as before.
     enum Hotkey: String, CaseIterable, Identifiable {
-        case rightOption, rightCommand, fnGlobe, controlOptionSpace
+        case fnGlobe, rightCommand, rightOption, custom, mouse
         var id: String { rawValue }
         var title: String {
             switch self {
             case .rightOption: return "Right ⌥ Option"
             case .rightCommand: return "Right ⌘ Command"
             case .fnGlobe: return "🌐 Fn"
-            case .controlOptionSpace: return "⌃⌥ Space"
+            case .custom: return HotkeyStore.custom()?.title ?? "A shortcut you choose"
+            case .mouse: return HotkeyStore.mouseButton().map { "Mouse " + MouseButtons.title($0) } ?? "A mouse button"
             }
         }
         var shortTitle: String {
@@ -37,10 +41,45 @@ final class DictationController: ObservableObject {
             case .rightOption: return "hold right ⌥"
             case .rightCommand: return "hold right ⌘"
             case .fnGlobe: return "hold Fn"
-            case .controlOptionSpace: return "hold ⌃⌥ Space"
+            case .custom: return "hold " + (HotkeyStore.custom()?.title ?? "your shortcut")
+            case .mouse: return "hold mouse " + (HotkeyStore.mouseButton().map(MouseButtons.title) ?? "button")
             }
         }
-        var isModifierOnly: Bool { self != .controlOptionSpace }
+        /// The hotkey as a keycap reads: "right ⌥", "fn", "⌃⌥D", "button 4".
+        var keycap: String {
+            switch self {
+            case .rightOption: return "right ⌥"
+            case .rightCommand: return "right ⌘"
+            case .fnGlobe: return "fn"
+            case .custom: return HotkeyStore.custom()?.title ?? "—"
+            case .mouse: return HotkeyStore.mouseButton().map(MouseButtons.title) ?? "—"
+            }
+        }
+        /// A modifier key on its own: pressing another key right after it means a shortcut (⌥E), not dictation.
+        var isModifierOnly: Bool { self == .fnGlobe || self == .rightCommand || self == .rightOption }
+        /// A keyed shortcut: Secure Event Input stops it reaching the event monitors (the Carbon fallback steps in).
+        var isKeyed: Bool { self == .custom }
+        /// A recorded shortcut or a mouse button has to be set before it can be the hotkey.
+        var isReady: Bool {
+            switch self {
+            case .custom: return HotkeyStore.custom() != nil
+            case .mouse: return HotkeyStore.mouseButton() != nil
+            default: return true
+            }
+        }
+
+        /// The saved choice, upgrading the old ⌃⌥ Space. A recorded shortcut or mouse button that went missing
+        /// falls back to the default, right ⌥, rather than to no hotkey at all.
+        static func load(_ d: UserDefaults = .standard) -> Hotkey {
+            let stored = d.string(forKey: HotkeyStore.choiceKey)
+            if let up = HotkeyStore.upgrade(stored: stored) {
+                d.set(up.custom.stored, forKey: HotkeyStore.customKey)
+                d.set(up.choice, forKey: HotkeyStore.choiceKey)
+                return .custom
+            }
+            let h = Hotkey(rawValue: stored ?? "") ?? .rightOption
+            return h.isReady ? h : .rightOption
+        }
     }
 
     @Published private(set) var isListening = false {
@@ -67,9 +106,16 @@ final class DictationController: ObservableObject {
     /// Secure Event Input has been on for 3 seconds or more (a password field, Terminal's Secure Keyboard Entry).
     /// Keyed shortcuts stop reaching the event monitors then; modifier-only hotkeys keep working.
     @Published private(set) var secureInputOn = false
-    @Published var hotkey: Hotkey = Hotkey(rawValue: UserDefaults.standard.string(forKey: "dictateHotkey") ?? "") ?? .rightOption {
-        didSet { UserDefaults.standard.set(hotkey.rawValue, forKey: "dictateHotkey"); if secureSince != nil { carbon.activate(hotkey: hotkey) }; bar?.refresh() }
+    @Published var hotkey: Hotkey = Hotkey.load() {
+        didSet { hotkeyChanged() }
     }
+    /// True while Settings records a shortcut or waits for a mouse button: the hotkey and Esc don't act meanwhile.
+    var hotkeySuspended = false {
+        // Choosing a mouse button: the tap would take the very click Settings is waiting for.
+        didSet { if hotkeySuspended != oldValue, accessibilityTrusted { if hotkeySuspended { mouseTap.stop() } else { updateMouseTap() } } }
+    }
+    /// Listens for the chosen mouse button (Settings › Dictation › Hotkey › A mouse button).
+    private lazy var mouseTap = MouseButtonTap { [weak self] number, down in self?.mouseButton(number, down: down) }
     @Published var enabled: Bool = UserDefaults.standard.object(forKey: "dictateEnabled") == nil ? true : UserDefaults.standard.bool(forKey: "dictateEnabled") {
         didSet { UserDefaults.standard.set(enabled, forKey: "dictateEnabled"); refreshMonitors(); warmRecorder(); bar?.refresh() }
     }
@@ -272,10 +318,10 @@ final class DictationController: ObservableObject {
     private func showMicProblem(_ verb: String, warned: MicWarning? = nil) {
         switch warned {
         case .muted(let name):
-            bar?.flash("Stopped listening: \(MicWarning.phrase(name)) is muted. Unmute it, then dictate again.", seconds: 8)
+            bar?.flash("Stopped listening: \(MicWarning.phrase(name)) is muted. Unmute it, then dictate again.", seconds: 8, tone: .error)
             return
         case .silent(let name):
-            bar?.flash("Couldn't hear \(MicWarning.phrase(name)). If it has a mute button or switch, unmute it and dictate again.", action: "Settings", seconds: 8) { [weak self] in
+            bar?.flash("Couldn't hear \(MicWarning.phrase(name)). If it has a mute button or switch, unmute it and dictate again.", action: "Settings", seconds: 8, tone: .error) { [weak self] in
                 self?.openSettings(tab: .general)
             }
             return
@@ -283,7 +329,7 @@ final class DictationController: ObservableObject {
         }
         let name = AudioDevices.current()?.name ?? "the microphone"
         let mic = name.range(of: "mic", options: .caseInsensitive) != nil ? name : "the \(name) mic"
-        bar?.flash("\(verb) \(mic). Check Settings › General › Microphone.", action: "Open", seconds: 6) { [weak self] in
+        bar?.flash("\(verb) \(mic). Check Settings › General › Microphone.", action: "Open", seconds: 6, tone: .error) { [weak self] in
             self?.openSettings(tab: .general)
         }
     }
@@ -320,14 +366,16 @@ final class DictationController: ObservableObject {
         updateSecureInputWatch()
         guard enabled, accessibilityTrusted else {
             if enabled { Log.note("dictation hotkey off: Accessibility not allowed") }
+            mouseTap.stop()
             return
         }
+        updateMouseTap()
         // Global (other apps) and local (our own windows) so it works everywhere.
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e) }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in
             // ⌃⌥P and ⌃⌘V are ours; don't also send them to the text field in front (the thought pad's, say).
-            if e.type == .keyDown, Self.isOwnShortcut(e) { self?.handle(e); return nil }
+            if e.type == .keyDown, self?.hotkeySuspended != true, Self.isOwnShortcut(e) { self?.handle(e); return nil }
             self?.handle(e); return e
         }) { monitors.append(l) }
         Log.note("dictation monitors on, hotkey=\(hotkey.rawValue)")
@@ -366,7 +414,7 @@ final class DictationController: ObservableObject {
         secureInputOn = true
         Log.note("secure input on; Carbon fallback has \(carbon.covered), missing \(carbon.uncovered)")
         bar?.refresh()
-        if !hotkey.isModifierOnly, !carbon.coversDictate, !secureFlashed, !isListening, !isWorking {
+        if hotkey.isKeyed, !carbon.coversDictate, !secureFlashed, !isListening, !isWorking {
             secureFlashed = true
             bar?.flash("Secure input is on (a password field or Terminal), so \(hotkey.title) can't be heard. Click here to dictate.", seconds: 6)
         }
@@ -387,7 +435,7 @@ final class DictationController: ObservableObject {
     /// The Ribbon's hint while secure input blocks a keyed shortcut the Carbon fallback couldn't take over.
     var secureInputHint: String? {
         guard secureInputOn else { return nil }
-        if !hotkey.isModifierOnly && !carbon.coversDictate { return "secure input on · click to dictate" }
+        if hotkey.isKeyed && !carbon.coversDictate { return "secure input on · click to dictate" }
         if !carbon.uncovered.isEmpty { return "secure input on · some shortcuts paused" }
         return nil
     }
@@ -402,7 +450,7 @@ final class DictationController: ObservableObject {
         let ts = ProcessInfo.processInfo.systemUptime   // the same clock as NSEvent.timestamp
         switch action {
         case .dictate, .dictateCommand:
-            guard hotkey == .controlOptionSpace else { return }
+            guard hotkey == .custom, !hotkeySuspended else { return }
             if down { if !keyDown { pressed(shift: action == .dictateCommand, at: ts) } }
             else if keyDown { released(at: ts) }
         case .pasteLast: if down { pasteLast() }
@@ -424,12 +472,16 @@ final class DictationController: ObservableObject {
     }
 
     private func handle(_ e: NSEvent) {
+        // Settings is recording a shortcut: those keys are for the recorder.
+        if hotkeySuspended { return }
         // Esc cancels a dictation in progress, or while its words are being written; ⌘⌃V pastes the last one again.
         if e.type == .keyDown {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
             if e.keyCode == UInt16(kVK_Escape), writingSession != nil { cancelWriting(); return }
             // Esc closes the didn't-paste notice (the words stay on the clipboard and in the thought pad).
             if e.keyCode == UInt16(kVK_Escape), rescuing, bar?.model.phase == .prompt { rescuing = false; bar?.dismissPrompt(); return }
+            // Esc closes an error the notch or the floating button holds until you act.
+            if e.keyCode == UInt16(kVK_Escape), bar?.dismissStickyNotice() == true { return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { if !e.isARepeat { pasteLast() }; return }
             if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtPadController.shared.toggle(); return }
@@ -438,13 +490,56 @@ final class DictationController: ObservableObject {
         case .rightOption: modifier(e, code: 61, flag: .option)          // kVK_RightOption
         case .rightCommand: modifier(e, code: 54, flag: .command)        // kVK_RightCommand
         case .fnGlobe: modifier(e, code: 63, flag: .function)            // kVK_Function
-        case .controlOptionSpace:
-            if e.keyCode == 49 {                                          // kVK_Space
-                let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                if e.type == .keyDown, mods.contains([.control, .option]), !e.isARepeat { pressed(shift: mods.contains(.shift), at: e.timestamp) }
+        case .custom:
+            // A recorded shortcut (the old ⌃⌥ Space is one): ⇧ added edits selected text by voice.
+            guard let combo = HotkeyStore.custom() else { return }
+            if e.keyCode == combo.keyCode, e.type == .keyDown || e.type == .keyUp {
+                if e.type == .keyDown, !e.isARepeat, let m = combo.match(keyCode: e.keyCode, mods: Self.keyMods(e.modifierFlags)) {
+                    pressed(shift: m == .withShift, at: e.timestamp)
+                }
                 if e.type == .keyUp, keyDown { released(at: e.timestamp) }
             } else if e.type == .keyDown { otherKey(at: e.timestamp) }
+        case .mouse:
+            break   // MouseButtonTap calls mouseButton(_:down:)
         }
+    }
+
+    /// NSEvent's modifier flags as the hotkey rules name them.
+    nonisolated static func keyMods(_ f: NSEvent.ModifierFlags) -> KeyMods {
+        var m: KeyMods = []
+        if f.contains(.control) { m.insert(.control) }
+        if f.contains(.option) { m.insert(.option) }
+        if f.contains(.shift) { m.insert(.shift) }
+        if f.contains(.command) { m.insert(.command) }
+        return m
+    }
+
+    /// A new hotkey choice, a newly recorded shortcut, or a new mouse button: saved, and every listener updated.
+    func hotkeyChanged() {
+        UserDefaults.standard.set(hotkey.rawValue, forKey: HotkeyStore.choiceKey)
+        if secureSince != nil {
+            // Re-register, so a newly recorded shortcut replaces the old one in the Carbon fallback.
+            carbon.deactivate()
+            carbon.activate(hotkey: hotkey)
+            carbon.setEscape(escapeCancels)
+        }
+        if accessibilityTrusted { updateMouseTap() }
+        objectWillChange.send()
+        bar?.refresh()
+        Log.note("dictation hotkey=\(hotkey.rawValue)")
+    }
+
+    /// Runs the mouse button listener only while a mouse button is the hotkey (and dictation is on).
+    private func updateMouseTap() {
+        if enabled, hotkey == .mouse, let n = HotkeyStore.mouseButton() { mouseTap.start(button: n) } else { mouseTap.stop() }
+    }
+
+    /// The chosen mouse button went down or up: the same as pressing and letting go of the hotkey.
+    private func mouseButton(_ number: Int, down: Bool) {
+        guard !hotkeySuspended, enabled, hotkey == .mouse, number == HotkeyStore.mouseButton() else { return }
+        let ts = ProcessInfo.processInfo.systemUptime   // the same clock as NSEvent.timestamp
+        if down { if !keyDown { pressed(shift: NSEvent.modifierFlags.contains(.shift), at: ts) } }
+        else if keyDown { released(at: ts) }
     }
 
     private func modifier(_ e: NSEvent, code: UInt16, flag: NSEvent.ModifierFlags) {
@@ -496,7 +591,7 @@ final class DictationController: ObservableObject {
         }
     }
 
-    // MARK: Floating button
+    // MARK: Ribbon, notch, and floating button clicks
 
     func barClicked() {
         if isListening { finish() } else if !isWorking { startFromBar(command: false) }
@@ -505,7 +600,7 @@ final class DictationController: ObservableObject {
     func startFromBar(command: Bool) {
         guard !isListening else { return }
         guard accessibilityTrusted else {
-            bar?.flash("Allow Accessibility to dictate", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+            bar?.flash("Allow Accessibility to dictate", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.openAccessibilitySettings() }
             return
         }
         begin(handsFree: true, command: command)
@@ -526,12 +621,12 @@ final class DictationController: ObservableObject {
                 Task { @MainActor in
                     // The key was let go during the permission dialog, so listen hands-free; click or tap to stop.
                     if ok { self?.begin(handsFree: true, command: wantCommand) }
-                    else { self?.bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() } }
+                    else { self?.bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6, tone: .error) { Self.openMicrophoneSettings() } }
                 }
             }
             return
         default:
-            bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6) { Self.openMicrophoneSettings() }
+            bar?.flash("Verbose can't hear you: microphone access is off", action: "Open", seconds: 6, tone: .error) { Self.openMicrophoneSettings() }
             return
         }
         target = NSWorkspace.shared.frontmostApplication
@@ -575,6 +670,8 @@ final class DictationController: ObservableObject {
             m.command = command
             m.warning = Self.bluetoothWarning()
             m.appLabel = Self.label(for: targetAppName)
+            m.targetName = target?.localizedName ?? ""
+            m.targetBundleID = target?.bundleIdentifier
         }
         bar?.setPhase(.listening)
         FlowCleanup.prewarm()
@@ -729,7 +826,7 @@ final class DictationController: ObservableObject {
         let loud = env.sorted(by: >).prefix(max(1, env.count / 10))
         if !stoppedAtLimit, !env.isEmpty, (loud.reduce(0, +) / Float(loud.count)) < 0.05 {
             keepNothingHeard(url: url, duration: duration, env: env)   // in Dictations, never pasted
-            bar?.flash("Didn't hear anything. Check your mic in Settings.", seconds: 3)
+            bar?.flash("Didn't hear anything. Check your mic in Settings.", seconds: 3, tone: .error)
             return
         }
         let mine = session
@@ -849,7 +946,7 @@ final class DictationController: ObservableObject {
                     self?.keepFailed(url: url, duration: duration, env: env, error: error.localizedDescription)
                     if cancelled.remove(mine) { return }
                     self?.endWriting(mine)
-                    if self?.isListening != true { self?.bar?.flash("Dictation failed. It's saved in Dictations.", seconds: 4) }
+                    if self?.isListening != true { self?.bar?.flash("Dictation failed. It's saved in Dictations.", seconds: 4, tone: .error) }
                 }
             }
         }
@@ -976,7 +1073,7 @@ final class DictationController: ObservableObject {
                 if let note { bar?.flash(note, seconds: 4) }
                 else if let correction { showCorrectionNotice(correction) }
                 else if atLimit { bar?.flash("Stopped at \(Self.limitText(FlowSettings.maxDictationMinutes))", seconds: 2) }
-                else { bar?.setPhase(.idle) }
+                else { bar?.confirmPaste(app: appName, words: text.split(whereSeparator: { $0.isWhitespace }).count) }
                 if !wasCommand { learner.watch(element: ctx?.element, cursor: ctx?.cursor, pasted: spaced.trimmingCharacters(in: .whitespaces), appName: ctx?.appName ?? "") }
                 // Settings › Dictation › After pasting: Return or ⌘Return to send (Flow/AutoSend.swift).
                 if !wasCommand { await AutoSend.afterPaste(target: tgt, category: ctx?.category, secureAtStart: ctx?.secureField ?? false) }
@@ -998,11 +1095,11 @@ final class DictationController: ObservableObject {
                 } else {
                     switch why {
                     case .notTrusted:
-                        bar?.flash("Saved to the thought pad. Allow Accessibility to paste.", action: "Open", seconds: 6) { [weak self] in self?.openAccessibilitySettings() }
+                        bar?.flash("Saved to the thought pad. Allow Accessibility to paste.", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.openAccessibilitySettings() }
                     case .notRead:
-                        bar?.flash("\(appName) didn't take the paste. Saved to the thought pad; ⌃⌘V tries again.", seconds: 5)
+                        bar?.flash("\(appName) didn't take the paste. Saved to the thought pad; ⌃⌘V tries again.", seconds: 5, tone: .error)
                     case .typingInterrupted:
-                        bar?.flash("Typing stopped part way. The full text is in the thought pad.", seconds: 5)
+                        bar?.flash("Typing stopped part way. The full text is in the thought pad.", seconds: 5, tone: .error)
                     }
                 }
             }
@@ -1288,7 +1385,11 @@ final class CarbonHotkeys {
     func activate(hotkey: DictationController.Hotkey) {
         guard installHandler() else { return }
         var want: [CarbonAction] = [.pasteLast, .thoughtPad]
-        if hotkey == .controlOptionSpace { want += [.dictate, .dictateCommand] }
+        if hotkey == .custom, let c = HotkeyStore.custom() {
+            want.append(.dictate)
+            // With ⇧ already in the shortcut, there's no separate edit-by-voice shortcut to register.
+            if !c.mods.contains(.shift) { want.append(.dictateCommand) }
+        }
         if refs[.escape] != nil { want.append(.escape) }
         for a in CarbonAction.allCases where !want.contains(a) { unregister(a) }
         for a in want { register(a) }
@@ -1326,13 +1427,23 @@ final class CarbonHotkeys {
 
     private static func binding(_ a: CarbonAction) -> (key: Int, mods: Int) {
         switch a {
-        case .dictate: return (kVK_Space, controlKey | optionKey)
-        case .dictateCommand: return (kVK_Space, controlKey | optionKey | shiftKey)
+        case .dictate: let c = HotkeyStore.custom() ?? .controlOptionSpace; return (Int(c.keyCode), carbonMods(c.mods))
+        case .dictateCommand: let c = HotkeyStore.custom() ?? .controlOptionSpace; return (Int(c.keyCode), carbonMods(c.mods.union(.shift)))
         case .pasteLast: return (kVK_ANSI_V, cmdKey | controlKey)
         case .copyLast: return (kVK_ANSI_C, controlKey | optionKey)
         case .thoughtPad: return (kVK_ANSI_P, controlKey | optionKey)
         case .escape: return (kVK_Escape, 0)
         }
+    }
+
+    /// Carbon's modifier bits for a recorded shortcut.
+    private static func carbonMods(_ m: KeyMods) -> Int {
+        var r = 0
+        if m.contains(.control) { r |= controlKey }
+        if m.contains(.option) { r |= optionKey }
+        if m.contains(.shift) { r |= shiftKey }
+        if m.contains(.command) { r |= cmdKey }
+        return r
     }
 
     private func installHandler() -> Bool {
@@ -1353,19 +1464,24 @@ final class CarbonHotkeys {
     fileprivate func fire(_ a: CarbonAction, down: Bool) { owner?.carbonHotkey(a, down: down) }
 }
 
-/// Settings › Dictate rows: the shortcuts that work alongside the dictation hotkey, and secure input's state.
+/// Settings › Dictation › Other shortcuts: the shortcuts that work alongside the dictation hotkey as keycaps, and
+/// secure input's state under them.
 struct DictationHotkeyRows: View {
     @ObservedObject var dictation: DictationController
 
     var body: some View {
-        LabeledContent("Paste last dictation") { Text("⌃⌘V").font(.system(size: 13, design: .monospaced)) }
-        LabeledContent("Copy last dictation") { Text("Floating button menu").font(.system(size: 12)).foregroundStyle(Ink.mute) }
-        LabeledContent("Thought pad") { Text("⌃⌥P").font(.system(size: 13, design: .monospaced)) }
-        if dictation.secureInputOn {
-            Text(dictation.hotkey.isModifierOnly
-                 ? "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Your hotkey still works, and Verbose listens for the other shortcuts another way until it's off."
-                 : "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Verbose listens for \(dictation.hotkey.title) another way until it's off. If it doesn't respond, click the floating button, or pick a modifier hotkey like right ⌥.")
-                .font(.system(size: 12)).foregroundStyle(Ink.accentText)
+        SettingsRow("dictate.shortcuts", detail: secureNote, detailColor: dictation.secureInputOn ? Ink.accentText : Ink.mute) {
+            HStack(spacing: 6) {
+                KeyChip(text: "⌃⌘V").help("Paste last dictation")
+                KeyChip(text: "⌃⌥P").help("Thought pad")
+            }
         }
+    }
+
+    private var secureNote: String? {
+        guard dictation.secureInputOn else { return nil }
+        return dictation.hotkey.isKeyed
+            ? "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Verbose listens for \(dictation.hotkey.title) another way until it's off. If it doesn't respond, click \(DictationSurface.stored().clickHint), or pick a modifier hotkey like right ⌥."
+            : "Secure input is on (a password field, or Terminal's Secure Keyboard Entry). Your hotkey still works, and Verbose listens for the other shortcuts another way until it's off."
     }
 }

@@ -1,22 +1,28 @@
 import Foundation
 import Combine
 
-/// How dictation starts and stops.
+/// Settings › Dictation › How it starts: hold to talk, press to start and stop, or either. The raw values are the
+/// ones saved before the picker was renamed (hybrid was "Tap or hold", toggle "Tap to start and stop"), so everyone
+/// keeps their choice; the default is still either.
 enum FlowMode: String, CaseIterable, Identifiable {
     case hybrid, hold, toggle
     var id: String { rawValue }
+    /// The order the picker shows them in.
+    static let pickerOrder: [FlowMode] = [.hold, .toggle, .hybrid]
     var title: String {
         switch self {
-        case .hybrid: return "Tap or hold"
+        case .hybrid: return "Either"
         case .hold: return "Hold to talk"
-        case .toggle: return "Tap to start and stop"
+        case .toggle: return "Press to start and stop"
         }
     }
-    var note: String {
+    var note: String { note(thing: "key") }
+    /// The note for a hotkey that's a key, or for a mouse button ("button").
+    func note(thing: String) -> String {
         switch self {
-        case .hybrid: return "Hold the key to talk and let go to paste. Tap it once to keep listening hands-free, and tap again to paste."
-        case .hold: return "Hold the key while you talk. Let go to paste."
-        case .toggle: return "Tap the key to start listening. Tap it again to paste."
+        case .hybrid: return "Hold the \(thing) while you talk and let go to paste, or press it once to keep listening and again to paste."
+        case .hold: return "Hold the \(thing) while you talk and let go to paste."
+        case .toggle: return "Press the \(thing) to start listening, and press it again to paste."
         }
     }
 }
@@ -86,7 +92,7 @@ struct Snippet: Codable, Identifiable, Equatable, SyncEntry {
 }
 
 /// A saved action: a named instruction that rewrites text or pulls something out of it.
-/// Runs on selected text in any app (from the floating button's menu, or by saying its name in edit-by-voice),
+/// Runs on selected text in any app (from the Ribbon's menu, or by saying its name in edit-by-voice),
 /// on a dictation, or on a whole transcript.
 struct FlowAction: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable, Identifiable {
@@ -125,7 +131,7 @@ struct FlowAction: Codable, Identifiable, Equatable {
     }
 }
 
-/// Where the floating button sits.
+/// Where the Ribbon sits.
 enum BarEdge: String, Codable { case bottom, left, right }
 
 /// Every setting for Verbatim Flow (system-wide dictation), saved in UserDefaults.

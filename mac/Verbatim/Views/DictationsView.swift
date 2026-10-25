@@ -101,7 +101,7 @@ struct DictationsView: View {
     @ViewBuilder private func emptyState(_ none: Bool) -> some View {
         if none {
             EmptyStateCard(art: .iconDictations, title: "No dictations yet",
-                           message: "Click the floating button at the edge of your screen, or press \(app.dictation.hotkey.shortTitle), and talk. The words land where your cursor is.")
+                           message: "Click \(DictationSurface.stored().clickHint), or press \(app.dictation.hotkey.shortTitle), and talk. The words land where your cursor is.")
         } else {
             EmptyStateCard(art: .search, title: "Nothing matches",
                            message: "No dictation in this category matches your search.", button: "Show all") {

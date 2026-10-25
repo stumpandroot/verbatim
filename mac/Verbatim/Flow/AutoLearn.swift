@@ -6,18 +6,18 @@ import ApplicationServices
 /// After a paste into a field Verbatim can read, it looks at that field again when you start the next
 /// dictation or after 20 seconds, whichever comes first. Where you replaced a dictated word with a different
 /// one that looks like a name or term (the Mac's spell checker doesn't know it, it isn't a number or a link,
-/// and it sounds similar), the floating button asks whether to remember it. Nothing is learned without a yes.
+/// and it sounds similar), the Ribbon (or the notch, or the floating button) asks whether to remember it. Nothing is learned without a yes.
 /// Only the pasted span is compared; nothing else in the field is kept.
 @MainActor
 final class AutoLearn {
     private struct Watch { let element: AXUIElement; let pasted: String; let cursor: Int; let app: String; let at: Date }
     private var watch: Watch?
     private var timer: Timer?
-    /// A "Remember?" question waiting for the floating button to be free (it found the fix as a dictation started).
+    /// A "Remember?" question waiting for the Ribbon to be free (it found the fix as a dictation started).
     private var pending: (prompt: FlowBarModel.Prompt, at: Date)?
     weak var app: AppState?
 
-    /// Asks a waiting "Remember?" question once the floating button is free again. A question older than a
+    /// Asks a waiting "Remember?" question once the Ribbon is free again. A question older than a
     /// minute is dropped; it would arrive out of context.
     func showPending() {
         guard let p = pending, let d = app?.dictation, let bar = d.bar else { return }
@@ -68,7 +68,7 @@ final class AutoLearn {
         if added { app.store.dictionary = dictionary }
         guard !ask.isEmpty, let bar = app.dictation.bar else { return }
         Log.note("auto-learn: asking about \(ask.count) word(s)")
-        // Ask in the floating button, where you are. Nothing is learned unless you say so.
+        // Ask in the Ribbon, where you are. Nothing is learned unless you say so.
         let names = ask.map { "“\($0.fixed)”" }.joined(separator: ", ")
         let project = settings.activeProject.flatMap { id in app.store.projects.first { $0.id == id } }
         let source = "Learned from your edit in \(w.app)"

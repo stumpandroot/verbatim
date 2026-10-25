@@ -326,7 +326,7 @@ struct YouView: View {
             DayBars(days: YouRange.days(in: range, calendar: cal), byDay: stats.byDay, span: span, calendar: cal)
                 .frame(minHeight: 200)
             if log.events.isEmpty {
-                Text("Dictate into any app with \(app.dictation.hotkey.shortTitle) or the floating button. Your totals show up here.")
+                Text("Dictate into any app with \(app.dictation.hotkey.shortTitle) or \(DictationSurface.stored().clickHint). Your totals show up here.")
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute)
             }
         }

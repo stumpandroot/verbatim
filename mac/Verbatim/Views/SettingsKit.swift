@@ -11,7 +11,8 @@ import AppKit
 // MARK: - Panes
 
 /// A Settings pane. Raw values persist in "settingsTab"; `general`, `dictate`, `actions`, and `storage` keep the
-/// values the old tabbed window used, so links from the floating button and the welcome tour still land.
+/// values the old tabbed window used, so links from the Ribbon and the welcome tour still land. `floatingButton`
+/// held the Ribbon's settings before the floating button became its own style; it keeps its raw value.
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general, dictate, floatingButton, actions, privacy
     case models = "transcription", speakers, captions, meetings
@@ -50,8 +51,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var blurb: String {
         switch self {
         case .general: return "How Verbose looks, sounds, and stays up to date."
-        case .dictate: return "Dictate into any app: the hotkey, cleanup, the tone for each kind of app, and snippets."
-        case .floatingButton: return "The small button at the edge of your screen that starts and pastes a dictation."
+        case .dictate: return "Hold or press your hotkey in any app and Verbose types what you say."
+        case .floatingButton: return "Shown when Dictation › Show dictation in is set to Floating button. Click it to start, click again to paste; right-click it for options."
         case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac."
         case .privacy: return "What leaves this Mac, and when. Local Only keeps everything here."
         case .models: return "Which model transcribes your recordings, and what Verbose does to a transcript when it's ready."
@@ -106,10 +107,19 @@ enum SettingsIndex {
         .init("general.countSites", .general, "Count websites", "When you dictate into Safari, Chrome, Arc, Edge, or Brave, the You page shows which websites, by domain only, never full addresses. macOS asks once per browser.", keywords: "domains browser where you dictate activity stats privacy"),
 
         // Dictation
-        .init("dictate.enabled", .dictate, "Dictate anywhere", "Hold or press your hotkey in any app and Verbose types what you say.", keywords: "dictation voice typing"),
-        .init("dictate.hotkey", .dictate, "Hotkey", "The key that starts dictation.", keywords: "shortcut key fn option"),
-        .init("dictate.mode", .dictate, "Mode", "Hold to talk, or press once to start and again to stop. Press Esc to cancel.", keywords: "push to talk toggle hands-free"),
-        .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation, copy last dictation, and the Thought pad.", keywords: "paste again thought pad hotkey"),
+        .init("dictate.enabled", .dictate, "Dictate anywhere", "Off, the hotkey does nothing and dictation doesn't show on screen.", keywords: "dictation voice typing"),
+        .init("dictate.surface", .dictate, "Show dictation in", "What you see while Verbose listens, cleans up, and pastes.", keywords: "ribbon notch floating button pill tab where style display screen"),
+        .init("dictate.noNotch", .dictate, "On displays without a notch", "External displays and Macs without a notch.", keywords: "external display monitor pill ribbon notch"),
+        .init("dictate.notchWords", .dictate, "Show words as you speak", "Hover the notch to see them. What's pasted still comes from Verbose's own transcription.", keywords: "live words preview streaming notch"),
+        .init("dictate.notchClick", .dictate, "Click the notch to dictate", "Point at the notch to see your hotkey; click to start, click again to paste.", keywords: "notch click hover pointer"),
+        .init("ribbon.show", .dictate, "Show the Ribbon when you're not dictating", "Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.", keywords: "ribbon tab sliver edge hide flow bar pill"),
+        .init("ribbon.style", .dictate, "Style", "Paper is a light tab with ink type. Ink is a dark tab with paper type.", keywords: "ribbon look paper ink appearance"),
+        .init("ribbon.mark", .dictate, "Voice mark", "Moves with your voice while you dictate.", keywords: "ribbon bars rings level meter"),
+        .init("ribbon.liveWords", .dictate, "Show words as you speak", "A preview of your words in the Ribbon while you dictate, recognized on this Mac. What's pasted still comes from Verbose's own transcription.", keywords: "ribbon live words preview streaming"),
+        .init("dictate.buttonLink", .dictate, "Floating button", "Its look, size, and voice mark are in Settings › Floating button.", keywords: "floating button look size"),
+        .init("dictate.hotkey", .dictate, "Hotkey", "The key that starts dictation.", keywords: "shortcut key fn globe option command record mouse button side"),
+        .init("dictate.mode", .dictate, "How it starts", "Hold the key while you talk and let go to paste. Press Esc to cancel.", keywords: "mode hold to talk press start stop either push toggle hands-free tap"),
+        .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation and the Thought pad.", keywords: "paste again thought pad hotkey"),
         .init("dictate.recall", .dictate, "Recent dictations", "Shows your last 10 dictations in any app, so you can copy one or paste it again. Press 1–0 to copy, or hold ⇧ to paste. While it's set, the shortcut does nothing else, such as Paste Style (⌥⌘V) in Pages and TextEdit.", keywords: "history recent clipboard copy paste again missed failed lost shortcut hotkey panel"),
         .init("dictate.alwaysCopy", .dictate, "Also copy each dictation to the clipboard", "Each dictation stays on the clipboard after it's pasted, instead of what you copied before.", keywords: "clipboard copy keep paste pasteboard"),
         .init("dictate.lowerAudio", .dictate, "Lower other audio while Verbose listens", "Other sound drops to a whisper so it doesn't reach the microphone. Applies to dictation, voice notes, and Live captions from your microphone.", keywords: "duck music spotify youtube volume quiet mute background sound"),
@@ -126,16 +136,17 @@ enum SettingsIndex {
         .init("dictate.emailParagraphs", .dictate, "Paragraphs", "How long email paragraphs run: Short is 1 or 2 sentences, Normal is up to 4.", keywords: "email paragraph length short normal layout preview"),
         .init("dictate.context", .dictate, "Use the text around your cursor", "Verbose reads the app's name and the text near your cursor so names are spelled right and the tone matches. Password fields are never read, and nothing leaves this Mac.", keywords: "context privacy"),
         .init("dictate.boost", .dictate, "Listen for my Dictionary words", "Parakeet listens for the words in your Dictionary as you speak (a small extra model downloads once). Works best with fewer than 100 words.", keywords: "vocabulary accuracy boost"),
-        .init("dictate.autoLearn", .dictate, "Learn from my fixes", "When you correct a name or term right after it's pasted, the floating button asks whether to remember it. Nothing is learned unless you say yes.", keywords: "dictionary corrections learn"),
+        .init("dictate.autoLearn", .dictate, "Learn from my fixes", "When you correct a name or term right after it's pasted, Verbose asks whether to remember it. Nothing is learned unless you say yes.", keywords: "dictionary corrections learn"),
         .init("dictate.snippets", .dictate, "Snippets", "Say a trigger like “my calendar link” and Verbose pastes the saved text: a link, an address, a sign-off.", keywords: "text expansion shortcut"),
         .init("dictate.accessibility", .dictate, "Accessibility access", "macOS requires this so Verbose can notice the hotkey, see which app and text field you're in, and press ⌘V there.", keywords: "permission privacy system settings"),
         .init("dictate.typeInstead", .dictate, "Type instead of paste", "For apps that block ⌘V or paste the wrong thing.", keywords: "paste clipboard typing apps"),
 
-        // Floating button
-        .init("float.show", .floatingButton, "Show the floating button", "Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.", keywords: "flow bar ribbon pill"),
-        .init("float.style", .floatingButton, "Style", "Paper is a light tab with ink type. Ink is a dark tab with paper type.", keywords: "look paper ink appearance"),
+        // Floating button (its own style since the notch; the Ribbon's settings moved to Dictation)
+        .init("float.look", .floatingButton, "Button", "Ink disc, Bars pill, Quiet dot, or Labeled pill.", keywords: "look disc pill dot labeled style appearance"),
+        .init("float.size", .floatingButton, "Size", "Small is 32 pt, medium 44 pt, large 56 pt. The click target is never smaller than 28 pt.", keywords: "small medium large big"),
         .init("float.mark", .floatingButton, "Voice mark", "Moves with your voice while you dictate.", keywords: "bars rings level meter"),
-        .init("float.liveWords", .floatingButton, "Show words as you speak", "A preview of your words in the floating button while you dictate, recognized on this Mac. What's pasted still comes from Verbose's own transcription.", keywords: "live words preview streaming"),
+        .init("float.snap", .floatingButton, "Snap to the screen edge", "Off, it stays where you drop it. On, it slides to the nearest edge, like the Ribbon.", keywords: "edge snap drag place position"),
+        .init("float.liveWords", .floatingButton, "Show words as you speak", "A preview of your words beside the button, recognized on this Mac.", keywords: "live words preview streaming"),
 
         // Actions
         .init("actions.list", .actions, "Saved actions", "Name, instruction, and how long text is handled.", keywords: "prompt rewrite summarize instruction"),
