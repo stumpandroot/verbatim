@@ -78,6 +78,9 @@ targets:
     sources:
       - path: Verbatim
         excludes: ["Info.plist", "Verbatim.entitlements", "Verbatim-iCloud.entitlements", "Helper.entitlements", "Bridging.h"]
+      # What's new (Model/ReleaseNotes.swift): the release notes, shared with the iPhone app. CI stamps the "next"
+      # entry with the run number in its checkout before building (ReleaseNotes/README.md).
+      - ReleaseNotes/ReleaseNotes.json
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
@@ -264,6 +267,8 @@ targets:
       - path: VerbatimPhone
         excludes: ["Info.plist", "VerbatimPhone.entitlements"]
       - Verbatim/Model
+      # What's new (Model/ReleaseNotes.swift): the release notes, shared with the Mac app (ReleaseNotes/README.md).
+      - ReleaseNotes/ReleaseNotes.json
       # The built-in modern vocabulary (Model/BuiltInVocabulary.swift), shared with the Mac.
       - Verbatim/Resources/ModernVocabulary.json
       - Verbatim/Transcription

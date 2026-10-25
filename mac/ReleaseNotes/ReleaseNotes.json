@@ -1,0 +1,141 @@
+{
+  "notes": [
+    {
+      "build": "next",
+      "title": "Version notes",
+      "items": [
+        "Tap the version at the bottom of Settings to see what changed in each build. It's also in Settings › Support › What's new.",
+        "Mac: choose Verbose › What's New…, or open Settings › What's new.",
+        "After an update, Home shows a short note about the new build once. Tap it to read more, or close it.",
+        "Mac: the update window lists what's new in the build it offers."
+      ]
+    },
+    {
+      "build": "204",
+      "date": "2026-10-25",
+      "title": "Two looks",
+      "items": [
+        "New Native look on iPhone and Mac: a stock Apple style with a persimmon accent. Choose it in Settings › Appearance on iPhone or Settings › General on Mac, or when you first set up Verbose.",
+        "The Verbose keyboard follows the look you choose on iPhone."
+      ]
+    },
+    {
+      "build": "203",
+      "date": "2026-10-25",
+      "title": "Automatic updates on Mac",
+      "items": [
+        "The Mac app updates itself. New builds show up with Install and Relaunch, or choose Verbose › Check for Updates."
+      ]
+    },
+    {
+      "build": "202",
+      "date": "2026-10-25",
+      "title": "Keyboard sessions, the notch, and the scrubber",
+      "items": [
+        "With no session running, the keyboard shows Start a session, which opens Verbose straight into one. A card shows how to get back to the app you were in.",
+        "Getting ready: the first dictation shows that the speech model is loading instead of looking stuck. Verbose also loads it ahead of time when you open the app.",
+        "Keyboard sessions can last 10 minutes to 4 hours, or until you end them. The default is 2 hours.",
+        "A phone or FaceTime call pauses a session, and it resumes when the call ends.",
+        "When a session ends on its own, the Dynamic Island keeps a Restart button for 15 minutes.",
+        "Mac: the notch style now hangs over the menu bar, fully visible.",
+        "Mac: Verbose no longer asks for speech recognition at launch.",
+        "iPhone: the transcript scrubber now matches where you are in the recording, uses the brand's voice bars and speaker colors, and hides the system scroll bar."
+      ]
+    },
+    {
+      "build": "200",
+      "date": "2026-10-24",
+      "title": "New ways to dictate",
+      "items": [
+        "Mac: choose where dictation shows in Settings › Dictation: Ribbon, Notch, or Floating button. The notch style grows out of the MacBook notch; Macs without one get a pill at the top center.",
+        "Mac: a new floating dictation button with four looks and three sizes.",
+        "Mac: a new hotkey picker: Fn or Globe, Right ⌘, Right ⌥, a shortcut you record, or a mouse side button, with hold to talk or press to start and stop.",
+        "Mac: live words while you record a voice note.",
+        "iPhone: a new Dynamic Island and Lock Screen design for keyboard sessions.",
+        "iPhone: change the keyboard's dictate button size, position, and style in Settings › Keyboard.",
+        "iPhone: choose what the Action button does.",
+        "iPhone: hold the right edge of a long transcript and drag to scrub through it."
+      ]
+    },
+    {
+      "build": "199",
+      "date": "2026-10-24",
+      "title": "Sponsors, speaker names, and YouTube on iPhone",
+      "items": [
+        "Sponsor reads in podcasts fold into one row, playback skips them, and summaries and exports leave them out. Turn skipping off in Settings.",
+        "Suggested speaker names, from what people say, the link's channel and title, and voices you've named before. Tap Use to accept one.",
+        "YouTube links transcribe on iPhone with the right length, the channel, and the upload date.",
+        "Speaker changes line up with the ends of sentences.",
+        "Tags wrap onto more lines instead of running off the screen."
+      ]
+    },
+    {
+      "build": "197",
+      "date": "2026-10-24",
+      "title": "Polish",
+      "items": [
+        "iPhone: the record button on Home is centered on its rings."
+      ]
+    },
+    {
+      "build": "196",
+      "date": "2026-10-24",
+      "title": "Speakers and categories",
+      "items": [
+        "New categories: Podcast, Video, Talk, and Interview. Links and imported files are no longer labeled Meeting.",
+        "Main speaker only no longer hides people in links, imported files, and meetings.",
+        "Only one device transcribes each link, and both devices end up with the same copy.",
+        "Your TestFlight builds can transcribe YouTube links on iPhone."
+      ]
+    },
+    {
+      "build": "195",
+      "date": "2026-10-24",
+      "title": "Opens even when iCloud is busy",
+      "items": [
+        "Verbose no longer waits on iCloud to open. After an iOS update, it opens right away and loads the rest in the background."
+      ]
+    },
+    {
+      "build": "193",
+      "date": "2026-10-24",
+      "title": "Faster",
+      "items": [
+        "Links, Library, and You open faster, and rows no longer check the disk on every redraw.",
+        "Launch work moved out of the way, so the app is ready sooner.",
+        "Smoother scrolling in Moments on iPhone."
+      ]
+    },
+    {
+      "build": "191",
+      "date": "2026-10-24",
+      "title": "Lighter keyboard",
+      "items": [
+        "The keyboard redraws far less while you dictate, and live corrections stay fast on long dictations.",
+        "About 1,000 lines of unused code removed."
+      ]
+    },
+    {
+      "build": "190",
+      "date": "2026-10-24",
+      "title": "Security",
+      "items": [
+        "The Lock Screen widget and Tap to restart ask before recording, and the Action button needs Face ID when your iPhone is locked.",
+        "iCloud sync is off for new installs until you turn it on.",
+        "Safer handling of links, downloaded files, and synced data on Mac and iPhone."
+      ]
+    },
+    {
+      "build": "188",
+      "date": "2026-10-23",
+      "title": "Earlier builds",
+      "items": [
+        "The website-style redesign on Mac and iPhone.",
+        "The Verbose keyboard with Home, Typing, and Listening modes, and a dark mode that matches Apple's keyboard.",
+        "Import videos from Photos, including saved TikToks.",
+        "Cleaned transcripts no longer add speaker labels that weren't there.",
+        "A You page on iPhone."
+      ]
+    }
+  ]
+}
