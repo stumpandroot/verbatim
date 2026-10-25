@@ -150,3 +150,13 @@ The Mac app wears the website's clothes (mockup "The app, in the website's cloth
 **Windows**
 
 14. Settings is its own window, never a screen inside the main window.
+
+## 12. Dictation surfaces (Mac)
+
+Settings › Dictation › Show dictation in picks one of three styles (mockup "Notch", October 24, 2026, sections 01 and 03). All three read the same `FlowBarModel` phases (idle, listening, working, notice, prompt), so notices and prompts work in each. Each is a non-activating panel at `.statusBar` level, of a fixed size, where only the drawn shape takes clicks: `RibbonControl` or `tapArea`, never SwiftUI Buttons (macOS 26 click safety). Reduce Motion and Limit animation hold them still: spinners stop, and shape changes become a 0.12 s fade.
+
+1. **Ribbon** (`Flow/FlowBarView.swift`): a paper or ink tab flush with the bottom, left, or right edge, with persimmon voice bars. The default. Its settings sit in Dictation when it's chosen (Show the Ribbon when you're not dictating, Style, Voice mark).
+2. **Notch** (`Flow/Notch.swift`): Apple's black (`notchBlack`), so it reads as the notch doing something: flush with the top edge, drawn 1 pt larger than the hardware, rounded bottom corners (the notch's 9 pt for one row, up to 20 pt as it grows), and 6 pt concave flares into the menu bar. Widths are fixed per state (the camera plus 2 × 117 pt listening, 2 × 137 pt hovered or for an error, 2 × 160 pt for a prompt, 2 × 77 pt pointed at while idle), so only the contents change. Left of the camera: the app's icon and name; right: nine persimmon voice bars and a mono timer. Text is `onBlack` and `onBlackDim` with `onBlackHair` outlines; errors use `dangerOnBlack` with the attention glyph and a word, never color alone. Kept out of screenshots and screen sharing (`sharingType = .none`). On a display without a notch it's a 250 pt pill hanging 8 pt below the menu bar and gone at rest, or the Ribbon (Settings › Dictation › On displays without a notch).
+3. **Floating button** (`Flow/FloatingButton.swift`): four looks (Ink disc, Bars pill, Quiet dot, Labeled pill) at 32, 44, or 56 pt, never a click target under 28 pt. Ink bodies wear a 1.5 pt paper hairline and a hard ink offset shadow so they read on any wallpaper; persimmon marks the live voice. The labeled pill is `butterFixed` (butter means Dictate) with grain and ink marks, never persimmon on butter. Words, Stop and Cancel, notices, and prompts sit beside it, toward the middle of the screen.
+
+The hotkey picker (Settings › Dictation › Hotkey) shows each choice's keys as raised keycaps (`KeyChip`: mono 12.5, ink outline, a 2 pt ink floor).

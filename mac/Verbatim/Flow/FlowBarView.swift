@@ -3,11 +3,11 @@ import AppKit
 
 // MARK: - The Ribbon
 
-/// How the Ribbon looks, chosen in Settings › Dictation › Floating button look.
+/// How the Ribbon looks, chosen in Settings › Dictation › Style (shown when the Ribbon is chosen).
 enum RibbonStyle: String { case paper, ink; static let key = "flow.ribbonStyle" }
 /// What moves with your voice: the logo's three bars or the colophon's tangent rings.
 enum RibbonMark: String { case bars, rings; static let key = "flow.ribbonMark" }
-/// Settings › Dictation › Floating button look › Show words as you speak. On by default.
+/// Settings › Dictation › Show words as you speak (the Floating button pane has it too). On by default.
 enum LiveWordsSetting {
     static let key = "flow.liveWords"
     static var isOn: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
@@ -490,6 +490,8 @@ struct PromptCard: View {
     let controller: FlowBarController
     /// Runs down while the card waits and holds while the pointer is over it (FlowBarController keeps time).
     let countdown: FlowBarModel.Countdown
+    /// Self-test ids: "ribbon-prompt-primary" on the Ribbon, "button-prompt-primary" beside the floating button.
+    var idPrefix = "ribbon"
     @State private var progress: CGFloat = 1
 
     var body: some View {
@@ -498,7 +500,7 @@ struct PromptCard: View {
                 RibbonBars(edge: .left, levels: [0.8, 0.55, 0.95], thickness: 3.5, length: 12)
                 Text(prompt.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(RibbonInk.text)
                 Spacer(minLength: 12)
-                RibbonControl(id: "ribbon-prompt-close", label: "Close", help: "Close (keeps it in Dictations)", action: controller.dismissPrompt) { _ in
+                RibbonControl(id: "\(idPrefix)-prompt-close", label: "Close", help: "Close (keeps it in Dictations)", action: controller.dismissPrompt) { _ in
                     ZStack {
                         Circle().stroke(RibbonInk.track, lineWidth: 2)
                         Circle().trim(from: 0, to: progress).stroke(RibbonInk.muted, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
@@ -514,11 +516,11 @@ struct PromptCard: View {
                 .font(.system(size: 13)).foregroundStyle(RibbonInk.muted).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Spacer()
-                RibbonControl(id: "ribbon-prompt-secondary", label: prompt.secondary, action: { controller.answer(primary: false) }) { pressed in
+                RibbonControl(id: "\(idPrefix)-prompt-secondary", label: prompt.secondary, action: { controller.answer(primary: false) }) { pressed in
                     PromptButtonLabel(title: prompt.secondary, filled: false, pressed: pressed)
                 }
                 if let p = prompt.primary {
-                    RibbonControl(id: "ribbon-prompt-primary", label: p, action: { controller.answer(primary: true) }) { pressed in
+                    RibbonControl(id: "\(idPrefix)-prompt-primary", label: p, action: { controller.answer(primary: true) }) { pressed in
                         PromptButtonLabel(title: p, filled: true, pressed: pressed)
                     }
                 }

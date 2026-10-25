@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import Combine
 
-/// What the floating Ribbon shows.
+/// What dictation shows on screen: the Ribbon, the notch, and the floating button all draw these phases.
 @MainActor
 final class FlowBarModel: ObservableObject {
     enum Phase: Equatable { case idle, listening, working, notice, prompt }
@@ -43,6 +43,18 @@ final class FlowBarModel: ObservableObject {
     /// A problem to fix while listening ("Your mic is muted"), shown in the listening tab until it clears.
     @Published var alert: ListeningAlert? = nil
     @Published var appLabel = ""      // "MAIL" while writing
+    /// The app the words go to, for the notch's left wing (its name and icon).
+    @Published var targetName = ""
+    @Published var targetBundleID: String? = nil
+    /// How a notice reads in the notch and on the floating button. The Ribbon shows every notice the same way.
+    enum NoticeTone: Equatable {
+        case info
+        /// "Pasted into Notes", with the word count.
+        case pasted(words: Int)
+        /// A problem to act on: the attention icon and the light persimmon; it stays until you act or press Esc.
+        case error
+    }
+    @Published var noticeTone: NoticeTone = .info
     @Published var edge: BarEdge = .bottom
     /// Where the drawn content really is, measured by SwiftUI in the panel's own coordinates (top-left origin).
     /// Clicks inside it reach the Ribbon; clicks outside pass through to the apps behind.
@@ -57,7 +69,9 @@ final class FlowBarModel: ObservableObject {
     @Published var promptCountdown = Countdown()
 }
 
-/// The always-on floating Ribbon for dictation, in Verbatim's ink, persimmon, and paper.
+/// Dictation on screen. It keeps the phases, notices, prompts, and their timers, and draws them in the style chosen
+/// in Settings › Dictation › Show dictation in: the Ribbon (this file and FlowBarView), the notch
+/// (`NotchController`), or the floating button (`FloatingButtonController`). The Ribbon:
 ///
 /// - Closed, only a sliver of the ink pill shows at the screen edge. On hover it slides out and the ribbon
 ///   (the logo's three bars) appears. Listening, the bars follow your voice. Writing, a bar sweeps and the
@@ -94,6 +108,13 @@ final class FlowBarController {
     /// Display keys by display number. Making one creates a CFUUID, and the pointer checks it several times a
     /// second, so each is made once; cleared when displays change or the Mac wakes.
     private var displayKeys: [UInt32: String] = [:]
+    /// The other two styles, made the first time they're needed.
+    private lazy var notch = NotchController(model: model, controller: self)
+    private lazy var button = FloatingButtonController(model: model, controller: self)
+    /// What shows on the current display (the notch style shows as a pill, or the Ribbon, where there's no notch).
+    private(set) var shown: DictationSurface.Shown = .ribbon
+    /// An error notice the notch or the floating button holds until you act or press Esc.
+    private var sticky = false
 
     private static let sideSize = CGSize(width: 440, height: 220)
     private static let bottomSize = CGSize(width: 460, height: 170)
@@ -135,7 +156,24 @@ final class FlowBarController {
         let s = FlowSettings.shared
         let busy = model.phase != .idle
         let enabled = dictation?.enabled ?? false
-        if enabled && (busy || !s.barHidden) {
+        let screen = currentScreen()
+        let was = shown
+        shown = screen.map(shownSurface(on:)) ?? .ribbon
+        if shown != was { menu.close() }
+        if let screen { screenKey = key(for: screen) }
+        // "Hide for 1 hour" hides every style; Show the Ribbon only the Ribbon.
+        let hiddenForAnHour = s.hiddenUntil.map { $0 > Date() } ?? false
+        switch shown {
+        case .ribbon:
+            notch.hide(); button.hide()
+        case .notch, .pill:
+            button.hide()
+            if enabled, (busy || !hiddenForAnHour), let screen { notch.show(on: screen) } else { notch.hide() }
+        case .button:
+            notch.hide()
+            if enabled, (busy || !hiddenForAnHour), let screen { button.show(on: screen) } else { button.hide() }
+        }
+        if shown == .ribbon && enabled && (busy || !s.barHidden) {
             if panel == nil { build() }
             place()
             if let p = panel, !p.isVisible || hiding {
@@ -159,6 +197,7 @@ final class FlowBarController {
                 self.panel?.orderOut(nil)
             }
         }
+        pointerMoved()
         if let d = dictation, !d.accessibilityTrusted { model.hint = "click to set up" }
         else { model.hint = dictation.map { "\($0.hotkey.shortTitle) or click" } ?? "click to dictate" }
         // Secure input (a password field, Terminal) blocks keyed shortcuts the Carbon fallback couldn't take over.
@@ -166,7 +205,7 @@ final class FlowBarController {
     }
 
     func setPhase(_ p: FlowBarModel.Phase) {
-        if p != .notice { noticeTimer?.invalidate(); model.noticeAction = nil; model.onNoticeAction = nil }
+        if p != .notice { noticeTimer?.invalidate(); model.noticeAction = nil; model.onNoticeAction = nil; sticky = false; model.noticeTone = .info }
         if p != .prompt { promptTimer?.invalidate(); promptTimer = nil; promptRunningSince = nil; model.prompt = nil }
         // While busy the Ribbon stays on the display it started on, even if the pointer wanders.
         lockedKey = (p == .idle) ? nil : (lockedKey ?? currentScreen().map { self.key(for: $0) })
@@ -184,15 +223,35 @@ final class FlowBarController {
     /// A notice with an action stays 12 s. The countdown pauses while the pointer is over the Ribbon, and a
     /// click dismisses it (running the action, if it has one). `exact` keeps a short confirmation ("Cancelled")
     /// to `seconds`.
-    func flash(_ text: String, action: String? = nil, seconds: Double = 3.5, exact: Bool = false, perform: (() -> Void)? = nil) {
+    ///
+    /// `tone` changes only how the notch and the floating button draw it: an error there stays until you act or
+    /// press Esc. The Ribbon times every notice the same way.
+    func flash(_ text: String, action: String? = nil, seconds: Double = 3.5, exact: Bool = false, tone: FlowBarModel.NoticeTone = .info, perform: (() -> Void)? = nil) {
         setPhase(.notice)
         model.notice = text
         model.noticeAction = action
         model.onNoticeAction = perform
+        model.noticeTone = tone
         noticeRemaining = Self.noticeSeconds(text, hasAction: action != nil, requested: seconds, exact: exact)
         noticeTimer?.invalidate(); noticeTimer = nil
         noticeRunningSince = nil
+        sticky = tone == .error && shown != .ribbon
+        if sticky { return }
         if !model.hover { runNoticeCountdown() }
+    }
+
+    /// Esc on an error the notch or the floating button is holding. True when it closed one.
+    func dismissStickyNotice() -> Bool {
+        guard model.phase == .notice, sticky else { return false }
+        setPhase(.idle)
+        return true
+    }
+
+    /// A dictation landed. The Ribbon just closes; the notch and the floating button say where the words went for
+    /// 1.6 seconds ("Pasted into Notes", with the word count).
+    func confirmPaste(app: String, words: Int) {
+        guard shown != .ribbon else { setPhase(.idle); return }
+        flash("Pasted into \(app)", seconds: 1.6, exact: true, tone: .pasted(words: words))
     }
 
     static func noticeSeconds(_ text: String, hasAction: Bool, requested: Double, exact: Bool = false) -> TimeInterval {
@@ -218,6 +277,7 @@ final class FlowBarController {
     private func hoverChanged(_ hovering: Bool) {
         switch model.phase {
         case .notice:
+            if sticky { return }
             if hovering {
                 guard let since = noticeRunningSince else { return }
                 noticeRemaining -= Date().timeIntervalSince(since)
@@ -296,8 +356,31 @@ final class FlowBarController {
         action?()
     }
 
-    /// The panel the Ribbon draws in, for the UI self-test.
-    var panelWindow: NSWindow? { panel }
+    /// The panel dictation draws in right now (the Ribbon's, the notch's, or the floating button's), for the UI
+    /// self-test.
+    var panelWindow: NSWindow? {
+        switch shown {
+        case .ribbon: return panel
+        case .notch, .pill: return notch.panelWindow
+        case .button: return button.panelWindow
+        }
+    }
+
+    /// Which style shows on a display.
+    private func shownSurface(on screen: NSScreen) -> DictationSurface.Shown {
+        let chosen = DictationSurface.stored()
+        guard chosen == .notch else { return chosen == .button ? .button : .ribbon }
+        return DictationSurface.shown(chosen: .notch, hasNotch: NotchController.geometry(for: screen).hasNotch, fallback: NotchFallback.stored())
+    }
+
+    /// The words preview, for the notch and the floating button.
+    var liveWords: LiveTranscriber? { dictation?.liveWords }
+    /// The hotkey as a keycap reads ("right ⌥"), for the notch and the labeled pill.
+    var hotkeyKeycap: String { dictation?.hotkey.keycap ?? "right ⌥" }
+    /// The floating button finished a drag: a click right after it shouldn't also start dictating.
+    func dragFinished() { lastDragEnd = Date() }
+    /// The display key the floating button saves its spot under.
+    func displayKey(for screen: NSScreen) -> String { key(for: screen) }
 
     // MARK: Panel
 
@@ -328,8 +411,9 @@ final class FlowBarController {
         let visible = panel?.isVisible ?? false
         menu.close()
         panel?.orderOut(nil); panel?.close(); panel = nil
+        notch.rebuild(); button.rebuild()
         model.dragging = false
-        if visible { refresh() }
+        if visible || shown != .ribbon { refresh() }
     }
 
     // MARK: Position
@@ -356,10 +440,16 @@ final class FlowBarController {
         return k
     }
 
+    /// At idle, dictation follows the pointer to another display (and may change style there: the notch style is a
+    /// pill or the Ribbon on a display without a notch).
     private func followPointer() {
-        guard panel?.isVisible == true, !model.dragging, model.phase == .idle, !menu.isOpen else { return }
-        guard let screen = currentScreen() else { return }
-        if key(for: screen) != screenKey { place() }
+        guard !model.dragging, !button.dragging, model.phase == .idle, !menu.isOpen else { return }
+        guard let screen = currentScreen(), key(for: screen) != screenKey else { return }
+        if shown == .ribbon, DictationSurface.stored() == .ribbon {
+            if panel?.isVisible == true { place() }
+        } else {
+            refresh()
+        }
     }
 
     private func position(for screen: NSScreen) -> FlowSettings.BarPosition {
@@ -426,6 +516,11 @@ final class FlowBarController {
 
     /// The area that takes clicks right now, with its margin (the self-test logs it).
     var hitRect: NSRect? {
+        switch shown {
+        case .notch, .pill: return notch.hitRect
+        case .button: return button.hitRect
+        case .ribbon: break
+        }
         // A prompt or a notice with an action holds controls near its edges: a wider margin, so a click that
         // lands just off a button still reaches the card instead of the app behind.
         let generous = model.phase == .prompt || (model.phase == .notice && model.noticeAction != nil)
@@ -433,11 +528,23 @@ final class FlowBarController {
         return ribbonRect()?.insetBy(dx: -m, dy: -m)
     }
 
-    private func pointerMoved() { updatePointer(at: NSEvent.mouseLocation) }
+    func pointerMoved() { updatePointer(at: NSEvent.mouseLocation) }
 
     /// Decides whether the panel takes clicks (only over the drawn Ribbon) and whether the Ribbon is hovered,
     /// for the pointer at `location` on screen.
     func updatePointer(at location: CGPoint) {
+        switch shown {
+        case .notch, .pill:
+            panel?.ignoresMouseEvents = true
+            setHover(notch.updatePointer(at: location) || menu.isOpen)
+            return
+        case .button:
+            panel?.ignoresMouseEvents = true
+            setHover(button.updatePointer(at: location) || menu.isOpen)
+            return
+        case .ribbon:
+            break
+        }
         guard let p = panel else { return }
         if model.dragging {
             // A drag whose end never arrived (the view was rebuilt mid-drag) must not leave the panel catching clicks.
@@ -447,13 +554,22 @@ final class FlowBarController {
         // Off screen there's nothing to hit or hover: the same result as below, without reading the pointer.
         guard p.isVisible else {
             if !p.ignoresMouseEvents { p.ignoresMouseEvents = true }
-            if model.hover != menu.isOpen { model.hover = menu.isOpen; hoverChanged(menu.isOpen) }
+            setHover(menu.isOpen)
             return
         }
         let inside = hitRect?.contains(location) ?? false
         if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
-        let hover = inside || menu.isOpen
-        if model.hover != hover { model.hover = hover; hoverChanged(hover) }
+        setHover(inside || menu.isOpen)
+    }
+
+    private func setHover(_ hover: Bool) {
+        let h = holdHover ?? hover
+        if model.hover != h { model.hover = h; hoverChanged(h) }
+    }
+
+    /// The UI self-test holds hover on or off for its screenshots (the pointer isn't over the surface on the runner).
+    var holdHover: Bool? = nil {
+        didSet { if let h = holdHover { setHover(h) } }
     }
 
     // MARK: Drag to an edge
@@ -503,7 +619,7 @@ final class FlowBarController {
 
     var liveMeter: LiveMeter? { dictation?.liveMeter }
     func clicked() {
-        guard !model.dragging, Date().timeIntervalSince(lastDragEnd) > 0.3 else { return }
+        guard !model.dragging, !button.dragging, Date().timeIntervalSince(lastDragEnd) > 0.3 else { return }
         if menu.isOpen { menu.close(); return }
         if Date().timeIntervalSince(menu.closedAt) < 0.35 { return }
         switch model.phase {
@@ -517,9 +633,16 @@ final class FlowBarController {
 
     func openMenu() {
         guard Date().timeIntervalSince(menu.closedAt) > 0.35 else { return }   // the right-click that closed it
-        guard model.phase == .idle || model.phase == .notice, let rect = ribbonRect(), let dictation, let screen = currentScreen() else { return }
+        let anchor: NSRect?, edge: BarEdge
+        switch shown {
+        case .ribbon: anchor = ribbonRect(); edge = model.edge
+        // From the notch the menu opens below and to the right, like a menu bar menu.
+        case .notch, .pill: anchor = notch.shapeScreenRect; edge = .left
+        case .button: anchor = button.buttonScreenRect; edge = button.menuEdge
+        }
+        guard model.phase == .idle || model.phase == .notice, let rect = anchor, let dictation, let screen = currentScreen() else { return }
         if model.phase == .notice { setPhase(.idle) }
-        menu.open(next: rect, edge: model.edge, screen: screen, actions: .init(
+        menu.open(next: rect, edge: edge, screen: screen, actions: .init(
             hide: { FlowSettings.shared.hiddenUntil = Date().addingTimeInterval(3600) },
             settings: { [weak dictation] in dictation?.openSettings() },
             history: { [weak dictation] in dictation?.openHistory() },

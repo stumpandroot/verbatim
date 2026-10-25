@@ -93,6 +93,15 @@ enum Ink {
     static let accentTextOnInk = Color(hex: 0xFF8A6B)
     static let muteOnPaper = Color(hex: 0x606962)
     static let muteOnInk = Color(hex: 0xA1A29A)
+    /// The notch style (DESIGN.md §12): Apple's black, so the shape reads as the notch, with paper type, persimmon
+    /// voice marks, and errors in the light persimmon (5.9:1 on black). The same in light and dark mode.
+    static let notchBlack = Color(hex: 0x000000)
+    static let onBlack = Color(hex: paperHex)
+    static let onBlackDim = Color(hex: paperHex).opacity(0.62)
+    static let onBlackHair = Color(hex: paperHex).opacity(0.16)
+    static let dangerOnBlack = Color(hex: 0xFF8A6B)
+    /// The floating button's labeled pill: the brand butter in both modes (butter means Dictate), ink on it.
+    static let butterFixed = Color(hex: butterHex)
 
     /// Reliable primary controls: ink fill with a reader-white label (cream with an ink label in dark).
     static let interactive = dyn(inkHex, 0xE9E3D6)

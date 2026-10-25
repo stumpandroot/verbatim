@@ -91,6 +91,7 @@ enum UITest {
 
             await settingsSteps(main: window)
             await ribbonSteps(app: app)
+            await surfaceSteps(app: app)
             window.makeKeyAndOrderFront(nil)
             await meetingSteps(main: window)
             logicChecks()
@@ -159,13 +160,14 @@ enum UITest {
     /// Clicks inside the Ribbon's panel: a prompt's main answer, its other answer, its X, and a notice's action.
     /// Each step first checks the routing the window server uses (with the pointer over the control, the panel
     /// must stop ignoring mouse events), then clicks the control through the panel's own event path.
+    private static func lititz(_ seconds: Double = 20) -> FlowBarModel.Prompt {
+        .init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way.",
+              primary: "Remember", secondary: "Not now", seconds: seconds,
+              onPrimary: { ribbonAnswer = "primary" }, onSecondary: { ribbonAnswer = "secondary" }, onTimeout: { ribbonAnswer = "timeout" })
+    }
+
     private static func ribbonSteps(app: AppState) async {
         guard let bar = app.dictation.bar else { fail += 1; Log.note("UITEST FAIL ribbon: no Ribbon controller"); return }
-        func lititz(_ seconds: Double = 20) -> FlowBarModel.Prompt {
-            .init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way.",
-                  primary: "Remember", secondary: "Not now", seconds: seconds,
-                  onPrimary: { ribbonAnswer = "primary" }, onSecondary: { ribbonAnswer = "secondary" }, onTimeout: { ribbonAnswer = "timeout" })
-        }
         let settle: UInt64 = 1_200_000_000   // the card slides in and its frames are recorded
 
         ribbonAnswer = ""; bar.ask(lititz())
@@ -210,6 +212,90 @@ enum UITest {
         try? await Task.sleep(nanoseconds: settle)
         await ribbonStep("ribbon notice action runs", bar, target: "ribbon-notice-action", check: { ran && bar.model.phase == .idle })
         bar.setPhase(.idle)
+    }
+
+    /// The notch style (shown as the pill on the runner, whose display has no notch) and the floating button: the
+    /// same prompt and notice clicks as the Ribbon, through their own panels, and a click on the floating button.
+    private static func surfaceSteps(app: AppState) async {
+        guard let bar = app.dictation.bar else { fail += 1; Log.note("UITEST FAIL surfaces: no controller"); return }
+        let d = UserDefaults.standard
+        let saved = d.string(forKey: DictationSurface.key)
+        let settle: UInt64 = 1_200_000_000
+
+        for (surface, prefix) in [(DictationSurface.notch, "notch"), (DictationSurface.button, "button")] {
+            d.set(surface.rawValue, forKey: DictationSurface.key)
+            bar.refresh()
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            Log.note("UITEST \(surface.rawValue) style shows as \(bar.shown)")
+
+            ribbonAnswer = ""; bar.ask(lititz())
+            try? await Task.sleep(nanoseconds: settle)
+            await ribbonStep("\(prefix) prompt Remember runs its answer", bar, target: "\(prefix)-prompt-primary",
+                             check: { ribbonAnswer == "primary" && bar.model.phase == .idle })
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            ribbonAnswer = ""; bar.ask(lititz())
+            try? await Task.sleep(nanoseconds: settle)
+            await ribbonStep("\(prefix) prompt Not now runs its answer", bar, target: "\(prefix)-prompt-secondary",
+                             check: { ribbonAnswer == "secondary" && bar.model.phase == .idle })
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            ribbonAnswer = ""; bar.ask(lititz())
+            try? await Task.sleep(nanoseconds: settle)
+            await ribbonStep("\(prefix) prompt X dismisses it", bar, target: "\(prefix)-prompt-close",
+                             check: { ribbonAnswer == "timeout" && bar.model.phase == .idle && bar.model.prompt == nil })
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            var ran = false
+            bar.flash("Learned “Lititz”", action: "Undo") { ran = true }
+            try? await Task.sleep(nanoseconds: settle)
+            await ribbonStep("\(prefix) notice action runs", bar, target: "\(prefix)-notice-action", check: { ran && bar.model.phase == .idle })
+            bar.setPhase(.idle)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+
+        // A click on the floating button reaches dictation: it starts, or asks for Accessibility (or the mic).
+        await ribbonStep("floating button click reaches dictation", bar, target: "floating-button", check: { bar.model.phase != .idle })
+        if app.dictation.isListening { app.dictation.cancel(quiet: true) }
+        bar.setPhase(.idle)
+
+        if let saved { d.set(saved, forKey: DictationSurface.key) } else { d.removeObject(forKey: DictationSurface.key) }
+        bar.refresh()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// The notch style's and the floating button's states for CI's screenshots (the notch shows as the pill on a
+    /// display without one), then the Ribbon again.
+    private static func surfaceShots(app: AppState) async {
+        guard let bar = app.dictation.bar else { return }
+        let d = UserDefaults.standard
+        let saved = d.string(forKey: DictationSurface.key)
+        bar.model.targetName = "Notes"
+        bar.model.targetBundleID = "com.apple.Notes"
+        for (surface, prefix) in [(DictationSurface.notch, "08f-notch"), (DictationSurface.button, "08g-floating")] {
+            d.set(surface.rawValue, forKey: DictationSurface.key)
+            bar.refresh()
+            bar.holdHover = true
+            await show("\(prefix)-idle-hover")
+            bar.holdHover = false
+            bar.model.handsFree = true
+            bar.setPhase(.listening)
+            await show("\(prefix)-listening")
+            bar.holdHover = true
+            await show("\(prefix)-listening-hover")
+            bar.holdHover = nil
+            bar.setPhase(.working)
+            await show("\(prefix)-cleaning-up")
+            // Held under a pretend pointer, so the 1.6 s confirmation stays for the capture.
+            bar.holdHover = true
+            bar.confirmPaste(app: "Notes", words: 38)
+            await show("\(prefix)-pasted")
+            bar.holdHover = nil
+            bar.flash("Couldn't paste into Notes. Your words are saved. Press ⌃⌘V to paste.", action: "Copy", tone: .error)
+            await show("\(prefix)-error")
+            bar.ask(lititz(30))
+            await show("\(prefix)-prompt")
+            bar.setPhase(.idle)
+        }
+        if let saved { d.set(saved, forKey: DictationSurface.key) } else { d.removeObject(forKey: DictationSurface.key) }
+        bar.refresh()
     }
 
     private static func ribbonStep(_ name: String, _ bar: FlowBarController, target: String, check: () -> Bool) async {
@@ -427,6 +513,7 @@ enum UITest {
         app.dictation.previewRescue()
         await show("08e-didnt-paste")
         app.dictation.bar?.setPhase(.idle)
+        await surfaceShots(app: app)
         if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title.hasPrefix("Settings") }), let action = item.action {
             NSApp.sendAction(action, to: item.target, from: item)
         } else {
@@ -444,6 +531,8 @@ enum UITest {
         }
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
         await show("09d-settings-dictate")
+        UserDefaults.standard.set(SettingsTab.floatingButton.rawValue, forKey: "settingsTab")
+        await show("09h-settings-floating-button")
         UserDefaults.standard.set(SettingsTab.actions.rawValue, forKey: "settingsTab")
         await show("09b-settings-actions")
         seedWatchedFolders()
