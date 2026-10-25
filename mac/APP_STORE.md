@@ -26,6 +26,53 @@ The TestFlight upload in `.github/workflows/build-swift.yml` (main builds only, 
 - Don't add these builds to an external testing group or submit them for App Review. Guideline 5.2.3 makes YouTube downloads a rejection risk.
 - To submit, archive the **VerbatimPhone App Store** scheme as described above, without the override, and upload that build.
 
+### TestFlight signing
+
+The job signs without creating a certificate and without signing secrets beyond the App Store Connect API key:
+
+1. **Archive, ad hoc signed.** `xcodebuild archive` runs with `CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY=- AD_HOC_CODE_SIGNING_ALLOWED=YES` and no API key. These are the flags Xcode Cloud passes to its own archive step ([Xcode Cloud archive log](https://developer.apple.com/forums/thread/740025), [the same flags on GitHub Actions](https://developer.apple.com/forums/thread/756119)). Ad hoc signing needs no certificate or profile, and it still embeds each target's entitlements file in its signature.
+1. **Check entitlements.** The job reads the signature of `Verbatim.app` and its four extensions in the archive. Each must carry the App Group `group.co.stumpandroot.verbatim.ios`, and the app must also carry the iCloud container. If one doesn't, the job stops before uploading.
+1. **Export and upload.** `xcodebuild -exportArchive` (method `app-store-connect`, automatic signing, `-allowProvisioningUpdates` with the API key) creates or updates the App Store profiles and re-signs every binary with Apple's cloud-managed Apple Distribution certificate, keeping the entitlements from step 1. Xcode cloud signs when no local distribution certificate is found ([Apple: cloud-managed certificates](https://developer.apple.com/help/account/create-certificates/cloud-managed-certificates/)). Cloud signing needs an API key with the Admin role.
+
+Before this change the archive used automatic development signing. A fresh runner has an empty keychain, so Xcode created an Apple Development certificate every run, which only that runner could use, until the account reached its limit ("Choose a certificate to revoke. Your account has reached the maximum number of certificates"). Others hit the same behavior on GitHub Actions and Bitrise ([Apple forums](https://developer.apple.com/forums/thread/695759), [Bitrise](https://discuss.bitrise.io/t/new-development-certificates-created-with-every-build/21068)).
+
+Options considered and not used:
+
+| Option | Why not |
+|---|---|
+| Archive with `CODE_SIGN_IDENTITY="Apple Distribution"` and automatic signing | Automatic signing rejects it ("is automatically signed for development, but a conflicting code signing identity Apple Distribution has been manually specified", [Apple forums](https://developer.apple.com/forums/thread/713058)). Even where accepted, it would need a distribution private key on the runner, so Xcode would create distribution certificates instead. |
+| Archive unsigned (`CODE_SIGNING_ALLOWED=NO`) and let the export sign | Unsigned binaries carry no entitlements, and the export doesn't add them back: builds lose App Groups, iCloud, and push ([Apple forums](https://developer.apple.com/forums/thread/671800), [Apple forums](https://developer.apple.com/forums/thread/756119)). |
+| Manual signing with an Apple Distribution .p12 and five App Store profiles as secrets | Works, but needs six secrets and new profiles whenever a capability changes or a profile expires. |
+| One development certificate stored as a secret | Works ([Bitrise](https://discuss.bitrise.io/t/new-development-certificates-created-with-every-build/21068)). Kept as the fallback below. |
+
+The job never revokes a certificate; that could revoke one of your own.
+
+#### If the job reports the certificate limit
+
+1. Open [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list).
+1. Revoke the Apple Development certificates that CI created: their creator reads "Created via API". Keep the ones for your own Macs.
+1. Rerun the TestFlight job, or push to main.
+
+After this change, the TestFlight job shouldn't create certificates. If the list grows again, something else is creating them.
+
+#### Fallback: one development certificate
+
+Use this only if the ad hoc archive fails on a runner, or the entitlements check reports a missing entitlement. With `IOS_DEV_CERTIFICATE` set, the job imports that certificate into a temporary keychain, archives with automatic development signing and the API key (the old command, which now finds a certificate and doesn't create one), and deletes the keychain when the step ends. The export is unchanged.
+
+1. In Certificates, Identifiers & Profiles, create one **Apple Development** certificate for CI from a certificate signing request (Keychain Access › Certificate Assistant › Request a Certificate From a Certificate Authority).
+1. Double-click the downloaded certificate to install it, then in Keychain Access › My Certificates, export it with its private key as `AppleDevelopment.p12`, with a password.
+1. In the folder that holds the file, run:
+
+   ```sh
+   base64 -i AppleDevelopment.p12 | gh secret set IOS_DEV_CERTIFICATE --env release -R stumpandroot/verbatim
+   gh secret set IOS_DEV_CERTIFICATE_PASSWORD --env release -R stumpandroot/verbatim
+   ```
+
+   The second command asks for the value; paste the .p12 password.
+1. Delete `AppleDevelopment.p12`.
+
+To go back to the ad hoc archive, run `gh secret delete IOS_DEV_CERTIFICATE --env release -R stumpandroot/verbatim`.
+
 Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push to `integrate`, and on every branch push that changes a file the iPhone app or its extensions build from. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the undocumented selector or class names below are left in the app.
 
 ## What the flag changes
