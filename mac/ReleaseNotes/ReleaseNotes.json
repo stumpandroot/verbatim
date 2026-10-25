@@ -4,7 +4,8 @@
       "build": "next",
       "title": "Faster with big libraries",
       "items": [
-        "Verbose stays responsive while a file transcribes, and opens faster when you have a large library."
+        "Verbose stays responsive while a file transcribes, and opens faster when you have a large library.",
+        "Mac: switching between Verbose style and Native is faster while the Settings window is closed."
       ]
     },
     {

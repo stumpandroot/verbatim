@@ -1780,17 +1780,41 @@ enum UITest {
         // An AppKit control (an NSTableView like Native's sidebar, or an NSButton like the Native toolbar's Back) tracks
         // the press in a loop of its own that waits for the mouse-up in the event queue. Sent straight after the down,
         // the up never reached that loop, so the click blocked the main thread for good (build 209 stopped at the Native
-        // sidebar click; builds 210 and 211 at the toolbar's Back, so `tour-native` was never logged). There the up is
-        // queued first; everywhere else both still go straight to the window. The receiver is found from the window's
-        // frame view, as the window routes the down: toolbar items sit in the title bar, outside the content view.
+        // sidebar click; builds 210 to 212 at the toolbar's Back, so `tour-native` was never logged). Where a control is
+        // found under the point the up is queued first; everywhere else both still go straight to the window. A hit test
+        // doesn't always find what the window routes the down to (the toolbar's Back in build 212), so a timer in the
+        // common modes, which the tracking loop runs, queues the up if the down is still tracking half a second later.
         var tracked = false
         var hv = (content.superview ?? content).hitTest(content.convert(p, to: nil))
         while let x = hv { if x is NSControl { tracked = true; break }; hv = x.superview }
         if tracked, let x = hv { Log.note("UITEST click \(id) queues the mouse-up first (\(type(of: x)) tracks the press)") }
         if let m = ev(.mouseMoved) { window.sendEvent(m) }
         if tracked, let u = ev(.leftMouseUp) { NSApp.postEvent(u, atStart: true) }
-        if let d = ev(.leftMouseDown) { window.sendEvent(d) }
-        if !tracked, let u = ev(.leftMouseUp) { window.sendEvent(u) }
+        var rescued = false
+        if let d = ev(.leftMouseDown) {
+            let watch = ClickWatch(up: tracked ? nil : ev(.leftMouseUp))
+            let timer = Timer(timeInterval: 0.5, repeats: false) { _ in MainActor.assumeIsolated { watch.rescue() } }
+            RunLoop.main.add(timer, forMode: .common)
+            window.sendEvent(d)
+            timer.invalidate()
+            rescued = watch.rescued
+            if rescued { Log.note("UITEST click \(id): the down was still in a tracking loop after 0.5 s; the up was queued for it") }
+        }
+        if !tracked, !rescued, let u = ev(.leftMouseUp) { window.sendEvent(u) }
+    }
+}
+
+/// The self-test click's watchdog (`UITest.click`): queues the mouse-up for a down that's still in a tracking loop.
+@MainActor
+private final class ClickWatch {
+    private var up: NSEvent?
+    private(set) var rescued = false
+    init(up: NSEvent?) { self.up = up }
+    func rescue() {
+        guard let u = up else { return }
+        up = nil
+        rescued = true
+        NSApp.postEvent(u, atStart: true)
     }
 }
 
