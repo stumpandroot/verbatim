@@ -11,9 +11,14 @@ final class SurfacePanel: NSPanel {
     override var canBecomeMain: Bool { false }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 
-    @MainActor static func make(size: CGSize) -> SurfacePanel {
+    /// Above the menu bar and its status items, below menus (so a menu opened from the menu bar, or our own right-click
+    /// menu, still draws over the notch). On macOS 26 `.statusBar` draws under the menu bar, which hid the pill's
+    /// first row on displays without a notch (build 200).
+    static let aboveMenuBar = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue - 1)
+
+    @MainActor static func make(size: CGSize, level: NSWindow.Level = .statusBar) -> SurfacePanel {
         let p = SurfacePanel(contentRect: NSRect(origin: .zero, size: size), styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
-        p.level = .statusBar   // the Ribbon's level, above the menu bar
+        p.level = level
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         p.isOpaque = false
         p.backgroundColor = .clear

@@ -278,6 +278,7 @@ enum UITest {
             bar.model.handsFree = true
             bar.setPhase(.listening)
             await show("\(prefix)-listening")
+            if surface == .notch { notchOverMenuBar(bar) }
             bar.holdHover = true
             await show("\(prefix)-listening-hover")
             bar.holdHover = nil
@@ -296,6 +297,40 @@ enum UITest {
         }
         if let saved { d.set(saved, forKey: DictationSurface.key) } else { d.removeObject(forKey: DictationSurface.key) }
         bar.refresh()
+    }
+
+    /// The notch (or the pill) hangs from the very top of the display, over the menu bar: its panel's top edge is the
+    /// screen's top edge, and no menu bar or status item window draws over its first row. Build 200 had the pill at
+    /// `.statusBar`, under the macOS 26 menu bar, so only its bottom 8 pt showed.
+    private static func notchOverMenuBar(_ bar: FlowBarController) {
+        guard let panel = bar.panelWindow, panel.isVisible else {
+            fail += 1; Log.note("UITEST FAIL notch panel on screen"); return
+        }
+        let f = panel.frame
+        guard let screen = NSScreen.screens.first(where: { $0.frame.minX <= f.midX && f.midX <= $0.frame.maxX }) else {
+            fail += 1; Log.note("UITEST FAIL notch panel has no display (frame=\(f))"); return
+        }
+        let flush = abs(f.maxY - screen.frame.maxY) < 0.5
+        if flush { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(flush ? "PASS" : "FAIL") notch panel top is the screen's top (panel=\(f) screen=\(screen.frame) visible=\(screen.visibleFrame))")
+
+        // Windows the window server draws over the panel, in global display coordinates (top-left origin).
+        let top = (NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY)
+        let row = CGRect(x: f.minX, y: top - f.maxY, width: f.width, height: max(1, screen.frame.maxY - screen.visibleFrame.maxY))
+        let above = (CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow, .excludeDesktopElements], CGWindowID(panel.windowNumber)) as? [[String: Any]]) ?? []
+        var covering: [String] = []
+        for w in above {
+            let layer = w[kCGWindowLayer as String] as? Int ?? 0
+            guard let b = w[kCGWindowBounds as String] as? [String: Any], let r = CGRect(dictionaryRepresentation: b as CFDictionary), r.intersects(row) else { continue }
+            let owner = w[kCGWindowOwnerName as String] as? String ?? "?"
+            let name = w[kCGWindowName as String] as? String ?? ""
+            Log.note("UITEST notch: above it, \(owner) \"\(name)\" layer=\(layer) bounds=\(r)")
+            // Menus (popUpMenu and up) and the cursor may draw over it; the menu bar and its items may not.
+            if layer < NSWindow.Level.popUpMenu.rawValue { covering.append("\(owner) layer \(layer)") }
+        }
+        let clear = covering.isEmpty
+        if clear { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(clear ? "PASS" : "FAIL") notch draws over the menu bar (level=\(panel.level.rawValue) mainMenu=\(CGWindowLevelForKey(.mainMenuWindow)) statusBar=\(CGWindowLevelForKey(.statusWindow)) covering=\(covering))")
     }
 
     private static func ribbonStep(_ name: String, _ bar: FlowBarController, target: String, check: () -> Bool) async {

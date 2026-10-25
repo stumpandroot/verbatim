@@ -16,7 +16,7 @@ final class NotchLayout: ObservableObject {
 /// (rounded bottom corners, small flares into the menu bar). On a display without a notch it hangs from the top
 /// center as a pill, or the Ribbon shows instead (Settings › Dictation › On displays without a notch).
 ///
-/// A non-activating panel at the Ribbon's level, of a fixed size, flush with the top of the screen and centered on
+/// A non-activating panel above the menu bar (`SurfacePanel.aboveMenuBar`), of a fixed size, flush with the top of the screen and centered on
 /// the camera; only the black shape takes clicks, and it's kept out of screenshots and screen sharing. It reads the
 /// same `FlowBarModel` phases as the Ribbon; `FlowBarController` decides when it shows and on which display.
 @MainActor
@@ -65,7 +65,7 @@ final class NotchController {
     }
 
     private func build() {
-        let p = SurfacePanel.make(size: CGSize(width: 600, height: NotchGeometry.panelHeight))
+        let p = SurfacePanel.make(size: CGSize(width: 600, height: NotchGeometry.panelHeight), level: SurfacePanel.aboveMenuBar)
         let live = controller.liveMeter ?? LiveMeter()
         let words = controller.liveWords ?? LiveTranscriber()
         let host = FlowHostingView(rootView: NotchView(model: model, layout: layout, controller: controller, live: live, words: words))
