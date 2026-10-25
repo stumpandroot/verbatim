@@ -183,8 +183,12 @@ struct ThoughtPadView: View {
             bottomBar
         }
         .background(Ink.paper)
-        .onAppear(perform: updateFront)
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in updateFront() }
+        .onAppear { updateFront() }
+        // Follows app switches as they happen. It used to poll every second, and the timer outlived the closed pad
+        // (close() only orders the panel out) for the rest of the session.
+        .onReceive(Self.activations) { note in
+            updateFront(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
+        }
     }
 
     private var bottomBar: some View {
@@ -225,8 +229,11 @@ struct ThoughtPadView: View {
         return nil
     }
 
-    private func updateFront() {
-        let a = NSWorkspace.shared.frontmostApplication
+    /// One publisher for the view's life, so a render doesn't resubscribe.
+    private static let activations = NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)
+
+    private func updateFront(_ activated: NSRunningApplication? = nil) {
+        let a = activated ?? NSWorkspace.shared.frontmostApplication
         let full = a?.bundleIdentifier == Bundle.main.bundleIdentifier ? "" : (a?.localizedName ?? "")
         let name = full.count > 14 ? String(full.prefix(13)) + "…" : full
         if name != frontApp { frontApp = name }
