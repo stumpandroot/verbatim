@@ -127,7 +127,7 @@ struct DarkKeycap: View {
     var edge: Color = Ink.onBlackHair
     var body: some View {
         HStack(spacing: 3) {
-            Text(text).font(Ink.mono(12)).foregroundStyle(color)
+            Text(text).font(SurfaceFont.mono(12)).foregroundStyle(color)
             if text == "fn" { Image(systemName: "globe").font(.system(size: 11)).foregroundStyle(color) }
         }
         .padding(.horizontal, 6).padding(.vertical, 4)

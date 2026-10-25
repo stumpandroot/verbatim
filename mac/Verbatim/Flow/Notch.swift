@@ -294,13 +294,13 @@ struct NotchView: View {
             DarkKeycap(text: controller.hotkeyKeycap)
         case .listening, .open:
             VoiceBars(levels: VoiceBars.live(live.levels, count: 9), height: 16)
-            Text(SurfaceClock.text(live.elapsed)).font(Ink.mono(12)).foregroundStyle(Ink.onBlackDim).monospacedDigit()
+            Text(SurfaceClock.text(live.elapsed)).font(SurfaceFont.mono(12)).foregroundStyle(Ink.onBlackDim).monospacedDigit()
         case .working:
             SurfaceSpinner(size: 13, still: still)
             Text(workingText).font(.system(size: 12.5)).foregroundStyle(Ink.onBlack).lineLimit(1)
         case .pasted:
             if let n = pastedWords {
-                Text(n == 1 ? "1 word" : "\(n) words").font(Ink.mono(12)).foregroundStyle(Ink.onBlackDim)
+                Text(n == 1 ? "1 word" : "\(n) words").font(SurfaceFont.mono(12)).foregroundStyle(Ink.onBlackDim)
             }
         case .prompt:
             if let p = model.prompt { closeRing(p) }
@@ -435,7 +435,7 @@ struct NotchView: View {
                 older + recent
             }
         }
-        .font(Ink.serif(16))
+        .font(SurfaceFont.serif(16))
         .lineSpacing(2)
         .lineLimit(2)
         .truncationMode(.head)

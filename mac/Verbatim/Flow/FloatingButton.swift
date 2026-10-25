@@ -315,7 +315,7 @@ private struct ListeningExtras {
 
     @ViewBuilder private var timer: some View {
         if showTimer {
-            Text(SurfaceClock.text(elapsed)).font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.paperFixed)
+            Text(SurfaceClock.text(elapsed)).font(SurfaceFont.mono(12)).monospacedDigit().foregroundStyle(Ink.paperFixed)
                 .padding(.horizontal, 6).padding(.vertical, 4)
                 .background(Ink.inkFixed, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.paperFixed.opacity(0.9), lineWidth: 1))
@@ -366,7 +366,7 @@ private struct FloatingWords: View {
                     + Text((d.settled.isEmpty ? "" : " ") + [d.volatile, d.newest].filter { !$0.isEmpty }.joined(separator: " ")).foregroundColor(Ink.paperFixed)
             }
         }
-        .font(Ink.serif(15))
+        .font(SurfaceFont.serif(15))
         .lineLimit(1)
         .truncationMode(.head)
         .frame(maxWidth: 280, alignment: .trailing)
@@ -459,7 +459,7 @@ struct FloatingButtonFace: View {
                 VoiceBars(levels: levels, height: h * 0.47, barWidth: 2.5, gap: 2, color: Ink.paperFixed)
             case .listening:
                 voice(height: h * 0.53, barWidth: 2.5, gap: 2)
-                Text(SurfaceClock.text(elapsed)).font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.paperFixed.opacity(0.75))
+                Text(SurfaceClock.text(elapsed)).font(SurfaceFont.mono(12)).monospacedDigit().foregroundStyle(Ink.paperFixed.opacity(0.75))
             case .writing:
                 SurfaceSpinner(size: max(12, h * 0.43), track: Ink.paperFixed.opacity(0.2), still: still)
                 if !compactWriting { Text("Writing…").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.paperFixed) }
@@ -493,14 +493,14 @@ struct FloatingButtonFace: View {
             case .rest:
                 VoiceBars(levels: levels, height: h * 0.41, color: Ink.inkFixed)
                 Text("Dictate").font(.system(size: font, weight: .bold)).foregroundStyle(Ink.inkFixed)
-                Text(keycap).font(Ink.mono(12)).foregroundStyle(Ink.inkFixed)
+                Text(keycap).font(SurfaceFont.mono(12)).foregroundStyle(Ink.inkFixed)
                     .padding(.horizontal, 6).padding(.vertical, 3)
                     .background(Ink.readerFixed.opacity(0.5), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.inkFixed, lineWidth: 1))
             case .listening:
                 voice(height: h * 0.44, barWidth: 2.5, gap: 2, color: Ink.inkFixed)
                 Text("Listening").font(.system(size: font, weight: .bold)).foregroundStyle(Ink.inkFixed)
-                Text(SurfaceClock.text(elapsed)).font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.inkFixed).padding(.trailing, 8)
+                Text(SurfaceClock.text(elapsed)).font(SurfaceFont.mono(12)).monospacedDigit().foregroundStyle(Ink.inkFixed).padding(.trailing, 8)
             case .writing:
                 SurfaceSpinner(size: 13, color: Ink.inkFixed, track: Ink.inkFixed.opacity(0.2), still: still)
                 Text("Writing…").font(.system(size: font, weight: .bold)).foregroundStyle(Ink.inkFixed).padding(.trailing, 8)
