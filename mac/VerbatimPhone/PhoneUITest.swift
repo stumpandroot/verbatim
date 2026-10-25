@@ -138,6 +138,24 @@ enum PhoneUITest {
                     await show("\(prefix)06-document")
                     app.homePath = NavigationPath()
                 }
+                // A long transcript held mid-drag on the scrubber: the handle, and the bubble with the time and the
+                // speaker you'd land on (TranscriptScrubber.swift).
+                if let long = app.store.live.first(where: { $0.title == Self.longTitle }) {
+                    app.tab = .library
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    app.libraryPath.append(long.id)
+                    try? await Task.sleep(nanoseconds: 1_600_000_000)   // pushed, laid out, and measured
+                    TranscriptScrubber.lastLanding = nil
+                    NotificationCenter.default.post(name: .verbatimScrubPreview, object: 0.62)
+                    await show("\(prefix)05d-transcript-scrubber")
+                    if prefix == "p" {
+                        let landed = TranscriptScrubber.lastLanding ?? ""
+                        Log.note("UITEST \(landed.contains(" · ") ? "PASS" : "FAIL") scrubber: a drag lands on a line and names its time and speaker (\(landed))")
+                    }
+                    NotificationCenter.default.post(name: .verbatimScrubPreview, object: nil)
+                    app.libraryPath = NavigationPath()
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
                 if let link = app.store.live.first(where: { $0.title == "Folding wagon walkthrough" }) {
                     app.tab = .library
                     try? await Task.sleep(nanoseconds: 400_000_000)
@@ -639,6 +657,45 @@ enum PhoneUITest {
         dictate("Can you send the dealer sheet as a PDF by Friday? Same photos, trimmed copy.", minutesAgo: 60 * 26)
         add("Wheel sizes to confirm", .note, daysAgo: 2, hour: 15, duration: 48, tags: ["lapp wagons"], [
             ("Confirm the twelve and sixteen inch wheel sizes with Jonathan before the captions.", nil)])
+        seedLong(store)
+    }
+
+    static let longTitle = "Barn raising, with Ginna Cross"
+
+    /// A 46-minute interview, about 280 lines between two speakers, long enough for the transcript scrubber (more
+    /// than three screens). Made-up words; nine days old, so it stays out of This week and the top of Recent.
+    private static func seedLong(_ store: Store) {
+        let ginna = [
+            "We started before sunrise, because the frame has to be up before the wind comes over the ridge.",
+            "My grandfather raised this barn in nineteen fifty one, and most of the pegs are still the ones he cut.",
+            "You learn to listen to the wood. Oak tells you when it's going to split if you pay attention.",
+            "The bents go up one at a time, and everybody on a pike pole has to push together on the count.",
+            "Lunch is the part people remember. Forty pies on the wagon bed, and somehow none come home.",
+            "The hardest joint is the scarf in the plate, where two timbers meet over the middle post.",
+        ]
+        let tim = [
+            "How many people does it take to lift a bent?",
+            "What changes when you do this with a crane instead of by hand?",
+            "Did anything go wrong today?",
+            "Who taught you to cut the joints?",
+        ]
+        var t = Transcript(title: longTitle, source: .voiceMemo, sourceLabel: "Voice memo", duration: 2772, audioFileName: nil, model: "Parakeet TDT v3")
+        var lines: [Segment] = []
+        var start = 0.0
+        for i in 0..<280 {
+            let asks = i % 5 == 0
+            let text = asks ? tim[(i / 5) % tim.count] : ginna[i % ginna.count]
+            let len = asks ? 4.0 : 11.0 + Double(i % 3)
+            lines.append(Segment(start: start, end: start + len, text: text, speaker: asks ? "S2" : "S1"))
+            start += len - 0.5 + (asks ? 0 : 1.6)
+        }
+        t.segments = lines
+        t.original = lines
+        t.duration = max(t.duration, start)
+        t.speakers = [Speaker(id: "S1", name: "Ginna Cross"), Speaker(id: "S2", name: "Tim")]
+        t.createdAt = Calendar.current.date(byAdding: .day, value: -9, to: Date()) ?? Date()
+        t.kind = .interview; t.kindIsAuto = true; t.tags = ["film"]
+        store.add(t)
     }
 
     /// A six-second clip and its manifest in the inbox, as the share extension leaves them.
