@@ -7,11 +7,12 @@ import Foundation
 
 // MARK: - Gradient cards
 
-/// The three gradient cards. Colors are in Tokens.swift (`PremiumHex`); positions and text placement are here.
+/// The three gradient cards. Colors are in Tokens.swift (`PremiumInk.macPersimmon…`, `ink…`, and `macSage…`); positions
+/// and text placement are here.
 enum PremiumCard: String, CaseIterable {
     case persimmon, ink, sage
 
-    /// Where each color stop sits, top (0) to bottom (1), matching `PremiumHex`'s arrays.
+    /// Where each color stop sits, top (0) to bottom (1), matching those arrays.
     var locations: [Double] {
         switch self {
         case .persimmon: return [0, 0.4, 1]

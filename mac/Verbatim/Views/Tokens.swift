@@ -225,6 +225,63 @@ extension Ink {
     static let nativeAccent = dyn(nativeAccentLightHex, nativeAccentDarkHex)
 }
 
+// MARK: - Premium Native
+
+/// Premium Native on both devices (DESIGN.md §13.2 for the Mac, §13.3 for iPhone; mockup "premium", section 01): a
+/// warm off-white page (black in dark) with a soft persimmon glow, and gradient cards in the warm brand colors, never
+/// purple. One name per value: lists the devices share have one name, and a device's own tuning carries its name.
+/// Gradient stops run top to bottom.
+///   - iPhone: `persimmon`, `ink`, `sage`, and `rose`. White text measures 4.5:1 or better from a third of the way
+///     down, and 3:1 at the top under the cards' 10% highlight, where only big numbers sit
+///     (mac/tools/test-premium-phone.sh reads these lists).
+///   - Mac: `macPersimmon`, `ink`, and `macSage` (rose stays on iPhone). Stop positions and where white text may sit
+///     are in Views/PremiumRules.swift, and mac/tools/test-premium.sh checks white text against these values. The
+///     light stops sit a little deeper than the mockup's so small white text reaches 4.5:1 where it sits.
+///   - Widgets (both devices) use the iPhone's four gradients.
+enum PremiumInk {
+    /// The page (iPhone) and window (Mac) in light; the iPhone's page in dark.
+    static let paperLightHex: UInt32 = 0xF6F3F1, paperDarkHex: UInt32 = 0x0B0B0C
+    /// The Mac window in dark: near black, a step lighter than the iPhone's page.
+    static let windowDarkHex: UInt32 = 0x121213
+    /// Small accent text (links, "Cleaned", moment times) on the Mac's warm window and the selection tint: the accent
+    /// itself measures 4.1:1 on #F6F3F1, so light text deepens to #BA3618 (5.2:1); dark keeps `Ink.nativeAccentDarkHex`.
+    static let accentTextLightHex: UInt32 = 0xBA3618
+    static let persimmonLight: [UInt32] = [0xE2602F, 0xC3401C, 0x9E2E14]
+    static let persimmonDark: [UInt32] = [0xD9592C, 0xB63A1A, 0x8C2812]
+    static let inkLight: [UInt32] = [0x4A6356, 0x2C3E36, 0x1D2A24]
+    static let inkDark: [UInt32] = [0x3E564A, 0x24342D, 0x17211C]
+    static let sageLight: [UInt32] = [0x6F8A5E, 0x4A6544]
+    static let sageDark: [UInt32] = [0x66805A, 0x3F573A]
+    static let roseLight: [UInt32] = [0xCB6070, 0x9C3A54]
+    static let roseDark: [UInt32] = [0xBD5868, 0x873249]
+    static let macPersimmonLight: [UInt32] = [0xEC6A3D, 0xCC4520, 0xB3351A]
+    static let macPersimmonDark: [UInt32] = [0xE8683B, 0xC8401F, 0x9C2D15]
+    static let macSageLight: [UInt32] = [0x80996C, 0x5E7C56]
+    static let macSageDark: [UInt32] = [0x7D976A, 0x4F6A49]
+    /// The record button's disc, which carries no text: highlight, brand persimmon, shade.
+    static let disc: [UInt32] = [0xFF9C7C, 0xFA6B47, 0xE0502D]
+    /// Text on the accent: white on #D5431F (4.5:1), black on #FF6B47 in dark (7.2:1).
+    static let onAccentLightHex: UInt32 = 0xFFFFFF, onAccentDarkHex: UInt32 = 0x000000
+
+    static let onAccent = Ink.make { d, _ in PColor(hex: d ? onAccentDarkHex : onAccentLightHex) }
+    /// The accent at 11% (18% in dark): tile symbols' circles, the Note tag, a highlighted line, the Mac's selection tint.
+    static let accentSoft = Ink.make { d, _ in PColor(hex: d ? Ink.nativeAccentDarkHex : Ink.nativeAccentLightHex).withAlphaComponent(d ? 0.18 : 0.11) }
+    /// The ink-green week card's text on a white day dot.
+    static let onWhiteInk = Color(hex: 0x2C3E36)
+    static let discColors = disc.map { Color(hex: $0) }
+    #if !os(macOS)
+    // The iPhone's page, cards, and glow. The Mac's window, cards, and glow are in Views/PremiumLook.swift.
+    static let paper = Ink.make { d, _ in PColor(hex: d ? paperDarkHex : paperLightHex) }
+    static let card = Ink.make { d, _ in PColor(hex: d ? 0x1C1C1E : 0xFFFFFF) }
+    static let glow = Ink.make { d, _ in PColor(hex: d ? Ink.nativeAccentDarkHex : Ink.persimmonHex).withAlphaComponent(d ? 0.16 : 0.17) }
+    #endif
+
+    /// A gradient's stops as colors that follow light and dark.
+    static func stops(_ light: [UInt32], _ dark: [UInt32]) -> [Color] {
+        zip(light, dark).map { l, d in Ink.make { isDark, _ in PColor(hex: isDark ? d : l) } }
+    }
+}
+
 // MARK: - Look switch card
 
 /// Verbose style's paper, card, ink, and hard shadow, which never turn into Native's system colors on the Mac (`dyn`
@@ -235,29 +292,6 @@ extension Ink {
     static let inkVerbose = make { dark, _ in PColor(hex: dark ? 0xF5F0E6 : inkHex) }
     static let hardVerbose = make { dark, _ in PColor(hex: dark ? 0x0C1310 : inkHex) }
 }
-
-#if os(macOS)
-// MARK: - Premium Native (Mac)
-
-/// The Mac's Premium Native surfaces (DESIGN.md §13.2): the warm off-white window (black in dark), its persimmon glow,
-/// and the gradient cards in three of the four warm brand colors (persimmon, ink green, sage; rose stays on iPhone).
-/// Each gradient runs top to bottom; stop positions and where white text may sit are in PremiumRules.swift, and
-/// mac/tools/test-premium.sh checks white text against these values. Light stops sit a little deeper than the
-/// mockup's so small white text reaches 4.5:1 where it sits.
-enum PremiumHex {
-    static let windowLight: UInt32 = 0xF6F3F1, windowDark: UInt32 = 0x121213
-    static let glow: UInt32 = 0xFA6B47
-    /// Small accent text (links, "Cleaned", moment times) on the warm window and the selection tint: the accent itself
-    /// measures 4.1:1 on #F6F3F1, so light text deepens to #BA3618 (5.2:1); dark keeps #FF6B47.
-    static let accentTextLight: UInt32 = 0xBA3618, accentTextDark: UInt32 = 0xFF6B47
-    static let persimmonLight: [UInt32] = [0xEC6A3D, 0xCC4520, 0xB3351A]
-    static let persimmonDark: [UInt32] = [0xE8683B, 0xC8401F, 0x9C2D15]
-    static let inkLight: [UInt32] = [0x4A6356, 0x2C3E36, 0x1D2A24]
-    static let inkDark: [UInt32] = [0x3E564A, 0x24342D, 0x17211C]
-    static let sageLight: [UInt32] = [0x80996C, 0x5E7C56]
-    static let sageDark: [UInt32] = [0x7D976A, 0x4F6A49]
-}
-#endif
 
 extension View {
     /// The neutral card surface: a fill (reader white by default) in a continuous rounded rectangle, with an

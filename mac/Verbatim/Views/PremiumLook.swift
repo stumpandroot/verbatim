@@ -7,24 +7,20 @@ import AppKit
 // feel. A warm off-white window (black in dark) with a soft persimmon glow at the top, white cards with a soft shadow,
 // gradient cards in the warm brand colors for This week, the stats, and summaries, big numbers in SF Pro Rounded, and a
 // floating record button. Titles stay SF Pro (no serif); the accent stays `Ink.nativeAccent`, with black text on it in
-// dark. Colors live in Tokens.swift (`PremiumHex`); the rules the Linux tests check are in PremiumRules.swift.
+// dark. Hex values and the colors both devices share live in Tokens.swift (`PremiumInk`); the rules the Linux tests check are in PremiumRules.swift.
 
 // MARK: - Colors
 
-enum PremiumInk {
+extension PremiumInk {
     /// The window: #F6F3F1 in light, near black in dark. `NativeRole.window` (paper under Native) resolves to it too.
-    static let windowNS = NSColor(name: nil) { a in NSColor(hex: a.isDark ? PremiumHex.windowDark : PremiumHex.windowLight) }
+    static let windowNS = NSColor(name: nil) { a in NSColor(hex: a.isDark ? PremiumInk.windowDarkHex : PremiumInk.paperLightHex) }
     static let window = Color(nsColor: windowNS)
     /// White cards (#1C1C1E-ish in dark): the system's content background.
     static let card = Color(nsColor: .controlBackgroundColor)
-    /// The selection tint and soft accent fills: the accent at 11% in light, 18% in dark.
-    static let accentSoft = Color(nsColor: NSColor(name: nil) { a in
-        NSColor(hex: a.isDark ? Ink.nativeAccentDarkHex : Ink.nativeAccentLightHex).withAlphaComponent(a.isDark ? 0.18 : 0.11)
-    })
+    // The selection tint and soft accent fills (`accentSoft`) and text on the accent (`onAccent`, white in light and
+    // black in dark, because white on #FF6B47 measures 2.8:1) are shared with iPhone, in Tokens.swift.
     /// Small accent text on the window, cards, and the selection tint (5.2:1 in light; the accent itself in dark).
-    static let accentText = Color(nsColor: NSColor(name: nil) { a in NSColor(hex: a.isDark ? PremiumHex.accentTextDark : PremiumHex.accentTextLight) })
-    /// Text and symbols on the accent: white in light, black in dark (white on #FF6B47 measures 2.8:1).
-    static let onAccent = Color(nsColor: NSColor(name: nil) { a in a.isDark ? .black : .white })
+    static let accentText = Color(nsColor: NSColor(name: nil) { a in NSColor(hex: a.isDark ? Ink.nativeAccentDarkHex : PremiumInk.accentTextLightHex) })
     /// Fills for tracks, chips, and bordered buttons.
     static let fill = Color.primary.opacity(0.07)
     static let fillStrong = Color.primary.opacity(0.12)
@@ -36,15 +32,15 @@ enum PremiumInk {
     static let cardEdge = Color(nsColor: NSColor(name: nil) { a in
         a.isDark ? NSColor.white.withAlphaComponent(0.07) : NSColor.black.withAlphaComponent(0.04)
     })
-    static let glow = Color(nsColor: NSColor(name: nil) { a in NSColor(hex: PremiumHex.glow).withAlphaComponent(a.isDark ? 0.16 : 0.17) })
+    static let glow = Color(nsColor: NSColor(name: nil) { a in NSColor(hex: Ink.persimmonHex).withAlphaComponent(a.isDark ? 0.16 : 0.17) })
 
     /// A gradient card's colors, top to bottom, following light and dark.
     static func gradient(_ card: PremiumCard) -> LinearGradient {
         let (light, dark): ([UInt32], [UInt32]) = {
             switch card {
-            case .persimmon: return (PremiumHex.persimmonLight, PremiumHex.persimmonDark)
-            case .ink: return (PremiumHex.inkLight, PremiumHex.inkDark)
-            case .sage: return (PremiumHex.sageLight, PremiumHex.sageDark)
+            case .persimmon: return (PremiumInk.macPersimmonLight, PremiumInk.macPersimmonDark)
+            case .ink: return (PremiumInk.inkLight, PremiumInk.inkDark)
+            case .sage: return (PremiumInk.macSageLight, PremiumInk.macSageDark)
             }
         }()
         let stops = zip(light.indices, card.locations).map { i, at in
@@ -179,7 +175,7 @@ struct PremiumRecordButton: View {
             }
             Button { app.requestRecord() } label: {
                 Circle()
-                    .fill(RadialGradient(colors: [Color(nsColor: NSColor(hex: PremiumHex.glow)).opacity(0.55), Ink.persimmonFixed],
+                    .fill(RadialGradient(colors: [Color(nsColor: NSColor(hex: Ink.persimmonHex)).opacity(0.55), Ink.persimmonFixed],
                                          center: UnitPoint(x: 0.34, y: 0.28), startRadius: 0, endRadius: 34))
                     .overlay(Circle().fill(Color.black.opacity(0.08)).mask(LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)))
                     .frame(width: 58, height: 58)

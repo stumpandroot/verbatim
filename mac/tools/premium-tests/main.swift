@@ -28,11 +28,16 @@ func hexValue(_ name: String) -> UInt32? {
     return UInt32(tokens[r], radix: 16)
 }
 
+// The Mac's lists in `PremiumInk`: ink green is shared with iPhone; persimmon and sage are the Mac's own.
+func macList(_ card: PremiumCard, _ mode: String) -> String {
+    card == .ink ? "ink\(mode)" : "mac\(card.rawValue.prefix(1).uppercased())\(card.rawValue.dropFirst())\(mode)"
+}
+
 check("Tokens.swift was passed", !tokens.isEmpty, "pass Tokens.swift's path as the first argument")
 for card in PremiumCard.allCases {
     for mode in ["Light", "Dark"] {
-        guard let stops = hexArray("\(card.rawValue)\(mode)") else {
-            check("PremiumHex.\(card.rawValue)\(mode) is defined", false); continue
+        guard let stops = hexArray(macList(card, mode)) else {
+            check("PremiumInk.\(macList(card, mode)) is defined", false); continue
         }
         check("\(card.rawValue) \(mode.lowercased()): one color per stop position", stops.count == card.locations.count, "\(stops.count) colors, \(card.locations.count) positions")
         for text in PremiumCardText.all where text.card == card {
@@ -55,9 +60,9 @@ func hue(_ hex: UInt32) -> Double {
     h *= 60
     return h < 0 ? h + 360 : h
 }
-let allStops = PremiumCard.allCases.flatMap { c in ["Light", "Dark"].flatMap { hexArray("\(c.rawValue)\($0)") ?? [] } }
+let allStops = PremiumCard.allCases.flatMap { c in ["Light", "Dark"].flatMap { hexArray(macList(c, $0)) ?? [] } }
 check("no purple in the gradients", allStops.allSatisfy { !(230...300).contains(hue($0)) }, allStops.map { String(format: "%06X %.0f°", $0, hue($0)) }.joined(separator: ", "))
-if let light = hexValue("windowLight"), let dark = hexValue("windowDark") {
+if let light = hexValue("paperLightHex"), let dark = hexValue("windowDarkHex") {
     check("the light window is the warm off-white #F6F3F1", light == 0xF6F3F1)
     check("the dark window is near black", PremiumContrast.luminance(dark) < 0.01, String(format: "%06X", dark))
     // The Native accent (Tokens.swift) on the window: light #D5431F with white text; dark #FF6B47 with black text.
@@ -70,7 +75,7 @@ if let light = hexValue("windowLight"), let dark = hexValue("windowDark") {
                 return acc | UInt32((p + (q - p) * a).rounded()) << UInt32(s)
             }
         }
-        if let textLight = hexValue("accentTextLight"), let textDark = hexValue("accentTextDark") {
+        if let textLight = hexValue("accentTextLightHex"), let textDark = hexValue("nativeAccentDarkHex") {
             for (name, bg) in [("the warm window", light), ("the selection tint", over(light, accentLight, 0.11)), ("a white card", UInt32(0xFFFFFF))] {
                 check("light accent text reads on \(name) (4.5:1)", PremiumContrast.ratio(textLight, bg) >= 4.5, String(format: "%.2f:1", PremiumContrast.ratio(textLight, bg)))
             }
@@ -79,7 +84,7 @@ if let light = hexValue("windowLight"), let dark = hexValue("windowDark") {
             }
             check("the accent alone falls short on the warm window (why text deepens)", PremiumContrast.ratio(accentLight, light) < 4.5)
         } else {
-            check("PremiumHex defines accent text", false)
+            check("PremiumInk defines accent text", false)
         }
         check("black text on the dark accent reaches 4.5:1", PremiumContrast.ratio(accentDark, 0x000000) >= 4.5, String(format: "%.2f:1", PremiumContrast.ratio(accentDark, 0)))
         check("white text on the dark accent would fail (so it's black)", PremiumContrast.ratio(accentDark, 0xFFFFFF) < 4.5)
@@ -88,7 +93,7 @@ if let light = hexValue("windowLight"), let dark = hexValue("windowDark") {
         check("Tokens.swift defines the Native accent", false)
     }
 } else {
-    check("PremiumHex defines the window colors", false)
+    check("PremiumInk defines the window colors", false)
 }
 check("the gradient mixes between stops", PremiumContrast.color(at: 0.5, stops: [0x000000, 0xFFFFFF], locations: [0, 1]) == 0x808080)
 check("the gradient clamps past its ends", PremiumContrast.color(at: 1.4, stops: [0x102030, 0x405060], locations: [0, 1]) == 0x405060

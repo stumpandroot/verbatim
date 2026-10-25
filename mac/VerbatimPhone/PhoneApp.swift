@@ -159,6 +159,8 @@ struct PhoneRoot: View {
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
+        // Premium Native: Saved to Library, after Stop (PremiumRecord.swift).
+        .sheet(item: $app.savedRecording) { s in PremiumSavedSheet(saved: s).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in
             NavigationStack {

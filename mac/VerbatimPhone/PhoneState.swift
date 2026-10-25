@@ -92,6 +92,12 @@ final class PhoneState: ObservableObject {
     @Published var v3Offer: ParakeetV3Offer? = nil
     /// A passage to land on when the next transcript opens (from Moments or search).
     var focusSegment: UUID? = nil
+    /// Premium's play pill: the transcript that starts playing once it opens and its audio is ready.
+    var autoplay: UUID? = nil
+    /// Moments marked on the Premium recorder (Mark moment), saved as bookmarks with the recording.
+    @Published var recordingMoments: [RecordingMoment] = []
+    /// Premium's Saved sheet after Stop: the transcript that was just saved (PremiumRecord.swift).
+    @Published var savedRecording: SavedRecording? = nil
 
     // Preferences (same keys as the Mac app; each device keeps its own).
     @Published var presetRaw: String = UserDefaults.standard.string(forKey: "preset") ?? QualityPreset.defaultPreset.rawValue { didSet { UserDefaults.standard.set(presetRaw, forKey: "preset") } }
@@ -229,6 +235,7 @@ final class PhoneState: ObservableObject {
             recordingWords.prepare(recorder)   // before start, so live text hears the first word
             try recorder.start(to: url)
             recordingWords.begin()
+            recordingMoments = []
             continuing = pendingContinue
             pendingContinue = nil
             // If Verbatim is closed mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
@@ -305,6 +312,8 @@ final class PhoneState: ObservableObject {
     private func finishRecording(discard: Bool) async {
         recordingWords.end()   // the preview stops at once; the saved transcript comes from the full engine
         autoPauseReason = nil
+        let moments = recordingMoments
+        recordingMoments = []
         let target = continuing
         continuing = nil
         savingRecording = true
@@ -332,16 +341,28 @@ final class PhoneState: ObservableObject {
         if let target {
             let offset = store.transcript(target)?.duration ?? 0
             guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); return }
-            for n in Store.skippedNotes(r.skipped, offset: offset) { store.addNote(n, to: target) }
+            for n in Store.skippedNotes(r.skipped, offset: offset) + RecordingMoment.notes(moments, offset: offset) { store.addNote(n, to: target) }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             return
         }
         guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); return }
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
-        t.notes = Store.skippedNotes(r.skipped)
+        t.notes = Store.skippedNotes(r.skipped) + RecordingMoment.notes(moments)
         enqueue(t)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        // Premium Native: the Saved sheet, once the recorder's cover has gone.
+        if AppLook.current == .native {
+            let saved = SavedRecording(id: t.id, length: r.duration, moments: moments.count, savedAt: Date())
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.savedRecording = saved }
+        }
+    }
+
+    /// Premium's Mark moment: a bookmark at the recording's current time, saved with it when you stop.
+    func markMoment() {
+        guard recorder.isRecording || previewRecording else { return }
+        recordingMoments.append(RecordingMoment(at: recorder.elapsed))
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     /// Recordings recovered after launch: transcribed now (or added to the transcript they continued).
@@ -843,7 +864,7 @@ final class PhoneState: ObservableObject {
     func deleteAllData() {
         // Everything goes, so a recording in progress is deleted outright here, not kept in Recently Deleted.
         if recorder.isRecording {
-            showRecorder = false; autoPauseReason = nil; continuing = nil
+            showRecorder = false; autoPauseReason = nil; continuing = nil; recordingMoments = []
             recordingWords.end()
             recorder.discard()
         }

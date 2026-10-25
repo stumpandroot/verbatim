@@ -21,6 +21,7 @@ enum PhoneUITest {
         homeChecks()
         homeActionChecks(app)
         recorderChecks(app)
+        premiumChecks(app)
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
         // Imports through the bundled FFmpeg (MKV) and files with several audio tracks (shared with the Mac).
@@ -268,8 +269,38 @@ enum PhoneUITest {
                 app.appearance = mode
                 app.tab = .home
                 await show("\(prefix)01-home-native")
-                if prefix == "p" { homeLayoutCheck(.native) }
+                if prefix == "p" {
+                    homeLayoutCheck(.native)
+                    lookCheck("Home in Native shows the floating record button", PremiumRecordButton.onScreen.contains(.home))
+                }
+                // Premium's recent recordings, as Voicenotes-style items (light only, to keep the tour short).
+                if prefix == "p" {
+                    NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
+                    await show("p01b-home-recent-native")
+                    NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
                 await whatsNewTour(app, prefix: prefix, suffix: "-native")
+                // The record flow: the full-screen recorder with two marked moments (a stand-in recording; no
+                // microphone in the simulator), then the Saved sheet for a seeded recording (nothing is changed).
+                app.previewRecording = true
+                app.recorder.live.setElapsed(134)
+                app.recordingMoments = [RecordingMoment(at: 42), RecordingMoment(at: 118)]
+                app.openRecorder()
+                await show("\(prefix)02-record-native")
+                if prefix == "p" { lookCheck("the record flow opens Premium's full-screen recorder", PremiumRecorder.visible) }
+                app.minimizeRecorder()
+                app.previewRecording = false
+                app.recordingMoments = []
+                app.recorder.live.reset()
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                if let voice = app.store.live.first(where: { !$0.isDictation && $0.source == .voiceMemo }) ?? app.store.live.first(where: { !$0.isDictation }) {
+                    app.savedRecording = SavedRecording(id: voice.id, length: 134, moments: 2, savedAt: Date())
+                    await show("\(prefix)02s-saved-native")
+                    if prefix == "p" { lookCheck("Stop opens the Saved sheet", PremiumSavedSheet.visible) }
+                    app.savedRecording = nil
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                }
                 app.tab = .library
                 await show("\(prefix)04-library-native")
                 app.libraryPath.append(DictationsRoute())
@@ -282,6 +313,14 @@ enum PhoneUITest {
                     app.libraryPath = NavigationPath()
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
+                // You, from Home's This week card: the week, the year, the stat cards, and the calendar.
+                app.tab = .home
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                HomeScreen.openProfile(app)
+                await show("\(prefix)09f-you-native")
+                if prefix == "p" { youCheck("You in Native shows the week, year, and calendar cards", YouScreen.visible && PremiumYouStats.visible) }
+                NotificationCenter.default.post(name: .verbatimYouPage, object: false)
+                try? await Task.sleep(nanoseconds: 900_000_000)
                 app.tab = .moments
                 await show("\(prefix)08-moments-native")
                 app.tab = .settings
@@ -536,7 +575,7 @@ enum PhoneUITest {
     /// Home kept Verbose style's Record panel, rings, and tiles under a half-made navigation bar).
     private static func homeLayoutCheck(_ look: AppLook) {
         let shown = HomeScreen.recordCardsOnScreen
-        let name = look == .native ? "Home in Native shows its Record card, not Verbose style's Record panel"
+        let name = look == .native ? "Home in Native shows the Premium layout (This week card), not Verbose style's Record panel"
                                    : "Home in Verbose style shows the Record panel, not Native's Record card"
         lookCheck("\(name) (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))", shown == [look])
     }
@@ -654,6 +693,40 @@ enum PhoneUITest {
         app.openRecorder()
         check("PhoneState: nothing to reopen without a recording", !app.showRecorder)
         Log.note("UITEST recorder checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// Premium Native's record flow and Home (PremiumRecord.swift, PremiumHome.swift): Mark moment saves a moment at
+    /// the elapsed time, moments become bookmarks (named or "Moment", offset when added to a transcript), the Record
+    /// card is off by default, and the gradients meet contrast (the full set runs on Linux, test-premium-phone.sh).
+    static func premiumChecks(_ app: PhoneState) {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") premium: \(name)")
+        }
+        app.previewRecording = true
+        app.recorder.live.setElapsed(42)
+        app.recordingMoments = []
+        app.markMoment()
+        check("Mark moment saves a moment at the elapsed time", app.recordingMoments.count == 1 && app.recordingMoments.first?.at == 42)
+        app.previewRecording = false
+        app.recorder.live.reset()
+        app.markMoment()
+        check("Mark moment does nothing without a recording", app.recordingMoments.count == 1)
+        app.recordingMoments = []
+        let notes = RecordingMoment.notes([RecordingMoment(at: 42), RecordingMoment(at: 118, name: "  The price  ")], offset: 600)
+        check("moments become bookmarks, unnamed ones called Moment", notes.map(\.text) == ["Moment", "The price"] && notes.allSatisfy(\.isBookmark))
+        check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
+        let stored = UserDefaults.standard.object(forKey: PremiumHome.recordCardKey)
+        UserDefaults.standard.removeObject(forKey: PremiumHome.recordCardKey)
+        check("the Record card is off by default in Native", !UserDefaults.standard.bool(forKey: PremiumHome.recordCardKey))
+        UserDefaults.standard.set(stored, forKey: PremiumHome.recordCardKey)
+        check("settings search finds the Record card", SettingsSearchIndex.search("record card").flatMap(\.entries).contains { $0.id == "homeRecordCard" })
+        let low = PremiumRules.minWhiteContrast(PremiumInk.persimmonLight, from: 1.0 / 3)
+        check("white text keeps 4.5:1 on the lower two thirds of the persimmon card (\(String(format: "%.2f", low)):1)", low >= 4.5)
+        check("black on the dark accent keeps 7:1", PremiumRules.contrast(Ink.nativeAccentDarkHex, PremiumInk.onAccentDarkHex) >= 7)
+        check("recorder clock", PremiumRules.recorderClock(134) == "02:14")
+        Log.note("UITEST premium checks: \(pass) passed, \(fail) failed")
     }
 
     /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).
