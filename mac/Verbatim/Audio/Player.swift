@@ -48,9 +48,34 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     /// A seek asked for while the file was still opening; applied once it opens.
     private var pendingStart: Double?
     /// Sponsor reads to jump past (Settings › Skip sponsor reads), set by the transcript screen (`skipsSponsors`).
-    var skipSpans: [(start: Double, end: Double)] = []
+    private(set) var skipSpans: [(start: Double, end: Double)] = []
+    /// Which transcript screen set `skipSpans`, so one leaving never clears another's (bug: a look switch or opening
+    /// one transcript from another turned skipping off).
+    private var spanHolds = ScreenHolds<UUID>()
+    /// Which transcript screens are showing, so the one leaving stops playback only when it's the last one for its
+    /// transcript (a look switch builds the new screen before the old one goes).
+    private var screenHolds = ScreenHolds<UUID>()
     /// The playhead at the last tick or seek: playback that crosses into a read skips it; a seek into one doesn't.
     private var lastTick: TimeInterval = 0
+
+    /// A transcript screen for `id` appeared, or its reads or the setting changed: these are the reads to skip.
+    func setSkipSpans(_ spans: [(start: Double, end: Double)], for id: UUID, appearing: Bool) {
+        if appearing { spanHolds.hold(id) }
+        if appearing || spanHolds.owner == id { skipSpans = spans }
+    }
+
+    /// A transcript screen for `id` went: its reads stop being skipped unless another screen for it is still showing
+    /// or another transcript set its own since.
+    func releaseSkipSpans(for id: UUID) {
+        if spanHolds.release(id) { skipSpans = [] }
+    }
+
+    /// A transcript screen for `id` appeared (the Mac's transcript screen; it owns playback).
+    func screenAppeared(_ id: UUID) { screenHolds.hold(id) }
+
+    /// A transcript screen for `id` went: true when playback should stop (no screen for it is left, and no other
+    /// transcript took playback over).
+    func screenLeft(_ id: UUID) -> Bool { screenHolds.release(id) }
 
     /// True once the audio is open and can play. Opening a file announces it on Player (`opened`), so the lines' and
     /// sponsor folds' play actions appear; closing it (`stop()`, as the screen leaves) doesn't, as before.
@@ -65,9 +90,13 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         player = p
     }
 
-    /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it.
-    func loadAsync(_ url: URL, startAt: Double? = nil) {
-        if loadedURL == url, player != nil { return }
+    /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it. `autoplay`
+    /// starts playback once it opens (Play on a Library item opens its transcript and plays).
+    func loadAsync(_ url: URL, startAt: Double? = nil, autoplay: Bool = false) {
+        if loadedURL == url, player != nil {
+            if autoplay, !isPlaying { toggle() }
+            return
+        }
         if player != nil || isPlaying { stop() }   // no redundant publishes when nothing is loaded
         setLoadedURL(url)
         pendingStart = nil
@@ -87,6 +116,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
                 defer { self.pendingStart = nil }
                 if let s = startAt ?? self.pendingStart { p.currentTime = min(s, p.duration); self.time = p.currentTime } else { self.time = 0 }
                 self.lastTick = self.time
+                if autoplay, !self.isPlaying { self.toggle() }
             }
         }
     }

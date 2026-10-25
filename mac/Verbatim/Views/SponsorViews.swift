@@ -87,7 +87,7 @@ private struct SponsorRowSurface: ViewModifier {
 }
 
 /// The transcript screen tells the player which reads to skip (Settings › Skip sponsor reads), and clears them
-/// when it closes.
+/// when it closes, unless another screen took them over (`Player.releaseSkipSpans`).
 private struct SponsorSkipping: ViewModifier {
     var transcript: Transcript
     var player: Player
@@ -95,14 +95,14 @@ private struct SponsorSkipping: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onAppear { apply() }
-            .onDisappear { player.skipSpans = [] }
-            .onChange(of: transcript.sponsors) { _, _ in apply() }
-            .onChange(of: skip) { _, _ in apply() }
+            .onAppear { apply(appearing: true) }
+            .onDisappear { player.releaseSkipSpans(for: transcript.id) }
+            .onChange(of: transcript.sponsors) { _, _ in apply(appearing: false) }
+            .onChange(of: skip) { _, _ in apply(appearing: false) }
     }
 
-    private func apply() {
-        player.skipSpans = skip ? transcript.sponsorSpans.map { (start: $0.start, end: $0.end) } : []
+    private func apply(appearing: Bool) {
+        player.setSkipSpans(skip ? transcript.sponsorSpans.map { (start: $0.start, end: $0.end) } : [], for: transcript.id, appearing: appearing)
     }
 }
 
