@@ -16,6 +16,8 @@ enum PhoneUITest {
         ribbonChecks(app)             // The recording ribbon: routing, takes, timeouts, and the session's take API.
         libraryChecks()
         lookChecks()
+        // What's new: the bundled notes, their rules, and when Home's note shows (ReleaseNotes.swift).
+        ReleaseNotes.selfTest { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
         homeChecks()
         homeActionChecks(app)
         recorderChecks(app)
@@ -37,6 +39,8 @@ enum PhoneUITest {
                 await show("\(prefix)01b-home-recent")
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                // Home's note after an update, then What's new, which it opens (WhatsNewScreen.swift).
+                await whatsNewTour(app, prefix: prefix, suffix: "")
                 app.showRecorder = true
                 await show("\(prefix)02-record")
                 app.showRecorder = false
@@ -257,6 +261,7 @@ enum PhoneUITest {
                 app.appearance = mode
                 app.tab = .home
                 await show("\(prefix)01-home-native")
+                await whatsNewTour(app, prefix: prefix, suffix: "-native")
                 app.tab = .library
                 await show("\(prefix)04-library-native")
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
@@ -426,6 +431,33 @@ enum PhoneUITest {
         check("white on the light accent reaches 4.5:1", KeyboardLook.contrast(Ink.nativeAccentLightHex, 0xFFFFFF) >= 4.5)
         check("the dark accent reaches 4.5:1 on dark gray", KeyboardLook.contrast(Ink.nativeAccentDarkHex, 0x1C1C1E) >= 4.5)
         Log.note("UITEST look checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// Home's note for the newest build in the notes (the simulator's own build has no entry), then What's new, which
+    /// the note opens; back on Home with the note gone and the last build seen put back. Screens
+    /// <prefix>01c-home-whats-new<suffix> and <prefix>09n-whats-new<suffix>.
+    private static func whatsNewTour(_ app: PhoneState, prefix: String, suffix: String) async {
+        let d = UserDefaults.standard
+        let keepSeen = d.object(forKey: ReleaseNotes.lastSeenKey)
+        guard let n = ReleaseNotes.bundled.first(where: { $0.number != nil })?.number else {
+            Log.note("UITEST FAIL what's new: no numbered build in the bundled notes"); return
+        }
+        WhatsNewBanner.previewBuild = n
+        d.set(n - 1, forKey: ReleaseNotes.lastSeenKey)
+        app.tab = .home
+        await show("\(prefix)01c-home-whats-new\(suffix)")
+        HomeScreen.openWhatsNew(app)
+        await show("\(prefix)09n-whats-new\(suffix)")
+        if prefix == "p" {
+            Log.note("UITEST \(app.tab == .settings && WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: Home's note opens What's new\(suffix)")
+        }
+        SettingsPage.open("root")
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        if prefix == "p" { Log.note("UITEST \(!WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: it closes\(suffix)") }
+        WhatsNewBanner.previewBuild = nil
+        if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
+        app.tab = .home
+        try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
     private static func lookCheck(_ name: String, _ ok: Bool) {

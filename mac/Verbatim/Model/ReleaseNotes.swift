@@ -119,6 +119,20 @@ enum ReleaseNotes {
         defaults.set(current, forKey: lastSeenKey)
     }
 
+    /// The self-tests' checks (UITest.swift, PhoneUITest.swift): the notes are in the app, follow the rules, and Home's
+    /// note shows once after an update.
+    static func selfTest(_ check: (String, Bool) -> Void) {
+        check("release notes: ReleaseNotes.json is in the app", !bundled.isEmpty)
+        let found = problems(bundled)
+        check("release notes: they follow the rules\(found.isEmpty ? "" : " (" + found.joined(separator: "; ") + ")")", found.isEmpty)
+        if let newest = bundled.first(where: { $0.number != nil }), let n = newest.number {
+            check("release notes: the newest build reads Build \(n) · <date>", newest.heading.hasPrefix("Build \(n) · "))
+            check("release notes: Home's note shows after an update to build \(n)", pending(current: n, lastSeen: n - 1, notes: bundled) == newest)
+            check("release notes: and not again once seen", pending(current: n, lastSeen: n, notes: bundled) == nil)
+        }
+        check("release notes: a new install starts at its own build", firstLastSeen(stored: nil, current: 300, ranBefore: false) == 300)
+    }
+
     /// "Oct 25" (or another `format`) from "2026-10-25"; nil when the date isn't YYYY-MM-DD.
     static func day(_ date: String?, format: String) -> String? {
         guard let date, date.count == 10 else { return nil }

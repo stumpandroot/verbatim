@@ -583,10 +583,13 @@ enum UITest {
         SettingsModel.shared.query = ""
         UserDefaults.standard.set(SettingsTab.export.rawValue, forKey: "settingsTab")
         await show("09g-settings-export")
+        UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
+        await show("09i-settings-whats-new")
         UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         await show("10-home-again")
+        await whatsNewLine(app: app, window: window, name: "10f-home-whats-new")
         for (i, name) in ["10a-onboarding-welcome", "10a2-onboarding-look", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
             onboardingStep = i
             app.showOnboarding = true
@@ -659,10 +662,13 @@ enum UITest {
         await show("09-settings-general-native")
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
         await show("09d-settings-dictate-native")
+        UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
+        await show("09i-settings-whats-new-native")
         UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         window.makeKeyAndOrderFront(nil)
         app.go(.home)
+        await whatsNewLine(app: app, window: window, name: "10f-home-whats-new-native")
         onboardingStep = OnboardingStep.look.rawValue
         app.showOnboarding = true
         await show("10a2-onboarding-look-native")
@@ -679,6 +685,32 @@ enum UITest {
         NSApplication.shared.appearance = nil
         AppLook.current = .verbose
         try? await Task.sleep(nanoseconds: 800_000_000)
+    }
+
+    /// Home's note for the newest build in the notes, then Verbose › What's New… (the same action as clicking the
+    /// note), which opens Settings › What's new. Puts the last build seen back and closes Settings.
+    private static func whatsNewLine(app: AppState, window: NSWindow, name: String) async {
+        let d = UserDefaults.standard
+        let keepSeen = d.object(forKey: ReleaseNotes.lastSeenKey)
+        guard let n = ReleaseNotes.bundled.first(where: { $0.number != nil })?.number else {
+            Log.note("UITEST FAIL what's new: no numbered build in the bundled notes"); return
+        }
+        WhatsNewHomeLine.previewBuild = n
+        d.set(n - 1, forKey: ReleaseNotes.lastSeenKey)
+        await show(name)
+        if let item = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.title == "What's New…" }), let action = item.action {
+            NSApp.sendAction(action, to: item.target, from: item)
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            Log.note("UITEST \(settingsTab == SettingsTab.whatsNew.rawValue ? "PASS" : "FAIL") what's new: Verbose › What's New… opens Settings › What's new (\(name))")
+        } else {
+            Log.note("UITEST FAIL what's new: no What's New… item in the app menu")
+        }
+        WhatsNewHomeLine.previewBuild = nil
+        if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
+        window.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(nanoseconds: 600_000_000)
     }
 
     static weak var appRef: AppState?
@@ -1048,6 +1080,9 @@ enum UITest {
         check("native look: Pick a look comes after the welcome", OnboardingStep.at(1) == .look && OnboardingStep.count == 6)
         check("native look: Settings › General › Look is searchable", SettingsIndex.search("native").map(\.id).contains("general.look"))
         check("native look: tokens stay Verbose style while it's chosen", !NativeSwap.on && NativeSwap.color(light: Ink.paperHex) == nil)
+        // What's new: the bundled notes, their rules, when Home's note shows, and where it's found (ReleaseNotes.swift).
+        ReleaseNotes.selfTest { check($0, $1) }
+        check("release notes: Settings search finds What's new", SettingsIndex.search("release notes").map(\.section).contains(.whatsNew))
 
         // Recent dictations: newest first, capped, one-line menu titles, number keys, and when the Ribbon keeps a missed paste
         do {
