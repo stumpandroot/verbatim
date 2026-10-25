@@ -335,6 +335,8 @@ targets:
       - VerbatimKeyboard/KeyboardFormat.swift
       # Settings › Keyboard › Dictate button: the stored size, position, and style the keyboard draws.
       - VerbatimKeyboard/DictateButton.swift
+      # The look the keyboard reads (Settings › Appearance › Look), for the self-test.
+      - VerbatimKeyboard/KeyboardLook.swift
       # Shared with the widget extension: the Start dictation session intent (Control Center, Action button).
       - VerbatimWidgets/StartSessionIntent.swift
       # Shared with the widget extension: the keyboard session's Live Activity and its End session intent.

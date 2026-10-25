@@ -56,6 +56,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var surface: KeyboardSurface = .typing
     /// The Typing bar's menu card (Cleanup, Snippets, Recent dictations, Open Verbose).
     @Published private(set) var showingMenu = false
+    /// The app's look on this iPhone (`KeyboardLook`), read once per appearance; `KB.native` mirrors it.
+    @Published private(set) var native = false
     /// Home's stats pages (from the app's `KeyboardBridge.Stats`), and the one showing. Empty before the first
     /// dictation, when Home shows its welcome line instead.
     @Published private(set) var statsPages: [KeyboardStatPage] = []
@@ -265,6 +267,10 @@ final class KeyboardModel: ObservableObject {
         logMemory("appeared")
         let button = DictateButton.read(defaults)
         if button != dictateButton { dictateButton = button }
+        // The look, the same way: from the App Group, so nil (Verbose style) without Full Access. KB reads it first.
+        let looksNative = KeyboardLook.isNative(defaults)
+        KB.native = looksNative
+        if looksNative != native { native = looksNative }
         // Without Full Access there's no App Group: no session, no snippets, no recent dictations.
         guard hasFullAccess else {
             snippets = []
