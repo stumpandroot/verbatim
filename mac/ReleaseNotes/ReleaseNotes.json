@@ -8,7 +8,8 @@
         "iPhone: after you change the look, you stay on the same tab and screen, and Library keeps your search and filter.",
         "iPhone: Home and Library switch fully to the Native look, and tags, categories, sponsor rows, and Settings cards match it. On Mac, these arrived in build 206.",
         "Importing a damaged MP4 or M4A file no longer closes Verbose.",
-        "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it."
+        "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it.",
+        "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting."
       ]
     },
     {

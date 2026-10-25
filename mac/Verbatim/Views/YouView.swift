@@ -68,6 +68,7 @@ struct YouView: View {
     @ObservedObject private var voice = VoiceProfileStatus.shared
     @AppStorage(YouProfile.nameKey) private var storedName = ""
     @AppStorage(YouProfile.aboutMeKey) private var aboutMe = ""
+    @AppStorage(CloudCleanup.enabledKey) private var cloudCleanup = false
     @Environment(\.openSettings) private var openSettings
     @Environment(\.limitMotion) private var limitMotion
     @State private var span: YouRange.Span = .week
@@ -200,11 +201,10 @@ struct YouView: View {
             YouCardTitle(text: "Cleanup and grammar")
             YouToggle(label: "Cleanup level", options: CleanupLevel.allCases, selection: $settings.cleanup, title: { $0.title })
             VStack(spacing: 0) {
-                // TODO(cleanup-strength): bind Grammar check to its setting once it lands (another branch adds it).
+                // Grammar fixes follow the cleanup level; there's no separate switch, so this opens Cleanup.
                 settingLink("Grammar check", value: "Settings") { openCleanupSetting("dictate.cleanup") }
                 settingLink("Tone", value: "Match the app") { openCleanupSetting("dictate.styles") }
-                // TODO(cleanup-strength): bind Cloud cleanup to its setting once it lands (another branch adds it).
-                settingLink("Cloud cleanup", value: "Settings") { openCleanupSetting("dictate.cleanup") }
+                settingLink("Cloud cleanup", value: cloudCleanup ? "On" : "Off") { openCleanupSetting("dictate.cloud") }
             }
         }
     }
@@ -227,8 +227,7 @@ struct YouView: View {
         .accessibilityHint("Opens Settings")
     }
 
-    /// Opens Settings at a dictation setting. TODO(cleanup-strength): bind — the one place to change when Grammar
-    /// check and Cloud cleanup get their own settings: bind them in `cleanupCard` and keep this for Tone.
+    /// Opens Settings at a dictation setting.
     private func openCleanupSetting(_ id: String) {
         if let e = SettingsIndex.entry(id) { SettingsModel.shared.open(e) }
         else { UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab") }
