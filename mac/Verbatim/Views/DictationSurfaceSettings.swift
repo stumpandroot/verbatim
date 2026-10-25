@@ -36,7 +36,7 @@ struct DictationSurfaceRows: View {
         .onChange(of: surfaceRaw) { _, _ in app.dictation.bar?.refresh() }
         .onChange(of: fallbackRaw) { _, _ in app.dictation.bar?.refresh() }
         .onChange(of: notchClick) { _, _ in app.dictation.bar?.refresh() }
-        .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords() } }
+        .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords(askPermission: true) } }
         switch surface {
         case .notch:
             SettingsRow("dictate.noNotch") {
@@ -586,7 +586,7 @@ struct FloatingButtonSettingsPane: View {
         }
         .onChange(of: lookRaw) { _, _ in app.dictation.bar?.refresh() }
         .onChange(of: sizeRaw) { _, _ in app.dictation.bar?.refresh() }
-        .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords() } }
+        .onChange(of: liveWords) { _, on in if on { app.dictation.prepareLiveWords(askPermission: true) } }
     }
 }
 

@@ -1221,6 +1221,9 @@ enum UITest {
         preview.begin(Recorder())
         check("recorder live words stay off in the self-test", !preview.isActive && preview.shown.isEmpty)
         preview.end()
+        // Speech recognition permission is asked for only from an explicit action, and never in the self-test, so no
+        // dialog covers the tour's screenshots (builds 199 and 200 asked whenever the Ribbon went idle).
+        check("speech permission is never asked in the self-test", !DictationController.mayAskSpeechPermission)
     }
 
     /// App audio capture: synthetic sample buffers go through the live capture's path (owned copy, then the

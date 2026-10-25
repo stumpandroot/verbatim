@@ -161,12 +161,16 @@ final class DictationController: ObservableObject {
     func showPendingLearn() { learner.showPending() }
 
     /// Live words, between dictations (the Ribbon went idle) or when the setting is turned on: gets the on-device
-    /// recognizer ready, and on systems that use the older recognizer asks for speech recognition permission once.
-    /// Never while listening or writing, so a permission dialog can't take focus from the paste.
-    func prepareLiveWords() {
+    /// recognizer ready. On systems that use the older recognizer it asks for speech recognition permission once, but
+    /// only when `askPermission`, which is for an explicit action (turning the setting on). Never at launch, between
+    /// dictations, while listening or writing (a dialog would take focus from the paste), or in the UI self-test.
+    func prepareLiveWords(askPermission: Bool = false) {
         guard LiveWordsSetting.isOn, !isListening, !isWorking, pastesInFlight == 0 else { return }
-        liveWords.prepare(allowPermissionPrompt: true)
+        liveWords.prepare(allowPermissionPrompt: askPermission && Self.mayAskSpeechPermission)
     }
+
+    /// Off in the UI self-test, so no permission dialog covers its screenshots.
+    static var mayAskSpeechPermission: Bool { !UITest.enabled }
     var projects: [Project] { app?.store.projects ?? [] }
     private var trustTimer: Timer?
     private var secureTimer: Timer?
