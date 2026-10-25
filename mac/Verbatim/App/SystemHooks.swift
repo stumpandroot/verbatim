@@ -4,7 +4,8 @@ import CoreSpotlight
 import UniformTypeIdentifiers
 
 /// The Mac's system hooks: Transcribe with Verbatim in Finder (a Service, NSServices in project.yml), Spotlight
-/// results for transcripts, and the app the Shortcuts actions (App/VerbatimIntents.swift) talk to.
+/// results for transcripts, the desktop widgets' snapshot and verbatim:// links, and the app the Shortcuts actions
+/// (App/VerbatimIntents.swift) talk to.
 @MainActor
 enum SystemHooks {
     /// The running app, once its state exists. Services and intents that arrive earlier wait for it.
@@ -16,6 +17,7 @@ enum SystemHooks {
         NSUpdateDynamicServices()
         ServiceProvider.shared.deliverPending()
         SpotlightIndex.shared.attach(app.store)
+        WidgetFeed.shared.attach(app.store)
     }
 
     /// Waits up to `seconds` for the app's state (an intent or Service can launch Verbatim before its window exists).
@@ -30,6 +32,31 @@ enum SystemHooks {
         NSApp.activate(ignoringOtherApps: true)
         app?.mainWindow?.makeKeyAndOrderFront(nil)
         if app?.store.transcript(id) != nil { app?.go(.transcript(id)) }
+    }
+
+    /// A desktop widget's link (WidgetLink): open a transcript, record a voice memo, dictate, or open the Thought pad.
+    /// Opening a link brings Verbose forward, so Dictate hides it again first: the words go to the app that was in front.
+    static func openWidgetLink(_ url: URL) {
+        guard let link = WidgetLink(url: url) else {
+            Log.note("link: ignored a \(url.scheme ?? "?") link")
+            return
+        }
+        Task { @MainActor in
+            guard let app = await waitForApp() else { return }
+            switch link {
+            case .transcript(let id):
+                open(id)
+            case .record:
+                NSApp.activate(ignoringOtherApps: true)
+                app.mainWindow?.makeKeyAndOrderFront(nil)
+                app.requestRecord()
+            case .dictate:
+                NSApp.hide(nil)
+                app.dictation.barClicked()
+            case .thought:
+                ThoughtPadController.shared.open()
+            }
+        }
     }
 }
 
@@ -167,6 +194,13 @@ extension QuitGuard {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Set early, so a Service that launched Verbatim is delivered (and held until the app's state exists).
         NSApp.servicesProvider = ServiceProvider.shared
+    }
+
+    /// verbatim:// links from the desktop widgets (SystemHooks.openWidgetLink). Handling them here also keeps
+    /// SwiftUI from opening another window for the link.
+    @MainActor
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { SystemHooks.openWidgetLink(url) }
     }
 
     /// A Spotlight result: open its transcript.

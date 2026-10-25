@@ -212,9 +212,10 @@ extension PhoneState {
     /// back to Verbatim).
     // openRecorder() lives in MiniRecorder.swift (it also handles the minimized bar and Reduce Motion).
 
-    /// verbatim://record, from the recording's Live Activity. True when it was that link.
+    /// verbatim://record, from the recording's Live Activity, or a widget's link (PhoneWidgetLinks.swift). True when it
+    /// was one of those.
     func handleRecorderLink(_ url: URL) -> Bool {
-        guard url.scheme == "verbatim", url.host == "record" else { return false }
+        guard url.scheme == "verbatim", url.host == "record" else { return handleWidgetLink(url) }
         openRecorder()
         return true
     }
