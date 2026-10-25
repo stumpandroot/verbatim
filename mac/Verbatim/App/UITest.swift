@@ -1730,9 +1730,17 @@ enum UITest {
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
             NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t, windowNumber: window.windowNumber, context: nil, eventNumber: Int(t * 1000) % 100000, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
         }
+        // A List or Table (an NSTableView, like Native's sidebar) tracks the press in a loop of its own that waits for
+        // the mouse-up in the event queue. Sent straight after the down, the up never reached that loop, so the click
+        // blocked the main thread for good (build 209 stopped at the Native sidebar click, before `tour-native`). There
+        // the up is queued first; everywhere else both still go straight to the window.
+        var tracked = false
+        var hv = content.hitTest(p)
+        while let x = hv { if x is NSTableView { tracked = true; break }; hv = x.superview }
         if let m = ev(.mouseMoved) { window.sendEvent(m) }
+        if tracked, let u = ev(.leftMouseUp) { NSApp.postEvent(u, atStart: true) }
         if let d = ev(.leftMouseDown) { window.sendEvent(d) }
-        if let u = ev(.leftMouseUp) { window.sendEvent(u) }
+        if !tracked, let u = ev(.leftMouseUp) { window.sendEvent(u) }
     }
 }
 
