@@ -122,8 +122,6 @@ enum Cloud {
     static var enabled: Bool { root != nil }
     /// Sync could run on this device (it may still be switched off).
     static var available: Bool { container != nil }
-    /// The switch was changed this session and takes effect the next time Verbatim opens.
-    static var changePending: Bool { available && wantsSync != enabled }
     static func setWantsSync(_ on: Bool) { UserDefaults.standard.set(on, forKey: syncKey) }
 
     /// Turning sync off, step 1 (in the session): makes this device's local folders an exact copy of iCloud,

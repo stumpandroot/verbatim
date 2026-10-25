@@ -88,6 +88,8 @@ final class TranscriptionCoordinator: ObservableObject {
     private var runningTask: Task<Void, Never>? = nil
     /// Cancelled runs that haven't ended yet. The next job waits for them, so two never run at once.
     private var draining = 0 { didSet { updateKeepAwake() } }
+    /// Launch sweeps of saved sections still running. No job starts until they end (see `resume`).
+    private var sweeping = 0
     /// Held while a job runs (or a cancelled one winds down): the Mac doesn't idle-sleep in the middle of a long file.
     private var keepAwake: NSObjectProtocol?
 
@@ -142,7 +144,15 @@ final class TranscriptionCoordinator: ObservableObject {
             .sorted { $0.createdAt < $1.createdAt }.map(\.id)
         // Saved sections only for jobs that will pick up again; the rest finished, were deleted, or were cancelled.
         let resuming = Set((queue + [runningID].compactMap { $0 }).compactMap { store.transcript($0)?.audioFileName })
-        Task.detached(priority: .utility) { SectionCheckpoint.sweep(keeping: resuming) }
+        // Jobs wait for the sweep: one queued in between (a recovered recording, a dropped file) could otherwise write
+        // its first section and have it swept, so a crash during that job would start it from the beginning.
+        sweeping += 1
+        Task { [weak self] in
+            await Task.detached(priority: .utility) { SectionCheckpoint.sweep(keeping: resuming) }.value
+            guard let self else { return }
+            self.sweeping -= 1
+            self.pump()
+        }
     }
 
     // MARK: Queueing
@@ -254,7 +264,7 @@ final class TranscriptionCoordinator: ObservableObject {
 
     /// Starts the next queued transcript if nothing is running.
     func pump() {
-        guard runningID == nil, draining == 0 else { return }
+        guard runningID == nil, draining == 0, sweeping == 0 else { return }
         while let next = queue.first {
             queue.removeFirst()
             // A job another device has taken over since it was queued (Retry or a claimed link there) is theirs now.

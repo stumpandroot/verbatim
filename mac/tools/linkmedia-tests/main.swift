@@ -86,6 +86,32 @@ check("a plain M4A: not fragmented, samples from its sample table", rp?.fragment
       && rp?.headerSeconds == 95, "\(String(describing: rp))")
 check("not an MP4: nil", MP4Timing.read(data: Data("ID3\u{3}garbage that is long enough".utf8)) == nil && MP4Timing.read(data: Data()) == nil)
 
+// Malformed boxes (a corrupt download or a hostile file): sizes near Int64.max or past the end stop the read, never
+// trap. Each would crash the import before the overflow fix.
+func large(_ type: String, _ size: UInt64, _ payload: [UInt8] = []) -> [UInt8] {
+    cat(be32(1), ascii(type), be32(UInt32(size >> 32)), be32(UInt32(size & 0xffff_ffff)), payload)
+}
+let ftyp = box("ftyp", cat(ascii("M4A "), be32(0)))
+let goodMoov = box("moov", cat(mvhd(timescale: 600, duration: 57_000), trak(id: 1, timescale: rate, stts: [(4092, 1024), (1, 512)])))
+let huge: UInt64 = 0x7FFF_FFFF_FFFF_FFFF
+let mFree = MP4Timing.read(data: Data(cat(ftyp, goodMoov, large("free", huge), zeros(32))))
+check("a top-level box with a largesize of Int64.max stops the read and keeps what came before",
+      mFree?.headerSeconds == 95 && abs((mFree?.sampleSeconds ?? 0) - Double(4092 * 1024 + 512) / 44100) < 0.0001, "\(String(describing: mFree))")
+let mMdat = MP4Timing.read(data: Data(cat(ftyp, goodMoov, large("mdat", huge), zeros(32), goodMoov)))
+check("an mdat with a largesize of Int64.max ends the file", mMdat?.headerSeconds == 95, "\(String(describing: mMdat))")
+let mNeg = MP4Timing.read(data: Data(cat(ftyp, goodMoov, large("free", UInt64.max), zeros(32))))
+check("a largesize past Int64.max (negative) stops the read", mNeg?.headerSeconds == 95, "\(String(describing: mNeg))")
+let mPast = MP4Timing.read(data: Data(cat(ftyp, goodMoov, be32(0xffff_fff0), ascii("free"), zeros(32))))
+check("a 32-bit size past the end of the file stops the read", mPast?.headerSeconds == 95, "\(String(describing: mPast))")
+let childHuge = box("moov", cat(mvhd(timescale: 600, duration: 57_000), large("trak", huge, zeros(16))))
+let mChild = MP4Timing.read(data: Data(cat(ftyp, childHuge)))
+check("a child box with a largesize of Int64.max stops its container's walk", mChild?.headerSeconds == 95 && mChild?.sampleSeconds == nil,
+      "\(String(describing: mChild))")
+let childMax = box("moov", cat(mvhd(timescale: 600, duration: 57_000), large("udta", UInt64.max, zeros(16))))
+check("a child box with a largesize of UInt64.max stops its container's walk", MP4Timing.read(data: Data(cat(ftyp, childMax)))?.headerSeconds == 95)
+let mOnlyHuge = MP4Timing.read(data: Data(cat(large("moov", huge), zeros(32))))
+check("a moov that claims Int64.max bytes is not read", mOnlyHuge == nil, "\(String(describing: mOnlyHuge))")
+
 // MARK: Chunked download ranges
 
 check("the Range header is inclusive", LinkChunks.rangeHeader(offset: 0, chunk: 8_388_608) == "bytes=0-8388607"

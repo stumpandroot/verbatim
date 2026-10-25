@@ -96,7 +96,10 @@ enum MP4Timing {
             } else if length == 0 {
                 length = size - offset
             }
-            guard length >= headerLength, offset + length <= size || type == "mdat" else { break }
+            // Compared by subtraction: a corrupt or hostile size near Int64.max would overflow `offset + length`.
+            guard length >= headerLength else { break }
+            let fits = length <= size - offset
+            guard fits || type == "mdat" else { break }
             if offset == 0, type != "ftyp", type != "moov", type != "styp" { return nil }
             switch type {
             case "ftyp", "styp": s.sawFtypOrMoov = true
@@ -108,6 +111,7 @@ enum MP4Timing {
                 if type == "sidx" { sidx(data, s) } else { s.sawFtypOrMoov = true; walk(type, data, s) }
             default: break   // mdat, free, …: skipped
             }
+            guard fits else { break }   // an mdat that runs past the end is the last box
             offset += length
         }
         guard s.sawFtypOrMoov else { return nil }
@@ -138,7 +142,7 @@ enum MP4Timing {
                 guard p + 16 <= d.count else { return }
                 length = Int(clamping: u64(d, p + 8)); hl = 16
             } else if length == 0 { length = d.count - p }
-            guard length >= hl, p + length <= d.count else { return }
+            guard length >= hl, length <= d.count - p else { return }   // not `p + length`: it can overflow
             let body = Array(d[(p + hl)..<(p + length)])
             if containers.contains(child) {
                 walk(child, body, s)
