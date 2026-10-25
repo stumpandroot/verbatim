@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Settings › Transcription › Cloud cleanup: off by default. Your own Anthropic or OpenAI key, saved in this
-/// iPhone's Keychain only (`CloudCleanup`, `CloudKeychain`). Shown under the Cleanup row.
+/// Settings › Cloud cleanup (Dictation and keyboard): off by default. Your own Anthropic or OpenAI key, saved in this
+/// iPhone's Keychain only (`CloudCleanup`, `CloudKeychain`). Shown on the Cloud cleanup page (SettingsPages.swift).
 struct CloudCleanupRows: View {
     var searchFlash: String?
     @AppStorage(CloudCleanup.enabledKey) private var on = false

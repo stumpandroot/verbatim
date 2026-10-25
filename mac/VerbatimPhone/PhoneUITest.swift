@@ -190,6 +190,9 @@ enum PhoneUITest {
                 await show("\(prefix)08-moments")
                 app.tab = .settings
                 await show("\(prefix)09-settings")
+                // The seven groups run long: the middle (Dictation and keyboard) and the end (Features and the version).
+                await settingsScrollShots(prefix: prefix, suffix: "")
+                if prefix == "p" { await settingsSearchResolves(app, native: false) }
                 SettingsSearchModel.shared.query = "keyboard"
                 await show("\(prefix)09b-settings-search")
                 SettingsSearchModel.shared.query = ""
@@ -325,6 +328,8 @@ enum PhoneUITest {
                 await show("\(prefix)08-moments-native")
                 app.tab = .settings
                 await show("\(prefix)09-settings-native")
+                await settingsScrollShots(prefix: prefix, suffix: "-native")
+                if prefix == "p" { await settingsSearchResolves(app, native: true) }
                 SettingsPage.open("appearance")
                 await show("\(prefix)09m-appearance-native")
                 SettingsPage.open("root")
@@ -482,10 +487,56 @@ enum PhoneUITest {
         check("without Full Access (no App Group) the keyboard keeps Verbose style", !KeyboardLook.isNative(nil))
         if let keep { store.set(keep, forKey: AppLook.key) } else { store.removeObject(forKey: AppLook.key) }
         check("settings search finds the look", SettingsSearchIndex.search("native").flatMap(\.entries).contains { $0.id == "look" })
-        check("Limit animation opens Appearance", SettingsSearchIndex.all.first { $0.id == "limitMotion" }?.target == .page(.appearance))
+        check("Limit animation is a switch on the Settings root", SettingsSearchIndex.all.first { $0.id == "limitMotion" }?.target == .row)
         check("white on the light accent reaches 4.5:1", KeyboardLook.contrast(Ink.nativeAccentLightHex, 0xFFFFFF) >= 4.5)
         check("the dark accent reaches 4.5:1 on dark gray", KeyboardLook.contrast(Ink.nativeAccentDarkHex, 0x1C1C1E) >= 4.5)
         Log.note("UITEST look checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// Settings scrolled to Dictation and keyboard, then to its foot (the version and What's new), then back to the top.
+    /// Screens <prefix>09p-settings-dictation<suffix> and <prefix>09q-settings-end<suffix>.
+    private static func settingsScrollShots(prefix: String, suffix: String) async {
+        NotificationCenter.default.post(name: .verbatimSettingsScroll, object: "group-3")
+        await show("\(prefix)09p-settings-dictation\(suffix)")
+        NotificationCenter.default.post(name: .verbatimSettingsScroll, object: "settings-footer")
+        await show("\(prefix)09q-settings-end\(suffix)")
+        NotificationCenter.default.post(name: .verbatimSettingsScroll, object: "settings-top")
+        try? await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    /// Every Settings search entry resolves to something on screen: a root row is laid out on the Settings root, and
+    /// an entry on a page opens that page (SettingsPage, the same push a result makes). On the pages the regroup
+    /// added, and on Appearance, the entry's row has to be laid out there too. One UITEST line per look.
+    private static func settingsSearchResolves(_ app: PhoneState, native: Bool) async {
+        let name = native ? "settings (native)" : "settings"
+        SettingsSearchModel.shared.query = ""
+        app.tab = .settings
+        SettingsPage.open("root")
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        var missing: [String] = []
+        for e in SettingsSearchIndex.all where e.target == .row && !SettingsRowRegistry.isOnScreen(e.id) { missing.append(e.id) }
+        // Rows that show only in one look or with a setting on.
+        var conditional: Set<String> = native ? [] : ["homeRecordCard"]
+        if !CloudCleanup.enabled { conditional.insert("cloudProvider") }
+        let rowsChecked: Set<SettingsSubpage> = [.appearance, .speakers, .moreTranscription, .cloudCleanup, .tour, .widgets, .shortcuts]
+        var pages: [SettingsSubpage] = []
+        for e in SettingsSearchIndex.all { if case .page(let p) = e.target, !pages.contains(p) { pages.append(p) } }
+        for p in pages {
+            SettingsPage.open(p.rawValue)
+            let opened = await waitFor(3) { SettingsRowRegistry.page == p }
+            if !opened.ok { missing.append("page \(p.rawValue)") }
+            if opened.ok, rowsChecked.contains(p) {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                for e in SettingsSearchIndex.all where e.target == .page(p) && !conditional.contains(e.id) && !SettingsRowRegistry.isOnScreen(e.id) {
+                    missing.append(e.id)
+                }
+            }
+            SettingsPage.open("root")
+            _ = await waitFor(3) { SettingsRowRegistry.page == nil }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        let ok = missing.isEmpty
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name): every search entry resolves to a visible row (\(SettingsSearchIndex.all.count) entries, \(pages.count) pages)\(ok ? "" : "; missing " + missing.joined(separator: ", "))")
     }
 
     /// Home's note for the newest build in the notes (the simulator's own build has no entry), then What's new, which

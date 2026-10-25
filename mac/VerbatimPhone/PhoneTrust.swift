@@ -16,7 +16,7 @@ extension PhoneState {
 
 // MARK: - Settings › Privacy
 
-/// The row in Settings › Sync and data that opens Privacy.
+/// The row in Settings › Sync and storage that opens Privacy.
 struct PhonePrivacyRow: View {
     var bounce: AnyHashable = 0
     var action: () -> Void
@@ -50,7 +50,7 @@ struct PhonePrivacyScreen: View {
                 }
                 .tint(Ink.switchOn)
             } footer: {
-                Text("iCloud sync is Apple's and isn't listed here. Turn it on or off in Settings › Sync and data.")
+                Text("iCloud sync is Apple's and isn't listed here. Turn it on or off in Settings › Sync and storage.")
             }
             Section {
                 if model.events.isEmpty {

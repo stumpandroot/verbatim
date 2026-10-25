@@ -7,7 +7,7 @@ import Foundation
 /// The destination comes from the keyboard's format chip (Auto, Email, Message, Note; `KeyboardFormat`), which
 /// works Auto out from the host app when the build can read it and otherwise from the text field. Dictation inside
 /// Verbatim is everything else. Lists are always plain ("•" and "1."),
-/// because iOS text fields show "- " as typed. The level is Settings › Transcription › Cleanup, saved under the
+/// because iOS text fields show "- " as typed. The level is Settings › Dictation and keyboard › Cleanup, saved under the
 /// Mac's key (`flow.cleanup`) but per device, never synced.
 enum PhoneDictation {
     /// The longest the model may take on a keyboard dictation. Past it, the rule-based text goes in.

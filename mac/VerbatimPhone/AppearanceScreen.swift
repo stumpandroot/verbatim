@@ -1,14 +1,13 @@
 import SwiftUI
 
 /// Settings › Appearance (the native mockup's section 04), modeled on Display & Brightness: the look picker with two
-/// live thumbnails, then light or dark, then Limit animation (moved here from Personalization). Both looks use this
+/// live thumbnails, then light or dark (Limit animation is a switch on the Settings root). Both looks use this
 /// layout, each in its own clothes. Picking a look applies it at once, no relaunch: a small card in the new look shows
 /// while the screens rebuild behind it, then fades (LookSwitch.swift). The look is stored per device in the App Group (`AppLook`), so the keyboard
 /// follows it; it never syncs.
 struct AppearanceScreen: View {
     @EnvironmentObject var app: PhoneState
     @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
-    @AppStorage(MotionPreference.key) private var motionLimited = false
     /// Premium Native's Record card on Home (PremiumHome.swift): off unless turned on here.
     @AppStorage(PremiumHome.recordCardKey) private var recordCard = false
     @Environment(\.look) private var look
@@ -31,6 +30,7 @@ struct AppearanceScreen: View {
                 section("Look", footer: Self.lookNote) {
                     LookPicker(selection: selection)
                         .padding(.vertical, 16)
+                        .settingsSearchTarget("look", flash: nil)
                 }
                 .padding(.top, look.isNative ? 8 : 18)
                 section("Light or dark") {
@@ -52,18 +52,14 @@ struct AppearanceScreen: View {
                         .accessibilityAddTraits(app.appearance == mode.0 ? [.isButton, .isSelected] : .isButton)
                     }
                 }
-                .padding(.top, 26)
-                section("Motion", footer: look.isNative ? "Fades instead of movement; illustrations stay still." : nil) {
-                    SettingsToggleRow(icon: "tortoise", tint: Ink.sageTint, art: .iconLimitMotion, title: "Limit animation",
-                                      subtitle: look.isNative ? nil : "Fades instead of movement; illustrations stay still.",
-                                      isOn: $motionLimited)
-                }
+                .settingsSearchTarget("appearance", flash: nil)
                 .padding(.top, 26)
                 // Native's Home leads with This week and the floating record button; the Record card is optional.
                 if look.isNative {
                     section("Home", footer: "The record button beside the tab bar always starts a voice note.") {
                         SettingsToggleRow(icon: "record.circle", tint: Ink.persimmonTint, art: .capture, title: "Show the Record card",
                                           subtitle: nil, isOn: $recordCard)
+                            .settingsSearchTarget("homeRecordCard", flash: nil)
                     }
                     .padding(.top, 26)
                 }

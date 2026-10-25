@@ -21,7 +21,13 @@
         "iPhone: add them to the Home Screen, the Lock Screen (Record and Dictate), and StandBy. Record starts a voice note right where you are when iOS allows it, and otherwise opens Verbose to record.",
         "iPhone: Control Center has Record voice note and Dictate controls.",
         "Mac: add the widgets to your desktop. Quick capture opens the Thought pad, and Dictate types into the app in front.",
-        "iPhone: the speed fixes, bug fixes, and smoother look changes from Mac build 208."
+        "iPhone: the speed fixes, bug fixes, and smoother look changes from Mac build 208.",
+        "Settings has seven groups on iPhone and Mac: Personalization and preferences, Recording and transcription, Dictation and keyboard, Sync and storage, Account and plan, Support and feedback, and Features. Each row shows its value, and search finds every setting in its new place.",
+        "iPhone: switches you rarely change move one level down, onto the Speakers, More transcription options, Cloud cleanup, and Welcome tour pages. Limit animation is a switch on the Settings page itself.",
+        "iPhone: Settings › Widgets and controls and Settings › Shortcuts and Siri list what Verbose offers and how to add it.",
+        "iPhone: tap the version at the bottom of Settings to see what's new. Cloud cleanup on the You page opens its Settings page.",
+        "Mac: the Settings sidebar has 12 panes, each with an icon. The Ribbon, the notch, and the floating button share one pane, as do Meetings and Live captions, and Watched folders and Export. Click the version at the foot of the sidebar to see what's new.",
+        "Mac: Settings › Features has the welcome tour, the widgets, and a button that opens Shortcuts."
       ]
     },
     {
