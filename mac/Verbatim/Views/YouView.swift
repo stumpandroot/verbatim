@@ -463,11 +463,14 @@ struct YouView: View {
     // MARK: Footer
 
     private var footer: some View {
-        let files = app.store.live.filter { $0.source != .dictation && $0.status == .ready }
-        let seconds = files.reduce(0) { $0 + $1.duration }
+        // Once per library change (Store+Memo.swift), not on every render.
+        let (count, seconds) = app.store.memo("you-footer") { () -> (Int, Double) in
+            let files = app.store.live.filter { $0.source != .dictation && $0.status == .ready }
+            return (files.count, files.reduce(0) { $0 + $1.duration })
+        }
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if !files.isEmpty {
-                Text("You've also transcribed \(Self.duration(seconds)) across \(files.count) \(files.count == 1 ? "recording" : "recordings and links").")
+            if count > 0 {
+                Text("You've also transcribed \(Self.duration(seconds)) across \(count) \(count == 1 ? "recording" : "recordings and links").")
                     .font(.system(size: 13)).foregroundStyle(Ink.mute)
             }
             if !log.events.isEmpty {

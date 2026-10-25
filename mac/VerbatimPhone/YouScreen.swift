@@ -50,7 +50,7 @@ struct YouScreen: View {
     @Environment(\.look) private var look
 
     var body: some View {
-        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let week = app.store.dictationWeek(now: now)
         Group {
             if look.isNative { premiumScroll(week) } else { verboseScroll(week) }
         }
@@ -492,7 +492,7 @@ struct YouScreen: View {
 
     /// Everything else you've transcribed on any device (recordings, imports, links).
     private var footer: some View {
-        let files = app.store.live.filter { !$0.isDictation && $0.status == .ready }
+        let files = app.store.memo("phone.you-files") { app.store.live.filter { !$0.isDictation && $0.status == .ready } }
         let seconds = files.reduce(0) { $0 + $1.duration }
         return Group {
             if !files.isEmpty {

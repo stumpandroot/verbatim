@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Observation
 import os
 #if os(macOS)
 import AppKit
@@ -499,20 +500,106 @@ private final class LoadSlots: @unchecked Sendable {
 }
 
 /// Transcripts live as one JSON file each in /transcripts, with audio beside them in /audio.
+///
+/// Observable (Observation, by hand rather than with the macro so each list keeps its change hook): a view tracks only
+/// the lists it reads, and a Store change no longer goes through AppState's or PhoneState's `objectWillChange` to
+/// re-render every view that holds the app state. Combine subscribers use the `…Publisher` properties, which give the
+/// value now and then each new value, as `$transcripts` and the like did.
 @MainActor
-final class Store: ObservableObject {
-    @Published private(set) var transcripts: [Transcript] = [] { didSet { transcriptsGeneration &+= 1 } }
-    @Published var projects: [Project] = [] {
-        didSet {
-            projectsByID = Dictionary(projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            listEdited(old: oldValue, list: \.projects, sync: \.projectSync)
+final class Store: Observable {
+    private let registrar = ObservationRegistrar()
+
+    private var _transcripts: [Transcript] = []
+    private(set) var transcripts: [Transcript] {
+        get { registrar.access(self, keyPath: \.transcripts); return _transcripts }
+        set {
+            registrar.withMutation(of: self, keyPath: \.transcripts) { _transcripts = newValue }
+            transcriptsChanged()
+            // A change to the whole list counts as a change to every transcript (per-transcript caches).
+            revisions.removeAll(keepingCapacity: true)
+            revisionFloor = transcriptsGeneration
         }
     }
-    /// `projects` by ID, for rows that show their project's name (kept in step by `projects`' didSet).
-    private(set) var projectsByID: [UUID: Project] = [:]
-    @Published var dictionary: [DictionaryEntry] = [] { didSet { listEdited(old: oldValue, list: \.dictionary, sync: \.dictionarySync) } }
+    /// Replaces one transcript in place (`update`, `ingest`): the list isn't copied, and nothing else runs while it's
+    /// being written, so a change closure that reads the Store never overlaps the write.
+    private func replaceTranscript(at i: Int, with t: Transcript) {
+        guard let at = i < _transcripts.count && _transcripts[i].id == t.id ? i : _transcripts.firstIndex(where: { $0.id == t.id }) else { return }
+        registrar.withMutation(of: self, keyPath: \.transcripts) { _transcripts[at] = t }
+        transcriptsChanged()
+        revisions[t.id] = transcriptsGeneration
+    }
+
+    /// Each transcript's own generation: the `transcriptsGeneration` its last change made, for values worked out once
+    /// per transcript (Store+Memo.swift). A change to the whole list (add, delete, sort, launch) counts for every one.
+    private var revisions: [UUID: Int] = [:]
+    private var revisionFloor = 0
+    func revision(_ id: UUID) -> Int { max(revisions[id] ?? revisionFloor, revisionFloor) }
+    private let transcriptsSubject = PassthroughSubject<[Transcript], Never>()
+    /// `transcripts` now, then after every change.
+    var transcriptsPublisher: AnyPublisher<[Transcript], Never> { transcriptsSubject.prepend(_transcripts).eraseToAnyPublisher() }
+    private func transcriptsChanged() {
+        transcriptsGeneration &+= 1
+        transcriptsSubject.send(_transcripts)
+        anyChangeSubject.send()
+    }
+
+    private var _projects: [Project] = []
+    var projects: [Project] {
+        get { registrar.access(self, keyPath: \.projects); return _projects }
+        set {
+            let old = _projects
+            registrar.withMutation(of: self, keyPath: \.projects) { _projects = newValue }
+            _projectsByID = Dictionary(newValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            anyChangeSubject.send()
+            listEdited(old: old, list: \.projects, sync: \.projectSync)
+        }
+    }
+    private var _projectsByID: [UUID: Project] = [:]
+    /// `projects` by ID, for rows that show their project's name (kept in step by `projects`' setter).
+    var projectsByID: [UUID: Project] { registrar.access(self, keyPath: \.projects); return _projectsByID }
+
+    private var _dictionary: [DictionaryEntry] = []
+    var dictionary: [DictionaryEntry] {
+        get { registrar.access(self, keyPath: \.dictionary); return _dictionary }
+        set {
+            let old = _dictionary
+            registrar.withMutation(of: self, keyPath: \.dictionary) { _dictionary = newValue }
+            dictionarySubject.send(newValue)
+            anyChangeSubject.send()
+            listEdited(old: old, list: \.dictionary, sync: \.dictionarySync)
+        }
+    }
+    private let dictionarySubject = PassthroughSubject<[DictionaryEntry], Never>()
+    /// `dictionary` now, then after every change.
+    var dictionaryPublisher: AnyPublisher<[DictionaryEntry], Never> { dictionarySubject.prepend(_dictionary).eraseToAnyPublisher() }
+
+    private var _snippets: [Snippet] = []
     /// Snippets for dictation. Synced like the Dictionary; the Mac mirrors them into `FlowSettings.snippets`.
-    @Published var snippets: [Snippet] = [] { didSet { listEdited(old: oldValue, list: \.snippets, sync: \.snippetSync) } }
+    var snippets: [Snippet] {
+        get { registrar.access(self, keyPath: \.snippets); return _snippets }
+        set {
+            let old = _snippets
+            registrar.withMutation(of: self, keyPath: \.snippets) { _snippets = newValue }
+            snippetsSubject.send(newValue)
+            anyChangeSubject.send()
+            listEdited(old: old, list: \.snippets, sync: \.snippetSync)
+        }
+    }
+    private let snippetsSubject = PassthroughSubject<[Snippet], Never>()
+    /// `snippets` now, then after every change.
+    var snippetsPublisher: AnyPublisher<[Snippet], Never> { snippetsSubject.prepend(_snippets).eraseToAnyPublisher() }
+
+    /// Whole-library work kept until `transcripts` changes, and per-transcript work kept until that transcript changes
+    /// (Store+Memo.swift).
+    let memoTable = LibraryMemo()
+    let transcriptMemo = TranscriptMemo()
+    /// `transcriptsGeneration`, read as `transcripts` is: a view that uses a memoized value re-renders when the
+    /// library changes.
+    var observedGeneration: Int { registrar.access(self, keyPath: \.transcripts); return transcriptsGeneration }
+
+    private let anyChangeSubject = PassthroughSubject<Void, Never>()
+    /// After any change to the transcripts, projects, Dictionary, or snippets (what `objectWillChange` told Spotlight).
+    var anyChange: AnyPublisher<Void, Never> { anyChangeSubject.eraseToAnyPublisher() }
 
     /// A synced list's file, its deletes, and whether this device may write it (SyncMerge).
     struct ListSync {
@@ -767,10 +854,12 @@ final class Store: ObservableObject {
         if removed > 0 { Log.note("launch: removed \(removed) old file\(removed == 1 ? "" : "s") from downloads") }
     }
 
-    /// Transcripts that aren't in Recently Deleted.
-    var live: [Transcript] { transcripts.filter { $0.deletedAt == nil } }
+    /// Transcripts that aren't in Recently Deleted (worked out once per library change, Store+Memo.swift).
+    var live: [Transcript] { memo("live") { transcripts.filter { $0.deletedAt == nil } } }
     /// Recently Deleted, newest first.
-    var trash: [Transcript] { transcripts.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) } }
+    var trash: [Transcript] {
+        memo("trash") { transcripts.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) } }
+    }
 
     func moveToTrash(_ id: UUID) { update(id) { $0.deletedAt = Date(); $0.pinned = false } }
     func restore(_ id: UUID) { update(id) { $0.deletedAt = nil } }
@@ -901,7 +990,7 @@ final class Store: ObservableObject {
             guard current != t else { return nil }
             StageClock.shared.take(id)
             searchCache[id] = nil
-            transcripts[i] = t
+            replaceTranscript(at: i, with: t)
             return (t, false)
         }
         searchCache[t.id] = nil
@@ -1087,15 +1176,14 @@ final class Store: ObservableObject {
     func update(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = index(of: id) else { return }
         searchCache[id] = nil
-        apply(change, at: i)
-        save(transcripts[i])
+        save(applyChange(change, at: i))
     }
 
     /// Like `update`, but writes to disk a second after the last change: for typing.
     func updateDeferred(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = index(of: id) else { return }
         searchCache[id] = nil
-        apply(change, at: i)
+        applyChange(change, at: i)
         pendingSaves[id]?.cancel()
         let w = DispatchWorkItem { [weak self] in if let t = self?.transcript(id) { self?.save(t) } }
         pendingSaves[id] = w
@@ -1104,15 +1192,12 @@ final class Store: ObservableObject {
 
     /// A change to the transcript at `i`, with its live progress label (StageClock) folded in first, so the change and
     /// what's saved start from the transcript as it showed (as when `setStage` wrote the label into it).
-    private func apply(_ change: (inout Transcript) -> Void, at i: Int) {
-        if let live = StageClock.shared.take(transcripts[i].id) {
-            var t = transcripts[i]
-            t.stage = live
-            change(&t)
-            transcripts[i] = t
-        } else {
-            change(&transcripts[i])
-        }
+    @discardableResult private func applyChange(_ change: (inout Transcript) -> Void, at i: Int) -> Transcript {
+        var t = _transcripts[i]
+        if let live = StageClock.shared.take(t.id) { t.stage = live }
+        change(&t)
+        replaceTranscript(at: i, with: t)
+        return t
     }
 
     /// Permanent: removes the transcript, its audio, and its thumbnail.
@@ -1216,8 +1301,9 @@ final class Store: ObservableObject {
 
     func transcript(_ id: UUID) -> Transcript? { index(of: id).map { transcripts[$0] } }
 
-    /// Bumped on every change to `transcripts`, so the ID index knows when a miss may be stale.
-    private var transcriptsGeneration = 0
+    /// Bumped on every change to `transcripts`, so the ID index knows when a miss may be stale and the library memo
+    /// (Store+Memo.swift) when to work things out again.
+    private(set) var transcriptsGeneration = 0
     private var idIndex: [UUID: Int] = [:]
     private var idIndexGeneration = -1
 

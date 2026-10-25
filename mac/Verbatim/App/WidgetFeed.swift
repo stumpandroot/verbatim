@@ -22,7 +22,7 @@ final class WidgetFeed {
         guard !PhoneUITest.enabled else { return }
         #endif
         guard bag.isEmpty else { return }
-        var changes = store.$transcripts.map { _ in () }.eraseToAnyPublisher()
+        var changes = store.transcriptsPublisher.map { _ in () }.eraseToAnyPublisher()
         #if os(macOS)
         // This week on the Mac counts Activity's events, which outlive deleted dictations (Flow/Activity.swift).
         changes = changes.merge(with: ActivityLog.shared.$events.map { _ in () }).eraseToAnyPublisher()

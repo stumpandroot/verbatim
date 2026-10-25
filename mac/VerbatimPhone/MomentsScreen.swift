@@ -15,7 +15,8 @@ struct MomentsScreen: View {
     enum Show: Hashable { case all, bookmarks, notes, stills }
 
     var body: some View {
-        let all = app.store.live.flatMap { t in t.notes.filter { $0.at != nil }.map { Moment(t: t, n: $0) } }.sorted { $0.n.createdAt > $1.n.createdAt }
+        // Once per library change (Store+Memo.swift), not on every render.
+        let all = app.store.memo("phone.moments") { app.store.live.flatMap { t in t.notes.filter { $0.at != nil }.map { Moment(t: t, n: $0) } }.sorted { $0.n.createdAt > $1.n.createdAt } }
         let moments = all.filter { m in
             switch show {
             case .all: return true

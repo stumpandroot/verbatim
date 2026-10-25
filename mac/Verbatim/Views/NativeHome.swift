@@ -93,7 +93,7 @@ extension HomeView {
     // MARK: This week and the stats
 
     private var nativeWeekData: HomeWeek {
-        HomeWeek(log.events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
+        log.week(now: now)
     }
 
     /// Large: the persimmon card. Compact: a slim persimmon strip with the words and the days.

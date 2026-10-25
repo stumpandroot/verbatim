@@ -35,7 +35,7 @@ struct LibraryView: View {
         let all = typeFilter.apply(base, searching: searching)
         let byKind = kind.map { k in base.filter { $0.kind == k } } ?? base
         let list = kind.map { k in all.filter { $0.kind == k } } ?? all
-        let groups = Store.group(list, sort: sort)
+        let groups = app.store.grouped(list, sort: sort)
         let order = groups.flatMap { $0.items.map(\.id) }
         // Project names by ID, once per render (rows italicize after their project's name and name it outside it).
         let projectNames = Dictionary(app.store.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
@@ -261,8 +261,12 @@ struct LibraryView: View {
         let projects = app.store.projects
         let moving = hoveredProject ?? projects.first?.id
         // Every project's transcripts in one pass, not one pass over the library per card.
-        var members: [UUID: [Transcript]] = [:]
-        for t in app.store.transcripts where t.deletedAt == nil && !t.isDictation { if let p = t.projectId { members[p, default: []].append(t) } }
+        let store = app.store
+        let members = store.memo("project-members") { () -> [UUID: [Transcript]] in
+            var members: [UUID: [Transcript]] = [:]
+            for t in store.transcripts where t.deletedAt == nil && !t.isDictation { if let p = t.projectId { members[p, default: []].append(t) } }
+            return members
+        }
         return VStack(alignment: .leading, spacing: 14) {
             ForEach(Array(projects.enumerated()), id: \.element.id) { i, p in
                 projectCard(p, items: members[p.id] ?? [], index: i, moving: moving == p.id)

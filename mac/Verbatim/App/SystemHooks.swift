@@ -114,7 +114,7 @@ final class SpotlightIndex {
         self.store = store
         guard !UITest.enabled, !Bench.isRequested else { return }
         // Store publishes on the main thread.
-        store.objectWillChange.sink { [weak self] _ in MainActor.assumeIsolated { self?.schedule() } }.store(in: &bag)
+        store.anyChange.sink { [weak self] in MainActor.assumeIsolated { self?.schedule() } }.store(in: &bag)
         schedule(after: 3)
     }
 

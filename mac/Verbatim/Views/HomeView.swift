@@ -121,7 +121,7 @@ struct HomeView: View {
 
     /// The shown sections Home draws: Queue only while something is transcribing.
     func drawn(_ layout: HomeLayout) -> [HomeLayout.Item] {
-        let working = app.store.transcripts.contains { $0.deletedAt == nil && $0.status == .processing }
+        let working = app.store.isWorking
         return layout.shown.filter { $0.section != .queue || working }
     }
 
@@ -506,11 +506,15 @@ struct HomeView: View {
     func weekNumbers(_ week: HomeWeek) -> (recordings: Int, saved: Double, moments: Int) {
         guard let start = week.days.first?.start else { return (0, 0, 0) }
         let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? now
-        // One pass over the library, without copying it (`store.live` builds a new array).
-        var recordings = 0, moments = 0
-        for t in app.store.transcripts where t.deletedAt == nil {
-            if !t.isDictation && t.createdAt >= start && t.createdAt < end { recordings += 1 }
-            for n in t.notes where n.at != nil && n.createdAt >= start && n.createdAt < end { moments += 1 }
+        // One pass over the library, once per library change and week (Store+Memo.swift), not on every render.
+        let store = app.store
+        let (recordings, moments) = store.memo("week-counts|\(Int(start.timeIntervalSinceReferenceDate))") { () -> (Int, Int) in
+            var recordings = 0, moments = 0
+            for t in store.transcripts where t.deletedAt == nil {
+                if !t.isDictation && t.createdAt >= start && t.createdAt < end { recordings += 1 }
+                for n in t.notes where n.at != nil && n.createdAt >= start && n.createdAt < end { moments += 1 }
+            }
+            return (recordings, moments)
         }
         return (recordings, week.secondsSaved(typingWPM: flow.typingWPM), moments)
     }
@@ -522,7 +526,7 @@ struct HomeView: View {
     private var weekCard: some View { weekSection(large: true) }
 
     private func weekSection(large: Bool) -> some View {
-        let week = HomeWeek(log.events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
+        let week = log.week(now: now)
         let n = weekNumbers(week)
         return HomeCard(tilt: 1, radius: Radius.record, shadow: false, onPress: { weekDown = $0 }, action: { app.go(.activity) }) { hovering in
             WeekStrip(week: week, recordings: n.recordings, saved: WebFormat.compactDuration(n.saved), moments: n.moments, large: large)
@@ -597,7 +601,7 @@ struct HomeView: View {
     /// Large: one card on a butter panel under its heading. Compact: one strip with where it went and its length;
     /// a click copies.
     @ViewBuilder private func lastDictation(_ size: HomeCardSize) -> some View {
-        let last = app.store.transcripts.lazy.filter { $0.deletedAt == nil && $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
+        let last = app.store.lastDictation
         if size == .compact {
             if let t = last {
                 LastDictationCard(transcript: t, place: sites.hosts[t.id] ?? t.flow?.app, copy: { Paster.copy($0) }, strip: true)

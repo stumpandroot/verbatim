@@ -110,25 +110,28 @@ final class PhoneState: ObservableObject {
     init() {
         // Settings › Privacy: the network activity log, before anything can use the network.
         NetworkActivityLog.install()
-        for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(), player.objectWillChange.eraseToAnyPublisher(),
+        // The Store isn't forwarded: it's Observable, so views that read the library re-render on its changes and
+        // the rest don't (Store.swift).
+        for o in [recorder.objectWillChange.eraseToAnyPublisher(), player.objectWillChange.eraseToAnyPublisher(),
                   coordinator.objectWillChange.eraseToAnyPublisher()] {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         }
         coordinator.host = self
         // Snippets (synced with the Mac) go to the Verbatim keyboard's Snippets chip through the App Group.
-        store.$snippets.sink { list in
+        store.snippetsPublisher.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
         // Home's numbers for the keyboard's Home screen (KeyboardBridge.Stats): the same counts as This week. Worked
-        // out on a background queue, and only when the dictations or the typing pace changed: progress ticks and
-        // edits to other transcripts used to recount every dictation on the main thread.
-        store.$transcripts.combineLatest(FlowSettings.shared.$typingWPM)
+        // out on a background queue a second after the library or the typing pace changes (progress ticks don't change
+        // the library; they go to the StageClock), and written only when the numbers differ. Comparing the numbers,
+        // not the dictations, keeps a library change from deep-comparing every dictation, words and all.
+        store.transcriptsPublisher.combineLatest(FlowSettings.shared.$typingWPM)
             .debounce(for: .seconds(1), scheduler: Self.statsQueue)
-            .map { (pair: ([Transcript], Int)) -> StatsInput in
-                StatsInput(dictations: pair.0.filter { $0.deletedAt == nil && $0.isDictation }, typingWPM: pair.1)
+            .map { (pair: ([Transcript], Int)) -> KeyboardBridge.Stats in
+                Self.keyboardStats(pair.0.filter { $0.deletedAt == nil && $0.isDictation }, typingWPM: pair.1)
             }
             .removeDuplicates()
-            .sink { (input: StatsInput) in KeyboardBridge.writeStats(Self.keyboardStats(input.dictations, typingWPM: input.typingWPM)) }
+            .sink { (stats: KeyboardBridge.Stats) in KeyboardBridge.writeStats(stats) }
             .store(in: &bag)
         recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
         recorder.onInputSwitched = { [weak self] note in
@@ -157,12 +160,6 @@ final class PhoneState: ObservableObject {
         // The Home Screen widgets' snapshot in the App Group (App/WidgetFeed.swift).
         WidgetFeed.shared.attach(store)
         if PhoneUITest.enabled { PhoneUITest.run(self) }
-    }
-
-    /// What the keyboard's Home numbers depend on: live dictations and the typing pace.
-    private struct StatsInput: Equatable {
-        var dictations: [Transcript]
-        var typingWPM: Int
     }
 
     /// Where the keyboard's Home numbers are worked out (`keyboardStats`), off the main thread.

@@ -136,7 +136,9 @@ final class AppState: ObservableObject {
         // Settings › Privacy: the network activity log, before anything can use the network.
         NetworkActivityLog.install()
         Log.note("AppState init; transcripts=\(store.transcripts.count)")
-        for o in [store.objectWillChange.eraseToAnyPublisher(), recorder.objectWillChange.eraseToAnyPublisher(),
+        // The Store isn't forwarded: it's Observable, so views that read the library re-render on its changes and
+        // the rest don't (Store.swift).
+        for o in [recorder.objectWillChange.eraseToAnyPublisher(),
                   player.objectWillChange.eraseToAnyPublisher(), capture.objectWillChange.eraseToAnyPublisher(),
                   dictation.objectWillChange.eraseToAnyPublisher(), coordinator.objectWillChange.eraseToAnyPublisher()] {
             o.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
@@ -201,7 +203,7 @@ final class AppState: ObservableObject {
                 self.store.snippets = v
             }
         }.store(in: &bag)
-        store.$snippets.dropFirst().removeDuplicates().sink { v in
+        store.snippetsPublisher.dropFirst().removeDuplicates().sink { v in
             MainActor.assumeIsolated {
                 if FlowSettings.shared.snippets != v { FlowSettings.shared.snippets = v }
             }
@@ -267,11 +269,16 @@ final class AppState: ObservableObject {
 
     // MARK: Search
 
+    /// The live library narrowed by the sidebar project and the search, worked out once per library change and search
+    /// (Store+Memo.swift), not on every render of every screen that reads it.
     var filtered: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return store.live.filter { t in
-            (projectFilter == nil || t.projectId == projectFilter) &&
-            (q.isEmpty || t.title.lowercased().contains(q) || store.searchText(t).contains(q))
+        let project = projectFilter
+        return store.memo("filtered|\(project?.uuidString ?? "-")|\(q)") {
+            store.live.filter { t in
+                (project == nil || t.projectId == project) &&
+                (q.isEmpty || t.title.lowercased().contains(q) || store.searchText(t).contains(q))
+            }
         }
     }
 
@@ -279,6 +286,7 @@ final class AppState: ObservableObject {
     /// dictations are included (each row says "Dictation"), so nothing becomes unfindable.
     var archive: [Transcript] {
         let all = filtered
-        return search.trimmingCharacters(in: .whitespaces).isEmpty ? all.filter { !$0.isDictation } : all
+        guard search.trimmingCharacters(in: .whitespaces).isEmpty else { return all }
+        return store.memo("archive|\(projectFilter?.uuidString ?? "-")") { all.filter { !$0.isDictation } }
     }
 }

@@ -419,17 +419,31 @@ enum NativeLibraryScope {
 
     /// What the Library shows: the filtered library, then the source filter and the kind.
     static func list(_ app: AppState) -> [Transcript] {
-        let all = app.libraryFilter.apply(app.filtered, searching: searching(app))
-        return app.libraryKind.map { k in all.filter { $0.kind == k } } ?? all
+        let base = app.filtered
+        let s = searching(app), filter = app.libraryFilter, kind = app.libraryKind
+        // Asked for by the Library, its toolbar, and its preview on each render: worked out once per library change.
+        return app.store.memo("native.list|\(key(app))|\(filter.raw)|\(kind?.rawValue ?? "-")") {
+            let all = filter.apply(base, searching: s)
+            return kind.map { k in all.filter { $0.kind == k } } ?? all
+        }
+    }
+
+    /// What `filtered` depends on besides the library: the project and the search.
+    private static func key(_ app: AppState) -> String {
+        "\(app.projectFilter?.uuidString ?? "-")|\(app.search.trimmingCharacters(in: .whitespaces).lowercased())"
     }
 
     /// "All", then the sources and kinds the library has.
     static func options(_ app: AppState) -> [(Scope, String)] {
         let base = app.filtered
         let s = searching(app)
-        let sources = LibraryFilter.all.sourceCounts(base, searching: s).filter { $0.0 != .all && $0.1 > 0 }.map(\.0)
-        var kindCounts: [RecordingKind: Int] = [:]
-        for t in LibraryFilter.all.apply(base, searching: s) { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
+        // The sources and kinds present: one pass each per library change, not per render.
+        let (sources, kindCounts) = app.store.memo("native.options|\(key(app))") { () -> ([LibrarySource], [RecordingKind: Int]) in
+            let sources = LibraryFilter.all.sourceCounts(base, searching: s).filter { $0.0 != .all && $0.1 > 0 }.map(\.0)
+            var kindCounts: [RecordingKind: Int] = [:]
+            for t in LibraryFilter.all.apply(base, searching: s) { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
+            return (sources, kindCounts)
+        }
         let kinds = RecordingKind.pickable.filter { (kindCounts[$0] ?? 0) > 0 || app.libraryKind == $0 }
         return [(.all, "All")] + sources.map { (.source($0), $0.label) } + kinds.map { (.kind($0), $0.plural) }
     }

@@ -55,7 +55,8 @@ struct TranscriptScreen: View {
 
     /// The Original tab's lines as shown: filler and background voices left out, the engine's words when chosen.
     private func shownLines(_ t: Transcript) -> [Segment] {
-        let shown = t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly)
+        // Worked out once per transcript change, not on every render (Store+Memo.swift).
+        let shown = app.store.displaySegments(t.id, hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly)
         return showEngine ? t.engineLines(for: shown) : shown
     }
 
@@ -360,10 +361,13 @@ struct TranscriptScreen: View {
                             PhoneSelectableText(text: PhoneSelectableText.joined(segs, in: t))
                                 .accessibilityIdentifier("original-selectable")
                         } else {
-                            PhoneLines(transcript: t, segments: segs, clock: app.player.clock, scrub: scrub, onNote: { noteFor = $0 })
+                            PhoneLines(transcript: t, segments: segs,
+                                       folds: app.store.sponsorFolds(t.id, hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly, engine: showEngine),
+                                       clock: app.player.clock, scrub: scrub, onNote: { noteFor = $0 })
                         }
-                        if hideFillerSetting, t.fillerCount > 0 {
-                            FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 6)
+                        let fillers = app.store.fillerCount(t.id)
+                        if hideFillerSetting, fillers > 0 {
+                            FillerToggle(count: fillers, shown: $showFiller).padding(.leading, 6)
                         }
                         if !background.isEmpty {
                             BackgroundVoicesCard(segments: background,
@@ -489,6 +493,8 @@ struct PhoneLines: View {
     var transcript: Transcript
     /// The lines to show (filler and background voices already left out by the screen).
     var segments: [Segment]
+    /// Where sponsor reads fold, one entry per line in `segments` (`Store.sponsorFolds`, worked out once per change).
+    var folds: [SponsorFold.Place?]
     var clock: PlayerClock
     /// The scrubber's model: each line tells it when it reaches the top of the screen.
     var scrub: TranscriptScrubModel? = nil
@@ -527,7 +533,7 @@ struct PhoneLines: View {
         let segs = segments
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
-        let folds = SponsorFold.places(segs, in: transcript)
+        let folds = self.folds.count == segs.count ? self.folds : SponsorFold.places(segs, in: transcript)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -607,7 +613,8 @@ struct PhoneLines: View {
         .phoneFixWord($fixing, transcriptID: transcript.id)
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
         .onChange(of: app.player.isPlaying) { _, _ in syncPlaying(at: clock.time) }
-        .onChange(of: transcript.segments) { _, _ in syncPlaying(at: clock.time) }
+        // The lines' ids and times, not the whole lines (words included): only those decide what's playing.
+        .onChange(of: transcript.segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
     }
 
     @MainActor private func syncPlaying(at now: Double) {

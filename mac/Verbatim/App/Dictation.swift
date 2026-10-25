@@ -266,7 +266,7 @@ final class DictationController: ObservableObject {
     private func watchVocabulary() {
         guard vocabularyWatch == nil, let store = app?.store else { return }
         let defaults = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).map { _ in () }
-        vocabularyWatch = store.$dictionary.map { _ in () }.merge(with: defaults)
+        vocabularyWatch = store.dictionaryPublisher.map { _ in () }.merge(with: defaults)
             .debounce(for: .seconds(1.5), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 MainActor.assumeIsolated {

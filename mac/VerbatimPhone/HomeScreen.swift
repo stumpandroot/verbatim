@@ -347,7 +347,7 @@ struct HomeScreen: View {
 
     /// One line: the week's words in the serif, seven small day bars, and the time saved. Opens the You page.
     private var weekCard: some View {
-        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let week = app.store.dictationWeek(now: now)
         let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
         return Button { Self.openProfile(app) } label: {
             HStack(alignment: .center, spacing: 14) {
@@ -378,9 +378,9 @@ struct HomeScreen: View {
 
     /// This week, Large: the words big in the serif beside taller day bars, then the time saved and the recordings.
     private var weekLarge: some View {
-        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let week = app.store.dictationWeek(now: now)
         let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
-        let recordings = PremiumHome.recordingsThisWeek(app.store.live, now: now)
+        let recordings = app.store.memo("recordings-this-week|\(Store.dayKey(now))") { PremiumHome.recordingsThisWeek(app.store.live, now: now) }
         return Button { Self.openProfile(app) } label: {
             VStack(alignment: .leading, spacing: 10) {
                 PhoneEyebrow(text: "This week")
@@ -481,7 +481,7 @@ struct HomeScreen: View {
 
     /// A flat row; a recording with filler words gets a "Clean up" pill that opens its Cleaned text.
     private func recentRow(_ t: Transcript) -> some View {
-        let cleanUp = t.status == .ready && !PhoneRowState.cleaned(t) && t.fillerCount > 0
+        let cleanUp = t.status == .ready && !PhoneRowState.cleaned(t) && app.store.fillerCount(t.id) > 0
         return Button { app.open(t.id) } label: {
             // The live progress (StageClock) in the meta line: a tick re-renders the row, not Home.
             LiveStage(t) { t in
@@ -853,7 +853,9 @@ struct LiveCaptureMark: View {
     @Environment(\.limitMotion) private var limitMotion
     @State private var bands = LiveBands()
     var body: some View {
-        TimelineView(.animation(paused: limitMotion || paused)) { timeline in
+        // 60 fps at most: the springs advance by the clock, so they move the same, without redrawing at ProMotion's 120 Hz
+        // for the whole recording.
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: limitMotion || paused)) { timeline in
             Canvas { ctx, size in
                 bands.advance(timeline.date, level: paused || limitMotion ? 0 : Double(live.level))
                 // Diagram space: circles touch at the bottom, an axis runs through them (diagram_capture).

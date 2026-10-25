@@ -54,18 +54,21 @@ struct DictationsListScreen: View {
 
     private var items: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return app.store.live
-            .filter { $0.isDictation && (q.isEmpty || $0.title.lowercased().contains(q) || app.store.searchText($0).contains(q)) }
-            .sorted { $0.createdAt > $1.createdAt }
+        return app.store.memo("phone.dictations|\(q)") {
+            app.store.live
+                .filter { $0.isDictation && (q.isEmpty || $0.title.lowercased().contains(q) || app.store.searchText($0).contains(q)) }
+                .sorted { $0.createdAt > $1.createdAt }
+        }
     }
 
     var body: some View {
         let items = self.items
+        let keptCount = app.store.memo("phone.dictation-count") { app.store.live.filter(\.isDictation).count }
         let days = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.createdAt) }
         let order = days.keys.sorted(by: >)
         List {
             VStack(alignment: .leading, spacing: 6) {
-                PhoneCompactTitle(title: "Dictations", count: "\(app.store.live.filter(\.isDictation).count) kept")
+                PhoneCompactTitle(title: "Dictations", count: "\(keptCount) kept")
                 Text("Everything you dictated with the Verbose keyboard, with the audio.")
                     .font(.system(size: ledeSize)).foregroundStyle(.lookDim).lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)

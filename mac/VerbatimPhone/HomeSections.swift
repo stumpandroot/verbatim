@@ -181,7 +181,7 @@ struct HomeLastDictationSection: View {
     @State private var copies = 0
 
     var body: some View {
-        let last = app.store.live.filter(\.isDictation).max { $0.createdAt < $1.createdAt }
+        let last = app.store.memo("phone.last-dictation") { app.store.live.filter(\.isDictation).max { $0.createdAt < $1.createdAt } }
         Group {
             if size == .compact { compact(last) } else { large(last) }
         }
@@ -295,8 +295,11 @@ struct HomeProjectsSection: View {
     @Environment(\.look) private var look
 
     var body: some View {
-        var counts: [UUID: Int] = [:]
-        for t in app.store.live where !t.isDictation { if let p = t.projectId { counts[p, default: 0] += 1 } }
+        let counts = app.store.memo("phone.project-counts") { () -> [UUID: Int] in
+            var counts: [UUID: Int] = [:]
+            for t in app.store.live where !t.isDictation { if let p = t.projectId { counts[p, default: 0] += 1 } }
+            return counts
+        }
         let projects = app.store.projects
         return Group {
             if size == .compact { compact(projects, counts) } else { large(projects, counts) }
@@ -383,9 +386,12 @@ struct HomeMomentsSection: View {
     @Environment(\.look) private var look
 
     var body: some View {
-        var latest: (t: Transcript, n: Note)?
-        for t in app.store.live {
-            for n in t.notes where n.at != nil && (latest == nil || n.createdAt > latest!.n.createdAt) { latest = (t, n) }
+        let latest = app.store.memo("phone.latest-moment") { () -> (t: Transcript, n: Note)? in
+            var latest: (t: Transcript, n: Note)?
+            for t in app.store.live {
+                for n in t.notes where n.at != nil && (latest == nil || n.createdAt > latest!.n.createdAt) { latest = (t, n) }
+            }
+            return latest
         }
         return Group {
             if size == .compact { compact(latest) } else { large(latest) }
@@ -442,7 +448,7 @@ struct HomeQueueSection: View {
     @Environment(\.look) private var look
 
     static func working(_ app: PhoneState) -> [Transcript] {
-        app.store.live.filter { $0.status == .processing }.sorted { $0.createdAt < $1.createdAt }
+        app.store.memo("phone.working") { app.store.live.filter { $0.status == .processing }.sorted { $0.createdAt < $1.createdAt } }
     }
 
     var body: some View {

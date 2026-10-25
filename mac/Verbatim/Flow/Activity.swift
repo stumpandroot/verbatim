@@ -21,7 +21,19 @@ struct ActivityEvent: Codable, Identifiable, Equatable {
 @MainActor
 final class ActivityLog: ObservableObject {
     static let shared = ActivityLog()
-    @Published private(set) var events: [ActivityEvent] = []
+    @Published private(set) var events: [ActivityEvent] = [] { didSet { generation &+= 1 } }
+    /// Bumped on every change to `events`, so `week(now:)` knows when to count again.
+    private var generation = 0
+    private var weekMemo: (generation: Int, day: Int, week: HomeWeek)?
+
+    /// This week's numbers for Home (This week), worked out once per change and per day instead of on every render.
+    func week(now: Date) -> HomeWeek {
+        let day = Store.dayKey(now)
+        if let m = weekMemo, m.generation == generation, m.day == day { return m.week }
+        let w = HomeWeek(events.map { HomeWordEntry(date: $0.date, words: $0.words, seconds: $0.seconds) }, now: now)
+        weekMemo = (generation, day, w)
+        return w
+    }
     /// The screenshot tour writes made-up numbers to its own file, never to your real Activity.
     private let file = Paths.local.appendingPathComponent(ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" ? "activity-uitest.json" : "activity.json")
     private static let seededKey = "activity.seeded"

@@ -574,7 +574,10 @@ struct TranscriptView: View {
     private func original(_ t: Transcript) -> some View {
         let hide = hideFillerSetting && !showFiller
         let background = mainSpeakerOnly ? t.backgroundSegments : []
-        let shown = t.displaySegments(hideFiller: hide, mainOnly: mainSpeakerOnly)
+        // Worked out once per transcript change, not on every render (Store+Memo.swift).
+        let shown = app.store.displaySegments(t.id, hideFiller: hide, mainOnly: mainSpeakerOnly)
+        let folds = app.store.sponsorFolds(t.id, hideFiller: hide, mainOnly: mainSpeakerOnly, engine: showEngine)
+        let fillers = app.store.fillerCount(t.id)
         // Engine words: the same passages as the engine wrote them, read-only (corrections apply to the corrected lines).
         let segs = showEngine ? t.engineLines(for: shown) : shown
         return VStack(alignment: .leading, spacing: 12) {
@@ -588,10 +591,10 @@ struct TranscriptView: View {
             if selecting {
                 SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: fontSize)
             } else {
-                lines(t, segments: segs, editable: !showEngine)
+                lines(t, segments: segs, folds: folds, editable: !showEngine)
             }
-            if hideFillerSetting, t.fillerCount > 0 {
-                FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 84)
+            if hideFillerSetting, fillers > 0 {
+                FillerToggle(count: fillers, shown: $showFiller).padding(.leading, 84)
             }
             if !background.isEmpty {
                 BackgroundVoicesCard(segments: background, compact: true,
@@ -616,8 +619,8 @@ struct TranscriptView: View {
         }
     }
 
-    private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {
-        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, editable: editable, textSize: fontSize, selected: $selectedSegment)
+    private func lines(_ t: Transcript, segments: [Segment], folds: [SponsorFold.Place?], editable: Bool) -> some View {
+        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, folds: folds, editable: editable, textSize: fontSize, selected: $selectedSegment)
     }
 
     private func review(_ t: Transcript) -> some View {

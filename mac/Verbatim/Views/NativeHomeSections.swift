@@ -145,7 +145,7 @@ struct NativeHomeLastDictation: View {
     @State private var copies = 0
 
     var body: some View {
-        let last = app.store.transcripts.lazy.filter { $0.deletedAt == nil && $0.source == .dictation }.max { $0.createdAt < $1.createdAt }
+        let last = app.store.lastDictation
         VStack(alignment: .leading, spacing: 8) {
             if size == .large {
                 HStack(alignment: .firstTextBaseline) {

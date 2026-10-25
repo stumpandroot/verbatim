@@ -215,6 +215,8 @@ struct TranscriptLines: View {
     var isPlaying: Bool
     var transcript: Transcript
     var segments: [Segment]
+    /// Where sponsor reads fold, one entry per line in `segments` (`Store.sponsorFolds`, worked out once per change).
+    var folds: [SponsorFold.Place?]
     var editable: Bool
     var textSize: CGFloat
     @Binding var selected: UUID?
@@ -238,7 +240,7 @@ struct TranscriptLines: View {
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
         // Lazy: a long recording has hundreds of lines, each with menus and a popover. Build only what's on screen.
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
-        let folds = SponsorFold.places(segments, in: transcript)
+        let folds = self.folds.count == segments.count ? self.folds : SponsorFold.places(segments, in: transcript)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -261,7 +263,8 @@ struct TranscriptLines: View {
         }
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
         .onChange(of: isPlaying) { _, _ in syncPlaying(at: clock.time) }
-        .onChange(of: segments) { _, _ in syncPlaying(at: clock.time) }
+        // The lines' ids and times, not the whole lines (words included): only those decide what's playing.
+        .onChange(of: segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
     }
 
     @MainActor private func syncPlaying(at now: Double) {

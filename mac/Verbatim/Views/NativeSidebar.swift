@@ -18,15 +18,9 @@ struct NativeSidebar: View {
     enum Item: Hashable { case main(SidebarItemID), project(UUID), trash }
 
     var body: some View {
-        // Every count in one pass over the library.
-        var library = 0, trash = 0
-        var perProject: [UUID: Int] = [:]
-        for t in app.store.transcripts {
-            if t.deletedAt != nil { trash += 1; continue }
-            if t.isDictation { continue }
-            library += 1
-            if let p = t.projectId { perProject[p, default: 0] += 1 }
-        }
+        // Every count in one pass over the library, once per library change (Store+Memo.swift).
+        let counts = app.store.counts
+        let library = counts.library, trash = counts.trash, perProject = counts.perProject
         return List(selection: selection) {
             Section {
                 ForEach(layout.visible) { id in

@@ -27,7 +27,7 @@ struct NativeLibraryView: View {
 
     var body: some View {
         let list = NativeLibraryScope.list(app)
-        let groups = Store.group(list, sort: sort)
+        let groups = app.store.grouped(list, sort: sort)
         return VStack(alignment: .leading, spacing: 0) {
             if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
                 ScrollView { PassageResults(query: app.search, list: list).padding(.horizontal, 32).padding(.bottom, 10) }
@@ -279,7 +279,7 @@ struct PremiumLibraryPreview: View {
     var body: some View {
         let list = NativeLibraryScope.list(app)
         let chosen = nav.librarySelection.flatMap { id in list.first { $0.id == id } }
-            ?? Store.group(list, sort: LibrarySort(rawValue: sortRaw) ?? .newest).first?.items.first
+            ?? app.store.grouped(list, sort: LibrarySort(rawValue: sortRaw) ?? .newest).first?.items.first
         ScrollView {
             if let t = chosen {
                 card(t).padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)

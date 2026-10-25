@@ -29,7 +29,9 @@ struct LibraryScreen: View {
     /// `LibraryFilter.apply` leaves them out unless you're searching or chose Dictations.
     private var scoped: [Transcript] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return app.store.live.filter { t in
+        let filter = self.filter
+        // Once per library change, chip, and search (Store+Memo.swift), not on every render.
+        return app.store.memo("phone.scoped|\(String(describing: filter))|\(q)") { app.store.live.filter { t in
             let f: Bool = {
                 switch filter {
                 case .all: return true
@@ -40,13 +42,19 @@ struct LibraryScreen: View {
                 }
             }()
             return f && (q.isEmpty || t.title.lowercased().contains(q) || app.store.searchText(t).contains(q))
-        }
+        } }
     }
+
+    /// What `scoped` depends on besides the library, for the memo keys built on it.
+    private var scopeKey: String { "\(String(describing: filter))|\(search.trimmingCharacters(in: .whitespaces).lowercased())" }
 
     /// Dictations, newest first. They have their own list, reached from the row at the top (and Home's Dictate).
     private var dictations: [Transcript] {
-        app.store.live.filter(\.isDictation).sorted { $0.createdAt > $1.createdAt }
+        app.store.memo("phone.dictations") { app.store.live.filter(\.isDictation).sorted { $0.createdAt > $1.createdAt } }
     }
+
+    /// Live recordings that aren't dictations: the title's count.
+    private var recordingCount: Int { app.store.memo("phone.recording-count") { app.store.live.filter { !$0.isDictation }.count } }
 
     /// The list, with a day header before each day's first row when the order is by date.
     private enum Line: Identifiable {
@@ -61,6 +69,11 @@ struct LibraryScreen: View {
     }
 
     private func lines(_ items: [Transcript]) -> [Line] {
+        // The same list's lines once per library change and day; day headers say "Today" and "Yesterday".
+        app.store.memo("phone.lines|\(scopeKey)|\(typeFilter.raw)|\(sort.rawValue)|\(Store.dayKey())|\(items.count)") { makeLines(items) }
+    }
+
+    private func makeLines(_ items: [Transcript]) -> [Line] {
         let byDate = sort == .newest || sort == .oldest
         let cal = Calendar.current
         var out: [Line] = []
@@ -78,7 +91,8 @@ struct LibraryScreen: View {
     var body: some View {
         // `scoped` searches every transcript's text; work it out once per render.
         let scoped = self.scoped
-        let items = sort.sorted(typeFilter.apply(scoped, searching: searching))
+        let searching = self.searching, typeFilter = self.typeFilter, sort = self.sort
+        let items = app.store.memo("phone.items|\(scopeKey)|\(typeFilter.raw)|\(sort.rawValue)") { sort.sorted(typeFilter.apply(scoped, searching: searching)) }
         let passages = search.trimmingCharacters(in: .whitespaces).count >= 2 ? LibrarySearch.passages(items, query: search, perTranscript: 3, cap: 60) : []
         let project: UUID? = { if case .project(let p) = filter { return p }; return nil }()
         Group {
@@ -88,7 +102,7 @@ struct LibraryScreen: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 14) {
-                    PhoneCompactTitle(title: "Library", count: "\(app.store.live.filter { !$0.isDictation }.count)")
+                    PhoneCompactTitle(title: "Library", count: "\(recordingCount)")
                     PhoneSearchField(text: $search, prompt: "Find the line you need")
                 }
                 .padding(.top, 4)
@@ -262,7 +276,8 @@ struct LibraryScreen: View {
     private func chips(_ scoped: [Transcript]) -> some View {
         let sources = typeFilter.sourceCounts(scoped, searching: searching).filter { $0.0 != .all }
         let platforms = typeFilter.platformCounts(scoped, searching: searching)
-        let kinds = RecordingKind.pickable.filter { k in app.store.live.contains { $0.kind == k } || filter == .kind(k) }
+        let present = app.store.memo("phone.kinds-present") { Set(app.store.live.compactMap(\.kind)) }
+        let kinds = RecordingKind.pickable.filter { k in present.contains(k) || filter == .kind(k) }
         return VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -369,7 +384,7 @@ extension LibraryScreen {
         return List {
             Section {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(PhoneCompactTitle.nativeCount("Library", "\(app.store.live.filter { !$0.isDictation }.count)"))
+                    Text(PhoneCompactTitle.nativeCount("Library", "\(recordingCount)"))
                         .font(.system(size: 15)).foregroundStyle(NativeInk.secondary)
                         .padding(.horizontal, 20)
                     chips(scoped).padding(.top, 12)
@@ -432,7 +447,7 @@ extension LibraryScreen {
 
     /// Dictations, Moments, and Projects as three soft cards with their counts.
     private var collections: some View {
-        let moments = HomeCounts.momentsSaved(app.store.live)
+        let moments = app.store.memo("moments-saved") { HomeCounts.momentsSaved(app.store.live) }
         return HStack(spacing: 10) {
             NavigationLink(value: DictationsRoute()) { collection("Dictations", symbol: "text.bubble", count: dictations.count) }
                 .buttonStyle(PhoneCardPress())

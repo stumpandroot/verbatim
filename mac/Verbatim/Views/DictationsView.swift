@@ -14,7 +14,9 @@ struct DictationsView: View {
     @ObservedObject private var settings = FlowSettings.shared
     @State private var filter: AppCategory? = nil
 
-    private var allDictations: [Transcript] { app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt } }
+    private var allDictations: [Transcript] {
+        app.store.memo("dictations") { app.store.live.filter { $0.source == .dictation }.sorted { $0.createdAt > $1.createdAt } }
+    }
     private func matching(_ all: [Transcript]) -> [Transcript] {
         let q = app.search.trimmingCharacters(in: .whitespaces).lowercased()
         return all.filter { t in

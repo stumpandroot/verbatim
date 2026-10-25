@@ -357,7 +357,7 @@ struct MenuBarPanel: View {
                 }
                 .buttonStyle(.plain).pressable()
             }
-            if let last = app.store.live.first {
+            if let last = app.store.newestLive {
                 Button { NSApp.activate(ignoringOtherApps: true); app.go(.transcript(last.id)) } label: {
                     HStack(spacing: 10) {
                         let style = HomeRecentStyle(last)

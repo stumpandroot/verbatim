@@ -22,8 +22,12 @@ struct MomentsView: View {
     private static let kinds = ["All", "Bookmarks", "Notes", "With stills"]
 
     private var all: [Moment] {
-        app.filtered.flatMap { t in t.notes.filter { $0.at != nil }.map { Moment(note: $0, transcript: t) } }
-            .sorted { $0.note.createdAt > $1.note.createdAt }
+        let filtered = app.filtered
+        // `filtered` depends on the project and the search; the moments are worked out once per library change.
+        return app.store.memo("moments|\(app.projectFilter?.uuidString ?? "-")|\(app.search.trimmingCharacters(in: .whitespaces).lowercased())") {
+            filtered.flatMap { t in t.notes.filter { $0.at != nil }.map { Moment(note: $0, transcript: t) } }
+                .sorted { $0.note.createdAt > $1.note.createdAt }
+        }
     }
     private func shown(_ all: [Moment]) -> [Moment] {
         let q = app.search.trimmingCharacters(in: .whitespaces).lowercased()

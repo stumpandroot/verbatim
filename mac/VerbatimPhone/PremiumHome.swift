@@ -50,9 +50,9 @@ struct PremiumHome: View {
     /// Big numbers sit in the card's top third (3:1 is enough for them); every smaller line sits lower, where white
     /// measures 4.5:1 or better (PremiumRules, mac/tools/test-premium-phone.sh). Opens You.
     private var weekCard: some View {
-        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let week = app.store.dictationWeek(now: now)
         let saved = HomeScreen.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
-        let recordings = Self.recordingsThisWeek(app.store.live, now: now)
+        let recordings = app.store.memo("recordings-this-week|\(Store.dayKey(now))") { Self.recordingsThisWeek(app.store.live, now: now) }
         let foot = "\(saved) saved typing · \(HomeCounts.countLabel(recordings, "recording", "recordings"))"
         return Button { HomeScreen.openProfile(app) } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -85,7 +85,7 @@ struct PremiumHome: View {
 
     /// This week, Compact: a slim gradient strip with the words and the seven days.
     private var weekStrip: some View {
-        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let week = app.store.dictationWeek(now: now)
         return Button { HomeScreen.openProfile(app) } label: {
             HStack(spacing: 12) {
                 Text(week.words.formatted()).font(PremiumStyle.number(30)).lineLimit(1).minimumScaleFactor(0.6)

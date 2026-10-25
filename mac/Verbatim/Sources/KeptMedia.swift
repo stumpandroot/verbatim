@@ -32,7 +32,7 @@ final class KeptMedia: ObservableObject {
 
     /// Follows the library: new kept or imported paths are checked as they appear.
     func attach(_ store: Store) {
-        store.$transcripts.sink { [weak self] list in self?.checkNew(in: list) }.store(in: &bag)
+        store.transcriptsPublisher.sink { [weak self] list in self?.checkNew(in: list) }.store(in: &bag)
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
             .sink { [weak self] _ in self?.refresh() }.store(in: &bag)
     }
