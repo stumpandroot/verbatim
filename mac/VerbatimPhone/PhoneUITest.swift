@@ -34,6 +34,7 @@ enum PhoneUITest {
                 app.tab = .home
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 await show("\(prefix)01-home")
+                if prefix == "p" { homeLayoutCheck(.verbose) }
                 // The rest of Home: This week, Recent recordings, Recent dictations, and the keyboard row.
                 NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-recent")
                 await show("\(prefix)01b-home-recent")
@@ -261,15 +262,22 @@ enum PhoneUITest {
                 app.appearance = mode
                 app.tab = .home
                 await show("\(prefix)01-home-native")
+                if prefix == "p" { homeLayoutCheck(.native) }
                 await whatsNewTour(app, prefix: prefix, suffix: "-native")
                 app.tab = .library
                 await show("\(prefix)04-library-native")
+                app.libraryPath.append(DictationsRoute())
+                await show("\(prefix)04d-dictations-native")
+                app.libraryPath = NavigationPath()
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
                     app.libraryPath = NavigationPath()
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
+                app.tab = .moments
+                await show("\(prefix)08-moments-native")
                 app.tab = .settings
                 await show("\(prefix)09-settings-native")
                 SettingsPage.open("appearance")
@@ -458,6 +466,15 @@ enum PhoneUITest {
         if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
         app.tab = .home
         try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Home shows the layout for the look and only that one, by which Record card is on screen (build 204's Native
+    /// Home kept Verbose style's Record panel, rings, and tiles under a half-made navigation bar).
+    private static func homeLayoutCheck(_ look: AppLook) {
+        let shown = HomeScreen.recordCardsOnScreen
+        let name = look == .native ? "Home in Native shows its Record card, not Verbose style's Record panel"
+                                   : "Home in Verbose style shows the Record panel, not Native's Record card"
+        lookCheck("\(name) (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))", shown == [look])
     }
 
     private static func lookCheck(_ name: String, _ ok: Bool) {

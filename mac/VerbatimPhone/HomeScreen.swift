@@ -26,46 +26,17 @@ struct HomeScreen: View {
     @ScaledMetric(relativeTo: .footnote) private var small: CGFloat = 12.5
     @Environment(\.look) private var look
 
+    /// Which Home layout is on screen, by its Record card (the self-test checks Native never shows Verbose's panel).
+    static var recordCardsOnScreen = Set<AppLook>()
+
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                if look.isNative {
-                    nativeBody
-                        .padding(.horizontal, 16).padding(.bottom, 32)
-                } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    header.id("home-top")
-                        .riseIn("header", index: 0, seen: seen, epoch: entrance)
-                    // After an update: "What's new in build N", once (WhatsNewScreen.swift).
-                    WhatsNewBanner(top: 16) { Self.openWhatsNew(app) }
-                    recordPanel.padding(.top, 18)
-                        .riseIn("record", index: 1, seen: seen, epoch: entrance)
-                    tiles.padding(.top, 10)
-                        .riseIn("tiles", index: 2, seen: seen, epoch: entrance)
-                    weekCard.padding(.top, 12)
-                        .riseIn("week", index: 3, seen: seen, epoch: entrance)
-                    recent.padding(.top, 24).id("home-recent")
-                        .riseIn("recent", index: 4, seen: seen, epoch: entrance)
-                }
-                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeScroll)) { note in
-                guard let id = note.object as? String else { return }
-                withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(id, anchor: .top) }
-            }
+        // Each look is its own screen with its own navigation bar setup, so nothing is switched in place.
+        Group {
+            if look.isNative { nativeScreen } else { verboseScreen }
         }
         .tabEntrance(.home) { seen.entered(); entrance += 1 }
         .phonePage()
-        // Verbose style draws its own greeting; Native uses the navigation bar's large title and the account button.
-        .navigationTitle(look.isNative ? "Home" : "")
         .navigationBarTitleDisplayMode(.large)
-        .toolbar(look.isNative ? .visible : .hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if look.isNative { nativeAccountButton }
-            }
-        }
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
         .onAppear { now = Date(); micName = Self.currentMic() }
         .onDisappear { monitor.stop() }
@@ -73,6 +44,54 @@ struct HomeScreen: View {
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
             DispatchQueue.main.async { micName = Self.currentMic() }
+        }
+    }
+
+    /// Verbose style draws its own greeting, so the navigation bar stays hidden.
+    private var verboseScreen: some View {
+        scroller {
+            VStack(alignment: .leading, spacing: 0) {
+                header.id("home-top")
+                    .riseIn("header", index: 0, seen: seen, epoch: entrance)
+                // After an update: "What's new in build N", once (WhatsNewScreen.swift).
+                WhatsNewBanner(top: 16) { Self.openWhatsNew(app) }
+                recordPanel.padding(.top, 18)
+                    .riseIn("record", index: 1, seen: seen, epoch: entrance)
+                tiles.padding(.top, 10)
+                    .riseIn("tiles", index: 2, seen: seen, epoch: entrance)
+                weekCard.padding(.top, 12)
+                    .riseIn("week", index: 3, seen: seen, epoch: entrance)
+                recent.padding(.top, 24).id("home-recent")
+                    .riseIn("recent", index: 4, seen: seen, epoch: entrance)
+            }
+            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
+        }
+        .navigationTitle("")
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// Native uses the navigation bar's large title and the account button.
+    private var nativeScreen: some View {
+        scroller {
+            nativeBody
+                .padding(.horizontal, 16).padding(.bottom, 32)
+        }
+        .navigationTitle("Home")
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { nativeAccountButton }
+        }
+    }
+
+    /// The scroll view, which the screenshot tour scrolls to a section ("home-top", "home-recent").
+    private func scroller<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        let content = content()
+        return ScrollViewReader { proxy in
+            ScrollView { content }
+                .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeScroll)) { note in
+                    guard let id = note.object as? String else { return }
+                    withAnimation(limitMotion ? nil : Motion.settle) { proxy.scrollTo(id, anchor: .top) }
+                }
         }
     }
 
@@ -192,6 +211,9 @@ struct HomeScreen: View {
         .accessibilityLabel("Record")
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
+        .accessibilityIdentifier("home.record.verbose")
+        .onAppear { Self.recordCardsOnScreen.insert(.verbose) }
+        .onDisappear { Self.recordCardsOnScreen.remove(.verbose) }
     }
 
     // MARK: Tiles
@@ -465,6 +487,9 @@ extension HomeScreen {
         .accessibilityLabel("Record")
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
+        .accessibilityIdentifier("home.record.native")
+        .onAppear { Self.recordCardsOnScreen.insert(.native) }
+        .onDisappear { Self.recordCardsOnScreen.remove(.native) }
     }
 
     /// Reminders-style tiles: a persimmon circle with the SF Symbol, the name in SF Pro. Labels and symbols carry the

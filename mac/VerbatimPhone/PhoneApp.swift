@@ -44,23 +44,30 @@ struct PhoneRoot: View {
 
     var body: some View {
         TabView(selection: $app.tab) {
+            // Home, Library, and Moments are rebuilt when the look changes (like the Mac's `lookRebuild()`), so each
+            // screen and its navigation bar start fresh in the new look; the paths are kept. Changed in place, Home
+            // kept its Verbose layout under a half-made bar, and Library kept its inline title. Settings isn't
+            // rebuilt: the look changes from Settings › Appearance, which would pop.
             NavigationStack(path: $app.homePath) {
                 HomeScreen()
                     .navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
                     .navigationDestination(for: DocumentRoute.self) { TranscriptScreen(id: $0.id, startMode: .document) }
             }
+            .id(look)
             .miniRecorderInset(.home, zoom: recorderZoom)
             .tabItem { Label { Text("Home") } icon: { tabIcon(.iconHome, "iconHome", "house") } }.tag(PhoneState.Tab.home)
 
             NavigationStack(path: $app.libraryPath) {
                 LibraryScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
+            .id(look)
             .miniRecorderInset(.library, zoom: recorderZoom)
             .tabItem { Label { Text("Library") } icon: { tabIcon(.iconLibrary, "iconLibrary", "books.vertical") } }.tag(PhoneState.Tab.library)
 
             NavigationStack(path: $app.momentsPath) {
                 MomentsScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
+            .id(look)
             .miniRecorderInset(.moments, zoom: recorderZoom)
             .tabItem { Label { Text("Moments") } icon: { tabIcon(.iconMoments, "iconMoments", "bookmark") } }.tag(PhoneState.Tab.moments)
 
