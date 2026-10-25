@@ -81,6 +81,8 @@ targets:
       # What's new (Model/ReleaseNotes.swift): the release notes, shared with the iPhone app. CI stamps the "next"
       # entry with the run number in its checkout before building (ReleaseNotes/README.md).
       - ReleaseNotes/ReleaseNotes.json
+      # The desktop widgets' snapshot and links (App/WidgetFeed.swift writes it; VerbatimMacWidgets reads it).
+      - VerbatimWidgets/WidgetSnapshot.swift
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
@@ -88,6 +90,8 @@ targets:
         product: FluidAudio
       - package: Sparkle
         product: Sparkle
+      # The desktop widgets, embedded in the app's PlugIns folder.
+      - target: VerbatimMacWidgets
       # The audio-only LGPL FFmpeg (mac/ffmpeg/build.sh builds Vendor/ffmpeg), linked dynamically and embedded as
       # separate frameworks so anyone can replace them (Resources/FFmpeg/FFmpeg-NOTICE.txt).
       - framework: Vendor/ffmpeg/libavutil.xcframework
@@ -126,6 +130,15 @@ targets:
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
         NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
         NSHighResolutionCapable: true
+        # verbatim:// links from the desktop widgets (WidgetLink in VerbatimWidgets/WidgetSnapshot.swift): a transcript,
+        # Record, Dictate, and the Thought pad. App/SystemHooks.swift handles them.
+        CFBundleURLTypes:
+          - CFBundleURLName: co.stumpandroot.verbatim
+            CFBundleURLSchemes: [verbatim]
+        # The App Group container shared with the desktop widgets (WidgetSnapshotStore). Team-prefixed, the form macOS
+        # accepts from a Developer ID app without a provisioning profile; unsigned builds have no prefix. The widget
+        # extension carries the same key.
+        VerbatimAppGroup: $(TeamIdentifierPrefix)co.stumpandroot.verbatim
         # Sparkle (mac/Updates/README.md). The feed lives in the public stumpandroot/verbose-updates repo (main
         # branch), which holds only the feed and the DMGs; CI rewrites it.
         SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbose-updates/main/appcast.xml
@@ -225,6 +238,9 @@ targets:
         com.apple.security.automation.apple-events: true
         # Hardened runtime: reading contact names for Dictionary suggestions (Model/ContactNames.swift).
         com.apple.security.personal-information.addressbook: true
+        # The App Group container shared with the desktop widgets (VerbatimMacWidgets): the snapshot they draw.
+        # build.sh fills in the team prefix when it signs; Verbatim-iCloud.entitlements (Debug) has the same group.
+        com.apple.security.application-groups: [$(TeamIdentifierPrefix)co.stumpandroot.verbatim]
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Verbatim/Bridging.h
@@ -258,6 +274,59 @@ targets:
             mkdir -p "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
             cp "$SRCROOT/Helpers/yt-dlp" "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers/yt-dlp"
           fi
+
+  # The Mac's desktop widgets: Record and Dictate, Recent recordings, This week, and Quick capture
+  # (VerbatimWidgets/HomeWidgets.swift, shared with iPhone). Draws only, from the snapshot the app writes to the App
+  # Group container (App/WidgetFeed.swift); every click opens a verbatim:// link in the app. WidgetKit loads only a
+  # sandboxed extension, so this one has the App Sandbox (the app itself isn't sandboxed) and reads nothing outside
+  # the group. Signed like the app, with the hardened runtime and a timestamp (build.sh).
+  VerbatimMacWidgets:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: VerbatimMacWidgets
+        excludes: ["Info.plist", "VerbatimMacWidgets.entitlements"]
+      - VerbatimWidgets/WidgetSnapshot.swift
+      - VerbatimWidgets/HomeWidgets.swift
+      - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
+      - Verbatim/Views/Brand.swift
+    info:
+      path: VerbatimMacWidgets/Info.plist
+      properties:
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: "14.0"
+        NSHumanReadableCopyright: "© 2026 Stump & Root Co."
+        # The same group as the app's (see the Verbatim target).
+        VerbatimAppGroup: $(TeamIdentifierPrefix)co.stumpandroot.verbatim
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: VerbatimMacWidgets/VerbatimMacWidgets.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups: [$(TeamIdentifierPrefix)co.stumpandroot.verbatim]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.widgets
+        PRODUCT_NAME: VerbatimMacWidgets
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VERBATIM_WIDGETS"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        ARCHS: "arm64 x86_64"
+        ONLY_ACTIVE_ARCH: false
+        APPLICATION_EXTENSION_API_ONLY: true
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
 
   VerbatimPhone:
     type: application
@@ -354,6 +423,11 @@ targets:
       # its intents (Dictate, Done, Cancel, the Action button, and the Control Center session switch).
       - VerbatimWidgets/RibbonRules.swift
       - VerbatimWidgets/DictateIntents.swift
+      # Shared with the widget extension: Record from a widget or control (records in place when iOS allows), and the
+      # Home Screen widgets' snapshot and links, which App/WidgetFeed.swift writes to the App Group.
+      - VerbatimWidgets/RecordVoiceNoteIntent.swift
+      - VerbatimWidgets/WidgetSnapshot.swift
+      - Verbatim/App/WidgetFeed.swift
       # Shared with the share and broadcast extensions: the App Group inbox they fill and the app imports.
       - VerbatimShare/VerbatimInbox.swift
     dependencies:
@@ -499,7 +573,8 @@ targets:
   # The keyboard session's Live Activity (the recording ribbon): the Dynamic Island and Lock Screen while Verbatim
   # keeps the microphone ready. Draws only; the app starts, updates, and ends it. Its buttons run App Intents in the
   # app's process. The Control Center session switch reads whether a session is on from the App Group
-  # (KeyboardBridge.sessionLive), so this extension is in the group too.
+  # (KeyboardBridge.sessionLive), so this extension is in the group too. Also the Home Screen, Lock Screen, and
+  # StandBy widgets (HomeWidgets.swift), which read the app's snapshot and look from the App Group.
   VerbatimWidgets:
     type: app-extension
     platform: iOS

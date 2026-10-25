@@ -29,6 +29,8 @@ mac/VerbatimPhone/VerbatimPhone.entitlements
 mac/VerbatimKeyboard/Info.plist
 mac/VerbatimKeyboard/VerbatimKeyboard.entitlements
 mac/VerbatimWidgets/Info.plist
+mac/VerbatimMacWidgets/Info.plist
+mac/VerbatimMacWidgets/VerbatimMacWidgets.entitlements
 mac/VerbatimShare/Info.plist
 mac/VerbatimShare/VerbatimShare.entitlements
 mac/VerbatimBroadcast/Info.plist

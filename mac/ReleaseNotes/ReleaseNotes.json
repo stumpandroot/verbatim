@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Faster screens and fixes",
+      "title": "Widgets, Premium Native, and fixes",
       "items": [
         "Mac: choosing a look shows a short card while Verbose changes to it, and the change takes less time. On iPhone, this arrived in build 207.",
         "Mac: screens appear at once when you switch to them, without sections fading in one by one, and Home's icons arrive drawn. They draw again when you point at them.",
@@ -24,7 +24,11 @@
         "iPhone: in Native, the recorder fills the screen with a large timer and a live waveform, and Mark moment saves bookmarks while you talk. When you stop, a sheet shows the transcription's progress and lets you choose the kind and the project.",
         "iPhone: in Native, You shows your week, your year, and a calendar with a dot on each day you recorded, with no streak to keep.",
         "iPhone: in Native, the transcript's summary shows on a persimmon card with its moments and speakers, and the player sits on glass above the tab bar.",
-        "iPhone: in Native, Settings › Appearance can bring back the Record card on Home."
+        "iPhone: in Native, Settings › Appearance can bring back the Record card on Home.",
+        "New widgets: Record and Dictate, Recent recordings, This week, and Quick capture. They follow the look you choose in Verbose, and Recent recordings opens a transcript when you tap it.",
+        "iPhone: add them to the Home Screen, the Lock Screen (Record and Dictate), and StandBy. Record starts a voice note right where you are when iOS allows it, and otherwise opens Verbose to record.",
+        "iPhone: Control Center has Record voice note and Dictate controls.",
+        "Mac: add the widgets to your desktop. Quick capture opens the Thought pad, and Dictate types into the app in front."
       ]
     },
     {
