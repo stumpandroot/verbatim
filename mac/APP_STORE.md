@@ -73,7 +73,15 @@ Use this only if the ad hoc archive fails on a runner, or the entitlements check
 
 To go back to the ad hoc archive, run `gh secret delete IOS_DEV_CERTIFICATE --env release -R stumpandroot/verbatim`.
 
-Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push to `integrate`, and on every branch push that changes a file the iPhone app or its extensions build from. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the undocumented selector or class names below are left in the app.
+Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push to `integrate`, and on every branch push that changes a file the iPhone app or its extensions build from. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the private names below are left in the app (`_hostBundleID`, `_hostApplicationBundleIdentifier`, `_systemNavigationAction`, `LSApplicationWorkspace`, `openApplicationWithBundleID`). It no longer rejects the keyboard's `openURL:options:completionHandler:` selector; see the next section.
+
+## Accepted risk: the keyboard opens Verbose (guideline 4.4.1)
+
+Guideline 4.4.1 says keyboard extensions may not launch apps other than Settings. Verbose's keyboard opens Verbose anyway, in every build, App Store and TestFlight included, the way Wispr Flow's does: Start a session (and the record button with no session) opens `verbatim://session?start=1&request=…`, which starts the session. Tim decided this in October 2026, knowing it risks rejection, because the alternative (a card with three text instructions) was bad to use.
+
+- The code is `KeyboardViewController.openContainingApp`: it walks the responder chain to the extension's `UIApplication` and sends `openURL:options:completionHandler:` by selector. It names no private class.
+- App Store builds still compile out every private API that automated review detects: the host bundle ID read and the automatic switch back (`_systemNavigationAction`, `LSApplicationWorkspace`). So after the session starts, Verbose stays in front and its start screen shows how to go back: swipe right along the bottom edge, or tap "◀ <app>" at the top left. The full coach card shows for the first five session starts, then a one-line reminder.
+- **If App Review rejects the app under 4.4.1, remove this first.** In `openContainingApp`, put the body back under `#if APP_STORE … return false … #else … #endif`; in `Distribution.abilities(appStore:)`, set `keyboardOpensVerbatim: !appStore`; and in `check-swift.yml`, add the `openURL:options:completionHandler:` check on `VerbatimKeyboard.appex` back. When the keyboard can't open Verbose, Home shows the three other ways to start a session (`StartCard.instructions`), the same fallback it shows when iOS refuses to open the link.
 
 ## What the flag changes
 
@@ -82,22 +90,25 @@ Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both w
 | Feature | Your builds | App Store builds |
 |---|---|---|
 | Keyboard reads the host app's bundle ID (`_hostBundleID`, `_hostApplicationBundleIdentifier` in `KeyboardViewController.hostBundleID()`) | On | Compiled out; returns nil. The format chip's Auto infers from the text field instead. |
-| Keyboard opens Verbose to start a session (`openURL:options:completionHandler:` through the responder chain in `KeyboardViewController.openContainingApp`) | On | Compiled out; returns false. The keyboard shows "Start a session to dictate" with the ways to start one. |
-| App switches back to the app you came from (`_systemNavigationAction` breadcrumb and `LSApplicationWorkspace.openApplicationWithBundleID:` in `KeyboardSession.returnToHostApp`) | On | Compiled out; returns "not available in App Store builds". The start screen tells you how to go back. |
+| Keyboard opens Verbose to start a session (`openURL:options:completionHandler:` through the responder chain in `KeyboardViewController.openContainingApp`) | On | On (accepted 4.4.1 risk, above). If the link doesn't open, the keyboard shows the three other ways to start a session. |
+| App switches back to the app you came from (`_systemNavigationAction` breadcrumb and `LSApplicationWorkspace.openApplicationWithBundleID:` in `KeyboardSession.returnToHostApp`) | On | Compiled out; returns "not available in App Store builds". The start screen shows how to go back (the coach card). |
 | YouTube audio on the iPhone (`YOUTUBE_ON_DEVICE`, YouTubeKit in `PhoneLinkFetcher`) | On | Not defined. YouTube links go to the Mac's Queue, like any site the iPhone can't fetch. YouTubeKit stays linked, but nothing calls it; remove the package dependency in `project.yml` to drop it from the binary. |
-| Settings › Keyboard › Start dictating when you come back | Shown | Hidden, because the keyboard can't open Verbose. |
+| Settings › Keyboard › Start dictating when you come back | Shown | Shown. The first tap opens Verbose and starts listening, so you can talk as soon as you're back. |
 
 ## Starting a session in App Store builds
 
-The keyboard can't open Verbose, and iOS doesn't let an app start recording from the background, so each of these opens Verbose for a moment, turns on the microphone, and then shows "Your session is on" with how to go back to your app:
+iOS doesn't let an app start recording from the background, so each of these opens Verbose for a moment, turns on the microphone, and then shows "Your session is on" with how to go back to your app:
+
+- **The Verbose keyboard:** Start a session on the keyboard's Home, or the record button with no session (accepted 4.4.1 risk, above).
 
 - **Control Center** (iOS 18 and later): the Verbose session switch (`StartSessionControl`, `SetSessionIntent`). Off ends the session without opening Verbose.
 - **Action button** (the recording ribbon): the Verbose action control or the Action button App Shortcut (`ActionButtonIntent`), which does what Settings › Action button says (Dictate by default; also Record a voice note, Live captions, and What's playing). On iOS 18 and later it's also an `AudioRecordingIntent`, so Record a voice note tries to start in place behind its Live Activity and opens Verbose when iOS refuses. The first press opens Verbose, turns on the microphone, and starts a take; while the session is on, each press starts or stops a take without opening Verbose (`DictateIntent` and friends are `LiveActivityIntent`s that run in the app's process).
 - **Shortcuts and Siri:** Dictate (`DictateIntent`) and Start dictation session (`StartKeyboardSessionIntent`), in `VerbatimAppShortcuts`.
 - **Lock Screen:** the Verbose widget, which opens `verbatim://session?start=1&from=widget`.
 - **Verbose:** Settings › Keyboard › Start keyboard session.
+- **Restart** on the Session ended Live Activity (Dynamic Island and Lock Screen, for 15 minutes after a session ends by itself): `RestartSessionIntent` tries to turn the microphone back on in place (iOS 18 and later, as an `AudioRecordingIntent`), and opens Verbose straight into the session when iOS refuses.
 
-These work in your builds too.
+These work in your builds too. A session lasts until its idle timeout (2 hours unless you choose 10 or 30 minutes, 1 or 4 hours, or Until I end it; the 8-hour Live Activity limit always ends it), and a phone or FaceTime call or Siri pauses it instead of ending it.
 
 ## Notes for App Review
 

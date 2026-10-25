@@ -188,19 +188,19 @@ final class KeyboardViewController: UIInputViewController {
     /// `openURL:options:completionHandler:` by selector.
     ///
     /// App Review risk: this is undocumented. Apple has approved many keyboards that open their container app
-    /// this way (voice and AI keyboards do it to start recording), but a reviewer can reject it under guideline
-    /// 2.5.1 (public APIs only), and an iOS release can break it without notice (iOS 18 stopped honoring the old
-    /// one-argument `openURL:`). Everything that depends on it goes through this one function, so it can be
-    /// swapped for a documented route, such as asking you to open Verbatim yourself, without touching the rest.
+    /// this way (voice and AI keyboards, Wispr Flow among them, do it to start recording), but a reviewer can reject
+    /// it under guideline 4.4.1 (keyboards may not launch apps other than Settings) or 2.5.1 (public APIs only),
+    /// and an iOS release can break it without notice (iOS 18 stopped honoring the old one-argument `openURL:`).
+    /// Everything that depends on it goes through this one function, so it can be swapped for a documented route,
+    /// such as asking you to open Verbatim yourself, without touching the rest.
     ///
-    /// App Store builds (`APP_STORE`) compile this out and return false; the keyboard then shows how to start a
-    /// session from Control Center, the Action button, or Verbatim (`KeyboardModel.needsSessionCard`).
+    /// Compiled into every build, App Store builds included: Tim accepted the 4.4.1 risk (October 2026; see
+    /// mac/APP_STORE.md). If App Review rejects the app for it, gate this body with `#if APP_STORE` again and set
+    /// `keyboardOpensVerbatim` back to `!appStore`; the keyboard then shows how to start a session instead
+    /// (`StartCard.instructions`). Only the selector name appears in the binary; no private class is named.
     @discardableResult
     func openContainingApp(_ url: URL) -> Bool {
         guard Distribution.current.keyboardOpensVerbatim else { return false }
-        #if APP_STORE
-        return false
-        #else
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
         var responder: UIResponder? = self
         while let r = responder {
@@ -214,6 +214,5 @@ final class KeyboardViewController: UIInputViewController {
             responder = r.next
         }
         return false
-        #endif
     }
 }

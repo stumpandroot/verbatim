@@ -3,9 +3,11 @@ import UIKit
 // MARK: - Distribution (the App Store switch)
 
 /// What this build may do. One build setting, `VERBATIM_APP_STORE=YES` (the AppStore configuration sets it; see
-/// mac/APP_STORE.md), defines the `APP_STORE` compilation condition in every iPhone target. With it, every
-/// undocumented iOS interface is compiled out, and the seams that used them report "unavailable", so the public
-/// fallbacks show instead. Compiled into the app and the keyboard.
+/// mac/APP_STORE.md), defines the `APP_STORE` compilation condition in every iPhone target. With it, the private
+/// interfaces automated review detects (`_hostBundleID`, `_systemNavigationAction`, `LSApplicationWorkspace`) are
+/// compiled out, and the seams that used them report "unavailable", so the public fallbacks show instead. The
+/// keyboard opening Verbose stays in every build: a deliberate guideline 4.4.1 risk Tim accepted (October 2026).
+/// Compiled into the app and the keyboard.
 enum Distribution {
     /// True in App Store builds.
     static var isAppStore: Bool {
@@ -20,7 +22,8 @@ enum Distribution {
     struct Abilities: Equatable {
         /// The keyboard reads the bundle ID of the app you're typing in (`_hostBundleID`).
         var readsHostApp: Bool
-        /// The keyboard opens Verbatim to start a session (`openURL:options:completionHandler:` by selector).
+        /// The keyboard opens Verbatim to start a session (`openURL:options:completionHandler:` by selector). True
+        /// in every build, App Store included (accepted 4.4.1 risk; the first thing to remove if App Review rejects).
         var keyboardOpensVerbatim: Bool
         /// The app switches back to the app you came from (`_systemNavigationAction`, `LSApplicationWorkspace`).
         var returnsToHostApp: Bool
@@ -30,7 +33,7 @@ enum Distribution {
 
     /// The abilities of a build, from the flag. Pure, so the self-tests can check both kinds of build.
     static func abilities(appStore: Bool) -> Abilities {
-        Abilities(readsHostApp: !appStore, keyboardOpensVerbatim: !appStore, returnsToHostApp: !appStore,
+        Abilities(readsHostApp: !appStore, keyboardOpensVerbatim: true, returnsToHostApp: !appStore,
                   youTubeOnDevice: !appStore && youTubeCompiledIn)
     }
 
