@@ -4,14 +4,6 @@
       "build": "next",
       "title": "Widgets, Premium Native, and fixes",
       "items": [
-        "Mac: choosing a look shows a short card while Verbose changes to it, and the change takes less time. On iPhone, this arrived in build 207.",
-        "Mac: screens appear at once when you switch to them, without sections fading in one by one, and Home's icons arrive drawn. They draw again when you point at them.",
-        "Mac: switching screens and opening a transcript do less work, so the app keeps up while something transcribes or plays.",
-        "Home's greeting and dates follow the clock while Verbose transcribes, plays, or dictates. On iPhone, You's dates do too.",
-        "Importing a damaged MP4 or M4A file no longer closes Verbose.",
-        "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it.",
-        "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting.",
-        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off.",
         "Mac: the Native look has a warmer, more polished design: a warm background, gradient cards for This week, your stats, and summaries, and a floating record button on Home and the Library.",
         "Mac: in the Native look, the Library lists recordings with a preview beside them. Click to see the summary, double-click or press Return to open, and press Space to play. To see the table, choose More › View as Table.",
         "Mac: in the Native look, a transcript shows its summary, moments, and speakers beside the text, the player has a Follow button, and Back and Forward are in the toolbar.",
@@ -28,7 +20,23 @@
         "New widgets: Record and Dictate, Recent recordings, This week, and Quick capture. They follow the look you choose in Verbose, and Recent recordings opens a transcript when you tap it.",
         "iPhone: add them to the Home Screen, the Lock Screen (Record and Dictate), and StandBy. Record starts a voice note right where you are when iOS allows it, and otherwise opens Verbose to record.",
         "iPhone: Control Center has Record voice note and Dictate controls.",
-        "Mac: add the widgets to your desktop. Quick capture opens the Thought pad, and Dictate types into the app in front."
+        "Mac: add the widgets to your desktop. Quick capture opens the Thought pad, and Dictate types into the app in front.",
+        "iPhone: the speed fixes, bug fixes, and smoother look changes from Mac build 208."
+      ]
+    },
+    {
+      "build": "208",
+      "date": "2026-10-25",
+      "title": "Faster screens and fixes (Mac)",
+      "items": [
+        "Mac: choosing a look shows a short card while Verbose changes to it, and the change takes less time. On iPhone, this arrived in build 207.",
+        "Mac: screens appear at once when you switch to them, without sections fading in one by one, and Home's icons arrive drawn. They draw again when you point at them.",
+        "Mac: switching screens and opening a transcript do less work, so the app keeps up while something transcribes or plays.",
+        "Home's greeting and dates follow the clock while Verbose transcribes, plays, or dictates. On iPhone, You's dates do too.",
+        "Importing a damaged MP4 or M4A file no longer closes Verbose.",
+        "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it.",
+        "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting.",
+        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off."
       ]
     },
     {
