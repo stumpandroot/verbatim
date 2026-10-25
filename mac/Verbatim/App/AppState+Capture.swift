@@ -30,6 +30,7 @@ extension AppState {
         Log.note("startRecording")
         guard !recorder.isRecording else { return }
         let url = store.newRecordingURL()
+        recordingWords.begin(recorder)   // before the mic opens, so live words hear the first word
         recorder.begin(to: url) { [weak self] error in
             guard let self else { return }
             if let error {

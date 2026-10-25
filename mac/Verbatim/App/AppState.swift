@@ -78,6 +78,8 @@ final class AppState: ObservableObject {
 
     let store = Store()
     let recorder = Recorder()
+    /// Show words while you record: live words from the recorder's own buffers, a preview only (RecordingWords.swift).
+    let recordingWords = RecordingWords()
     let player = Player()
     let capture = AppAudioCapture()
     let dictation = DictationController()

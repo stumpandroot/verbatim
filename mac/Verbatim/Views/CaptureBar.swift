@@ -215,6 +215,19 @@ struct RecordButton: View {
 struct RecordPanel: View {
     @EnvironmentObject var app: AppState
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            controls
+            // Show words while you record: the newest two lines, a preview only (RecordingWords.swift).
+            RecordingWordsLine(words: app.recordingWords, insets: EdgeInsets(top: 0, leading: 52, bottom: 12, trailing: 16))
+        }
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.persimmon.opacity(0.6)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(starting ? "Starting the microphone" : app.recorder.isPaused ? "Recording paused" : app.recorder.micWarning.map { "Recording. \($0.title). \($0.detail)." } ?? "Recording")
+        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
+    }
+
+    private var controls: some View {
         HStack(spacing: 16) {
             SignalRings(active: !app.recorder.isPaused && !starting).frame(width: 30, height: 30).padding(.leading, 6)
             VStack(alignment: .leading, spacing: 2) {
@@ -239,11 +252,6 @@ struct RecordPanel: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 70)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.persimmon.opacity(0.6)))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(starting ? "Starting the microphone" : app.recorder.isPaused ? "Recording paused" : app.recorder.micWarning.map { "Recording. \($0.title). \($0.detail)." } ?? "Recording")
-        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .identity))
     }
 
     private var starting: Bool { app.recorder.isStarting }

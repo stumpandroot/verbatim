@@ -256,6 +256,7 @@ struct ModelsSettingsPane: View {
     @AppStorage(Transcript.skipSponsorsKey) private var skipSponsors = true
     @AppStorage(BuiltInVocabulary.enabledKey) private var builtInVocabulary = true
     @AppStorage(LanguageDetection.enabledKey) private var detectLanguage = true
+    @AppStorage(RecordingWords.enabledKey) private var recordLiveWords = true
 
     var body: some View {
         SettingsPane(tab: .models) {
@@ -289,6 +290,9 @@ struct ModelsSettingsPane: View {
                 SettingsToggleRow("models.nameSort", isOn: $autoLabels)
                 SettingsToggleRow("models.summary", isOn: $autoSummary, detail: Summarizer.unavailableReason)
                 SettingsToggleRow("models.hideFiller", isOn: $hideFiller)
+            }
+            SettingsGroup(title: "While you record") {
+                SettingsToggleRow("models.recordLiveWords", isOn: $recordLiveWords)
             }
             SettingsGroup(title: "Playback") {
                 SettingsToggleRow("models.skipSponsors", isOn: $skipSponsors)
