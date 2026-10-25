@@ -11,11 +11,14 @@ struct ContentView: View {
     @Environment(\.look) private var look
     /// The Native sidebar's visibility (NavigationSplitView); Verbose style uses `sidebarOpen`.
     @State private var columns: NavigationSplitViewVisibility = .all
+    /// The Native window's shared state (toolbar, inspector, Library selection). Held without observing it: only the
+    /// views that show a part of it re-render when it changes.
+    @State private var nativeNav = NativeNav.shared
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
         // Only the main content rebuilds when the look changes (LookRebuild); the sheets below stay open.
-        return main.lookRebuild()
+        return main.environmentObject(nativeNav).lookRebuild()
         // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
         // sidebar's Queue item (anchored by the sidebar; no flight when the sidebar is hidden).
         .overlayPreferenceValue(QueueItemAnchor.self) { anchor in
@@ -35,15 +38,6 @@ struct ContentView: View {
         }
         .background(Ink.paper)
         .background(WindowReader { w in if app.mainWindow !== w { app.mainWindow = w } })
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                // Native: NavigationSplitView brings its own sidebar button.
-                if look != .native {
-                    Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
-                        .help("Hide or show the sidebar")
-                }
-            }
-        }
         .searchable(text: $app.search, placement: .toolbar, prompt: "Search transcripts")
         .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
@@ -84,14 +78,11 @@ struct ContentView: View {
     }
 
     /// The sidebar and the screen: Verbose style's paper sidebar beside the screen, or Native's NavigationSplitView
-    /// with the standard sidebar (Settings lives in the app menu there, ⌘,).
+    /// with the standard sidebar (Settings lives in the app menu there, ⌘,), its one toolbar, and its inspector
+    /// (NativeChrome.swift).
     @ViewBuilder private var main: some View {
         if look == .native {
-            NavigationSplitView(columnVisibility: $columns) {
-                NativeSidebar()
-            } detail: {
-                detail
-            }
+            NativeWindow(nav: nativeNav, columns: $columns) { nativeDetail }
         } else {
             HStack(spacing: 0) {
                 if sidebarOpen {
@@ -99,7 +90,32 @@ struct ContentView: View {
                 }
                 detail
             }
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
+                        .help("Hide or show the sidebar")
+                }
+            }
         }
+    }
+
+    /// Native's screen: swapped in place, with no transition or animation, as Mail and Notes do. The id gives each
+    /// screen (and each transcript) its own identity, so its `onAppear` times the change. Premium Native's warm
+    /// background and glow sit behind every screen, and the record button floats over Home and the Library.
+    private var nativeDetail: some View {
+        ZStack {
+            PremiumBackground()
+            screenView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onAppear { app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
+                .id(screenKey)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if (app.screen == .home || app.screen == .library) && !app.recorder.isRecording && !app.capture.isCapturing {
+                PremiumRecordButton(label: app.screen == .home).padding(.trailing, 28).padding(.bottom, 26)
+            }
+        }
+        .overlay(alignment: .bottom) { ToastView() }
     }
 
     private var detail: some View {

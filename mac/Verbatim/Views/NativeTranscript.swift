@@ -3,123 +3,277 @@ import AppKit
 
 // brand: native file
 //
-// The transcript's toolbar and player in the Native look (mockup section 03, "Mac Transcript"): Original, Cleaned, and
-// Review as a segmented control in the toolbar, then Continue Recording, Actions, Share (copy and export), Text Size,
-// and the inspector's button; and a standard player bar at the foot, with a persimmon play button and slider, the
-// time in monospaced digits, the speed, and Bookmark. Line selection, bookmarks, and the playing tint stay custom.
+// The transcript's player and inspector in Premium Native (mockup "Premium Native", Mac transcript). The tabs and tools
+// are in the window's toolbar (NativeChrome.swift). The player floats at the foot as a rounded bar: play in the accent,
+// the time in tabular digits, a slider, the speed, and Follow. It stays opaque (a white card with a soft shadow, not
+// glass): DESIGN.md §5.1 keeps text off blur, and §13.1 keeps the Mac's player bar opaque. The inspector stacks the
+// summary on a persimmon gradient card, Moments, Speakers, Export and Copy for AI, and Details.
 
-struct NativeTranscriptToolbar: ToolbarContent {
-    var app: AppState
-    var transcript: Transcript
-    @Binding var mode: TranscriptView.Mode
-    @Binding var inspector: Bool
-    @Binding var textSize: CGFloat
-    var copyVersion: Exporter.CopyVersion
-    var onAction: (FlowAction) -> Void
-    var onSummarize: () -> Void
-
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button { app.go(.library) } label: { Label("Library", systemImage: "chevron.left") }
-                .help("Back to the Library")
-        }
-        ToolbarItem(placement: .navigation) {
-            Picker("View", selection: $mode) {
-                ForEach(TranscriptView.visibleModes, id: \.self) { m in Text(m.title).tag(m) }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            .help("Original keeps every word as said; Cleaned is the tidied text; Review shows each fix")
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button { app.continueRecording(transcript.id) } label: { Label("Continue Recording", systemImage: "mic.badge.plus") }
-                .disabled(transcript.status != .ready || transcript.audioFileName == nil || transcript.pendingAppend != nil || app.recorder.isRecording)
-                .help("Record more and add it to the end of this transcript")
-            Menu {
-                ActionsMenuItems { onAction($0) }
-                Divider()
-                Button(SummaryAction.title(transcript)) { onSummarize() }
-                    .disabled(transcript.summaryIsEdited || SummaryCenter.shared.isRunning(transcript.id))
-            } label: { Label("Actions", systemImage: "sparkles") }
-                .disabled(transcript.status != .ready)
-                .help("Run a saved action on this transcript: decisions and next steps, a brief, an email")
-            Menu {
-                Button("Copy (⇧⌘C)") { ExportMenu.copy(transcript, copyVersion, app: app) }
-                Button("Copy with Timestamps") { ExportMenu.copy(transcript, copyVersion, timestamps: true, app: app) }
-                Button(copyVersion == .cleaned ? "Copy the Original" : "Copy the Cleaned Text") { ExportMenu.copy(transcript, copyVersion.other, app: app) }
-                Button("Copy Engine Words") { ExportMenu.copy(transcript, .engine, app: app) }
-                    .disabled(!transcript.hasEngineWords)
-                Button("Copy for AI") { CopyForAI.copy(transcript, app: app) }
-                Divider()
-                Button("Export…") { app.exportRequest = ExportRequest(ids: [transcript.id]) }
-            } label: { Label("Share", systemImage: "square.and.arrow.up") }
-                .disabled(transcript.status != .ready)
-                .help("Copy, or export as text, Markdown, Word, subtitles, or JSON")
-            Menu {
-                Button("Larger Text") { textSize = min(22, textSize + 1) }
-                Button("Smaller Text") { textSize = max(13, textSize - 1) }
-                Button("Default Size") { textSize = 16 }
-            } label: { Label("Text Size", systemImage: "textformat.size") }
-                .help("Text size (⌘+ and ⌘−)")
-            Button { inspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.right") }
-                .help(inspector ? "Hide the summary, moments, and details" : "Show the summary, moments, and details")
-        }
-    }
-}
-
-/// The player at the foot of the transcript: play, back and forward 5 s, the time, a slider to seek, the speed, and
-/// Bookmark. Opaque, so its text never sits on a blur (DESIGN.md §5.1).
+/// The player at the foot of the transcript.
 struct NativePlayerBar: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     @ObservedObject var clock: PlayerClock
+    @ObservedObject var nav: NativeNav
 
     var body: some View {
-        let total = max(app.player.duration, transcript.duration, 1)
-        HStack(spacing: 10) {
+        let total = max(clock.duration, transcript.duration, 1)
+        HStack(spacing: 12) {
             Button { app.player.toggle() } label: {
                 Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                    .font(.system(size: 14, weight: .bold)).foregroundStyle(PremiumInk.onAccent)
                     .offset(x: app.player.isPlaying ? 0 : 1)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 38, height: 38)
                     .background(Circle().fill(Ink.nativeAccent))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain).help("Play or pause (Space)")
             .accessibilityLabel(app.player.isPlaying ? "Pause" : "Play")
-            Button { app.player.seek(to: app.player.time - 5) } label: { Image(systemName: "gobackward.5") }
-                .buttonStyle(.borderless).help("Back 5 seconds (←)").accessibilityLabel("Back 5 seconds")
+            .uiTarget("native-play")
             if let note = clock.note {
-                Text(note).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                Text(note).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
                     .onAppear { AccessibilityNotification.Announcement(note).post() }
             } else {
-                (Text(app.player.time.timecode).fontWeight(.semibold) + Text(" / \(total.timecode)").foregroundColor(.secondary))
-                    .font(.system(size: 12).monospacedDigit()).lineLimit(1).fixedSize()
+                (Text(clock.time.timecode) + Text(" / \(total.timecode)"))
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit()).lineLimit(1).fixedSize()
             }
-            Slider(value: Binding(get: { min(app.player.time, total) }, set: { app.player.seek(to: $0) }), in: 0...total)
+            Slider(value: Binding(get: { min(clock.time, total) }, set: { app.player.seek(to: $0) }), in: 0...total)
                 .controlSize(.small)
+                .tint(Ink.nativeAccent)
                 .accessibilityLabel("Playback position")
-            Button { app.player.seek(to: app.player.time + 5) } label: { Image(systemName: "goforward.5") }
-                .buttonStyle(.borderless).help("Forward 5 seconds (→)").accessibilityLabel("Forward 5 seconds")
             Menu {
                 ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } }
             } label: {
-                Text("\(String(format: "%g", app.player.rate))×").monospacedDigit()
+                Text("\(String(format: "%g", app.player.rate))×").font(.system(size: 12.5, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
             }
-            .menuStyle(.borderlessButton).fixedSize()
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .help("Playback speed").accessibilityLabel("Playback speed")
-            Button("Bookmark") {
-                let at = app.player.time
-                let seg = transcript.segments.first(where: { at >= $0.start && at < $0.end })
-                app.addNote(transcript: transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
-            }
-            .buttonStyle(.bordered).controlSize(.small)
-            .help("Bookmark this moment (B)")
+            Button(nav.follow ? "Following" : "Follow") { nav.follow.toggle() }
+                .buttonStyle(PremiumBorderedButtonStyle(height: 28, tinted: nav.follow))
+                .help(nav.follow ? "The text follows playback. Click to stop following." : "Keep the playing passage in view")
+                .accessibilityValue(nav.follow ? "On" : "Off")
         }
-        .padding(.leading, 8).padding(.trailing, 12)
-        .frame(height: 46)
-        .background(NativeInk.content, in: Capsule())
-        .overlay(Capsule().strokeBorder(NativeInk.boxEdge, lineWidth: 1))
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
-        .frame(maxWidth: 760)
+        .padding(.leading, 8).padding(.trailing, 10)
+        .frame(height: 52)
+        .background {
+            Capsule().fill(PremiumInk.card)
+                .shadow(color: PremiumInk.shadow, radius: 14, y: 6)
+                .overlay(Capsule().strokeBorder(PremiumInk.cardEdge, lineWidth: 0.5))
+        }
+        .frame(maxWidth: 820)
+    }
+}
+
+// MARK: - Inspector
+
+/// The transcript's side column in the inspector: the summary card, Moments (click a time to play from it; add one
+/// at the selected passage or the playhead), Speakers by talk time, Export and Copy for AI, and Details.
+struct PremiumTranscriptInspector: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    @ObservedObject var nav: NativeNav
+    @ObservedObject private var center = SummaryCenter.shared
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var confirmReplace = false
+    @State private var note = ""
+    @State private var detailsOpen = false
+    @FocusState private var noteFocused: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                summary
+                moments
+                speakers
+                HStack(spacing: 8) {
+                    Button("Export…") { app.exportRequest = ExportRequest(ids: [transcript.id]) }
+                        .buttonStyle(PremiumProminentButtonStyle())
+                        .help("Export as text, Markdown, Word, subtitles, or JSON")
+                    Button("Copy for AI") { CopyForAI.copy(transcript, app: app) }
+                        .buttonStyle(PremiumBorderedButtonStyle())
+                        .help("Copy the text with its title, date, and source for an AI assistant (⌥⇧⌘C)")
+                }
+                .disabled(transcript.status != .ready)
+                TranscriptDetails(transcript: transcript, open: $detailsOpen)
+                    .padding(.horizontal, 4).padding(.top, 4)
+            }
+            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 28)
+        }
+        .scrollIndicators(.never)
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimFocusNote)) { _ in noteFocused = true }
+        .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
+            Button("Replace", role: .destructive) { SummaryCenter.shared.summarize(transcript.id, store: app.store, replacingEdits: true) }
+            Button("Keep Mine", role: .cancel) {}
+        } message: {
+            Text("Apple Intelligence writes a new summary, and your edits are gone.")
+        }
+    }
+
+    // MARK: Summary
+
+    @ViewBuilder private var summary: some View {
+        let running = center.isRunning(transcript.id)
+        if editing {
+            editor
+        } else if let s = transcript.summary, !s.isEmpty {
+            let regenerate: (() -> Void)? = Summarizer.available && !running ? { regenerateSummary() } : nil
+            PremiumSummaryCard(summary: s, byModel: transcript.summaryByModel,
+                               onEdit: { draft = s.plainText; editing = true },
+                               onRegenerate: regenerate)
+            if running { progress }
+        } else if running {
+            progress.padding(14).frame(maxWidth: .infinity, alignment: .leading).premiumCard()
+        } else if let why = center.failures[transcript.id] {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(why).font(.system(size: 12.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if Summarizer.available {
+                    Button("Try Again") { nav.summarize(transcript, app: app) }.buttonStyle(PremiumBorderedButtonStyle(height: 26))
+                }
+            }
+            .padding(14).frame(maxWidth: .infinity, alignment: .leading).premiumCard()
+        }
+    }
+
+    /// Regenerate asks first when the summary has your edits.
+    private func regenerateSummary() {
+        if transcript.summaryIsEdited { confirmReplace = true } else { nav.summarize(transcript, app: app) }
+    }
+
+    private var progress: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            let p = center.progress[transcript.id] ?? 0
+            Text(p > 0 ? "Writing a summary… \(Int(p * 100))%" : "Writing a summary…").font(.system(size: 12.5)).foregroundStyle(.secondary)
+        }
+    }
+
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("An overview, then one key point per line starting with “- ”.").font(.system(size: 12)).foregroundStyle(.secondary)
+            TextEditor(text: $draft)
+                .font(.system(size: 13)).lineSpacing(3)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 140)
+                .padding(8)
+                .background(PremiumInk.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            HStack(spacing: 8) {
+                Button("Save") {
+                    let parsed = TranscriptSummary.parse(draft)
+                    app.store.update(transcript.id) { $0.summary = parsed.isEmpty ? nil : parsed; $0.summaryByModel = false }
+                    editing = false
+                }
+                .buttonStyle(PremiumProminentButtonStyle(height: 26))
+                Button("Cancel") { editing = false }.buttonStyle(PremiumBorderedButtonStyle(height: 26))
+            }
+        }
+        .padding(14)
+        .premiumCard(radius: 20)
+    }
+
+    // MARK: Moments
+
+    private var moments: some View {
+        let notes = transcript.notes
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Moments").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                if !notes.isEmpty { Text("\(notes.count)").font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary) }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            if notes.isEmpty {
+                Text("Press B while listening to bookmark a moment, or add a note below.")
+                    .font(.system(size: 12.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+            ForEach(notes) { n in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    if let at = n.at {
+                        Button(at.timecode) { app.player.seek(to: at) }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 13, weight: .medium).monospacedDigit())
+                            .foregroundStyle(PremiumInk.accentText)
+                            .frame(minWidth: 34, alignment: .leading)
+                            .help("Play from here")
+                            .accessibilityLabel("Play from \(at.timecode)")
+                    } else {
+                        Image(systemName: "note.text").font(.system(size: 11)).foregroundStyle(.secondary).frame(minWidth: 34, alignment: .leading)
+                    }
+                    Text(n.text).font(.system(size: 13)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 10)
+                .contextMenu {
+                    Button("Delete Moment", role: .destructive) { app.deleteNote(transcript: transcript.id, note: n.id) }
+                }
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                TextField(nav.selectedSegment == nil ? "Add a note…" : "Add a note on this passage…", text: $note)
+                    .textFieldStyle(.plain).font(.system(size: 13))
+                    .focused($noteFocused)
+                    .onSubmit(save)
+            }
+            .padding(.horizontal, 10).frame(height: 30)
+            .background(PremiumInk.fill, in: Capsule())
+            .padding(.top, 12)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard()
+    }
+
+    private func save() {
+        let text = note.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        let linked = nav.selectedSegment.flatMap { id in transcript.segments.first { $0.id == id } }
+        app.addNote(transcript: transcript.id, text: text, at: linked?.start ?? (app.player.time > 0 ? app.player.time : nil), segment: linked?.id)
+        note = ""
+    }
+
+    // MARK: Speakers
+
+    @ViewBuilder private var speakers: some View {
+        let shares = SpeakerShares.compute(transcript.segments.map { (speaker: $0.speaker ?? "", seconds: max(0, $0.end - $0.start)) })
+            .filter { !$0.id.isEmpty }
+        if shares.count >= 2 {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Speakers").font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    Text("\(shares.count)").font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary)
+                }
+                .accessibilityAddTraits(.isHeader)
+                ForEach(Array(shares.prefix(6).enumerated()), id: \.element.id) { i, s in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(name(s.id)).font(.system(size: 12.5)).lineLimit(1)
+                            Spacer()
+                            Text("\(s.percent)%").font(.system(size: 12.5)).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        GeometryReader { g in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(PremiumInk.fillStrong)
+                                Capsule().fill(Ink.nativeAccent.opacity(i == 0 ? 1 : 0.55)).frame(width: g.size.width * CGFloat(s.percent) / 100)
+                            }
+                        }
+                        .frame(height: 6)
+                    }
+                    .padding(.top, 9)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(name(s.id)), \(s.percent) percent")
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .premiumCard()
+        }
+    }
+
+    private func name(_ id: String) -> String {
+        let n = transcript.speakers.first(where: { $0.id == id })?.name ?? ""
+        return n.isEmpty ? id : n
     }
 }

@@ -1548,7 +1548,7 @@ enum UITest {
     /// Moves the pointer onto the target, then clicks it, through the window's own event path.
     private static func click(_ id: String, in main: NSWindow) {
         let window = id.hasPrefix("sheet-") ? (main.attachedSheet ?? main) : main
-        guard let f = frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
+        guard let f = windowFrames[id]?() ?? frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
         let p = CGPoint(x: f.midX, y: content.bounds.height - f.midY)   // SwiftUI global (top-left) -> NSWindow (bottom-left)
         var chain: [String] = []
         var v = content.hitTest(p)
@@ -1577,6 +1577,39 @@ enum UITest {
         if let m = ev(.mouseMoved) { window.sendEvent(m) }
         if let d = ev(.leftMouseDown) { window.sendEvent(d) }
         if let u = ev(.leftMouseUp) { window.sendEvent(u) }
+    }
+}
+
+extension UITest {
+    /// Controls outside the window content's coordinate space (toolbar items live in hosting views of their own):
+    /// their frames, worked out when clicked, in the same top-left coordinates as `frames`.
+    static var windowFrames: [String: () -> CGRect?] = [:]
+}
+
+/// Records a control's frame in window coordinates for the self-test (toolbar items; see `UITest.windowFrames`).
+private struct UIWindowTarget: NSViewRepresentable {
+    var id: String
+    func makeNSView(context: Context) -> NSView {
+        let v = Probe()
+        UITest.windowFrames[id] = { [weak v] in v?.frameInWindow }
+        return v
+    }
+    func updateNSView(_ v: NSView, context: Context) {}
+
+    final class Probe: NSView {
+        var frameInWindow: CGRect? {
+            guard let w = window, let content = w.contentView, !isHiddenOrHasHiddenAncestor else { return nil }
+            let r = convert(bounds, to: nil)
+            return CGRect(x: r.minX, y: content.bounds.height - r.maxY, width: r.width, height: r.height)
+        }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
+extension View {
+    /// `uiTarget` for a control in the toolbar.
+    @ViewBuilder func uiWindowTarget(_ id: String) -> some View {
+        if UITest.enabled { background(UIWindowTarget(id: id)) } else { self }
     }
 }
 

@@ -90,9 +90,11 @@ enum ContrastSetting {
 }
 
 extension NativeRole {
+    /// The role's color. The window is Premium Native's warm off-white (black in dark, DESIGN.md §13.2), not the
+    /// system's window gray; the rest are system colors.
     var nsColor: NSColor {
         switch self {
-        case .window: return .windowBackgroundColor
+        case .window: return PremiumInk.windowNS
         case .content: return .controlBackgroundColor
         case .label: return .labelColor
         case .secondaryLabel: return .secondaryLabelColor
@@ -124,7 +126,8 @@ extension NSColor {
 
 /// System colors for code that draws Native on purpose (the Native layouts and the kit's Native branches).
 enum NativeInk {
-    static let window = Color(nsColor: .windowBackgroundColor)
+    /// The window: Premium Native's warm off-white, black in dark (`PremiumInk`).
+    static let window = PremiumInk.window
     static let content = Color(nsColor: .controlBackgroundColor)
     static let separator = Color(nsColor: .separatorColor)
     static let accent = Ink.nativeAccent
@@ -208,7 +211,8 @@ enum NativeButtonSize {
     var padding: CGFloat { switch self { case .mini: return 10; case .regular: return 14; case .large: return 18 } }
 }
 
-/// The face of a Native button: `.borderedProminent` (the accent, white text) or `.bordered` (a gray wash), title case.
+/// The face of a Native button: `.borderedProminent` (the accent, white text in light and black in dark, where white on
+/// #FF6B47 measures 2.8:1) or `.bordered` (a gray wash), title case.
 /// Used where the kit keeps its own click handling (PillButton, cards that show a button).
 struct NativeButtonFace: View {
     var title: String
@@ -223,7 +227,7 @@ struct NativeButtonFace: View {
         Text(titleCase ? NativeText.titleCase(title) : title)
             .font(.system(size: size.font, weight: prominent ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .foregroundStyle(prominent ? PremiumInk.onAccent : Color.primary)
             .padding(.horizontal, size.padding)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(height: size.height)
@@ -252,7 +256,7 @@ struct NativeButtonStyleFace: View {
         configuration.label
             .font(.system(size: size.font, weight: prominent ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(prominent ? Color.white : (tint ?? Color.primary))
+            .foregroundStyle(prominent ? PremiumInk.onAccent : (tint ?? Color.primary))
             .padding(.horizontal, size.padding)
             .frame(height: size.height)
             .background {
@@ -284,7 +288,7 @@ struct NativeChipFace: View {
         }
         .font(.system(size: small ? 11.5 : 12, weight: .medium))
         .lineLimit(1)
-        .foregroundStyle(selected ? Color.white : Color.primary)
+        .foregroundStyle(selected ? PremiumInk.onAccent : Color.primary)
         .padding(.horizontal, small ? 9 : 11)
         .frame(height: small ? 22 : 26)
         .background(Capsule().fill(selected ? Ink.nativeAccent : (hover ? NativeInk.borderedHover : NativeInk.bordered)))
@@ -349,7 +353,7 @@ struct NativeEmptyState: View {
             Text(message)
         } actions: {
             if let button, let action {
-                Button(NativeText.titleCase(button), action: action).buttonStyle(.borderedProminent)
+                Button(NativeText.titleCase(button), action: action).buttonStyle(PremiumProminentButtonStyle())
             }
         }
         .frame(maxWidth: .infinity)

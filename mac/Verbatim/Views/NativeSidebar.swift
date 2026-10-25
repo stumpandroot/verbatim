@@ -90,14 +90,14 @@ struct NativeSidebar: View {
         }
         switch id {
         case .library:
-            NativeDropRow(onDrop: { app.move($0, to: nil) }) { label }.badge(library).uiTarget("side-library")
+            NativeDropRow(onDrop: { app.move($0, to: nil) }) { label }.badge(library).uiTarget("side-library").uiWindowTarget("side-library")
         case .queue:
             label.badge(app.queueBadgeCount)
                 .anchorPreference(key: QueueItemAnchor.self, value: .bounds) { $0 }
                 .uiTarget("side-queue")
         case .dictionary:
             label.badge(app.store.dictionary.count).uiTarget("side-dict")
-        case .home: label.uiTarget("side-home")
+        case .home: label.uiTarget("side-home").uiWindowTarget("side-home")
         case .links: label.uiTarget("side-links")
         case .moments: label.uiTarget("side-moments")
         case .dictations: label.uiTarget("side-dictations")
