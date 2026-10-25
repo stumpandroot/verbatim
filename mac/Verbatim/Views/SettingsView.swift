@@ -9,44 +9,35 @@ import AppKit
 /// with matches and shows every matching setting; a result opens its pane and flashes the row. ⌘F focuses search;
 /// Esc clears it.
 struct SettingsView: View {
-    @EnvironmentObject var app: AppState
     @AppStorage("settingsTab") private var tab: SettingsTab = .personalization
     @ObservedObject private var model = SettingsModel.shared
     @FocusState private var searchFocused: Bool
-    @Environment(\.look) private var chosen
-    /// The look the panes are built in: the chosen one, except while the window is closed. SwiftUI keeps a closed
-    /// Settings window's views (it orders the window out), so a look switch also rebuilt the open pane nobody could
-    /// see, in the same update as the main window. Closed, the panes keep the look they were built in; the window
-    /// rebuilds in the chosen look when it's back on screen.
-    @State private var built = BuiltLook()
-    /// Bumped when the window comes back on screen with the panes in an older look.
-    @State private var reopened = 0
-
-    private final class BuiltLook { var look: AppLook? }
+    @Environment(\.look) private var look
+    /// Whether the window is closed. SwiftUI keeps a closed Settings window's views (it orders the window out), and
+    /// every pane that reads AppState re-rendered on each publish: every screen change in the main window (build 214:
+    /// 60 to 250 ms of a Verbose screen change, and a full pane rebuild at each look switch). Closed, the window holds
+    /// an empty view of the same size, so nothing in it observes anything; the panes are built again, in the current
+    /// look, when it comes back on screen. Not reading AppState here keeps this view out of those publishes too (the
+    /// panes get it from the scene).
+    @State private var closed = false
     /// The look the panes were last built in, for the self-test.
     private(set) static var lastBuilt: AppLook?
 
-    private var look: AppLook {
-        _ = reopened
-        let closed = SettingsModel.shared.window.map { !$0.isVisible } ?? false
-        if closed { SettingsModel.shared.closedRenders.root += 1 }
-        if !closed || built.look == nil { built.look = chosen }
-        let look = built.look ?? chosen
-        Self.lastBuilt = look
-        LookSwitch.mark(look == chosen ? "settings" : "settings-held")
-        return look
-    }
-
-    /// The window is on screen again: rebuild in the chosen look if a switch came while it was closed.
-    private func windowShown(_ note: Notification) {
-        guard let w = note.object as? NSWindow, w === SettingsModel.shared.window, w.isVisible, built.look != chosen else { return }
-        reopened += 1
+    /// The window closed, or is on screen again.
+    private func windowChanged(_ note: Notification, closing: Bool) {
+        guard let w = note.object as? NSWindow, w === SettingsModel.shared.window else { return }
+        let now = closing || !w.isVisible
+        if closed != now { closed = now }
     }
 
     var body: some View {
-        let look = self.look
+        if closed { SettingsModel.shared.closedRenders.root += 1 } else { Self.lastBuilt = look }
+        LookSwitch.mark(closed ? "settings-closed" : "settings")
         return Group {
-            if look == .native {
+            if closed {
+                Color.clear
+                    .frame(minWidth: 820, idealWidth: 920, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
+            } else if look == .native {
                 // Native: System Settings' layout, a sidebar with SF Symbols and a grouped form (NativeSettings.swift).
                 NativeSettingsSplit(tab: $tab) {
                     if model.isSearching { SettingsSearchResults() } else { pane.id(tab) }
@@ -58,10 +49,10 @@ struct SettingsView: View {
             }
         }
         .lookRebuild()
-        .environment(\.look, look)
         .background(WindowReader { w in configure(w) })
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { windowShown($0) }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { windowShown($0) }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { windowChanged($0, closing: true) }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { windowChanged($0, closing: false) }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { windowChanged($0, closing: false) }
     }
 
     private var verbose: some View {
