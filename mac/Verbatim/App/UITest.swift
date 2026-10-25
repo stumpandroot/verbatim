@@ -711,6 +711,7 @@ enum UITest {
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
         await show("09-settings-general-native")
+        check("native look: Settings, closed during the switch, opens in Native", SettingsView.lastBuilt == .native)
         UserDefaults.standard.set(SettingsTab.recording.rawValue, forKey: "settingsTab")
         await show("09c-settings-transcription-native")
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
@@ -862,6 +863,7 @@ enum UITest {
         if ok { pass += 1 } else { fail += 1 }
         Log.note("UITEST \(ok ? "PASS" : "FAIL") look switch to \(look.rawValue) shows the card, then the look (card \(shown ? "shown" : "missing"))")
         Log.note("UITEST TIMING look-switch \(Int(ms.rounded())) to=\(look.rawValue) screen=\(screen) rebuild=\(Int(LookSwitch.shared.lastRebuildMs.rounded()))")
+        Log.note("UITEST look-switch marks to=\(look.rawValue) \(LookSwitch.shared.lastMarks)")
     }
 
     /// Home's note for the newest build in the notes, then Verbose › What's New… (the same action as clicking the
@@ -1727,6 +1729,9 @@ enum UITest {
     /// settled-max=<ms> settled-total=<ms>`. Starts the next stretch.
     private static func timingSummary(_ label: String) {
         defer { timings = [] }
+        let closed = SettingsModel.shared.closedRenders
+        SettingsModel.shared.closedRenders = (0, 0)
+        Log.note("UITEST settings closed-window renders \(label) root=\(closed.root) pane=\(closed.pane)")
         guard !timings.isEmpty else { Log.note("UITEST TIMING summary \(label) n=0"); return }
         func pick(_ v: [Double], _ q: Double) -> Int { Int(v.sorted()[min(v.count - 1, Int((Double(v.count - 1) * q).rounded()))].rounded()) }
         let appeared = timings.map(\.appeared), settled = timings.map(\.settled)
@@ -1772,13 +1777,16 @@ enum UITest {
         func ev(_ type: NSEvent.EventType) -> NSEvent? {
             NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: t, windowNumber: window.windowNumber, context: nil, eventNumber: Int(t * 1000) % 100000, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
         }
-        // A List or Table (an NSTableView, like Native's sidebar) tracks the press in a loop of its own that waits for
-        // the mouse-up in the event queue. Sent straight after the down, the up never reached that loop, so the click
-        // blocked the main thread for good (build 209 stopped at the Native sidebar click, before `tour-native`). There
-        // the up is queued first; everywhere else both still go straight to the window.
+        // An AppKit control (an NSTableView like Native's sidebar, or an NSButton like the Native toolbar's Back) tracks
+        // the press in a loop of its own that waits for the mouse-up in the event queue. Sent straight after the down,
+        // the up never reached that loop, so the click blocked the main thread for good (build 209 stopped at the Native
+        // sidebar click; builds 210 and 211 at the toolbar's Back, so `tour-native` was never logged). There the up is
+        // queued first; everywhere else both still go straight to the window. The receiver is found from the window's
+        // frame view, as the window routes the down: toolbar items sit in the title bar, outside the content view.
         var tracked = false
-        var hv = content.hitTest(p)
-        while let x = hv { if x is NSTableView { tracked = true; break }; hv = x.superview }
+        var hv = (content.superview ?? content).hitTest(content.convert(p, to: nil))
+        while let x = hv { if x is NSControl { tracked = true; break }; hv = x.superview }
+        if tracked, let x = hv { Log.note("UITEST click \(id) queues the mouse-up first (\(type(of: x)) tracks the press)") }
         if let m = ev(.mouseMoved) { window.sendEvent(m) }
         if tracked, let u = ev(.leftMouseUp) { NSApp.postEvent(u, atStart: true) }
         if let d = ev(.leftMouseDown) { window.sendEvent(d) }
