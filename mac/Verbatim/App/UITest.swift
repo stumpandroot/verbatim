@@ -1173,6 +1173,19 @@ enum UITest {
         HomeSelfTest.run(check)
         AudioDuckerSelfTest.run(check)
         check("settings search finds This week", SettingsIndex.search("this week").map(\.id).contains("general.homeWeek"))
+        // Show words while you record (RecordingWords.swift): on by default, findable, and never started by the
+        // self-test (no speech on the runner).
+        check("settings search finds show words while you record", SettingsIndex.search("words while you record").map(\.id).contains("models.recordLiveWords"))
+        check("show words while you record is on by default", {
+            let k = RecordingWords.enabledKey, stored = UserDefaults.standard.object(forKey: k)
+            UserDefaults.standard.removeObject(forKey: k)
+            defer { UserDefaults.standard.set(stored, forKey: k) }
+            return RecordingWords.enabled
+        }())
+        let preview = RecordingWords()
+        preview.begin(Recorder())
+        check("recorder live words stay off in the self-test", !preview.isActive && preview.shown.isEmpty)
+        preview.end()
     }
 
     /// App audio capture: synthetic sample buffers go through the live capture's path (owned copy, then the

@@ -37,7 +37,23 @@ struct TranscriptScreen: View {
     @State private var followed: UUID? = nil
     /// Opened from a search passage: where the audio starts.
     @State private var pendingSeek: Double? = nil
+    /// The scrubber's scroll state (TranscriptScrubber.swift). A plain reference, not observed here, so scrolling
+    /// re-renders only the scrubber.
+    @State private var scrub = TranscriptScrubModel()
+    /// The player dock's height with its bottom margin; the scrubber's track ends above it.
+    @State private var dockHeight: CGFloat = 64
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 32
+
+    private static let scrollSpace = "transcript-scroll"
+
+    /// The player dock shows under the Original and Review tabs of a recording with audio.
+    private func hasDock(_ t: Transcript) -> Bool { t.audioFileName != nil && t.status == .ready && mode != .document }
+
+    /// The Original tab's lines as shown: filler and background voices left out, the engine's words when chosen.
+    private func shownLines(_ t: Transcript) -> [Segment] {
+        let shown = t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly)
+        return showEngine ? t.engineLines(for: shown) : shown
+    }
 
     /// What Copy takes on this tab.
     private var copyVersion: Exporter.CopyVersion { mode == .document ? .cleaned : .original }
@@ -47,8 +63,8 @@ struct TranscriptScreen: View {
     var body: some View {
         Group {
             if let t {
-                ZStack(alignment: .bottom) {
-                    ScrollViewReader { proxy in
+                ScrollViewReader { proxy in
+                    ZStack(alignment: .bottom) {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
                                 header(t)
@@ -69,7 +85,10 @@ struct TranscriptScreen: View {
                             }
                             .padding(.horizontal, 20).padding(.top, 4)
                             .padding(.bottom, t.audioFileName != nil && t.status == .ready && mode != .document ? 120 : 32)
+                            .scrubContent(scrub, in: Self.scrollSpace)
                         }
+                        .coordinateSpace(.named(Self.scrollSpace))
+                        .scrubTracking(scrub)
                         .scrollDismissesKeyboard(.interactively)
                         .onManualScroll { if app.player.isPlaying, follow { follow = false } }
                         .onAppear {
@@ -94,10 +113,25 @@ struct TranscriptScreen: View {
                             followed = s.id
                             withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                         }
-                    }
-                    if t.audioFileName != nil, t.status == .ready, mode != .document {
-                        PhoneDock(transcript: t, clock: app.player.clock, downloading: downloading, follow: $follow)
-                            .padding(.horizontal, 22).padding(.bottom, 10)
+                        // Long transcripts: hold the right edge and drag to move fast. Original tab only, not in Select text.
+                        if t.status == .ready, mode == .transcript, !selecting {
+                            TranscriptScrubber(model: scrub,
+                                               lines: { shownLines(t) },
+                                               end: max(t.duration, t.segments.last?.end ?? 0),
+                                               speaker: { s in t.speakers.count >= 2 ? t.speakerName(s.speaker) : nil },
+                                               jump: { s in
+                                                   var tr = Transaction(); tr.disablesAnimations = true
+                                                   withTransaction(tr) { proxy.scrollTo(s.id, anchor: .top) }
+                                               },
+                                               onBegin: { if app.player.isPlaying, follow { follow = false } })
+                                .padding(.top, 8)
+                                .padding(.bottom, hasDock(t) ? dockHeight + 8 : 8)
+                        }
+                        if hasDock(t) {
+                            PhoneDock(transcript: t, clock: app.player.clock, downloading: downloading, follow: $follow)
+                                .padding(.horizontal, 22).padding(.bottom, 10)
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
+                        }
                     }
                 }
                 .background(Ink.paper.ignoresSafeArea())
@@ -289,8 +323,7 @@ struct TranscriptScreen: View {
                 switch mode {
                 case .transcript:
                     let background = mainSpeakerOnly ? t.backgroundSegments : []
-                    let shown = t.displaySegments(hideFiller: hideFillerSetting && !showFiller, mainOnly: mainSpeakerOnly)
-                    let segs = showEngine ? t.engineLines(for: shown) : shown
+                    let segs = shownLines(t)
                     VStack(alignment: .leading, spacing: 10) {
                         // Fix all, after Fix a word… (PhoneTrust.swift).
                         PhoneFixAllBanner(transcriptID: t.id)
