@@ -2,6 +2,14 @@
   "notes": [
     {
       "build": "next",
+      "title": "Snappier on the Mac",
+      "items": [
+        "Mac: moving between screens is quicker, most of all in Native and after you've opened Settings."
+      ]
+    },
+    {
+      "build": "214",
+      "date": "2026-10-25",
       "title": "Faster look switching",
       "items": [
         "Mac: switching between Verbose style and Native is faster while the Settings window is closed."
