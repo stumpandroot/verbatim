@@ -84,6 +84,9 @@ final class KeyboardModel: ObservableObject {
     private var formatCategory = "personal"
     /// The app you're typing in, when the build can read it (never in App Store builds). Set on each appearance.
     var host: String?
+    /// Settings › Keyboard › Dictate button: size, position, and style. Read from the App Group each time the
+    /// keyboard appears (one small read, so memory stays flat); the default without Full Access.
+    @Published private(set) var dictateButton = DictateButton.standard
 
     /// True when there's no session and this build's keyboard can't open Verbatim to start one (App Store
     /// builds): the card says how to start one instead of offering a record button.
@@ -250,6 +253,8 @@ final class KeyboardModel: ObservableObject {
     func resume() {
         visible = true
         logMemory("appeared")
+        let button = DictateButton.read(defaults)
+        if button != dictateButton { dictateButton = button }
         // Without Full Access there's no App Group: no session, no snippets, no recent dictations.
         guard hasFullAccess else {
             snippets = []
@@ -265,6 +270,9 @@ final class KeyboardModel: ObservableObject {
         reloadStats()
         refreshFormat()
         markVisible()
+        // The app names it in the Dynamic Island ("Into Messages"). Once per appearance; nil in App Store builds.
+        if let host, !host.isEmpty { defaults?.set(host, forKey: KeyboardBridge.Key.visibleHost) }
+        else { defaults?.removeObject(forKey: KeyboardBridge.Key.visibleHost) }
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.appChanged() }
@@ -293,6 +301,7 @@ final class KeyboardModel: ObservableObject {
         stopTimer()
         // Gone from the screen: a take from the Action button now goes to the clipboard instead.
         defaults?.set(0.0, forKey: KeyboardBridge.Key.keyboardVisibleAt)
+        defaults?.removeObject(forKey: KeyboardBridge.Key.visibleHost)
     }
 
     /// Tells the app this keyboard is on screen (written with every poll, at least once a second), so a take from

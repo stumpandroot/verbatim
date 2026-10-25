@@ -4,7 +4,17 @@ import AppIntents
 
 /// The keyboard session's Live Activity (Dynamic Island and Lock Screen), which is also the recording ribbon's
 /// face. Compiled into the app, which starts, updates, and ends it, and into the VerbatimWidgets extension, which
-/// draws it. Never holds transcript text: only state, counts, and times (the Lock Screen is visible to anyone).
+/// draws it.
+///
+/// What the content state may hold (the Island and the Lock Screen share it, and anyone can read a Lock Screen):
+/// - Always: state, counts, times, a failure message in Verbose's words, and the name of the app the words go to
+///   ("Messages"; nil in App Store builds and when the app isn't known, which reads as the Verbose keyboard).
+/// - `liveWords`, the only transcript text: the last `Ribbon.islandWordsLimit` (about 80) characters of the words
+///   so far, and only while a take is listening with Settings › Keyboard › Show words in the Dynamic Island on
+///   (off by default). The app clears it when the take stops. Only the expanded Dynamic Island draws it; the Lock
+///   Screen view never reads it, so the Lock Screen never shows words.
+/// The whole state stays far under ActivityKit's 4 KB cap (`Ribbon.contentStateLimit`), and the app updates it
+/// about once a second while listening, as ActivityKit expects of local updates.
 struct VerbatimSessionAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         /// True while a dictation is being captured.
@@ -25,9 +35,14 @@ struct VerbatimSessionAttributes: ActivityAttributes {
         var takes: Int = 0
         /// A failure or end reason in Verbose's words ("Couldn't copy. Open Verbose to get your words.").
         var message: String? = nil
+        /// The app the words go to ("Messages"), for "Into Messages"; nil reads as the Verbose keyboard.
+        var target: String? = nil
+        /// The expanded Island's words line while listening, with Show words in the Dynamic Island on; nil
+        /// otherwise. Never drawn on the Lock Screen (see above).
+        var liveWords: String? = nil
 
         init(listening: Bool, endsAt: Date?, phase: Ribbon.Phase? = nil, sessionStartedAt: Date? = nil, takeStartedAt: Date? = nil,
-             level: Double = 0, words: Int = 0, takes: Int = 0, message: String? = nil) {
+             level: Double = 0, words: Int = 0, takes: Int = 0, message: String? = nil, target: String? = nil, liveWords: String? = nil) {
             self.listening = listening
             self.endsAt = endsAt
             self.phase = phase
@@ -37,6 +52,8 @@ struct VerbatimSessionAttributes: ActivityAttributes {
             self.words = words
             self.takes = takes
             self.message = message
+            self.target = target
+            self.liveWords = liveWords
         }
 
         /// The phase to draw.

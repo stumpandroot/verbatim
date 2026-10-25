@@ -86,6 +86,13 @@ extension ActionButtonIntent: ForegroundContinuableIntent {
     static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
 }
 
+/// iOS 18 and later: tells iOS the Action button's intent may start recording audio, so Record a voice note can
+/// start in place, behind the recording's Live Activity, without opening Verbose (`PhoneState.startVoiceNoteInPlace`).
+/// iOS stops such a recording unless a Live Activity starts with it; when one can't (iOS has refused activities
+/// from the background), the intent opens Verbose as before. Dictate keeps using the session's Live Activity.
+@available(iOS 18.0, *)
+extension ActionButtonIntent: AudioRecordingIntent {}
+
 @available(iOS 18.0, *)
 extension SetSessionIntent: ForegroundContinuableIntent {
     @available(iOS 26.0, *)
@@ -145,11 +152,13 @@ struct CancelTakeIntent: LiveActivityIntent {
     }
 }
 
-/// What the Action button does when Verbose is its shortcut or control: the choice in Settings › Action button
-/// (Dictate a take unless you change it). A voice note and live captions always open Verbose.
+/// What the Action button does when Verbose is its shortcut or control ("Verbose action", assigned once in iOS
+/// Settings › Action Button): the choice in Settings › Action button, Dictate unless you change it. Dictate works in
+/// place. A voice note tries to start in place on iOS 18 and later and otherwise opens Verbose; Live captions opens
+/// Verbose; What's playing opens Verbose and the system broadcast sheet.
 struct ActionButtonIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Verbose action button"
-    static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate a take, record a voice note, or open live captions.")
+    static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate, record a voice note, open live captions, or transcribe what's playing.")
     static var openAppWhenRun: Bool = false
     /// As for Dictate: unlock first on a locked iPhone.
     static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
@@ -158,6 +167,10 @@ struct ActionButtonIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         #if !VERBATIM_WIDGETS
         let choice = Ribbon.actionChoice(UserDefaults.standard.string(forKey: Ribbon.actionChoiceKey))
+        if #available(iOS 18.0, *), choice == .voiceNote {
+            let started = await MainActor.run { ActionButtonSignal.startVoiceNoteInPlace() }
+            if started { return .result() }
+        }
         if choice.needsForeground {
             try await continueInVerbose { ActionButtonSignal.fire(choice) }
             return .result()

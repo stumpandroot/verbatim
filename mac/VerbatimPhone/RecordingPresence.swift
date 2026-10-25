@@ -74,20 +74,30 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         return .make(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason)
     }
 
-    private func startActivity() {
-        guard activity == nil, ActivityAuthorizationInfo().areActivitiesEnabled, let state = currentState() else {
+    /// Starts the recording's Live Activity. True when one is running afterward.
+    @discardableResult
+    private func startActivity() -> Bool {
+        guard activity == nil else { return true }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled, let state = currentState() else {
             if !ActivityAuthorizationInfo().areActivitiesEnabled { Log.note("recording presence: Live Activities are off") }
-            return
+            return false
         }
         endLeftovers()
         do {
             activity = try Activity.request(attributes: VerbatimRecordingAttributes(title: "Voice note"),
                                             content: ActivityContent(state: state, staleDate: nil), pushType: nil)
             Log.note("recording presence: Live Activity started")
+            return true
         } catch {
             Log.note("recording presence: Live Activity unavailable: \(error)")
+            return false
         }
     }
+
+    /// The Action button's in-place voice note (iOS 18, `AudioRecordingIntent`): the Live Activity must start with
+    /// the recording, or iOS stops the recording, so it starts now rather than on the next turn of the run loop.
+    /// False when iOS refused it (for example, because Verbose isn't in front).
+    func startActivityNow() -> Bool { startActivity() }
 
     private func update() {
         guard let a = activity, let state = currentState() else { return }
@@ -168,6 +178,8 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     /// Back in Verbatim with a recording that paused itself: the recorder opens on its paused banner with Resume.
     private func cameBack() {
         guard let app, app.recorder.isRecording else { return }
+        // A recording the Action button started in the background without its Live Activity gets one now.
+        if activity == nil { startActivity() }
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [Self.notificationID])
         guard app.recorder.isPaused, app.recorder.awaitingResume || app.autoPauseReason != nil else { return }
         if app.autoPauseReason == nil { app.autoPauseReason = Recorder.callPausedNotice }

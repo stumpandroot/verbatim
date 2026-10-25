@@ -76,10 +76,43 @@ check("the cap is under 8 hours", Ribbon.sessionCap < Ribbon.activityLimit && Ri
 // MARK: Action button
 
 check("the Action button dictates unless you choose otherwise", Ribbon.actionChoice(nil) == .dictate && Ribbon.actionChoice("nonsense") == .dictate)
-check("stored choices round-trip", Ribbon.ActionChoice.allCases.allSatisfy { Ribbon.actionChoice($0.rawValue) == $0 })
-check("choice titles match the mockup", Ribbon.ActionChoice.allCases.map(\.title) == ["Dictate a take", "Record a voice note", "Live captions"])
-check("only dictation runs without opening Verbose", !Ribbon.ActionChoice.dictate.needsForeground
-      && Ribbon.ActionChoice.voiceNote.needsForeground && Ribbon.ActionChoice.captions.needsForeground)
+check("stored choices round-trip", Ribbon.ActionChoice.allCases.filter(\.available).allSatisfy { Ribbon.actionChoice($0.rawValue) == $0 })
+check("choice titles match the mockup", Ribbon.ActionChoice.allCases.map(\.title)
+      == ["Dictate", "Record a voice note", "Live captions", "What's playing", "Quick capture to Thought pad"])
+check("only dictation runs without opening Verbose", Ribbon.ActionChoice.allCases.filter { !$0.needsForeground } == [.dictate])
+check("each row says whether it works in place", Ribbon.ActionChoice.dictate.detail == "Starts or stops a take, in place."
+      && Ribbon.ActionChoice.voiceNote.detail == "Opens Verbose." && Ribbon.ActionChoice.captions.detail == "Opens Verbose."
+      && Ribbon.ActionChoice.whatsPlaying.detail == "Opens the iOS broadcast sheet first.")
+check("Quick capture can't be chosen until the Thought pad is on iPhone", !Ribbon.ActionChoice.quickCapture.available
+      && Ribbon.ActionChoice.quickCapture.detail == "Needs the Thought pad on iPhone (coming with sync)")
+check("a stored Quick capture reads as Dictate", Ribbon.actionChoice("quickCapture") == .dictate)
+check("the old stored choices keep their meaning", Ribbon.actionChoice("dictate") == .dictate && Ribbon.actionChoice("voiceNote") == .voiceNote
+      && Ribbon.actionChoice("captions") == .captions)
+check("Settings row values", Ribbon.ActionChoice.allCases.map(\.shortTitle) == ["Dictate", "Voice note", "Captions", "What's playing", "Quick capture"])
+check("the copy is timeless", Ribbon.ActionChoice.allCases.allSatisfy { c in
+    ["currently", "soon", "latest", "today"].allSatisfy { !(c.title + " " + c.detail).lowercased().contains($0) } })
+
+// MARK: The expanded Dynamic Island's words and target
+
+check("no words, no line", Ribbon.islandWords("") == nil && Ribbon.islandWords("  \n ") == nil)
+check("short words pass on one line", Ribbon.islandWords("Thursday works.\nNoon") == "Thursday works. Noon")
+let long = "Thanks Chris, Thursday works. Noon at the usual place, and I'll bring the wheel samples and the strap hinges too"
+let line = Ribbon.islandWords(long) ?? ""
+check("the line keeps the last 80 characters or fewer", line.count <= Ribbon.islandWordsLimit && long.hasSuffix(line), line)
+check("the line starts at a word boundary", long.contains(" " + line))
+check("one giant word is cut, not dropped", (Ribbon.islandWords(String(repeating: "a", count: 200)) ?? "").count == 80)
+check("the line fits ActivityKit's 4 KB easily", (Ribbon.islandWords(String(repeating: "\u{1F600} ", count: 400)) ?? "").utf8.count < Ribbon.contentStateLimit / 4)
+let split = Ribbon.splitWords("Noon at the usual place, and I'll bring the wheel samples")
+check("older words dim, the newest three stay bright", split.older == "Noon at the usual place, and I'll bring " && split.newest == "the wheel samples")
+check("three words or fewer are all newest", Ribbon.splitWords("the wheel samples") == ("", "the wheel samples"))
+check("full builds name the app", Ribbon.target(hostName: "Messages", appStore: false) == "Messages")
+check("App Store builds never name the app", Ribbon.target(hostName: "Messages", appStore: true) == "the Verbose keyboard")
+check("an unknown app is the keyboard", Ribbon.target(hostName: nil, appStore: false) == "the Verbose keyboard"
+      && Ribbon.target(hostName: " ", appStore: false) == "the Verbose keyboard")
+check("Into Messages", Ribbon.intoLine("Messages") == "Into Messages" && Ribbon.intoLine(nil) == "Into the Verbose keyboard")
+check("the Lock Screen line", Ribbon.lockLine(target: "Messages", take: 3) == "Into Messages · take 3 of this session"
+      && Ribbon.lockLine(target: nil, take: 0) == "Into the Verbose keyboard · take 1 of this session")
+check("the words setting has its own key", Ribbon.islandWordsKey == "ribbon.islandWords")
 
 // MARK: Live Activity words (no transcript text, ever)
 

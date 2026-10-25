@@ -115,7 +115,7 @@ struct PhoneRoot: View {
         }
         .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
-        .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet() }
+        .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in
