@@ -12,19 +12,19 @@ struct DictateButtonSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Dictate button").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
+            Text("Dictate button").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 DictateButtonPreview(look: look)
                 choiceRow("Size", DictateButton.Size.allCases.map { ($0.rawValue, $0.title) }, $size)
-                Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 14)
+                Rectangle().fill(.lookHairline).frame(height: 1).padding(.leading, 14)
                 choiceRow("Position", DictateButton.Position.allCases.map { ($0.rawValue, $0.title) }, $position)
-                Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 14)
+                Rectangle().fill(.lookHairline).frame(height: 1).padding(.leading, 14)
                 choiceRow("Style", DictateButton.Style.allCases.map { ($0.rawValue, $0.title) }, $style)
             }
             .cardSurface(radius: Radius.row)
             Text("Large makes the keyboard 16 pt taller. Position also moves Tap to talk and Done.")
-                .font(.system(size: 13)).foregroundStyle(Ink.mute)
+                .font(.system(size: 13)).foregroundStyle(.lookMute)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 4)
         }
@@ -32,7 +32,7 @@ struct DictateButtonSettings: View {
 
     private func choiceRow(_ title: String, _ options: [(String, String)], _ selection: Binding<String>) -> some View {
         HStack(spacing: 10) {
-            Text(title).font(.system(size: 16)).foregroundStyle(Ink.ink)
+            Text(title).font(.system(size: 16)).foregroundStyle(.lookInk)
                 .accessibilityHidden(true)
             Spacer(minLength: 8)
             PhoneSegmented(options: options, selection: selection)
@@ -48,6 +48,8 @@ struct DictateButtonSettings: View {
 /// them), over two rows of keys. Drawn, not interactive; VoiceOver reads the choices as one line.
 struct DictateButtonPreview: View {
     var look: DictateButton
+    /// The keyboard follows the app's look, so the preview does too.
+    @Environment(\.look) private var appLook
 
     var body: some View {
         VStack(spacing: 10) {
@@ -67,23 +69,23 @@ struct DictateButtonPreview: View {
         }
         .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 14)
         .frame(maxWidth: .infinity)
-        .background(Ink.side)
-        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .background(appLook.isNative ? NativeInk.keyboardBackdrop : Ink.side)
+        .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.row, topTrailingRadius: Radius.row, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preview: \(look.size.title), \(look.position.title.lowercased()), \(look.style.title.lowercased()) dictate button")
     }
 
     private var menu: some View {
-        Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .medium)).foregroundStyle(Ink.ink)
+        Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .medium)).foregroundStyle(.lookInk)
             .frame(width: 46, height: 46)
-            .background(Circle().fill(Ink.chip))
+            .background(Circle().fill(appLook.isNative ? NativeInk.keyboardFunction : Ink.chip))
     }
 
     private func keyRow(_ n: Int) -> some View {
         HStack(spacing: 4) {
             ForEach(0..<n, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Ink.card)
+                RoundedRectangle(cornerRadius: 5, style: .continuous).fill(appLook.isNative ? NativeInk.keyboardKey : Ink.card)
                     .frame(height: 26)
                     .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Ink.ink.opacity(0.25)).offset(y: 1))
             }
@@ -98,23 +100,27 @@ private struct PreviewDictateButton: View {
     var look: DictateButton
     private static let bars: [CGFloat] = [9, 16, 20, 12, 17]
     private static let rim = Ink.make { dark, _ in dark ? PColor.clear : PColor(hex: Ink.inkHex) }
+    @Environment(\.look) private var appLook
 
     var body: some View {
         if look.size == .large {
             bars(height: 24, width: 3.5)
                 .frame(width: 62, height: 62)
-                .modifier(Surface(filled: look.style == .filled, shape: Circle(), shadow: CGSize(width: 3, height: 4), rim: Self.rim))
+                .modifier(Surface(filled: look.style == .filled, shape: Circle(), shadow: CGSize(width: 3, height: 4), rim: Self.rim, native: appLook.isNative))
         } else {
             HStack(spacing: 10) {
                 Text("Start").font(.system(size: 17, weight: .bold)).foregroundStyle(foreground)
                 bars(height: 20, width: 3)
             }
             .padding(.leading, 20).padding(.trailing, 16).frame(height: 46)
-            .modifier(Surface(filled: look.style == .filled, shape: Capsule(), shadow: CGSize(width: 2, height: 3), rim: Self.rim))
+            .modifier(Surface(filled: look.style == .filled, shape: Capsule(), shadow: CGSize(width: 2, height: 3), rim: Self.rim, native: appLook.isNative))
         }
     }
 
-    private var foreground: Color { look.style == .filled ? Ink.inkFixed : Ink.ink }
+    private var foreground: Color {
+        if appLook.isNative { return look.style == .filled ? Color.white : NativeInk.accent }
+        return look.style == .filled ? Ink.inkFixed : Ink.ink
+    }
 
     private func bars(height: CGFloat, width: CGFloat) -> some View {
         HStack(spacing: width * 0.85) {
@@ -130,11 +136,17 @@ private struct PreviewDictateButton: View {
         var shape: S
         var shadow: CGSize
         var rim: Color
+        var native = false
         func body(content: Content) -> some View {
-            content
-                .background { PhonePanelFill(color: filled ? Ink.panelButter : Ink.card, shape: shape, grain: filled) }
-                .overlay(shape.strokeBorder(filled ? rim : Ink.ink, lineWidth: 1.5))
-                .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
+            if native {
+                // Native: a flat accent capsule (filled) or a white key (outline); no ring, grain, or hard shadow.
+                content.background(shape.fill(filled ? NativeInk.accent : NativeInk.keyboardKey))
+            } else {
+                content
+                    .background { PhonePanelFill(color: filled ? Ink.panelButter : Ink.card, shape: shape, grain: filled) }
+                    .overlay(shape.strokeBorder(filled ? rim : Ink.ink, lineWidth: 1.5))
+                    .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
+            }
         }
     }
 }
