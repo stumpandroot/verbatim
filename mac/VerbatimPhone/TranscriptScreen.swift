@@ -397,7 +397,7 @@ struct TranscriptScreen: View {
                 Button { selecting.toggle() } label: {
                     Label(selecting ? "Done selecting" : "Select text", art: .iconSelect, size: 15)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(selecting ? (look.isNative ? Color.white : Ink.onInteractive) : (look.isNative ? NativeInk.label : Ink.ink))
+                        .foregroundStyle(selecting ? (look.isNative ? PremiumInk.onAccent : Ink.onInteractive) : (look.isNative ? NativeInk.label : Ink.ink))
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .modifier(OriginalBarCapsule(native: look.isNative, selected: selecting))
                 }
