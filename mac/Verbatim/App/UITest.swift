@@ -93,6 +93,7 @@ enum UITest {
                        check: { !expected.isEmpty && NSPasteboard.general.string(forType: .string) == expected })
             try? await Task.sleep(nanoseconds: 300_000_000)
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
+            timingSummary("clicks")
 
             await settingsSteps(main: window)
             await ribbonSteps(app: app)
@@ -402,6 +403,7 @@ enum UITest {
     /// Walks every screen with richer seeded data. CI watches `show.txt` and captures each name.
     private static func tour(app: AppState, window: NSWindow) async {
         appRef = app
+        timings = []   // the tour's summaries leave out the Settings, Ribbon, and meeting steps' navigations
         seedRich(app)
         seedArchive(app)
         seedDictations(app)
@@ -640,7 +642,9 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         NSApplication.shared.appearance = nil
+        timingSummary("tour-verbose")
         await nativeTour(app: app, window: window, memo: memo?.id)
+        timingSummary("tour-native")
         write(show: "done")
     }
 
@@ -1514,7 +1518,22 @@ enum UITest {
         DispatchQueue.main.async {
             let settled = Date().timeIntervalSince(start) * 1000
             Log.note("UITEST TIMING \(screen) \(Int(appeared.rounded())) settled=\(Int(settled.rounded()))")
+            timings.append((appeared, settled))
         }
+    }
+
+    /// Screen changes timed since the last summary: (appeared, settled) in ms.
+    private static var timings: [(appeared: Double, settled: Double)] = []
+
+    /// One line per stretch of the run for build-to-build comparison, never a pass or fail:
+    /// `UITEST TIMING summary <label> n=<changes> appeared-median=<ms> settled-median=<ms> settled-p90=<ms>
+    /// settled-max=<ms> settled-total=<ms>`. Starts the next stretch.
+    private static func timingSummary(_ label: String) {
+        defer { timings = [] }
+        guard !timings.isEmpty else { Log.note("UITEST TIMING summary \(label) n=0"); return }
+        func pick(_ v: [Double], _ q: Double) -> Int { Int(v.sorted()[min(v.count - 1, Int((Double(v.count - 1) * q).rounded()))].rounded()) }
+        let appeared = timings.map(\.appeared), settled = timings.map(\.settled)
+        Log.note("UITEST TIMING summary \(label) n=\(timings.count) appeared-median=\(pick(appeared, 0.5)) settled-median=\(pick(settled, 0.5)) settled-p90=\(pick(settled, 0.9)) settled-max=\(pick(settled, 1)) settled-total=\(Int(settled.reduce(0, +).rounded()))")
     }
 
     private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
