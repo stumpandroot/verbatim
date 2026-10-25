@@ -298,6 +298,26 @@ actor FluidEngine: TranscriptionEngine {
         _ = try? await prepared(model, progress: { _ in })
     }
 
+    /// True when `requested` is loaded and has run its warm-up inference: a dictation starts at full speed. The
+    /// iPhone tells the keyboard and the Dynamic Island "Getting ready" until it is.
+    func isWarm(_ requested: String) -> Bool {
+        let model = Engines.fluidModel(requested)
+        return warmed == model && loaded == model
+    }
+
+    /// Drops the loaded model (the iPhone on a memory warning, with no session or transcription running). Never
+    /// while a load or warm-up is under way; a transcription that already holds the model keeps it until it
+    /// finishes, and the next caller loads it again. Returns whether it released anything.
+    @discardableResult
+    func releaseModel() -> Bool {
+        guard loading == nil, prewarming == nil, manager != nil else { return false }
+        Log.note("Fluid released \(loaded ?? "the model") on a memory warning")
+        manager = nil
+        loaded = nil
+        warmed = nil
+        return true
+    }
+
     // MARK: Prewarm
 
     /// The model whose Core ML graphs have run one real inference since it was loaded.

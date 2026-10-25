@@ -55,13 +55,27 @@ check("presses alternate begin and finish", actions == ["begin", "finish", "begi
 
 // MARK: Idle timeout and the 8-hour cap
 
-check("timeout choices are 10, 30, and 60 minutes", Ribbon.timeoutChoices == [600, 1800, 3600])
-check("no stored timeout: 30 minutes", Ribbon.normalizedTimeout(nil) == 1800)
-check("a stored choice stays", Ribbon.normalizedTimeout(600) == 600 && Ribbon.normalizedTimeout(3600) == 3600)
+check("timeout choices: 10 and 30 minutes, 1, 2, and 4 hours, and Until I end it", Ribbon.timeoutChoices == [600, 1800, 3600, 7200, 14_400, 0])
+check("no stored timeout: 2 hours", Ribbon.normalizedTimeout(nil) == 7200 && Ribbon.defaultTimeout == 7200)
+check("a stored choice stays", Ribbon.timeoutChoices.allSatisfy { Ribbon.normalizedTimeout($0) == $0 })
 check("old 1 and 5 minutes become 10", Ribbon.normalizedTimeout(60) == 600 && Ribbon.normalizedTimeout(300) == 600)
 check("old 15 minutes becomes 10 (nearest, ties go shorter)", Ribbon.normalizedTimeout(900) == 600)
-check("old until-I-end-it becomes 60", Ribbon.normalizedTimeout(0) == 3600)
-check("timeout label", Ribbon.timeoutLabel(1800) == "30 minutes")
+check("90 minutes becomes 1 hour (tie goes shorter); 3 hours becomes 2", Ribbon.normalizedTimeout(5400) == 3600 && Ribbon.normalizedTimeout(10_800) == 7200)
+check("a day becomes 4 hours", Ribbon.normalizedTimeout(86_400) == 14_400)
+check("Until I end it is a choice again (0, and anything below)", Ribbon.normalizedTimeout(0) == 0 && Ribbon.normalizedTimeout(-5) == 0)
+check("timeout labels", Ribbon.timeoutLabel(600) == "10 minutes" && Ribbon.timeoutLabel(1800) == "30 minutes" && Ribbon.timeoutLabel(3600) == "1 hour"
+      && Ribbon.timeoutLabel(7200) == "2 hours" && Ribbon.timeoutLabel(14_400) == "4 hours" && Ribbon.timeoutLabel(0) == "Until I end it")
+check("short labels", Ribbon.timeoutShortLabel(600) == "10 min" && Ribbon.timeoutShortLabel(7200) == "2 hr" && Ribbon.timeoutShortLabel(0) == "Until I end it")
+
+// The migration to the 2-hour default: only a pick is kept.
+check("a new install gets 2 hours", Ribbon.launchTimeout(stored: nil, userSet: nil) == 7200)
+check("someone who never chose (nothing stored, the old 30-minute default) moves to 2 hours", Ribbon.launchTimeout(stored: nil, userSet: false) == 7200)
+check("a value written for you, not picked, follows the new default", Ribbon.launchTimeout(stored: 1800, userSet: false) == 7200)
+check("a pick of 30 minutes stays", Ribbon.launchTimeout(stored: 1800, userSet: true) == 1800)
+check("a stored value from before the flag counts as a pick (the old app wrote only picks)",
+      Ribbon.launchTimeout(stored: 600, userSet: nil) == 600 && Ribbon.launchTimeout(stored: 3600, userSet: nil) == 3600 && Ribbon.launchTimeout(stored: 1800, userSet: nil) == 1800)
+check("a pick of Until I end it stays", Ribbon.launchTimeout(stored: 0, userSet: true) == 0)
+check("an old odd pick moves to the nearest choice", Ribbon.launchTimeout(stored: 900, userSet: nil) == 600)
 let start = Date(timeIntervalSince1970: now)
 check("idle session ends at its timeout",
       Ribbon.endCheck(now: start.addingTimeInterval(1800), startedAt: start, endsAt: start.addingTimeInterval(1800), dictating: false) == .idle)
@@ -72,6 +86,59 @@ check("never ends during a take",
 check("ends before the Live Activity's 8 hours",
       Ribbon.endCheck(now: start.addingTimeInterval(Ribbon.sessionCap), startedAt: start, endsAt: start.addingTimeInterval(9 * 3600), dictating: false) == .cap)
 check("the cap is under 8 hours", Ribbon.sessionCap < Ribbon.activityLimit && Ribbon.activityLimit == 8 * 3600)
+check("Until I end it never ends for idleness", Ribbon.endCheck(now: start.addingTimeInterval(7 * 3600), startedAt: start, endsAt: nil, dictating: false) == .keep)
+check("Until I end it still ends before the Live Activity's 8 hours",
+      Ribbon.endCheck(now: start.addingTimeInterval(Ribbon.sessionCap), startedAt: start, endsAt: nil, dictating: false) == .cap)
+check("a paused session doesn't end for idleness",
+      Ribbon.endCheck(now: start.addingTimeInterval(3600), startedAt: start, endsAt: start.addingTimeInterval(1800), dictating: false, paused: true) == .keep)
+check("a paused session still ends at the cap",
+      Ribbon.endCheck(now: start.addingTimeInterval(Ribbon.sessionCap), startedAt: start, endsAt: nil, dictating: false, paused: true) == .cap)
+
+// MARK: Calls: pause, then resume
+
+typealias A = Ribbon.AudioState
+check("a call during a take pauses and saves the take", Ribbon.audio(.running, .interruptionBegan, dictating: true) == (A.paused, .pause(saveTake: true)))
+check("a call between takes pauses with nothing to save", Ribbon.audio(.running, .interruptionBegan, dictating: false) == (A.paused, .pause(saveTake: false)))
+check("a second began while paused changes nothing", Ribbon.audio(.paused, .interruptionBegan, dictating: false) == (A.paused, .none))
+check("the call ends with shouldResume: reactivate", Ribbon.audio(.paused, .interruptionEnded(shouldResume: true), dictating: false) == (A.resuming, .reactivate))
+check("the call ends without shouldResume: reactivate anyway", Ribbon.audio(.paused, .interruptionEnded(shouldResume: false), dictating: false) == (A.resuming, .reactivate))
+check("reactivation works: the session resumes", Ribbon.audio(.resuming, .reactivated(ok: true), dictating: false) == (A.running, .resumed))
+check("reactivation fails: the session ends", Ribbon.audio(.resuming, .reactivated(ok: false), dictating: false) == (A.running, .end))
+check("an ended with no began changes nothing", Ribbon.audio(.running, .interruptionEnded(shouldResume: true), dictating: false) == (A.running, .none))
+check("a new call while resuming pauses again", Ribbon.audio(.resuming, .interruptionBegan, dictating: false) == (A.paused, .none))
+check("a late reactivation result while paused is ignored", Ribbon.audio(.paused, .reactivated(ok: true), dictating: false) == (A.paused, .none))
+var audioState = A.running
+var audioActions: [Ribbon.AudioAction] = []
+for e in [Ribbon.AudioEvent.interruptionBegan, .interruptionEnded(shouldResume: false), .reactivated(ok: true), .interruptionBegan, .interruptionEnded(shouldResume: true), .reactivated(ok: false)] {
+    let (next, action) = Ribbon.audio(audioState, e, dictating: false)
+    audioState = next
+    audioActions.append(action)
+}
+check("two calls: pause, resume, pause, end", audioActions == [.pause(saveTake: false), .reactivate, .resumed, .pause(saveTake: false), .reactivate, .end])
+check("paused and Session ended headlines", Ribbon.headline(.paused, words: 0) == "Paused for a call" && Ribbon.headline(.ended, words: 0) == "Session ended")
+check("Session ended stays 15 minutes", Ribbon.endedHold == 15 * 60)
+check("getting ready replaces Listening only while listening",
+      Ribbon.headline(.listening, words: 0, gettingReady: true) == "Getting ready" && Ribbon.headline(.listening, words: 0, gettingReady: false) == "Listening"
+      && Ribbon.headline(.ready, words: 0, gettingReady: true) == "Verbose session on")
+check("getting ready copy", Ribbon.gettingReadyLine == "Getting ready · the first one takes a few seconds")
+
+// MARK: The start screen's way back, and the first dictation note
+
+var shownStarts = 0
+var coaches: [Ribbon.Coach] = []
+for _ in 0..<7 { coaches.append(Ribbon.coach(shown: shownStarts)); shownStarts = Ribbon.coachCount(after: shownStarts) }
+check("the full coach card for the first 5 session starts, then the reminder", coaches == [.full, .full, .full, .full, .full, .reminder, .reminder], "\(coaches)")
+check("the count stops at 5", shownStarts == 5 && Ribbon.coachCount(after: 40) == 5 && Ribbon.coachCount(after: -3) == 1)
+check("a bad stored count reads as new", Ribbon.coach(shown: -1) == .full)
+check("the coach names the app when known", Ribbon.coachTitle(sourceApp: "Messages") == "Go back to Messages to dictate."
+      && Ribbon.breadcrumbLine(sourceApp: "Messages") == "or tap ◀ Messages at the top left")
+check("App Store builds say the app you were in", Ribbon.coachTitle(sourceApp: nil) == "Go back to the app you were in to dictate."
+      && Ribbon.coachTitle(sourceApp: "  ") == "Go back to the app you were in to dictate."
+      && Ribbon.breadcrumbLine(sourceApp: nil) == "or tap ◀ and the app's name at the top left")
+check("the first dictation note shows until one succeeds", Ribbon.showsFirstDictationNote(done: false) && !Ribbon.showsFirstDictationNote(done: true))
+check("nothing heard doesn't count as the first dictation", !Ribbon.firstDictationDone(was: false, words: 0))
+check("the first dictation with words sets it", Ribbon.firstDictationDone(was: false, words: 3))
+check("once set, it stays", Ribbon.firstDictationDone(was: true, words: 0))
 
 // MARK: Action button
 
@@ -125,7 +192,7 @@ check("ready detail counts takes", Ribbon.detail(.ready, takes: 3, message: nil)
 check("the copy failure says what to do", Ribbon.detail(.failed, takes: 0, message: nil) == "Couldn't copy. Open Verbose to get your words.")
 check("word count ignores punctuation", Ribbon.wordCount("Thursday works. Noon — at the usual place?") == 7)
 let words = "Thursday works noon at the usual place"
-for phase in [Ribbon.Phase.ready, .listening, .transcribing, .copied, .inserted, .failed, .ended] {
+for phase in [Ribbon.Phase.ready, .listening, .transcribing, .copied, .inserted, .failed, .ended, .paused] {
     let shown = Ribbon.headline(phase, words: 7) + " " + Ribbon.detail(phase, takes: 2, message: nil)
     check("no transcript text in \(phase.rawValue)", !shown.contains("usual place") && !shown.contains(words))
 }

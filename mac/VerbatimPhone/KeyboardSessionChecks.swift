@@ -67,7 +67,7 @@ enum KeyboardSessionChecks {
         // The App Store switch: every private-API seam reports unavailable.
         let store = Distribution.abilities(appStore: true)
         check("App Store builds read no host app", !store.readsHostApp)
-        check("App Store builds' keyboard doesn't open Verbose", !store.keyboardOpensVerbatim)
+        check("App Store builds' keyboard opens Verbose too (accepted 4.4.1 risk)", store.keyboardOpensVerbatim)
         check("App Store builds don't switch back to your app", !store.returnsToHostApp)
         check("App Store builds don't fetch YouTube on the device", !store.youTubeOnDevice)
         check("the return seam is unavailable in App Store builds",
@@ -82,9 +82,12 @@ enum KeyboardSessionChecks {
         let widget = KeyboardBridge.sessionLink(in: URL(string: "verbatim://session?start=1&from=widget")!)
         check("the Lock Screen widget's link names its source", widget?.source == .widget && widget?.request == nil)
         let seconds = KeyboardSession.timeoutChoices.map { $0.seconds }
-        check("session timeouts are 10, 30, and 60 minutes (owner decision)", seconds == [600, 1800, 3600])
-        check("no session runs until you end it (a Live Activity lasts 8 hours)", !seconds.contains(0))
-        check("timeout labels", KeyboardSession.label(1800) == "30 minutes" && KeyboardSession.label(3600) == "60 minutes" && KeyboardSession.label(600) == "10 minutes")
+        check("session timeouts are 10 and 30 minutes, 1, 2, and 4 hours, and Until I end it (owner decision)", seconds == [600, 1800, 3600, 7200, 14_400, 0])
+        check("timeout labels", KeyboardSession.label(1800) == "30 minutes" && KeyboardSession.label(3600) == "1 hour"
+              && KeyboardSession.label(7200) == "2 hours" && KeyboardSession.label(0) == "Until I end it")
+        check("new installs end idle sessions after 2 hours", Ribbon.launchTimeout(stored: nil, userSet: nil) == 7200)
+        let route = KeyboardBridge.sessionLink(in: KeyboardBridge.sessionURL(request: d, host: nil, dictation: nil))
+        check("the keyboard's Start a session link opens the session route", route?.request == d && route?.source == nil)
 
         Log.note("UITEST keyboard E2 checks: \(pass) passed, \(fail) failed")
     }

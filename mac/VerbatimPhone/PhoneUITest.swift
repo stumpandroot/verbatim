@@ -195,6 +195,15 @@ enum PhoneUITest {
                 await show("\(prefix)09d-session-ended")
                 app.session.endedNotice = nil
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                // The start screen once a session is on (App Store builds can't switch back): the way-back coach for
+                // the first five session starts, naming the app (Messages), then the one-line reminder. Made up: no
+                // microphone in the simulator.
+                app.session.previewStartScreen(coach: .full, host: "com.apple.MobileSMS")
+                await show("\(prefix)09k-session-way-back")
+                app.session.previewStartScreen(coach: .reminder, host: nil)
+                await show("\(prefix)09l-session-way-back-reminder")
+                app.session.previewStartScreen(coach: nil, host: nil)
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 // Settings › Keyboard's Dictate button group with its live preview: the default, then two made-up
                 // choices (the keyboard extension itself isn't in the app, so the preview stands in for it). The
                 // stored choice is put back after.
@@ -248,7 +257,20 @@ enum PhoneUITest {
         check("a failed copy is reported", Ribbon.resultPhase(.clipboard, copied: false) == .failed)
         check("presses alternate", Ribbon.decide(.idle, .toggle, sessionOn: true) == .begin
               && { let i = UUID(); return Ribbon.decide(.listening(i), .toggle, sessionOn: true) == .finish(i) }())
-        check("default idle timeout is 30 minutes", Ribbon.normalizedTimeout(nil) == 1800)
+        check("default idle timeout is 2 hours", Ribbon.normalizedTimeout(nil) == 7200)
+        // The start screen's way-back coach: counted in UserDefaults, full five times, then the reminder.
+        let keepCoach = UserDefaults.standard.object(forKey: Ribbon.coachCountKey)
+        UserDefaults.standard.removeObject(forKey: Ribbon.coachCountKey)
+        var coachRuns: [Ribbon.Coach] = []
+        for _ in 0..<6 {
+            let d = UserDefaults.standard
+            coachRuns.append(Ribbon.coach(shown: d.integer(forKey: Ribbon.coachCountKey)))
+            d.set(Ribbon.coachCount(after: d.integer(forKey: Ribbon.coachCountKey)), forKey: Ribbon.coachCountKey)
+        }
+        check("the way-back coach shows in full five times, then as a line", coachRuns == [.full, .full, .full, .full, .full, .reminder])
+        UserDefaults.standard.set(keepCoach, forKey: Ribbon.coachCountKey)
+        check("a call pauses and resumes the session", Ribbon.audio(.running, .interruptionBegan, dictating: false).1 == .pause(saveTake: false)
+              && Ribbon.audio(.paused, .interruptionEnded(shouldResume: false), dictating: false).1 == .reactivate)
         check("the Action button dictates by default", Ribbon.actionChoice(nil) == .dictate)
         check("the Action button offers five choices", Ribbon.ActionChoice.allCases.count == 5)
         check("Quick capture can't be chosen on iPhone", !Ribbon.ActionChoice.quickCapture.available && Ribbon.actionChoice("quickCapture") == .dictate)

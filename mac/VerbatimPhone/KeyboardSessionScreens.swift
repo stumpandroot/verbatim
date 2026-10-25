@@ -3,8 +3,9 @@ import UIKit
 
 // MARK: - Session start screen
 
-/// Over the app for the moment a keyboard session starts. Normally you see it for under a second before Verbatim
-/// switches back to your app; when it can't switch back by itself, it tells you how. A link that didn't come from
+/// Over the app for the moment a keyboard session starts. In your builds you normally see it for under a second
+/// before Verbatim switches back to your app; when it can't switch back by itself (always in App Store builds), it
+/// shows how to go back: a coach card with two illustrated ways for the first five session starts, then a line. A link that didn't come from
 /// the keyboard just now (the Lock Screen widget, another app) asks first, and the microphone stays off until you
 /// tap Start session.
 struct SessionStartScreen: View {
@@ -52,90 +53,230 @@ struct SessionStartScreen: View {
     }
 
     private var starting: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: "Keyboard session", color: Ink.dim)
-            }
-            .padding(.top, 24)
-            .accessibilityElement(children: .combine)
-
-            Text(title)
-                .font(Ink.serif(34)).foregroundStyle(Ink.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 14)
-                .accessibilityAddTraits(.isHeader)
-
-            Text(detail)
-                .font(.system(size: 16)).foregroundStyle(Ink.dim)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12)
-
-            HStack(spacing: 18) {
-                VoiceBars(level: session.isOn ? 0.35 : 0, color: Ink.inkFixed, barWidth: 14, maxHeight: 64)
-                    .frame(width: 72)
-                Text(session.dictating ? "Listening" : session.isOn ? "Ready" : "Starting…")
-                    .font(Ink.serif(24)).foregroundStyle(Ink.inkFixed)
-                Spacer(minLength: 0)
-            }
-            .padding(22)
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-            .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .padding(.top, 26)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(session.dictating ? "Listening" : session.isOn ? "Session ready" : "Starting")
-
-            if session.needsManualReturn {
-                HStack(spacing: 12) {
-                    Button("End session") { session.end(reason: nil) }
-                        .buttonStyle(.brandSecondaryLarge)
-                        .accessibilityHint("Turns off the microphone")
-                    Button("Stay in Verbose") { session.showScreen = false }
-                        .buttonStyle(.brandPrimaryLarge)
-                        .accessibilityHint("Closes this screen. The session stays on.")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
+                    Overline(text: "Keyboard session", color: Ink.dim)
                 }
-                .padding(.top, 20)
-            }
+                .padding(.top, 24)
+                .accessibilityElement(children: .combine)
 
-            Spacer(minLength: 20)
+                Text(title)
+                    .font(Ink.serif(34)).foregroundStyle(Ink.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 14)
+                    .accessibilityAddTraits(.isHeader)
+
+                if showsWayBack {
+                    Text(Ribbon.coachTitle(sourceApp: session.sourceAppName))
+                        .font(Ink.serif(22)).foregroundStyle(Ink.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 6)
+                    if let detail = takeDetail {
+                        Text(detail)
+                            .font(.system(size: 16)).foregroundStyle(Ink.dim)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 10)
+                    }
+                    switch session.coach {
+                    case .full:
+                        WayBackCoach(sourceApp: session.sourceAppName, showsBreadcrumb: showsBreadcrumb)
+                            .padding(.top, 20)
+                    case .reminder:
+                        Text(reminderLine)
+                            .font(.system(size: 15)).foregroundStyle(Ink.dim)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 10)
+                    }
+                } else {
+                    Text(detail)
+                        .font(.system(size: 16)).foregroundStyle(Ink.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 12)
+                }
+
+                HStack(spacing: 18) {
+                    VoiceBars(level: session.isOn ? 0.35 : 0, color: Ink.inkFixed, barWidth: 14, maxHeight: 64)
+                        .frame(width: 72)
+                    Text(session.dictating ? "Listening" : session.isOn ? "Ready" : "Starting…")
+                        .font(Ink.serif(24)).foregroundStyle(Ink.inkFixed)
+                    Spacer(minLength: 0)
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity, minHeight: showsWayBack && session.coach == .full ? 96 : 120, alignment: .leading)
+                .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .padding(.top, 22)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(session.dictating ? "Listening" : session.isOn ? "Session ready" : "Starting")
+
+                if Ribbon.showsFirstDictationNote(done: session.firstDictationDone) {
+                    FirstDictationNote().padding(.top, 14)
+                }
+
+                if session.needsManualReturn {
+                    HStack(spacing: 12) {
+                        Button("End session") { session.end(reason: nil) }
+                            .buttonStyle(.brandSecondaryLarge)
+                            .accessibilityHint("Turns off the microphone")
+                        Button("Stay in Verbose") { session.showScreen = false }
+                            .buttonStyle(.brandPrimaryLarge)
+                            .accessibilityHint("Closes this screen. The session stays on.")
+                    }
+                    .padding(.top, 20)
+                }
+
+                Spacer(minLength: 20)
+            }
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .scrollBounceBehavior(.basedOnSize)
         .background(Ink.paper.ignoresSafeArea())
+    }
+
+    /// Once the session is on and you have to go back yourself (always in App Store builds, which can't switch
+    /// back; in your builds when switching back didn't work; and for any start from outside the keyboard), the
+    /// screen says how: the coach card for the first five session starts, then one line. It stays until you leave.
+    private var showsWayBack: Bool { session.isOn && (session.needsManualReturn || session.startSource != nil) }
+
+    /// iOS shows "◀ <app>" at the top left when another app opened Verbose (the keyboard's link). A start from
+    /// Control Center, the Action button, or Shortcuts has none.
+    private var showsBreadcrumb: Bool { session.startSource == nil }
+
+    private var reminderLine: String {
+        let crumb = showsBreadcrumb ? ", " + Ribbon.breadcrumbLine(sourceApp: session.sourceAppName) : ""
+        return "Swipe right along the bottom edge" + crumb + "."
     }
 
     private var title: String {
         if !session.isOn { return "Turning on the microphone…" }
         if session.startedForTake, session.dictating { return "Listening. Go back to talk." }
-        if session.startSource != nil { return "Your session is on." }
-        if session.needsManualReturn { return session.dictating ? "Listening. Go back to talk." : "You're set." }
+        if showsWayBack { return "Your session is on." }
         return "Going back…"
     }
 
-    /// The manual way back names the system's "◀ <app>" link at the top left first: it's one tap, and iOS shows
-    /// it whenever another app opened Verbatim.
+    /// Under the coach while a take started from the Action button listens: how it ends.
+    private var takeDetail: String? {
+        if session.startedForTake, session.dictating {
+            return "Talk, then press the Action button again: your words go into the Verbose keyboard if it's open, or on the clipboard."
+        }
+        if session.dictating, session.startSource == nil { return "Verbose is already listening: talk, then tap the check on the keyboard." }
+        return nil
+    }
+
+    /// Before the session is on, and while your builds switch back by themselves.
     private var detail: String {
-        // Started from Control Center, the Action button, Shortcuts, the widget, or Settings: no app to go back to.
-        if session.startedForTake {
-            if !session.isOn { return "Verbose turns on the microphone and starts listening." }
-            if session.dictating {
-                return "Swipe right along the bottom edge to go back to your app, and talk. Press the Action button again when you're done: your words go into the Verbose keyboard if it's open, or on the clipboard."
-            }
-        }
-        if session.startSource != nil {
-            if !session.isOn { return "Verbose turns on the microphone for the Verbose keyboard." }
-            return "Go to the app you want to type in: swipe right along the bottom edge, or swipe up and choose it. Then tap the record button on the Verbose keyboard and talk."
-        }
-        if session.needsManualReturn {
-            if session.dictating {
-                return "Tap ◀ and your app's name at the top left, or swipe right along the bottom edge. Verbose is already listening: talk, then tap the check on the keyboard."
-            }
-            return "Tap ◀ and your app's name at the top left, or swipe right along the bottom edge. Then tap the record button on the Verbose keyboard and talk."
-        }
+        if session.startedForTake, !session.isOn { return "Verbose turns on the microphone and starts listening." }
+        if !session.isOn { return "Verbose turns on the microphone for the Verbose keyboard." }
         if session.dictating {
             return "Verbose switches back to your app in a moment and keeps listening. Talk, then tap the check on the keyboard."
         }
         return "Verbose switches back to your app in a moment. Dictation then happens right in the keyboard."
+    }
+}
+
+/// The two ways back to your app, drawn small in the brand: the home indicator with a dot that slides right (still
+/// under Reduce Motion or Limit animation, with an arrow), and the status bar's "◀ Messages" link.
+private struct WayBackCoach: View {
+    var sourceApp: String?
+    var showsBreadcrumb: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row(illustration: AnyView(SwipeHint()), text: "Swipe right along the bottom edge")
+            if showsBreadcrumb {
+                Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 112)
+                row(illustration: AnyView(BreadcrumbHint(name: sourceApp)), text: Ribbon.breadcrumbLine(sourceApp: sourceApp))
+            }
+        }
+        .cardSurface(radius: Radius.row)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(showsBreadcrumb ? "Swipe right along the bottom edge, " + Ribbon.breadcrumbLine(sourceApp: sourceApp) : "Swipe right along the bottom edge")
+    }
+
+    private func row(illustration: AnyView, text: String) -> some View {
+        HStack(spacing: 16) {
+            illustration.frame(width: 84, height: 56)
+            Text(text).font(.system(size: 16, weight: .medium)).foregroundStyle(Ink.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+    }
+}
+
+/// The bottom of a phone: its edge, the home indicator, and a persimmon dot that travels right along it.
+private struct SwipeHint: View {
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var travel = false
+
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height
+            ZStack(alignment: .topLeading) {
+                UnevenRoundedRectangle(bottomLeadingRadius: 16, bottomTrailingRadius: 16, style: .continuous)
+                    .stroke(Ink.ink, lineWidth: 1.5)
+                    .frame(width: w, height: h)
+                Capsule().fill(Ink.ink).frame(width: w * 0.46, height: 4)
+                    .position(x: w / 2, y: h - 9)
+                Circle().fill(Ink.persimmon).frame(width: 12, height: 12)
+                    .position(x: limitMotion || travel ? w * 0.72 : w * 0.28, y: h - 9)
+                    .opacity(limitMotion ? 1 : (travel ? 0.15 : 1))
+                if limitMotion {
+                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.accentText)
+                        .position(x: w * 0.5, y: h - 24)
+                }
+            }
+        }
+        .accessibilityHidden(true)
+        .onAppear {
+            guard !limitMotion else { return }
+            withAnimation(.easeInOut(duration: 1.3).delay(0.3).repeatForever(autoreverses: false)) { travel = true }
+        }
+    }
+}
+
+/// The status bar's top left with "◀ Messages" (or "◀ Your app"), outlined in persimmon where you tap.
+private struct BreadcrumbHint: View {
+    var name: String?
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height
+            ZStack(alignment: .topLeading) {
+                UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16, style: .continuous)
+                    .stroke(Ink.ink, lineWidth: 1.5)
+                    .frame(width: w, height: h)
+                HStack(spacing: 2) {
+                    Image(systemName: "chevron.left").font(.system(size: 9, weight: .bold))
+                    Text(name ?? "Your app").font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .foregroundStyle(Ink.ink)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .overlay(Capsule().stroke(Ink.persimmon, lineWidth: 2))
+                .frame(maxWidth: w - 16, alignment: .leading)
+                .offset(x: 8, y: 9)
+                Text("9:41").font(Ink.mono(9)).foregroundStyle(Ink.mute)
+                    .position(x: w - 18, y: 16)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// "Your first dictation takes a few seconds longer…": until the first keyboard dictation succeeds.
+struct FirstDictationNote: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7).padding(.top, 6)
+            Text(Ribbon.firstDictationNote)
+                .font(.system(size: 14)).foregroundStyle(Ink.dim)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(radius: Radius.row)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -165,8 +306,9 @@ struct KeyboardSetupScreen: View {
         "In any app, touch and hold the globe key, and then choose Verbose.",
     ]
 
-    /// Ways to start a session without the keyboard opening Verbatim (the only ways in App Store builds).
+    /// Ways to start a session: the keyboard's Start a session, and the ways that work without the keyboard.
     private let startWays: [(symbol: String, text: String)] = [
+        ("keyboard", "The Verbose keyboard: tap Start a session. Verbose opens and turns on the microphone."),
         ("square.grid.2x2", "Control Center: tap Edit, then Add a Control, and choose Verbose session."),
         ("button.horizontal.top.press", "Action button: in Settings › Action Button, choose Controls › Verbose action. The first press starts a session and a take; see Verbose › Settings › Action button."),
         ("lock", "Lock Screen: touch and hold the Lock Screen, tap Customize, and add the Verbose widget."),
@@ -199,13 +341,12 @@ struct KeyboardSetupScreen: View {
 
                 Text("Sessions").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
                 SessionCard(session: app.session)
+                FirstDictationNoteRow(session: app.session)
 
-                // Only when the keyboard can open Verbatim (never in App Store builds).
-                if Distribution.current.keyboardOpensVerbatim {
-                    SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
-                                      subtitle: "The first tap opens Verbose and starts listening; no second tap.", isOn: $autoStart)
-                        .cardSurface(radius: Radius.row)
-                }
+                // Every build: the keyboard opens Verbose to start a session (App Store builds too, since October 2026).
+                SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
+                                  subtitle: "The first tap opens Verbose and starts listening; no second tap.", isOn: $autoStart)
+                    .cardSurface(radius: Radius.row)
 
                 SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
                                   subtitle: "Your words appear right away; Verbose swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
@@ -225,9 +366,9 @@ struct KeyboardSetupScreen: View {
 
                 PhoneLowerAudioRow()
 
-                Text(Distribution.current.keyboardOpensVerbatim
+                Text(Distribution.current.returnsToHostApp
                      ? "The first time you tap the record button, Verbose opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbose can't switch back by itself, tap ◀ and your app's name at the top left."
-                     : "A session keeps the microphone ready for the keyboard: while it's on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it.")
+                     : "The first time you tap Start a session, Verbose opens to turn on the microphone. Go back to your app with ◀ and its name at the top left, or swipe right along the bottom edge. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -251,7 +392,7 @@ struct KeyboardSetupScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("Why Full Access").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim).accessibilityAddTraits(.isHeader).padding(.top, 6)
-                Text((Distribution.current.keyboardOpensVerbatim ? "Full Access lets the keyboard open Verbose to start a session and receive your words from it." : "Full Access lets the keyboard receive your words from Verbose and play haptics.") + " Listening and transcription happen in the Verbose app on this iPhone; the keyboard never sends what you type or say anywhere else.")
+                Text("Full Access lets the keyboard open Verbose to start a session and receive your words from it." + " Listening and transcription happen in the Verbose app on this iPhone; the keyboard never sends what you type or say anywhere else.")
                     .font(.system(size: 15)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -278,7 +419,7 @@ private struct SessionCard: View {
             HStack(spacing: 10) {
                 Circle().fill(session.isOn ? Ink.persimmon : Ink.mute.opacity(0.4)).frame(width: 9, height: 9)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.isOn ? "Session on" : "No session").font(.system(size: 16, weight: .medium)).foregroundStyle(Ink.ink)
+                    Text(session.paused ? "Paused for a call" : session.isOn ? "Session on" : "No session").font(.system(size: 16, weight: .medium)).foregroundStyle(Ink.ink)
                     if session.isOn {
                         if let ends = session.endsAt {
                             (Text("Ends in ") + Text(timerInterval: Date()...max(Date(), ends), countsDown: true))
@@ -314,9 +455,20 @@ private struct SessionCard: View {
                 .labelsHidden()
                 .tint(Ink.accentText)
             }
+            Text("A call or Siri pauses the session; it picks up when the call ends. While a session is on, the orange microphone dot shows at the top of the screen.")
+                .font(.system(size: 13)).foregroundStyle(Ink.mute)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .cardSurface(radius: Radius.row)
+    }
+}
+
+/// The first dictation note on Settings › Keyboard, until the first keyboard dictation succeeds.
+private struct FirstDictationNoteRow: View {
+    @ObservedObject var session: KeyboardSession
+    var body: some View {
+        if Ribbon.showsFirstDictationNote(done: session.firstDictationDone) { FirstDictationNote() }
     }
 }
 

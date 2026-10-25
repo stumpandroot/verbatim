@@ -40,9 +40,13 @@ struct VerbatimSessionAttributes: ActivityAttributes {
         /// The expanded Island's words line while listening, with Show words in the Dynamic Island on; nil
         /// otherwise. Never drawn on the Lock Screen (see above).
         var liveWords: String? = nil
+        /// True while a take listens before the speech model is ready (the first dictation): "Getting ready".
+        /// A state only, never words. Optional, so a state encoded without it still decodes.
+        var gettingReady: Bool? = nil
 
         init(listening: Bool, endsAt: Date?, phase: Ribbon.Phase? = nil, sessionStartedAt: Date? = nil, takeStartedAt: Date? = nil,
-             level: Double = 0, words: Int = 0, takes: Int = 0, message: String? = nil, target: String? = nil, liveWords: String? = nil) {
+             level: Double = 0, words: Int = 0, takes: Int = 0, message: String? = nil, target: String? = nil, liveWords: String? = nil,
+             gettingReady: Bool? = nil) {
             self.listening = listening
             self.endsAt = endsAt
             self.phase = phase
@@ -54,10 +58,14 @@ struct VerbatimSessionAttributes: ActivityAttributes {
             self.message = message
             self.target = target
             self.liveWords = liveWords
+            self.gettingReady = gettingReady
         }
 
         /// The phase to draw.
         var shown: Ribbon.Phase { phase ?? (listening ? .listening : .ready) }
+
+        /// Listening before the speech model is ready.
+        var warming: Bool { shown == .listening && gettingReady == true }
     }
 }
 

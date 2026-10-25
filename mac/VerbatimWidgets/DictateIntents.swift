@@ -22,6 +22,8 @@ enum RibbonCommand: String {
     case endSession
     /// Control Center switch on: start a session (Verbose comes forward when none is on).
     case startSession
+    /// Restart on a Session ended Live Activity: turn the session back on in place when iOS allows it.
+    case restartSession
 }
 
 enum RibbonOutcome: Equatable {
@@ -53,7 +55,7 @@ enum RibbonSignal {
         #else
         // In the app before the session exists: nothing holds the microphone.
         switch c {
-        case .toggle, .startSession: return .needsForeground
+        case .toggle, .startSession, .restartSession: return .needsForeground
         case .finish, .cancel, .endSession: return .ignored
         }
         #endif
@@ -98,7 +100,42 @@ extension SetSessionIntent: ForegroundContinuableIntent {
     @available(iOS 26.0, *)
     static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
 }
+
+extension RestartSessionIntent: ForegroundContinuableIntent {
+    @available(iOS 26.0, *)
+    static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+}
+
+/// iOS 18 and later: Restart may start recording audio from the background, behind the session's new Live
+/// Activity, so the microphone comes back without opening Verbose when iOS agrees (`KeyboardSession.restartInPlace`).
+@available(iOS 18.0, *)
+extension RestartSessionIntent: AudioRecordingIntent {}
 #endif
+
+/// Restart on the Session ended Live Activity (Dynamic Island and Lock Screen), for 15 minutes after a session ends
+/// by itself. Tries to turn the session back on in place; when iOS won't start recording from the background, it
+/// opens Verbose straight into the session (the start screen then shows the way back to your app).
+struct RestartSessionIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Restart session"
+    static var description = IntentDescription("Turns the Verbose dictation session back on.")
+    static var isDiscoverable: Bool = false
+    static var openAppWhenRun: Bool = false
+    /// As for Dictate: unlock first on a locked iPhone, so nobody holding it turns the microphone on.
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        let outcome = await MainActor.run { RibbonSignal.send(.restartSession) }
+        #if !VERBATIM_WIDGETS
+        if outcome == .needsForeground {
+            try await continueInVerbose { SessionStartSignal.fire(.island) }
+        }
+        #endif
+        _ = outcome
+        return .result()
+    }
+}
 
 /// Dictate: starts a take, or stops the running one and delivers the words (into the text field when the Verbose
 /// keyboard is up, otherwise to the clipboard and the keyboard's Recent row). With no session, Verbose opens for

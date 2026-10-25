@@ -25,7 +25,9 @@ struct VerbatimWidgetBundle: WidgetBundle {
 /// listening: the voice bars, Listening, and the time; the live words line (only with Show words in the Dynamic
 /// Island on); "Into Messages"; and Cancel and Done. Otherwise the state, and End session and Dictate. Lock Screen:
 /// the same states on paper, with "Into Messages · take 3 of this session" while listening and never any words.
-/// After a call: Session ended, and a tap restarts it.
+/// While a take listens before the speech model is ready: "Getting ready" in place of Listening. During a call:
+/// Paused for a call. After a session ends by itself: Session ended with Restart (`RestartSessionIntent`) for 15
+/// minutes; tapping anywhere else opens Verbose's confirmation, as before.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
@@ -41,7 +43,7 @@ struct SessionLiveActivity: Widget {
                     if listening {
                         HStack(spacing: 7) {
                             LevelBars(level: s.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 18)
-                            Text("Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                            Text(s.warming ? Ribbon.gettingReadyTitle : "Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
                                 .lineLimit(1).fixedSize()
                         }
                         .padding(.leading, 4)
@@ -58,14 +60,16 @@ struct SessionLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.center) {
                     if !listening {
-                        Text(Ribbon.headline(s.shown, words: s.words))
+                        Text(Ribbon.headline(s.shown, words: s.words, gettingReady: s.warming))
                             .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     if listening {
                         VStack(alignment: .leading, spacing: 10) {
-                            if let line = s.liveWords, !line.isEmpty { IslandWords(line: line) }
+                            if s.warming {
+                                Text(Ribbon.gettingReadyDetail).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                            } else if let line = s.liveWords, !line.isEmpty { IslandWords(line: line) }
                             HStack(spacing: 8) {
                                 TargetLabel(target: s.target)
                                 Spacer(minLength: 6)
@@ -139,6 +143,12 @@ private struct CompactTrailing: View {
             PhaseGlyph(phase: .failed, onDark: true).frame(width: 16, height: 16)
         case .transcribing:
             WritingSpinner().frame(width: 15, height: 15)
+        case .paused:
+            Text("Paused").font(.system(size: 12)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                .accessibilityLabel("Paused for a call")
+        case .ended:
+            Text("Restart").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.persimmon).lineLimit(1)
+                .accessibilityLabel("Session ended. Restart")
         default:
             Circle().fill(Ink.persimmon).frame(width: 8, height: 8)
                 .accessibilityLabel("Session on")
@@ -155,14 +165,14 @@ private struct RibbonLockScreen: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 PhaseGlyph(phase: state.shown, onDark: false).frame(width: 18, height: 18)
-                Text(Ribbon.headline(state.shown, words: state.words))
+                Text(Ribbon.headline(state.shown, words: state.words, gettingReady: state.warming))
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
                 Spacer(minLength: 8)
                 trailing
             }
             if state.shown == .listening {
                 LevelBars(level: state.level, color: Ink.persimmonFixed, count: 34).frame(height: 22)
-                Text(Ribbon.lockLine(target: state.target, take: state.takes))
+                Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
                     .font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.85)
             } else {
                 Text(Ribbon.detail(state.shown, takes: state.takes, message: state.message))
@@ -250,6 +260,8 @@ private struct PhaseGlyph: View {
             BrandGlyph(art: .iconAttention, color: onDark ? Ink.accentTextOnInk : Ink.accentTextOnPaper).accessibilityLabel("Didn't finish")
         case .ready, .ended:
             BarsMark(color: Ink.persimmon)
+        case .paused:
+            BarsMark(color: onDark ? Color.white.opacity(0.6) : Ink.inkFixed.opacity(0.6)).accessibilityLabel("Paused")
         }
     }
 }
@@ -276,8 +288,8 @@ private struct LevelBars: View {
     }
 }
 
-/// Phase-dependent buttons: Cancel and Done while listening; End session and Dictate otherwise; nothing to press
-/// while the words are being written or after the session ended (the whole activity restarts it then).
+/// Phase-dependent buttons: Cancel and Done while listening; End session and Dictate otherwise; End session while
+/// the words are being written or a call has it paused; Restart after the session ended by itself.
 private struct RibbonButtons: View {
     var phase: Ribbon.Phase
     var onDark: Bool
@@ -297,12 +309,14 @@ private struct RibbonButtons: View {
                     .accessibilityHint("Turns off the microphone")
             }
         case .ended:
-            Text("Restart session")
-                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.inkFixed)
-                .frame(maxWidth: .infinity).padding(.vertical, 8)
-                .background(Ink.persimmonFixed, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Opens Verbose and turns the microphone back on")
+            RibbonButton(title: "Restart", primary: true, onDark: onDark, intent: RestartSessionIntent())
+                .accessibilityLabel("Restart session")
+                .accessibilityHint("Turns the microphone back on")
+        case .paused:
+            HStack(spacing: 8) {
+                RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
+                    .accessibilityHint("Turns off the microphone")
+            }
         default:
             HStack(spacing: 8) {
                 RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
