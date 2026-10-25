@@ -13,10 +13,39 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .personalization
     @ObservedObject private var model = SettingsModel.shared
     @FocusState private var searchFocused: Bool
-    @Environment(\.look) private var look
+    @Environment(\.look) private var chosen
+    /// The look the panes are built in: the chosen one, except while the window is closed. SwiftUI keeps a closed
+    /// Settings window's views (it orders the window out), so a look switch also rebuilt the open pane nobody could
+    /// see, in the same update as the main window. Closed, the panes keep the look they were built in; the window
+    /// rebuilds in the chosen look when it's back on screen.
+    @State private var built = BuiltLook()
+    /// Bumped when the window comes back on screen with the panes in an older look.
+    @State private var reopened = 0
+
+    private final class BuiltLook { var look: AppLook? }
+    /// The look the panes were last built in, for the self-test.
+    private(set) static var lastBuilt: AppLook?
+
+    private var look: AppLook {
+        _ = reopened
+        let closed = SettingsModel.shared.window.map { !$0.isVisible } ?? false
+        if closed { SettingsModel.shared.closedRenders.root += 1 }
+        if !closed || built.look == nil { built.look = chosen }
+        let look = built.look ?? chosen
+        Self.lastBuilt = look
+        LookSwitch.mark(look == chosen ? "settings" : "settings-held")
+        return look
+    }
+
+    /// The window is on screen again: rebuild in the chosen look if a switch came while it was closed.
+    private func windowShown(_ note: Notification) {
+        guard let w = note.object as? NSWindow, w === SettingsModel.shared.window, w.isVisible, built.look != chosen else { return }
+        reopened += 1
+    }
 
     var body: some View {
-        Group {
+        let look = self.look
+        return Group {
             if look == .native {
                 // Native: System Settings' layout, a sidebar with SF Symbols and a grouped form (NativeSettings.swift).
                 NativeSettingsSplit(tab: $tab) {
@@ -29,7 +58,10 @@ struct SettingsView: View {
             }
         }
         .lookRebuild()
+        .environment(\.look, look)
         .background(WindowReader { w in configure(w) })
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { windowShown($0) }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { windowShown($0) }
     }
 
     private var verbose: some View {
@@ -318,7 +350,8 @@ struct MenuBarPanel: View {
     @EnvironmentObject var app: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        LookSwitch.mark("menubar")
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 BarsMark().frame(width: 16, height: 16)
                 Ink.wordmark(17).accessibilityLabel("Verbose")

@@ -13,6 +13,7 @@ import AppKit
 extension HomeView {
     var nativeBody: some View {
         GeometryReader { geo in
+            let _ = LookSwitch.mark("home-layout")
             let width = min(1080, max(320, geo.size.width - 64))
             let wide = width >= 700
             let layout = layouts.layout(.native)

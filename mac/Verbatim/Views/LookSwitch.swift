@@ -34,6 +34,17 @@ final class LookSwitch: ObservableObject {
 
     /// The last switch's rebuild alone: from storing the look to the first turn of the main loop after it.
     private(set) var lastRebuildMs: Double = 0
+    /// The last rebuild's marks (`mark`), as "name+ms" in the order they came, for the log and the self-test.
+    private(set) var lastMarks = ""
+    /// Where the rebuild's time goes: each window root and screen calls `mark` as its body runs or it appears, and the
+    /// first call of each name is kept with its time since the look was stored. Main thread only; does nothing outside
+    /// a rebuild.
+    private static var marks: [(name: String, ms: Int)] = []
+    private static var marksStart = Date()
+    static func mark(_ name: String) {
+        guard rebuilding, !marks.contains(where: { $0.name == name }) else { return }
+        marks.append((name, Int((Date().timeIntervalSince(marksStart) * 1000).rounded())))
+    }
     private var generation = 0
     /// How many switches have shown the card (the self-test checks it went up, whenever the main thread got to it).
     private(set) var cardsShown = 0
@@ -57,14 +68,17 @@ final class LookSwitch: ObservableObject {
             guard gen == self.generation else { return }
             Self.rebuilding = true
             let written = Date()
+            Self.marks = []
+            Self.marksStart = written
             AppLook.current = look
             LookOverride.shared.look = look   // every root in this update, whenever the stored value's notice lands
             // The next turn of the main loop comes after SwiftUI's update and its commit: the rebuild is on screen.
             DispatchQueue.main.async {
                 let ms = Date().timeIntervalSince(start) * 1000
                 self.lastRebuildMs = Date().timeIntervalSince(written) * 1000
+                self.lastMarks = Self.marks.map { "\($0.name)+\($0.ms)" }.joined(separator: " ")
                 Perf.signposter.endInterval("Look.switch", signpost)
-                Log.note("look: switched to \(look.rawValue) in \(Int(ms.rounded())) ms (rebuild \(Int(self.lastRebuildMs.rounded())) ms)")
+                Log.note("look: switched to \(look.rawValue) in \(Int(ms.rounded())) ms (rebuild \(Int(self.lastRebuildMs.rounded())) ms; \(self.lastMarks))")
                 let wait = max(0, Self.minimumShown - ms / 1000)
                 DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
                     guard gen == self.generation else { return }

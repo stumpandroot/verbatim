@@ -140,7 +140,8 @@ struct NativeWindow<Detail: View>: View {
     @ViewBuilder var detail: () -> Detail
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columns) {
+        LookSwitch.mark("native-window")
+        return NavigationSplitView(columnVisibility: $columns) {
             NativeSidebar()
         } detail: {
             detail()

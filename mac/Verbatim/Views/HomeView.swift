@@ -63,7 +63,8 @@ struct HomeView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        LookSwitch.mark("home")
+        return HStack(spacing: 0) {
             Group {
                 if look == .native { nativeBody } else { verboseBody }
             }
@@ -77,8 +78,10 @@ struct HomeView: View {
         .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
         .onChange(of: app.focusLink) { _, _ in importOpen = true }
         .onChange(of: recording) { _, on in if on { monitor.stop() } }
-        .onAppear { mics.refresh() }
-        .onDisappear { monitor.stop(); edit.editing = false }
+        .onAppear { LookSwitch.mark("home-appear"); mics.refresh() }
+        // Only when editing: a write publishes even when nothing changes, and at a look switch the old Home leaves in
+        // the same update the new one is built, so it re-rendered the new Home (and Settings' Edit Home list) again.
+        .onDisappear { monitor.stop(); if edit.editing { edit.editing = false } }
         .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }

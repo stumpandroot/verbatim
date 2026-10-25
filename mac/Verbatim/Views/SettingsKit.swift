@@ -342,6 +342,9 @@ final class SettingsModel: ObservableObject {
     /// The row that's briefly tinted after a search result opened it.
     @Changed var flashID: String? = nil
     weak var window: NSWindow?
+    /// Renders of the Settings root and of a pane while the window is closed (SwiftUI keeps its views), for the
+    /// self-test's timing lines. Not published.
+    var closedRenders = (root: 0, pane: 0)
     /// How many times each row id is laid out now (SettingsAnchor), for the self-test's check that every search entry
     /// resolves to a row on its pane. Not published: counting never redraws anything.
     private(set) var anchorCounts: [String: Int] = [:]
@@ -419,7 +422,9 @@ struct SettingsPane<Content: View>: View {
 
     var body: some View {
         let native = look == .native
-        ScrollViewReader { proxy in
+        LookSwitch.mark("settings-pane")
+        if model.window?.isVisible == false { model.closedRenders.pane += 1 }
+        return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: native ? 18 : 22) {
                     SettingsPaneHeader(overline: tab.group, title: tab.title, blurb: tab.blurb)
@@ -430,7 +435,7 @@ struct SettingsPane<Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.automatic)
-            .onAppear { reveal(proxy) }
+            .onAppear { LookSwitch.mark("settings-pane-appear"); reveal(proxy) }
             .onChange(of: model.focusID) { _, _ in reveal(proxy) }
         }
     }

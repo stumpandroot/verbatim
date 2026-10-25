@@ -17,6 +17,7 @@ struct ContentView: View {
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
+        LookSwitch.mark("main")
         // Only the main content rebuilds when the look changes (LookRebuild); the sheets below stay open.
         return main.environmentObject(nativeNav).lookRebuild()
         // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
@@ -107,7 +108,10 @@ struct ContentView: View {
             PremiumBackground()
             screenView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear { app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
+                .onAppear {
+                    LookSwitch.mark("screen-appear")
+                    app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) }
+                }
                 .id(screenKey)
         }
         .overlay(alignment: .bottomTrailing) {
