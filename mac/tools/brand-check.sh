@@ -31,11 +31,16 @@ NATIVE=$(grep -rlE --include=*.swift '// brand: native' $SRC | while IFS= read -
       }
     }' "$f"
 done)
+# The list goes to awk in a file: as one argument it outgrew Linux's 128 KB limit for a single argument, and awk
+# failed with "Argument list too long" (which let every check that filters through it pass).
+NATIVE_FILE=$(mktemp)
+trap 'rm -f "$NATIVE_FILE"' EXIT
+printf '%s\n' "$NATIVE" > "$NATIVE_FILE"
 # Drops lines (file:line, or file:line followed by more) that sit in Native look code.
 skip_native() {
   if [ -z "$NATIVE" ]; then cat; return; fi
-  awk -v list="$NATIVE" 'BEGIN { n = split(list, a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1 }
-    { split($0, p, ":"); k = p[1] ":" p[2]; sub(/[[:space:]].*/, "", k); if (!(k in skip)) print }'
+  awk 'NR == FNR { skip[$0] = 1; next }
+    { split($0, p, ":"); k = p[1] ":" p[2]; sub(/[[:space:]].*/, "", k); if (!(k in skip)) print }' "$NATIVE_FILE" -
 }
 
 ALLOWED='^(xmark|xmark\.circle\.fill|plus|plus\.circle|minus\.circle|chevron\..*|checkmark|checkmark\.circle\.fill|ellipsis|ellipsis\.circle|square\.and\.arrow\.up|trash|magnifyingglass|sidebar\.left|line\.3\.horizontal|arrow\.right|arrow\.up\.arrow\.down|arrow\.uturn\.backward|arrow\.counterclockwise|return|delete\.left|globe|keyboard|shift|shift\.fill|capslock\.fill)$'
