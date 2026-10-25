@@ -18,8 +18,8 @@ struct PhoneDictionarySuggestions: View {
         Section {
             ForEach(list) { s in
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(s.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink)
-                    Text(s.detail).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    Text(s.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                    Text(s.detail).font(.system(size: 13)).foregroundStyle(.lookMute)
                     HStack(spacing: 10) {
                         Button("Add") {
                             app.store.addSuggestion(s)
@@ -72,7 +72,7 @@ struct PhoneContactNamesSheet: View {
             List {
                 switch phase {
                 case .loading:
-                    HStack(spacing: 10) { ProgressView(); Text("Reading names…").foregroundStyle(Ink.mute) }
+                    HStack(spacing: 10) { ProgressView(); Text("Reading names…").foregroundStyle(.lookMute) }
                 case .denied:
                     Section {
                         Text("Verbose doesn't have access to Contacts. Turn it on in Settings › Apps › Verbose › Contacts, then try again.")
@@ -82,7 +82,7 @@ struct PhoneContactNamesSheet: View {
                     }
                 case .ready:
                     if candidates.isEmpty {
-                        Text("Every name in your contacts is already in your Dictionary or spelled well without it.").foregroundStyle(Ink.mute)
+                        Text("Every name in your contacts is already in your Dictionary or spelled well without it.").foregroundStyle(.lookMute)
                     } else {
                         Section {
                             ForEach(visible) { c in
@@ -93,7 +93,7 @@ struct PhoneContactNamesSheet: View {
                                         Image(systemName: picked.contains(c.id) ? "checkmark.circle.fill" : "circle")
                                             .foregroundStyle(picked.contains(c.id) ? Ink.persimmon : Ink.faint)
                                             .font(.system(size: 20))
-                                        Text(c.name).foregroundStyle(Ink.ink)
+                                        Text(c.name).foregroundStyle(.lookInk)
                                     }
                                 }
                                 .accessibilityAddTraits(picked.contains(c.id) ? .isSelected : [])
@@ -115,7 +115,7 @@ struct PhoneContactNamesSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Ink.paper.ignoresSafeArea())
+            .phonePage()
             .searchable(text: $filter, prompt: "Search names")
             .navigationTitle("Names from Contacts")
             .navigationBarTitleDisplayMode(.inline)
@@ -157,7 +157,7 @@ struct PhoneBuiltInVocabularySection: View {
             Toggle(isOn: $on) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Spell modern words right").font(.system(size: 16, weight: .semibold))
-                    Text(on ? "\(active) of \(all.count) terms on" : "Off").font(.system(size: 13)).foregroundStyle(Ink.mute)
+                    Text(on ? "\(active) of \(all.count) terms on" : "Off").font(.system(size: 13)).foregroundStyle(.lookMute)
                 }
             }
             .tint(Ink.switchOn)
@@ -193,15 +193,15 @@ struct PhoneBuiltInTermsScreen: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(t.term).font(.system(size: 16, weight: .semibold))
                         Text(t.isContextual ? "Only next to words like \u{201C}call\u{201D} or \u{201C}app\u{201D}: \(t.forms.joined(separator: ", "))" : t.forms.joined(separator: ", "))
-                            .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(2)
+                            .font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
                     }
                 }
                 .tint(Ink.switchOn)
             }
         }
-        .overlay { if shown.isEmpty { Text("Nothing matches \u{201C}\(query)\u{201D}").foregroundStyle(Ink.mute) } }
+        .overlay { if shown.isEmpty { Text("Nothing matches \u{201C}\(query)\u{201D}").foregroundStyle(.lookMute) } }
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .searchable(text: $query, prompt: "Search \(BuiltInVocabulary.terms.count) terms")
         .navigationTitle("Built-in vocabulary")
     }

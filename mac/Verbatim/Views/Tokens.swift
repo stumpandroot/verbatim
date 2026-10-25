@@ -193,6 +193,16 @@ extension Ink {
     static let tagline = "Go ahead. Be verbose."
 }
 
+// MARK: - Native look
+
+/// The Native look's one brand color (DESIGN.md §13), set as the tint at the root. Light is persimmon deepened until
+/// white on it and it on white both reach 4.5:1 for small text (#D5431F; the mockup's #E04E2A measures 4.0:1). Dark
+/// is #FF6B47 (6.0:1 on #1C1C1E). The record disc keeps the brand persimmon (`persimmonFixed`): it carries no text.
+extension Ink {
+    static let nativeAccentLightHex: UInt32 = 0xD5431F, nativeAccentDarkHex: UInt32 = 0xFF6B47
+    static let nativeAccent = dyn(nativeAccentLightHex, nativeAccentDarkHex)
+}
+
 extension View {
     /// The neutral card surface: a fill (reader white by default) in a continuous rounded rectangle, with an
     /// ink hairline.

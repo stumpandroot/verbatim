@@ -37,14 +37,14 @@ struct PhonePrivacyScreen: View {
     var body: some View {
         List {
             Section {
-                Text(PrivacyStatement.text).font(.system(size: 15)).foregroundStyle(Ink.ink)
+                Text(PrivacyStatement.text).font(.system(size: 15)).foregroundStyle(.lookInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section {
                 Toggle(isOn: $model.localOnly) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Local Only").font(.system(size: 16, weight: .semibold))
-                        Text(PrivacyStatement.localOnlyDetail).font(.system(size: 13)).foregroundStyle(Ink.mute)
+                        Text(PrivacyStatement.localOnlyDetail).font(.system(size: 13)).foregroundStyle(.lookMute)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -55,7 +55,7 @@ struct PhonePrivacyScreen: View {
             Section {
                 if model.events.isEmpty {
                     Text("Nothing yet. Verbose hasn't used the network on this iPhone since the list was cleared.")
-                        .font(.system(size: 14)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 14)).foregroundStyle(.lookMute)
                 } else {
                     ForEach(model.events) { e in PhoneNetworkEventRow(event: e) }
                 }
@@ -70,7 +70,7 @@ struct PhonePrivacyScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Privacy")
         .onAppear { model.reload() }
     }
@@ -81,16 +81,16 @@ struct PhoneNetworkEventRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.purpose.label).font(.system(size: 15, weight: .medium)).foregroundStyle(Ink.ink)
-                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 13)).foregroundStyle(Ink.dim).lineLimit(1).truncationMode(.middle)
+                Text(event.purpose.label).font(.system(size: 15, weight: .medium)).foregroundStyle(.lookInk)
+                Text(event.host.isEmpty ? "Unknown host" : event.host).font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 6)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(NetworkActivityModel.when(event.date)).font(.system(size: 13)).foregroundStyle(Ink.mute).monospacedDigit()
+                Text(NetworkActivityModel.when(event.date)).font(.system(size: 13)).foregroundStyle(.lookMute).monospacedDigit()
                 if event.refused {
-                    Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.accentText)
+                    Text("Refused by Local Only").font(.system(size: 12, weight: .medium)).foregroundStyle(.lookAccentText)
                 } else if let b = ByteText.format(event.bytes) {
-                    Text(b).font(.system(size: 12)).foregroundStyle(Ink.mute).monospacedDigit()
+                    Text(b).font(.system(size: 12)).foregroundStyle(.lookMute).monospacedDigit()
                 }
             }
         }
@@ -105,10 +105,10 @@ struct PhoneProvenanceLine: View {
     var transcript: Transcript
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(transcript.provenanceLine).font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(2)
+            Text(transcript.provenanceLine).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
             HStack(spacing: 5) {
                 IconGlyph(art: .iconPrivacy, size: 12, color: Ink.dim)
-                Text(transcript.dataPathBadge).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                Text(transcript.dataPathBadge).font(.system(size: 12.5)).foregroundStyle(.lookDim)
             }
             .padding(.horizontal, 8).padding(.vertical, 3)
             .background(Ink.ink.opacity(0.06), in: Capsule())
@@ -131,7 +131,7 @@ struct PhoneAllowDownloadButton: View {
                 LocalOnly.allowModelDownloads()
                 app.retry(transcript)
             }
-            .buttonStyle(.brandSecondary)
+            .buttonStyle(.phoneSecondary)
         }
     }
 }
@@ -189,10 +189,10 @@ struct PhoneFixAllBanner: View {
         if let o = fix.offer, o.transcript == transcriptID {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
-                    Text(CorrectEverywhere.bannerText(heard: o.heard, count: o.count)).font(.system(size: 15)).foregroundStyle(Ink.ink)
+                    Text(CorrectEverywhere.bannerText(heard: o.heard, count: o.count)).font(.system(size: 15)).foregroundStyle(.lookInk)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 6)
-                    Button { fix.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Ink.mute) }
+                    Button { fix.dismiss() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.lookMute) }
                         .accessibilityLabel("Dismiss")
                 }
                 HStack(spacing: 10) {
@@ -201,7 +201,7 @@ struct PhoneFixAllBanner: View {
                         fix.dismiss()
                         app.say(n == 1 ? "Fixed 1 more place. Undo it in Review." : "Fixed \(n) more places. Undo any in Review.")
                     }
-                    .buttonStyle(.brandSecondary)
+                    .buttonStyle(.phoneSecondary)
                     if o.offerDictionary {
                         Button("Add to Dictionary") {
                             let title = app.store.transcript(o.transcript)?.title ?? "Added on iPhone"
@@ -210,13 +210,13 @@ struct PhoneFixAllBanner: View {
                             var next = o; next.offerDictionary = false
                             fix.offer = next
                         }
-                        .font(.system(size: 15, weight: .medium)).foregroundStyle(Ink.dim)
+                        .font(.system(size: 15, weight: .medium)).foregroundStyle(.lookDim)
                     }
                 }
             }
             .padding(14)
             .background(Ink.wash, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Ink.hairline))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.lookHairline))
         }
     }
 }

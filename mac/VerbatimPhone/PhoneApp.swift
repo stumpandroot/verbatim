@@ -16,8 +16,9 @@ struct VerbatimPhoneApp: App {
             PhoneRoot()
                 .environmentObject(app)
                 .preferredColorScheme(app.colorScheme)
-                .tint(Ink.ink)
+                .phoneLookRoot()     // the tint (ink, or the Native accent) and the crossfade when the look changes
                 .limitMotionRoot()   // Reduce Motion or Settings › Limit animation → \.limitMotion everywhere
+                .lookRoot()          // Settings › Appearance › Look → \.look everywhere (and in the keyboard)
         }
     }
 }
@@ -32,6 +33,12 @@ struct PhoneRoot: View {
     @ObservedObject private var rename = RenameCenter.shared
     /// The full-screen recorder zooms out of the bar and back into it.
     @Namespace private var recorderZoom
+    @Environment(\.look) private var look
+
+    /// A tab's icon: the brand line icon in Verbose style, its SF Symbol in Native.
+    private func tabIcon(_ art: BrandArt, _ key: String, _ symbol: String) -> Image {
+        look.isNative ? Image(systemName: symbol) : Image(uiImage: art.templateImage(size: 26, key: key))   // brand: native
+    }
 
     var body: some View {
         TabView(selection: $app.tab) {
@@ -41,23 +48,23 @@ struct PhoneRoot: View {
                     .navigationDestination(for: DocumentRoute.self) { TranscriptScreen(id: $0.id, startMode: .document) }
             }
             .miniRecorderInset(.home, zoom: recorderZoom)
-            .tabItem { Label { Text("Home") } icon: { Image(uiImage: BrandArt.iconHome.templateImage(size: 26, key: "iconHome")) } }.tag(PhoneState.Tab.home)
+            .tabItem { Label { Text("Home") } icon: { tabIcon(.iconHome, "iconHome", "house") } }.tag(PhoneState.Tab.home)
 
             NavigationStack(path: $app.libraryPath) {
                 LibraryScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
             .miniRecorderInset(.library, zoom: recorderZoom)
-            .tabItem { Label { Text("Library") } icon: { Image(uiImage: BrandArt.iconLibrary.templateImage(size: 26, key: "iconLibrary")) } }.tag(PhoneState.Tab.library)
+            .tabItem { Label { Text("Library") } icon: { tabIcon(.iconLibrary, "iconLibrary", "books.vertical") } }.tag(PhoneState.Tab.library)
 
             NavigationStack(path: $app.momentsPath) {
                 MomentsScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
             }
             .miniRecorderInset(.moments, zoom: recorderZoom)
-            .tabItem { Label { Text("Moments") } icon: { Image(uiImage: BrandArt.iconMoments.templateImage(size: 26, key: "iconMoments")) } }.tag(PhoneState.Tab.moments)
+            .tabItem { Label { Text("Moments") } icon: { tabIcon(.iconMoments, "iconMoments", "bookmark") } }.tag(PhoneState.Tab.moments)
 
             NavigationStack { SettingsScreen() }
                 .miniRecorderInset(.settings, zoom: recorderZoom)
-                .tabItem { Label { Text("Settings") } icon: { Image(uiImage: BrandArt.iconSettings.templateImage(size: 26, key: "iconSettings")) } }.tag(PhoneState.Tab.settings)
+                .tabItem { Label { Text("Settings") } icon: { tabIcon(.iconSettings, "iconSettings", "gearshape") } }.tag(PhoneState.Tab.settings)
         }
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen(zoom: recorderZoom) }
         .fullScreenCover(isPresented: $app.showCaptions) {
@@ -113,7 +120,10 @@ struct PhoneRoot: View {
             Button("Cancel", role: .cancel) { rename.target = nil }
             Button("Rename") { rename.commit(app.store); app.say("Renamed") }
         }
-        .fullScreenCover(isPresented: $app.showOnboarding) { PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app) }
+        // The tour's Pick a look step switches the look live, so the cover reads it itself too.
+        .fullScreenCover(isPresented: $app.showOnboarding) {
+            PhoneOnboarding(startStep: PhoneUITest.onboardingStep).environmentObject(app).phoneLookRoot().lookRoot()
+        }
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }

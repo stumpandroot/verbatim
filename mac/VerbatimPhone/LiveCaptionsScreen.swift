@@ -175,10 +175,10 @@ struct LiveCaptionsScreen: View {
 
             if captions.paused {
                 HStack(spacing: 10) {
-                    Text(captions.pauseReason ?? "Paused.").font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineLimit(2)
+                    Text(captions.pauseReason ?? "Paused.").font(.system(size: 13.5)).foregroundStyle(.lookDim).lineLimit(2)
                     Spacer(minLength: 8)
                     Button("Resume") { captions.togglePause() }
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookInk)
                         .padding(.horizontal, 14).frame(height: 34)
                         .background(Ink.ink.opacity(0.08), in: Capsule())
                 }
@@ -188,7 +188,7 @@ struct LiveCaptionsScreen: View {
             chips.padding(.bottom, 12)
             HStack(spacing: 10) {
                 Button { stopTapped() } label: {
-                    Text("Stop").font(.system(size: 16, weight: .medium)).foregroundStyle(Ink.ink)
+                    Text("Stop").font(.system(size: 16, weight: .medium)).foregroundStyle(.lookInk)
                         .frame(maxWidth: .infinity).frame(height: 52)
                         .background(Ink.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
@@ -207,7 +207,7 @@ struct LiveCaptionsScreen: View {
             }
         }
         .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 14)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .animation(Motion.fade, value: captions.paused)
         .confirmationDialog("Stop live captions?", isPresented: $confirmStop, titleVisibility: .visible) {
             Button("Save transcript") { app.stopCaptions(save: true) }
@@ -221,10 +221,10 @@ struct LiveCaptionsScreen: View {
     private var header: some View {
         HStack(spacing: 8) {
             IconGlyph(art: .iconCaptions, size: 16, color: Ink.mute)
-            Text("Live captions · in the room").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).lineLimit(1)
+            Text("Live captions · in the room").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).lineLimit(1)
             Spacer(minLength: 8)
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(captionClock(captions.elapsed)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(Ink.mute)
+                Text(captionClock(captions.elapsed)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.lookMute)
             }
             .accessibilityLabel("Elapsed time")
         }
@@ -233,7 +233,7 @@ struct LiveCaptionsScreen: View {
     private var lines: some View {
         ZStack(alignment: .bottomLeading) {
             if feed.history.isEmpty && feed.current.isEmpty {
-                Text(captions.status ?? "Listening…").font(Ink.serif(24)).foregroundStyle(Ink.mute)
+                Text(captions.status ?? "Listening…").lookSerif(24).foregroundStyle(.lookMute)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 CaptionLinesView(feed: feed, size: size.phone,
@@ -249,7 +249,7 @@ struct LiveCaptionsScreen: View {
         .clipped()
         .overlay(alignment: .top) {
             if let s = captions.status, !(feed.history.isEmpty && feed.current.isEmpty) {
-                Text(s).font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.top, 24)
+                Text(s).font(.system(size: 12.5)).foregroundStyle(.lookMute).padding(.top, 24)
             }
         }
     }

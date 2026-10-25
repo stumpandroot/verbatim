@@ -7,9 +7,9 @@ import UIKit
 struct TactileButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(Ink.ink)
+            .foregroundStyle(.lookInk)
             .background(configuration.isPressed ? Ink.wash : Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+            .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
             .shadow(color: Ink.inkFixed.opacity(configuration.isPressed ? 0 : 0.05), radius: 3, y: 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: configuration.isPressed ? 0.06 : 0.14), value: configuration.isPressed)
@@ -22,7 +22,7 @@ struct ElapsedLabel: View {
     @ObservedObject var live: LiveMeter
     var size: CGFloat = 40
     var body: some View {
-        Text(live.elapsed.timecode).font(Ink.mono(size, weight: .medium)).foregroundStyle(Ink.ink)
+        Text(live.elapsed.timecode).lookMono(size, weight: .medium).foregroundStyle(.lookInk)
             .contentTransition(.numericText()).accessibilityLabel("Elapsed \(live.elapsed.timecode)")
     }
 }

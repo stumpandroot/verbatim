@@ -31,7 +31,7 @@ struct PhoneAddFromLibrarySheet: View {
                 Section {
                     if shown.isEmpty {
                         Text(query.isEmpty ? "Everything in your library is already in \(projectName)." : "Nothing matches “\(query)”.")
-                            .font(.system(size: 15)).foregroundStyle(Ink.dim)
+                            .font(.system(size: 15)).foregroundStyle(.lookDim)
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     }
                     ForEach(shown) { t in
@@ -43,7 +43,7 @@ struct PhoneAddFromLibrarySheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Ink.paper.ignoresSafeArea())
+            .phonePage()
             .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search titles, tags, and text")
             .navigationTitle("Add to \(projectName)")
@@ -77,18 +77,18 @@ struct PhoneAddFromLibrarySheet: View {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22)).foregroundStyle(on ? Ink.ink : Ink.mute)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
+                    Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
                     HStack(spacing: 5) {
                         Text(LibraryFilter.describe(t))
                         if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(.system(size: 12.5)).monospacedDigit() }
                     }
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute).lineLimit(1)
+                    .font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
                     if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name {
-                        Text("Moves from \(name)").font(.system(size: 12.5, weight: .medium)).foregroundStyle(Ink.dim)
+                        Text("Moves from \(name)").font(.system(size: 12.5, weight: .medium)).foregroundStyle(.lookDim)
                     }
                 }
                 Spacer(minLength: 6)
-                Text(Formats.style(date: .short, time: .none).string(from: t.createdAt)).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute)
+                Text(Formats.style(date: .short, time: .none).string(from: t.createdAt)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.lookMute)
             }
             .padding(12)
             .cardSurface(radius: Radius.row, fill: on ? Ink.ink.opacity(0.06) : Ink.card)

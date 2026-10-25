@@ -29,16 +29,16 @@ struct EpisodePicker: View {
                     Text(show.episodes.count == 1 ? "The latest episode." : "The latest \(show.episodes.count) episodes. Tap one to transcribe it.")
                 }
             } else if let failure {
-                Text(failure).font(.system(size: 15)).foregroundStyle(Ink.dim)
+                Text(failure).font(.system(size: 15)).foregroundStyle(.lookDim)
             } else {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Finding episodes…").font(.system(size: 15)).foregroundStyle(Ink.dim)
+                    Text("Finding episodes…").font(.system(size: 15)).foregroundStyle(.lookDim)
                 }
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("Choose an episode")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -56,9 +56,9 @@ struct EpisodePicker: View {
     private func row(_ ep: PodcastEpisode) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(ep.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(2)
+                Text(ep.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(2)
                 let meta = [ep.date.map { Self.dateFormat.string(from: $0) }, ep.duration.map(Self.length)].compactMap { $0 }
-                if !meta.isEmpty { Text(meta.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(Ink.mute) }
+                if !meta.isEmpty { Text(meta.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(.lookMute) }
             }
             Spacer(minLength: 0)
             Image(systemName: "plus.circle").font(.system(size: 18)).foregroundStyle(Ink.sageText).accessibilityHidden(true)

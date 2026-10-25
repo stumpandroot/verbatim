@@ -63,7 +63,7 @@ struct YouScreen: View {
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.immediately)
-        .background(Ink.paper.ignoresSafeArea())
+        .phonePage()
         .navigationTitle("You")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
@@ -91,7 +91,7 @@ struct YouScreen: View {
                     Circle().fill(PhoneInk.record)
                     Circle().strokeBorder(Ink.inkFixed, lineWidth: 1.5)
                     if let first = name.first {
-                        Text(String(first).uppercased()).font(Ink.serif(circle * 0.47)).foregroundStyle(Ink.inkFixed)
+                        Text(String(first).uppercased()).lookSerif(circle * 0.47).foregroundStyle(Ink.inkFixed)
                     } else {
                         IconGlyph(art: .iconAboutMe, size: circle * 0.42, color: Ink.inkFixed)
                     }
@@ -102,7 +102,7 @@ struct YouScreen: View {
                     PhoneEyebrow(text: "You")
                     if editingName {
                         TextField("Your name", text: $nameDraft)
-                            .font(Ink.serif(nameSize)).foregroundStyle(Ink.ink)
+                            .lookSerif(nameSize).foregroundStyle(.lookInk)
                             .tint(Ink.accentText)
                             .textContentType(.name)
                             .submitLabel(.done)
@@ -114,15 +114,15 @@ struct YouScreen: View {
                         Button { beginName(name) } label: {
                             Group {
                                 if name.isEmpty {
-                                    Text("Add your name").italic().foregroundStyle(Ink.mute)
+                                    Text("Add your name").italic().foregroundStyle(.lookMute)
                                 } else if let last = parts.1 {
                                     Text(parts.0 + " ") + Text(last).italic()
                                 } else {
                                     Text(parts.0)
                                 }
                             }
-                            .font(Ink.serif(nameSize)).tracking(-0.6)
-                            .foregroundStyle(Ink.ink)
+                            .lookSerif(nameSize).tracking(-0.6)
+                            .foregroundStyle(.lookInk)
                             .lineLimit(3).minimumScaleFactor(0.7)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -136,7 +136,7 @@ struct YouScreen: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text(privacyLine).font(Ink.mono(monoSize)).foregroundStyle(Ink.mute)
+            Text(privacyLine).lookMono(monoSize).foregroundStyle(.lookMute)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -179,10 +179,10 @@ struct YouScreen: View {
         Button { commitName(); editingAbout = true } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("About me").font(Ink.serif(cardTitle)).foregroundStyle(Ink.ink)
+                    Text("About me").lookSerif(cardTitle).foregroundStyle(.lookInk)
                     Spacer(minLength: 8)
                     Text(aboutMe.isEmpty ? "Add" : "Edit")
-                        .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(Ink.accentText)
+                        .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(.lookAccentText)
                 }
                 Text(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
                     .font(.system(size: body15)).lineSpacing(3)
@@ -190,7 +190,7 @@ struct YouScreen: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Verbose uses this to spell names and word titles and summaries.")
-                    .font(.system(size: small)).foregroundStyle(Ink.mute)
+                    .font(.system(size: small)).foregroundStyle(.lookMute)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -217,7 +217,7 @@ struct YouScreen: View {
         return Button { commitName(); showVoice = true } label: {
             VStack(alignment: .leading, spacing: 10) {
                 PhoneEyebrow(text: "Your voice", color: Ink.inkFixed)
-                Text(voice.line).font(Ink.serif(voiceSize)).foregroundStyle(Ink.inkFixed)
+                Text(voice.line).lookSerif(voiceSize).foregroundStyle(.lookOnPanel)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -227,7 +227,7 @@ struct YouScreen: View {
                         Image(systemName: "arrow.right").font(.system(size: small, weight: .semibold))
                             .accessibilityHidden(true)
                     }
-                    .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                    .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(.lookOnPanel)
                     .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     // The rings' corner (the drawing shows about 90 × 92 pt of it, less the padding).
@@ -262,9 +262,9 @@ struct YouScreen: View {
         let pace = Self.pace(words: week.words, seconds: week.seconds)
         return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("Your week").font(Ink.serif(cardTitle)).foregroundStyle(Ink.ink)
+                Text("Your week").lookSerif(cardTitle).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
-                Text(Self.rangeLabel(week)).font(Ink.mono(monoSize)).foregroundStyle(Ink.mute)
+                Text(Self.rangeLabel(week)).lookMono(monoSize).foregroundStyle(.lookMute)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
             }
@@ -277,14 +277,14 @@ struct YouScreen: View {
                 VStack(alignment: .leading, spacing: 2) {
                     statValue(saved)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("saved vs. typing at").font(.system(size: label)).foregroundStyle(Ink.dim)
+                        Text("saved vs. typing at").font(.system(size: label)).foregroundStyle(.lookDim)
                         Menu {
                             Picker("Your typing speed", selection: $flow.typingWPM) {
                                 ForEach(Self.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }
                             }
                         } label: {
                             Text("\(flow.typingWPM) wpm").font(.system(size: label, weight: .semibold)).underline()
-                                .foregroundStyle(Ink.ink)
+                                .foregroundStyle(.lookInk)
                                 .frame(minHeight: 28, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
@@ -303,7 +303,7 @@ struct YouScreen: View {
                 .frame(height: 132)
             if week.words == 0 {
                 Text("Dictate with the Verbose keyboard or the Action button. Your totals show up here.")
-                    .font(.system(size: small)).foregroundStyle(Ink.mute)
+                    .font(.system(size: small)).foregroundStyle(.lookMute)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -315,14 +315,14 @@ struct YouScreen: View {
     private func stat(_ value: String, _ caption: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             statValue(value)
-            Text(caption).font(.system(size: label)).foregroundStyle(Ink.dim)
+            Text(caption).font(.system(size: label)).foregroundStyle(.lookDim)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func statValue(_ value: String) -> some View {
-        Text(value).font(Ink.serif(statSize)).foregroundStyle(Ink.ink)
+        Text(value).lookSerif(statSize).foregroundStyle(.lookInk)
             .lineLimit(1).minimumScaleFactor(0.55)
     }
 
@@ -353,7 +353,7 @@ struct YouScreen: View {
     private var cleanupCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Cleanup").font(Ink.serif(cardTitle)).foregroundStyle(Ink.ink)
+                Text("Cleanup").lookSerif(cardTitle).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
                 ViewThatFits(in: .horizontal) {
                     PhoneSegmented(options: CleanupLevel.allCases.map { ($0, $0.title) }, selection: $flow.cleanup)
@@ -365,22 +365,22 @@ struct YouScreen: View {
                     .pickerStyle(.menu).tint(Ink.ink)
                 }
                 Text(SettingsScreen.cleanupNote(flow.cleanup))
-                    .font(.system(size: small)).foregroundStyle(Ink.mute)
+                    .font(.system(size: small)).foregroundStyle(.lookMute)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(16)
-            Rectangle().fill(Ink.hairline).frame(height: 1)
+            Rectangle().fill(.lookHairline).frame(height: 1)
             Button { commitName(); openSettingsRow("cloudCleanup") } label: {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Cloud cleanup").font(.system(size: body15 + 1)).foregroundStyle(Ink.ink)
+                        Text("Cloud cleanup").font(.system(size: body15 + 1)).foregroundStyle(.lookInk)
                         Text(cloudCleanup ? "On, with your own key" : "Off. Cleanup runs on this iPhone.")
-                            .font(.system(size: small)).foregroundStyle(Ink.mute)
+                            .font(.system(size: small)).foregroundStyle(.lookMute)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .multilineTextAlignment(.leading)
                     Spacer(minLength: 8)
-                    Text("Settings").font(.system(size: body15)).foregroundStyle(Ink.mute)
+                    Text("Settings").font(.system(size: body15)).foregroundStyle(.lookMute)
                     SettingsChevron()
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
@@ -394,9 +394,9 @@ struct YouScreen: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens it in Settings.")
         }
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(Ink.hairline))
+        .overlay(RoundedRectangle(cornerRadius: Radius.record, style: .continuous).strokeBorder(.lookHairline))
     }
 
     // MARK: Footer
@@ -408,7 +408,7 @@ struct YouScreen: View {
         return Group {
             if !files.isEmpty {
                 Text("You've also transcribed \(Self.total(seconds)) across \(files.count) \(files.count == 1 ? "recording or link" : "recordings and links").")
-                    .font(.system(size: small)).foregroundStyle(Ink.mute)
+                    .font(.system(size: small)).foregroundStyle(.lookMute)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }
@@ -448,7 +448,7 @@ struct YouWeekBars: View {
                         .frame(width: g.size.width, height: full)
                     }
                     Text(letters[(Calendar.current.component(.weekday, from: day.start) - 1) % letters.count])
-                        .font(Ink.mono(monoSize, weight: day.isToday ? .semibold : .regular))
+                        .lookMono(monoSize, weight: day.isToday ? .semibold : .regular)
                         .foregroundStyle(day.isToday ? Ink.ink : Ink.mute)
                         .lineLimit(1).minimumScaleFactor(0.6)
                 }
