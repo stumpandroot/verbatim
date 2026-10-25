@@ -103,6 +103,8 @@ Rules:
 
 Google developer documentation style: second person, active voice, sentence case, serial commas, and no "simply", "just", "easily", "currently", or "soon". Name buttons with verbs ("Record", "Copy", "Transcribe again in…").
 
+Every user-visible change adds a bullet to the `"next"` entry of `mac/ReleaseNotes/ReleaseNotes.json` in the same commit, in this style, present tense, with no exclamation points or em dashes. CI stamps that entry with the build's run number; after the build ships, a follow-up commit sets its build number (`mac/ReleaseNotes/README.md`). Both apps show the notes in What's new.
+
 ## 9. Website
 
 The marketing site and the link transcriber (`link-transcriber/static`) use the same tokens as CSS variables, the same type roles (serif: Newsreader from Google Fonts, SIL OFL, until Instrument Serif is licensed; sans: the system stack; mono: IBM Plex Mono), the colophon rings, and the same icon set. No gradients, no purple, no centered hero with one button over three icon cards.
