@@ -547,11 +547,12 @@ struct SettingsToggleRow: View {
         self.id = id; self._isOn = isOn; self.detail = detail; self.disabled = disabled
     }
     @Environment(\.look) private var look
+    @Environment(\.controlSize) private var controlSize
     var body: some View {
         SettingsRow(id, detail: detail) {
             Toggle(SettingsIndex.entry(id)?.label ?? id, isOn: $isOn)
                 .toggleStyle(.switch).labelsHidden().lookTint(look).disabled(disabled)
-                .controlSize(look == .native ? .small : .regular)
+                .controlSize(look == .native ? .small : controlSize)   // System Settings' small switches in Native
         }
     }
 }
