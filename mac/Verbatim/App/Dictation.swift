@@ -317,7 +317,7 @@ final class DictationController: ObservableObject {
         isListening = false; handsFree = false; command = false; toPad = false; tailing = false
     }
 
-    /// "Couldn't hear the Shure MV7 mic. Check Settings › General › Microphone.", with a button that opens it.
+    /// "Couldn't hear the Shure MV7 mic. Check Settings › Recording and transcription › Record from.", with a button that opens it.
     /// After a muted-mic warning, it says to unmute instead.
     private func showMicProblem(_ verb: String, warned: MicWarning? = nil) {
         switch warned {
@@ -326,15 +326,15 @@ final class DictationController: ObservableObject {
             return
         case .silent(let name):
             bar?.flash("Couldn't hear \(MicWarning.phrase(name)). If it has a mute button or switch, unmute it and dictate again.", action: "Settings", seconds: 8, tone: .error) { [weak self] in
-                self?.openSettings(tab: .general)
+                self?.openSettings(tab: .recording)
             }
             return
         case .usingBuiltIn, nil: break
         }
         let name = AudioDevices.current()?.name ?? "the microphone"
         let mic = name.range(of: "mic", options: .caseInsensitive) != nil ? name : "the \(name) mic"
-        bar?.flash("\(verb) \(mic). Check Settings › General › Microphone.", action: "Open", seconds: 6, tone: .error) { [weak self] in
-            self?.openSettings(tab: .general)
+        bar?.flash("\(verb) \(mic). Check Settings › Recording and transcription › Record from.", action: "Open", seconds: 6, tone: .error) { [weak self] in
+            self?.openSettings(tab: .recording)
         }
     }
 

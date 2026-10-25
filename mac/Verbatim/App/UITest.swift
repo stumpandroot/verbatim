@@ -134,9 +134,34 @@ enum UITest {
 
     private static var settingsTab: String { UserDefaults.standard.string(forKey: "settingsTab") ?? "" }
 
-    /// Clicks in the Settings window: a sidebar pane, then a search result opening its pane.
+    /// Opens each pane and checks that every SettingsIndex entry on it is laid out (SettingsAnchor counts it), so a
+    /// search result always lands on a row. Rows that show only with another setting on are left out.
+    private static func settingsEntriesResolve() async {
+        let conditional: Set<String> = [
+            "models.engine",                                                        // Quality is Advanced
+            "dictate.cloudProvider", "dictate.cloudKey", "dictate.cloudModel",      // Cloud cleanup is on
+            "dictate.noNotch", "dictate.notchWords", "dictate.notchClick",          // Show dictation in: Notch
+            "ribbon.show", "ribbon.liveWords", "ribbon.style", "ribbon.mark",       // Show dictation in: Ribbon
+            "watched.enabled", "watched.subfolders", "watched.location", "watched.formats", "watched.exportOptions",
+            "watched.saveTo", "watched.fileName", "watched.notify",                 // a watched folder is chosen
+        ]
+        var missing: [String] = []
+        for t in SettingsTab.allCases {
+            UserDefaults.standard.set(t.rawValue, forKey: "settingsTab")
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            for e in SettingsIndex.all where e.section == t && !conditional.contains(e.id) && !SettingsModel.shared.isLaidOut(e.id) {
+                missing.append(e.id)
+            }
+        }
+        let ok = missing.isEmpty
+        if ok { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") settings: every search entry resolves to a visible row (\(SettingsIndex.all.count) entries, \(SettingsTab.allCases.count) panes)\(ok ? "" : "; missing " + missing.joined(separator: ", "))")
+    }
+
+    /// Clicks in the Settings window: a sidebar pane, then a search result opening its pane; then every search entry
+    /// resolves to a row laid out on its pane.
     private static func settingsSteps(main: NSWindow) async {
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         SettingsModel.shared.query = ""
         openSettingsWindow()
         try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -144,7 +169,8 @@ enum UITest {
         w.makeKeyAndOrderFront(nil)
         try? await Task.sleep(nanoseconds: 400_000_000)
         await step("settings sidebar opens Watched folders", w, target: "settings-watched", check: { settingsTab == SettingsTab.watched.rawValue })
-        await step("settings sidebar opens Export", w, target: "settings-export", check: { settingsTab == SettingsTab.export.rawValue })
+        await step("settings sidebar opens Account and plan", w, target: "settings-account", check: { settingsTab == SettingsTab.account.rawValue })
+        await step("settings sidebar's version opens What's new", w, target: "settings-version", check: { settingsTab == SettingsTab.whatsNew.rawValue })
         SettingsModel.shared.query = "timecode"
         try? await Task.sleep(nanoseconds: 700_000_000)
         let first = SettingsIndex.search("timecode").first
@@ -152,7 +178,8 @@ enum UITest {
             first != nil && settingsTab == first?.section.rawValue && !SettingsModel.shared.isSearching
         })
         SettingsModel.shared.query = ""
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        await settingsEntriesResolve()
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         w.close()
         main.makeKeyAndOrderFront(nil)
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -562,7 +589,7 @@ enum UITest {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
         await show("09-settings")
-        UserDefaults.standard.set(SettingsTab.models.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.recording.rawValue, forKey: "settingsTab")
         await show("09c-settings-transcription")
         // Voice profile enrollment, step 2, with made-up progress (no microphone on the runner).
         if let settings = NSApp.keyWindow ?? NSApp.windows.first(where: { $0 != window && $0.isVisible && !($0 is NSPanel) }) {
@@ -583,11 +610,19 @@ enum UITest {
         SettingsModel.shared.query = "timecode"
         await show("09f-settings-search")
         SettingsModel.shared.query = ""
-        UserDefaults.standard.set(SettingsTab.export.rawValue, forKey: "settingsTab")
+        // Export sits under the watched folders on their pane.
+        UserDefaults.standard.set(SettingsTab.watched.rawValue, forKey: "settingsTab")
+        SettingsModel.shared.focusID = "export.source"
         await show("09g-settings-export")
+        UserDefaults.standard.set(SettingsTab.meetings.rawValue, forKey: "settingsTab")
+        await show("09j-settings-meetings-captions")
+        UserDefaults.standard.set(SettingsTab.support.rawValue, forKey: "settingsTab")
+        await show("09k-settings-support")
+        UserDefaults.standard.set(SettingsTab.features.rawValue, forKey: "settingsTab")
+        await show("09l-settings-features")
         UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
         await show("09i-settings-whats-new")
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         await show("10-home-again")
@@ -638,7 +673,7 @@ enum UITest {
         await show("22-dark-settings-actions")
         UserDefaults.standard.set(SettingsTab.watched.rawValue, forKey: "settingsTab")
         await show("23-dark-settings-watched")
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         NSApplication.shared.appearance = nil
@@ -667,14 +702,16 @@ enum UITest {
         NativeNav.shared.libraryTable = false
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
         await show("09-settings-general-native")
+        UserDefaults.standard.set(SettingsTab.recording.rawValue, forKey: "settingsTab")
+        await show("09c-settings-transcription-native")
         UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
         await show("09d-settings-dictate-native")
         UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
         await show("09i-settings-whats-new-native")
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         window.makeKeyAndOrderFront(nil)
         app.go(.home)
@@ -790,7 +827,7 @@ enum UITest {
         }
         WhatsNewHomeLine.previewBuild = nil
         if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
-        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         window.makeKeyAndOrderFront(nil)
         try? await Task.sleep(nanoseconds: 600_000_000)

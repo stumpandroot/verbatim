@@ -1021,7 +1021,7 @@ final class Recorder: ObservableObject {
             guard let self, self.attempt == mine, self.isStarting else { return }
             Log.note("recorder: start gave up after \(Int(Self.startLimit)) s (\(CaptureStep.current ?? "no step"))")
             let done = self.endStart()
-            done?(RecorderError("Couldn't start \(Self.micPhrase(probe.name)). It didn't respond within \(Int(Self.startLimit)) seconds. Check that it's connected, or choose another mic in Settings › General › Microphone."))
+            done?(RecorderError("Couldn't start \(Self.micPhrase(probe.name)). It didn't respond within \(Int(Self.startLimit)) seconds. Check that it's connected, or choose another mic in Settings › Recording and transcription › Record from."))
         }
     }
 

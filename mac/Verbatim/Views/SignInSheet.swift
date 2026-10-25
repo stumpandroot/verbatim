@@ -82,7 +82,7 @@ struct SignInSheet: View {
             parts.append("Chrome, Brave, and Edge ask for your Keychain password the first time; choose Always Allow so they don't ask again.")
         }
         if request.reason == .needsSignIn, browsers.contains(.safari) { parts.append("Safari needs Full Disk Access.") }
-        parts.append("Change this in Settings › Storage and iCloud.")
+        parts.append("Change this in Settings › Sync and storage.")
         return parts.joined(separator: " ")
     }
 

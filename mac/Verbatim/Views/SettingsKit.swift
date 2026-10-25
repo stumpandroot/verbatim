@@ -13,70 +13,101 @@ import AppKit
 
 // MARK: - Panes
 
-/// A Settings pane. Raw values persist in "settingsTab"; `general`, `dictate`, `actions`, and `storage` keep the
-/// values the old tabbed window used, so links from the Ribbon and the welcome tour still land. `floatingButton`
-/// held the Ribbon's settings before the floating button became its own style; it keeps its raw value. `whatsNew` is
-/// the release notes (WhatsNewPane.swift), also opened by Verbose › What's New… and Home's note after an update.
-enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, dictate, floatingButton, actions, privacy
-    case models = "transcription", speakers, captions, meetings
-    case watched, export, storage, about, whatsNew
+/// A Settings pane, in sidebar order: the iPhone's seven groups plus the Mac-only panes (MacSettingsMap, from the
+/// premium mockup's section 02). Raw values persist in "settingsTab" and in links from the Ribbon, the welcome tour, and
+/// Home: a pane that took over an old one keeps its raw value (`general`, `transcription`, `dictate`, `floatingButton`,
+/// `actions`, `meetings`, `watched`, `storage`, `privacy`, `about`, `whatsNew`), and the old Speakers, Live captions,
+/// and Export panes' values open the panes they moved into. `whatsNew` is the release notes (WhatsNewPane.swift),
+/// opened by the version at the foot of the sidebar, Verbose › What's New…, and Home's note after an update.
+enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
+    case personalization, recording, dictate, floatingButton, actions, meetings, watched
+    case storage, privacy, account, support, features, whatsNew
+
+    var rawValue: String {
+        switch self {
+        case .personalization: return "general"
+        case .recording: return "transcription"
+        case .dictate: return "dictate"
+        case .floatingButton: return "floatingButton"
+        case .actions: return "actions"
+        case .meetings: return "meetings"
+        case .watched: return "watched"
+        case .storage: return "storage"
+        case .privacy: return "privacy"
+        case .account: return "account"
+        case .support: return "about"
+        case .features: return "features"
+        case .whatsNew: return "whatsNew"
+        }
+    }
+
+    init?(rawValue: String) {
+        switch rawValue {
+        case "general": self = .personalization
+        case "transcription", "speakers": self = .recording
+        case "dictate": self = .dictate
+        case "floatingButton": self = .floatingButton
+        case "actions": self = .actions
+        case "meetings", "captions": self = .meetings
+        case "watched", "export": self = .watched
+        case "storage": self = .storage
+        case "privacy": self = .privacy
+        case "account": self = .account
+        case "about": self = .support
+        case "features": self = .features
+        case "whatsNew": self = .whatsNew
+        default: return nil
+        }
+    }
 
     var id: String { rawValue }
 
-    var title: String {
-        switch self {
-        case .general: return "General"
-        case .dictate: return "Dictation"
-        case .floatingButton: return "Floating button"
-        case .actions: return "Actions"
-        case .privacy: return "Privacy"
-        case .models: return "Models and language"
-        case .speakers: return "Speakers and your voice"
-        case .captions: return "Live captions"
-        case .meetings: return "Meetings"
-        case .watched: return "Watched folders"
-        case .export: return "Export"
-        case .storage: return "Storage and iCloud"
-        case .about: return "About"
-        case .whatsNew: return "What's new"
-        }
-    }
+    /// The sidebar title, also the pane's title (MacSettingsMap).
+    var title: String { MacSettingsMap.title(rawValue) ?? rawValue }
 
-    /// The sidebar group, also the pane's overline.
-    var group: String {
-        switch self {
-        case .general, .dictate, .floatingButton, .actions, .privacy: return "App"
-        case .models, .speakers, .captions, .meetings: return "Transcription"
-        case .watched, .export, .storage, .about, .whatsNew: return "Files"
-        }
-    }
+    /// The pane's overline in Verbose style.
+    var group: String { self == .whatsNew ? "Support and feedback" : "Settings" }
 
     /// One line under the pane's title.
     var blurb: String {
         switch self {
-        case .general: return "How Verbose looks, sounds, and stays up to date."
+        case .personalization: return "How Verbose looks and sounds, what it knows about you, your voice, and the words it should spell your way."
+        case .recording: return "Which model transcribes your recordings, who's talking, and what Verbose does to a transcript when it's ready."
         case .dictate: return "Hold or press your hotkey in any app and Verbose types what you say."
-        case .floatingButton: return "Shown when Dictation › Show dictation in is set to Floating button. Click it to start, click again to paste; right-click it for options."
+        case .floatingButton: return "What you see while Verbose listens, cleans up, and pastes: the Ribbon, the notch, or the floating button."
         case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac."
-        case .privacy: return "What leaves this Mac, and when. Local Only keeps everything here."
-        case .models: return "Which model transcribes your recordings, and what Verbose does to a transcript when it's ready."
-        case .speakers: return "Who's talking in a recording, how Verbose knows your voice, and which microphone records you."
-        case .captions: return "Live captions for whatever your Mac is playing or hearing."
-        case .meetings: return "Record a call as two tracks, your microphone and the meeting app, on this Mac. Verbose can notice a call and ask; it never records on its own."
-        case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose."
-        case .export: return "What goes into an export or a copy: which text, speaker names, and timecodes."
+        case .meetings: return "Record a call as two tracks, your microphone and the meeting app, on this Mac, and live captions for whatever your Mac is playing or hearing. Verbose can notice a call and ask; it never records on its own."
+        case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose, with the text, speaker names, and timecodes set here."
         case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."
-        case .about: return "Version, help, and the fine print."
+        case .privacy: return "What leaves this Mac, and when. Local Only keeps everything here."
+        case .account: return "Verbose has no account, so there's nothing to sign in to. Your name greets you and signs your emails."
+        case .support: return "Help, the diagnostic log, updates, and the fine print."
+        case .features: return "Widgets, Shortcuts, and the welcome tour: the places to learn what Verbose can do."
         case .whatsNew: return "What each build of Verbose added, newest first."
         }
     }
 
-    static let groups: [(title: String, tabs: [SettingsTab])] = [
-        ("App", [.general, .dictate, .floatingButton, .actions, .privacy]),
-        ("Transcription", [.models, .speakers, .captions, .meetings]),
-        ("Files", [.watched, .export, .storage, .about, .whatsNew]),
-    ]
+    /// The panes in the sidebar, in order (What's new opens from the version at its foot).
+    static let sidebar: [SettingsTab] = allCases.filter { t in MacSettingsMap.panes.first { $0.raw == t.rawValue }?.inSidebar ?? true }
+
+    /// The pane's glyph in the Verbose style sidebar.
+    var art: BrandArt {
+        switch self {
+        case .personalization: return .iconAppearance
+        case .recording: return .iconQuality
+        case .dictate: return .iconDictations
+        case .floatingButton: return .iconVoice
+        case .actions: return .iconAI
+        case .meetings: return .iconCaptions
+        case .watched: return .iconFolder
+        case .storage: return .iconSync
+        case .privacy: return .iconPrivacy
+        case .account: return .iconAboutMe
+        case .support: return .iconSupport
+        case .features: return .iconGrid
+        case .whatsNew: return .iconNotes
+        }
+    }
 }
 
 // MARK: - Search index
@@ -95,35 +126,36 @@ struct SettingsEntry: Identifiable, Hashable {
     }
 }
 
+/// Every searchable setting. Entries are grouped by the pane they started in; `section` is the pane they show on now
+/// (MacSettingsMap), which mac/tools/test-settings-map.sh checks.
 enum SettingsIndex {
     private static let base: [SettingsEntry] = [
         // General
-        .init("general.look", .general, "Look", "How Verbose looks on this Mac. Your iPhone has its own setting.", keywords: "native verbose style theme apple stock paper design"),
-        .init("general.appearance", .general, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
-        .init("general.limitMotion", .general, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
-        .init("general.menuBar", .general, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),
-        .init("general.sounds", .general, "Sounds", "A short chime when recording or dictation starts, a tick when your words are ready, and a soft tone when you cancel.", keywords: "chime audio feedback"),
-        .init("general.homeWeek", .general, "Show This week on Home", "Words, time saved typing, recordings, and moments for the week, in one strip under the tiles.", keywords: "this week stats words saved typing recordings moments method cards welcome"),
-        .init("general.tourOnLaunch", .general, "Show the welcome tour when Verbose opens", keywords: "onboarding launch"),
-        .init("general.tour", .general, "Welcome tour", "Walk through the basics again.", keywords: "onboarding intro help"),
-        .init("general.autoUpdate", .general, "Check for updates automatically", keywords: "sparkle update"),
-        .init("general.beta", .general, "Get beta builds", "Beta builds arrive with every change to Verbose; leave this off for tested releases only.", keywords: "update prerelease"),
-        .init("general.version", .general, "Check for updates", "A check sends your IP address and Verbose's version to GitHub, nothing else.", keywords: "version update check now"),
-        .init("general.name", .general, "Your name", "Shown on the You page.", keywords: "profile name you"),
-        .init("general.aboutMe", .general, "About me", "A few lines about you. Verbose uses this to spell names and word titles and summaries.", keywords: "profile context bio titles summaries you"),
-        .init("general.countSites", .general, "Count websites", "When you dictate into Safari, Chrome, Arc, Edge, or Brave, the You page shows which websites, by domain only, never full addresses. macOS asks once per browser.", keywords: "domains browser where you dictate activity stats privacy"),
+        .init("general.look", .personalization, "Look", "How Verbose looks on this Mac. Your iPhone has its own setting.", keywords: "native verbose style theme apple stock paper design"),
+        .init("general.appearance", .personalization, "Appearance", "Match the system, or always light or dark.", keywords: "dark mode light theme color"),
+        .init("general.limitMotion", .personalization, "Limit animation", "Fades instead of movement; illustrations stay still. Always on when Reduce Motion is on in System Settings.", keywords: "reduce motion accessibility animations"),
+        .init("general.menuBar", .personalization, "Show in menu bar", "Record from anywhere with the menu bar item, or press ⌥⇧R while Verbose is running.", keywords: "menubar status item record shortcut"),
+        .init("general.sounds", .personalization, "Sounds", "A short chime when recording or dictation starts, a tick when your words are ready, and a soft tone when you cancel.", keywords: "chime audio feedback"),
+        .init("general.homeWeek", .personalization, "Show This week on Home", "Words, time saved typing, recordings, and moments for the week, in one strip under the tiles.", keywords: "this week stats words saved typing recordings moments method cards welcome"),
+        .init("general.tourOnLaunch", .features, "Show the welcome tour when Verbose opens", keywords: "onboarding launch"),
+        .init("general.tour", .features, "Welcome tour", "Walk through the basics again.", keywords: "onboarding intro help"),
+        .init("general.autoUpdate", .support, "Check for updates automatically", keywords: "sparkle update"),
+        .init("general.beta", .support, "Get beta builds", "Beta builds arrive with every change to Verbose; leave this off for tested releases only.", keywords: "update prerelease"),
+        .init("general.version", .support, "Check for updates", "A check sends your IP address and Verbose's version to GitHub, nothing else.", keywords: "version update check now"),
+        .init("general.name", .account, "Your name", "Shown on the You page.", keywords: "profile name you"),
+        .init("general.aboutMe", .personalization, "About me", "A few lines about you. Verbose uses this to spell names and word titles and summaries.", keywords: "profile context bio titles summaries you"),
+        .init("general.countSites", .privacy, "Count websites", "When you dictate into Safari, Chrome, Arc, Edge, or Brave, the You page shows which websites, by domain only, never full addresses. macOS asks once per browser.", keywords: "domains browser where you dictate activity stats privacy"),
 
         // Dictation
         .init("dictate.enabled", .dictate, "Dictate anywhere", "Off, the hotkey does nothing and dictation doesn't show on screen.", keywords: "dictation voice typing"),
-        .init("dictate.surface", .dictate, "Show dictation in", "What you see while Verbose listens, cleans up, and pastes.", keywords: "ribbon notch floating button pill tab where style display screen"),
-        .init("dictate.noNotch", .dictate, "On displays without a notch", "External displays and Macs without a notch.", keywords: "external display monitor pill ribbon notch"),
-        .init("dictate.notchWords", .dictate, "Show words as you speak", "Hover the notch to see them. What's pasted still comes from Verbose's own transcription.", keywords: "live words preview streaming notch"),
-        .init("dictate.notchClick", .dictate, "Click the notch to dictate", "Point at the notch to see your hotkey; click to start, click again to paste.", keywords: "notch click hover pointer"),
-        .init("ribbon.show", .dictate, "Show the Ribbon when you're not dictating", "Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.", keywords: "ribbon tab sliver edge hide flow bar pill"),
-        .init("ribbon.style", .dictate, "Style", "Paper is a light tab with ink type. Ink is a dark tab with paper type.", keywords: "ribbon look paper ink appearance"),
-        .init("ribbon.mark", .dictate, "Voice mark", "Moves with your voice while you dictate.", keywords: "ribbon bars rings level meter"),
-        .init("ribbon.liveWords", .dictate, "Show words as you speak", "A preview of your words in the Ribbon while you dictate, recognized on this Mac. What's pasted still comes from Verbose's own transcription.", keywords: "ribbon live words preview streaming"),
-        .init("dictate.buttonLink", .dictate, "Floating button", "Its look, size, and voice mark are in Settings › Floating button.", keywords: "floating button look size"),
+        .init("dictate.surface", .floatingButton, "Show dictation in", "What you see while Verbose listens, cleans up, and pastes.", keywords: "ribbon notch floating button pill tab where style display screen"),
+        .init("dictate.noNotch", .floatingButton, "On displays without a notch", "External displays and Macs without a notch.", keywords: "external display monitor pill ribbon notch"),
+        .init("dictate.notchWords", .floatingButton, "Show words as you speak", "Hover the notch to see them. What's pasted still comes from Verbose's own transcription.", keywords: "live words preview streaming notch"),
+        .init("dictate.notchClick", .floatingButton, "Click the notch to dictate", "Point at the notch to see your hotkey; click to start, click again to paste.", keywords: "notch click hover pointer"),
+        .init("ribbon.show", .floatingButton, "Show the Ribbon when you're not dictating", "Click it to start, click again to paste. Drag it to the bottom, left, or right edge; right-click it for options.", keywords: "ribbon tab sliver edge hide flow bar pill"),
+        .init("ribbon.style", .floatingButton, "Style", "Paper is a light tab with ink type. Ink is a dark tab with paper type.", keywords: "ribbon look paper ink appearance"),
+        .init("ribbon.mark", .floatingButton, "Voice mark", "Moves with your voice while you dictate.", keywords: "ribbon bars rings level meter"),
+        .init("ribbon.liveWords", .floatingButton, "Show words as you speak", "A preview of your words in the Ribbon while you dictate, recognized on this Mac. What's pasted still comes from Verbose's own transcription.", keywords: "ribbon live words preview streaming"),
         .init("dictate.hotkey", .dictate, "Hotkey", "The key that starts dictation.", keywords: "shortcut key fn globe option command record mouse button side"),
         .init("dictate.mode", .dictate, "How it starts", "Hold the key while you talk and let go to paste. Press Esc to cancel.", keywords: "mode hold to talk press start stop either push toggle hands-free tap"),
         .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation and the Thought pad.", keywords: "paste again thought pad hotkey"),
@@ -161,38 +193,38 @@ enum SettingsIndex {
         .init("actions.restore", .actions, "Restore built-in actions", "Replaces your actions with the eight that come with Verbose.", keywords: "reset defaults"),
 
         // Models and language
-        .init("models.quality", .models, "Quality", "Parakeet is the default: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses.", keywords: "model engine whisper parakeet language accuracy speed"),
-        .init("models.engine", .models, "Engine and model", "Shown when Quality is Advanced.", keywords: "whisper parakeet advanced"),
-        .init("models.detectLanguage", .models, "Detect the language", "Verbose listens to the first 30 seconds of each recording. When it isn't English and Quality is English only, Parakeet v3 transcribes it; languages outside Parakeet v3's 25 use Apple's speech recognition on this Mac. To change one transcript's language, open its Details.", keywords: "language spanish french german japanese chinese multilingual detect automatic v3"),
-        .init("models.applyDictionary", .models, "Apply Dictionary to new transcripts", "Only words listed under “Heard as” are replaced, and every fix shows on the transcript.", keywords: "vocabulary corrections replace"),
-        .init("models.builtInVocabulary", .models, "Built-in vocabulary", "Verbose spells about 500 modern words right, like ChatGPT, GitHub, and macOS. Your Dictionary always wins. Turn off single terms on the Dictionary page.", keywords: "modern words brands apps tech terms spelling names chatgpt iphone youtube boost"),
-        .init("models.projectVocab", .models, "Project vocabulary", "Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.", keywords: "dictionary project scope"),
-        .init("models.nameSort", .models, "Name and sort recordings", "Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.", keywords: "auto label title tags kind"),
-        .init("models.summary", .models, "Write a summary when a transcript finishes", "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.", keywords: "summary summaries overview key points recap"),
-        .init("models.skipSponsors", .models, "Skip sponsor reads", "In podcasts and videos from links and files, playback jumps past sponsor reads and the transcript folds each one into a line. Summaries, tags, copy, and export leave them out.", keywords: "sponsor sponsors ads ad read advertisement promo code skip podcast youtube"),
-        .init("models.recordLiveWords", .models, "Show words while you record", "A preview of your words on the recorder, made on this Mac. The saved transcript comes from the full model after you stop.", keywords: "live text live words preview real time transcript voice note memo recorder recording"),
-        .init("models.hideFiller", .models, "Hide filler lines", "Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.", keywords: "um uh filler"),
-        .init("models.offline", .models, "Where models run", "Models download once from Hugging Face and run on this Mac. Transcription never leaves your computer.", keywords: "privacy offline download hugging face"),
+        .init("models.quality", .recording, "Quality", "Parakeet is the default: fast on Apple silicon with word timings. Whisper is the alternate for languages Parakeet misses.", keywords: "model engine whisper parakeet language accuracy speed"),
+        .init("models.engine", .recording, "Engine and model", "Shown when Quality is Advanced.", keywords: "whisper parakeet advanced"),
+        .init("models.detectLanguage", .personalization, "Detect the language", "Verbose listens to the first 30 seconds of each recording. When it isn't English and Quality is English only, Parakeet v3 transcribes it; languages outside Parakeet v3's 25 use Apple's speech recognition on this Mac. To change one transcript's language, open its Details.", keywords: "language spanish french german japanese chinese multilingual detect automatic v3"),
+        .init("models.applyDictionary", .recording, "Apply Dictionary to new transcripts", "Only words listed under “Heard as” are replaced, and every fix shows on the transcript.", keywords: "vocabulary corrections replace"),
+        .init("models.builtInVocabulary", .personalization, "Built-in vocabulary", "Verbose spells about 500 modern words right, like ChatGPT, GitHub, and macOS. Your Dictionary always wins. Turn off single terms on the Dictionary page.", keywords: "modern words brands apps tech terms spelling names chatgpt iphone youtube boost"),
+        .init("models.projectVocab", .personalization, "Project vocabulary", "Dictionary fixes you save from a transcript inside a project apply only to that project. Off, every fix applies everywhere.", keywords: "dictionary project scope"),
+        .init("models.nameSort", .recording, "Name and sort recordings", "Apple Intelligence suggests a title, kind, and tags when a transcript is ready. Anything you rename or change stays.", keywords: "auto label title tags kind"),
+        .init("models.summary", .recording, "Write a summary when a transcript finishes", "Apple Intelligence writes a short overview and key points at the top of the transcript. A summary you edit stays. When this is off, choose Actions › Summarize.", keywords: "summary summaries overview key points recap"),
+        .init("models.skipSponsors", .recording, "Skip sponsor reads", "In podcasts and videos from links and files, playback jumps past sponsor reads and the transcript folds each one into a line. Summaries, tags, copy, and export leave them out.", keywords: "sponsor sponsors ads ad read advertisement promo code skip podcast youtube"),
+        .init("models.recordLiveWords", .recording, "Show words while you record", "A preview of your words on the recorder, made on this Mac. The saved transcript comes from the full model after you stop.", keywords: "live text live words preview real time transcript voice note memo recorder recording"),
+        .init("models.hideFiller", .recording, "Hide filler lines", "Lines that are only “um” or “uh” stay out of view. Nothing is deleted; Show brings them back.", keywords: "um uh filler"),
+        .init("models.offline", .recording, "Where models run", "Models download once from Hugging Face and run on this Mac. Transcription never leaves your computer.", keywords: "privacy offline download hugging face"),
 
         // Speakers and your voice
-        .init("speakers.voiceProfile", .speakers, "Voice profile", "Teach Verbose your voice so transcripts label you as You.", keywords: "enroll my voice recognize me you"),
-        .init("speakers.onlyMyVoice", .speakers, "Only keep my voice in dictation", "When someone nearby talks while you dictate, Verbose pastes only your words.", keywords: "voice filter background people dictation me"),
-        .init("speakers.identify", .speakers, "Identify speakers", "Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.", keywords: "diarization speaker labels who"),
-        .init("speakers.recognizeVoices", .speakers, "Recognize voices I’ve named", "When a new speaker sounds like someone you named before, Verbose suggests that name. The voices stay on this Mac and are never synced.", keywords: "voice match name speakers suggest people remember"),
-        .init("speakers.clearVoices", .speakers, "Saved voices", "Voices of the speakers you’ve named, kept on this Mac only.", keywords: "delete clear forget voices speakers names"),
-        .init("speakers.mainOnly", .speakers, "Main speaker only", "In voice memos, other voices fold into a Background voices section under the transcript. Links, imported files, and meetings always show everyone.", keywords: "background voices"),
-        .init("speakers.audioTracks", .speakers, "Files with several audio tracks", "Mix every track into one transcript, or transcribe each track on its own as a speaker you can rename. A track's title or language names it, such as Commentary or English.", keywords: "multiple audio tracks mkv video language commentary mix separate speakers import"),
-        .init("speakers.mic", .speakers, "Record from", "Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.", keywords: "microphone input device airpods"),
+        .init("speakers.voiceProfile", .personalization, "Voice profile", "Teach Verbose your voice so transcripts label you as You.", keywords: "enroll my voice recognize me you"),
+        .init("speakers.onlyMyVoice", .personalization, "Only keep my voice in dictation", "When someone nearby talks while you dictate, Verbose pastes only your words.", keywords: "voice filter background people dictation me"),
+        .init("speakers.identify", .recording, "Identify speakers", "Labels turns as Speaker 1, Speaker 2… so you can name them. Runs on this Mac and adds time to each transcript.", keywords: "diarization speaker labels who"),
+        .init("speakers.recognizeVoices", .recording, "Recognize voices I’ve named", "When a new speaker sounds like someone you named before, Verbose suggests that name. The voices stay on this Mac and are never synced.", keywords: "voice match name speakers suggest people remember"),
+        .init("speakers.clearVoices", .recording, "Saved voices", "Voices of the speakers you’ve named, kept on this Mac only.", keywords: "delete clear forget voices speakers names"),
+        .init("speakers.mainOnly", .recording, "Main speaker only", "In voice memos, other voices fold into a Background voices section under the transcript. Links, imported files, and meetings always show everyone.", keywords: "background voices"),
+        .init("speakers.audioTracks", .recording, "Files with several audio tracks", "Mix every track into one transcript, or transcribe each track on its own as a speaker you can rename. A track's title or language names it, such as Commentary or English.", keywords: "multiple audio tracks mkv video language commentary mix separate speakers import"),
+        .init("speakers.mic", .recording, "Record from", "Built-in mic, a USB interface, AirPods, or your iPhone (Continuity). “System default” follows the Mac's Sound settings.", keywords: "microphone input device airpods"),
 
         // Live captions
-        .init("captions.size", .captions, "Text size", "How big captions read in the captions bar.", keywords: "subtitles captions live font large"),
-        .init("captions.soon", .captions, "Show the time in the header", "Open live captions from Home, the menu bar, or ⌥⌘C. Captions are made on this Mac.", keywords: "subtitles captions live timecode clock"),
-        .init("captions.above", .captions, "Keep captions above full-screen apps", keywords: "subtitles captions floating window full screen"),
+        .init("captions.size", .meetings, "Text size", "How big captions read in the captions bar.", keywords: "subtitles captions live font large"),
+        .init("captions.soon", .meetings, "Show the time in the header", "Open live captions from Home, the menu bar, or ⌥⌘C. Captions are made on this Mac.", keywords: "subtitles captions live timecode clock"),
+        .init("captions.above", .meetings, "Keep captions above full-screen apps", keywords: "subtitles captions floating window full screen"),
 
         // Meetings
         .init("meetings.notice", .meetings, "Notice calls and ask to record", "When Zoom, Teams, FaceTime, or a browser starts using your microphone, Verbose asks whether to record. It checks which app is using the microphone, never what it hears.", keywords: "meeting call detect detection prompt zoom teams facetime meet webex slack discord"),
         .init("meetings.copyNotice", .meetings, "Copy the chat notice when recording starts", "Puts a short notice on the clipboard to paste in the meeting chat, so everyone knows you're recording.", keywords: "consent notice chat clipboard tell everyone announce"),
-        .init("meetings.mic", .meetings, "Record your side from", "The same microphone as Settings › Speakers and your voice. A built-in mic keeps Bluetooth headphones sounding their best.", keywords: "microphone input device airpods meeting"),
+        .init("meetings.mic", .meetings, "Record your side from", "The same microphone as Settings › Recording and transcription › Speakers. A built-in mic keeps Bluetooth headphones sounding their best.", keywords: "microphone input device airpods meeting"),
         .init("meetings.apps", .meetings, "Apps Verbose has noticed", "Turn off the question for an app, or bring back the consent sheet.", keywords: "meeting apps zoom teams chrome safari don't ask consent"),
 
         // Watched folders
@@ -203,19 +235,19 @@ enum SettingsIndex {
         .init("watched.subfolders", .watched, "Include subfolders", keywords: "recursive nested"),
         .init("watched.location", .watched, "Folder", "Show it in Finder, or stop watching it.", keywords: "remove stop finder reveal"),
         .init("watched.formats", .watched, "Export formats", "SRT, Plain text, VTT, Word, Markdown, or JSON, written when each transcript is ready.", keywords: "auto-export subtitles srt vtt docx markdown json"),
-        .init("watched.exportOptions", .watched, "Auto-export uses your Export settings", "Which text, speaker names, and timecodes come from Settings › Export.", keywords: "timecode timecodes speakers options"),
+        .init("watched.exportOptions", .watched, "Auto-export uses your Export settings", "Which text, speaker names, and timecodes come from Export, below the folders.", keywords: "timecode timecodes speakers options"),
         .init("watched.saveTo", .watched, "Save to", "The folder exports go to, or next to the original file.", keywords: "destination output folder"),
         .init("watched.fileName", .watched, "File name", "{original name}, {title}, and {date} fill in for each file.", keywords: "pattern naming rename"),
         .init("watched.notify", .watched, "When it's done", "A notification when a file is transcribed and exported.", keywords: "notification alert notify"),
 
         // Export
-        .init("export.source", .export, "Text", "Cleaned is paragraphs with your edits and cleanup. Original with corrections and Original (engine words) are line by line. Copy follows the tab you're on.", keywords: "document transcript source cleaned original engine words raw copy"),
-        .init("export.speakers", .export, "Speaker names", "Each speaker's name before their words.", keywords: "labels speakers"),
-        .init("export.timecodes", .export, "Include timecodes", "A timecode at the start of every line, like [00:12:04]. Subtitles always have them.", keywords: "timecode timestamps time"),
-        .init("export.sponsors", .export, "Include sponsor reads", "Sponsor reads found in podcasts and videos are left out unless this is on. Copy always leaves them out.", keywords: "sponsor sponsors ads advertisement promo"),
-        .init("export.single", .export, "One paragraph", "Everything joined into a single paragraph.", keywords: "line breaks join"),
-        .init("export.provenance", .export, "Add a “transcribed with” footer", "Title, source, length, model, and date at the end.", keywords: "provenance credit footer"),
-        .init("export.watched", .export, "Watched folders export with these options", keywords: "auto-export timecode"),
+        .init("export.source", .watched, "Text", "Cleaned is paragraphs with your edits and cleanup. Original with corrections and Original (engine words) are line by line. Copy follows the tab you're on.", keywords: "document transcript source cleaned original engine words raw copy"),
+        .init("export.speakers", .watched, "Speaker names", "Each speaker's name before their words.", keywords: "labels speakers"),
+        .init("export.timecodes", .watched, "Include timecodes", "A timecode at the start of every line, like [00:12:04]. Subtitles always have them.", keywords: "timecode timestamps time"),
+        .init("export.sponsors", .watched, "Include sponsor reads", "Sponsor reads found in podcasts and videos are left out unless this is on. Copy always leaves them out.", keywords: "sponsor sponsors ads advertisement promo"),
+        .init("export.single", .watched, "One paragraph", "Everything joined into a single paragraph.", keywords: "line breaks join"),
+        .init("export.provenance", .watched, "Add a “transcribed with” footer", "Title, source, length, model, and date at the end.", keywords: "provenance credit footer"),
+        .init("export.watched", .watched, "Watched folders export with these options", keywords: "auto-export timecode"),
 
         // Storage and iCloud
         .init("storage.icloud", .storage, "Sync with iCloud", "Transcripts, notes, projects, and the Dictionary match your iPhone.", keywords: "icloud sync iphone cloud"),
@@ -228,11 +260,15 @@ enum SettingsIndex {
         .init("storage.deleteAll", .storage, "Delete all data", "Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, the Thought pad, and downloaded models. Settings stay.", keywords: "erase reset privacy remove"),
 
         // About
-        .init("about.version", .about, "Version", "What's New… shows what each build added.", keywords: "build number what's new release notes changes changelog"),
-        .init("about.support", .about, "Help", "Write to support.", keywords: "contact email support help"),
-        .init("about.log", .about, "Diagnostic log", "A record of what Verbose did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
-        .init("about.legal", .about, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
-        .init("about.acknowledgements", .about, "Acknowledgements", "Open-source software in Verbose and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
+        .init("about.version", .support, "Version", "What's New… shows what each build added.", keywords: "build number what's new release notes changes changelog"),
+        .init("about.support", .support, "Help", "Write to support.", keywords: "contact email support help"),
+        .init("about.log", .support, "Diagnostic log", "A record of what Verbose did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
+        .init("about.legal", .support, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
+        .init("about.acknowledgements", .support, "Acknowledgements", "Open-source software in Verbose and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
+
+        // Features
+        .init("features.widgets", .features, "Widgets", "Record and Dictate, Recent recordings, This week, and Quick capture. Click the date in the menu bar, then Edit Widgets, and search for Verbose.", keywords: "widget desktop notification center this week recent recordings quick capture thought pad"),
+        .init("features.shortcuts", .features, "Shortcuts", "Transcribe a file, Last dictation, Start recording, Get transcript text, and Copy for AI work in Shortcuts and Spotlight, and with Siri.", keywords: "shortcuts siri app intents automation spotlight"),
 
         // What's new
         .init("whatsNew.builds", .whatsNew, "What's new", "Every build's notes, newest first.", keywords: "release notes changes changelog version build update new features"),
@@ -305,6 +341,15 @@ final class SettingsModel: ObservableObject {
     /// The row that's briefly tinted after a search result opened it.
     @Changed var flashID: String? = nil
     weak var window: NSWindow?
+    /// How many times each row id is laid out now (SettingsAnchor), for the self-test's check that every search entry
+    /// resolves to a row on its pane. Not published: counting never redraws anything.
+    private(set) var anchorCounts: [String: Int] = [:]
+    func anchorAppeared(_ id: String) { anchorCounts[id, default: 0] += 1 }
+    func anchorDisappeared(_ id: String) {
+        let n = (anchorCounts[id] ?? 0) - 1
+        anchorCounts[id] = n > 0 ? n : nil
+    }
+    func isLaidOut(_ id: String) -> Bool { (anchorCounts[id] ?? 0) > 0 }
 
     var isSearching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -474,6 +519,8 @@ struct SettingsAnchor: ViewModifier {
             .background(Ink.persimmonTint.opacity(model.flashID == id ? 1 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .animation(.easeOut(duration: 0.6), value: model.flashID == id)
             .id(id)
+            .onAppear { model.anchorAppeared(id) }
+            .onDisappear { model.anchorDisappeared(id) }
     }
 }
 extension View {

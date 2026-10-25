@@ -32,7 +32,7 @@ check("the same lookup lands in the same slot", NativeRoles.cacheKey(light: 0xF5
 let sidebarItems = ["home", "library", "links", "moments", "queue", "dictations", "you", "dictionary"]
 let sidebarSymbols = sidebarItems.map(NativeSymbols.sidebar)
 check("every sidebar item has its own symbol", Set(sidebarSymbols).count == sidebarItems.count && !sidebarSymbols.contains("circle"), "\(sidebarSymbols)")
-let tabs = ["general", "dictate", "floatingButton", "actions", "privacy", "transcription", "speakers", "captions", "meetings", "watched", "export", "storage", "about", "whatsNew"]
+let tabs = ["general", "transcription", "dictate", "floatingButton", "actions", "meetings", "watched", "storage", "privacy", "account", "about", "features", "whatsNew"]
 let tabSymbols = tabs.map(NativeSymbols.settings)
 check("every Settings pane has its own symbol", Set(tabSymbols).count == tabs.count, "\(tabSymbols)")
 check("a meeting shows two people", NativeSymbols.kind("meeting") == "person.2")

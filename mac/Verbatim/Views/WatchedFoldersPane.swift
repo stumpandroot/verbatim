@@ -8,13 +8,14 @@ extension BrandArt {
     static let iconFolder = BrandArt(box: iconGrid, strokes: [.path("M3 7.5V18C3 18.8 3.7 19.5 4.5 19.5H19.5C20.3 19.5 21 18.8 21 18V9C21 8.2 20.3 7.5 19.5 7.5H12L10 5H4.5C3.7 5 3 5.7 3 6.5Z")], strokeWidth: 1.5)
 }
 
-/// Settings › Watched folders: the folder list with each one's status, Add folder and Open activity, then the
-/// selected folder's auto-export: formats, where and under what name, and whether to notify.
+/// Settings › Watched folders and export: the folder list with each one's status, Add folder and Open activity, the
+/// selected folder's auto-export (formats, where and under what name, and whether to notify), then the Export options
+/// those files and every export use (ExportSettingsGroups, SettingsPanes.swift).
 struct WatchedFoldersPane: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var watcher = FolderWatcher.shared
     @AppStorage("watch.selected") private var selectedRaw = ""
-    @AppStorage("settingsTab") private var tab: SettingsTab = .watched
+    @ObservedObject private var model = SettingsModel.shared
     @State private var showActivity = false
 
     private var selected: WatchedFolder? {
@@ -54,9 +55,11 @@ struct WatchedFoldersPane: View {
                 }
             }
             if let f = selected {
-                WatchedFolderDetail(folder: f, openExport: { tab = .export })
+                // The Export options are further down this pane.
+                WatchedFolderDetail(folder: f, openExport: { model.focusID = "export.source" })
                     .id(f.id)
             }
+            ExportSettingsGroups()
         }
         .sheet(isPresented: $showActivity) { WatchActivitySheet(done: { showActivity = false }).environmentObject(app) }
     }
@@ -195,7 +198,7 @@ struct WatchedFolderDetail: View {
             }
             .settingsAnchor("watched.formats", radius: Radius.button)
             VStack(alignment: .leading, spacing: 4) {
-                Text(folder.formats.isEmpty ? "None chosen: transcripts stay in your Library." : "Uses the options from Settings › Export (which text, speaker names, timecodes).")
+                Text(folder.formats.isEmpty ? "None chosen: transcripts stay in your Library." : "Uses the Export options below (which text, speaker names, timecodes).")
                     .font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
                 PillButton(title: "Export settings", kind: .line, size: .mini, trailing: .arrow, action: openExport)
                     .padding(.top, 4)

@@ -37,6 +37,7 @@ struct PrivacySettingsPane: View {
                 }))
             }
             SettingsGroup(title: "Network activity") {
+                CountSitesSettingsRow()
                 SettingsRow("privacy.activity", detail: activityDetail) {
                     Button("Clear") { model.clear() }
                         .buttonStyle(.settingsPill).disabled(model.events.isEmpty)
