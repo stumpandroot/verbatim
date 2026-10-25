@@ -459,13 +459,50 @@ enum PhoneUITest {
         if prefix == "p" {
             Log.note("UITEST \(app.tab == .settings && WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: Home's note opens What's new\(suffix)")
         }
+        // Back to Settings. The pop can take longer than its animation on a slow runner (build 206's runner: Settings
+        // was created by this very step), so the check waits for it, up to 3 s, instead of a fixed 0.8 s.
         SettingsPage.open("root")
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        if prefix == "p" { Log.note("UITEST \(!WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: it closes\(suffix)") }
+        let closed = await waitFor(3) { !WhatsNewScreen.visible }
+        if prefix == "p" {
+            // UIKit's stack is the truth when the screen's onDisappear is late: one view controller is Settings itself.
+            let depth = visibleStackDepth()
+            let ok = closed.ok || depth == 1
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") what's new: it closes\(suffix)")
+            Log.note("UITEST TIMING whats-new-close \(closed.ms) stack=\(depth.map(String.init) ?? "?")")
+        }
+        if closed.ms < 800 { try? await Task.sleep(nanoseconds: UInt64(800 - closed.ms) * 1_000_000) }
         WhatsNewBanner.previewBuild = nil
         if let keepSeen { d.set(keepSeen, forKey: ReleaseNotes.lastSeenKey) } else { d.removeObject(forKey: ReleaseNotes.lastSeenKey) }
         app.tab = .home
         try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Waits up to `seconds` for `done`, checking every 50 ms: whether it came true, and after how long (ms).
+    private static func waitFor(_ seconds: Double, _ done: () -> Bool) async -> (ok: Bool, ms: Int) {
+        let start = Date()
+        while !done() {
+            if Date().timeIntervalSince(start) >= seconds { return (false, Int(seconds * 1000)) }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return (true, Int((Date().timeIntervalSince(start) * 1000).rounded()))
+    }
+
+    /// How many view controllers the navigation stack on screen holds (UIKit's view of the selected tab), or nil.
+    private static func visibleStackDepth() -> Int? {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        guard let root = (windows.first(where: \.isKeyWindow) ?? windows.first)?.rootViewController else { return nil }
+        func find(_ vc: UIViewController) -> UINavigationController? {
+            if let n = vc as? UINavigationController, n.viewIfLoaded?.window != nil { return n }
+            for c in vc.children { if let n = find(c) { return n } }
+            return nil
+        }
+        func tabBar(_ vc: UIViewController) -> UITabBarController? {
+            if let t = vc as? UITabBarController { return t }
+            for c in vc.children { if let t = tabBar(c) { return t } }
+            return nil
+        }
+        let start = tabBar(root)?.selectedViewController ?? root
+        return find(start)?.viewControllers.count
     }
 
     /// Home shows the layout for the look and only that one, by which Record card is on screen (build 204's Native

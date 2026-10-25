@@ -140,7 +140,9 @@ struct SettingsScreen: View {
         .navigationDestination(isPresented: $showPrivacy) { PhonePrivacyScreen() }
         .navigationDestination(isPresented: $showAcknowledgements) { AcknowledgementsView().navigationTitle("Acknowledgements") }
         // Home's This week card opens the You page, and its keyboard row opens Keyboard (SettingsPage, HomeScreen.swift).
-        .onAppear { openRequestedPage() }
+        // On the tab's first appearance (Home's What's new note creates it), the push waits a turn of the main loop: a
+        // destination presented during the stack's own first appearance can push before the stack is in the window.
+        .onAppear { DispatchQueue.main.async { openRequestedPage() } }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettingsPage)) { _ in openRequestedPage() }
         // UI tour: `false` closes the You page (and anything pushed from it).
         .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in

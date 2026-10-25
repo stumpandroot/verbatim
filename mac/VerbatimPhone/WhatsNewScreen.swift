@@ -8,8 +8,10 @@ struct WhatsNewScreen: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     @Environment(\.look) private var look
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
-    /// Whether What's new is on screen, for the UI tour's checks.
-    static var visible = false
+    /// How many What's new screens are on screen, for the UI tour's checks. A count rather than a flag, so a screen
+    /// that appears before the one it replaces has gone can't leave it stuck.
+    static var onScreen = 0
+    static var visible: Bool { onScreen > 0 }
 
     var body: some View {
         ScrollView {
@@ -41,11 +43,11 @@ struct WhatsNewScreen: View {
             }
         }
         .onAppear {
-            Self.visible = true
+            Self.onScreen += 1
             // Opening What's new counts as seeing this build's note.
             if let current = ReleaseNotes.currentBuild, current > lastSeen { lastSeen = current }
         }
-        .onDisappear { Self.visible = false }
+        .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
     }
 
     /// Verbose style: a card with a hairline edge, the eyebrow, the serif title, and the items.
