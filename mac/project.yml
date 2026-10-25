@@ -128,7 +128,7 @@ targets:
         SUFeedURL: https://raw.githubusercontent.com/stumpandroot/verbose-updates/main/appcast.xml
         # PLACEHOLDER: paste the EdDSA public key printed by Sparkle's `generate_keys` here.
         # While this is empty, the app never starts the updater (no checks, no error dialogs).
-        SUPublicEDKey: ""
+        SUPublicEDKey: "W533v9Px+e+XqEDtg8wcczByjszt33amZZAELO3HWV8="
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
         # Never send Sparkle's anonymous system profile; a check sends only the IP address and app version.
