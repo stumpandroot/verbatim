@@ -67,6 +67,8 @@ final class PhoneState: ObservableObject {
     @Published var showPhotoPicker = false
     /// Transcribe what's playing (PhoneWhatsPlaying.swift): the sheet with the system broadcast picker.
     @Published var showPlayingSheet = false
+    /// The Action button's What's playing: the sheet asks for the system broadcast picker as soon as it shows.
+    var playingSheetStartsPicker = false
     @Published var showOnboarding = Onboarding.shouldShow
     /// "New project…" from a row's menu: name it, then the transcript moves into it.
     @Published var newProjectFor: UUID? = nil
@@ -239,6 +241,25 @@ final class PhoneState: ObservableObject {
             recordingWords.end()
             say("Couldn't start recording: \(error.localizedDescription)")
         }
+    }
+
+    /// The Action button's Record a voice note with Verbose in the background (iOS 18 and later, through
+    /// `AudioRecordingIntent`): starts the recording and its Live Activity in place, only when nothing needs asking
+    /// (the consent notice was seen and the microphone is allowed) and nothing else holds the microphone. True when
+    /// both started. False otherwise; the intent then opens Verbose, where the recorder shows the recording if it
+    /// began (and its Live Activity starts when Verbose comes forward).
+    func startVoiceNoteInPlace() -> Bool {
+        guard UserDefaults.standard.bool(forKey: Self.consentNoticeKey),
+              AVAudioApplication.shared.recordPermission == .granted,
+              !recordingActive, !savingRecording, !showCaptions else { return false }
+        startRecording()
+        guard recorder.isRecording else { return false }
+        guard RecordingPresence.shared.startActivityNow() else {
+            Log.note("action button: the voice note started, but its Live Activity didn't; opening Verbose")
+            return false
+        }
+        Log.note("action button: voice note started in place")
+        return true
     }
 
     /// Loads the speech model while you talk, so transcription starts the moment you stop. iOS clears it from

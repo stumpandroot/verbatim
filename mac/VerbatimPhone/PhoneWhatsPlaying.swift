@@ -9,6 +9,7 @@ import ReplayKit
 /// iOS starts a broadcast only from its own picker. The system picker sits behind the Start button, and Start
 /// forwards the tap to the picker's button.
 struct WhatsPlayingSheet: View {
+    @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
     @State private var picker = BroadcastPickerHandle()
 
@@ -70,6 +71,14 @@ struct WhatsPlayingSheet: View {
             }
         }
         .presentationDetents([.large])
+        .task {
+            // From the Action button (What's playing): the system's broadcast sheet comes up by itself, once the
+            // picker behind Start is on screen. iOS still asks you to tap Start Broadcast.
+            guard app.playingSheetStartsPicker else { return }
+            app.playingSheetStartsPicker = false
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            picker.start()
+        }
     }
 
     /// Three short steps on a reader-white card.

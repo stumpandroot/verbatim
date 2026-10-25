@@ -270,7 +270,7 @@ struct SettingsScreen: View {
         Button { bump("actionButton"); showActionButton = true } label: {
             SettingsRow(icon: "button.horizontal.top.press", tint: Ink.butterTint, art: .iconActionButton, title: "Action button",
                         subtitle: "Dictate from any app without switching", bounce: bumps["actionButton", default: 0]) {
-                SettingsValue(Ribbon.actionChoice(actionChoice) == .dictate ? "Dictate" : Ribbon.actionChoice(actionChoice) == .voiceNote ? "Voice note" : "Captions")
+                SettingsValue(Ribbon.actionChoice(actionChoice).shortTitle)
                 SettingsChevron()
             }
         }
@@ -587,6 +587,8 @@ struct SettingsScreen: View {
         case "you"?: showYou = true
         case "keyboard"?: showKeyboard = true
         case "actionButton"?: showActionButton = true
+        // Back to Settings itself (the screenshot tour, between subpages).
+        case "root"?: showKeyboard = false; showActionButton = false
         default: break
         }
     }

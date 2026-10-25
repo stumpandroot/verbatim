@@ -29,10 +29,16 @@ enum SessionStartSignal {
     }
 }
 
-/// Hands Settings › Action button's Record a voice note or Live captions to the app once Verbose is in front.
+/// Hands Settings › Action button's choices that need Verbose in front (Record a voice note, Live captions, What's
+/// playing) to the app once it is, and tries a voice note in place first (iOS 18 and later).
 enum ActionButtonSignal {
     @MainActor private static var handler: ((Ribbon.ActionChoice) -> Void)?
     @MainActor private static var pending: Ribbon.ActionChoice?
+    /// Set by `KeyboardSession` (`PhoneState.startVoiceNoteInPlace`); nil before the app has set up.
+    @MainActor static var voiceNoteInPlace: (() -> Bool)?
+
+    /// True when a voice note started in place with its Live Activity; false sends it through Verbose.
+    @MainActor static func startVoiceNoteInPlace() -> Bool { voiceNoteInPlace?() ?? false }
 
     @MainActor static func attach(_ h: @escaping (Ribbon.ActionChoice) -> Void) {
         handler = h

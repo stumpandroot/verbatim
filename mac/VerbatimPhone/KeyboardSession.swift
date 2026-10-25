@@ -153,6 +153,7 @@ final class KeyboardSession: ObservableObject {
         KeyboardBridge.pruneRecent()
         // Settings › Action button: Record a voice note or Live captions, once Verbose is in front.
         ActionButtonSignal.attach { [weak self] choice in self?.runAction(choice) }
+        ActionButtonSignal.voiceNoteInPlace = { [weak app] in app?.startVoiceNoteInPlace() ?? false }
         // A take whose clipboard write failed in the background is copied as soon as Verbose opens.
         NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.copyPending() }
@@ -1307,6 +1308,13 @@ final class KeyboardSession: ObservableObject {
             app.requestRecord()
         case .captions:
             app.requestCaptions()
+        case .whatsPlaying:
+            // The sheet asks iOS for its broadcast picker as soon as it shows; you tap Start Broadcast.
+            app.playingSheetStartsPicker = true
+            app.showPlayingSheet = true
+        case .quickCapture:
+            // Never stored (`Ribbon.actionChoice` reads it as Dictate): the Thought pad is only on the Mac.
+            break
         }
     }
 

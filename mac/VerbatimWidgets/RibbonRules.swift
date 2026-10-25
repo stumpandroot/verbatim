@@ -197,32 +197,54 @@ enum Ribbon {
 
     // MARK: Action button
 
-    /// Settings › Action button: what Verbose does when the Action button runs it.
+    /// Settings › Action button: what Verbose does when the Action button runs "Verbose action" (one control or
+    /// shortcut, assigned once in iOS Settings › Action Button; `ActionButtonIntent` follows the stored choice).
     enum ActionChoice: String, CaseIterable, Identifiable {
-        case dictate, voiceNote, captions
+        case dictate, voiceNote, captions, whatsPlaying, quickCapture
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .dictate: return "Dictate a take"
+            case .dictate: return "Dictate"
             case .voiceNote: return "Record a voice note"
             case .captions: return "Live captions"
+            case .whatsPlaying: return "What's playing"
+            case .quickCapture: return "Quick capture to Thought pad"
             }
         }
+        /// The value on Settings' Action button row.
+        var shortTitle: String {
+            switch self {
+            case .dictate: return "Dictate"
+            case .voiceNote: return "Voice note"
+            case .captions: return "Captions"
+            case .whatsPlaying: return "What's playing"
+            case .quickCapture: return "Quick capture"
+            }
+        }
+        /// The line under the title: whether it works in place or opens Verbose (or why it can't be chosen).
         var detail: String {
             switch self {
-            case .dictate: return "Each press starts or stops a take. The first one opens Verbose to turn on the microphone."
-            case .voiceNote: return "Opens Verbose and starts recording. Stop it from the Lock Screen or the Dynamic Island."
-            case .captions: return "Opens Verbose with live captions."
+            case .dictate: return "Starts or stops a take, in place."
+            case .voiceNote, .captions: return "Opens Verbose."
+            case .whatsPlaying: return "Opens the iOS broadcast sheet first."
+            case .quickCapture: return "Needs the Thought pad on iPhone (coming with sync)"
             }
         }
-        /// Only dictation can run without bringing Verbose forward (it reuses the session's microphone).
+        /// Whether it can be chosen on this iPhone. The Thought pad is a Mac panel; Quick capture needs a place to
+        /// land on the phone first.
+        var available: Bool { self != .quickCapture }
+        /// Only dictation runs without bringing Verbose forward (it reuses the session's microphone). A voice note
+        /// tries to start in place first on iOS 18 and later (`AudioRecordingIntent`), and opens Verbose when it can't.
         var needsForeground: Bool { self != .dictate }
     }
 
     static let actionChoiceKey = "ribbon.actionButton"
 
-    /// The stored choice; Dictate a take unless you chose something else.
-    static func actionChoice(_ raw: String?) -> ActionChoice { raw.flatMap(ActionChoice.init(rawValue:)) ?? .dictate }
+    /// The stored choice; Dictate unless you chose something else that this iPhone can do.
+    static func actionChoice(_ raw: String?) -> ActionChoice {
+        guard let c = raw.flatMap(ActionChoice.init(rawValue:)), c.available else { return .dictate }
+        return c
+    }
 
     // MARK: The expanded Dynamic Island's words and target
 

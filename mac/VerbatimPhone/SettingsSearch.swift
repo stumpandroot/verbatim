@@ -66,7 +66,7 @@ enum SettingsSearchIndex {
         .init(id: "keyboardTimeout", section: "Keyboard", label: "End keyboard sessions after", keywords: ["session", "timeout", "idle", "microphone", "minutes"],
               description: "How long a session waits before it turns off the microphone", target: .page(.keyboard)),
         .init(id: "actionButton", section: "Personalization", label: "Action button",
-              keywords: ["action button", "control center", "dynamic island", "lock screen", "shortcut", "siri", "press", "ribbon", "dictate anywhere", "voice note", "live captions", "clipboard"],
+              keywords: ["action button", "control center", "dynamic island", "lock screen", "shortcut", "siri", "press", "ribbon", "dictate anywhere", "voice note", "live captions", "clipboard", "what's playing", "broadcast", "thought pad", "quick capture"],
               description: "Dictate from any app without switching", target: .page(.actionButton)),
         .init(id: "actionButtonTimeout", section: "Personalization", label: "End the session after",
               keywords: ["action button", "idle", "timeout", "minutes", "microphone", "session"],
@@ -195,12 +195,16 @@ enum SettingsSearchIndex {
         case "keyboardTimeout":
             let s = app.session.timeoutSeconds
             return s == 0 ? KeyboardSession.label(s) : KeyboardSession.label(s).replacingOccurrences(of: "minutes", with: "min").replacingOccurrences(of: "minute", with: "min")
-        case "actionButton": return Ribbon.actionChoice(d.string(forKey: Ribbon.actionChoiceKey)).title
+        case "actionButton": return Ribbon.actionChoice(d.string(forKey: Ribbon.actionChoiceKey)).shortTitle
         case "actionButtonTimeout": return "\(app.session.timeoutSeconds / 60) min"
         case "keyboardAutoStart": return onOff(KeyboardBridge.autoStart)
         case "keyboardPolishAfter": return onOff(KeyboardBridge.polishAfter)
         case "keyboardLiveWords": return onOff(KeyboardBridge.liveWords)
         case "keyboardAlwaysCopy": return onOff(KeyboardBridge.alwaysCopy)
+        case "keyboardDictateButton":
+            let b = DictateButton.read(KeyboardBridge.defaults)
+            return b.size.title + " · " + b.position.title
+        case "keyboardIslandWords": return onOff(KeyboardBridge.defaults?.bool(forKey: Ribbon.islandWordsKey) ?? false)
         case "quality": return app.preset.title
         case "cloudCleanup": return onOff(CloudCleanup.enabled)
         case "speakers": return onOff(app.identifySpeakers)
