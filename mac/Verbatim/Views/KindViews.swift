@@ -67,6 +67,25 @@ extension RecordingKind {
     }
 }
 
+// brand: native begin
+extension RecordingKind {
+    /// The kind's SF Symbol in the Native look, in place of its diagram.
+    var nativeSymbol: String {
+        switch self {
+        case .journal: return "book"
+        case .idea: return "lightbulb"
+        case .meeting: return "person.2"
+        case .note: return "doc.text"
+        case .dictation: return "text.bubble"
+        case .podcast: return "mic"
+        case .video: return "play.rectangle"
+        case .talk: return "person.wave.2"
+        case .interview: return "quote.bubble"
+        }
+    }
+}
+// brand: native end
+
 extension Transcript {
     /// Settings › Main speaker only: other voices fold into Background voices. Off by default.
     static let mainSpeakerOnlyKey = "transcript.mainSpeakerOnly"
@@ -96,6 +115,7 @@ struct KindChip: View {
     var isAuto: Bool
     var compact = false
     var onPick: (RecordingKind) -> Void
+    @Environment(\.look) private var look
 
     var body: some View {
         Menu {
@@ -121,7 +141,9 @@ struct KindChip: View {
 
     @ViewBuilder private var label: some View {
         let h: CGFloat = compact ? 28 : 36
-        if let kind {
+        if look.isNative {
+            nativeLabel(h)
+        } else if let kind {
             HStack(spacing: 6) {
                 BrandGlyph(art: kind.art, color: kind.onFill, minLineWidth: 1).frame(width: h - 8, height: h - 8)
                 Text(kind.label).font(.system(size: compact ? 13 : 15, weight: .semibold))
@@ -143,6 +165,33 @@ struct KindChip: View {
             .contentShape(Capsule())
         }
     }
+
+    // brand: native begin
+    /// Native: a tinted menu capsule with the kind's symbol, or a gray "Kind" capsule when there's none.
+    @ViewBuilder private func nativeLabel(_ h: CGFloat) -> some View {
+        if let kind {
+            HStack(spacing: 6) {
+                Image(systemName: kind.nativeSymbol).font(.system(size: compact ? 12 : 14, weight: .semibold))
+                Text(kind.label).font(.system(size: compact ? 13 : 15, weight: .semibold))
+                Image(systemName: "chevron.down").font(.system(size: compact ? 9 : 10, weight: .bold))
+            }
+            .foregroundStyle(Ink.nativeAccent)
+            .padding(.horizontal, compact ? 10 : 12)
+            .frame(minHeight: h)
+            .background(Ink.nativeAccent.opacity(0.14), in: Capsule())
+            .contentShape(Capsule())
+        } else {
+            HStack(spacing: 5) {
+                Image(systemName: "plus").font(.system(size: compact ? 10 : 12, weight: .semibold))
+                Text("Kind").font(.system(size: compact ? 13 : 15))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12).frame(minHeight: h)
+            .background(.fill.tertiary, in: Capsule())
+            .contentShape(Capsule())
+        }
+    }
+    // brand: native end
 }
 
 // MARK: - Tags
@@ -158,21 +207,23 @@ struct TagChips: View {
 
     // No container of its own: each chip and the + button are separate children, so `FlowRow` (KindAndTags) wraps
     // them onto as many lines as they need instead of running off the edge.
+    @Environment(\.look) private var look
+
     var body: some View {
         let h: CGFloat = compact ? 28 : 36
         ForEach(tags, id: \.self) { tag in
-            Text(tag).font(.system(size: compact ? 13 : 15)).foregroundStyle(Ink.ink)
+            Text(tag).font(.system(size: compact ? 13 : 15)).foregroundStyle(look.isNative ? Color.primary : Ink.ink)
                 .lineLimit(1).truncationMode(.middle)
                 .padding(.horizontal, compact ? 10 : 13).frame(minHeight: h)
-                .background(Ink.card, in: Capsule())
-                .overlay(Capsule().strokeBorder(Ink.hairline))
+                .modifier(TagSurface(native: look.isNative))
                 .contextMenu { Button(role: .destructive) { onRemove(tag) } label: { Label("Remove tag", systemImage: "xmark") } }
                 .accessibilityLabel("Tag: \(tag)")
         }
         Button { draft = ""; adding = true } label: {
-            Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold)).foregroundStyle(Ink.dim)
+            Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold))
+                .foregroundStyle(look.isNative ? Color.secondary : Ink.dim)
                 .frame(width: h, height: h)
-                .overlay(Capsule().strokeBorder(Ink.hairline))
+                .modifier(TagSurface(native: look.isNative, filled: false))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -184,6 +235,22 @@ struct TagChips: View {
                 let t = draft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 if !t.isEmpty { onAdd(t) }
             }
+        }
+    }
+}
+
+/// A tag's capsule: card white with a hairline (the + button: the hairline alone) in Verbose style; a gray system
+/// fill with no edge in Native.
+private struct TagSurface: ViewModifier {
+    var native: Bool
+    var filled = true
+    func body(content: Content) -> some View {
+        if native {
+            content.background(.fill.tertiary, in: Capsule())   // brand: native
+        } else {
+            content
+                .background(filled ? Ink.card : Color.clear, in: Capsule())
+                .overlay(Capsule().strokeBorder(Ink.hairline))
         }
     }
 }

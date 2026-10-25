@@ -225,10 +225,32 @@ extension Ink {
 
 extension View {
     /// The neutral card surface: a fill (reader white by default) in a continuous rounded rectangle, with an
-    /// ink hairline.
+    /// ink hairline. iPhone Native draws a grouped card instead (the Mac's tokens already switch).
     func cardSurface(radius: CGFloat, fill: Color = Ink.card) -> some View {
-        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Ink.hairline))
+        modifier(CardSurface(radius: radius, fill: fill))
+    }
+}
+
+private struct CardSurface: ViewModifier {
+    var radius: CGFloat
+    var fill: Color
+    @Environment(\.look) private var look
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        #if os(iOS)
+        // brand: native begin
+        if look == .native {
+            // The card and reader whites become the grouped card; any other fill (a selection tint) stays. No hairline.
+            let native = fill == Ink.card || fill == Ink.reader ? Color(uiColor: .secondarySystemGroupedBackground) : fill
+            content.background(native, in: shape)
+        } else {
+            content.background(fill, in: shape).overlay(shape.strokeBorder(Ink.hairline))
+        }
+        // brand: native end
+        #else
+        content.background(fill, in: shape).overlay(shape.strokeBorder(Ink.hairline))
+        #endif
     }
 }
 

@@ -14,19 +14,19 @@ struct SponsorFoldRow: View {
     var onPlay: (() -> Void)? = nil
     var onNotSponsor: () -> Void
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
 
     var body: some View {
         HStack(spacing: 6) {
             Button { withAnimation(limitMotion ? nil : Motion.settle) { onToggle() } } label: {
                 HStack(spacing: 10) {
-                    IconGlyph(art: .iconSponsor, size: compact ? 14 : 16, color: Ink.ink)
-                        .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
-                        .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    glyph
                     Text(SponsorFold.title(span))
                         .font(.system(size: compact ? 13.5 : 15, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(Ink.ink).lineLimit(1).truncationMode(.middle)
+                        .foregroundStyle(look.isNative ? Color.primary : Ink.ink).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 8)
-                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.mute)
+                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(look.isNative ? Color.secondary : Ink.mute)
                         .rotationEffect(.degrees(open ? 180 : 0))
                 }
                 .contentShape(Rectangle())
@@ -35,7 +35,8 @@ struct SponsorFoldRow: View {
             .accessibilityLabel(SponsorFold.title(span).replacingOccurrences(of: " · ", with: ", "))
             .accessibilityHint(open ? "Hides the sponsor read" : "Shows the sponsor read")
             Menu { items } label: {
-                Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
+                Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(look.isNative ? Color.secondary : Ink.dim)
                     .frame(width: 30, height: compact ? 26 : 32).contentShape(Rectangle())
             }
             #if os(macOS)
@@ -45,9 +46,20 @@ struct SponsorFoldRow: View {
             .accessibilityLabel("Sponsor read options")
         }
         .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, compact ? 5 : 6)
-        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+        .modifier(SponsorRowSurface(native: look.isNative, compact: compact))
         .contextMenu { items }
+    }
+
+    /// The sponsor glyph on a neutral tile in Verbose style; a plain gray symbol in Native.
+    @ViewBuilder private var glyph: some View {
+        if look.isNative {
+            Image(systemName: "tag").font(.system(size: compact ? 13 : 15)).foregroundStyle(.secondary)   // brand: native
+                .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
+        } else {
+            IconGlyph(art: .iconSponsor, size: compact ? 14 : 16, color: Ink.ink)
+                .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
+                .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        }
     }
 
     @ViewBuilder private var items: some View {
@@ -55,6 +67,22 @@ struct SponsorFoldRow: View {
         if let onPlay { Button("Play the read", action: onPlay) }
         Divider()
         Button("Not a sponsor", action: onNotSponsor)
+    }
+}
+
+/// The fold row's surface: card white with a hairline in Verbose style; in Native, a gray rounded row like a
+/// disclosure group's, with no edge.
+private struct SponsorRowSurface: ViewModifier {
+    var native: Bool
+    var compact: Bool
+    func body(content: Content) -> some View {
+        if native {
+            content.background(.fill.tertiary, in: RoundedRectangle(cornerRadius: compact ? 8 : 12, style: .continuous))   // brand: native
+        } else {
+            content
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+        }
     }
 }
 

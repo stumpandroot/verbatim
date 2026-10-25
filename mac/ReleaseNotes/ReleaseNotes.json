@@ -2,6 +2,16 @@
   "notes": [
     {
       "build": "next",
+      "title": "Native look fixes",
+      "items": [
+        "iPhone: Home and Library switch fully to the Native look.",
+        "Tags, categories, and sponsor rows match the Native look.",
+        "iPhone: cards in Settings › Keyboard and other pages match the Native look."
+      ]
+    },
+    {
+      "build": "205",
+      "date": "2026-10-25",
       "title": "Version notes",
       "items": [
         "Tap the version at the bottom of Settings to see what changed in each build. It's also in Settings › Support › What's new.",

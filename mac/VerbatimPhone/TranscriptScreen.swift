@@ -382,15 +382,16 @@ struct TranscriptScreen: View {
                     }
                     .foregroundStyle(.lookInk)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(.lookCard, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
+                    .modifier(OriginalBarCapsule(native: look.isNative))
                 }
                 .accessibilityLabel("Words: \(showEngine ? "engine words" : "with corrections")")
                 .accessibilityIdentifier("original-words")
                 Button { selecting.toggle() } label: {
                     Label(selecting ? "Done selecting" : "Select text", art: .iconSelect, size: 15)
-                        .font(.system(size: 14, weight: .medium)).foregroundStyle(selecting ? Ink.onInteractive : Ink.ink)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(selecting ? (look.isNative ? Color.white : Ink.onInteractive) : (look.isNative ? NativeInk.label : Ink.ink))
                         .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(selecting ? Ink.interactive : Ink.card, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
+                        .modifier(OriginalBarCapsule(native: look.isNative, selected: selecting))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("original-select")
@@ -1025,5 +1026,21 @@ struct PhoneSummaryPanel: View {
         let rest = String(text[r.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         // A long first sentence reads as body text, not a headline.
         return head.count <= 90 ? (head, rest) : ("", text)
+    }
+}
+
+/// The Original tab's two capsules (the words menu and Select text): card white with a hairline in Verbose style
+/// (ink when selecting); a gray system fill in Native (the accent when selecting).
+private struct OriginalBarCapsule: ViewModifier {
+    var native: Bool
+    var selected = false
+    func body(content: Content) -> some View {
+        if native {
+            content.background(selected ? NativeInk.accent : NativeInk.fill, in: Capsule())
+        } else {
+            content
+                .background(selected ? Ink.interactive : Ink.card, in: Capsule())
+                .overlay(Capsule().strokeBorder(Ink.hairline))
+        }
     }
 }
