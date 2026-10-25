@@ -4,6 +4,7 @@
       "build": "next",
       "title": "Faster screens and fixes",
       "items": [
+        "Mac: choosing a look shows a short card while Verbose changes to it, and the change takes less time. On iPhone, this arrived in build 207.",
         "Mac: screens appear at once when you switch to them, without sections fading in one by one, and Home's icons arrive drawn. They draw again when you point at them.",
         "Mac: switching screens and opening a transcript do less work, so the app keeps up while something transcribes or plays.",
         "Home's greeting and dates follow the clock while Verbose transcribes, plays, or dictates. On iPhone, You's dates do too.",
@@ -16,7 +17,7 @@
     {
       "build": "207",
       "date": "2026-10-25",
-      "title": "Smoother look changes",
+      "title": "Smoother look changes (iPhone)",
       "items": [
         "Choosing a look shows a short card while Verbose changes to it, and the change takes less time.",
         "iPhone: after you change the look, you stay on the same tab and screen, and Library keeps your search and filter.",

@@ -35,6 +35,8 @@ final class LookSwitch: ObservableObject {
     /// The last switch's rebuild alone: from storing the look to the first turn of the main loop after it.
     private(set) var lastRebuildMs: Double = 0
     private var generation = 0
+    /// How many switches have shown the card (the self-test checks it went up, whenever the main thread got to it).
+    private(set) var cardsShown = 0
 
     /// Shows the card, stores `look` behind it, then fades the card. `done` gets the switch's time in milliseconds
     /// (the pick to the rebuild's first frame) once the card starts to fade. Ignored while a switch runs; picking the
@@ -49,6 +51,7 @@ final class LookSwitch: ObservableObject {
         let quiet = MotionPreference.isLimited
         Self.prewarm()
         card = look
+        cardsShown += 1
         // The card's first frame (and its fade in) goes out before the rebuild takes the main thread.
         DispatchQueue.main.asyncAfter(deadline: .now() + (quiet ? 0 : Self.fadeIn)) {
             guard gen == self.generation else { return }

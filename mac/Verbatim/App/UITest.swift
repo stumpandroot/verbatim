@@ -696,10 +696,10 @@ enum UITest {
     /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
     /// pick to the rebuilt window's first frame: `UITEST TIMING look-switch <ms> to=<look> screen=<screen>`.
     private static func lookSwitch(to look: AppLook, on screen: String) async {
-        let switching = Task { await LookSwitch.shared.switchTo(look) }
-        try? await Task.sleep(nanoseconds: 60_000_000)
-        let shown = LookSwitch.shared.card == look
-        let ms = await switching.value
+        let before = LookSwitch.shared.cardsShown
+        let ms = await LookSwitch.shared.switchTo(look)
+        // Counted when the card is set, so a busy main thread on the CI machine can't make the check miss it.
+        let shown = LookSwitch.shared.cardsShown > before
         try? await Task.sleep(nanoseconds: 300_000_000)   // the card's fade out
         let ok = shown && AppLook.current == look && LookSwitch.shared.card == nil
         if ok { pass += 1 } else { fail += 1 }
