@@ -4,16 +4,24 @@ import ActivityKit
 import AppIntents
 
 /// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities, the Lock Screen
-/// widget, and (iOS 18) the Control Center controls: the session switch and the Action button's control.
+/// session widget, the Home Screen widgets (Record and Dictate, Recent recordings, This week, Quick capture;
+/// HomeWidgets.swift), and (iOS 18) the Control Center controls: the session switch, the Action button's control,
+/// Record voice note, and Dictate.
 @main
 struct VerbatimWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
         RecordingLiveActivity()
         StartSessionWidget()
+        RecordDictateWidget()
+        RecentRecordingsWidget()
+        WeekWidget()
+        QuickCaptureWidget()
         if #available(iOS 18.0, *) {
             StartSessionControl()
             ActionButtonControl()
+            RecordVoiceNoteControl()
+            DictateControl()
         }
     }
 }

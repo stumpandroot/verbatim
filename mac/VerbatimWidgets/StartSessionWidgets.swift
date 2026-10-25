@@ -49,6 +49,42 @@ struct ActionButtonControl: ControlWidget {
     }
 }
 
+/// Control Center (iOS 18): Record voice note. Records in place behind the recording's Live Activity when iOS allows,
+/// else opens Verbose to record (`RecordVoiceNoteIntent`).
+@available(iOS 18.0, *)
+struct RecordVoiceNoteControl: ControlWidget {
+    static let kind = "co.stumpandroot.verbatim.ios.control.record"
+
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: Self.kind) {
+            ControlWidgetButton(action: RecordVoiceNoteIntent()) {
+                Label("Record", systemImage: "record.circle")   // brand: system surface
+            }
+            .tint(Ink.persimmon)
+        }
+        .displayName("Record voice note")
+        .description("Starts a Verbose voice note, in place when iOS allows it.")
+    }
+}
+
+/// Control Center (iOS 18): Dictate. Opens Verbose for a moment and turns on the microphone for the Verbose keyboard
+/// (`StartKeyboardSessionIntent`, the same as Shortcuts' Start dictation session).
+@available(iOS 18.0, *)
+struct DictateControl: ControlWidget {
+    static let kind = "co.stumpandroot.verbatim.ios.control.dictate"
+
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: Self.kind) {
+            ControlWidgetButton(action: StartKeyboardSessionIntent()) {
+                Label("Dictate", systemImage: "mic")   // brand: system surface
+            }
+            .tint(Ink.persimmon)
+        }
+        .displayName("Dictate")
+        .description("Starts a Verbose dictation session, so you can dictate in any app.")
+    }
+}
+
 // MARK: - Lock Screen widget
 
 /// A Lock Screen widget (circular, rectangular, or inline) that opens `verbatim://session?start=1&from=widget`.

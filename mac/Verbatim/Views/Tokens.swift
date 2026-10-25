@@ -223,6 +223,19 @@ extension Ink {
     static let nativeAccent = dyn(nativeAccentLightHex, nativeAccentDarkHex)
 }
 
+// MARK: - Widgets
+
+/// The widgets' gradient cards (Native look; This week, and the large Recent recordings widget's footer), the four
+/// warm brand colors, each from top leading to bottom trailing and the same in light and dark. White text sits on
+/// persimmon (3.6:1 at the light end, for the large number and bold labels; 5.7:1 at the deep end) and ink green; ink text on
+/// sage and rose.
+extension Ink {
+    static let widgetPersimmon = [Color(hex: 0xE65A32), Color(hex: 0xBA3A1B)]
+    static let widgetInkGreen = [Color(hex: 0x3F5C4E), Color(hex: 0x1D2B25)]
+    static let widgetSage = [Color(hex: 0xC6D8B1), Color(hex: 0x93AD7C)]
+    static let widgetRose = [Color(hex: 0xF6C9D6), Color(hex: 0xDE97AD)]
+}
+
 // MARK: - Look switch card
 
 /// Verbose style's paper, card, ink, and hard shadow, which never turn into Native's system colors on the Mac (`dyn`
