@@ -243,12 +243,12 @@ struct YouView: View {
         return HomeCard(tilt: 1.5, radius: Radius.record, shadow: false, onPress: { voiceDown = $0 },
                         action: { VoiceEnrollmentSheet.present(readMore: known) }) { hovering in
             VStack(alignment: .leading, spacing: 12) {
-                Eyebrow(text: "Your voice", color: Ink.inkFixed)
+                Eyebrow(text: "Your voice", color: Ink.panelInk)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(line.0).font(Ink.serif(24))
                     if let italic = line.1 { Text(italic).font(Ink.serif(24).italic()) }
                 }
-                .foregroundStyle(Ink.inkFixed).lineSpacing(1)
+                .foregroundStyle(Ink.panelInk).lineSpacing(1)
                 .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 HStack(alignment: .bottom, spacing: 0) {
@@ -256,7 +256,7 @@ struct YouView: View {
                         Text(known ? "Read more passages" : "Set up your voice")
                         ArtIcon(art: .webArrow, size: 13, lineWidth: 1.5)
                     }
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.panelInk)
                     .fixedSize()
                     Spacer(minLength: 0)
                     // The rings' corner: 88 × 92 pt of the panel, less the padding.

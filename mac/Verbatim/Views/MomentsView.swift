@@ -166,7 +166,7 @@ struct MomentCard: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        let ink = onButter ? Ink.inkFixed : Ink.ink
+        let ink = onButter ? Ink.panelInk : Ink.ink
         HomeCard(tilt: 2, radius: Radius.record, shadow: false, onPress: { down = $0 }, action: open) { hovering in
             VStack(alignment: .leading, spacing: 0) {
                 if let f = stillFile { still(f) }
@@ -218,7 +218,7 @@ struct MomentCard: View {
     private func still(_ file: String) -> some View {
         ThumbImage(file: file, maxPixel: 800) {
             Color.clear.colorPanel(Ink.panelPetal, radius: 0)
-                .overlay { SolidPlayGlyph().fill(Ink.inkFixed).frame(width: 11, height: 13).offset(x: 1) }
+                .overlay { SolidPlayGlyph().fill(Ink.panelInk).frame(width: 11, height: 13).offset(x: 1) }
         }
         .frame(height: Self.stillHeight)
         .frame(maxWidth: .infinity)

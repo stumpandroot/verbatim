@@ -8,6 +8,10 @@ import AppKit
 // outline and a hard offset shadow on hover, pill buttons, soft filter chips, plain status text, a horizontal empty
 // state, and color panels with paper grain and one slowly looping line drawing. Mac target only; the iPhone has its
 // own kit. Mono text here is never smaller than 12 pt (brand-check enforces it in files marked `brand: web style`).
+//
+// Under the Native look (`@Environment(\.look)`) each component draws its stock macOS counterpart instead, from
+// NativeLook.swift: grouped boxes for color panels, no grain, line art, ink edges, or hard shadows, title-case bordered
+// buttons, capsule chips, plain section headers, and SF Symbols.
 
 // MARK: - Type
 
@@ -15,6 +19,8 @@ import AppKit
 enum WebText {
     static func serif(_ plain: String, italic: String? = nil, size: CGFloat) -> Text {
         guard let italic, !italic.isEmpty else { return Text(plain).font(Ink.serif(size)) }
+        // Native: one upright run in SF Pro (Ink.serif), no italic second part.
+        if NativeSwap.on { return Text(plain.isEmpty ? italic : plain + " " + italic).font(Ink.serif(size)) }
         let lead = plain.isEmpty ? "" : plain + " "
         return Text("\(Text(lead).font(Ink.serif(size)))\(Text(italic).font(Ink.serif(size).italic()))")
     }
@@ -58,7 +64,15 @@ enum WebFormat {
 struct Eyebrow: View {
     var text: String
     var color: Color = Ink.dim
+    @Environment(\.look) private var look
     var body: some View {
+        if look == .native {
+            Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+        } else {
+            verbose
+        }
+    }
+    @ViewBuilder private var verbose: some View {
         HStack(spacing: 9) {
             Diamond().stroke(color, lineWidth: 1.3).frame(width: 10, height: 10).accessibilityHidden(true)
             Text(text).font(Ink.mono(12.5)).lineLimit(1)
@@ -77,8 +91,36 @@ struct PageTitle<Trailing: View>: View {
     var count: String? = nil
     var lede: String? = nil
     @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native { native } else { verbose }
+    }
+
+    /// Native: a bold title with the count as its subtitle, as a toolbar title reads, controls on the right.
+    private var native: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(italic.map { title.isEmpty ? $0 : title + " " + $0 } ?? title)
+                        .font(.system(size: 22, weight: .bold)).foregroundStyle(.primary)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                        .accessibilityAddTraits(.isHeader)
+                    if let count { Text(count).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1) }
+                }
+                .layoutPriority(1)
+                Spacer(minLength: 12)
+                trailing()
+            }
+            if let lede {
+                Text(lede).font(.system(size: 13)).foregroundStyle(.secondary)
+                    .frame(maxWidth: 640, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 20) {
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
@@ -119,8 +161,28 @@ struct SectionTitle: View {
     var linkLabel: String? = nil
     var linkHint: String = ""
     var action: () -> Void = {}
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native {
+            // Native: a plain section header (`.headline`), the link as accent text.
+            HStack(alignment: .firstTextBaseline) {
+                Text(italic.map { title.isEmpty ? $0 : title + " " + $0 } ?? title).font(.headline).foregroundStyle(.primary).lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 12)
+                if let link {
+                    Button(NativeText.titleCase(link), action: action)
+                        .buttonStyle(.plain).font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.nativeAccent)
+                        .accessibilityLabel(linkLabel ?? link)
+                        .accessibilityHint(linkHint)
+                }
+            }
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
         HStack(alignment: .firstTextBaseline) {
             WebText.serif(title, italic: italic, size: 26).foregroundStyle(Ink.ink).lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
@@ -145,7 +207,17 @@ struct SectionTitle: View {
 /// "Today · Fri Oct 23 - - - - -": a day header in mono with a dashed hairline.
 struct DayHeader: View {
     var text: String
+    @Environment(\.look) private var look
     var body: some View {
+        if look == .native {
+            Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            verbose
+        }
+    }
+    @ViewBuilder private var verbose: some View {
         HStack(spacing: 10) {
             Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1).fixedSize()
                 .accessibilityAddTraits(.isHeader)
@@ -179,8 +251,13 @@ struct InkEdge: ViewModifier {
         return pressed ? CGSize(width: 2, height: 3) : CGSize(width: 7, height: 9)
     }
 
+    @Environment(\.look) private var look
+
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if look == .native {
+            content   // Native: no ink outline, no hard shadow.
+        } else {
         content
             .background {
                 shape.fill(Ink.hard).offset(shadow).opacity(shadow == .zero ? 0 : 1).allowsHitTesting(false)
@@ -190,6 +267,7 @@ struct InkEdge: ViewModifier {
             }
             .animation(Motion.touch, value: outline)
             .animation(Motion.touch, value: shadow)
+        }
     }
 }
 
@@ -205,8 +283,18 @@ extension View {
 /// selection) it takes the card fill, the 1.5 pt ink outline, and the (4, 5) hard shadow. Rows never tilt.
 struct FlatRowSurface: ViewModifier {
     var highlighted: Bool
+    @Environment(\.look) private var look
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+        if look == .native {
+            // Native: a list row. A soft wash under the pointer, a separator between rows.
+            content
+                .background(highlighted ? NativeInk.hover : Color.clear, in: shape)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(NativeInk.separator).frame(height: 1).padding(.leading, 12)
+                        .opacity(highlighted ? 0 : 0.6).allowsHitTesting(false)
+                }
+        } else {
         content
             .background(highlighted ? Ink.card : Color.clear, in: shape)
             .overlay(alignment: .bottom) {
@@ -214,6 +302,7 @@ struct FlatRowSurface: ViewModifier {
             }
             .inkEdge(outline: highlighted, shadow: highlighted ? InkEdge.row : .zero, radius: Radius.row)
             .animation(Motion.touch, value: highlighted)
+        }
     }
 }
 
@@ -290,8 +379,13 @@ private struct FlatRowHit: ViewModifier {
 struct KindDot: View {
     var transcript: Transcript
     var size: CGFloat = 34
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native { NativeKindIcon(transcript: transcript, size: size) } else { dot }
+    }
+
+    @ViewBuilder private var dot: some View {
         let link = LibrarySource.isLink(transcript)
         ZStack {
             Circle().fill(link ? Ink.card : fill)
@@ -344,8 +438,24 @@ struct StatusText: View {
     var icon: BrandArt? = nil
     /// Mono for statuses in a column next to a mono duration (Library); sans elsewhere.
     var mono = false
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native { native } else { verbose }
+    }
+
+    /// Native: plain text in system colors (the accent for Cleaned, the system red for errors), digits aligned.
+    private var native: some View {
+        HStack(spacing: 4) {
+            if check { Text("✓") }
+            Text(text)
+        }
+        .font(.system(size: 12, weight: tone == .accent || tone == .danger ? .medium : .regular).monospacedDigit())
+        .foregroundStyle(tone == .accent ? AnyShapeStyle(Ink.nativeAccent) : tone == .danger ? AnyShapeStyle(NativeInk.danger) : AnyShapeStyle(.secondary))
+        .lineLimit(1).fixedSize()
+    }
+
+    @ViewBuilder private var verbose: some View {
         HStack(spacing: 6) {
             if check { ArtIcon(art: .homeCheck, size: 13, lineWidth: 1.6).foregroundStyle(tone == .dim ? Ink.ink : color) }
             if let icon { ArtIcon(art: icon, size: 14, lineWidth: 1.3) }
@@ -437,8 +547,18 @@ struct PillLabel: View {
     var hover = false
     var pressed = false
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native {
+            NativeButtonFace(title: title, prominent: kind == .dark, size: size == .mini ? .mini : .regular,
+                             fullWidth: fullWidth, hover: hover, pressed: pressed)
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
         let ink = fixedInk ? Ink.inkFixed : Ink.ink
         let paper = fixedInk ? Ink.paperFixed : Ink.paper
         HStack(spacing: 8) {
@@ -519,7 +639,15 @@ struct PillButtonStyle: ButtonStyle {
         @State private var hover = false
         @Environment(\.isEnabled) private var enabled
         @Environment(\.limitMotion) private var limitMotion
+        @Environment(\.look) private var look
         var body: some View {
+            if look == .native {
+                NativeButtonStyleFace(configuration: configuration, prominent: kind == .dark, size: size == .mini ? .mini : .regular)
+            } else {
+                verbose
+            }
+        }
+        @ViewBuilder private var verbose: some View {
             configuration.label
                 .font(.system(size: size.font, weight: .semibold))
                 .lineLimit(1)
@@ -559,8 +687,17 @@ struct FilterChipLabel: View {
     var selected: Bool
     var small = false
     var hover = false
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native {
+            NativeChipFace(title: title, count: count, selected: selected, small: small, hover: hover)
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
         HStack(spacing: 7) {
             if ring {
                 Circle().strokeBorder(selected ? Ink.paper : Ink.ink, lineWidth: 1.5).frame(width: 9, height: 9)
@@ -613,8 +750,17 @@ struct WebSearchField: View {
     var prompt: String
     var height: CGFloat = 40
     @FocusState private var focused: Bool
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native {
+            NativeSearchField(text: $text, prompt: prompt, height: min(height, 30))
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
         HStack(spacing: 10) {
             IconGlyph(art: .iconNotes, size: 16, color: Ink.mute)
             TextField(prompt, text: $text)
@@ -647,8 +793,17 @@ struct EmptyStateCard: View {
     var message: String
     var button: String? = nil
     var action: (() -> Void)? = nil
+    @Environment(\.look) private var look
 
     var body: some View {
+        if look == .native {
+            NativeEmptyState(art: art, title: title, message: message, button: button, action: action)
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
         let plate = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
         HStack(alignment: .center, spacing: 26) {
             ZStack {
@@ -690,9 +845,11 @@ struct GrainOverlay: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.look) private var look
 
     var body: some View {
-        if !reduceTransparency, contrast != .increased, let tile = GrainTile.image {
+        // Native draws no grain.
+        if look != .native, !reduceTransparency, contrast != .increased, let tile = GrainTile.image {
             Image(decorative: tile, scale: max(1, displayScale))
                 .resizable(resizingMode: .tile)
                 .interpolation(.none)
@@ -735,21 +892,39 @@ extension View {
     ///
     /// The fill takes exactly the content's size; the grain and the art are overlays on it, clipped to its shape, so a
     /// drawing larger than the panel (Home's 250-pt rings in a 196-pt card) can never make the panel bigger.
+    ///
+    /// Native: a plain group box (`nativeBox`), with no fill color, grain, or drawing.
     func colorPanel<Art: View>(_ fill: Color, radius: CGFloat = Radius.record, grain: Bool = true,
                                @ViewBuilder art: () -> Art) -> some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let drawing = art()
-        return background {
-            shape.fill(fill)
-                .overlay { if grain { GrainOverlay() } }
-                .overlay(alignment: .topTrailing) { drawing }
-                .clipShape(shape)
-                .allowsHitTesting(false)
-        }
+        modifier(ColorPanelSurface(fill: fill, radius: radius, grain: grain, art: art()))
     }
 
     func colorPanel(_ fill: Color, radius: CGFloat = Radius.record, grain: Bool = true) -> some View {
         colorPanel(fill, radius: radius, grain: grain) { EmptyView() }
+    }
+}
+
+/// A color panel's surface (see `colorPanel`), or the Native group box.
+struct ColorPanelSurface<Art: View>: ViewModifier {
+    var fill: Color
+    var radius: CGFloat
+    var grain: Bool
+    var art: Art
+    @Environment(\.look) private var look
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if look == .native {
+            content.nativeBox(radius: radius)
+        } else {
+            content.background {
+                shape.fill(fill)
+                    .overlay { if grain { GrainOverlay() } }
+                    .overlay(alignment: .topTrailing) { art }
+                    .clipShape(shape)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 }
 
@@ -774,10 +949,13 @@ struct PanelArt: View {
     var running = true
     var color: Color = Ink.inkFixed
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
 
     var body: some View {
         Group {
-            if limitMotion || !LoopingArt.enabled || !running {
+            if look == .native {
+                EmptyView()   // Native draws no line art.
+            } else if limitMotion || !LoopingArt.enabled || !running {
                 Canvas { ctx, size in PanelArtDrawing.draw(kind, ctx, size, t: nil, color: color) }
             } else {
                 LoopTimeline(running: true) { now in

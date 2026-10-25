@@ -211,9 +211,9 @@ struct TranscriptSummaryCard: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Eyebrow(text: "Summary", color: Ink.inkFixed)
+            Eyebrow(text: "Summary", color: Ink.panelInk)
             Image(systemName: collapsed ? "chevron.right" : "chevron.down")
-                .font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.inkFixed.opacity(0.7))
+                .font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.panelInk.opacity(0.7))
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
@@ -232,15 +232,15 @@ struct TranscriptSummaryCard: View {
         } else if let s = transcript.summary {
             VStack(alignment: .leading, spacing: 12) {
                 if !s.overview.isEmpty {
-                    Text(s.overview).font(Ink.serif(18)).foregroundStyle(Ink.inkFixed).lineSpacing(2)
+                    Text(s.overview).font(Ink.serif(18)).foregroundStyle(Ink.panelInk).lineSpacing(2)
                         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
                 if !s.keyPoints.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
                             HStack(alignment: .top, spacing: 9) {
-                                Circle().fill(Ink.inkFixed).frame(width: 4, height: 4).padding(.top, 7)
-                                Text(p).font(.system(size: 13.5)).foregroundStyle(Ink.inkFixed).lineSpacing(2)
+                                Circle().fill(Ink.panelInk).frame(width: 4, height: 4).padding(.top, 7)
+                                Text(p).font(.system(size: 13.5)).foregroundStyle(Ink.panelInk).lineSpacing(2)
                                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -254,7 +254,7 @@ struct TranscriptSummaryCard: View {
             progressRow
         } else if let why = center.failures[transcript.id] {
             VStack(alignment: .leading, spacing: 10) {
-                Text(why).font(.system(size: 13)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
+                Text(why).font(.system(size: 13)).foregroundStyle(Ink.panelInk).fixedSize(horizontal: false, vertical: true)
                 if Summarizer.available {
                     PillButton(title: "Try again", kind: .line, size: .mini, fixedInk: true) { summarize(replacing: false) }
                 }
@@ -265,7 +265,7 @@ struct TranscriptSummaryCard: View {
     private var progressRow: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(progressText).font(.system(size: 13)).foregroundStyle(Ink.inkFixed)
+            Text(progressText).font(.system(size: 13)).foregroundStyle(Ink.panelInk)
         }
     }
 
@@ -278,14 +278,14 @@ struct TranscriptSummaryCard: View {
         VStack(alignment: .leading, spacing: 10) {
             if transcript.summaryByModel {
                 Label { Text(AIGeneratedNote.summary) } icon: { ArtIcon(art: .iconAI, size: 13) }
-                    .font(.system(size: 12)).foregroundStyle(Ink.inkFixed.opacity(0.8))
+                    .font(.system(size: 12)).foregroundStyle(Ink.panelInk.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityElement(children: .combine)
             }
             if running {
                 progressRow
             } else if let why = center.failures[transcript.id] {
-                Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
+                Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.panelInk).fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 8) {
                 PillButton(title: "Edit", kind: .line, size: .mini, fixedInk: true) {

@@ -25,9 +25,9 @@ struct DictionarySuggestions: View {
         let list = Array(all.prefix(Self.shown))
         HStack(alignment: .center, spacing: 24) {
             VStack(alignment: .leading, spacing: 8) {
-                Eyebrow(text: all.isEmpty ? "Suggestions" : "Suggestions · \(all.count)", color: Ink.inkFixed)
+                Eyebrow(text: all.isEmpty ? "Suggestions" : "Suggestions · \(all.count)", color: Ink.panelInk)
                     .accessibilityAddTraits(.isHeader)
-                WebText.serif("Names and", italic: "fixes.", size: 24).foregroundStyle(Ink.inkFixed).lineLimit(1)
+                WebText.serif("Names and", italic: "fixes.", size: 24).foregroundStyle(Ink.panelInk).lineLimit(1)
                 PillButton(title: "Suggest names from Contacts", kind: .line, size: .mini, icon: .iconAboutMe, fixedInk: true,
                            hint: "Pick names from your contacts. Names stay on this Mac.") { showContacts = true }
                     .help("Pick names from your contacts. Names stay on this Mac.")
@@ -37,13 +37,13 @@ struct DictionarySuggestions: View {
             VStack(alignment: .leading, spacing: 8) {
                 if list.isEmpty {
                     Text("Names from About me, and fixes you make more than once, show up here.")
-                        .font(.system(size: 13)).foregroundStyle(Ink.inkFixed).fixedSize(horizontal: false, vertical: true)
+                        .font(.system(size: 13)).foregroundStyle(Ink.panelInk).fixedSize(horizontal: false, vertical: true)
                 } else {
                     FlowRow(spacing: 8, lineSpacing: 8) {
                         ForEach(list) { s in pill(s) }
                     }
                     if all.count > list.count {
-                        Text("\(all.count - list.count) more after these.").font(.system(size: 12.5)).foregroundStyle(Ink.inkFixed.opacity(0.8))
+                        Text("\(all.count - list.count) more after these.").font(.system(size: 12.5)).foregroundStyle(Ink.panelInk.opacity(0.8))
                     }
                 }
             }

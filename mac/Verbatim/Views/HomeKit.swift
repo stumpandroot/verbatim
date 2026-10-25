@@ -635,6 +635,8 @@ private struct HomeCardSurface<Content: View>: View {
     var onPress: ((Bool) -> Void)?
     var action: () -> Void
     @Environment(\.limitMotion) private var limitMotion
+    /// Native: no tilt, lift, or sheen; only the press shows.
+    @Environment(\.look) private var look
     @State private var pointer: CGPoint? = nil
     @State private var size: CGSize = .zero
     @State private var down = false
@@ -642,7 +644,7 @@ private struct HomeCardSurface<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         content
-            .cardMotion(hover: enabled ? pointer : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift, shadow: shadow)
+            .cardMotion(hover: enabled && look != .native ? pointer : nil, size: size, pressed: down && enabled, radius: radius, tilt: tilt, lift: lift, shadow: shadow)
             .opacity(down && enabled && limitMotion ? 0.8 : 1)
             .allowsHitTesting(false)
             .overlay {

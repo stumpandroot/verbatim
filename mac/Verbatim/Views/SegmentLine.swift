@@ -6,6 +6,7 @@ import AppKit
 /// One line: timecode, speaker only when it changes, text. Click to select (for a passage-linked note),
 /// right-click to correct a word. The current line during playback carries the iris tint.
 struct SegmentLine: View {
+    @Environment(\.look) private var look
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     var segment: Segment
@@ -82,10 +83,11 @@ struct SegmentLine: View {
                             Button("Rename \(name)…") { renaming = true; newName = name }
                             Button("No speaker") { app.assign(transcript: transcript.id, segment: segment.id, to: nil) }
                         } label: {
-                            // A speaker pill: the speaker's color, fixed ink text.
-                            Text(name).font(.system(size: 12.5, weight: .bold)).foregroundStyle(Ink.inkFixed).lineLimit(1)
-                                .padding(.horizontal, 11).frame(height: 26)
-                                .background(speakerColor(sp), in: Capsule())
+                            // A speaker pill: the speaker's color, fixed ink text. Native: the name in semibold, no hue.
+                            Text(name).font(.system(size: 12.5, weight: look == .native ? .semibold : .bold))
+                                .foregroundStyle(look == .native ? Ink.ink : Ink.inkFixed).lineLimit(1)
+                                .padding(.horizontal, look == .native ? 0 : 11).frame(height: 26)
+                                .background(look == .native ? Color.clear : speakerColor(sp), in: Capsule())
                                 .contentShape(Capsule())
                         }
                         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()

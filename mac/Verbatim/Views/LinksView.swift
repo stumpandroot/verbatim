@@ -200,7 +200,7 @@ private struct LinkThumb: View {
     private var panel: some View {
         Color.clear
             .colorPanel(Self.fills[Int(seed.uuid.0) % Self.fills.count], radius: Radius.tile)
-            .overlay { SolidPlayGlyph().fill(Ink.inkFixed).frame(width: 11, height: 13).offset(x: 1) }
+            .overlay { SolidPlayGlyph().fill(Ink.panelInk).frame(width: 11, height: 13).offset(x: 1) }
     }
 }
 
