@@ -43,6 +43,11 @@ enum UITest {
                     ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) else { Log.note("UITEST FAIL no window"); return }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            // Every click step runs in Verbose style (the look new installs start in); the tour adds Native screens.
+            if AppLook.current != .verbose {
+                AppLook.current = .verbose
+                try? await Task.sleep(nanoseconds: 800_000_000)
+            }
 
             if app.store.transcripts.isEmpty {
                 var t = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 12, audioFileName: nil, model: "Test")
@@ -582,7 +587,7 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         await show("10-home-again")
-        for (i, name) in ["10a-onboarding-welcome", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
+        for (i, name) in ["10a-onboarding-welcome", "10a2-onboarding-look", "10b-onboarding-permissions", "10c-onboarding-try", "10d-onboarding-placement", "10e-onboarding-quality"].enumerated() {
             onboardingStep = i
             app.showOnboarding = true
             await show(name)
@@ -632,7 +637,48 @@ enum UITest {
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
         NSApplication.shared.appearance = nil
+        await nativeTour(app: app, window: window, memo: memo?.id)
         write(show: "done")
+    }
+
+    /// The Native look (Settings › General › Look) on the key screens, light then dark, with `-native` names: Home,
+    /// the Library, a transcript, Settings › General with the look picker, and the welcome tour's Pick a look step.
+    /// Ends back in Verbose style.
+    private static func nativeTour(app: AppState, window: NSWindow, memo: UUID?) async {
+        AppLook.current = .native
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        app.go(.home); app.captureMode = "voice"
+        await show("01-home-native")
+        app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
+        app.go(.library)
+        await show("05-library-native")
+        if let m = memo { app.go(.transcript(m)) }
+        await show("06-transcript-native")
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        openSettingsWindow()
+        await show("09-settings-general-native")
+        UserDefaults.standard.set(SettingsTab.dictate.rawValue, forKey: "settingsTab")
+        await show("09d-settings-dictate-native")
+        UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
+        NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
+        window.makeKeyAndOrderFront(nil)
+        app.go(.home)
+        onboardingStep = OnboardingStep.look.rawValue
+        app.showOnboarding = true
+        await show("10a2-onboarding-look-native")
+        app.showOnboarding = false
+        onboardingStep = 0
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+        await show("11-dark-home-native")
+        app.go(.library)
+        await show("15-dark-library-native")
+        if let m = memo { app.go(.transcript(m)) }
+        await show("12-dark-transcript-native")
+        app.go(.home)
+        NSApplication.shared.appearance = nil
+        AppLook.current = .verbose
+        try? await Task.sleep(nanoseconds: 800_000_000)
     }
 
     static weak var appRef: AppState?
@@ -995,6 +1041,13 @@ enum UITest {
         check("settings search needs every word", SettingsIndex.search("sync iphone").map(\.id) == ["storage.icloud"] && SettingsIndex.search("sync icloud").map(\.id).contains("storage.icloud") && SettingsIndex.search("   ").isEmpty)
         check("every settings pane is searchable", SettingsTab.allCases.allSatisfy { t in SettingsIndex.all.contains { $0.section == t } })
         check("settings ids are unique", Set(SettingsIndex.all.map(\.id)).count == SettingsIndex.all.count)
+        // The Native look (LookRules.swift, NativeLook.swift).
+        check("native look: paper becomes the window background", NativeRoles.role(light: Ink.paperHex) == .window)
+        check("native look: brand persimmon keeps its color", NativeRoles.role(light: Ink.persimmonHex) == nil)
+        check("native look: buttons use title case", NativeText.titleCase("Don't ask for this app") == "Don't Ask for This App")
+        check("native look: Pick a look comes after the welcome", OnboardingStep.at(1) == .look && OnboardingStep.count == 6)
+        check("native look: Settings › General › Look is searchable", SettingsIndex.search("native").map(\.id).contains("general.look"))
+        check("native look: tokens stay Verbose style while it's chosen", !NativeSwap.on && NativeSwap.color(light: Ink.paperHex) == nil)
 
         // Recent dictations: newest first, capped, one-line menu titles, number keys, and when the Ribbon keeps a missed paste
         do {
