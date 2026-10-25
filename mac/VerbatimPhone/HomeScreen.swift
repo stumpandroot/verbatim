@@ -2,9 +2,11 @@ import SwiftUI
 import AVFoundation
 
 /// Home, in the website style (mockup "Verbose iPhone, Website Style", October 23, 2026): the only screen with the
-/// big two-line serif greeting, then the Record panel (record color, grain, the breathing meter, and the rings that
-/// swell gently), four short start tiles (Dictate, Import, What's playing, Live captions; Import's touch-and-hold menu pastes a link), a one-line This week card,
-/// and the two most recent recordings as flat rows. Whatever you record here shows up on your Mac.
+/// big two-line serif greeting, then the sections Edit Home lists (HomeLayout.swift), in its order and sizes. By default:
+/// the Record panel (record color, grain, the breathing meter, and the rings that swell gently), four short start tiles
+/// (Dictate, Import, What's playing, Live captions; Import's menu pastes a link), a one-line This week card, and the two
+/// most recent recordings as flat rows. Edit Home's button closes the page. Whatever you record here shows up on your
+/// Mac. Sections arrive at once: no entrance animation, and a layout change re-renders them in place.
 struct HomeScreen: View {
     /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
     /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
@@ -13,10 +15,11 @@ struct HomeScreen: View {
     @Environment(\.limitMotion) private var limitMotion
     /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
     @AppStorage("profile.name") private var storedName = ""
-    /// Entrances: the first screenful staggers in on launch and on each switch to Home.
-    @State private var seen = SeenRows()
-    @State private var entrance = 0
     @State private var now = Date()
+    /// Edit Home's layouts (both looks); Home draws the one for its look.
+    @ObservedObject private var layouts = HomeLayoutStore.shared
+    /// Edit Home, as a sheet from the button at the end of Home.
+    @State private var editingHome = false
     @State private var micName = HomeScreen.currentMic()
     /// Listens to the mic while a finger is on Record, so the meter shows your real level (DESIGN.md §7).
     @StateObject private var monitor = HomeLevelMonitor()
@@ -38,10 +41,18 @@ struct HomeScreen: View {
         Group {
             if look.isNative { nativeScreen } else { verboseScreen }
         }
-        .tabEntrance(.home) { seen.entered(); entrance += 1 }
+        .tabEntrance(.home) {}
         .phonePage()
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
+        .navigationDestination(for: HomeDictionaryRoute.self) { _ in DictionaryScreen() }
+        .sheet(isPresented: $editingHome) {
+            NavigationStack { EditHomeView(onDone: { editingHome = false }) }
+                .environmentObject(app)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimEditHome)) { note in
+            editingHome = (note.object as? Bool) ?? true
+        }
         .onAppear { now = Date(); micName = Self.currentMic() }
         .onDisappear { monitor.stop() }
         .onChange(of: app.recorder.isRecording) { _, on in if on { monitor.stop() } }
@@ -53,25 +64,44 @@ struct HomeScreen: View {
 
     /// Verbose style draws its own greeting, so the navigation bar stays hidden.
     private var verboseScreen: some View {
-        scroller {
+        let layout = layouts.layout(.verbose)
+        let drawn = HomeSpacing.drawn(layout, working: Self.working(app.store))
+        return scroller {
             VStack(alignment: .leading, spacing: 0) {
                 header.id("home-top")
-                    .riseIn("header", index: 0, seen: seen, epoch: entrance)
                 // After an update: "What's new in build N", once (WhatsNewScreen.swift).
                 WhatsNewBanner(top: 16) { Self.openWhatsNew(app) }
-                recordPanel.padding(.top, 18)
-                    .riseIn("record", index: 1, seen: seen, epoch: entrance)
-                tiles.padding(.top, 10)
-                    .riseIn("tiles", index: 2, seen: seen, epoch: entrance)
-                weekCard.padding(.top, 12)
-                    .riseIn("week", index: 3, seen: seen, epoch: entrance)
-                recent.padding(.top, 24).id("home-recent")
-                    .riseIn("recent", index: 4, seen: seen, epoch: entrance)
+                // Only the shown sections, each keeping its identity (its section) when the layout changes.
+                ForEach(Array(drawn.enumerated()), id: \.element.section) { i, item in
+                    verboseSection(item, tiles: layout.tiles)
+                        .padding(.top, HomeSpacing.top(item, after: i > 0 ? drawn[i - 1] : nil, native: false))
+                        .homeProbe(item)
+                }
+                EditHomeButton { editingHome = true }.padding(.top, 32)
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
         }
         .navigationTitle("")
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// Whether anything is transcribing (Queue shows only then). One pass, without copying the library.
+    static func working(_ store: Store) -> Bool {
+        store.transcripts.contains { $0.deletedAt == nil && $0.status == .processing }
+    }
+
+    @ViewBuilder private func verboseSection(_ item: HomeLayout.Item, tiles picks: [HomeTile]) -> some View {
+        switch item.section {
+        case .record: if item.size == .large { recordPanel } else { recordStrip }
+        case .tiles: tiles(picks, size: item.size)
+        case .week: if item.size == .compact { weekCard } else { weekLarge }
+        case .recent: recent(item.size).id("home-recent")
+        case .lastDictation: HomeLastDictationSection(size: item.size, now: now)
+        case .projects: HomeProjectsSection(size: item.size)
+        case .moments: HomeMomentsSection(size: item.size)
+        case .queue: HomeQueueSection(size: item.size)
+        case .stats: EmptyView()
+        }
     }
 
     /// Native uses the navigation bar's large title and the account button, with the floating record button over it.
@@ -221,59 +251,88 @@ struct HomeScreen: View {
         .onDisappear { Self.recordCardsOnScreen.remove(.verbose) }
     }
 
+    /// Record, Compact: one slim strip in the record color with the microphone and the disc.
+    private var recordStrip: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
+        return Button {
+            monitor.stop()
+            app.requestRecord()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Record").lookSerif(24)
+                    Text("Ready · \(micName)").font(.system(size: small, weight: .semibold)).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                ZStack {
+                    Circle().fill(Ink.inkFixed)
+                    Circle().fill(PhoneInk.record).frame(width: 14, height: 14)
+                }
+                .frame(width: 40, height: 40)
+                .accessibilityHidden(true)
+            }
+            .foregroundStyle(onRecord)
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .background { PhonePanelFill(color: PhoneInk.record, shape: shape) }
+            .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
+            .background(shape.fill(PhoneInk.hard).offset(x: 3, y: 4))
+            .contentShape(shape)
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityLabel("Record")
+        .accessibilityValue("Microphone: \(micName)")
+        .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
+        .accessibilityIdentifier("home.record.verbose.compact")
+    }
+
     // MARK: Tiles
 
-    private var tiles: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                Button { app.homePath.append(DictationsRoute()) } label: {
-                    tile("Dictate", art: .iconDictations, fill: PhoneInk.butter)
-                }
-                .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Opens your dictations and how to use the Verbose keyboard.")
-                // Tap for the choices: Photos (where saved videos land), Files, or a link.
-                Menu {
-                    Button("Choose from Photos") { app.showPhotoPicker = true }
-                    Button("Choose files…") { app.showImporter = true }
-                    Button("Paste a link") { app.showLinkSheet = true }
-                } label: {
-                    tile("Import", art: .iconDownload, fill: PhoneInk.sage)
-                }
-                .menuStyle(.button)
-                .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Choose a video from Photos, audio or video files, or paste a link to transcribe.")
-                .accessibilityAction(named: "Paste a link") { app.showLinkSheet = true }
+    /// The four tiles you picked. Large: two by two, as tall as a thumb. Compact: one row of four. Fills go by slot
+    /// (butter, sage, petal, then paper with an ink outline, so the fourth never outweighs Record).
+    @ViewBuilder private func tiles(_ picks: [HomeTile], size: HomeCardSize) -> some View {
+        if size == .large {
+            Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                GridRow { tileCells(picks, slots: 0..<2, size: size) }
+                GridRow { tileCells(picks, slots: 2..<4, size: size) }
             }
-            GridRow {
-                Button { app.showPlayingSheet = true } label: {
-                    tile("What's playing", art: .iconVoice, fill: PhoneInk.petal)
-                }
-                .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Transcribes sound from TikTok or any app.")
-                // Paper with an ink outline, so it never outweighs Record.
-                Button { app.requestCaptions() } label: {
-                    tile("Live captions", art: .iconCaptions, fill: nil)
-                }
-                .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Shows what's said in the room as captions.")
+        } else {
+            HStack(spacing: 8) { tileCells(picks, slots: 0..<4, size: size) }
+        }
+    }
+
+    /// One cell per picked tile in `slots`, identified by the tile, so a new pick appears as a new tile.
+    private func tileCells(_ picks: [HomeTile], slots: Range<Int>, size: HomeCardSize) -> some View {
+        ForEach(HomeTileSlot.slots(picks, slots), id: \.tile) { s in
+            HomeTileButton(tile: s.tile) {
+                tile(s.tile.title, art: s.tile.art, fill: Self.tileFill(s.slot), compact: size == .compact)
             }
         }
     }
 
-    /// A start tile: the bare icon top left, the name in the serif at the foot. Color tiles get grain; Live captions
-    /// is paper with an ink outline.
-    private func tile(_ title: String, art: BrandArt, fill: Color?) -> some View {
+    static func tileFill(_ slot: Int) -> Color? {
+        switch slot {
+        case 0: return PhoneInk.butter
+        case 1: return PhoneInk.sage
+        case 2: return PhoneInk.petal
+        default: return nil
+        }
+    }
+
+    /// A start tile: the bare icon top left, the name in the serif at the foot. Color tiles get grain; the fourth is
+    /// paper with an ink outline. Compact tiles are shorter, with a smaller name.
+    private func tile(_ title: String, art: BrandArt, fill: Color?, compact: Bool = false) -> some View {
         let shape = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
         let on = fill == nil ? Ink.ink : Ink.inkFixed
-        return VStack(alignment: .leading, spacing: 8) {
-            IconGlyph(art: art, size: 22, color: on)
+        return VStack(alignment: .leading, spacing: compact ? 6 : 8) {
+            IconGlyph(art: art, size: compact ? 18 : 22, color: on)
             Spacer(minLength: 0)
-            Text(title).lookSerif(tileSize).foregroundStyle(on)
+            Text(title).lookSerif(compact ? 14 : tileSize).foregroundStyle(on)
                 .lineLimit(2).minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+        .padding(.horizontal, compact ? 9 : 12).padding(.vertical, compact ? 9 : 10)
+        .frame(maxWidth: .infinity, minHeight: compact ? 66 : 76, alignment: .leading)
         .background {
             if let fill { PhonePanelFill(color: fill, shape: shape) } else { shape.fill(Ink.card) }
         }
@@ -299,7 +358,7 @@ struct HomeScreen: View {
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 6)
-                dayBars(week)
+                dayBars(week, height: 34)
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(saved).lookSerif(17).foregroundStyle(.lookInk).lineLimit(1)
                     Text("saved").font(.system(size: small)).foregroundStyle(.lookDim)
@@ -317,18 +376,47 @@ struct HomeScreen: View {
         .accessibilityHint("Opens your You page, with the whole week.")
     }
 
-    private func dayBars(_ week: HomeWeek) -> some View {
+    /// This week, Large: the words big in the serif beside taller day bars, then the time saved and the recordings.
+    private var weekLarge: some View {
+        let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
+        let recordings = PremiumHome.recordingsThisWeek(app.store.live, now: now)
+        return Button { Self.openProfile(app) } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                PhoneEyebrow(text: "This week")
+                HStack(alignment: .bottom, spacing: 12) {
+                    (Text(week.words.formatted()) + Text(week.words == 1 ? " word" : " words").italic())
+                        .lookSerif(40).tracking(-0.6).foregroundStyle(.lookInk)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    Spacer(minLength: 8)
+                    dayBars(week, height: 52)
+                }
+                Text("\(saved) saved typing · \(HomeCounts.countLabel(recordings, "recording", "recordings"))")
+                    .font(.system(size: 14)).foregroundStyle(.lookDim)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .phoneOutlined(radius: Radius.record)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("This week: \(HomeCounts.countLabel(week.words, "word", "words")), \(saved) saved typing, \(HomeCounts.countLabel(recordings, "recording", "recordings")).")
+        .accessibilityHint("Opens your You page, with the whole week.")
+    }
+
+    private func dayBars(_ week: HomeWeek, height: CGFloat) -> some View {
         let peak = CGFloat(max(1, week.peak))
-        return HStack(alignment: .bottom, spacing: 5) {
+        return HStack(alignment: .bottom, spacing: height > 40 ? 7 : 5) {
             ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
                 let empty = day.isFuture || day.words == 0
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(day.isToday && !empty ? PhoneInk.record : Ink.ink)
                     .opacity(empty ? 0.3 : 1)
-                    .frame(width: 7, height: empty ? 2 : max(4, 34 * CGFloat(day.words) / peak))
+                    .frame(width: height > 40 ? 9 : 7, height: empty ? 2 : max(4, height * CGFloat(day.words) / peak))
             }
         }
-        .frame(height: 34, alignment: .bottom)
+        .frame(height: height, alignment: .bottom)
         .accessibilityHidden(true)
     }
 
@@ -342,8 +430,10 @@ struct HomeScreen: View {
 
     // MARK: Recent
 
-    private var recent: some View {
-        let items = Array(app.store.live.filter { !$0.isDictation }.prefix(2))
+    /// Large: the two newest recordings as flat rows (a Clean up pill where there are filler words). Compact: the
+    /// three newest as one-line rows with their length.
+    private func recent(_ size: HomeCardSize) -> some View {
+        let items = Array(app.store.live.lazy.filter { !$0.isDictation }.prefix(size == .large ? 2 : 3))
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 (Text("Recent ") + Text("recordings").italic())
@@ -362,10 +452,29 @@ struct HomeScreen: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 12)
-            } else {
+            } else if size == .large {
                 ForEach(items) { t in recentRow(t) }
+            } else {
+                ForEach(items) { t in recentLine(t) }
             }
         }
+    }
+
+    /// A Compact recent recording: the title and its length on one line.
+    private func recentLine(_ t: Transcript) -> some View {
+        Button { app.open(t.id) } label: {
+            HStack(spacing: 10) {
+                Text(t.title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText).lookMono(12).foregroundStyle(.lookMute).lineLimit(1)
+            }
+            .frame(minHeight: 46)
+            .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PhoneCardPress())
+        .contextMenu { RowActions(transcript: t) }
+        .accessibilityHint("Opens the transcript.")
     }
 
     /// A flat row; a recording with filler words gets a "Clean up" pill that opens its Cleaned text.
@@ -417,7 +526,9 @@ struct HomeScreen: View {
 
 /// Home in Premium Native (PremiumHome.swift), with the account button: your initials on the persimmon gradient.
 extension HomeScreen {
-    var nativeBody: some View { PremiumHome(now: now) }
+    var nativeBody: some View {
+        PremiumHome(now: now, layout: layouts.layout(.native), onEdit: { editingHome = true })
+    }
 
     /// Your initials on the persimmon gradient; opens the You page.
     var nativeAccountButton: some View {
@@ -455,6 +566,8 @@ extension Notification.Name {
     /// Scrolls Home to a section ("home-top", "home-recent", "home-dictations"); the screenshot tour uses it.
     static let verbatimHomeScroll = Notification.Name("verbatimHomeScroll")
     static let verbatimOpenSettingsPage = Notification.Name("verbatimOpenSettingsPage")
+    /// Opens (true) or closes (false) Edit Home over Home; the self-test uses it.
+    static let verbatimEditHome = Notification.Name("verbatimEditHome")
 }
 
 /// Opens a page inside Settings from elsewhere (Home's This week opens the You page; the keyboard row opens Keyboard).

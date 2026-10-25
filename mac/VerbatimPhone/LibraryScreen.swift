@@ -192,9 +192,16 @@ struct LibraryScreen: View {
             }
         }
         .onReceive(app.$libraryFilterRequest) { r in
-            // The screenshot tour (and anything else) can open Library on a kind, or back on All.
+            // The screenshot tour (and anything else) can open Library on a kind, or back on All; Home's tiles and
+            // sections open it on what's transcribing ("working") or on a project ("project:<id>").
             guard let r else { return }
-            filter = RecordingKind(rawValue: r).map { .kind($0) } ?? .all
+            if r == "working" {
+                filter = .working
+            } else if r.hasPrefix("project:"), let id = UUID(uuidString: String(r.dropFirst("project:".count))) {
+                filter = .project(id)
+            } else {
+                filter = RecordingKind(rawValue: r).map { .kind($0) } ?? .all
+            }
             if filter != .all { setType(.all) }
             app.libraryFilterRequest = nil
         }

@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Widgets, Premium Native, and fixes",
+      "title": "Widgets, Premium Native, Edit Home, and fixes",
       "items": [
         "Mac: the Native look has a warmer, more polished design: a warm background, gradient cards for This week, your stats, and summaries, and a floating record button on Home and the Library.",
         "Mac: in the Native look, the Library lists recordings with a preview beside them. Click to see the summary, double-click or press Return to open, and press Space to play. To see the table, choose More › View as Table.",
@@ -21,7 +21,13 @@
         "iPhone: add them to the Home Screen, the Lock Screen (Record and Dictate), and StandBy. Record starts a voice note right where you are when iOS allows it, and otherwise opens Verbose to record.",
         "iPhone: Control Center has Record voice note and Dictate controls.",
         "Mac: add the widgets to your desktop. Quick capture opens the Thought pad, and Dictate types into the app in front.",
-        "iPhone: the speed fixes, bug fixes, and smoother look changes from Mac build 208."
+        "iPhone: the speed fixes, bug fixes, and smoother look changes from Mac build 208.",
+        "Edit Home: show, hide, and drag to reorder Home's sections, including the new Last dictation, Projects, Moments, and Queue sections. Each look keeps its own layout on each device.",
+        "Edit Home: choose the four shortcut tiles from Dictate, Import, Live captions, Paste a link, Search, Moments, Queue, Dictations, Dictionary, and Projects, plus What's playing on iPhone and App audio and the Thought pad on Mac. Drag them into the order you want.",
+        "Edit Home: set each section to Compact, a slim row, or Large, the full card.",
+        "iPhone: tap Edit Home at the end of Home to change it. Changes show on Home right away.",
+        "In Native, the Record section starts hidden because the floating record button stands in for it. The floating button stays on Home whether or not you show the section.",
+        "iPhone: Home's sections appear at once instead of rising in one by one."
       ]
     },
     {

@@ -254,6 +254,8 @@ enum PhoneUITest {
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
+            // Edit Home in the first look (Verbose style on a fresh simulator), from Home's button.
+            await editHomeTour(app, look: AppLook.current, suffix: "")
             // The Native look (DESIGN.md §13): the key screens again, named p…-native and d…-native. The look is
             // stored per device in the App Group; the one this simulator had is put back after.
             // It switches as people do, from Settings › Appearance (LookSwitch.swift): the card in the new look, the
@@ -346,6 +348,7 @@ enum PhoneUITest {
                 onboardingStep = 0
                 try? await Task.sleep(nanoseconds: 700_000_000)
             }
+            await editHomeTour(app, look: .native, suffix: "-native")
             // Back to the look the simulator had, from Home this time: the tab on screen rebuilds behind the card.
             app.tab = .home
             try? await Task.sleep(nanoseconds: 800_000_000)
@@ -582,6 +585,61 @@ enum PhoneUITest {
         lookCheck("\(name) (on screen: \(shown.map(\.rawValue).sorted().joined(separator: ", ")))", shown == [look])
     }
 
+    /// Edit Home (EditHome.swift, HomeLayout.swift) from Home's button: open it, hide a section (This week), reorder
+    /// two, change a size (the tiles) and a tile (Search in the last slot), check Home draws exactly that, then reset.
+    /// The layout store starts from the defaults in UI test mode and never writes the simulator's layout.
+    private static func editHomeTour(_ app: PhoneState, look: AppLook, suffix: String) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") edit home\(suffix): \(name)") }
+        let store = HomeLayoutStore.shared
+        let hl = look.homeLook
+        let other: HomeLook = hl == .native ? .verbose : .native
+        let working = { HomeScreen.working(app.store) }
+        app.appearance = "light"
+        app.homePath = NavigationPath()
+        app.tab = .home
+        store.reset(hl)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-top")
+        NotificationCenter.default.post(name: .verbatimEditHome, object: true)
+        await show("p13a-edit-home\(suffix)")
+        check("Edit Home opens from Home", EditHomeView.visible)
+        let before = store.layout(hl)
+        store.update(hl) { $0.setVisible(.week, false) }
+        let order = store.layout(hl).shown.map(\.section)
+        store.update(hl) { $0.moveShown(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
+        let tileSize: HomeCardSize = before.size(.tiles) == .large ? .compact : .large
+        store.update(hl) { $0.setSize(.tiles, tileSize) }
+        await show("p13b-edit-home-edited\(suffix)")
+        NotificationCenter.default.post(name: .verbatimHomeTilePicker, object: true)
+        await show("p13c-edit-home-tiles\(suffix)")
+        check("Choose tiles opens the tile picker", HomeTilePicker.visible)
+        NotificationCenter.default.post(name: .verbatimHomeTilePicker, object: false)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let dropped = before.tiles[HomeLayout.tileCount - 1]
+        store.update(hl) { l in l.tiles = HomeLayout.toggle(.search, in: HomeLayout.toggle(dropped, in: l.tiles)) }
+        NotificationCenter.default.post(name: .verbatimEditHome, object: false)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        await show("p13d-home-edited\(suffix)")
+        let after = store.layout(hl)
+        let onScreen = HomeProbe.sections
+        check("Edit Home closes with Done", !EditHomeView.visible)
+        check("a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
+        check("two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
+        check("Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
+              Set(onScreen.keys) == Set(HomeSpacing.drawn(after, working: working()).map(\.section)))
+        check("a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
+        check("a new tile reaches Home (Search for \(dropped.title))", HomeProbe.tiles.contains(.search) && !HomeProbe.tiles.contains(dropped))
+        check("the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.phone, other))
+        store.reset(hl)
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        check("Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.phone, hl)
+              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout(hl), working: working()).map(\.section)))
+        if look.isNative {
+            check("the floating record button stays while the Record section is hidden",
+                  PremiumRecordButton.onScreen.contains(.home) && HomeProbe.sections[.record] == nil)
+        }
+    }
+
     private static func lookCheck(_ name: String, _ ok: Bool) {
         Log.note("UITEST \(ok ? "PASS" : "FAIL") look: \(name)")
     }
@@ -719,10 +777,7 @@ enum PhoneUITest {
         let notes = RecordingMoment.notes([RecordingMoment(at: 42), RecordingMoment(at: 118, name: "  The price  ")], offset: 600)
         check("moments become bookmarks, unnamed ones called Moment", notes.map(\.text) == ["Moment", "The price"] && notes.allSatisfy(\.isBookmark))
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
-        let stored = UserDefaults.standard.object(forKey: PremiumHome.recordCardKey)
-        UserDefaults.standard.removeObject(forKey: PremiumHome.recordCardKey)
-        check("the Record card is off by default in Native", !UserDefaults.standard.bool(forKey: PremiumHome.recordCardKey))
-        UserDefaults.standard.set(stored, forKey: PremiumHome.recordCardKey)
+        check("the Record card is off by default in Native", !HomeLayout.defaults(.phone, .native).isVisible(.record))
         check("settings search finds the Record card", SettingsSearchIndex.search("record card").flatMap(\.entries).contains { $0.id == "homeRecordCard" })
         let low = PremiumRules.minWhiteContrast(PremiumInk.persimmonLight, from: 1.0 / 3)
         check("white text keeps 4.5:1 on the lower two thirds of the persimmon card (\(String(format: "%.2f", low)):1)", low >= 4.5)

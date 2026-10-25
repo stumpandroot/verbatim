@@ -717,3 +717,72 @@ enum HomeAnnounce {
         #endif
     }
 }
+
+// MARK: - Edit Home (HomeLayout.swift)
+
+extension HomeTile {
+    /// The tile's line icon in Verbose style.
+    var art: BrandArt {
+        switch self {
+        case .dictate, .dictations: return .iconDictations
+        case .importMedia: return .iconDownload
+        case .whatsPlaying, .appAudio: return .iconVoice
+        case .captions: return .iconCaptions
+        case .pasteLink: return .iconLinks
+        case .thoughtPad: return .iconNotes
+        case .search: return .search
+        case .moments: return .iconMoments
+        case .queue: return .iconQueue
+        case .dictionary: return .iconDictionary
+        case .projects: return .iconProject
+        }
+    }
+
+    // brand: native begin
+    /// The tile's SF Symbol in Native.
+    var symbol: String {
+        switch self {
+        case .dictate: return "mic"
+        case .importMedia: return "square.and.arrow.down"
+        case .whatsPlaying, .appAudio: return "speaker.wave.2"
+        case .captions: return "captions.bubble"
+        case .pasteLink: return "link"
+        case .thoughtPad: return "lightbulb"
+        case .search: return "magnifyingglass"
+        case .moments: return "bookmark"
+        case .queue: return "list.bullet"
+        case .dictations: return "text.bubble"
+        case .dictionary: return "book"
+        case .projects: return "folder"
+        }
+    }
+    // brand: native end
+}
+
+/// What Home has on screen, by section and size, and which tiles: the self-test checks an edit reaches Home. Counted,
+/// because a section that moves to another band can appear again before its old place disappears.
+@MainActor
+enum HomeProbe {
+    private static var counts: [HomeSection: Int] = [:]
+    private static var sizes: [HomeSection: HomeCardSize] = [:]
+    static var tiles: [HomeTile] = []
+    static var sections: [HomeSection: HomeCardSize] { sizes.filter { (counts[$0.key] ?? 0) > 0 } }
+    static func appeared(_ item: HomeLayout.Item) { counts[item.section, default: 0] += 1; sizes[item.section] = item.size }
+    static func resized(_ s: HomeSection, _ size: HomeCardSize) { sizes[s] = size }
+    static func disappeared(_ s: HomeSection) { counts[s] = max(0, (counts[s] ?? 0) - 1) }
+}
+
+extension View {
+    /// Records the tile on screen while it is (HomeProbe).
+    func homeTileProbe(_ tile: HomeTile) -> some View {
+        onAppear { if !HomeProbe.tiles.contains(tile) { HomeProbe.tiles.append(tile) } }
+            .onDisappear { HomeProbe.tiles.removeAll { $0 == tile } }
+    }
+
+    /// Records the section on screen while it is (HomeProbe). Adds no state and no identity.
+    func homeProbe(_ item: HomeLayout.Item) -> some View {
+        onAppear { HomeProbe.appeared(item) }
+            .onChange(of: item.size) { _, size in HomeProbe.resized(item.section, size) }
+            .onDisappear { HomeProbe.disappeared(item.section) }
+    }
+}
