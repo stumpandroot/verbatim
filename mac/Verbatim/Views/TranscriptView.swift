@@ -6,6 +6,9 @@ import AppKit
 /// Transcript workspace in the website style (mac/DESIGN.md §11): the recording's name as a large two-line serif
 /// title under a mono eyebrow, the Original / Cleaned / Review toggle, the lines on a paper sheet with an ink outline,
 /// the side column (Summary on butter, Moments, Export), and the dark player dock.
+///
+/// Native (`nativeScreen`): a bold title over plain text on the window background, Original and Cleaned as a segmented
+/// control in the toolbar with the tools beside it, the side column as an inspector, and a standard player bar.
 struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
     static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
@@ -43,6 +46,7 @@ struct TranscriptView: View {
     @State private var titleDraft = ""
     @FocusState private var titleFocused: Bool
     @Namespace private var segNS
+    @Environment(\.look) private var look
 
     /// Raw values stay stable: UI tests and Home post them in `.verbatimShowMode`.
     enum Mode: String, CaseIterable {
@@ -89,6 +93,10 @@ struct TranscriptView: View {
 
     @ViewBuilder private var screenBody: some View {
         if let t = transcript {
+            Group {
+            if look == .native {
+                nativeScreen(t)
+            } else {
             GeometryReader { g in
             // Decided from the geometry in the same pass, so the screen lays out once (no open-then-close).
             let narrow = g.size.width < 900
@@ -198,6 +206,8 @@ struct TranscriptView: View {
             }
             .onChange(of: g.frame(in: .global).minY, initial: true) { _, y in contentTop = y }
             }
+            }
+            }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
                 if let u = app.store.audioURL(for: t) { app.player.loadAsync(u, startAt: pendingSeek) }
@@ -217,6 +227,79 @@ struct TranscriptView: View {
         } else {
             Text("This transcript was deleted.").foregroundStyle(Ink.mute)
         }
+    }
+
+    // MARK: Native
+
+    /// The transcript in the Native look: the text on the window background, the inspector for the side column, the
+    /// player bar at the foot, and the modes and tools in the toolbar (NativeTranscript.swift).
+    private func nativeScreen(_ t: Transcript) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header(t)
+                    if view == .original, t.status == .ready { versionControl(t).padding(.bottom, 12) }
+                    content(t)
+                }
+                .frame(maxWidth: 760, alignment: .leading)
+                .padding(.horizontal, 32).padding(.top, 18)
+                .padding(.bottom, t.audioFileName != nil && view != .document ? 96 : 32)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onReceive(app.player.clock.$time) { now in
+                // Follow playback, but only when the playing passage changes (not on every tick).
+                if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
+                    followed = s.id
+                    withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
+                }
+            }
+            .onAppear {
+                // Opened from search, a link, or a note: land on that passage.
+                if let f = app.focusSegment, t.segments.contains(where: { $0.id == f }) {
+                    app.focusSegment = nil
+                    view = .original
+                    selectedSegment = f
+                    DispatchQueue.main.async { proxy.scrollTo(f, anchor: .center) }
+                    if let s = t.segments.first(where: { $0.id == f }) { pendingSeek = s.start }
+                }
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if t.audioFileName != nil, t.status == .ready, view != .document {
+                NativePlayerBar(transcript: t, clock: app.player.clock)
+                    .padding(.horizontal, 32).padding(.bottom, 16)
+            }
+        }
+        .inspector(isPresented: Binding(get: { notesPref ?? true }, set: { notesPref = $0 })) {
+            NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen)
+                .padding(.horizontal, 12)
+                .inspectorColumnWidth(min: 250, ideal: 300, max: 400)
+        }
+        .toolbar {
+            NativeTranscriptToolbar(app: app, transcript: t, mode: $view,
+                                    inspector: Binding(get: { notesPref ?? true }, set: { notesPref = $0 }),
+                                    textSize: $textSize, copyVersion: copyVersion,
+                                    onAction: { runningAction = $0 }, onSummarize: { summarize(t) })
+        }
+        .background {
+            ZStack {
+                Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
+                Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
+                Button("") { textSize = min(22, textSize + 1) }.keyboardShortcut("=", modifiers: .command)
+                Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+            }
+            .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
+        }
+    }
+
+    /// "Podcast · Thursday, October 22 · 1:04:12 · 2 speakers · English".
+    private func nativeMeta(_ t: Transcript) -> String {
+        var parts = [t.kind?.label ?? (t.sourceLabel.isEmpty ? "Recording" : t.sourceLabel)]
+        parts.append(Formats.pattern("EEEE, MMMM d").string(from: t.createdAt))
+        parts.append(NativeLibraryView.length(t.duration))
+        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+        if let lang = t.language { parts.append(LanguageDetection.name(lang)) }
+        return parts.joined(separator: " · ")
     }
 
     private func bookmark(_ t: Transcript) {
@@ -259,6 +342,11 @@ struct TranscriptView: View {
 
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            if look == .native {
+                // Native: a bold title and one secondary line; Original and Cleaned live in the toolbar.
+                title(t)
+                Text(nativeMeta(t)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).padding(.top, 3)
+            } else {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
                     Eyebrow(text: eyebrow(t))
@@ -270,6 +358,7 @@ struct TranscriptView: View {
                 modeToggle
                     .background(GeometryReader { b in Color.clear.preference(key: ToggleOffsetKey.self, value: b.frame(in: .global).minY) })
                     .opacity(togglePinned ? 0 : 1).allowsHitTesting(!togglePinned)
+            }
             }
             if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 8) }
             if t.status == .ready {
@@ -311,11 +400,20 @@ struct TranscriptView: View {
     @ViewBuilder private func title(_ t: Transcript) -> some View {
         if editingTitle {
             TextField("Title", text: $titleDraft, axis: .vertical)
-                .textFieldStyle(.plain).font(Ink.serif(44)).tracking(-1).foregroundStyle(Ink.ink).lineLimit(1...3)
+                .textFieldStyle(.plain).font(look == .native ? .system(size: 22, weight: .bold) : Ink.serif(44))
+                .tracking(look == .native ? 0 : -1).foregroundStyle(Ink.ink).lineLimit(1...3)
                 .focused($titleFocused)
                 .onSubmit { commitTitle(t) }
                 .onChange(of: titleFocused) { _, f in if !f { commitTitle(t) } }
                 .onExitCommand { editingTitle = false }
+        } else if look == .native {
+            Text(t.title).font(.system(size: 22, weight: .bold)).foregroundStyle(.primary)
+                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
+                .onTapGesture { beginRename(t) }
+                .help("Click to rename")
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityAction(named: "Rename") { beginRename(t) }
         } else {
             let lines = Self.twoLine(t.title, project: projectName(t))
             VStack(alignment: .leading, spacing: 0) {
@@ -503,12 +601,17 @@ struct TranscriptView: View {
     }
 
     /// The reading sheet: card white, a 1.5 pt ink outline, the panel radius.
-    private func readingSheet<V: View>(_ inner: V) -> some View {
-        inner
-            .padding(.horizontal, 22).padding(.vertical, 22)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
-            .inkEdge(outline: true, radius: Radius.record)
+    @ViewBuilder private func readingSheet<V: View>(_ inner: V) -> some View {
+        if look == .native {
+            // Native: plain text on the window background.
+            inner.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            inner
+                .padding(.horizontal, 22).padding(.vertical, 22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+                .inkEdge(outline: true, radius: Radius.record)
+        }
     }
 
     private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {

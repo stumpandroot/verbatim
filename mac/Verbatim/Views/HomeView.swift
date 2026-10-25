@@ -10,26 +10,29 @@ import CoreAudio
 /// start tiles, one slim This week strip, then Recent recordings (two flat rows) beside Last dictation (one card on a
 /// butter panel). One 12-column grid: every band splits at the same 7 / 5 edge. Big cards tilt and pick up the ink
 /// outline and hard shadow on hover (`HomeCard` + `inkEdge`); rows stay flat. Narrow windows stack the bands.
+///
+/// Native (NativeHome.swift): plain group boxes under a bold "Good afternoon, Tim", with the same state and actions.
 struct HomeView: View {
     @EnvironmentObject var app: AppState
-    @ObservedObject private var log = ActivityLog.shared
-    @ObservedObject private var sites = SiteLog.shared
-    @ObservedObject private var captions = LiveCaptions.shared
-    @ObservedObject private var flow = FlowSettings.shared
-    @AppStorage(YouProfile.nameKey) private var storedName = ""
+    @ObservedObject var log = ActivityLog.shared
+    @ObservedObject var sites = SiteLog.shared
+    @ObservedObject var captions = LiveCaptions.shared
+    @ObservedObject var flow = FlowSettings.shared
+    @AppStorage(YouProfile.nameKey) var storedName = ""
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) var look
     /// The microphone's name, looked up off the main thread and kept current by Core Audio's notifications. (Looking
     /// it up here, in a `@State` initial value and on every UserDefaults change, ran a full device scan on the main
     /// thread each time Home's parent re-rendered.)
-    @ObservedObject private var mics = HomeMic.shared
+    @ObservedObject var mics = HomeMic.shared
     /// Moves on each minute, so the greeting and today's numbers follow the clock.
-    @State private var now = Date()
-    @State private var importOpen = false
-    @State private var fileOver = false
+    @State var now = Date()
+    @State var importOpen = false
+    @State var fileOver = false
     @State private var recordDown = false
     @State private var weekDown = false
     /// Listens to the mic while the pointer is over Record, so the meter shows your real level (DESIGN.md §7).
-    @StateObject private var monitor = HomeLevelMonitor()
+    @StateObject var monitor = HomeLevelMonitor()
 
     /// The gutter between columns.
     private static let gap: CGFloat = 16
@@ -49,6 +52,20 @@ struct HomeView: View {
     }
 
     var body: some View {
+        Group {
+            if look == .native { nativeBody } else { verboseBody }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
+        .onChange(of: app.focusLink) { _, _ in importOpen = true }
+        .onChange(of: recording) { _, on in if on { monitor.stop() } }
+        .onAppear { mics.refresh() }
+        .onDisappear { monitor.stop() }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
+    }
+
+    private var verboseBody: some View {
         // A GeometryReader takes exactly the space the window offers and passes it down, so Home's width comes
         // from the window. (Measuring the scroll view or the content was circular: both report the content's
         // own width back, so Home either kept a too-wide layout or grew past the detail area.) The width is worked
@@ -71,19 +88,11 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .onDrop(of: [.fileURL], isTargeted: $fileOver) { app.handleDrop($0) }
-        .onChange(of: app.focusLink) { _, _ in importOpen = true }
-        .onChange(of: recording) { _, on in if on { monitor.stop() } }
-        .onAppear { mics.refresh() }
-        .onDisappear { monitor.stop() }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
     }
 
     // MARK: Header
 
-    private var greeting: String {
+    var greeting: String {
         HomeGreeting.line(name: HomeGreeting.firstName(YouProfile.displayName(storedName)), hour: Calendar.current.component(.hour, from: now))
     }
     private static let question = "What are we keeping?"
@@ -128,12 +137,12 @@ struct HomeView: View {
         }
     }
 
-    private var recording: Bool { app.recorder.isRecording || app.capture.isCapturing }
+    var recording: Bool { app.recorder.isRecording || app.capture.isCapturing }
     /// Ink on the Record fill: every line passes at its size (status sits on a light wash). White would fail.
     private var onRecord: Color { Ink.inkFixed }
-    private var micName: String { mics.device?.name ?? "Microphone" }
+    var micName: String { mics.device?.name ?? "Microphone" }
 
-    private var recordStatus: String {
+    var recordStatus: String {
         if app.capture.isCapturing { return "Capturing · \(app.capture.appName)" }
         if app.recorder.isRecording { return app.recorder.isPaused ? "Paused" : "Recording" }
         if app.savingRecording { return "Saving…" }
@@ -203,13 +212,13 @@ struct HomeView: View {
         .uiTarget("tile-record")
     }
 
-    private var dictateOpen: Binding<Bool> {
+    var dictateOpen: Binding<Bool> {
         Binding(get: { app.captureMode == "dictate" && !recording },
                 set: { open in if !open && app.captureMode == "dictate" { app.captureMode = "voice" } })
     }
 
     /// "hold right ⌘" → ("Talk into any app", "right ⌘"): what it does in sans, and the key as a keycap.
-    private var dictateKey: (String, String?) {
+    var dictateKey: (String, String?) {
         guard app.dictation.accessibilityTrusted else { return ("Needs Accessibility", nil) }
         let title = app.dictation.hotkey.shortTitle
         if title.hasPrefix("hold right ") { return ("Talk into any app", "right " + title.dropFirst("hold right ".count)) }
@@ -274,7 +283,7 @@ struct HomeView: View {
 
     /// This week's numbers beyond the words: recordings made, time saved against typing (You's typing speed), and
     /// moments saved this week.
-    private func weekNumbers(_ week: HomeWeek) -> (recordings: Int, saved: Double, moments: Int) {
+    func weekNumbers(_ week: HomeWeek) -> (recordings: Int, saved: Double, moments: Int) {
         guard let start = week.days.first?.start else { return (0, 0, 0) }
         let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? now
         // One pass over the library, without copying it (`store.live` builds a new array).
@@ -349,7 +358,7 @@ struct HomeView: View {
     }
 
     /// Clean up: the transcript on its Cleaned tab, where Clean up runs (the Original stays).
-    private func openCleaned(_ t: Transcript) {
+    func openCleaned(_ t: Transcript) {
         app.go(.transcript(t.id))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NotificationCenter.default.post(name: .verbatimShowMode, object: "Document") }
     }

@@ -8,35 +8,20 @@ struct ContentView: View {
     @State private var newProjectName = ""
     @ObservedObject private var rename = RenameCenter.shared
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
+    /// The Native sidebar's visibility (NavigationSplitView); Verbose style uses `sidebarOpen`.
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
         if UITest.enabled { Log.note("UITEST render screen=\(screenKey) nav=\(app.navCount)") }
-        return HStack(spacing: 0) {
-            if sidebarOpen {
-                Sidebar().frame(width: 244).transition(.asymmetric(insertion: limitMotion ? .opacity : .move(edge: .leading).combined(with: .opacity), removal: .identity))
-            }
-            ZStack {
-                Ink.paper
-                // Pin each screen to the space it has. Without this a wide screen pushes the whole row
-                // outward and the sidebar slides off the left edge.
-                GeometryReader { g in
-                    screenView.frame(width: g.size.width, height: g.size.height)
-                        // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
-                        // UITEST TIMING line in the self-test.
-                        .onAppear { app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
-                        .id(screenKey).transition(transition).zIndex(Double(app.navCount))
-                }
-            }
-            .clipped()
-            .animation(navAnimation, value: app.navCount)
-            .overlay(alignment: .bottom) { ToastView() }
-        }
+        // Only the main content rebuilds when the look changes (LookRebuild); the sheets below stay open.
+        return main.lookRebuild()
         // The "link added" card, in this view's coordinate space so its tile can fly from the content into the
         // sidebar's Queue item (anchored by the sidebar; no flight when the sidebar is hidden).
         .overlayPreferenceValue(QueueItemAnchor.self) { anchor in
             GeometryReader { g in
                 if let id = app.linkCardID, let imp = app.linkImports[id] {
-                    let side: CGFloat = sidebarOpen ? 244 : 0
+                    let side: CGFloat = look == .native ? 0 : (sidebarOpen ? 244 : 0)
                     LinkCardOverlay(imp: imp, metrics: .mac,
                                     target: anchor.map { g[$0] }.map { CGPoint(x: $0.midX, y: $0.midY) },
                                     scrimRect: CGRect(x: side, y: 0, width: max(0, g.size.width - side), height: g.size.height),
@@ -52,8 +37,11 @@ struct ContentView: View {
         .background(WindowReader { w in if app.mainWindow !== w { app.mainWindow = w } })
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
-                    .help("Hide or show the sidebar")
+                // Native: NavigationSplitView brings its own sidebar button.
+                if look != .native {
+                    Button { withAnimation(Motion.settle) { sidebarOpen.toggle() } } label: { Image(systemName: "sidebar.left") }
+                        .help("Hide or show the sidebar")
+                }
             }
         }
         .searchable(text: $app.search, placement: .toolbar, prompt: "Search transcripts")
@@ -91,8 +79,45 @@ struct ContentView: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
         .onAppear { UITest.run(app: app); app.installLinkPasteMonitor() }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
-        .tint(Ink.switchOn)   // switches and checkboxes in brand sage instead of the system blue
-        .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app) }
+        .lookTint(look)   // switches and checkboxes in brand sage (Verbose style) or the persimmon accent (Native)
+        .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app).lookRoot() }
+    }
+
+    /// The sidebar and the screen: Verbose style's paper sidebar beside the screen, or Native's NavigationSplitView
+    /// with the standard sidebar (Settings lives in the app menu there, ⌘,).
+    @ViewBuilder private var main: some View {
+        if look == .native {
+            NavigationSplitView(columnVisibility: $columns) {
+                NativeSidebar()
+            } detail: {
+                detail
+            }
+        } else {
+            HStack(spacing: 0) {
+                if sidebarOpen {
+                    Sidebar().frame(width: 244).transition(.asymmetric(insertion: limitMotion ? .opacity : .move(edge: .leading).combined(with: .opacity), removal: .identity))
+                }
+                detail
+            }
+        }
+    }
+
+    private var detail: some View {
+        ZStack {
+            Ink.paper
+            // Pin each screen to the space it has. Without this a wide screen pushes the whole row
+            // outward and the sidebar slides off the left edge.
+            GeometryReader { g in
+                screenView.frame(width: g.size.width, height: g.size.height)
+                    // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
+                    // UITEST TIMING line in the self-test.
+                    .onAppear { app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
+                    .id(screenKey).transition(transition).zIndex(Double(app.navCount))
+            }
+        }
+        .clipped()
+        .animation(navAnimation, value: app.navCount)
+        .overlay(alignment: .bottom) { ToastView() }
     }
 
     private var screenKey: String {
@@ -113,7 +138,7 @@ struct ContentView: View {
     @ViewBuilder private var screenView: some View {
         switch app.screen {
         case .home: HomeView()
-        case .library: LibraryView()
+        case .library: if look == .native { NativeLibraryView() } else { LibraryView() }
         case .queue: QueueView()
         case .links: LinksView()
         case .moments: MomentsView()
