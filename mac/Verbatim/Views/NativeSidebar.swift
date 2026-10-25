@@ -18,6 +18,7 @@ struct NativeSidebar: View {
     enum Item: Hashable { case main(SidebarItemID), project(UUID), trash }
 
     var body: some View {
+        LookSwitch.mark("sidebar")
         // Every count in one pass over the library, once per library change (Store+Memo.swift).
         let counts = app.store.counts
         let library = counts.library, trash = counts.trash, perProject = counts.perProject

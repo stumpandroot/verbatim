@@ -26,6 +26,7 @@ struct NativeLibraryView: View {
     }
 
     var body: some View {
+        LookSwitch.mark("library")
         let list = NativeLibraryScope.list(app)
         let groups = app.store.grouped(list, sort: sort)
         return VStack(alignment: .leading, spacing: 0) {
@@ -277,6 +278,7 @@ struct PremiumLibraryPreview: View {
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
 
     var body: some View {
+        let _ = LookSwitch.mark("library-preview")
         let list = NativeLibraryScope.list(app)
         let chosen = nav.librarySelection.flatMap { id in list.first { $0.id == id } }
             ?? app.store.grouped(list, sort: LibrarySort(rawValue: sortRaw) ?? .newest).first?.items.first

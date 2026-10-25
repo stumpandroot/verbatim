@@ -38,12 +38,25 @@ final class LookSwitch: ObservableObject {
     private(set) var lastMarks = ""
     /// Where the rebuild's time goes: each window root and screen calls `mark` as its body runs or it appears, and the
     /// first call of each name is kept with its time since the look was stored. Main thread only; does nothing outside
-    /// a rebuild.
+    /// a rebuild or a navigation the Mac self-test times (`beginNavigationMarks`).
     private static var marks: [(name: String, ms: Int)] = []
     private static var marksStart = Date()
+    private static var navigating = false
     static func mark(_ name: String) {
-        guard rebuilding, !marks.contains(where: { $0.name == name }) else { return }
+        guard rebuilding || navigating, !marks.contains(where: { $0.name == name }) else { return }
         marks.append((name, Int((Date().timeIntervalSince(marksStart) * 1000).rounded())))
+    }
+    /// The same marks for a screen change, from the click to `endNavigationMarks` (the Mac self-test's settled time).
+    static func beginNavigationMarks() {
+        guard !rebuilding else { return }
+        navigating = true
+        marks = []
+        marksStart = Date()
+    }
+    static func endNavigationMarks() -> String {
+        guard navigating else { return "" }
+        navigating = false
+        return marks.map { "\($0.name)+\($0.ms)" }.joined(separator: " ")
     }
     private var generation = 0
     /// How many switches have shown the card (the self-test checks it went up, whenever the main thread got to it).

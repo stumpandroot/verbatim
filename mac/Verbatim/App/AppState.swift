@@ -243,6 +243,7 @@ final class AppState: ObservableObject {
         // No withAnimation here: the container animates on `navCount`, so a publish made just before this
         // (a project filter, a search) can't trigger a flush that strands the screen change.
         navStartedAt = Date()
+        if UITest.enabled { LookSwitch.beginNavigationMarks() }
         if let open = navInterval { Perf.signposter.endInterval("Navigate", open) }
         navInterval = Perf.signposter.beginInterval("Navigate", "\(self.key(next), privacy: .public)")
         nav = Nav(screen: next, direction: direction, count: nav.count + 1)

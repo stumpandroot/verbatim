@@ -177,7 +177,7 @@ struct NativeWindow<Detail: View>: View {
 
     private func setWidth(_ w: CGFloat) {
         let stepped = (w / 20).rounded() * 20
-        if nav.detailWidth != stepped { nav.detailWidth = stepped }
+        if nav.detailWidth != stepped { LookSwitch.mark("detail-width"); nav.detailWidth = stepped }
     }
 }
 
@@ -187,7 +187,8 @@ struct NativeInspector: View {
     @ObservedObject var nav: NativeNav
 
     var body: some View {
-        ZStack {
+        LookSwitch.mark("inspector")
+        return ZStack {
             PremiumInk.window.ignoresSafeArea()
             switch app.screen {
             case .library:
@@ -211,6 +212,7 @@ struct NativeToolbar: ToolbarContent {
     var screen: Screen
 
     var body: some ToolbarContent {
+        let _ = LookSwitch.mark("toolbar")
         if screen.hasNativeInspector {
             ToolbarItem(id: "native.leading", placement: .navigation) { NativeLeadingItem(nav: nav, screen: screen) }
             ToolbarItem(id: "native.center", placement: .principal) { NativeCenterItem(nav: nav, screen: screen) }

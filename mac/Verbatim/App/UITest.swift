@@ -1671,14 +1671,22 @@ enum UITest {
 
     /// Screen-change timing for CI, never a pass or fail: from the navigation (the click that called `go`) to the new
     /// screen's root `onAppear`, and to the next turn of the main loop after it (the first frame committed). One line
-    /// per change: `UITEST TIMING <screen> <ms> settled=<ms>`. Launch's first screen isn't a change and isn't logged.
+    /// per change: `UITEST TIMING <screen> <ms> settled=<ms>`. Launch's first screen isn't a change and isn't logged, and
+    /// neither is the same screen appearing again for the same navigation: a look switch rebuilds the window, and its
+    /// screen used to be timed from the last click seconds before (build 213's 5,103 ms transcript and 1,391 ms Home in
+    /// `tour-native` were the switches, which `look-switch` already times), and Native's split view can make a screen
+    /// appear twice (two identical lines).
+    private static var lastTimedNav = 0
     static func screenAppeared(_ key: String, nav: Int, since start: Date) {
-        guard enabled, nav > 0 else { return }
+        guard enabled, nav > 0, nav != lastTimedNav else { return }
+        lastTimedNav = nav
         let screen = key.hasPrefix("t-") ? "transcript" : key
         let appeared = Date().timeIntervalSince(start) * 1000
         DispatchQueue.main.async {
             let settled = Date().timeIntervalSince(start) * 1000
+            let marks = LookSwitch.endNavigationMarks()
             Log.note("UITEST TIMING \(screen) \(Int(appeared.rounded())) settled=\(Int(settled.rounded()))")
+            if !marks.isEmpty { Log.note("UITEST nav marks \(screen) \(marks) settled+\(Int(settled.rounded()))") }
             timings.append((appeared, settled))
         }
     }

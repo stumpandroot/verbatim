@@ -71,9 +71,10 @@ struct TranscriptView: View {
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
+        LookSwitch.mark("transcript")
         // One sheet for the screen: the tools row can exist twice (scrolled and pinned). Native runs actions from the
         // window's toolbar, which shows the same sheet (NativeChrome.swift).
-        screenBody.sheet(item: $runningAction) { a in
+        return screenBody.sheet(item: $runningAction) { a in
             if let t = transcript {
                 TranscriptActionSheet(action: a, transcript: t).environmentObject(app)
             }
