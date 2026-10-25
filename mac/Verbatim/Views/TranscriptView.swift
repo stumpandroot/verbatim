@@ -61,6 +61,9 @@ struct TranscriptView: View {
     /// Clean up and Tone live inside Cleaned.
     static let visibleModes: [Mode] = [.original, .document, .review]
 
+    /// The reading text's size: this screen's own in Verbose style; Native's toolbar sets it (`NativeNav`).
+    private var fontSize: CGFloat { look == .native ? nav.textSize : textSize }
+
     /// What Copy takes on this tab.
     private var copyVersion: Exporter.CopyVersion { view == .document ? .cleaned : .original }
 
@@ -284,11 +287,11 @@ struct TranscriptView: View {
             .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
         }
         // The toolbar's tabs and text size and the inspector's note field share this screen's state.
-        .onAppear { nav.mode = view; textSize = nav.textSize; nav.selectedSegment = selectedSegment }
+        // Written only when they differ, so opening a transcript doesn't re-render the toolbar for nothing.
+        .onAppear { if nav.mode != view { nav.mode = view }; if nav.selectedSegment != selectedSegment { nav.selectedSegment = selectedSegment } }
         .onChange(of: nav.mode) { _, m in if view != m { withAnimation(Motion.snap) { view = m } } }
         .onChange(of: view) { _, m in if nav.mode != m { nav.mode = m } }
-        .onChange(of: nav.textSize) { _, v in textSize = v }
-        .onChange(of: selectedSegment) { _, v in nav.selectedSegment = v }
+        .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
     }
 
     /// "Podcast · Thursday, October 22 · 1:04:12 · 2 speakers · English".
@@ -583,7 +586,7 @@ struct TranscriptView: View {
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 84)
             }
             if selecting {
-                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: textSize)
+                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: fontSize)
             } else {
                 lines(t, segments: segs, editable: !showEngine)
             }
@@ -614,7 +617,7 @@ struct TranscriptView: View {
     }
 
     private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {
-        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, editable: editable, textSize: textSize, selected: $selectedSegment)
+        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, editable: editable, textSize: fontSize, selected: $selectedSegment)
     }
 
     private func review(_ t: Transcript) -> some View {

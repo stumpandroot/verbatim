@@ -691,10 +691,22 @@ enum UITest {
         await show("15-dark-library-native")
         if let m = memo { app.go(.transcript(m)) }
         await show("12-dark-transcript-native")
-        app.go(.home)
         NSApplication.shared.appearance = nil
         try? await Task.sleep(nanoseconds: 400_000_000)
-        await lookSwitch(to: .verbose, on: "home")
+        // Back to Verbose style on the open transcript: the switch rebuilds the screen, and its audio stays open (it
+        // used to stop when the old screen left after the new one appeared), with the same sponsor reads skipped.
+        let opened = app.player.canPlay
+        let loaded = app.player.loadedURL
+        await lookSwitch(to: .verbose, on: memo == nil ? "home" : "transcript")
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        if memo != nil {
+            if opened {
+                check("look switch on an open transcript keeps its audio", app.player.canPlay && app.player.loadedURL == loaded)
+            } else {
+                Log.note("UITEST note: the transcript's audio hadn't opened before the look switch; its check is skipped")
+            }
+        }
+        app.go(.home)
         try? await Task.sleep(nanoseconds: 400_000_000)
     }
 

@@ -37,7 +37,11 @@ final class NativeNav: ObservableObject {
     @Published var summaryUnavailable: String?
     /// The detail's width in 20 pt steps, for the scope bar (segmented when it fits).
     @Published var detailWidth: CGFloat = 800
-    @Published private(set) var history = NavHistory<Screen>()
+    /// Back and forward. Not published itself: only whether Back and Forward can go is, and only when that changes, so
+    /// a navigation doesn't re-render the toolbar a second time.
+    private var history = NavHistory<Screen>()
+    @Published private(set) var canGoBack = false
+    @Published private(set) var canGoForward = false
 
     /// Play on an item: open its transcript and start playing once the audio opens.
     private var autoplay: UUID?
@@ -52,16 +56,21 @@ final class NativeNav: ObservableObject {
 
     // Navigation
 
-    func visited(_ s: Screen) { history.visit(s) }
+    func visited(_ s: Screen) { history.visit(s); publishHistory() }
 
     func goBack(_ app: AppState) {
         dropDeleted(app)
-        if let s = history.goBack() { app.go(s) }
+        if let s = history.goBack() { publishHistory(); app.go(s) }
     }
 
     func goForward(_ app: AppState) {
         dropDeleted(app)
-        if let s = history.goForward() { app.go(s) }
+        if let s = history.goForward() { publishHistory(); app.go(s) }
+    }
+
+    private func publishHistory() {
+        if canGoBack != history.canGoBack { canGoBack = history.canGoBack }
+        if canGoForward != history.canGoForward { canGoForward = history.canGoForward }
     }
 
     private func dropDeleted(_ app: AppState) {
@@ -232,13 +241,13 @@ private struct NativeLeadingItem: View {
             HStack(spacing: 0) {
                 Button { nav.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 32, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
-                    .disabled(!nav.history.canGoBack)
+                    .disabled(!nav.canGoBack)
                     .help("Back")
                     .accessibilityLabel("Back")
                     .uiWindowTarget("tb-back")
                 Button { nav.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 32, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
-                    .disabled(!nav.history.canGoForward)
+                    .disabled(!nav.canGoForward)
                     .help("Forward")
                     .accessibilityLabel("Forward")
             }
