@@ -2,8 +2,9 @@
 import SwiftUI
 import UIKit
 
-// The Native look on iPhone (DESIGN.md §13, the "native" mockup, October 25, 2026): a stock Apple app whose only brand
-// element is the persimmon accent. System backgrounds, inset grouped cards, SF Pro, SF Symbols, and standard controls.
+// The Native look on iPhone (DESIGN.md §13): Premium Native (mockup "premium", section 01, October 25, 2026), which
+// replaced the first Native look. Apple's controls, SF Pro, and SF Symbols on a warm off-white page (black in dark)
+// with a soft persimmon glow, gradient cards in the four warm brand colors (PremiumKit.swift), and the persimmon accent.
 // The kit in PhoneWebStyle.swift reads `@Environment(\.look)` and draws either look, so most screens switch without
 // edits; Home, Library, the transcript header, Settings, and Appearance have Native layouts of their own.
 //
@@ -13,7 +14,8 @@ import UIKit
 
 /// The Native look's colors, named like the `Ink` tokens they stand in for. All system colors except the accent.
 enum NativeInk {
-    static let paper = Color(uiColor: .systemGroupedBackground)
+    /// Premium's warm off-white page (#F6F3F1), black in dark (Tokens.swift, `PremiumInk`).
+    static let paper = PremiumInk.paper
     static let card = Color(uiColor: .secondarySystemGroupedBackground)
     static let raised = Color(uiColor: .tertiarySystemGroupedBackground)
     /// Chips, the search field, segmented tracks, and the sponsor row.
@@ -90,7 +92,7 @@ extension View {
     func lookSerif(_ size: CGFloat, weight: Font.Weight = .regular) -> some View { modifier(LookFont(serif: true, size: size, weight: weight)) }
     /// `Ink.mono` in Verbose style, SF Pro with monospaced digits in Native.
     func lookMono(_ size: CGFloat, weight: Font.Weight = .regular) -> some View { modifier(LookFont(serif: false, size: size, weight: weight)) }
-    /// A screen's background: paper, or the system's grouped background.
+    /// A screen's background: paper, or Premium's warm page with the glow at the top.
     func phonePage() -> some View { modifier(PhonePage()) }
     /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or the Native accent). A look
     /// switch has no animation of its own here: the switching card covers the rebuild and fades out over it
@@ -101,7 +103,11 @@ extension View {
 private struct PhonePage: ViewModifier {
     @Environment(\.look) private var look
     func body(content: Content) -> some View {
-        content.background((look.isNative ? NativeInk.paper : Ink.paper).ignoresSafeArea())
+        if look.isNative {
+            content.background { PremiumPageBackground() }
+        } else {
+            content.background(Ink.paper.ignoresSafeArea())
+        }
     }
 }
 
@@ -234,9 +240,10 @@ struct PhonePrimaryButtonStyle: ButtonStyle {
         @Environment(\.isEnabled) private var enabled
         var body: some View {
             if look.isNative {
+                // White on the light accent, black on the dark one (PremiumInk.onAccent, 7.2:1).
                 configuration.label
                     .font(.system(size: large ? 17 : 15, weight: .semibold))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(PremiumInk.onAccent)
                     .padding(.horizontal, large ? 20 : 14).frame(minHeight: large ? 50 : 34)
                     .background(NativeInk.accent.opacity(configuration.isPressed ? 0.8 : 1), in: Capsule())
                     .opacity(enabled ? 1 : 0.45)
@@ -248,7 +255,7 @@ struct PhonePrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// The secondary pill: `.brandSecondary` in Verbose style; a tinted capsule on a gray fill (`.bordered`) in Native.
+/// The secondary pill: `.brandSecondary` in Verbose style; the accent on its soft tint in Native ("Record another").
 struct PhoneSecondaryButtonStyle: ButtonStyle {
     var large = false
     func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration, large: large) }
@@ -263,7 +270,7 @@ struct PhoneSecondaryButtonStyle: ButtonStyle {
                     .font(.system(size: large ? 17 : 15, weight: .medium))
                     .foregroundStyle(NativeInk.accent)
                     .padding(.horizontal, large ? 20 : 14).frame(minHeight: large ? 50 : 34)
-                    .background(NativeInk.fill.opacity(configuration.isPressed ? 0.6 : 1), in: Capsule())
+                    .background(PremiumInk.accentSoft.opacity(configuration.isPressed ? 0.6 : 1), in: Capsule())
                     .opacity(enabled ? 1 : 0.45)
                     .contentShape(Capsule())
             } else {
@@ -346,42 +353,56 @@ struct LookThumbnail: View {
         }
     }
 
+    /// Premium Native: the title, the persimmon This week card, four soft tiles, two recording items, and the
+    /// floating record disc beside the tab bar.
     private var native: some View {
         VStack(alignment: .leading, spacing: 5 * u) {
             Text("Home").font(.system(size: 10 * u, weight: .bold)).foregroundStyle(NativeInk.label)
-            HStack {
-                Capsule().fill(NativeInk.label).frame(width: 22 * u, height: 2.5 * u)
-                Spacer()
-                Circle().fill(NativeInk.record).frame(width: 14 * u)
-                    .padding(2 * u).overlay(Circle().strokeBorder(NativeInk.gray, lineWidth: 1.2 * u))
+            VStack(alignment: .leading, spacing: 3 * u) {
+                Capsule().fill(Color.white.opacity(0.8)).frame(width: 14 * u, height: 2 * u)
+                HStack(alignment: .bottom) {
+                    Text("3,620").font(PremiumStyle.number(12 * u)).foregroundStyle(Color.white)
+                    Spacer(minLength: 0)
+                    HStack(alignment: .bottom, spacing: 1.5 * u) {
+                        ForEach([5, 2, 4, 9, 7], id: \.self) { h in
+                            Capsule().fill(Color.white.opacity(h == 7 ? 1 : 0.4)).frame(width: 2 * u, height: CGFloat(h) * u)
+                        }
+                    }
+                }
             }
             .padding(5 * u)
-            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 5 * u, style: .continuous))
+            .frame(height: 34 * u)
+            .premiumCard(.persimmon, radius: 6 * u)
+            HStack(spacing: 3 * u) {
+                ForEach(0..<4) { _ in
+                    Circle().fill(PremiumInk.accentSoft).frame(width: 7 * u)
+                        .frame(maxWidth: .infinity).frame(height: 15 * u)
+                        .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 4 * u, style: .continuous))
+                }
+            }
             ForEach(0..<2) { _ in
-                HStack(spacing: 4 * u) {
-                    ForEach(0..<2) { _ in
-                        Circle().fill(NativeInk.accent).frame(width: 5 * u)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(4 * u).frame(height: 15 * u)
-                            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 4 * u, style: .continuous))
-                    }
+                VStack(alignment: .leading, spacing: 2.5 * u) {
+                    Capsule().fill(NativeInk.label).frame(width: 46 * u, height: 2.5 * u)
+                    Capsule().fill(NativeInk.secondary).frame(width: 60 * u, height: 1.8 * u)
+                    Capsule().fill(NativeInk.card).frame(width: 16 * u, height: 5 * u)
                 }
+                .padding(.top, 2 * u)
             }
-            VStack(alignment: .leading, spacing: 4 * u) {
-                ForEach(0..<3) { _ in
-                    HStack(spacing: 4 * u) {
-                        Circle().fill(NativeInk.accent).frame(width: 4 * u)
-                        Capsule().fill(NativeInk.secondary).frame(width: 36 * u, height: 2 * u)
-                    }
-                }
-            }
-            .padding(5 * u)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 5 * u, style: .continuous))
         }
     }
 
     private var tabBar: some View {
+        HStack(spacing: 4 * u) {
+            tabCapsule
+            if look.isNative {
+                Circle().fill(PremiumStyle.disc).frame(width: 16 * u, height: 16 * u)
+                    .padding(1.5 * u).background(PremiumStyle.ring, in: Circle())
+            }
+        }
+        .padding(.horizontal, 8 * u)
+    }
+
+    private var tabCapsule: some View {
         HStack(spacing: 0) {
             ForEach(0..<4) { i in
                 RoundedRectangle(cornerRadius: 1.5 * u)
@@ -392,7 +413,6 @@ struct LookThumbnail: View {
         }
         .padding(.vertical, 5 * u)
         .background((look.isNative ? NativeInk.card : Ink.card), in: Capsule())
-        .padding(.horizontal, 8 * u)
     }
 }
 
@@ -446,7 +466,7 @@ struct LookPicker: View {
                 ZStack {
                     if on {
                         Circle().fill(NativeInk.accent)
-                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.white)
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(PremiumInk.onAccent)
                     } else {
                         Circle().strokeBorder(NativeInk.gray, lineWidth: 1.5)
                     }

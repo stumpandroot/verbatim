@@ -47,8 +47,31 @@ struct YouScreen: View {
     /// Whether the You page is on screen, for the UI tour's checks.
     static var visible = false
 
+    @Environment(\.look) private var look
+
     var body: some View {
         let week = HomeWeek(HomeCounts.entries(fromDictations: app.store.live), now: now)
+        Group {
+            if look.isNative { premiumScroll(week) } else { verboseScroll(week) }
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .phonePage()
+        .navigationTitle("You")
+        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
+        .toolbar {
+            if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
+        }
+        .navigationDestination(isPresented: $editingAbout) { AboutMeScreen() }
+        .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: false) }
+        .onAppear { Self.visible = true; now = Date(); voice.refresh() }
+        .onDisappear { Self.visible = false; commitName() }
+        .onReceive(Self.minute) { now = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
+            if note.object as? Bool == true { editingAbout = true }
+        }
+    }
+
+    private func verboseScroll(_ week: HomeWeek) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
@@ -65,20 +88,83 @@ struct YouScreen: View {
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
         }
-        .scrollDismissesKeyboard(.immediately)
-        .phonePage()
-        .navigationTitle("You")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
-        .navigationDestination(isPresented: $editingAbout) { AboutMeScreen() }
-        .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: false) }
-        .onAppear { Self.visible = true; now = Date(); voice.refresh() }
-        .onDisappear { Self.visible = false; commitName() }
-        .onReceive(Self.minute) { now = $0 }
-        .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
-            if note.object as? Bool == true { editingAbout = true }
+    }
+
+    // MARK: Premium Native
+    // brand: native begin
+
+    /// Premium Native: the week, the year, two stat cards, and the month calendar (PremiumYou.swift), then your name,
+    /// About me, your voice, and cleanup as one grouped section.
+    private func premiumScroll(_ week: HomeWeek) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                PremiumYouStats(week: week, now: now)
+                NativeGroup(header: "Profile", footer: privacyLine) {
+                    premiumNameRow
+                    NativeDivider()
+                    premiumRow("About me", value: aboutMe.isEmpty ? "Add" : nil, detail: aboutMe.isEmpty ? nil : aboutMe) { commitName(); editingAbout = true }
+                    NativeDivider()
+                    premiumRow("Your voice", value: nil, detail: voice.line) { commitName(); showVoice = true }
+                    NativeDivider()
+                    Picker(selection: $flow.cleanup) {
+                        ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
+                    } label: {
+                        Text("Cleanup").font(.system(size: 17)).foregroundStyle(NativeInk.label)
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.horizontal, 16).frame(minHeight: 46)
+                    NativeDivider()
+                    premiumRow("Cloud cleanup", value: cloudCleanup ? "On" : "Off", detail: nil) { commitName(); openSettingsRow("cloudCleanup") }
+                }
+                .padding(.top, 28)
+                footer.padding(.top, 14)
+            }
+            .padding(.horizontal, 20).padding(.bottom, 32)
         }
     }
+
+    /// Your name, changed in place.
+    private var premiumNameRow: some View {
+        HStack(spacing: 10) {
+            Text("Name").font(.system(size: 17)).foregroundStyle(NativeInk.label)
+            Spacer(minLength: 8)
+            TextField("Add your name", text: Binding(get: { editingName ? nameDraft : storedName },
+                                                     set: { if !editingName { editingName = true }; nameDraft = $0 }))
+                .multilineTextAlignment(.trailing)
+                .font(.system(size: 17)).foregroundStyle(NativeInk.secondary)
+                .textContentType(.name).submitLabel(.done)
+                .focused($nameFocused)
+                .onSubmit { commitName() }
+                .onChange(of: nameFocused) { _, focused in
+                    if focused, !editingName { nameDraft = storedName; editingName = true }
+                    if !focused { commitName() }
+                }
+                .accessibilityLabel("Your name")
+        }
+        .padding(.horizontal, 16).frame(minHeight: 46)
+    }
+
+    private func premiumRow(_ title: String, value: String?, detail: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 17)).foregroundStyle(NativeInk.label)
+                    if let detail {
+                        Text(detail).font(.system(size: 13)).foregroundStyle(NativeInk.secondary).lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                Spacer(minLength: 8)
+                if let value { Text(value).font(.system(size: 17)).foregroundStyle(NativeInk.secondary) }
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 46)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(NativeRowPress())
+    }
+    // brand: native end
 
     // MARK: Header
 

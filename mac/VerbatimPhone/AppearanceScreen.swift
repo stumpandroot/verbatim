@@ -9,6 +9,8 @@ struct AppearanceScreen: View {
     @EnvironmentObject var app: PhoneState
     @AppStorage(AppLook.key, store: AppLook.store) private var lookRaw = AppLook.verbose.rawValue
     @AppStorage(MotionPreference.key) private var motionLimited = false
+    /// Premium Native's Record card on Home (PremiumHome.swift): off unless turned on here.
+    @AppStorage(PremiumHome.recordCardKey) private var recordCard = false
     @Environment(\.look) private var look
     /// Whether Appearance is on screen, for the UI tour's checks.
     static var visible = false
@@ -57,6 +59,14 @@ struct AppearanceScreen: View {
                                       isOn: $motionLimited)
                 }
                 .padding(.top, 26)
+                // Native's Home leads with This week and the floating record button; the Record card is optional.
+                if look.isNative {
+                    section("Home", footer: "The record button beside the tab bar always starts a voice note.") {
+                        SettingsToggleRow(icon: "record.circle", tint: Ink.persimmonTint, art: .capture, title: "Show the Record card",
+                                          subtitle: nil, isOn: $recordCard)
+                    }
+                    .padding(.top, 26)
+                }
             }
             .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
         }

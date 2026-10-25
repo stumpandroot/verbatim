@@ -57,6 +57,8 @@ enum SettingsSearchIndex {
               description: "Match the system, light, or dark", target: .page(.appearance)),
         .init(id: "limitMotion", section: "Appearance", label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
               description: "Fades instead of movement; illustrations stay still", target: .page(.appearance)),
+        .init(id: "homeRecordCard", section: "Appearance", label: "Show the Record card", keywords: ["record card", "home", "record button", "native"],
+              description: "Native: the Record card on Home", target: .page(.appearance)),
 
         // Recording
         .init(id: "recordLiveWords", section: "Recording", label: "Show words while you record",

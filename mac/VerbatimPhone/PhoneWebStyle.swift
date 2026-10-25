@@ -396,18 +396,19 @@ struct PhoneChip: View {
         if look.isNative { native } else { verbose }
     }
 
-    /// Native: a small capsule, gray at rest and persimmon when selected. No color dot: hue no longer names a source.
+    /// Native (Premium): a 34 pt capsule, gray at rest and the label color with the page's color for text when
+    /// selected. No color dot: hue no longer names a source.
     private var native: some View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Text(label)
                 if let count { Text("\(count)").monospacedDigit().opacity(0.7) }
             }
-            .font(.system(size: size + 1, weight: selected ? .semibold : .regular))
+            .font(.system(size: size + 2, weight: selected ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(selected ? Color.white : NativeInk.label)
-            .padding(.horizontal, 13).frame(minHeight: height)
-            .background(selected ? NativeInk.accent : NativeInk.fill, in: Capsule())
+            .foregroundStyle(selected ? NativeInk.paper : NativeInk.label)
+            .padding(.horizontal, 14).frame(minHeight: height + 2)
+            .background(selected ? NativeInk.label : NativeInk.fill, in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

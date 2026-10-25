@@ -206,6 +206,14 @@ struct TranscriptScreen: View {
                         downloading = !Cloud.isDownloaded(u)
                         app.player.loadAsync(u, startAt: pendingSeek)
                         if downloading { Task { _ = await Cloud.ensureDownloaded(u); downloading = false } }
+                        // Opened from a recording's play pill (Premium Native): play once the audio is open.
+                        if app.autoplay == t.id {
+                            app.autoplay = nil
+                            Task { @MainActor in
+                                for _ in 0..<200 where !app.player.canPlay { try? await Task.sleep(nanoseconds: 50_000_000) }
+                                if app.player.canPlay, !app.player.isPlaying { app.player.toggle() }
+                            }
+                        }
                     }
                 }
                 .onDisappear { app.player.stop() }
@@ -634,6 +642,10 @@ struct PhoneDock: View {
 
     var body: some View {
         let total = max(app.player.duration, transcript.duration, 0.1)
+        if look.isNative { premiumDock(total) } else { verboseDock(total) }
+    }
+
+    private func verboseDock(_ total: Double) -> some View {
         let dock = HStack(spacing: 10) {
             Button { app.player.toggle() } label: {
                 ZStack {
@@ -704,15 +716,107 @@ struct PhoneDock: View {
         }
         .padding(.leading, 8).padding(.trailing, 6)
         .frame(minHeight: 54)
-        if look.isNative {
-            NativeDockSurface(content: dock)
-        } else {
-            dock
-                .background(Ink.inkFixed, in: Capsule())
-                .shadow(color: Ink.inkFixed.opacity(0.2), radius: 12, y: 8)
+        return dock
+            .background(Ink.inkFixed, in: Capsule())
+            .shadow(color: Ink.inkFixed.opacity(0.2), radius: 12, y: 8)
+    }
+}
+
+// brand: native begin
+extension PhoneDock {
+    /// Premium Native: the glass bottom accessory above the tab bar, as in Music: play on the accent, the time, a thin
+    /// track you drag or tap to move through the recording, the speed (its menu has skip and Bookmark this moment),
+    /// and Follow.
+    @ViewBuilder fileprivate func premiumDock(_ total: Double) -> some View {
+        let dock = HStack(spacing: 10) {
+            Button { app.player.toggle() } label: {
+                ZStack {
+                    Circle().fill(NativeInk.accent)
+                    if downloading { ProgressView().tint(PremiumInk.onAccent) }
+                    else {
+                        Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(PremiumInk.onAccent)
+                    }
+                }
+                .frame(width: 40, height: 40)
+                .contentShape(Circle())
+            }
+            .buttonStyle(PhoneCardPress())
+            .disabled(downloading)
+            .accessibilityLabel(downloading ? "Downloading audio" : app.player.isPlaying ? "Pause" : "Play")
+            if let note = clock.note {
+                SkippedSponsorNote(text: note)
+            } else {
+                Text(clock.time.timecode).font(.system(size: 15, weight: .semibold)).monospacedDigit().foregroundStyle(NativeInk.label)
+                    .fixedSize()
+                    .accessibilityHidden(true)
+            }
+            PremiumTrack(progress: min(1, clock.time / total)) { f in app.player.seek(to: f * total) }
+                .frame(height: 28)
+                .accessibilityElement()
+                .accessibilityLabel("Playback position")
+                .accessibilityValue("\(clock.time.timecode) of \(total.timecode)")
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment: app.player.seek(to: min(total, clock.time + 5))
+                    case .decrement: app.player.seek(to: max(0, clock.time - 5))
+                    @unknown default: break
+                    }
+                }
+            Menu {
+                Picker("Speed", selection: Binding(get: { app.player.rate }, set: { app.player.setRate($0) })) {
+                    ForEach(PlaybackSync.speeds, id: \.self) { r in Text(PlaybackSync.speedLabel(r)).tag(r) }
+                }
+                Button("Back 5 seconds") { app.player.seek(to: max(0, clock.time - 5)) }
+                Button("Forward 5 seconds") { app.player.seek(to: min(total, clock.time + 5)) }
+                Button {
+                    let at = clock.time
+                    let seg = transcript.segments.first { at >= $0.start && at < $0.end }
+                    app.addNote(transcript.id, text: seg.map { String($0.text.prefix(60)) } ?? "Bookmark", at: at, segment: seg?.id, bookmark: true)
+                } label: { Label("Bookmark this moment", systemImage: "bookmark") }
+            } label: {
+                Text(PlaybackSync.speedLabel(app.player.rate)).font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(NativeInk.secondary)
+                    .frame(minWidth: 30, minHeight: 38).contentShape(Rectangle())
+            }
+            .accessibilityLabel("Playback options, \(PlaybackSync.speedLabel(app.player.rate))")
+            Button { follow.toggle() } label: {
+                Text("Follow").font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(follow ? NativeInk.accent : NativeInk.secondary)
+                    .padding(.horizontal, 12).frame(minHeight: 34)
+                    .background(follow ? PremiumInk.accentSoft : NativeInk.fill, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Follow playback")
+            .accessibilityValue(follow ? "On" : "Off")
+            .accessibilityHint("Scrolls to the line that's playing. Scrolling yourself turns it off.")
+        }
+        .padding(.leading, 6).padding(.trailing, 8)
+        .frame(minHeight: 52)
+        NativeDockSurface(content: dock)
+    }
+}
+
+/// Premium's playback track: 4 pt, the played part in the accent. Tap or drag to move the playhead.
+struct PremiumTrack: View {
+    var progress: Double
+    var seek: (Double) -> Void
+    var body: some View {
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Capsule().fill(NativeInk.fillStrong).frame(height: 4)
+                Capsule().fill(NativeInk.accent).frame(width: max(4, g.size.width * progress), height: 4)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { v in
+                seek(max(0, min(1, Double(v.location.x / max(1, g.size.width)))))
+            })
         }
     }
 }
+// brand: native end
 
 // brand: native begin
 /// The player in the Native look: Liquid Glass like Music's bar above the tab bar (a material before iOS 26). Native
@@ -886,31 +990,8 @@ struct PhoneSummaryPanel: View {
 
     var body: some View {
         if SummaryBlock.shows(transcript, center: center) {
-            let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-            VStack(alignment: .leading, spacing: 10) {
-                if look.isNative {
-                    // Native: a grouped card marked with the sparkles symbol and "Apple Intelligence".
-                    HStack {
-                        Label("Summary", systemImage: "sparkles").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.label)   // brand: native
-                        Spacer(minLength: 6)
-                        if transcript.summaryByModel { Text("Apple Intelligence").font(.caption).foregroundStyle(NativeInk.secondary) }
-                    }
-                    .accessibilityAddTraits(.isHeader)
-                } else {
-                    PhoneEyebrow(text: "Summary", color: Ink.inkFixed)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                content
-            }
-            .foregroundStyle(.lookOnPanel)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                PhonePanelFill(color: PhoneInk.butter, shape: shape)
-                    .overlay(alignment: .topTrailing) {
-                        if !editing { PhonePanelArt(kind: .strands).frame(width: 160, height: 107).offset(x: 4, y: -16) }
-                    }
-                    .clipShape(shape)
+            Group {
+                if look.isNative { premiumCard } else { verboseCard }
             }
             .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
                 Button("Replace", role: .destructive) { onSummarize(true) }
@@ -920,6 +1001,65 @@ struct PhoneSummaryPanel: View {
             }
         }
     }
+
+    private var verboseCard: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
+        return VStack(alignment: .leading, spacing: 10) {
+            PhoneEyebrow(text: "Summary", color: Ink.inkFixed)
+                .accessibilityAddTraits(.isHeader)
+            content
+        }
+        .foregroundStyle(.lookOnPanel)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            PhonePanelFill(color: PhoneInk.butter, shape: shape)
+                .overlay(alignment: .topTrailing) {
+                    if !editing { PhonePanelArt(kind: .strands).frame(width: 160, height: 107).offset(x: 4, y: -16) }
+                }
+                .clipShape(shape)
+        }
+    }
+
+    // brand: native begin
+    /// Premium Native: a persimmon gradient card (its deeper half, so every line of white text keeps 4.5:1) with the
+    /// sparkles symbol, Apple Intelligence's mark, and the moment and speaker counts.
+    private var premiumCard: some View {
+        let moments = transcript.notes.filter { $0.at != nil }.count
+        let speakers = transcript.speakers.count
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Summary", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
+                Spacer(minLength: 6)
+                if transcript.summaryByModel { Text("Apple Intelligence").font(.system(size: 12.5, weight: .medium)) }
+            }
+            .accessibilityAddTraits(.isHeader)
+            content
+            if !editing, moments > 0 || speakers >= 2 {
+                HStack(spacing: 8) {
+                    if moments > 0 { premiumCount("bookmark", moments == 1 ? "1 moment" : "\(moments) moments") }
+                    if speakers >= 2 { premiumCount("person.2", "\(speakers) speakers") }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .foregroundStyle(Color.white)
+        .tint(Color.white)
+        .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PremiumStyle.persimmonDeep, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private func premiumCount(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
+            Text(text).font(.system(size: 14, weight: .semibold)).monospacedDigit()
+        }
+        .padding(.horizontal, 12).frame(minHeight: 30)
+        .background(Color.black.opacity(0.16), in: Capsule())
+        .accessibilityElement(children: .combine)
+    }
+    // brand: native end
 
     @ViewBuilder private var content: some View {
         if editing {
@@ -941,7 +1081,7 @@ struct PhoneSummaryPanel: View {
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
                             HStack(alignment: .firstTextBaseline, spacing: 9) {
-                                Circle().fill(.lookOnPanel).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
+                                Circle().fill(look.isNative ? Color.white : Ink.inkFixed).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
                                 Text(p).font(.system(size: bodySize)).lineSpacing(2)
                                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                             }
@@ -967,7 +1107,7 @@ struct PhoneSummaryPanel: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 14, weight: .semibold))
                 .underline(!look.isNative)
-                .foregroundStyle(look.isNative ? NativeInk.accent : Ink.inkFixed)
+                .foregroundStyle(look.isNative ? Color.white : Ink.inkFixed)
             }
         } else if running {
             progressRow
@@ -984,7 +1124,7 @@ struct PhoneSummaryPanel: View {
 
     private var progressRow: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small).tint(Ink.inkFixed)
+            ProgressView().controlSize(.small).tint(look.isNative ? Color.white : Ink.inkFixed)
             Text(progressText).font(.system(size: 14))
         }
     }
