@@ -18,10 +18,14 @@ struct VerbatimWidgetBundle: WidgetBundle {
     }
 }
 
-/// The recording ribbon (the approved "iPhone recording ribbon" mockup). Dynamic Island compact: a dot, the take's
-/// timer, and the level while listening; "Copied" and the word count after. Expanded: Listening, the timer, the
-/// level, and Cancel and Done; otherwise the state, and End session and Dictate. Lock Screen: the same states with
-/// no transcript text, ever. After a call: Session ended, and a tap restarts it.
+/// The recording ribbon (the approved "iPhone recording ribbon" mockup, reworked by the notch mockup's section 02).
+/// Dynamic Island compact: persimmon voice bars leading and the take's time trailing while listening; the bars mark
+/// and a spinner while writing; a check and the word count after (Copied or Inserted), then the bars mark and a
+/// persimmon dot (the session's microphone is on). Minimal: three voice bars while listening. Expanded while
+/// listening: the voice bars, Listening, and the time; the live words line (only with Show words in the Dynamic
+/// Island on); "Into Messages"; and Cancel and Done. Otherwise the state, and End session and Dictate. Lock Screen:
+/// the same states on paper, with "Into Messages · take 3 of this session" while listening and never any words.
+/// After a call: Session ended, and a tap restarts it.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
@@ -31,40 +35,64 @@ struct SessionLiveActivity: Widget {
                 .widgetURL(context.state.shown == .ended ? restartLink : nil)
         } dynamicIsland: { context in
             let s = context.state
+            let listening = s.shown == .listening
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    PhaseGlyph(phase: s.shown, onDark: true).frame(width: 22, height: 22).padding(.leading, 4)
+                    if listening {
+                        HStack(spacing: 7) {
+                            LevelBars(level: s.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 18)
+                            Text("Listening").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                                .lineLimit(1).fixedSize()
+                        }
+                        .padding(.leading, 4)
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        PhaseGlyph(phase: s.shown, onDark: true).frame(width: 22, height: 22).padding(.leading, 4)
+                    }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if s.shown == .listening, let start = s.takeStartedAt {
-                        TakeTimer(start: start).font(Ink.mono(15, weight: .medium)).foregroundStyle(.white)
+                    if listening, let start = s.takeStartedAt {
+                        TakeTimer(start: start).font(Ink.mono(14, weight: .medium)).foregroundStyle(.white)
                             .frame(width: 56, alignment: .trailing).padding(.trailing, 4)
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(Ribbon.headline(s.shown, words: s.words))
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                    if !listening {
+                        Text(Ribbon.headline(s.shown, words: s.words))
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 10) {
-                        if s.shown == .listening {
-                            LevelBars(level: s.level, color: Ink.persimmon).frame(height: 24)
-                        } else {
+                    if listening {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if let line = s.liveWords, !line.isEmpty { IslandWords(line: line) }
+                            HStack(spacing: 8) {
+                                TargetLabel(target: s.target)
+                                Spacer(minLength: 6)
+                                RibbonButton(title: "Cancel", primary: false, onDark: true, compact: true, intent: CancelTakeIntent())
+                                    .accessibilityLabel("Cancel dictation").accessibilityHint("Stops listening and throws the take away")
+                                RibbonButton(title: "Done", primary: true, onDark: true, compact: true, intent: FinishTakeIntent())
+                                    .accessibilityHint("Stops listening and puts your words in")
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                    } else {
+                        VStack(spacing: 10) {
                             Text(Ribbon.detail(s.shown, takes: s.takes, message: s.message))
                                 .font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            RibbonButtons(phase: s.shown, onDark: true)
                         }
-                        RibbonButtons(phase: s.shown, onDark: true)
+                        .padding(.horizontal, 4)
                     }
-                    .padding(.horizontal, 4)
                 }
             } compactLeading: {
                 CompactLeading(state: s)
             } compactTrailing: {
                 CompactTrailing(state: s)
             } minimal: {
-                if s.shown == .listening {
-                    Circle().fill(Ink.persimmon).frame(width: 9, height: 9).accessibilityLabel("Listening")
+                if listening {
+                    LevelBars(level: s.level, color: Ink.persimmon, count: 3).frame(width: 13, height: 13)
                 } else {
                     BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
                 }
@@ -78,45 +106,42 @@ struct SessionLiveActivity: Widget {
 /// Opens Verbose and starts a new session (the Lock Screen widget's link).
 private let restartLink = URL(string: "verbatim://session?start=1&from=widget")!
 
+/// Compact leading: your voice while listening, a check after, otherwise the bars mark.
 private struct CompactLeading: View {
     var state: VerbatimSessionAttributes.ContentState
     var body: some View {
         switch state.shown {
         case .listening:
-            HStack(spacing: 5) {
-                Circle().fill(Ink.persimmon).frame(width: 7, height: 7)
-                if let start = state.takeStartedAt {
-                    TakeTimer(start: start).font(Ink.mono(12, weight: .medium)).foregroundStyle(.white).frame(width: 34, alignment: .leading)
-                }
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Listening")
+            LevelBars(level: state.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 16)
+                .accessibilityLabel("Listening")
         case .copied, .inserted:
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.persimmon)
-                Text(state.shown == .copied ? "Copied" : "Inserted").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-            }
+            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.persimmon)
+                .accessibilityLabel(state.shown == .copied ? "Copied" : "Inserted")
         default:
             BarsMark(color: Ink.persimmon).frame(width: 16, height: 16)
         }
     }
 }
 
+/// Compact trailing: the take's time while listening, a spinner while writing, the word count after, and a
+/// persimmon dot between takes (the session's microphone is on).
 private struct CompactTrailing: View {
     var state: VerbatimSessionAttributes.ContentState
     var body: some View {
         switch state.shown {
         case .listening:
-            LevelBars(level: state.level, color: Ink.persimmon, count: 5).frame(width: 22, height: 16)
+            if let start = state.takeStartedAt {
+                TakeTimer(start: start).font(Ink.mono(12, weight: .medium)).foregroundStyle(.white).frame(width: 36, alignment: .trailing)
+            }
         case .copied, .inserted:
             Text(Ribbon.wordsLabel(state.words)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.white.opacity(0.75))
         case .failed:
             PhaseGlyph(phase: .failed, onDark: true).frame(width: 16, height: 16)
         case .transcribing:
-            PhaseGlyph(phase: .transcribing, onDark: true).frame(width: 16, height: 16)
+            WritingSpinner().frame(width: 15, height: 15)
         default:
-            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.butter)
-                .accessibilityLabel("Ready")
+            Circle().fill(Ink.persimmon).frame(width: 8, height: 8)
+                .accessibilityLabel("Session on")
         }
     }
 }
@@ -126,6 +151,7 @@ private struct RibbonLockScreen: View {
     private let ink = Ink.inkFixed
 
     var body: some View {
+        // Never reads `state.liveWords`: anyone can read a Lock Screen.
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 PhaseGlyph(phase: state.shown, onDark: false).frame(width: 18, height: 18)
@@ -135,7 +161,9 @@ private struct RibbonLockScreen: View {
                 trailing
             }
             if state.shown == .listening {
-                LevelBars(level: state.level, color: Ink.persimmonFixed).frame(height: 20)
+                LevelBars(level: state.level, color: Ink.persimmonFixed, count: 34).frame(height: 22)
+                Text(Ribbon.lockLine(target: state.target, take: state.takes))
+                    .font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.85)
             } else {
                 Text(Ribbon.detail(state.shown, takes: state.takes, message: state.message))
                     .font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(2)
@@ -156,6 +184,46 @@ private struct RibbonLockScreen: View {
     }
 }
 
+/// The expanded Island's words line: two lines at most, older words dimmed and the newest three bright. The app
+/// sends it only with Show words in the Dynamic Island on.
+private struct IslandWords: View {
+    var line: String
+    var body: some View {
+        let parts = Ribbon.splitWords(line)
+        Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
+            .font(Ink.serif(16)).lineLimit(2).truncationMode(.head)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(line)
+    }
+}
+
+/// "Into Messages", or "Into the Verbose keyboard" when the app isn't known (always in App Store builds).
+private struct TargetLabel: View {
+    var target: String?
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "keyboard").font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
+                .accessibilityHidden(true)
+            Text(Ribbon.intoLine(target)).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+                .lineLimit(1).minimumScaleFactor(0.8)
+        }
+    }
+}
+
+/// While Verbose writes the words: a still arc (a Live Activity doesn't animate between updates).
+private struct WritingSpinner: View {
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.25), lineWidth: 2)
+            Circle().trim(from: 0, to: 0.25)
+                .stroke(Ink.persimmon, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Writing your words")
+    }
+}
+
 /// The take's timer: counts up on its own from `start`, so the app doesn't update it.
 private struct TakeTimer: View {
     var start: Date
@@ -165,14 +233,14 @@ private struct TakeTimer: View {
     }
 }
 
-/// One glyph per phase: the bars mark when ready, the microphone while listening, a check after.
+/// One glyph per phase: the bars mark when ready or listening, the writing glyph, a check after.
 private struct PhaseGlyph: View {
     var phase: Ribbon.Phase
     var onDark: Bool
     var body: some View {
         switch phase {
         case .listening:
-            BrandGlyph(art: .capture, color: Ink.persimmon).accessibilityLabel("Listening")
+            BarsMark(color: onDark ? Ink.persimmon : Ink.persimmonFixed).accessibilityLabel("Listening")
         case .transcribing:
             BrandGlyph(art: .iconTranscribing, color: onDark ? .white : Ink.inkFixed).accessibilityLabel("Writing")
         case .copied, .inserted:
@@ -246,12 +314,14 @@ private struct RibbonButtons: View {
     }
 }
 
-/// A full-width pill. Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a
+/// A full-width pill (or one sized to its word, `compact`). Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a
 /// quiet wash. Opaque fills only; no text on blur.
 private struct RibbonButton<I: AppIntent>: View {
     var title: String
     var primary: Bool
     var onDark: Bool
+    /// The expanded Island's listening row: sized to the word, beside "Into Messages".
+    var compact = false
     var intent: I
 
     var body: some View {
@@ -260,7 +330,9 @@ private struct RibbonButton<I: AppIntent>: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(primary || !onDark ? Ink.inkFixed : Color.white)
                 .lineLimit(1)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: compact ? nil : .infinity)
+                .frame(minWidth: compact ? 72 : nil)
+                .padding(.horizontal, compact ? 12 : 0)
                 .padding(.vertical, 8)
                 .background(primary ? Ink.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Ink.inkFixed.opacity(0.08)),
                             in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))

@@ -12,7 +12,9 @@ import Foundation
 ///   the clipboard is left alone. Otherwise they go on the clipboard and into the keyboard's Recent row.
 /// - An idle session ends itself after 30 minutes unless you choose 10 or 60.
 /// - A clipboard write that fails in the background is reported in the Live Activity, never silent.
-/// - The Lock Screen never shows transcript text: only state, counts, and times.
+/// - The Lock Screen never shows transcript text: only state, counts, times, and the app the words go to. The
+///   expanded Dynamic Island may show the last few words while you talk, only with Show words in the Dynamic
+///   Island on (off by default).
 enum Ribbon {
     // MARK: Live Activity phases
 
@@ -221,6 +223,51 @@ enum Ribbon {
 
     /// The stored choice; Dictate a take unless you chose something else.
     static func actionChoice(_ raw: String?) -> ActionChoice { raw.flatMap(ActionChoice.init(rawValue:)) ?? .dictate }
+
+    // MARK: The expanded Dynamic Island's words and target
+
+    /// Settings › Keyboard › Show words in the Dynamic Island: off unless you turn it on. In the App Group, read
+    /// by the app (the widget extension only draws what the app sends).
+    static let islandWordsKey = "ribbon.islandWords"
+    /// The words line holds about this many characters (two lines at most in the expanded Island).
+    static let islandWordsLimit = 80
+    /// ActivityKit's cap on a Live Activity's content state, in bytes.
+    static let contentStateLimit = 4096
+
+    /// The end of the live words for the expanded Island: at most `limit` characters, starting at a word
+    /// boundary, on one line. Nil when there's nothing to show.
+    static func islandWords(_ text: String, limit: Int = islandWordsLimit) -> String? {
+        let flat = text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        guard !flat.isEmpty else { return nil }
+        guard flat.count > limit else { return flat }
+        var cut = Substring(flat.suffix(limit))
+        if let space = cut.firstIndex(of: " ") { cut = cut[cut.index(after: space)...] }
+        return cut.isEmpty ? String(flat.suffix(limit)) : String(cut)
+    }
+
+    /// The words line split for drawing: older words (dimmed) and the newest `newest` words (bright).
+    static func splitWords(_ line: String, newest: Int = 3) -> (older: String, newest: String) {
+        let words = line.split(separator: " ")
+        guard words.count > newest else { return ("", line) }
+        return (words.dropLast(newest).joined(separator: " ") + " ", words.suffix(newest).joined(separator: " "))
+    }
+
+    /// Where a take's words go, as the Island and the Lock Screen name it: the app you're typing in when the build
+    /// can read it ("Messages"), otherwise the Verbose keyboard. App Store builds never read the host app.
+    static func target(hostName: String?, appStore: Bool) -> String {
+        guard !appStore, let n = hostName?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return keyboardTarget }
+        return n
+    }
+
+    static let keyboardTarget = "the Verbose keyboard"
+
+    /// "Into Messages", "Into the Verbose keyboard".
+    static func intoLine(_ target: String?) -> String { "Into " + (target ?? keyboardTarget) }
+
+    /// The Lock Screen's line under the level: "Into Messages · take 3 of this session". Never any words.
+    static func lockLine(target: String?, take: Int) -> String {
+        intoLine(target) + " · take \(max(1, take)) of this session"
+    }
 
     // MARK: Session ended
 

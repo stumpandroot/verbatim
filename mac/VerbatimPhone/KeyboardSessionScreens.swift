@@ -152,6 +152,8 @@ struct KeyboardSetupScreen: View {
     /// `KeyboardBridge.liveWords`).
     @AppStorage(KeyboardBridge.Key.polishAfter, store: KeyboardBridge.defaults) private var polishAfter = true
     @AppStorage(KeyboardBridge.Key.liveWords, store: KeyboardBridge.defaults) private var liveWords = true
+    /// Also in the App Group, read by the app: the expanded Dynamic Island's words line (`Ribbon.islandWordsKey`).
+    @AppStorage(Ribbon.islandWordsKey, store: KeyboardBridge.defaults) private var islandWords = false
     /// Also in the App Group: the app copies after each keyboard dictation, or the keyboard does (`KeyboardBridge.alwaysCopy`).
     @AppStorage(KeyboardBridge.alwaysCopyKey, store: KeyboardBridge.defaults) private var alwaysCopy = false
 
@@ -208,6 +210,10 @@ struct KeyboardSetupScreen: View {
 
                 SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
                                   subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
+                    .cardSurface(radius: Radius.row)
+
+                SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words in the Dynamic Island",
+                                  subtitle: "When you touch and hold the Dynamic Island during a take, it shows your last few words. The Lock Screen never shows your words.", isOn: $islandWords)
                     .cardSurface(radius: Radius.row)
 
                 SettingsToggleRow(icon: "doc.on.clipboard", tint: Ink.persimmonTint, title: "Also copy each dictation",

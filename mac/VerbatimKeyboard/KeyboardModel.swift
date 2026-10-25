@@ -265,6 +265,9 @@ final class KeyboardModel: ObservableObject {
         reloadStats()
         refreshFormat()
         markVisible()
+        // The app names it in the Dynamic Island ("Into Messages"). Once per appearance; nil in App Store builds.
+        if let host, !host.isEmpty { defaults?.set(host, forKey: KeyboardBridge.Key.visibleHost) }
+        else { defaults?.removeObject(forKey: KeyboardBridge.Key.visibleHost) }
         if !observing {
             observing = true
             KeyboardBridge.observe(KeyboardBridge.Note.state) { [weak self] in self?.appChanged() }
@@ -293,6 +296,7 @@ final class KeyboardModel: ObservableObject {
         stopTimer()
         // Gone from the screen: a take from the Action button now goes to the clipboard instead.
         defaults?.set(0.0, forKey: KeyboardBridge.Key.keyboardVisibleAt)
+        defaults?.removeObject(forKey: KeyboardBridge.Key.visibleHost)
     }
 
     /// Tells the app this keyboard is on screen (written with every poll, at least once a second), so a take from

@@ -68,6 +68,7 @@ enum KeyboardBridge {
         static let insertedID = "kb.d.inserted"           // the dictation whose text a keyboard already inserted
         static let seenID = "kb.d.seen"                   // the dictation a keyboard has shown as listening
         static let keyboardVisibleAt = "kb.k.visible"     // Double: when a keyboard was last on screen (about once a second), 0 when it left
+        static let visibleHost = "kb.k.host"              // String: the app a keyboard on screen is in (full builds, when iOS says), for "Into Messages"
 
         // Dictation state (written by the app)
         static let dictation = "kb.d.id"                  // String UUID: the dictation the fields below describe
@@ -469,7 +470,7 @@ extension KeyboardBridge {
     static func clearDictationData() {
         guard let d = defaults else { return }
         for k in [recentKey, Key.text, Key.raw, Key.message, Key.polishedText, Key.polishedInserted, Key.polishedID, Key.polishing,
-                  Key.liveSettled, Key.liveVolatile, statsKey, Key.snippets, copiedKey, Key.requestHost, commandKey] {
+                  Key.liveSettled, Key.liveVolatile, statsKey, Key.snippets, copiedKey, Key.requestHost, Key.visibleHost, commandKey] {
             d.removeObject(forKey: k)
         }
         post(Note.state)

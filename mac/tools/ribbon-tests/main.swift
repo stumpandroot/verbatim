@@ -81,6 +81,28 @@ check("choice titles match the mockup", Ribbon.ActionChoice.allCases.map(\.title
 check("only dictation runs without opening Verbose", !Ribbon.ActionChoice.dictate.needsForeground
       && Ribbon.ActionChoice.voiceNote.needsForeground && Ribbon.ActionChoice.captions.needsForeground)
 
+// MARK: The expanded Dynamic Island's words and target
+
+check("no words, no line", Ribbon.islandWords("") == nil && Ribbon.islandWords("  \n ") == nil)
+check("short words pass on one line", Ribbon.islandWords("Thursday works.\nNoon") == "Thursday works. Noon")
+let long = "Thanks Chris, Thursday works. Noon at the usual place, and I'll bring the wheel samples and the strap hinges too"
+let line = Ribbon.islandWords(long) ?? ""
+check("the line keeps the last 80 characters or fewer", line.count <= Ribbon.islandWordsLimit && long.hasSuffix(line), line)
+check("the line starts at a word boundary", long.contains(" " + line))
+check("one giant word is cut, not dropped", (Ribbon.islandWords(String(repeating: "a", count: 200)) ?? "").count == 80)
+check("the line fits ActivityKit's 4 KB easily", (Ribbon.islandWords(String(repeating: "\u{1F600} ", count: 400)) ?? "").utf8.count < Ribbon.contentStateLimit / 4)
+let split = Ribbon.splitWords("Noon at the usual place, and I'll bring the wheel samples")
+check("older words dim, the newest three stay bright", split.older == "Noon at the usual place, and I'll bring " && split.newest == "the wheel samples")
+check("three words or fewer are all newest", Ribbon.splitWords("the wheel samples") == ("", "the wheel samples"))
+check("full builds name the app", Ribbon.target(hostName: "Messages", appStore: false) == "Messages")
+check("App Store builds never name the app", Ribbon.target(hostName: "Messages", appStore: true) == "the Verbose keyboard")
+check("an unknown app is the keyboard", Ribbon.target(hostName: nil, appStore: false) == "the Verbose keyboard"
+      && Ribbon.target(hostName: " ", appStore: false) == "the Verbose keyboard")
+check("Into Messages", Ribbon.intoLine("Messages") == "Into Messages" && Ribbon.intoLine(nil) == "Into the Verbose keyboard")
+check("the Lock Screen line", Ribbon.lockLine(target: "Messages", take: 3) == "Into Messages · take 3 of this session"
+      && Ribbon.lockLine(target: nil, take: 0) == "Into the Verbose keyboard · take 1 of this session")
+check("the words setting has its own key", Ribbon.islandWordsKey == "ribbon.islandWords")
+
 // MARK: Live Activity words (no transcript text, ever)
 
 check("Copied · 42 words", Ribbon.headline(.copied, words: 42) == "Copied · 42 words")

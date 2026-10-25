@@ -97,7 +97,8 @@ final class KeyboardSession: ObservableObject {
     private var observers: [NSObjectProtocol] = []
     private var activity: Activity<VerbatimSessionAttributes>?
     private var background: UIBackgroundTaskIdentifier = .invalid
-    /// Live words for the keyboard while you talk (Settings › Keyboard › Show words as you speak).
+    /// Live words for the keyboard while you talk (Settings › Keyboard › Show words as you speak), and for the
+    /// expanded Dynamic Island (Show words in the Dynamic Island).
     private let live = LiveTranscriber()
     private var liveWritten = LiveWords()
     /// Polish after inserting: the saved dictation for each keyboard dictation, and polished text that arrived
@@ -353,7 +354,7 @@ final class KeyboardSession: ObservableObject {
     private func warmModel() {
         FlowCleanup.prewarm(level: PhoneDictation.level)
         // Live words: asks for Apple's on-device speech model to be installed. Never prompts for permission here.
-        if KeyboardBridge.liveWords { live.prepare() }
+        if KeyboardBridge.liveWords || Self.islandWordsOn { live.prepare() }
         guard let app else { return }
         let s = app.jobSettings()
         guard s.engineId == "fluid" else { return }
@@ -949,7 +950,8 @@ final class KeyboardSession: ObservableObject {
 
     private func startLive() {
         clearLive()
-        guard KeyboardBridge.liveWords else { return }
+        // For the keyboard (Show words as you speak) or the Dynamic Island (Show words in the Dynamic Island).
+        guard KeyboardBridge.liveWords || Self.islandWordsOn else { return }
         capture.setLiveTap(live.tap)
         live.start(format: AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: SessionCapture.sampleRate, channels: 1, interleaved: false))
     }
@@ -965,6 +967,8 @@ final class KeyboardSession: ObservableObject {
         let w = live.words
         guard w != liveWritten else { return }
         liveWritten = w
+        // Running only for the Dynamic Island: the keyboard doesn't show them.
+        guard KeyboardBridge.liveWords else { return }
         // The end is enough: the keyboard shows two lines.
         let shown = w.tail(160)
         d.set(shown.settled, forKey: KeyboardBridge.Key.liveSettled)
@@ -1134,7 +1138,23 @@ final class KeyboardSession: ObservableObject {
         return VerbatimSessionAttributes.ContentState(listening: dictating, endsAt: endsAt, phase: phase, sessionStartedAt: sessionStartedAt,
                                                       takeStartedAt: dictating ? takeStartedAt : nil,
                                                       level: dictating ? min(1, max(0, Double(capture.level))) : 0,
-                                                      words: shownResult?.words ?? 0, takes: takes, message: shownResult?.message)
+                                                      words: shownResult?.words ?? 0, takes: takes, message: shownResult?.message,
+                                                      target: activityTarget,
+                                                      liveWords: dictating && Self.islandWordsOn ? Ribbon.islandWords(live.words.text) : nil)
+    }
+
+    /// Settings › Keyboard › Show words in the Dynamic Island (off unless you turn it on).
+    static var islandWordsOn: Bool { KeyboardBridge.defaults?.bool(forKey: Ribbon.islandWordsKey) ?? false }
+
+    /// The app the words go to, for "Into Messages": the app the Verbose keyboard is on screen in, or the one the
+    /// session started from, when the build can read it and it's a known app. Nil (the Verbose keyboard) in App
+    /// Store builds.
+    private var activityTarget: String? {
+        guard Distribution.current.readsHostApp else { return nil }
+        let up = Ribbon.keyboardUp(visibleAt: defaults?.double(forKey: KeyboardBridge.Key.keyboardVisibleAt) ?? 0, now: Date().timeIntervalSince1970)
+        let h = (up ? defaults?.string(forKey: KeyboardBridge.Key.visibleHost) : nil) ?? host
+        let name = Ribbon.target(hostName: KeyboardFormat.classify(host: h)?.name, appStore: Distribution.isAppStore)
+        return name == Ribbon.keyboardTarget ? nil : name
     }
 
     private func updateActivity() {
