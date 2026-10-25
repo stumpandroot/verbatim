@@ -31,10 +31,14 @@ NATIVE=$(grep -rlE --include=*.swift '// brand: native' $SRC | while IFS= read -
       }
     }' "$f"
 done)
-# Drops lines (file:line, or file:line followed by more) that sit in Native look code.
+# Drops lines (file:line, or file:line followed by more) that sit in Native look code. The list goes through a file:
+# passed with `awk -v`, it outgrew the kernel's 128 KB limit for one argument, and awk then failed and let every line
+# through unchecked.
+NATIVE_LIST=$(mktemp); trap 'rm -f "$NATIVE_LIST"' EXIT
+printf '%s\n' "$NATIVE" > "$NATIVE_LIST"
 skip_native() {
   if [ -z "$NATIVE" ]; then cat; return; fi
-  awk -v list="$NATIVE" 'BEGIN { n = split(list, a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1 }
+  awk -v listfile="$NATIVE_LIST" 'BEGIN { while ((getline l < listfile) > 0) skip[l] = 1 }
     { split($0, p, ":"); k = p[1] ":" p[2]; sub(/[[:space:]].*/, "", k); if (!(k in skip)) print }'
 }
 
