@@ -478,7 +478,9 @@ struct HomeQueueSection: View {
             ProgressView().controlSize(.small).tint(look.isNative ? NativeInk.accent : Ink.ink)
             VStack(alignment: .leading, spacing: 2) {
                 Text(t.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
-                Text(more > 0 ? "\(t.stageText) · \(more.formatted()) more" : t.stageText).font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(1)
+                LiveStage(t) { t in
+                    Text(more > 0 ? "\(t.stageText) · \(more.formatted()) more" : t.stageText).font(.system(size: 13)).foregroundStyle(.lookDim).lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
         }

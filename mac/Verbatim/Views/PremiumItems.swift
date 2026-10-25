@@ -56,15 +56,18 @@ struct PremiumRecordingItem: View {
     }
 
     /// What was said, or the kind and state when there's no text yet.
-    @ViewBuilder private var secondLine: some View {
-        let preview = PremiumPreview.text(transcript)
-        if !preview.isEmpty {
-            Text(preview)
-        } else {
-            let parts = HomeRecentStyle.metaParts(transcript, style: HomeRecentStyle(transcript), compact: false)
-            parts.enumerated().reduce(Text(verbatim: "")) { out, p in
-                let piece = p.element.failed ? Text(p.element.text).foregroundStyle(NativeInk.danger) : Text(p.element.text)
-                return Text("\(out)\(p.offset > 0 ? " · " : "")\(piece)")
+    /// With the live progress (StageClock): only this line re-renders on a tick.
+    private var secondLine: some View {
+        LiveStage(transcript) { transcript in
+            let preview = PremiumPreview.text(transcript)
+            if !preview.isEmpty {
+                Text(preview)
+            } else {
+                let parts = HomeRecentStyle.metaParts(transcript, style: HomeRecentStyle(transcript), compact: false)
+                parts.enumerated().reduce(Text(verbatim: "")) { out, p in
+                    let piece = p.element.failed ? Text(p.element.text).foregroundStyle(NativeInk.danger) : Text(p.element.text)
+                    return Text("\(out)\(p.offset > 0 ? " · " : "")\(piece)")
+                }
             }
         }
     }
@@ -112,8 +115,10 @@ struct PremiumRecordingItem: View {
     @ViewBuilder private var status: some View {
         switch transcript.status {
         case .processing:
-            HStack(spacing: 5) { ProgressView().controlSize(.mini); Text(transcript.stageText).lineLimit(1) }
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+            LiveStage(transcript) { transcript in
+                HStack(spacing: 5) { ProgressView().controlSize(.mini); Text(transcript.stageText).lineLimit(1) }
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
         case .failed:
             Label("Needs retry", systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(NativeInk.danger).lineLimit(1)
         case .ready:

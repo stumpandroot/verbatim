@@ -235,8 +235,10 @@ struct PremiumHome: View {
             HStack(spacing: 12) {
                 Text(t.title).font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.label).lineLimit(1)
                 Spacer(minLength: 8)
-                Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
-                    .font(.system(size: 15).monospacedDigit()).foregroundStyle(NativeInk.secondary).lineLimit(1)
+                LiveStage(t) { t in
+                    Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
+                        .font(.system(size: 15).monospacedDigit()).foregroundStyle(NativeInk.secondary).lineLimit(1)
+                }
                 Image(systemName: "play.fill").font(.system(size: 11)).foregroundStyle(NativeInk.label)
                     .frame(width: 30, height: 30).background(NativeInk.fill, in: Circle())
                     .accessibilityHidden(true)

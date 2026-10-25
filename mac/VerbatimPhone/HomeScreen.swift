@@ -466,7 +466,9 @@ struct HomeScreen: View {
             HStack(spacing: 10) {
                 Text(t.title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
                 Spacer(minLength: 8)
-                Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText).lookMono(12).foregroundStyle(.lookMute).lineLimit(1)
+                LiveStage(t) { t in
+                    Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText).lookMono(12).foregroundStyle(.lookMute).lineLimit(1)
+                }
             }
             .frame(minHeight: 46)
             .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
@@ -481,9 +483,12 @@ struct HomeScreen: View {
     private func recentRow(_ t: Transcript) -> some View {
         let cleanUp = t.status == .ready && !PhoneRowState.cleaned(t) && t.fillerCount > 0
         return Button { app.open(t.id) } label: {
-            PhoneFlatRow(transcript: t, serif: false, meta: Self.recentMeta(t, now: now)) {
-                // Holds the pill's room; the real pill sits on top so it takes its own taps.
-                if cleanUp { cleanUpPill.hidden() }
+            // The live progress (StageClock) in the meta line: a tick re-renders the row, not Home.
+            LiveStage(t) { t in
+                PhoneFlatRow(transcript: t, serif: false, meta: Self.recentMeta(t, now: now)) {
+                    // Holds the pill's room; the real pill sits on top so it takes its own taps.
+                    if cleanUp { cleanUpPill.hidden() }
+                }
             }
         }
         .buttonStyle(PhoneCardPress())

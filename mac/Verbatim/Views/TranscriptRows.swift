@@ -111,7 +111,7 @@ struct HistoryRow: View {
         case .processing:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                StatusText(text: transcript.stageText, tone: .dim, mono: true)
+                LiveStage(transcript) { transcript in StatusText(text: transcript.stageText, tone: .dim, mono: true) }
             }
         case .failed:
             StatusText(text: "Needs retry", tone: .danger, mono: true)

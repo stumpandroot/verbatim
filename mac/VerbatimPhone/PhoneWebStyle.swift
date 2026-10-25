@@ -666,10 +666,17 @@ struct PhoneFlatRow<Trailing: View>: View {
 /// The right side of a Library row: the state as a word ("Cleaned" in the accent, "Original" dim, progress, or a
 /// retry) over the length in mono.
 struct PhoneRowState: View {
-    var transcript: Transcript
+    /// The live progress (StageClock): a tick re-renders this state word, not the row or the screen.
+    @ObservedObject private var stages = StageClock.shared
+    private let row: Transcript
     @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 12.5
     @ScaledMetric(relativeTo: .caption) private var mono: CGFloat = 12
     @Environment(\.look) private var look
+
+    init(transcript: Transcript) { row = transcript }
+
+    /// The transcript as it shows, with its live progress stage.
+    private var transcript: Transcript { stages.applied(to: row) }
 
     var body: some View {
         if look.isNative { native } else { verbose }

@@ -296,7 +296,7 @@ struct TranscriptScreen: View {
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 18, color: Ink.accentText) }
-                    Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2)
+                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2) }
                     Spacer(minLength: 4)
                     if t.processingDevice == nil {
                         Menu {
@@ -310,9 +310,14 @@ struct TranscriptScreen: View {
                 .padding(.horizontal, 12).padding(.vertical, 9)
                 .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 6)
-            } else if t.status == .ready, t.stage == "Finding speakers" {
-                HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
-                    .font(.system(size: 13)).foregroundStyle(.lookMute)
+            } else if t.status == .ready {
+                // A progress tick can change the label (StageClock), so it's read live.
+                LiveStage(t) { t in
+                    if t.stage == "Finding speakers" {
+                        HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Finding speakers…") }
+                            .font(.system(size: 13)).foregroundStyle(.lookMute)
+                    }
+                }
             }
             if let info = t.linkInfo { PhoneLinkCard(info: info).padding(.top, 8) }
         }
@@ -324,7 +329,7 @@ struct TranscriptScreen: View {
             HStack(spacing: 14) {
                 SignalRings(active: t.processingDevice == Device.id).frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(t.stageText).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk) }
                     Text(t.processingDevice == Device.id ? "On this iPhone. The first run downloads the model once." : "It appears here when it's done.")
                         .font(.system(size: 14)).foregroundStyle(.lookMute)
                 }

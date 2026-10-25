@@ -378,7 +378,7 @@ struct TranscriptView: View {
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
                     if t.processingDevice != nil { ProgressView().controlSize(.small) } else { ArtIcon(art: .capture, size: 16).foregroundStyle(Ink.accentText) }
-                    Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim)
+                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 13.5)).foregroundStyle(Ink.dim) }
                     if t.processingDevice == nil {
                         Button("Retry") { app.retry(t) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
                         Button("Discard") { app.discardPendingAppend(t.id) }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
@@ -675,7 +675,7 @@ struct TranscriptView: View {
             HStack(spacing: 12) {
                 SignalRings().frame(width: 40, height: 40).padding(6)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t.stageText).font(.system(size: 15, weight: .semibold))
+                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 15, weight: .semibold)) }
                     Text("On this Mac. The first run of a model downloads it once; after that it starts in seconds.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 }
             }

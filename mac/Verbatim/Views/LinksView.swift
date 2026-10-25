@@ -128,14 +128,17 @@ struct LinkRow: View {
     /// Plain status text: a thin Record-colored bar while transcribing, failures in danger, and "✓ Video kept".
     @ViewBuilder private var status: some View {
         if transcript.status == .processing {
-            HStack(spacing: 10) {
-                if let f = StageFraction.fraction(transcript.stage) {
-                    StageProgressBar(value: f).frame(width: 180)
-                } else {
-                    ProgressView().controlSize(.mini)
+            // The live progress (StageClock): only this line re-renders on a tick.
+            LiveStage(transcript) { transcript in
+                HStack(spacing: 10) {
+                    if let f = StageFraction.fraction(transcript.stage) {
+                        StageProgressBar(value: f).frame(width: 180)
+                    } else {
+                        ProgressView().controlSize(.mini)
+                    }
+                    Text(transcript.stageText).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.dim)
+                        .monospacedDigit().lineLimit(1)
                 }
-                Text(transcript.stageText).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.dim)
-                    .monospacedDigit().lineLimit(1)
             }
         } else if transcript.status == .failed {
             StatusText(text: "Transcription failed", tone: .danger)

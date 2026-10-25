@@ -111,8 +111,12 @@ private struct QueueDropArea: View {
 struct QueueRow: View {
     enum State: Equatable { case running, importing, waiting(Int), done, failed }
     @EnvironmentObject var app: AppState
+    /// The running file's live progress (StageClock): a tick re-renders the queue's rows, not the window.
+    @ObservedObject private var stages = StageClock.shared
     var transcript: Transcript
     var state: State
+    /// The stage as it shows: the live label while a job ticks, else the transcript's own.
+    private var stage: String? { stages.stage(transcript.id) ?? transcript.stage }
 
     var body: some View {
         FlatRowButton(action: { app.go(.transcript(transcript.id)) }) { _ in
@@ -121,7 +125,7 @@ struct QueueRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(transcript.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
                     statusLine
-                    if state == .running, let f = StageFraction.fraction(transcript.stage) {
+                    if state == .running, let f = StageFraction.fraction(stage) {
                         StageProgressBar(value: f).frame(width: 260).padding(.top, 5)
                     }
                 }
@@ -192,8 +196,8 @@ struct QueueRow: View {
 
     private var status: String {
         switch state {
-        case .running: return transcript.stage ?? "Transcribing"
-        case .importing: return transcript.multitrack != nil ? (transcript.stage ?? "Preparing tracks") : "Importing…"
+        case .running: return stage ?? "Transcribing"
+        case .importing: return transcript.multitrack != nil ? (stage ?? "Preparing tracks") : "Importing…"
         case .waiting(let n): return n == 1 ? "Next" : "Queued · #\(n)"
         case .done: return "Done"
         case .failed: return transcript.error ?? "Failed"

@@ -191,7 +191,9 @@ struct NativeLibraryView: View {
     @ViewBuilder private func status(_ t: Transcript) -> some View {
         switch t.status {
         case .processing:
-            HStack(spacing: 4) { ProgressView().controlSize(.mini); Text(t.stageText).foregroundStyle(.secondary).lineLimit(1) }
+            LiveStage(t) { t in
+                HStack(spacing: 4) { ProgressView().controlSize(.mini); Text(t.stageText).foregroundStyle(.secondary).lineLimit(1) }
+            }
         case .failed:
             Label("Needs Retry", systemImage: "exclamationmark.triangle").foregroundStyle(NativeInk.danger).lineLimit(1)
         case .ready:

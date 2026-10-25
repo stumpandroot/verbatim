@@ -632,6 +632,7 @@ final class Store: ObservableObject {
             list.append(t)
         }
         searchCache = [:]
+        StageClock.shared.removeAll()
         transcripts = list.sorted { $0.createdAt > $1.createdAt }
         loadedDates = dates
         let late = slots.skipped.map { files[$0] }
@@ -892,9 +893,13 @@ final class Store: ObservableObject {
         CloudSync.resolveTranscriptConflicts(url)
         guard let data = Cloud.read(url), var t = try? TranscriptFiles.dec.decode(Transcript.self, from: data) else { return nil }
         if let i = index(of: id) {
+            // Memory as it shows: with the live progress label (StageClock) folded in.
+            var current = transcripts[i]
+            if let live = StageClock.shared.stage(id) { current.stage = live }
             // Keep this device's live progress label for jobs it's running.
-            if t.status == .processing, t.processingDevice == Device.id { t.stage = transcripts[i].stage }
-            guard transcripts[i] != t else { return nil }
+            if t.status == .processing, t.processingDevice == Device.id { t.stage = current.stage }
+            guard current != t else { return nil }
+            StageClock.shared.take(id)
             searchCache[id] = nil
             transcripts[i] = t
             return (t, false)
@@ -917,6 +922,7 @@ final class Store: ObservableObject {
     func ingestRemoval(_ url: URL) {
         guard url.pathExtension == "json", let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) else { return }
         searchCache[id] = nil
+        StageClock.shared.take(id)
         transcripts.removeAll { $0.id == id }
     }
 
@@ -1081,7 +1087,7 @@ final class Store: ObservableObject {
     func update(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = index(of: id) else { return }
         searchCache[id] = nil
-        change(&transcripts[i])
+        apply(change, at: i)
         save(transcripts[i])
     }
 
@@ -1089,17 +1095,31 @@ final class Store: ObservableObject {
     func updateDeferred(_ id: UUID, _ change: (inout Transcript) -> Void) {
         guard let i = index(of: id) else { return }
         searchCache[id] = nil
-        change(&transcripts[i])
+        apply(change, at: i)
         pendingSaves[id]?.cancel()
         let w = DispatchWorkItem { [weak self] in if let t = self?.transcript(id) { self?.save(t) } }
         pendingSaves[id] = w
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: w)
     }
 
+    /// A change to the transcript at `i`, with its live progress label (StageClock) folded in first, so the change and
+    /// what's saved start from the transcript as it showed (as when `setStage` wrote the label into it).
+    private func apply(_ change: (inout Transcript) -> Void, at i: Int) {
+        if let live = StageClock.shared.take(transcripts[i].id) {
+            var t = transcripts[i]
+            t.stage = live
+            change(&t)
+            transcripts[i] = t
+        } else {
+            change(&transcripts[i])
+        }
+    }
+
     /// Permanent: removes the transcript, its audio, and its thumbnail.
     func delete(_ t: Transcript) {
         transcripts.removeAll { $0.id == t.id }
         searchCache[t.id] = nil
+        StageClock.shared.take(t.id)
         var files = [TranscriptFiles.url(t.id)]
         if let a = audioURL(for: t) { files.append(a) }
         // Every name goes through LibraryFile: a record can never point a delete outside its folder.
@@ -1215,11 +1235,15 @@ final class Store: ObservableObject {
         return built[id]
     }
 
-    /// Display-only progress text; not written to disk.
+    /// Display-only progress text; not written to disk. It goes to the StageClock, so a tick re-renders only the
+    /// progress views (`LiveStage`), not every view that reads `transcripts`; the next `update` folds it in.
     func setStage(_ id: UUID, _ stage: String) {
-        guard let i = index(of: id), transcripts[i].stage != stage else { return }
-        transcripts[i].stage = stage
+        guard let i = index(of: id), (StageClock.shared.stage(id) ?? transcripts[i].stage) != stage else { return }
+        StageClock.shared.set(id, stage)
     }
+
+    /// The transcript as it shows, with its live progress label (StageClock) folded in.
+    func shown(_ id: UUID) -> Transcript? { transcript(id).map(StageClock.shared.applied(to:)) }
 
     func audioURL(for t: Transcript) -> URL? {
         LibraryFile.url(t.audioFileName, in: Paths.audio, field: "audio")

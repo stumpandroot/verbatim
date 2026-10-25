@@ -272,7 +272,9 @@ struct PremiumSavedSheet: View {
     /// The kinds offered here, as in the mockup.
     private static let kinds: [RecordingKind] = [.note, .idea, .journal, .meeting]
 
-    private var t: Transcript? { app.store.transcript(saved.id) }
+    /// The live progress (StageClock): a tick re-renders this card's progress, not the screens under it.
+    @ObservedObject private var stages = StageClock.shared
+    private var t: Transcript? { app.store.transcript(saved.id).map(stages.applied(to:)) }
 
     var body: some View {
         ScrollView {

@@ -141,7 +141,9 @@ struct PremiumRecordingItem: View {
     @ScaledMetric(relativeTo: .subheadline) private var previewSize: CGFloat = 15
     @ScaledMetric(relativeTo: .footnote) private var dateSize: CGFloat = 14
 
-    private var t: Transcript { transcript }
+    /// The live progress (StageClock) while it transcribes: a tick re-renders the item, not the screen.
+    @ObservedObject private var stages = StageClock.shared
+    private var t: Transcript { stages.applied(to: transcript) }
     private var canPlay: Bool { t.status == .ready && t.audioFileName != nil && t.duration > 0 }
 
     var body: some View {

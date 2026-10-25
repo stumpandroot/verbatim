@@ -571,8 +571,10 @@ struct HomeView: View {
                             KindDot(transcript: t, size: 24)
                             Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
                             Spacer(minLength: 8)
-                            Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
-                                .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+                            LiveStage(t) { t in
+                                Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
+                                    .font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
+                            }
                         }
                         .padding(.horizontal, 14)
                         .frame(height: 44)
@@ -796,7 +798,10 @@ private struct RecentRow: View {
             KindDot(transcript: transcript, size: 34)
             VStack(alignment: .leading, spacing: 2) {
                 Text(transcript.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                metaText(style).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
+                // The live progress (StageClock) while it transcribes: only this line re-renders on a tick.
+                LiveStage(transcript) { transcript in
+                    Self.metaText(transcript, style).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if fillers > 0 {
@@ -811,7 +816,7 @@ private struct RecentRow: View {
         .frame(height: 66)
     }
 
-    private func metaText(_ style: HomeRecentStyle) -> Text {
+    private static func metaText(_ transcript: Transcript, _ style: HomeRecentStyle) -> Text {
         let parts = HomeRecentStyle.metaParts(transcript, style: style, compact: false)
         var out = Text(verbatim: "")
         for (i, part) in parts.enumerated() {

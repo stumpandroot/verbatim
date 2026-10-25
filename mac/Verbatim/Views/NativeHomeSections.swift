@@ -76,9 +76,11 @@ struct NativeRecentLine: View {
                 Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
                 Spacer(minLength: 8)
                 Text(PremiumDateLine.line(t.createdAt)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
-                Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
-                    .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
-                    .frame(minWidth: 44, alignment: .trailing)
+                LiveStage(t) { t in
+                    Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText)
+                        .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .frame(minWidth: 44, alignment: .trailing)
             }
             .padding(.horizontal, 10)
             .frame(height: 44)
@@ -344,8 +346,10 @@ struct NativeHomeQueue: View {
                                 ProgressView().controlSize(.small)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
-                                    Text(size == .compact && items.count > 1 ? "\(t.stageText) · \((items.count - 1).formatted()) more" : t.stageText)
-                                        .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                                    LiveStage(t) { t in
+                                        Text(size == .compact && items.count > 1 ? "\(t.stageText) · \((items.count - 1).formatted()) more" : t.stageText)
+                                            .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                                    }
                                 }
                                 Spacer(minLength: 0)
                             }
