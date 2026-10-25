@@ -17,6 +17,8 @@ final class LibraryMemo {
         if g != generation { values.removeAll(keepingCapacity: true); generation = g }
         if let hit = values[key] as? Box<T> { return hit.value }
         let v = make()
+        // Each search keystroke is a key of its own: a long search between library changes doesn't pile them up.
+        if values.count >= 64 { values.removeAll(keepingCapacity: true) }
         values[key] = Box(v)
         return v
     }
