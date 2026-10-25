@@ -18,13 +18,14 @@ final class SurfacePanel: NSPanel {
 
     @MainActor static func make(size: CGSize, level: NSWindow.Level = .statusBar) -> SurfacePanel {
         let p = SurfacePanel(contentRect: NSRect(origin: .zero, size: size), styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
-        p.level = level
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false
         p.hidesOnDeactivate = false
         p.isFloatingPanel = true
+        // After isFloatingPanel, which resets the level to .floating (3): build 200's pill sat under the menu bar.
+        p.level = level
         p.becomesKeyOnlyIfNeeded = true
         p.isReleasedWhenClosed = false
         p.ignoresMouseEvents = true
