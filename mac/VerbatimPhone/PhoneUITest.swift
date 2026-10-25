@@ -177,10 +177,26 @@ enum PhoneUITest {
                 await show("\(prefix)09d-session-ended")
                 app.session.endedNotice = nil
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                if prefix == "d" {
-                    SettingsPage.open("actionButton")
-                    await show("d09e-action-button")
-                }
+                // Settings › Keyboard's Dictate button group with its live preview: the default, then two made-up
+                // choices (the keyboard extension itself isn't in the app, so the preview stands in for it). The
+                // stored choice is put back after.
+                app.tab = .settings
+                let keepButton = DictateButton.read(KeyboardBridge.defaults)
+                DictateButton.standard.write(KeyboardBridge.defaults)
+                SettingsPage.open("keyboard")
+                await show("\(prefix)09h-keyboard-dictate-button")
+                DictateButton(size: .large, position: .left, style: .outline).write(KeyboardBridge.defaults)
+                await show("\(prefix)09i-keyboard-dictate-large-left-outline")
+                DictateButton(size: .large, position: .center, style: .filled).write(KeyboardBridge.defaults)
+                await show("\(prefix)09j-keyboard-dictate-large-center")
+                keepButton.write(KeyboardBridge.defaults)
+                SettingsPage.open("root")
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                // Settings › Action button: the five choices, which ones open Verbose, and the setup steps.
+                SettingsPage.open("actionButton")
+                await show("\(prefix)09e-action-button")
+                SettingsPage.open("root")
+                try? await Task.sleep(nanoseconds: 800_000_000)
             }
             app.appearance = "light"
             for i in 0..<3 {
@@ -216,6 +232,36 @@ enum PhoneUITest {
               && { let i = UUID(); return Ribbon.decide(.listening(i), .toggle, sessionOn: true) == .finish(i) }())
         check("default idle timeout is 30 minutes", Ribbon.normalizedTimeout(nil) == 1800)
         check("the Action button dictates by default", Ribbon.actionChoice(nil) == .dictate)
+        check("the Action button offers five choices", Ribbon.ActionChoice.allCases.count == 5)
+        check("Quick capture can't be chosen on iPhone", !Ribbon.ActionChoice.quickCapture.available && Ribbon.actionChoice("quickCapture") == .dictate)
+        check("only Dictate works in place", Ribbon.ActionChoice.allCases.filter { !$0.needsForeground } == [.dictate])
+
+        // The keyboard session's Live Activity: the content state stays far under ActivityKit's 4 KB with the
+        // longest words line, a message, and the target; the Lock Screen line never carries words.
+        let longest = VerbatimSessionAttributes.ContentState(
+            listening: true, endsAt: Date(), phase: .listening, sessionStartedAt: Date(), takeStartedAt: Date(), level: 1, words: 9999,
+            takes: 999, message: Ribbon.copyFailedMessage, target: "Proton Mail",
+            liveWords: Ribbon.islandWords(String(repeating: "\u{1F600}\u{1F600} wörds ", count: 200)))
+        let bytes = (try? JSONEncoder().encode(longest).count) ?? Int.max
+        check("the content state fits ActivityKit's 4 KB (\(bytes) bytes)", bytes < Ribbon.contentStateLimit / 2)
+        check("an older content state without the new fields still decodes",
+              (try? JSONDecoder().decode(VerbatimSessionAttributes.ContentState.self, from: Data(#"{"listening":false,"level":0,"words":0,"takes":1}"#.utf8)))?.liveWords == nil)
+        check("the Lock Screen line names the app and the take, never words",
+              Ribbon.lockLine(target: longest.target, take: 3) == "Into Proton Mail · take 3 of this session")
+        check("App Store builds name the keyboard", Ribbon.target(hostName: "Messages", appStore: true) == Ribbon.keyboardTarget)
+        check("Show words in the Dynamic Island is off unless turned on",
+              KeyboardBridge.defaults?.object(forKey: Ribbon.islandWordsKey) != nil || !KeyboardSession.islandWordsOn)
+
+        // Settings › Keyboard › Dictate button reaches the keyboard through the App Group.
+        let keep = DictateButton.read(KeyboardBridge.defaults)
+        let large = DictateButton(size: .large, position: .left, style: .outline)
+        large.write(KeyboardBridge.defaults)
+        check("the dictate button's choices reach the App Group", DictateButton.read(KeyboardBridge.defaults) == large)
+        keep.write(KeyboardBridge.defaults)
+        check("settings search finds the dictate button",
+              SettingsSearchIndex.search("dictate button").flatMap(\.entries).contains { $0.id == "keyboardDictateButton" })
+        check("settings search finds words in the Dynamic Island",
+              SettingsSearchIndex.search("dynamic island").flatMap(\.entries).contains { $0.id == "keyboardIslandWords" })
 
         // The keyboard hand-off: a visible keyboard adopts a ribbon take; a take that went to the clipboard isn't inserted later.
         let t = UUID()
