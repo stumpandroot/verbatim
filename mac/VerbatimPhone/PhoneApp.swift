@@ -50,7 +50,8 @@ struct PhoneRoot: View {
         look.isNative ? Image(systemName: symbol) : Image(uiImage: art.templateImage(size: 26, key: key))   // brand: native
     }
 
-    var body: some View {
+    /// Four tabs. Home, Library, and Moments each draw in their own look (`builtLook`).
+    private var tabs: some View {
         TabView(selection: $app.tab) {
             // Home, Library, and Moments are rebuilt in a new look (like the Mac's `lookRebuild()`), so each screen
             // and its navigation bar start fresh in it; the paths live in PhoneState, so they're kept. Changed in place,
@@ -89,6 +90,10 @@ struct PhoneRoot: View {
             tabLooks[old] = look
             tabLooks[new] = nil
         }
+    }
+
+    var body: some View {
+        tabs
         .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen(zoom: recorderZoom) }
         .fullScreenCover(isPresented: $app.showCaptions) {
             LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).environmentObject(app)
