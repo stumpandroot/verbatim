@@ -197,7 +197,6 @@ enum CaptionPrefs {
     static let timecodeKey = "captions.timecode"
     /// Mac: the panel also shows over full-screen apps.
     static let aboveFullScreenKey = "captions.aboveFullScreen"
-    static var showsTimecode: Bool { UserDefaults.standard.object(forKey: timecodeKey) as? Bool ?? true }
     static var aboveFullScreen: Bool { UserDefaults.standard.object(forKey: aboveFullScreenKey) as? Bool ?? true }
 }
 
