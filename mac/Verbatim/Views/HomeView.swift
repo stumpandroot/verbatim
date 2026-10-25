@@ -13,6 +13,9 @@ import CoreAudio
 ///
 /// Native (NativeHome.swift): plain group boxes under a bold "Good afternoon, Tim", with the same state and actions.
 struct HomeView: View {
+    /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
+    /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
+    private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @EnvironmentObject var app: AppState
     @ObservedObject var log = ActivityLog.shared
     @ObservedObject var sites = SiteLog.shared
@@ -60,7 +63,7 @@ struct HomeView: View {
         .onChange(of: recording) { _, on in if on { monitor.stop() } }
         .onAppear { mics.refresh() }
         .onDisappear { monitor.stop() }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
+        .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in mics.refresh(); now = Date() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in monitor.stop() }
     }

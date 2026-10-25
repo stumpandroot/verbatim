@@ -13,6 +13,9 @@ extension Notification.Name {
 }
 
 struct YouScreen: View {
+    /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
+    /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
+    private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @EnvironmentObject var app: PhoneState
     /// Leaves the You page for a row in Settings (Cloud cleanup): Settings pops back and flashes the row.
     var openSettingsRow: (String) -> Void = { _ in }
@@ -71,7 +74,7 @@ struct YouScreen: View {
         .navigationDestination(isPresented: $showVoice) { VoiceProfileScreen(preview: false) }
         .onAppear { Self.visible = true; now = Date(); voice.refresh() }
         .onDisappear { Self.visible = false; commitName() }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
+        .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimYouPage)) { note in
             if note.object as? Bool == true { editingAbout = true }
         }

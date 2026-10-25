@@ -6,6 +6,9 @@ import AVFoundation
 /// swell gently), four short start tiles (Dictate, Import, What's playing, Live captions; Import's touch-and-hold menu pastes a link), a one-line This week card,
 /// and the two most recent recordings as flat rows. Whatever you record here shows up on your Mac.
 struct HomeScreen: View {
+    /// Ticks `now` once a minute: one timer for every render. Built in `body`, each render made a new timer and
+    /// restarted the minute, so under frequent renders (transcribing, playing, dictating) it never fired.
+    private static let minute = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @EnvironmentObject var app: PhoneState
     @Environment(\.limitMotion) private var limitMotion
     /// Your name for the greeting (the Mac's key); empty means a greeting without a name.
@@ -41,7 +44,7 @@ struct HomeScreen: View {
         .onAppear { now = Date(); micName = Self.currentMic() }
         .onDisappear { monitor.stop() }
         .onChange(of: app.recorder.isRecording) { _, on in if on { monitor.stop() } }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
+        .onReceive(Self.minute) { now = $0 }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
             DispatchQueue.main.async { micName = Self.currentMic() }
         }
