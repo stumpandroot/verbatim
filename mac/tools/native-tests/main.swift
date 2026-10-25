@@ -22,6 +22,10 @@ check("chips and tracks become a fill", [0xE6DFD1, 0xDAD4C7, 0xE8E2D6, 0xEEE7DA]
 let brand: [UInt32] = [0xFA6B47, 0xEFB6C8, 0xF4C76B, 0xAFC398, 0xFB7350, 0xFDE4DA, 0xFAE6EC, 0xFCF0D2, 0xE9EFE0, 0xF7E2AE, 0x4F6440]
 check("brand fills have no Native role", brand.allSatisfy { NativeRoles.role(light: $0) == nil })
 check("the Native accent itself has no role (no loop)", NativeRoles.role(light: 0xD5431F) == nil)
+// NativeSwap caches one resolved color per token, appearance, and contrast setting.
+let keys = [0xF5F0E6, 0x26352E].flatMap { l in [false, true].flatMap { d in [false, true].map { c in NativeRoles.cacheKey(light: UInt32(l), dark: d, increased: c) } } }
+check("each token, appearance, and contrast setting has its own cache slot", Set(keys).count == keys.count)
+check("the same lookup lands in the same slot", NativeRoles.cacheKey(light: 0xF5F0E6, dark: true, increased: false) == NativeRoles.cacheKey(light: 0xF5F0E6, dark: true, increased: false))
 
 // MARK: Symbols
 

@@ -16,30 +16,77 @@ import AppKit
 enum NativeSwap {
     /// True when this Mac uses the Native look. Read on every token and font lookup, so it's cached, and read again
     /// whenever defaults change (posted on the writing thread before SwiftUI's next render, so a switch is never stale).
+    /// Defaults can change on any thread (the iCloud container lookup, the model engine), so the cache is locked.
     static var on: Bool {
         _ = watcher
+        lock.lock(); defer { lock.unlock() }
         if let c = cache { return c }
         let v = read()
         cache = v
         return v
     }
+    private static let lock = NSLock()
     private static var cache: Bool?
     private static func read() -> Bool { UserDefaults.standard.string(forKey: AppLook.key) == AppLook.native.rawValue }
     private static let watcher: NSObjectProtocol = NotificationCenter.default.addObserver(
-        forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { _ in cache = read() }
+        forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { _ in
+            let v = read()
+            lock.lock(); cache = v; lock.unlock()
+        }
 
-    /// The system color standing in for a Verbose token (by the token's light value) under Native, resolved for the
-    /// appearance being drawn. Nil in Verbose style and for brand fills, which keep their color.
-    static func color(light: UInt32) -> NSColor? {
+    /// The system color standing in for a Verbose token (by the token's light value) under Native, for the appearance
+    /// AppKit is resolving (`dark`, `increased` contrast), not whichever appearance happens to be drawing. Nil in
+    /// Verbose style and for brand fills, which keep their color. Each (token, appearance, contrast) resolves once:
+    /// resolving a system color allocates, and every Ink color in every view asks on every render.
+    static func color(light: UInt32, dark: Bool, increased: Bool) -> NSColor? {
         guard on, let role = NativeRoles.role(light: light) else { return nil }
-        return role.nsColor.resolved(in: NSAppearance.currentDrawing())
+        let key = NativeRoles.cacheKey(light: light, dark: dark, increased: increased)
+        _ = colorWatchers
+        colorLock.lock()
+        if let hit = colors[key] { colorLock.unlock(); return hit }
+        colorLock.unlock()
+        let out = role.resolved(dark: dark, increased: increased)
+        colorLock.lock(); colors[key] = out; colorLock.unlock()
+        return out
     }
+
+    /// `color(light:dark:increased:)` for the appearance drawing now (the self-test's checks).
+    static func color(light: UInt32) -> NSColor? {
+        color(light: light, dark: NSAppearance.currentDrawing().isDark, increased: ContrastSetting.increased)
+    }
+
+    private static let colorLock = NSLock()
+    private static var colors: [UInt64: NSColor] = [:]
+    /// System colors can change under us (accessibility display options, the system's own palette): start over then.
+    private static let colorWatchers: [NSObjectProtocol] = [
+        NotificationCenter.default.addObserver(forName: NSColor.systemColorsDidChangeNotification, object: nil, queue: nil) { _ in flush() },
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: nil) { _ in flush() },
+    ]
+    static func flush() { colorLock.lock(); colors.removeAll(); colorLock.unlock() }
+    /// How many resolved colors are cached (the self-test checks a repeat lookup doesn't add one).
+    static var cachedColorCount: Int { colorLock.lock(); defer { colorLock.unlock() }; return colors.count }
 
     /// The serif type role in Native: SF Pro, a step smaller and semibold for titles (serif display sizes run large).
     static func serif(_ size: CGFloat, weight: Font.Weight) -> Font {
         guard size >= 18 else { return .system(size: max(11, size - 2), weight: weight) }
         return .system(size: max(13, (size * 0.7).rounded()), weight: weight == .regular ? .semibold : weight)
     }
+}
+
+/// Increase Contrast, read once and again only when it changes (it was asked on every color resolve).
+enum ContrastSetting {
+    static var increased: Bool {
+        _ = watcher
+        lock.lock(); defer { lock.unlock() }
+        return value
+    }
+    private static let lock = NSLock()
+    private static var value = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    private static let watcher: NSObjectProtocol = NSWorkspace.shared.notificationCenter.addObserver(
+        forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: nil) { _ in
+            let v = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+            lock.lock(); value = v; lock.unlock()
+        }
 }
 
 extension NativeRole {
@@ -54,6 +101,15 @@ extension NativeRole {
         case .selection: return .unemphasizedSelectedContentBackgroundColor
         case .fill: return .quaternaryLabelColor
         }
+    }
+}
+
+extension NativeRole {
+    /// The role's color as drawn in light or dark, with or without Increase Contrast, as a plain sRGB color.
+    func resolved(dark: Bool, increased: Bool) -> NSColor {
+        let name: NSAppearance.Name = increased ? (dark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua) : (dark ? .darkAqua : .aqua)
+        guard let appearance = NSAppearance(named: name) ?? NSAppearance(named: dark ? .darkAqua : .aqua) else { return nsColor }
+        return nsColor.resolved(in: appearance)
     }
 }
 

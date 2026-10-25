@@ -161,9 +161,10 @@ enum Ink {
     #endif
 
     static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
-        make { isDark, _ in
+        make { isDark, hc in
             #if os(macOS)
-            if let native = NativeSwap.color(light: light) { return native }   // Mac Native look (NativeLook.swift)
+            // Mac Native look (NativeLook.swift): resolved for this appearance, once, then cached.
+            if let native = NativeSwap.color(light: light, dark: isDark, increased: hc) { return native }
             #endif
             return isDark ? PColor(hex: dark) : PColor(hex: light)
         }
@@ -172,7 +173,7 @@ enum Ink {
     static func dynC(_ light: UInt32, _ dark: UInt32, _ hcLight: UInt32, _ hcDark: UInt32) -> Color {
         make { isDark, hc in
             #if os(macOS)
-            if let native = NativeSwap.color(light: light) { return native }
+            if let native = NativeSwap.color(light: light, dark: isDark, increased: hc) { return native }
             #endif
             return isDark ? PColor(hex: hc ? hcDark : dark) : PColor(hex: hc ? hcLight : light)
         }
@@ -180,7 +181,8 @@ enum Ink {
     /// A color resolved per appearance (dark?) and contrast setting (increased?), on Mac and iPhone.
     static func make(_ f: @escaping (Bool, Bool) -> PColor) -> Color {
         #if os(macOS)
-        return Color(nsColor: NSColor(name: nil) { a in f(a.isDark, NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast) })
+        // Increase Contrast is read once per change (ContrastSetting), not on every resolve.
+        return Color(nsColor: NSColor(name: nil) { a in f(a.isDark, ContrastSetting.increased) })
         #else
         return Color(uiColor: UIColor { tc in f(tc.userInterfaceStyle == .dark, tc.accessibilityContrast == .high) })
         #endif
