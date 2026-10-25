@@ -104,7 +104,7 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .privacy: return .iconPrivacy
         case .account: return .iconAboutMe
         case .support: return .iconSupport
-        case .features: return .iconGrid
+        case .features: return .iconHome
         case .whatsNew: return .iconNotes
         }
     }

@@ -512,7 +512,7 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var features: some View {
-        pageRow("widgetsRow", .widgets, icon: "square.grid.2x2", tint: Ink.persimmonTint, art: .iconGrid, title: "Widgets and controls")
+        pageRow("widgetsRow", .widgets, icon: "square.grid.2x2", tint: Ink.persimmonTint, art: .iconHome, title: "Widgets and controls")
         SettingsDivider()
         pageRow("shortcutsRow", .shortcuts, icon: "bolt.circle", tint: Ink.sageTint, art: .iconAI, title: "Shortcuts and Siri")
         SettingsDivider()

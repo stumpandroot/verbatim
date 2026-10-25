@@ -233,7 +233,7 @@ struct WidgetsInfoScreen: View {
     var body: some View {
         SettingsPageScaffold(title: "Widgets and controls") {
             SettingsPageGroup(title: "Widgets", footer: "Touch and hold the Home Screen, tap Edit, then Add Widget, and search for Verbose. On the Lock Screen, touch and hold it and tap Customize.", first: true) {
-                infoRows(Self.widgets, icon: "square.grid.2x2", art: .iconGrid)
+                infoRows(Self.widgets, icon: "square.grid.2x2", art: .iconHome)
                     .settingsSearchTarget("widgets", flash: nil)
             }
             SettingsPageGroup(title: "Controls", footer: "Open Control Center, touch and hold an empty spot, tap Add a Control, and search for Verbose. The same controls can go on the Lock Screen or the Action button.") {

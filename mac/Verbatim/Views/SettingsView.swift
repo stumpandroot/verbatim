@@ -35,7 +35,7 @@ struct SettingsView: View {
     private var verbose: some View {
         HStack(spacing: 0) {
             SettingsSidebar(tab: $tab, searchFocused: $searchFocused)
-                .frame(width: 230)
+                .frame(width: 264)
             Group {
                 if model.isSearching {
                     SettingsSearchResults()
