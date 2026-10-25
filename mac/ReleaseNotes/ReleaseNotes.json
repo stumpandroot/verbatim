@@ -9,7 +9,8 @@
         "iPhone: Home and Library switch fully to the Native look, and tags, categories, sponsor rows, and Settings cards match it. On Mac, these arrived in build 206.",
         "Importing a damaged MP4 or M4A file no longer closes Verbose.",
         "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it.",
-        "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting."
+        "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting.",
+        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off."
       ]
     },
     {
