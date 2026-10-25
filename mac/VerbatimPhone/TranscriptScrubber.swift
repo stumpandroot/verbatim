@@ -4,17 +4,21 @@ import UIKit
 // The transcript scrubber, like Photos' date scrubber: on transcripts taller than about three screens, a small
 // handle appears at the right edge while you scroll and fades about 1.5 s after scrolling stops. Hold it (or hold
 // the edge while it shows) and drag: the finger's height picks a place in the recording, paced by time
-// (ScrubMath.swift), the transcript jumps there, and a bubble beside the finger names the time and the speaker
-// ("23:41 · Ginna Cross"). A light selection haptic marks each minute (or a longer step on long recordings), never
+// (ScrubMath.swift), the transcript jumps there, and a bubble beside the finger names the time and shows the speaker's
+// chip ("23:41  Ginna Cross"). Faint minute ticks line the track while you drag. A light selection haptic marks each minute (or a longer step on long recordings), never
 // each line. VoiceOver: the handle stays put and is adjustable; swipe up or down to move a minute. Limit animation
 // and Reduce Motion: no fades. Hidden in Select text. The track sits between the navigation bar and the player
 // dock (or the tab bar), inside the safe area.
 
 /// Where the transcript is scrolled and whether the handle shows. Kept out of TranscriptScreen's own state, so
 /// scrolling re-renders only the scrubber, never the transcript.
+///
+/// Progress comes from which line is at the top of the screen (each row reports when it crosses the top edge), on
+/// the same time scale a drag uses (ScrubMath), not from pixel offsets: a LazyVStack's height is an estimate that
+/// changes as rows render, and pixels follow words, not time. The last screenful eases to 1 at the bottom.
 @MainActor
 final class TranscriptScrubModel: ObservableObject {
-    /// How far down the transcript is scrolled, 0...1.
+    /// How far through the transcript the line at the top of the screen is, 0...1 (1 at the bottom).
     @Published private(set) var progress: Double = 0
     /// Taller than about three screens.
     @Published private(set) var long = false
@@ -24,17 +28,37 @@ final class TranscriptScrubModel: ObservableObject {
     @Published var dragging = false
     /// Where the finger is on the track, 0...1, while dragging.
     @Published var dragFraction: Double = 0
+    /// Where the last drag let go; the handle stays there until the transcript scrolls some other way.
+    @Published private(set) var pinned: Double?
     /// VoiceOver's place after a swipe, until you scroll yourself.
     var voiceOverIndex: Int?
+    /// The line at the top of the screen, as an index into the lines shown.
+    private(set) var topIndex = 0
+
+    /// The open transcript's model, for the UI test.
+    static weak var onScreen: TranscriptScrubModel?
+    /// The lines on screen (set by the scrubber), read again only when their count changes.
+    var lines: () -> [Segment] = { [] }
+    /// When the last line ends (ScrubMath.scaleEnd); set by the scrubber.
+    var end: Double = 0 { didSet { if end != oldValue { starts = []; refresh() } } }
+    private var starts: [Double] = []
 
     private var contentHeight: Double = 0
     private var viewport: Double = 0
     private var offset: Double = 0
+    /// iOS 18: points left to scroll and the visible height, from the scroll view itself.
+    private var remaining: Double?
+    private var shown: Double = 0
+    private var pinnedAt = Date.distantPast
+    private var pinnedTop = 0
     private var hideTask: Task<Void, Never>?
     /// iOS 17: a finger is dragging the scroll view, or let go a moment ago (it may still be gliding).
     private var touching = false
     private var touchEnded = Date.distantPast
     static let fadeDelay: TimeInterval = 1.5
+    /// A row is at the top when it spans this line, in points below the top of the transcript's frame (the
+    /// scrubber's track starts here too).
+    static let topEdge: CGFloat = 8
 
     func setViewport(_ height: Double) {
         guard abs(height - viewport) > 0.5 else { return }
@@ -50,6 +74,42 @@ final class TranscriptScrubModel: ObservableObject {
         // iOS 18 reads the scroll phase instead (`phase(_:)`).
         if #available(iOS 18, *) { return }
         if moved, !dragging, touching || Date().timeIntervalSince(touchEnded) < 0.8 { scrolled() }
+    }
+
+    /// iOS 18: the distance left to the bottom and the height you can see.
+    func setScroll(remaining r: Double, visible v: Double) {
+        guard (remaining.map { abs($0 - r) > 0.5 } ?? true) || abs(v - shown) > 0.5 else { return }
+        remaining = r
+        shown = v
+        refresh()
+    }
+
+    /// A row crossed the top edge: `place` is -1 above it, 0 across it, 1 below it. A fast fling can skip a row, so
+    /// a row passing the edge also moves the top to its neighbor.
+    func row(_ index: Int, count: Int, place: Int) {
+        var top = topIndex
+        switch place {
+        case 0: top = index
+        case 1 where index <= top: top = index - 1
+        case -1 where index >= top: top = index + 1
+        default: break
+        }
+        top = min(max(0, count - 1), max(0, top))
+        let relined = starts.count != count
+        if relined { starts = lines().map(\.start) }
+        guard top != topIndex || relined else { return }
+        topIndex = top
+        if pinned != nil {
+            if Date().timeIntervalSince(pinnedAt) < 0.4 { pinnedTop = top } else if top != pinnedTop { pinned = nil }
+        }
+        refresh()
+    }
+
+    /// The drag let go at `fraction`: the handle stays under the finger.
+    func pin(_ fraction: Double) {
+        pinned = fraction
+        pinnedAt = Date()
+        pinnedTop = topIndex
     }
 
     /// iOS 17: the scroll view's own drag, seen alongside it.
@@ -71,7 +131,19 @@ final class TranscriptScrubModel: ObservableObject {
     private func update() {
         let l = ScrubMath.shows(contentHeight: contentHeight, viewport: viewport)
         if l != long { long = l }
-        let p = min(1, max(0, offset / max(1, contentHeight - viewport)))
+        refresh()
+    }
+
+    private func refresh() {
+        if starts.isEmpty { starts = lines().map(\.start) }
+        let top = ScrubMath.fraction(of: topIndex, starts: starts, end: end)
+        let p: Double
+        if let remaining {
+            p = ScrubMath.progress(top: top, remaining: remaining, visible: shown)
+        } else {
+            // iOS 17: from the content's frame, close enough to find the last screenful.
+            p = ScrubMath.progress(top: top, remaining: contentHeight - viewport - offset, visible: viewport)
+        }
         if abs(p - progress) > 0.0005 { progress = p }
     }
 
@@ -83,6 +155,7 @@ final class TranscriptScrubModel: ObservableObject {
     private func show() {
         hideTask?.cancel(); hideTask = nil
         voiceOverIndex = nil
+        if pinned != nil { pinned = nil }
         if !visible { visible = true }
     }
 
@@ -101,19 +174,51 @@ extension Notification.Name {
     static let verbatimScrubPreview = Notification.Name("verbatimScrubPreview")
 }
 
+/// The distance left to scroll and the visible height (iOS 18's scroll geometry), rounded to whole points so
+/// sub-point jitter doesn't publish.
+private struct ScrubScroll: Equatable {
+    var remaining: Double
+    var visible: Double
+}
+
 /// Feeds the model from the transcript's scroll view: its height, the content's frame, and (iOS 18) the scroll
-/// phase, or (iOS 17) the drag alongside the scroll.
+/// phase and geometry, or (iOS 17) the drag alongside the scroll.
 private struct ScrubTracking: ViewModifier {
     var model: TranscriptScrubModel
     func body(content: Content) -> some View {
         let tracked = content
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.setViewport($0) }
         if #available(iOS 18, *) {
-            tracked.onScrollPhaseChange { _, phase in model.phase(phase) }
+            tracked
+                .onScrollPhaseChange { _, phase in model.phase(phase) }
+                .onScrollGeometryChange(for: ScrubScroll.self) { g in
+                    let bottom = g.contentSize.height + g.contentInsets.bottom
+                    return ScrubScroll(remaining: (bottom - g.visibleRect.maxY).rounded(),
+                                       visible: (g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom).rounded())
+                } action: { _, s in model.setScroll(remaining: s.remaining, visible: s.visible) }
         } else {
             tracked.simultaneousGesture(DragGesture(minimumDistance: 12)
                 .onChanged { _ in model.touch(true) }
                 .onEnded { _ in model.touch(false) })
+        }
+    }
+}
+
+/// On each line of the transcript: reports, only when it changes, whether the line is above, across, or below the
+/// top edge of the transcript's frame (`TranscriptScrubber.frameSpace`).
+private struct ScrubRow: ViewModifier {
+    var model: TranscriptScrubModel?
+    var index: Int
+    var count: Int
+    func body(content: Content) -> some View {
+        if let model {
+            content.onGeometryChange(for: Int.self) { p in
+                let r = p.frame(in: .named(TranscriptScrubber.frameSpace))
+                let edge = TranscriptScrubModel.topEdge
+                return r.maxY <= edge ? -1 : (r.minY > edge ? 1 : 0)
+            } action: { place in model.row(index, count: count, place: place) }
+        } else {
+            content
         }
     }
 }
@@ -127,6 +232,10 @@ extension View {
             model.setContent(minY: r.minY, height: r.height)
         }
     }
+    /// On line `index` of `count` in the transcript.
+    func scrubRow(_ model: TranscriptScrubModel?, index: Int, count: Int) -> some View {
+        modifier(ScrubRow(model: model, index: index, count: count))
+    }
 }
 
 /// The handle, the bubble, and the edge you can hold. Fills the space between the navigation bar and the dock;
@@ -135,38 +244,58 @@ struct TranscriptScrubber: View {
     @ObservedObject var model: TranscriptScrubModel
     /// The lines on screen, in order (asked for when a drag starts, not on every frame).
     var lines: () -> [Segment]
-    /// When the recording ends; zero when there are no timings.
+    /// When the last line ends (ScrubMath.scaleEnd, never the stored duration); zero when there are no timings.
     var end: Double
     /// The speaker's name for the bubble, when there are speakers.
     var speaker: (Segment) -> String?
+    /// The speaker's chip color, as on the transcript's lines (`PhoneLines.speakerColor`).
+    var speakerColor: (Segment) -> Color
     /// Jumps the transcript to a line, at once.
     var jump: (Segment) -> Void
     /// A drag began (turns Follow off while playing).
     var onBegin: () -> Void
 
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.displayScale) private var displayScale
     @State private var voiceOver = UIAccessibility.isVoiceOverRunning
     /// The lines and their starts for the drag in progress.
     @State private var held: [Segment] = []
     @State private var starts: [Double] = []
+    /// Where the minute (or step) ticks sit on the track for the drag in progress, 0...1.
+    @State private var ticks: [Double] = []
     @State private var landed = -1
     @State private var tick = 0
     /// Bumped at each minute (or step) crossing; the haptic's trigger.
     @State private var crossings = 0
     @State private var trackHeight: CGFloat = 1
+    /// How far below the handle's center the finger took hold, so the handle doesn't jump to the finger.
+    @State private var grab: CGFloat = 0
 
     private static let handleSize = CGSize(width: 24, height: 44)
-    /// The UI test reads where the last drag landed ("23:41 · Ginna Cross").
+    /// The UI test reads where the last drag landed ("23:41 · Ginna Cross"), that line's place on the scale, and
+    /// whether it's the last line.
     static var lastLanding: String?
+    static var lastLandingFraction: Double?
+    static var lastLandingIsLast = false
     private static let space = "transcript-scrubber"
+    /// The transcript's frame (between the navigation bar and the bottom bars), where rows find the top edge.
+    static let frameSpace = "transcript-frame"
 
     var body: some View {
+        // The latest lines, for the model to read when their count changes (not observed; nothing re-renders).
+        let _ = { model.lines = lines }()
         GeometryReader { g in
             let h = g.size.height
             let shown = model.long && (model.visible || model.dragging || voiceOver)
-            let f = model.dragging ? model.dragFraction : model.progress
+            let f = model.dragging ? model.dragFraction : (model.pinned ?? model.progress)
             let y = Self.handleY(f, height: h)
             ZStack(alignment: .topLeading) {
+                // While dragging: faint minute ticks down the track, on the handle's scale, like the player's
+                // waveform marks. Still; they only appear and go.
+                if model.dragging, !ticks.isEmpty {
+                    tickMarks(width: g.size.width, height: h)
+                }
                 // The edge: hold it while the handle shows, then drag.
                 Color.clear
                     .frame(width: 34, height: h)
@@ -182,7 +311,7 @@ struct TranscriptScrubber: View {
                 if model.dragging, let text = bubbleText {
                     // Beside the finger, its right edge 10 pt from the handle.
                     let room = max(0, g.size.width - 48)
-                    bubble(text)
+                    bubble(time: text.time, name: text.name, color: held.indices.contains(landed) ? speakerColor(held[landed]) : .clear)
                         .frame(maxWidth: min(280, room))
                         .frame(width: room, alignment: .trailing)
                         .position(x: room / 2, y: min(max(y, 22), max(22, h - 22)))
@@ -195,8 +324,14 @@ struct TranscriptScrubber: View {
             .animation(limitMotion ? nil : .easeOut(duration: 0.2), value: shown)
             .allowsHitTesting(shown)
             .onAppear { trackHeight = h }
-            .onChange(of: h) { _, new in trackHeight = new }
+            .onChange(of: h) { _, new in trackHeight = new; if model.dragging { ticks = tickFractions() } }
         }
+        .onAppear {
+            model.lines = lines
+            model.end = end
+            TranscriptScrubModel.onScreen = model
+        }
+        .onChange(of: end) { _, new in model.lines = lines; model.end = new }
         .sensoryFeedback(.selection, trigger: crossings)
         .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)) { _ in
             voiceOver = UIAccessibility.isVoiceOverRunning
@@ -208,21 +343,30 @@ struct TranscriptScrubber: View {
 
     // MARK: Handle and bubble
 
+    /// The bars mark on an ink key (paper in dark): the keycap radius, the ink outline, and a hard offset shadow
+    /// that tightens while held, as a pressed card's does (DESIGN.md §7, §11).
     private var handle: some View {
-        Capsule()
-            .fill(Ink.ink)
-            .overlay {
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Ink.paper)
-            }
+        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        let shadow: CGSize = model.dragging ? CGSize(width: 2, height: 3) : CGSize(width: 3, height: 4)
+        return BarsMark(color: Ink.paper)
+            .frame(width: 12, height: 13)
+            .accessibilityHidden(true)
             .frame(width: Self.handleSize.width, height: Self.handleSize.height)
+            .background(shape.fill(Ink.ink))
+            .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
+            .background(shape.fill(Ink.hard).offset(x: shadow.width, y: shadow.height))
             .scaleEffect(model.dragging && !limitMotion ? 1.08 : 1)
             .animation(limitMotion ? nil : Motion.press, value: model.dragging)
             .frame(width: 44, height: 60)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
-                .onChanged { v in drag(to: v.location.y, height: trackHeight) }
+                .onChanged { v in
+                    if !model.dragging {
+                        let center = Self.handleY(model.pinned ?? model.progress, height: trackHeight)
+                        grab = abs(v.startLocation.y - center) <= Self.handleSize.height / 2 ? v.startLocation.y - center : 0
+                    }
+                    drag(to: v.location.y - grab, height: trackHeight)
+                }
                 .onEnded { _ in release() })
             .accessibilityElement()
             .accessibilityLabel("Transcript position")
@@ -238,20 +382,43 @@ struct TranscriptScrubber: View {
             .accessibilityIdentifier("transcript-scrubber")
     }
 
-    /// "23:41 · Ginna Cross" on card white with an ink outline and the hard shadow (DESIGN.md §11), never glass.
-    private func bubble(_ text: (time: String, name: String?)) -> some View {
-        HStack(spacing: 6) {
-            Text(text.time).font(Ink.mono(13, weight: .medium))
-            if let name = text.name {
-                Text("·").foregroundStyle(Ink.mute)
-                Text(name).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+    /// "23:41" and the speaker's chip ("Ginna Cross" on her color, as on her lines) on card white with an ink
+    /// outline and the hard shadow (DESIGN.md §11), never glass. No speakers: the time alone (or "Line 12 of 340").
+    private func bubble(time: String, name: String?, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Text(time).font(Ink.mono(13, weight: .medium)).foregroundStyle(Ink.ink)
+            if let name {
+                PhoneSpeakerChip(name: name, color: color).truncationMode(.tail)
             }
         }
-        .foregroundStyle(Ink.ink)
-        .padding(.horizontal, 12).frame(height: 34)
+        .padding(.leading, 12).padding(.trailing, name == nil ? 12 : 6).frame(height: 34)
         .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
         .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(Ink.hard).offset(x: 4, y: 5))
+    }
+
+    /// Hairline ink ticks centered under the handle's path, one per minute (or step), never closer than 18 pt.
+    /// Stronger under Increase Contrast.
+    private func tickMarks(width: CGFloat, height: CGFloat) -> some View {
+        let x = width - 4 - Self.handleSize.width / 2
+        let color = Ink.ink.opacity(contrast == .increased ? 0.5 : 0.22)
+        let line = max(1 / displayScale, 0.5)
+        return Canvas { ctx, _ in
+            for f in ticks {
+                let y = Self.handleY(f, height: height)
+                ctx.fill(Path(CGRect(x: x - 6, y: y - line / 2, width: 12, height: line)), with: .color(color))
+            }
+        }
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// The handle's travel: the track less the handle, the span the scale's 0...1 covers.
+    private var travel: Double { max(1, Double(trackHeight - Self.handleSize.height)) }
+
+    private func tickFractions() -> [Double] {
+        ScrubMath.tickFractions(starts: starts, end: end, trackHeight: travel)
     }
 
     private var bubbleText: (time: String, name: String?)? {
@@ -264,14 +431,14 @@ struct TranscriptScrubber: View {
         (timed ? s.start.timecode : "Line \(index + 1) of \(count)", name)
     }
 
+    /// The handle's center for a fraction, and the fraction for a finger's height, both measured from the top of
+    /// the track (this view's coordinate space) on the same scale (ScrubMath).
     private static func handleY(_ fraction: Double, height: CGFloat) -> CGFloat {
-        let half = handleSize.height / 2
-        return half + CGFloat(min(1, max(0, fraction))) * max(0, height - handleSize.height)
+        CGFloat(ScrubMath.handleCenter(fraction, track: Double(height), handle: Double(handleSize.height)))
     }
 
     private static func fraction(_ y: CGFloat, height: CGFloat) -> Double {
-        let half = handleSize.height / 2
-        return Double((y - half) / max(1, height - handleSize.height))
+        ScrubMath.fraction(atY: Double(y), track: Double(height), handle: Double(handleSize.height))
     }
 
     // MARK: Dragging
@@ -287,6 +454,7 @@ struct TranscriptScrubber: View {
             starts = held.map(\.start)
             landed = -1
             tick = Int.min
+            ticks = tickFractions()
             model.dragging = true
             onBegin()
         }
@@ -297,16 +465,21 @@ struct TranscriptScrubber: View {
         guard i != landed else { return }
         landed = i
         jump(held[i])
-        if PhoneUITest.enabled { Self.lastLanding = bubbleText.map { [$0.time, $0.name].compactMap { $0 }.joined(separator: " · ") } }
-        let t = ScrubMath.tick(index: i, starts: starts, end: end, trackHeight: Double(trackHeight))
+        if PhoneUITest.enabled {
+            Self.lastLanding = bubbleText.map { [$0.time, $0.name].compactMap { $0 }.joined(separator: " · ") }
+            Self.lastLandingFraction = ScrubMath.fraction(of: i, starts: starts, end: end)
+            Self.lastLandingIsLast = i == held.count - 1
+        }
+        let t = ScrubMath.tick(index: i, starts: starts, end: end, trackHeight: travel)
         if tick != Int.min, t != tick { crossings &+= 1 }
         tick = t
     }
 
     private func release() {
         guard model.dragging else { return }
+        model.pin(model.dragFraction)
         model.dragging = false
-        held = []; starts = []; landed = -1
+        held = []; starts = []; ticks = []; landed = -1
         model.hideSoon()
     }
 
@@ -327,7 +500,7 @@ struct TranscriptScrubber: View {
         guard !all.isEmpty else { return }
         let s = all.map(\.start)
         let from = min(all.count - 1, model.voiceOverIndex ?? ScrubMath.index(at: model.progress, starts: s, end: end))
-        let to = ScrubMath.stepped(from: from, direction: direction, starts: s, end: end, trackHeight: Double(trackHeight))
+        let to = ScrubMath.stepped(from: from, direction: direction, starts: s, end: end, trackHeight: travel)
         onBegin()
         model.voiceOverIndex = to
         jump(all[to])

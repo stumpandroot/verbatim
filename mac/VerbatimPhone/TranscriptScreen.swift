@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import UIKit
 
 /// A transcript, in the website style: the eyebrow (kind · date · length) over the recording's name as the big serif
@@ -42,6 +43,8 @@ struct TranscriptScreen: View {
     @State private var scrub = TranscriptScrubModel()
     /// The player dock's height with its bottom margin; the scrubber's track ends above it.
     @State private var dockHeight: CGFloat = 64
+    /// The transcript is long enough for the scrubber, which then replaces the system scroll indicator.
+    @State private var scrubLong = false
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 32
 
     private static let scrollSpace = "transcript-scroll"
@@ -89,6 +92,8 @@ struct TranscriptScreen: View {
                         }
                         .coordinateSpace(.named(Self.scrollSpace))
                         .scrubTracking(scrub)
+                        .scrollIndicators(scrubLong && t.status == .ready && mode == .transcript && !selecting ? .hidden : .automatic)
+                        .onReceive(scrub.$long.removeDuplicates()) { scrubLong = $0 }
                         .scrollDismissesKeyboard(.interactively)
                         .onManualScroll { if app.player.isPlaying, follow { follow = false } }
                         .onAppear {
@@ -117,8 +122,9 @@ struct TranscriptScreen: View {
                         if t.status == .ready, mode == .transcript, !selecting {
                             TranscriptScrubber(model: scrub,
                                                lines: { shownLines(t) },
-                                               end: max(t.duration, t.segments.last?.end ?? 0),
+                                               end: ScrubMath.scaleEnd(starts: t.segments.map(\.start), ends: t.segments.map(\.end)),
                                                speaker: { s in t.speakers.count >= 2 ? t.speakerName(s.speaker) : nil },
+                                               speakerColor: { s in PhoneLines.speakerColor(t, s.speaker) },
                                                jump: { s in
                                                    var tr = Transaction(); tr.disablesAnimations = true
                                                    withTransaction(tr) { proxy.scrollTo(s.id, anchor: .top) }
@@ -133,6 +139,7 @@ struct TranscriptScreen: View {
                                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
                         }
                     }
+                    .coordinateSpace(.named(TranscriptScrubber.frameSpace))
                 }
                 .background(Ink.paper.ignoresSafeArea())
                 .navigationBarTitleDisplayMode(.inline)
@@ -332,7 +339,7 @@ struct TranscriptScreen: View {
                             PhoneSelectableText(text: PhoneSelectableText.joined(segs, in: t))
                                 .accessibilityIdentifier("original-selectable")
                         } else {
-                            PhoneLines(transcript: t, segments: segs, clock: app.player.clock, onNote: { noteFor = $0 })
+                            PhoneLines(transcript: t, segments: segs, clock: app.player.clock, scrub: scrub, onNote: { noteFor = $0 })
                         }
                         if hideFillerSetting, t.fillerCount > 0 {
                             FillerToggle(count: t.fillerCount, shown: $showFiller).padding(.leading, 6)
@@ -418,6 +425,25 @@ struct TranscriptScreen: View {
     }
 }
 
+/// A speaker's colored pill on a transcript line (and in the scrubber's bubble): the name in fixed ink on the
+/// speaker's color (`PhoneLines.speakerColor`), with a small chevron where it opens a menu.
+struct PhoneSpeakerChip: View {
+    var name: String
+    var color: Color
+    var size: CGFloat = 12.5
+    var menu = false
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(name).font(.system(size: size, weight: .bold)).lineLimit(1)
+            if menu { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7) }
+        }
+        .foregroundStyle(Ink.inkFixed)
+        .padding(.horizontal, 10).frame(minHeight: 24)
+        .background(color, in: Capsule())
+        .contentShape(Capsule())
+    }
+}
+
 /// The reading lines. Reads the playhead without observing it: the lines re-render only when the playing
 /// passage changes (`playingIDs`), not on every 20 Hz tick, so the playing tint moves without re-rendering the screen.
 struct PhoneLines: View {
@@ -426,6 +452,8 @@ struct PhoneLines: View {
     /// The lines to show (filler and background voices already left out by the screen).
     var segments: [Segment]
     var clock: PlayerClock
+    /// The scrubber's model: each line tells it when it reaches the top of the screen.
+    var scrub: TranscriptScrubModel? = nil
     var onNote: (Segment) -> Void
     @State private var renaming: Speaker? = nil
     @State private var newName = ""
@@ -493,14 +521,7 @@ struct PhoneLines: View {
                                     Button { app.assign(transcript.id, segment: s.id, to: nil) } label: { Label("No speaker", systemImage: "person.slash") }   // brand: system surface (menu)
                                 }
                             } label: {
-                                HStack(spacing: 4) {
-                                    Text(n).font(.system(size: pillSize, weight: .bold)).lineLimit(1)
-                                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7)
-                                }
-                                .foregroundStyle(Ink.inkFixed)
-                                .padding(.horizontal, 10).frame(minHeight: 24)
-                                .background(Self.speakerColor(transcript, s.speaker), in: Capsule())
-                                .contentShape(Capsule())
+                                PhoneSpeakerChip(name: n, color: Self.speakerColor(transcript, s.speaker), size: pillSize, menu: true)
                             }
                             .accessibilityLabel("Speaker: \(n). Rename or reassign")
                         }
@@ -519,6 +540,7 @@ struct PhoneLines: View {
                 .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .padding(.top, showSpeaker && i > 0 ? 12 : 2)
                 .id(s.id)
+                .scrubRow(scrub, index: i, count: segs.count)
                 .contentShape(Rectangle())
                 .contextMenu {
                     if app.player.loadedURL != nil {
