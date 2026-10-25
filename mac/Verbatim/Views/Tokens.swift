@@ -54,9 +54,6 @@ enum Ink {
     static let danger = dyn(0xB23F24, 0xFF8A6B)
     /// Butter's text color: small text and glyphs on butter tint (6.4:1 on #FCF0D2).
     static let butterText = dyn(0x6B5320, 0xE5C77F)
-    /// A dictation row on Home that was just copied (and the row under the pointer, at 70%): a deeper butter than
-    /// `butterTint`, with ink text on it.
-    static let butterWash = dyn(0xF7E2AE, 0x463D27)
     /// The Record panel's fill: persimmon nudged lighter (#FB7350), so ink text on it reaches 4.7:1 at any size.
     /// `persimmon` (#FA6B47) stays the brand and app-icon color.
     static let recordFill = dyn(0xFB7350, 0xF27A57)
@@ -137,26 +134,14 @@ enum Ink {
     static let accentSubtle = make { dark, _ in
         dark ? PColor(hex: 0xF27A57).withAlphaComponent(0.14) : PColor(hex: persimmonHex).withAlphaComponent(0.11)
     }
-    static let glassTint = make { dark, _ in
-        dark ? PColor.white.withAlphaComponent(0.03) : PColor(hex: paperHex).withAlphaComponent(0.35)
-    }
-    /// The selected sidebar row: a reader-white sheet in light, a soft raised tint in dark.
-    static let selectedPill = make { dark, _ in dark ? PColor.white.withAlphaComponent(0.08) : PColor(hex: readerHex).withAlphaComponent(0.92) }
-    static let selectedPillEdge = make { dark, _ in dark ? PColor.white.withAlphaComponent(0.1) : PColor(hex: inkHex).withAlphaComponent(0.1) }
 
     // Legacy names, mapped onto the brand (kept so existing screens compile and move together).
     static let iris = interactive
-    static let irisDeep = interactive
-    static let irisTint = accentSubtle
     static let coral = persimmon
-    static let coralTint = persimmonTint
     static let lime = butter
-    static let limeTint = butterTint
-    static let limeText = sageText
 
     #if os(iOS)
-    /// Paper and ink as UIColors, for UIKit surfaces (the keyboard's background and its globe key).
-    static let paperUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0x18241F : paperHex) }
+    /// Ink as a UIColor, for UIKit surfaces (the keyboard's globe key).
     static let inkUI = UIColor { tc in UIColor(hex: tc.userInterfaceStyle == .dark ? 0xF5F0E6 : inkHex) }
     #endif
 
