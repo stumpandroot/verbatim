@@ -154,7 +154,6 @@ extension BrandArt {
     static let iconMoments = BrandArt(box: iconGrid, strokes: [.path("M3 15H21"), .path("M6 13.5V16.5"), .path("M18 13.5V16.5"), .circle(12, 15, 4.5), .path("M12 4.5V10.5")], fills: [.circle(12, 15, 1.6)], strokeWidth: 1.5)
     static let iconQueue = BrandArt(box: iconGrid, strokes: [.circle(5, 12, 1.4), .circle(5, 17, 1.4), .path("M9 7H20"), .path("M9 12H18"), .path("M9 17H15.5")], fills: [.circle(5, 7, 1.6)], strokeWidth: 1.5)
     static let iconDictations = BrandArt(box: iconGrid, strokes: [.path("M3 9C4.5 4.5 6 4.5 7.5 9S10.5 13.5 12 9 15 4.5 16.5 9 19.5 13.5 21 9"), .path("M3 15.5H21"), .path("M3 19.5H14")], strokeWidth: 1.5)
-    static let iconActivity = BrandArt(box: iconGrid, strokes: [], fills: [.circle(6, 6, 1.2), .circle(12, 6, 2.3), .circle(18, 6, 1.2), .circle(6, 12, 2.3), .circle(12, 12, 1.2), .circle(18, 12, 2.3), .circle(6, 18, 1.2), .circle(12, 18, 2.3), .circle(18, 18, 2.3)], strokeWidth: 1.5)
     static let iconDictionary = BrandArt(box: iconGrid, strokes: [.path("M12 6.5C9.5 4.8 6.5 4.5 3.5 5.2V18.7C6.5 18 9.5 18.3 12 20C14.5 18.3 17.5 18 20.5 18.7V5.2C17.5 4.5 14.5 4.8 12 6.5Z"), .path("M12 6.5V20")], strokeWidth: 1.5)
     static let iconSettings = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 6.5), .path("M12 12V7.5"), .path("M12 2.5V4"), .path("M20.23 16.75L18.93 16"), .path("M3.77 16.75L5.07 16")], fills: [.circle(12, 12, 1.2)], strokeWidth: 1.5)
     static let iconDeleted = BrandArt(box: iconGrid, strokes: [.path("M14 3.5V7.5H18")], strokeWidth: 1.5, dashes: [.init(elements: [.path("M6 3.5H14L18 7.5V20.5H6Z")], pattern: [1.6, 1.9])])
@@ -184,7 +183,6 @@ extension BrandArt {
     static let iconTranscribing = BrandArt(box: iconGrid, strokes: [.path("M12 3.5 C16.31 3.5 19.94 6.73 20.44 11.01 C20.94 15.3 18.15 19.28 13.96 20.27 C9.76 21.27 5.49 18.96 4.01 14.91")], fills: [.circle(12, 12, 1.6)], strokeWidth: 1.5, dashes: [.init(elements: [.path("M4.01 14.91 C3.06 12.3 3.44 9.4 5.03 7.12 C6.63 4.85 9.23 3.5 12 3.5")], pattern: [1.2, 1.8])])
     static let iconWaitingForMac = BrandArt(box: iconGrid, strokes: [.circle(4.5, 12, 2), .path("M15 8H21V14H15Z"), .path("M14 16.5H22")], strokeWidth: 1.5, dashes: [.init(elements: [.path("M7.5 12H13")], pattern: [0.8, 1.8])])
     static let iconAttention = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8.5), .path("M12 7V13")], fills: [.circle(12, 16.3, 1.1)], strokeWidth: 1.5)
-    static let iconRecovered = BrandArt(box: iconGrid, strokes: [.path("M12.89 3.55 C15.91 3.87 18.53 5.77 19.77 8.54"), .path("M20.31 10.23 C20.95 13.2 19.95 16.29 17.69 18.32"), .path("M16.25 19.36 C13.62 20.88 10.38 20.88 7.75 19.36"), .path("M6.31 18.32 C4.05 16.29 3.05 13.2 3.69 10.23"), .path("M4.23 8.54 C5.47 5.77 8.09 3.87 11.11 3.55")], fills: [.circle(12, 12, 1.6)], strokeWidth: 1.5)
     static let iconCaptions = BrandArt(box: iconGrid, strokes: [.path("M4 6.5C8.5 3.2 15.5 3.2 20 6.5"), .path("M4 11.5H20"), .path("M4 15.5H17"), .path("M4 19.5H12")], strokeWidth: 1.5)
     static let iconCopy = BrandArt(box: iconGrid, strokes: [.path("M5.5 15.5V3.5H15.5"), .path("M8.5 6.5H18.5V20.5H8.5Z")], strokeWidth: 1.5)
     static let iconPaste = BrandArt(box: iconGrid, strokes: [.path("M9 3.5H15V6.5H9Z"), .path("M9 5H6V20.5H18V5H15"), .path("M9 11H15"), .path("M9 15H13")], strokeWidth: 1.5)
@@ -204,12 +202,10 @@ extension BrandArt {
     static let iconMultitrack = BrandArt(box: iconGrid, strokes: [.path("M3 6.5H8C9 4.5 10 4.5 11 6.5S13 8.5 14 6.5H21"), .path("M3 12H6C7 10 8 10 9 12S11 14 12 12H21"), .path("M3 17.5H10C11 15.5 12 15.5 13 17.5S15 19.5 16 17.5H21")], strokeWidth: 1.5)
     static let iconQuote = BrandArt(box: iconGrid, strokes: [.path("M4.5 12.5H9.5V17.5H4.5V12.5C4.5 9.5 5.8 7.5 8.5 6.5"), .path("M14.5 12.5H19.5V17.5H14.5V12.5C14.5 9.5 15.8 7.5 18.5 6.5")], strokeWidth: 1.5)
     static let iconSwap = BrandArt(box: iconGrid, strokes: [.path("M4 8.5H19"), .path("M16 5.5L19 8.5L16 11.5"), .path("M20 15.5H5"), .path("M8 12.5L5 15.5L8 18.5")], strokeWidth: 1.5)
-    static let iconFollow = BrandArt(box: iconGrid, strokes: [.path("M4 7H13"), .path("M4 12H10"), .path("M4 17H13"), .path("M15.5 9L20.5 12L15.5 15Z")], strokeWidth: 1.5)
     static let iconDetails = BrandArt(box: iconGrid, strokes: [.circle(12, 12, 8.5), .path("M12 11V16.5")], fills: [.circle(12, 7.8, 1.1)], strokeWidth: 1.5)
     static let iconServer = BrandArt(box: iconGrid, strokes: [.path("M4.5 4.5H19.5V10.5H4.5Z"), .path("M4.5 13.5H19.5V19.5H4.5Z")], fills: [.circle(8, 7.5, 1), .circle(8, 16.5, 1)], strokeWidth: 1.5)
     static let iconLowerAudio = BrandArt(box: iconGrid, strokes: [.path("M4 9.5H7.5L12 5.5V18.5L7.5 14.5H4Z"), .path("M15.5 9.5C16.8 10.8 16.8 13.2 15.5 14.5"), .path("M18.5 15.5L20 17L21.5 15.5")], strokeWidth: 1.5)
     static let iconAccessibility = BrandArt(box: iconGrid, strokes: [.circle(12, 5, 1.8), .path("M5 8.5L12 10L19 8.5"), .path("M12 10V14.5"), .path("M12 14.5L9 20.5"), .path("M12 14.5L15 20.5")], strokeWidth: 1.5)
-    static let iconNoSpeaker = BrandArt(box: iconGrid, strokes: [.circle(12, 8.5, 3.5), .path("M5.5 19.5C5.5 15.5 8.4 13.5 12 13.5S18.5 15.5 18.5 19.5"), .path("M4 4L20 20")], strokeWidth: 1.5)
     static let iconDownload = BrandArt(box: iconGrid, strokes: [.path("M12 3.5V15"), .path("M8 11L12 15L16 11"), .path("M5 20.5H19")], strokeWidth: 1.5)
     static let iconActionButton = BrandArt(box: iconGrid, strokes: [.path("M5.5 3H15V21H5.5Z"), .path("M15 6.5H16.5V10.5H15"), .path("M19 7L20.5 6"), .path("M19 10L20.5 11")], fills: [.circle(10.25, 17.5, 1)], strokeWidth: 1.5)
     static let iconSponsor = BrandArt(box: iconGrid, strokes: [.path("M3.5 3.5H11.5L20.5 12.5L12.5 20.5L3.5 11.5Z"), .circle(8, 8, 1.6)], strokeWidth: 1.5)
@@ -322,83 +318,6 @@ extension BrandArt {
         .circle(78, 22, 6),
         .circle(16, 70, 4),
         .circle(74, 84, 3),
-    ], strokeWidth: 2.2)
-    static let featureFiller = BrandArt(box: glyphBox, strokes: [
-        .path("M50 10 C53.85 10 57.67 10.55 61.36 11.65"),
-        .path("M70 15.36 C73.33 17.28 76.37 19.68 79.01 22.47"),
-        .path("M84.64 30 C86.56 33.33 88 36.92 88.89 40.66"),
-        .path("M90 50 C90 53.85 89.45 57.67 88.35 61.36"),
-        .path("M84.64 70 C82.72 73.33 80.32 76.37 77.53 79.01"),
-        .path("M70 84.64 C66.67 86.56 63.08 88 59.34 88.89"),
-        .path("M50 90 C46.15 90 42.33 89.45 38.64 88.35"),
-        .path("M30 84.64 C26.67 82.72 23.63 80.32 20.99 77.53"),
-        .path("M15.36 70 C13.44 66.67 12 63.08 11.11 59.34"),
-        .path("M10 50 C10 46.15 10.55 42.33 11.65 38.64"),
-        .path("M15.36 30 C17.28 26.67 19.68 23.63 22.47 20.99"),
-        .path("M30 15.36 C33.33 13.44 36.92 12 40.66 11.11"),
-        .path("M50 24 C53.03 24 56.04 24.53 58.89 25.57"),
-        .path("M66.71 30.08 C69.04 32.03 71 34.37 72.52 37"),
-        .path("M75.61 45.49 C76.13 48.47 76.13 51.53 75.61 54.51"),
-        .path("M72.52 63 C71 65.63 69.04 67.97 66.71 69.92"),
-        .path("M58.89 74.43 C56.04 75.47 53.03 76 50 76"),
-        .path("M41.11 74.43 C38.26 73.39 35.61 71.87 33.29 69.92"),
-        .path("M27.48 63 C25.97 60.37 24.92 57.5 24.39 54.51"),
-        .path("M24.39 45.49 C24.92 42.5 25.97 39.63 27.48 37"),
-        .path("M33.29 30.08 C35.61 28.13 38.26 26.61 41.11 25.57"),
-        .path("M50 38 C52.28 38 54.51 38.65 56.43 39.87"),
-        .path("M61.41 46.29 C62.12 48.46 62.19 50.78 61.62 52.98"),
-        .path("M57.05 59.71 C55.21 61.05 53.03 61.83 50.75 61.98"),
-        .path("M42.95 59.71 C41.1 58.37 39.68 56.53 38.84 54.42"),
-        .path("M38.59 46.29 C39.29 44.13 40.6 42.21 42.35 40.75"),
-    ], fills: [.circle(50, 50, 2.6)], strokeWidth: 2.2)
-    static let featureLabel = BrandArt(box: glyphBox, strokes: [
-        .path("M50 8 L50 92"),
-        .path("M8 50 L92 50"),
-        .path("M45 22 L55 22"),
-        .path("M22 45 L22 55"),
-        .path("M45 36 L55 36"),
-        .path("M36 45 L36 55"),
-        .path("M45 64 L55 64"),
-        .path("M64 45 L64 55"),
-        .path("M45 78 L55 78"),
-        .path("M78 45 L78 55"),
-        .circle(26, 24, 5),
-        .circle(76, 30, 5),
-        .circle(22, 78, 5),
-        .circle(80, 74, 5),
-    ], strokeWidth: 2.2)
-    static let featureTags = BrandArt(box: glyphBox, strokes: [
-        .path("M20.43 52.58 L29.57 41.42"),
-        .path("M36.96 42.34 L45.04 59.66"),
-        .path("M53.94 62.29 L58.06 59.71"),
-        .path("M67.67 50.04 L76.33 35.96"),
-        .path("M69.2 60.68 L78.8 69.32"),
-        .circle(16, 58, 7),
-        .circle(34, 36, 7),
-        .circle(48, 66, 7),
-        .circle(64, 56, 7),
-        .circle(80, 30, 7),
-        .circle(84, 74, 7),
-    ], strokeWidth: 2.2)
-    static let featureSegments = BrandArt(box: glyphBox, strokes: [
-        .path("M50 10 C64.29 10 77.5 17.62 84.64 30"),
-        .path("M88.04 37.64 C91.55 48.42 90.31 60.18 84.64 70"),
-        .path("M79.73 76.77 C71.16 86.28 58.55 91.12 45.82 89.78"),
-        .path("M37.64 88.04 C24.05 83.63 13.85 72.29 10.87 58.32"),
-        .path("M10 50 C10 33.18 20.52 18.16 36.32 12.41"),
-        .path("M50 26 C60.09 26 69.1 32.31 72.55 41.79"),
-        .path("M73.64 54.17 C71.88 64.1 64.1 71.88 54.17 73.64"),
-        .path("M41.79 72.55 C30.85 68.57 24.34 57.3 26.36 45.83"),
-    ], fills: [.circle(50, 10, 3), .circle(88.04, 37.64, 3), .circle(79.73, 76.77, 3), .circle(37.64, 88.04, 3), .circle(10, 50, 3)], strokeWidth: 2.2)
-    static let featureMain = BrandArt(box: glyphBox, strokes: [
-        .path("M8 8 L32 32"),
-        .path("M92 8 L68 32"),
-        .path("M8 92 L32 68"),
-        .path("M92 92 L68 68"),
-        .rect(8, 8, 84, 84, 0),
-        .rect(20, 20, 60, 60, 0),
-        .rect(32, 32, 36, 36, 0),
-        .circle(50, 50, 8),
     ], strokeWidth: 2.2)
 
 }
