@@ -13,7 +13,13 @@
         "Importing a damaged MP4 or M4A file no longer closes Verbose.",
         "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it.",
         "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting.",
-        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off."
+        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off.",
+        "iPhone: the Native look becomes Premium Native, with a warm page and a soft glow, gradient cards in Verbose's colors, big rounded numbers, and recordings shown with a preview and a play button.",
+        "iPhone: in Native, a record button floats above the tab bar on Home and Library. Tap it to record a voice note, or touch and hold it for Dictate, Live captions, and Import.",
+        "iPhone: in Native, the recorder fills the screen with a large timer and a live waveform, and Mark moment saves bookmarks while you talk. When you stop, a sheet shows the transcription's progress and lets you choose the kind and the project.",
+        "iPhone: in Native, You shows your week, your year, and a calendar with a dot on each day you recorded, with no streak to keep.",
+        "iPhone: in Native, the transcript's summary shows on a persimmon card with its moments and speakers, and the player sits on glass above the tab bar.",
+        "iPhone: in Native, Settings › Appearance can bring back the Record card on Home."
       ]
     },
     {

@@ -177,6 +177,20 @@ Each device has a second look, Native (mockup "Verbose, in a native look", Octob
 7. **What doesn't switch:** the app icon, the menu bar mark, the notch and Dynamic Island, widgets, and Live Activities.
 8. **[checked]** Brand-check skips Native look code for SF Symbols, system color names, glass, and mono sizes. Mark a whole file `// brand: native file`, a block between `// brand: native begin` and `// brand: native end`, or one line with a trailing `// brand: native`. Hex colors still live in Tokens.swift, and the retired mark stays retired.
 
+### Premium Native on iPhone
+
+Premium Native (mockup "premium", section 01, October 25, 2026) replaced the first Native look on iPhone. Same tabs and features; the feel changes (`PremiumKit.swift`, `PremiumHome.swift`, `PremiumYou.swift`, `PremiumRecord.swift`, and the pure rules in `PremiumRules.swift`, which `mac/tools/test-premium.sh` checks).
+
+1. **Page:** warm off-white #F6F3F1 (#0B0B0C in dark) with a soft persimmon glow at the top (`PremiumInk.paper`, `PremiumStyle.glow`), drawn once behind each screen by `phonePage()`.
+2. **[checked]** **Gradient cards** use the four warm brand colors only, never purple: persimmon (This week, the year, the Summary), ink green (You's week), sage and rose (You's stat cards). The stops live in Tokens.swift (`PremiumInk`). White text measures 4.5:1 or better from a third of the way down; only big numbers (3:1) sit in the top third, under a 10% highlight that's gone by a third of the way. The Summary uses the persimmon's deeper half, so its small header keeps 4.5:1. Text on a gradient is solid white, never faded.
+3. **Type:** SF Pro, with SF Pro Rounded heavy for big numbers (`PremiumStyle.number`). Titles stay SF Pro; no serif.
+4. **Accent:** `Ink.nativeAccent`. Text on it is white in light and black in dark (`PremiumInk.onAccent`, 7.2:1).
+5. **Recording items** (`PremiumRecordingItem`, Home and Library): a date line, a bold two-line title, a two-line preview of the first cleaned lines (the kind and state while there's no text), a play pill with the length, the state, and ⋯ (Add to project, Copy text, Share, Delete). Plain day headers, no grouped boxes.
+6. **The record button** floats just above the tab bar's trailing end on Home and Library: an overlay, because a stock tab can't take a long press. A tap starts a voice note; a long press offers Dictate, Live captions, and Import. It hides while a recording runs. Home's Record card is off unless Settings › Appearance › Show the Record card is on.
+7. **Record flow:** a full-screen recorder (an 88 pt rounded clock, a live waveform with the playhead in the middle, Mark moment, Stop, and Pause; moments save as bookmarks), then the Saved sheet (progress, kind, project, Open transcript, Record another). Adding to an existing transcript skips the sheet, so its recorder keeps Discard.
+8. **You** follows Journal's Insights: the week (days used in the last seven, with no streak to keep), the year with month bars, two stat cards, and a month calendar with a dot on each day something was recorded or dictated.
+9. **Performance:** colors and gradients are built once (static), lists stay lazy, nothing enters with an animation, and navigation never rebuilds a screen with `.id`.
+
 ### 13.1 Native on the Mac
 
 The Mac's look is its own (`appearance.look` in the Mac's defaults); Settings › General › Look (two live thumbnails above the light or dark pop-up) and the welcome tour's Pick a look step change it. New installs start in Verbose style.
