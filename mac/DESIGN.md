@@ -95,7 +95,8 @@ Rules:
 - The Method diagrams loop slowly (iPhone): Capture's rings swell, Refine's strands flow into clean lines, Understand's circles drift together and apart. On Mac the panel drawings loop (§11), at most one per screen.
 - Loops (the breath, the diagrams, the panel drawings) use TimelineView with a Canvas, at most 30 frames a second, and pause when they're off screen or the app is inactive (`LoopTimeline`). Never drive a loop with state or a repeatForever animation; on macOS 26 every SwiftUI transaction is expensive.
 - Big cards (Record, tiles, color panels, Moments cards, This week, Last dictation) tilt as above and, on Mac, pick up the 1.5 pt ink outline and a hard shadow on hover: (7, 9) under the pointer, (2, 3) while pressed. Flat list rows never tilt; they take the outline and a (4, 5) shadow on hover or selection (§11).
-- Icons draw on once when they appear and again on hover. Icon draw-ons never loop.
+- Screens arrive at once: no entrance stagger on navigation, so a screen never makes you wait for its content.
+- Icons arrive fully drawn and draw on again on hover. Icon draw-ons never loop.
 - Sidebar rows: on hover a wash fades and scales in (180 ms, ease-out), the label nudges 2 pt right, and the icon redraws. The persimmon selection tick slides to the new row over 300 ms.
 - Limit Motion (and the system's Reduce Motion) stills all of it: no tilt, lift, or scale, a still meter, still diagrams, icons fully drawn, and crossfades instead of slides.
 

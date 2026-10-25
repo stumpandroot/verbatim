@@ -135,19 +135,13 @@ struct Pill: View {
     }
 }
 
-/// Entrance stagger: each element rises 4 pt and fades in over 180 ms, 20 ms after the previous one (first at 0).
-/// Quick on purpose: it plays on every screen change, and a screen never makes you wait for its content.
+/// Entrance stagger, retired: screens arrive at once, so navigation never makes you wait (DESIGN.md §7). Each
+/// section used to rise 4 pt and fade in over 180 ms, 20 ms after the one before, on every screen change and inside
+/// the screen's own fade, so a transcript reached full opacity about half a second after the click. The modifier
+/// stays as a no-op so the screens that call it don't change.
 struct StaggerIn: ViewModifier {
-    var index: Int          // negative = no entrance animation
-    /// A screen rebuilt behind the look-switch card is simply there when the card fades (LookSwitch.swift).
-    @State private var shown = LookSwitch.rebuilding
-    @Environment(\.limitMotion) private var reduce
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown || index < 0 ? 1 : 0)
-            .offset(y: shown || reduce || index < 0 ? 0 : 4)
-            .onAppear { if index >= 0 { withAnimation(.easeOut(duration: 0.18).delay(Double(min(index, 8)) * 0.02)) { shown = true } } }
-    }
+    var index: Int
+    func body(content: Content) -> some View { content }
 }
 extension View { func staggerIn(_ index: Int) -> some View { modifier(StaggerIn(index: index)) } }
 

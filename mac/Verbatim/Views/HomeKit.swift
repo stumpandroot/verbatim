@@ -299,9 +299,11 @@ struct BrandArtShape: Shape {
     }
 }
 
-/// A brand icon or diagram whose strokes draw on (1.1 s by default, ease-out, all strokes at once) when it appears
-/// and each time `replay` changes. Fills, dashed construction lines, and the Understand diagram's hatch fade in with
-/// the line. Never loops. Still, fully drawn, with motion limited.
+/// A brand icon or diagram that arrives fully drawn and draws its strokes on again (1.1 s by default, ease-out, all
+/// strokes at once) each time `replay` changes: hover on the tiles, the Record panel, and the sidebar. It used to draw
+/// on at every appearance too, so Home's icons finished 1.3 s after each visit; a screen never makes you wait.
+/// Fills, dashed construction lines, and the Understand diagram's hatch fade in with the line. Never loops. Still,
+/// fully drawn, with motion limited.
 struct DrawOnGlyph: View {
     var art: BrandArt
     var color: Color
@@ -310,7 +312,7 @@ struct DrawOnGlyph: View {
     /// Seconds to draw. Hover replays on the tiles, the Record panel, and the sidebar use 0.55.
     var duration: Double = 1.1
     @Environment(\.limitMotion) private var limitMotion
-    @State private var progress: CGFloat = HomeMotion.enabled ? 0 : 1
+    @State private var progress: CGFloat = 1
 
     var body: some View {
         let p: CGFloat = (limitMotion || !HomeMotion.enabled) ? 1 : progress
@@ -332,18 +334,17 @@ struct DrawOnGlyph: View {
                     .opacity(Double(p))
             }
         }
-        .onAppear { play(delay: 0.2) }
-        .onChange(of: replay) { _, _ in play(delay: 0) }
+        .onChange(of: replay) { _, _ in play() }
         .accessibilityHidden(true)
     }
 
-    private func play(delay: Double) {
+    private func play() {
         guard HomeMotion.enabled, !limitMotion else { progress = 1; return }
         var reset = Transaction()
         reset.disablesAnimations = true
         withTransaction(reset) { progress = 0 }
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: duration).delay(delay)) { progress = 1 }
+            withAnimation(.easeOut(duration: duration)) { progress = 1 }
         }
     }
 }
