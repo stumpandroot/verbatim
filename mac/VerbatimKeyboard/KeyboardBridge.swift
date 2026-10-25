@@ -52,6 +52,8 @@ enum KeyboardBridge {
         static let heartbeat = "kb.s.heartbeat"           // Double: time of the last heartbeat
         static let endsAt = "kb.s.endsAt"                 // Double: idle timeout, 0 when it runs until you end it
         static let micName = "kb.s.mic"                   // String: "iPhone Microphone"
+        static let pausedAt = "kb.s.pausedAt"             // Double: when a call paused the session, 0 when it isn't paused
+        static let engineReady = "kb.s.engineReady"       // Bool: the speech model is loaded and warm (missing reads as ready)
         static let endReason = "kb.s.endReason"           // String: why the last session ended, when it matters
         // Session request (keyboard writes `request`; the app answers with `requestDone` or `requestFailed`)
         static let request = "kb.s.request"               // String UUID
@@ -235,43 +237,22 @@ enum KeyboardBridge {
 
     // MARK: Links
 
-    static func sessionURL(request: UUID, host: String?, dictation: UUID? = nil) -> URL {
-        var c = URLComponents()
-        c.scheme = scheme
-        c.host = sessionHost
-        var items = [URLQueryItem(name: "start", value: "1"), URLQueryItem(name: "request", value: request.uuidString)]
-        if let host, !host.isEmpty { items.append(URLQueryItem(name: "host", value: host)) }
-        if let dictation { items.append(URLQueryItem(name: "dictate", value: dictation.uuidString)) }
-        c.queryItems = items
-        return c.url!
-    }
+    // Built and parsed in BridgeTrust.SessionRoute (pure, tested on Linux); these forward to it.
 
-    struct SessionLink: Equatable { var request: UUID?; var host: String?; var dictation: UUID? = nil; var source: StartSource? = nil }
+    typealias SessionLink = BridgeTrust.SessionRoute.Link
+    typealias StartSource = BridgeTrust.SessionRoute.StartSource
+
+    /// The keyboard's session link, which opens Verbose straight into the session (see the steps above).
+    static func sessionURL(request: UUID, host: String?, dictation: UUID? = nil) -> URL {
+        BridgeTrust.SessionRoute.url(request: request, host: host, dictation: dictation)
+    }
 
     /// The request in a `verbatim://session?…` link (or the first keyboard's `verbatim://dictate?…`), or nil for any other link.
-    static func sessionLink(in url: URL) -> SessionLink? {
-        guard url.scheme == scheme, url.host == sessionHost || url.host == legacyDictateHost else { return nil }
-        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        let request = items.first(where: { $0.name == "request" || $0.name == "session" })?.value.flatMap(UUID.init(uuidString:))
-        let host = items.first(where: { $0.name == "host" })?.value
-        let dictation = items.first(where: { $0.name == "dictate" })?.value.flatMap(UUID.init(uuidString:))
-        let source = items.first(where: { $0.name == "from" })?.value.flatMap(StartSource.init(rawValue:))
-        return SessionLink(request: request, host: host?.isEmpty == false ? host : nil, dictation: dictation, source: source)
-    }
-
-    /// Where a session start came from when it wasn't the keyboard: Control Center, the Action button or
-    /// Shortcuts, the Lock Screen widget, or a button in Verbatim.
-    enum StartSource: String { case control, shortcut, widget, app }
+    static func sessionLink(in url: URL) -> SessionLink? { BridgeTrust.SessionRoute.parse(url) }
 
     /// `verbatim://session?start=1&from=<source>`: a session with no keyboard request, so nothing switches back
     /// and the start screen tells you how to go back to your app.
-    static func sessionURL(from source: StartSource) -> URL {
-        var c = URLComponents()
-        c.scheme = scheme
-        c.host = sessionHost
-        c.queryItems = [URLQueryItem(name: "start", value: "1"), URLQueryItem(name: "from", value: source.rawValue)]
-        return c.url!
-    }
+    static func sessionURL(from source: StartSource) -> URL { BridgeTrust.SessionRoute.url(from: source) }
 
     /// The session request the keyboard wrote just before opening a link, as the app checks it (`BridgeTrust.decide`).
     static func storedRequest() -> BridgeTrust.StoredRequest {
@@ -313,6 +294,10 @@ enum KeyboardBridge {
         guard let d = defaults, d.bool(forKey: Key.sessionActive) else { return false }
         return Date().timeIntervalSince1970 - d.double(forKey: Key.heartbeat) < heartbeatStale
     }
+
+    /// False while the app's speech model is still loading for the keyboard's first dictation ("Getting ready").
+    /// Missing reads as ready, so an older app never makes the keyboard say it's getting ready.
+    static var engineReady: Bool { defaults?.object(forKey: Key.engineReady) as? Bool ?? true }
 
     static func uuid(_ key: String) -> UUID? { defaults?.string(forKey: key).flatMap(UUID.init(uuidString:)) }
     static var phase: Phase? { defaults?.string(forKey: Key.phase).flatMap(Phase.init(rawValue:)) }

@@ -52,6 +52,11 @@ struct ActionButtonScreen: View {
                 .cardSurface(radius: Radius.row)
                 .padding(.top, 6)
 
+                Text("While a session is on, the orange microphone dot shows at the top of the screen. Audio is saved only while you dictate.")
+                    .font(.system(size: 13)).foregroundStyle(Ink.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+
                 Text("Set up the Action button").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.dim)
                     .accessibilityAddTraits(.isHeader).padding(.top, 16)
                 VStack(alignment: .leading, spacing: 12) {
@@ -75,7 +80,8 @@ struct ActionButtonScreen: View {
     }
 }
 
-/// End the session after: 10, 30, or 60 minutes idle. The same setting as Settings › Keyboard.
+/// End the session after: 10 or 30 minutes, 1, 2, or 4 hours idle, or Until I end it. The same setting as
+/// Settings › Keyboard.
 private struct IdleTimeoutRow: View {
     @ObservedObject var session: KeyboardSession
     var body: some View {
@@ -84,7 +90,7 @@ private struct IdleTimeoutRow: View {
             Spacer(minLength: 8)
             Picker("End the session after", selection: $session.timeoutSeconds) {
                 ForEach(KeyboardSession.timeoutChoices, id: \.seconds) { c in
-                    Text("\(c.seconds / 60) min idle").tag(c.seconds)
+                    Text(c.seconds == 0 ? c.label : "\(Ribbon.timeoutShortLabel(c.seconds)) idle").tag(c.seconds)
                 }
             }
             .labelsHidden()

@@ -191,7 +191,8 @@ jobs:
 
       # The App Store switch (mac/APP_STORE.md): the iPhone app again with VERBATIM_APP_STORE=YES, in the same
       # derived data, so only Verbatim's own targets recompile. Then proves the flag took effect: APP_STORE was
-      # passed, YOUTUBE_ON_DEVICE wasn't, and no undocumented selector or class name is left in the app.
+      # passed, YOUTUBE_ON_DEVICE wasn't, and no undocumented selector or class name is left in the app. The
+      # keyboard's openURL:options:completionHandler: (opening Verbose) is allowed on purpose: an accepted 4.4.1 risk.
       - name: Compile the App Store build
         if: matrix.target == 'iPhone'
         run: |
@@ -220,10 +221,9 @@ jobs:
               echo "::error::The App Store build still contains $s"; exit 1
             fi
           done
-          if grep -r -a -l -- "openURL:options:completionHandler:" "$APP/PlugIns/VerbatimKeyboard.appex" | grep .; then
-            echo "::error::The App Store keyboard still opens URLs by selector"; exit 1
-          fi
-          echo "The App Store build compiles, with no undocumented interfaces."
+          # Not checked on purpose: the keyboard's openURL:options:completionHandler: (opening Verbose from the
+          # keyboard), an accepted guideline 4.4.1 risk (mac/APP_STORE.md). The loop above still covers the keyboard.
+          echo "The App Store build compiles, with no undocumented interfaces beyond the keyboard's accepted openURL selector."
 
   # The pure-logic tests (mac/tools/test-*.sh): no Xcode, so they run on Linux with Swift 6.1.2 from swift.org.
   logic:

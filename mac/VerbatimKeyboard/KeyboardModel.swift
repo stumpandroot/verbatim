@@ -3,8 +3,9 @@ import Combine
 import os
 
 /// The keyboard's state machine. With a session on: idle → listening → writing → inserted, all inside the
-/// keyboard. Without one: idle → starting (Verbatim opens for a moment and comes back) → listening, when Start
-/// dictating when you come back is on (the app began the dictation already), or idle with a session when it's off.
+/// keyboard. Without one: idle → starting (Verbatim opens for a moment; in App Store builds you come back with the
+/// ◀ at the top left) → listening, when Start dictating when you come back is on (the app began the dictation
+/// already), or idle with a session when it's off. Home without a session offers Start a session, in every build.
 /// Reads and writes the App Group through `KeyboardBridge`; the app does the listening and transcription.
 ///
 /// What shows (`mode`): Home (your numbers and Tap to talk) or Typing (the full keyboard with Start) at rest, and
@@ -61,8 +62,15 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var statsPage = 0
     /// The letter keys.
     let typing = TypingModel()
-    /// Whether the app holds a session (heartbeat fresh), and when its idle timeout ends it (nil: until you end it).
+    /// Whether the app holds a session (heartbeat fresh, not paused), and when its idle timeout ends it (nil: until
+    /// you end it).
     @Published private(set) var sessionLive = false
+    /// A phone or FaceTime call (or Siri) has the audio; the app picks the session up when it ends.
+    @Published private(set) var sessionPaused = false
+    /// False while the app's speech model loads for the first dictation: Listening says "Getting ready".
+    @Published private(set) var engineReady = true
+    /// The last Start a session couldn't open Verbose: Home shows the other ways to start one (`StartCard`).
+    @Published private(set) var openFailed = false
     @Published private(set) var sessionEndsAt: Date? = nil
     @Published private(set) var micName = "iPhone Microphone"
     /// Your snippets (synced with the Mac; the app writes them to the App Group), and whether the top strip shows them.
@@ -88,9 +96,12 @@ final class KeyboardModel: ObservableObject {
     /// keyboard appears (one small read, so memory stays flat); the default without Full Access.
     @Published private(set) var dictateButton = DictateButton.standard
 
-    /// True when there's no session and this build's keyboard can't open Verbatim to start one (App Store
-    /// builds): the card says how to start one instead of offering a record button.
-    var needsSessionCard: Bool { !sessionLive && !Distribution.current.keyboardOpensVerbatim }
+    /// True when there's no session (and no call has one paused): Home offers Start a session, which opens Verbose
+    /// straight into one, or the other ways to start one when that didn't work (`startCard`).
+    var needsSessionCard: Bool { !sessionLive && !sessionPaused }
+    var startCard: StartCard { StartCard.shown(openFailed: openFailed) }
+    /// What a dictate tap says while a call has the session paused.
+    static let pausedNotice = "Paused for a call. Dictation comes back when the call ends."
 
     /// The cleanup level the app applies, for the top strip.
     var levelLabel: String { defaults?.string(forKey: KeyboardBridge.Key.levelLabel) ?? "Polished" }
@@ -156,8 +167,8 @@ final class KeyboardModel: ObservableObject {
         closePanels()
     }
 
-    /// Shows Home: where Start goes when dictation can't start from here (no Full Access, or no session in a build
-    /// that can't open Verbose), so its card can say why.
+    /// Shows Home: where Start goes when dictation can't start from here (no Full Access, or Verbose couldn't be
+    /// opened), so its card can say why.
     func showHome() {
         surface = .home
         closePanels()
@@ -169,11 +180,10 @@ final class KeyboardModel: ObservableObject {
         showingRecent = false
     }
 
-    /// The Typing bar's Start pill: dictates like Home's Tap to talk. When dictation can't start here, Home
-    /// explains (Full Access, or how to start a session).
+    /// The Typing bar's Start pill: dictates like Home's Tap to talk, and with no session starts one (Verbose
+    /// opens). Without Full Access, Home explains.
     func start() {
         guard hasFullAccess else { showHome(); return }
-        if needsSessionCard && !KeyboardBridge.sessionLive { showHome(); return }
         record()
     }
 
@@ -262,6 +272,7 @@ final class KeyboardModel: ObservableObject {
             showingSnippets = false
             showingRecent = false
             sessionLive = false
+            sessionPaused = false
             reloadStats()
             return
         }
@@ -338,13 +349,13 @@ final class KeyboardModel: ObservableObject {
             notice = "Dictation needs Full Access. Turn it on in Settings › Verbose › Keyboards › Allow Full Access."
             return
         }
+        if sessionPaused { notice = Self.pausedNotice; return }
         insertion = nil
         polishing = false
         notice = nil
         closePanels()
         clearLive()
         if KeyboardBridge.sessionLive { startDictation(defaults) }
-        else if needsSessionCard { return }   // The card shows the ways to start one.
         else { startSession(defaults) }
     }
 
@@ -410,11 +421,16 @@ final class KeyboardModel: ObservableObject {
             defaults.set(id.uuidString, forKey: KeyboardBridge.Key.startID)
         }
         set(.starting)
+        // Opens Verbose straight into the session (verbatim://session?start=1&request=…). When iOS won't open it,
+        // Home shows the other ways to start one instead.
         if controller?.openContainingApp(KeyboardBridge.sessionURL(request: r, host: host, dictation: d)) != true {
-            notice = "Couldn't open Verbose. Open it yourself to start a session."
             request = nil
             dropDictation()
             set(.idle)
+            openFailed = true
+            notice = nil
+            surface = .home
+            closePanels()
         }
         retime()
     }
@@ -670,12 +686,23 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func readSession(_ defaults: UserDefaults) {
-        let live = hasFullAccess && KeyboardBridge.sessionLive
+        let now = Date().timeIntervalSince1970
+        let presence = hasFullAccess
+            ? KeyboardPresence.from(active: defaults.bool(forKey: KeyboardBridge.Key.sessionActive),
+                                    heartbeatAge: now - defaults.double(forKey: KeyboardBridge.Key.heartbeat),
+                                    pausedAt: defaults.double(forKey: KeyboardBridge.Key.pausedAt), now: now,
+                                    stale: KeyboardBridge.heartbeatStale)
+            : .off
+        let live = presence == .live
+        let paused = presence == .paused
+        if paused != sessionPaused { sessionPaused = paused }
         if live != sessionLive {
             sessionLive = live
             // A session that ended reset the format chip to Auto.
             refreshFormat()
         }
+        if live || paused, openFailed { openFailed = false }
+        if !paused, notice == Self.pausedNotice { notice = nil }
         let ends = defaults.double(forKey: KeyboardBridge.Key.endsAt)
         let endsAt = live && ends > 0 ? Date(timeIntervalSince1970: ends) : nil
         if endsAt != sessionEndsAt { sessionEndsAt = endsAt }
@@ -726,6 +753,7 @@ final class KeyboardModel: ObservableObject {
         switch phase {
         case .listening:
             if stage != .writing { set(.listening) }
+            readEngine(defaults)
             // Tells the app a keyboard is showing this dictation (it stops a first-tap dictation nobody came back to).
             if visible, defaults.string(forKey: KeyboardBridge.Key.seenID) != d.uuidString {
                 defaults.set(d.uuidString, forKey: KeyboardBridge.Key.seenID)
@@ -739,6 +767,7 @@ final class KeyboardModel: ObservableObject {
             if notice != nil { notice = nil }
         case .transcribing:
             set(.writing)
+            readEngine(defaults)
             clock.setLevel(0)
             clearLive()
         case .done:
@@ -753,6 +782,12 @@ final class KeyboardModel: ObservableObject {
             clock.setLevel(0)
             set(.idle)
         }
+    }
+
+    /// The app's speech model state ("Getting ready" until it's warm). Missing reads as ready.
+    private func readEngine(_ defaults: UserDefaults) {
+        let ready = defaults.object(forKey: KeyboardBridge.Key.engineReady) as? Bool ?? true
+        if ready != engineReady { engineReady = ready }
     }
 
     private func insertResult(_ d: UUID, _ defaults: UserDefaults) {

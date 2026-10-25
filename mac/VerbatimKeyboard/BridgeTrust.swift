@@ -48,6 +48,62 @@ enum BridgeTrust {
 
     // MARK: Session links (verbatim://session and verbatim://dictate)
 
+    /// The link that opens Verbose straight into a keyboard session: `verbatim://session?start=1&…`. Built and read
+    /// here (pure, so the Linux tests check the round trip); `KeyboardBridge` forwards to it.
+    enum SessionRoute {
+        static let scheme = "verbatim"
+        static let host = "session"
+        /// The first keyboard's link, still accepted.
+        static let legacyHost = "dictate"
+
+        /// Where a session start came from when it wasn't the keyboard: Control Center, the Action button or
+        /// Shortcuts, the Lock Screen widget, a button in Verbose, or Restart in the Dynamic Island.
+        enum StartSource: String { case control, shortcut, widget, app, island }
+
+        struct Link: Equatable {
+            var request: UUID?
+            var host: String?
+            var dictation: UUID? = nil
+            var source: StartSource? = nil
+        }
+
+        /// The keyboard's link: `verbatim://session?start=1&request=<id>[&host=<bundle ID>][&dictate=<id>]`. The
+        /// app starts the session only when `request` matches the fresh one in the App Group (`decide`).
+        static func url(request: UUID, host appHost: String?, dictation: UUID? = nil) -> URL {
+            var c = URLComponents()
+            c.scheme = scheme
+            c.host = host
+            var items = [URLQueryItem(name: "start", value: "1"), URLQueryItem(name: "request", value: request.uuidString)]
+            if let appHost, !appHost.isEmpty { items.append(URLQueryItem(name: "host", value: appHost)) }
+            if let dictation { items.append(URLQueryItem(name: "dictate", value: dictation.uuidString)) }
+            c.queryItems = items
+            return c.url!
+        }
+
+        /// `verbatim://session?start=1&from=<source>`: a session with no keyboard request, so nothing switches
+        /// back and the start screen tells you how to go back to your app.
+        static func url(from source: StartSource) -> URL {
+            var c = URLComponents()
+            c.scheme = scheme
+            c.host = host
+            c.queryItems = [URLQueryItem(name: "start", value: "1"), URLQueryItem(name: "from", value: source.rawValue)]
+            return c.url!
+        }
+
+        /// The request in a `verbatim://session?…` link (or the first keyboard's `verbatim://dictate?…`), or nil
+        /// for any other link. An unknown source or a malformed ID reads as missing, never as a match.
+        static func parse(_ url: URL) -> Link? {
+            guard url.scheme?.lowercased() == scheme, url.host == host || url.host == legacyHost else { return nil }
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            func value(_ name: String) -> String? { items.first(where: { $0.name == name })?.value }
+            let request = (value("request") ?? value("session")).flatMap(UUID.init(uuidString:))
+            let appHost = value("host")
+            let dictation = value("dictate").flatMap(UUID.init(uuidString:))
+            let source = value("from").flatMap(StartSource.init(rawValue:))
+            return Link(request: request, host: appHost?.isEmpty == false ? appHost : nil, dictation: dictation, source: source)
+        }
+    }
+
     /// The keyboard opens the session link right after writing its request, so a request older than this didn't
     /// come with the link in hand (a cold launch takes a few seconds, never this long).
     static let requestFresh: TimeInterval = 30
