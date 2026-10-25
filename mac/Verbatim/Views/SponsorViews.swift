@@ -23,10 +23,10 @@ struct SponsorFoldRow: View {
                     glyph
                     Text(SponsorFold.title(span))
                         .font(.system(size: compact ? 13.5 : 15, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(look.isNative ? Color.primary : Ink.ink).lineLimit(1).truncationMode(.middle)
+                        .foregroundStyle((look == .native) ? Color.primary : Ink.ink).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(look.isNative ? Color.secondary : Ink.mute)
+                        .foregroundStyle((look == .native) ? Color.secondary : Ink.mute)
                         .rotationEffect(.degrees(open ? 180 : 0))
                 }
                 .contentShape(Rectangle())
@@ -36,7 +36,7 @@ struct SponsorFoldRow: View {
             .accessibilityHint(open ? "Hides the sponsor read" : "Shows the sponsor read")
             Menu { items } label: {
                 Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(look.isNative ? Color.secondary : Ink.dim)
+                    .foregroundStyle((look == .native) ? Color.secondary : Ink.dim)
                     .frame(width: 30, height: compact ? 26 : 32).contentShape(Rectangle())
             }
             #if os(macOS)
@@ -46,13 +46,13 @@ struct SponsorFoldRow: View {
             .accessibilityLabel("Sponsor read options")
         }
         .padding(.leading, 6).padding(.trailing, 4).padding(.vertical, compact ? 5 : 6)
-        .modifier(SponsorRowSurface(native: look.isNative, compact: compact))
+        .modifier(SponsorRowSurface(native: look == .native, compact: compact))
         .contextMenu { items }
     }
 
     /// The sponsor glyph on a neutral tile in Verbose style; a plain gray symbol in Native.
     @ViewBuilder private var glyph: some View {
-        if look.isNative {
+        if look == .native {
             Image(systemName: "tag").font(.system(size: compact ? 13 : 15)).foregroundStyle(.secondary)   // brand: native
                 .frame(width: compact ? 26 : 30, height: compact ? 26 : 30)
         } else {

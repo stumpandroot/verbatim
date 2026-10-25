@@ -141,7 +141,7 @@ struct KindChip: View {
 
     @ViewBuilder private var label: some View {
         let h: CGFloat = compact ? 28 : 36
-        if look.isNative {
+        if look == .native {
             nativeLabel(h)
         } else if let kind {
             HStack(spacing: 6) {
@@ -212,18 +212,18 @@ struct TagChips: View {
     var body: some View {
         let h: CGFloat = compact ? 28 : 36
         ForEach(tags, id: \.self) { tag in
-            Text(tag).font(.system(size: compact ? 13 : 15)).foregroundStyle(look.isNative ? Color.primary : Ink.ink)
+            Text(tag).font(.system(size: compact ? 13 : 15)).foregroundStyle((look == .native) ? Color.primary : Ink.ink)
                 .lineLimit(1).truncationMode(.middle)
                 .padding(.horizontal, compact ? 10 : 13).frame(minHeight: h)
-                .modifier(TagSurface(native: look.isNative))
+                .modifier(TagSurface(native: look == .native))
                 .contextMenu { Button(role: .destructive) { onRemove(tag) } label: { Label("Remove tag", systemImage: "xmark") } }
                 .accessibilityLabel("Tag: \(tag)")
         }
         Button { draft = ""; adding = true } label: {
             Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold))
-                .foregroundStyle(look.isNative ? Color.secondary : Ink.dim)
+                .foregroundStyle((look == .native) ? Color.secondary : Ink.dim)
                 .frame(width: h, height: h)
-                .modifier(TagSurface(native: look.isNative, filled: false))
+                .modifier(TagSurface(native: look == .native, filled: false))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
