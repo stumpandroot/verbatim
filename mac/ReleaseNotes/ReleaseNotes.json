@@ -11,7 +11,14 @@
         "Importing a damaged MP4 or M4A file no longer closes Verbose.",
         "Mac: the thought pad's Send button names the app you switch to right away, and the pad stops checking once you close it.",
         "Mac: on the You page, Cloud cleanup shows whether it's on and opens its own setting.",
-        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off."
+        "A long file that starts transcribing as Verbose opens keeps its saved progress, so if Verbose quits unexpectedly, the file picks up where it left off.",
+        "Mac: the Native look has a warmer, more polished design: a warm background, gradient cards for This week, your stats, and summaries, and a floating record button on Home and the Library.",
+        "Mac: in the Native look, the Library lists recordings with a preview beside them. Click to see the summary, double-click or press Return to open, and press Space to play. To see the table, choose More › View as Table.",
+        "Mac: in the Native look, a transcript shows its summary, moments, and speakers beside the text, the player has a Follow button, and Back and Forward are in the toolbar.",
+        "Mac: in the Native look, switching screens and opening transcripts take much less time.",
+        "Changing the look while a transcript is open no longer stops its audio or turns off skipping sponsor reads.",
+        "Opening one transcript from another keeps skipping its sponsor reads.",
+        "Mac: buttons in the accent color use black text in dark mode, so they're easier to read."
       ]
     },
     {

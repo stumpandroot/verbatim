@@ -115,7 +115,27 @@ struct NotesPanel: View {
     }
 
     private var details: some View {
-        DisclosureGroup(isExpanded: $detailsOpen) {
+        TranscriptDetails(transcript: transcript, open: $detailsOpen)
+    }
+
+    private func save() {
+        let t = draft.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        app.addNote(transcript: transcript.id, text: t, at: linked?.start ?? (app.player.time > 0 ? app.player.time : nil), segment: linked?.id)
+        draft = ""
+    }
+
+}
+
+/// Details under the side column (and Native's inspector): source, engine, language, words, Dictionary fixes, where
+/// it's kept, when it was made, where the data went, its project, and Delete.
+struct TranscriptDetails: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    @Binding var open: Bool
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $open) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                 row("Source", transcript.provenanceSource)
                 row("Engine", transcript.model.isEmpty ? "—" : transcript.model)
@@ -149,13 +169,6 @@ struct NotesPanel: View {
         } label: {
             HStack(spacing: 8) { ArtIcon(art: .iconDetails, size: 15); Text("Details") }.font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
         }
-    }
-
-    private func save() {
-        let t = draft.trimmingCharacters(in: .whitespaces)
-        guard !t.isEmpty else { return }
-        app.addNote(transcript: transcript.id, text: t, at: linked?.start ?? (app.player.time > 0 ? app.player.time : nil), segment: linked?.id)
-        draft = ""
     }
 
     private func row(_ k: String, _ v: String) -> some View {

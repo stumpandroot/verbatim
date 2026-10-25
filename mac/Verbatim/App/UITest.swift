@@ -655,11 +655,16 @@ enum UITest {
         // The switch as a pick makes it (LookSwitch.swift): the card, the rebuild behind it, and its time.
         await lookSwitch(to: .native, on: "home")
         try? await Task.sleep(nanoseconds: 400_000_000)
+        nativeChecks()
+        await nativeClicks(app: app, window: window)
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.library)
         await show("05-library-native")
+        NativeNav.shared.libraryTable = true
+        await show("05b-library-table-native")
+        NativeNav.shared.libraryTable = false
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
         UserDefaults.standard.set(SettingsTab.general.rawValue, forKey: "settingsTab")
@@ -686,11 +691,69 @@ enum UITest {
         await show("15-dark-library-native")
         if let m = memo { app.go(.transcript(m)) }
         await show("12-dark-transcript-native")
-        app.go(.home)
         NSApplication.shared.appearance = nil
         try? await Task.sleep(nanoseconds: 400_000_000)
-        await lookSwitch(to: .verbose, on: "home")
+        // Back to Verbose style on the open transcript: the switch rebuilds the screen, and its audio stays open (it
+        // used to stop when the old screen left after the new one appeared), with the same sponsor reads skipped.
+        let opened = app.player.canPlay
+        let loaded = app.player.loadedURL
+        await lookSwitch(to: .verbose, on: memo == nil ? "home" : "transcript")
         try? await Task.sleep(nanoseconds: 400_000_000)
+        if memo != nil {
+            if opened {
+                check("look switch on an open transcript keeps its audio", app.player.canPlay && app.player.loadedURL == loaded)
+            } else {
+                Log.note("UITEST note: the transcript's audio hadn't opened before the look switch; its check is skipped")
+            }
+        }
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    /// Checks that only hold while Native is on: tokens turn into Native's colors, resolved for the appearance asked
+    /// for (not whichever is drawing) and cached, and the serif role turns into SF Pro.
+    private static func check(_ name: String, _ ok: Bool) {
+        if ok { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+    }
+
+    private static func nativeChecks() {
+        check("native look: tokens turn into system colors while it's on", NativeSwap.on && NativeSwap.color(light: Ink.paperHex) != nil)
+        check("native look: the serif role is SF Pro", Ink.serif(30) == NativeSwap.serif(30, weight: .regular) && Ink.serif(30) != SurfaceFont.serif(30))
+        let light = NativeSwap.color(light: Ink.paperHex, dark: false, increased: false)
+        let dark = NativeSwap.color(light: Ink.paperHex, dark: true, increased: false)
+        check("native look: the window is the warm off-white in light and near black in dark",
+              light.map { abs($0.redComponent - 0xF6 / 255.0) < 0.01 && abs($0.blueComponent - 0xF1 / 255.0) < 0.01 } == true
+              && dark.map { $0.redComponent < 0.1 } == true)
+        let before = NativeSwap.cachedColorCount
+        _ = NativeSwap.color(light: Ink.inkHex, dark: true, increased: false)
+        let afterFirst = NativeSwap.cachedColorCount
+        _ = NativeSwap.color(light: Ink.inkHex, dark: true, increased: false)
+        check("native look: a token resolves once per appearance, then comes from the cache", afterFirst <= before + 1 && NativeSwap.cachedColorCount == afterFirst)
+        check("native look: brand fills keep their color", NativeSwap.color(light: Ink.persimmonHex, dark: false, increased: false) == nil)
+    }
+
+    /// The Native window's own controls, clicked: the sidebar (a List selection), a Library item (click selects,
+    /// double-click opens), and the toolbar's Back.
+    private static func nativeClicks(app: AppState, window: NSWindow) async {
+        let nav = NativeNav.shared
+        nav.libraryTable = false
+        app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
+        app.go(.queue)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        await step("native: sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
+        await step("native: sidebar Library opens the Library", window, target: "side-library", check: { app.screen == .library })
+        let first = Store.group(NativeLibraryScope.list(app), sort: LibrarySort(rawValue: UserDefaults.standard.string(forKey: LibrarySort.key) ?? "") ?? .newest).first?.items.first?.id
+        if windowFrames["lib-item-1"]?() != nil {
+            await step("native: clicking a Library item selects it", window, target: "lib-item-1",
+                       check: { app.screen == .library && nav.librarySelection != nil && nav.librarySelection != first })
+        }
+        await step("native: double-clicking a Library item opens its transcript", window, target: "lib-item-0", clicks: 2,
+                   check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
+        await step("native: the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
+        await step("native: Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
     /// Switches the look as the picker does, checks the card shows in the new look and goes, and logs the time from the
@@ -1099,7 +1162,8 @@ enum UITest {
         check("native look: buttons use title case", NativeText.titleCase("Don't ask for this app") == "Don't Ask for This App")
         check("native look: Pick a look comes after the welcome", OnboardingStep.at(1) == .look && OnboardingStep.count == 6)
         check("native look: Settings › General › Look is searchable", SettingsIndex.search("native").map(\.id).contains("general.look"))
-        check("native look: tokens stay Verbose style while it's chosen", !NativeSwap.on && NativeSwap.color(light: Ink.paperHex) == nil)
+        // The run starts in Verbose style (above), so this checks Verbose keeps its tokens; nativeChecks() checks Native.
+        check("native look: Verbose style keeps its own tokens", !NativeSwap.on && NativeSwap.color(light: Ink.paperHex) == nil)
         // What's new: the bundled notes, their rules, when Home's note shows, and where it's found (ReleaseNotes.swift).
         ReleaseNotes.selfTest { check($0, $1) }
         check("release notes: Settings search finds What's new", SettingsIndex.search("release notes").map(\.section).contains(.whatsNew))
@@ -1536,9 +1600,10 @@ enum UITest {
         Log.note("UITEST TIMING summary \(label) n=\(timings.count) appeared-median=\(pick(appeared, 0.5)) settled-median=\(pick(settled, 0.5)) settled-p90=\(pick(settled, 0.9)) settled-max=\(pick(settled, 1)) settled-total=\(Int(settled.reduce(0, +).rounded()))")
     }
 
-    private static func step(_ name: String, _ window: NSWindow, target: String, check: () -> Bool) async {
+    private static func step(_ name: String, _ window: NSWindow, target: String, clicks: Int = 1, check: () -> Bool) async {
         await reveal(target, in: window)
         click(target, in: window)
+        if clicks > 1 { click(target, in: window) }   // a double-click: the second click lands at once
         try? await Task.sleep(nanoseconds: 900_000_000)
         let ok = check()
         if ok { pass += 1 } else { fail += 1 }
@@ -1548,7 +1613,7 @@ enum UITest {
     /// Moves the pointer onto the target, then clicks it, through the window's own event path.
     private static func click(_ id: String, in main: NSWindow) {
         let window = id.hasPrefix("sheet-") ? (main.attachedSheet ?? main) : main
-        guard let f = frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
+        guard let f = windowFrames[id]?() ?? frames[id], let content = window.contentView else { Log.note("UITEST missing target \(id); known=\(frames.keys.sorted())"); return }
         let p = CGPoint(x: f.midX, y: content.bounds.height - f.midY)   // SwiftUI global (top-left) -> NSWindow (bottom-left)
         var chain: [String] = []
         var v = content.hitTest(p)
@@ -1577,6 +1642,39 @@ enum UITest {
         if let m = ev(.mouseMoved) { window.sendEvent(m) }
         if let d = ev(.leftMouseDown) { window.sendEvent(d) }
         if let u = ev(.leftMouseUp) { window.sendEvent(u) }
+    }
+}
+
+extension UITest {
+    /// Controls outside the window content's coordinate space (toolbar items live in hosting views of their own):
+    /// their frames, worked out when clicked, in the same top-left coordinates as `frames`.
+    static var windowFrames: [String: () -> CGRect?] = [:]
+}
+
+/// Records a control's frame in window coordinates for the self-test (toolbar items; see `UITest.windowFrames`).
+private struct UIWindowTarget: NSViewRepresentable {
+    var id: String
+    func makeNSView(context: Context) -> NSView {
+        let v = Probe()
+        UITest.windowFrames[id] = { [weak v] in v?.frameInWindow }
+        return v
+    }
+    func updateNSView(_ v: NSView, context: Context) {}
+
+    final class Probe: NSView {
+        var frameInWindow: CGRect? {
+            guard let w = window, let content = w.contentView, !isHiddenOrHasHiddenAncestor else { return nil }
+            let r = convert(bounds, to: nil)
+            return CGRect(x: r.minX, y: content.bounds.height - r.maxY, width: r.width, height: r.height)
+        }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
+extension View {
+    /// `uiTarget` for a control in the toolbar.
+    @ViewBuilder func uiWindowTarget(_ id: String) -> some View {
+        if UITest.enabled { background(UIWindowTarget(id: id)) } else { self }
     }
 }
 

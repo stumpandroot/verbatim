@@ -3,20 +3,20 @@ import AppKit
 
 // brand: native file
 //
-// The Library in the Native look (mockup section 03, "Mac Library"): the title and count in the toolbar (as a toolbar
-// title with its subtitle), a segmented scope bar in place of the filter chips, and a `Table` with alternating rows and
-// the standard selection, which fills with the accent. Rows group by day under plain headers. Double-click (or
-// Return) opens a transcript; right-click acts on the selection; rows drag onto a project in the sidebar, where the
-// project cards live in Native. Search is the window's toolbar field.
+// The Library in Premium Native (mockup "Premium Native", Mac Library): recordings as an editorial list under plain day
+// headers (the Voicenotes item, PremiumItems.swift) beside a preview in the inspector (the selected item's summary
+// card, its first line, Play, and Open Transcript). Click selects; double-click, Return, or Open Transcript opens;
+// arrow keys move; Space plays. The title and count, the scope, Sort, and More live in the window's toolbar
+// (NativeChrome.swift). More › View as Table brings back the first Native look's `Table` (multiple selection, columns).
+// Rows drag onto a project in the sidebar, where the projects live in Native. Search is the window's toolbar field.
 
 struct NativeLibraryView: View {
     @EnvironmentObject var app: AppState
+    @EnvironmentObject var nav: NativeNav
     @State private var selection: Set<String> = []
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
+    @FocusState private var listFocused: Bool
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
-
-    /// The scope bar's choices: everything, a type of source, or a kind.
-    enum Scope: Hashable { case all, source(LibrarySource), kind(RecordingKind) }
 
     /// A table row: a day header, or a transcript.
     struct Row: Identifiable {
@@ -26,109 +26,83 @@ struct NativeLibraryView: View {
     }
 
     var body: some View {
-        let base = app.filtered
-        let searching = !app.search.trimmingCharacters(in: .whitespaces).isEmpty
-        let all = app.libraryFilter.apply(base, searching: searching)
-        let list = app.libraryKind.map { k in all.filter { $0.kind == k } } ?? all
+        let list = NativeLibraryScope.list(app)
         let groups = Store.group(list, sort: sort)
-        let rows = groups.flatMap { g in [Row(id: "h:" + g.label, header: g.label)] + g.items.map { Row(id: $0.id.uuidString, transcript: $0) } }
         return VStack(alignment: .leading, spacing: 0) {
-            scopeBar(base: base, searching: searching)
-                .padding(.horizontal, 16).padding(.vertical, 10)
             if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                ScrollView { PassageResults(query: app.search, list: list).padding(.horizontal, 16).padding(.bottom, 10) }
+                ScrollView { PassageResults(query: app.search, list: list).padding(.horizontal, 32).padding(.bottom, 10) }
                     .frame(maxHeight: 220)
                 Divider()
             }
             if groups.isEmpty {
                 emptyState.frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if nav.libraryTable {
+                table(groups.flatMap { g in [Row(id: "h:" + g.label, header: g.label)] + g.items.map { Row(id: $0.id.uuidString, transcript: $0) } })
+                    .padding(.top, 6)
             } else {
-                table(rows)
+                premiumList(groups)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .toolbar { toolbar(count: list.count) }
-        .onChange(of: app.projectFilter) { _, _ in selection = [] }
+        .onChange(of: app.projectFilter) { _, _ in selection = []; nav.librarySelection = nil }
         .onAppear { KeptMedia.shared.refresh() }
     }
 
-    // MARK: Toolbar
+    // MARK: List
 
-    private var title: String {
-        if let p = app.projectFilter, let name = app.store.projects.first(where: { $0.id == p })?.name { return name }
-        return app.libraryKind?.plural ?? "Library"
+    /// The selected item: the one clicked, or the first while nothing is (the preview shows it either way).
+    private func selected(_ flat: [Transcript]) -> UUID? {
+        if let s = nav.librarySelection, flat.contains(where: { $0.id == s }) { return s }
+        return flat.first?.id
     }
 
-    @ToolbarContentBuilder private func toolbar(count: Int) -> some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(.system(size: 15, weight: .bold)).lineLimit(1)
-                Text(count == 1 ? "1 transcript" : "\(count.formatted()) transcripts").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-            }
-            .padding(.horizontal, 4)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            Menu {
-                Picker("Sort By", selection: $sortRaw) {
-                    ForEach(LibrarySort.allCases) { s in Text(s.title).tag(s.rawValue) }
+    private func premiumList(_ groups: [(label: String, items: [Transcript])]) -> some View {
+        let flat = groups.flatMap(\.items)
+        let current = selected(flat)
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(groups, id: \.label) { g in
+                        PremiumDayHeader(title: g.label)
+                        ForEach(g.items) { t in
+                            PremiumRecordingItem(transcript: t, selected: t.id == current, onSelect: { select(t.id) })
+                                .id(t.id)
+                                .modifier(FirstItemsTarget(id: t.id, flat: flat))
+                        }
+                    }
                 }
-                .pickerStyle(.inline)
-            } label: {
-                Label("Sort", systemImage: "arrow.up.arrow.down")
+                .padding(.horizontal, 32).padding(.top, 4).padding(.bottom, 110)
+                .frame(maxWidth: 780, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .help("Sort the Library: newest, oldest, longest, or by title")
-            Menu {
-                Button("Import Files…") { app.chooseFiles() }
-                if let p = app.projectFilter {
-                    Button("Add from Library…") { app.addFromLibrary = p }
-                }
-                Button("New Project…") { app.newProjectFor = [] }
-                Divider()
-                Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
-            } label: {
-                Label("More", systemImage: "ellipsis.circle")
+            .focusable()
+            .focused($listFocused)
+            .focusEffectDisabled()
+            .onKeyPress(.downArrow) { step(1, flat, proxy); return .handled }
+            .onKeyPress(.upArrow) { step(-1, flat, proxy); return .handled }
+            .onKeyPress(.return) {
+                guard let id = selected(flat) else { return .ignored }
+                app.go(.transcript(id)); return .handled
             }
-            .help("Import, add from your library, or start a project")
+            .onKeyPress(.space) {
+                guard let id = selected(flat), let t = app.store.transcript(id), t.audioFileName != nil else { return .ignored }
+                nav.play(t, app: app); return .handled
+            }
         }
     }
 
-    // MARK: Scope bar
-
-    private var scope: Scope {
-        if let k = app.libraryKind { return .kind(k) }
-        if app.libraryFilter.source != .all { return .source(app.libraryFilter.source) }
-        return .all
+    private func select(_ id: UUID) {
+        listFocused = true
+        if nav.librarySelection != id { nav.librarySelection = id }
     }
 
-    private func scopeBar(base: [Transcript], searching: Bool) -> some View {
-        let sources = LibraryFilter.all.sourceCounts(base, searching: searching).filter { $0.0 != .all && $0.1 > 0 }.map(\.0)
-        var kindCounts: [RecordingKind: Int] = [:]
-        for t in LibraryFilter.all.apply(base, searching: searching) { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
-        let kinds = RecordingKind.pickable.filter { (kindCounts[$0] ?? 0) > 0 || app.libraryKind == $0 }
-        let options: [(Scope, String)] = [(.all, "All")] + sources.map { (.source($0), $0.label) } + kinds.map { (.kind($0), $0.plural) }
-        let binding = Binding<Scope>(get: { scope }, set: { choose($0) })
-        return ViewThatFits(in: .horizontal) {
-            Picker("Show", selection: binding) {
-                ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            Picker("Show", selection: binding) {
-                ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
-            }
-            .pickerStyle(.menu).fixedSize()
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-    }
-
-    private func choose(_ s: Scope) {
-        selection = []
-        switch s {
-        case .all: app.libraryKind = nil; app.libraryFilter = .all
-        case .source(let src): app.libraryKind = nil; app.libraryFilter = LibraryFilter(source: src)
-        case .kind(let k): app.libraryFilter = .all; app.libraryKind = k
-        }
+    /// Arrow keys: the next or previous item, scrolled into view.
+    private func step(_ by: Int, _ flat: [Transcript], _ proxy: ScrollViewProxy) {
+        guard !flat.isEmpty else { return }
+        let i = selected(flat).flatMap { id in flat.firstIndex { $0.id == id } } ?? 0
+        let next = flat[max(0, min(flat.count - 1, i + by))].id
+        nav.librarySelection = next
+        proxy.scrollTo(next)
     }
 
     // MARK: Table
@@ -275,5 +249,91 @@ struct NativeLibraryView: View {
                              message: "Record a voice note, import a file, or paste a link on Home. Every transcript lands here.",
                              button: "Import files", action: { app.chooseFiles() })
         }
+    }
+}
+
+/// The self-test's handles on the list's first two items.
+private struct FirstItemsTarget: ViewModifier {
+    var id: UUID
+    var flat: [Transcript]
+    func body(content: Content) -> some View {
+        if UITest.enabled, let i = flat.prefix(2).firstIndex(where: { $0.id == id }) {
+            content.uiWindowTarget("lib-item-\(i)")
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Preview
+
+/// The Library's preview in the inspector: the selected item (or the first) with its kind, day, length, and people,
+/// its title, the summary card, its first line, and Play, Open Transcript, and ⋯.
+struct PremiumLibraryPreview: View {
+    @EnvironmentObject var app: AppState
+    @ObservedObject var nav: NativeNav
+    @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
+
+    var body: some View {
+        let list = NativeLibraryScope.list(app)
+        let chosen = nav.librarySelection.flatMap { id in list.first { $0.id == id } }
+            ?? Store.group(list, sort: LibrarySort(rawValue: sortRaw) ?? .newest).first?.items.first
+        ScrollView {
+            if let t = chosen {
+                card(t).padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
+            } else {
+                Text("Select a recording to see its summary.")
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).padding(.top, 60)
+            }
+        }
+        .scrollIndicators(.never)
+    }
+
+    private func card(_ t: Transcript) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(meta(t)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary).lineLimit(2)
+            Text(t.title).font(.system(size: 21, weight: .bold)).tracking(-0.3).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+                .accessibilityAddTraits(.isHeader)
+            if let s = t.summary, !s.isEmpty {
+                PremiumSummaryCard(summary: s, byModel: t.summaryByModel, compact: true).padding(.top, 14)
+            }
+            if let line = t.visibleSegments(hideFiller: true).first?.text, !line.isEmpty {
+                Text("“\(line)”").font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(3).lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 14)
+            }
+            HStack(spacing: 8) {
+                if t.audioFileName != nil && t.status == .ready {
+                    Button { nav.play(t, app: app) } label: { Label("Play", systemImage: "play.fill") }
+                        .buttonStyle(PremiumProminentButtonStyle())
+                        .help("Open and play (Space)")
+                }
+                Button("Open Transcript") { app.go(.transcript(t.id)) }
+                    .buttonStyle(PremiumBorderedButtonStyle())
+                    .help("Open the transcript (Return)")
+                    .uiWindowTarget("lib-open")
+                Menu { RowMenu(transcript: t) } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary)
+                        .frame(width: 40, height: 30).background(PremiumInk.fill, in: Capsule()).contentShape(Capsule())
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel("More for \(t.title)")
+            }
+            .padding(.top, 16)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard(radius: 22)
+    }
+
+    /// "Podcast · Thu Oct 22 · 1:04:12 · Allie Beth Stuckey, Ginna Cross".
+    private func meta(_ t: Transcript) -> String {
+        var parts = [NativeLibraryView.kind(t), Formats.pattern("EEE MMM d").string(from: t.createdAt)]
+        if t.duration > 0 { parts.append(NativeLibraryView.length(t.duration)) }
+        let people = NativeLibraryView.people(t, projects: app.store.projectsByID)
+        if !people.isEmpty { parts.append(people) }
+        return parts.joined(separator: " · ")
     }
 }

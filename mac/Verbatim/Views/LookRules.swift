@@ -40,6 +40,11 @@ enum NativeRoles {
         default: return nil
         }
     }
+
+    /// One cache slot per token, appearance, and contrast setting (NativeSwap resolves each once).
+    static func cacheKey(light: UInt32, dark: Bool, increased: Bool) -> UInt64 {
+        UInt64(light & 0xFFFFFF) << 2 | (dark ? 2 : 0) | (increased ? 1 : 0)
+    }
 }
 
 /// SF Symbols for the Native look. Only files marked `// brand: native` name SF Symbols outside the DESIGN.md §3

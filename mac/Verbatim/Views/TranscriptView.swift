@@ -47,6 +47,8 @@ struct TranscriptView: View {
     @FocusState private var titleFocused: Bool
     @Namespace private var segNS
     @Environment(\.look) private var look
+    /// Native's toolbar and inspector share the tab, text size, and selected passage (NativeChrome.swift).
+    @EnvironmentObject private var nav: NativeNav
 
     /// Raw values stay stable: UI tests and Home post them in `.verbatimShowMode`.
     enum Mode: String, CaseIterable {
@@ -59,6 +61,9 @@ struct TranscriptView: View {
     /// Clean up and Tone live inside Cleaned.
     static let visibleModes: [Mode] = [.original, .document, .review]
 
+    /// The reading text's size: this screen's own in Verbose style; Native's toolbar sets it (`NativeNav`).
+    private var fontSize: CGFloat { look == .native ? nav.textSize : textSize }
+
     /// What Copy takes on this tab.
     private var copyVersion: Exporter.CopyVersion { view == .document ? .cleaned : .original }
 
@@ -66,17 +71,11 @@ struct TranscriptView: View {
     private var transcript: Transcript? { app.store.transcript(id) }
 
     var body: some View {
-        // One sheet for the screen: the tools row can exist twice (scrolled and pinned).
+        // One sheet for the screen: the tools row can exist twice (scrolled and pinned). Native runs actions from the
+        // window's toolbar, which shows the same sheet (NativeChrome.swift).
         screenBody.sheet(item: $runningAction) { a in
             if let t = transcript {
-                // The transcript actions read the Original text with corrections, never the Cleaned text.
-                let onOriginal = TranscriptActions.isBuiltIn(a.id)
-                ActionSheet(action: a, source: onOriginal ? TranscriptActions.source(t, timestamps: false) : t.documentText,
-                            sourceLabel: onOriginal ? "the original transcript" : "“\(t.title)”",
-                            transcript: onOriginal ? t : nil, aiLabel: TranscriptActions.madeByLabel) { text in
-                    app.store.addNote(Note(text: text, aiAction: a.name), to: t.id)
-                }
-                .environmentObject(app)
+                TranscriptActionSheet(action: a, transcript: t).environmentObject(app)
             }
         }
         .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
@@ -210,10 +209,17 @@ struct TranscriptView: View {
             }
             .onAppear {
                 if UITest.enabled { Log.note("UITEST nav appear ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000)) segments=\(t.segments.count)") }
-                if let u = app.store.audioURL(for: t) { app.player.loadAsync(u, startAt: pendingSeek) }
+                app.player.screenAppeared(t.id)
+                if let u = app.store.audioURL(for: t) {
+                    app.player.loadAsync(u, startAt: pendingSeek, autoplay: nav.takeAutoplay(t.id))
+                } else {
+                    app.player.stop()   // nothing of another transcript's keeps playing here
+                }
                 if UITest.enabled { DispatchQueue.main.async { Log.note("UITEST nav settled ms=\(Int(Date().timeIntervalSince(app.navStartedAt) * 1000))") } }
             }
-            .onDisappear { app.player.stop() }
+            // Stops only when the last screen for this transcript goes and no other transcript took playback: a look
+            // switch builds the new screen before the old one leaves, and that used to stop the audio.
+            .onDisappear { if app.player.screenLeft(id) { app.player.stop() } }
             .skipsSponsors(t, player: app.player)
             // Playback keys never steal typing: when a text field (renaming a speaker, a note, a correction) has
             // focus, the key goes to the field.
@@ -231,8 +237,9 @@ struct TranscriptView: View {
 
     // MARK: Native
 
-    /// The transcript in the Native look: the text on the window background, the inspector for the side column, the
-    /// player bar at the foot, and the modes and tools in the toolbar (NativeTranscript.swift).
+    /// The transcript in Premium Native: a reading column on the warm window with times in a fixed column, and a
+    /// floating player bar. The tabs and tools live in the window's toolbar and the side column in its inspector
+    /// (NativeChrome.swift), so opening a transcript adds nothing to the window.
     private func nativeScreen(_ t: Transcript) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -241,14 +248,14 @@ struct TranscriptView: View {
                     if view == .original, t.status == .ready { versionControl(t).padding(.bottom, 12) }
                     content(t)
                 }
-                .frame(maxWidth: 760, alignment: .leading)
-                .padding(.horizontal, 32).padding(.top, 18)
-                .padding(.bottom, t.audioFileName != nil && view != .document ? 96 : 32)
+                .frame(maxWidth: 720, alignment: .leading)
+                .padding(.horizontal, 32).padding(.top, 8)
+                .padding(.bottom, t.audioFileName != nil && view != .document ? 110 : 32)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .onReceive(app.player.clock.$time) { now in
-                // Follow playback, but only when the playing passage changes (not on every tick).
-                if app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
+                // Follow playback (while Follow is on), only when the playing passage changes, not on every tick.
+                if nav.follow, app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
                     followed = s.id
                     withAnimation(Motion.settle) { proxy.scrollTo(s.id, anchor: .center) }
                 }
@@ -266,30 +273,25 @@ struct TranscriptView: View {
         }
         .overlay(alignment: .bottom) {
             if t.audioFileName != nil, t.status == .ready, view != .document {
-                NativePlayerBar(transcript: t, clock: app.player.clock)
-                    .padding(.horizontal, 32).padding(.bottom, 16)
+                NativePlayerBar(transcript: t, clock: app.player.clock, nav: nav)
+                    .padding(.horizontal, 40).padding(.bottom, 22)
             }
-        }
-        .inspector(isPresented: Binding(get: { notesPref ?? true }, set: { notesPref = $0 })) {
-            NotesPanel(transcript: t, selectedSegment: selectedSegment, detailsOpen: $detailsOpen)
-                .padding(.horizontal, 12)
-                .inspectorColumnWidth(min: 250, ideal: 300, max: 400)
-        }
-        .toolbar {
-            NativeTranscriptToolbar(app: app, transcript: t, mode: $view,
-                                    inspector: Binding(get: { notesPref ?? true }, set: { notesPref = $0 }),
-                                    textSize: $textSize, copyVersion: copyVersion,
-                                    onAction: { runningAction = $0 }, onSummarize: { summarize(t) })
         }
         .background {
             ZStack {
                 Button("") { ExportMenu.copy(t, copyVersion, app: app) }.keyboardShortcut("c", modifiers: [.command, .shift])
                 Button("") { CopyForAI.copy(t, app: app) }.keyboardShortcut("c", modifiers: [.command, .option, .shift])
-                Button("") { textSize = min(22, textSize + 1) }.keyboardShortcut("=", modifiers: .command)
-                Button("") { textSize = max(13, textSize - 1) }.keyboardShortcut("-", modifiers: .command)
+                Button("") { nav.textSize = min(22, nav.textSize + 1) }.keyboardShortcut("=", modifiers: .command)
+                Button("") { nav.textSize = max(13, nav.textSize - 1) }.keyboardShortcut("-", modifiers: .command)
             }
             .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
         }
+        // The toolbar's tabs and text size and the inspector's note field share this screen's state.
+        // Written only when they differ, so opening a transcript doesn't re-render the toolbar for nothing.
+        .onAppear { if nav.mode != view { nav.mode = view }; if nav.selectedSegment != selectedSegment { nav.selectedSegment = selectedSegment } }
+        .onChange(of: nav.mode) { _, m in if view != m { withAnimation(Motion.snap) { view = m } } }
+        .onChange(of: view) { _, m in if nav.mode != m { nav.mode = m } }
+        .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
     }
 
     /// "Podcast · Thursday, October 22 · 1:04:12 · 2 speakers · English".
@@ -343,9 +345,9 @@ struct TranscriptView: View {
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if look == .native {
-                // Native: a bold title and one secondary line; Original and Cleaned live in the toolbar.
+                // Native: a big bold title (SF Pro, never the serif) and one secondary line; the tabs live in the toolbar.
                 title(t)
-                Text(nativeMeta(t)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).padding(.top, 3)
+                Text(nativeMeta(t)).font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1).padding(.top, 6)
             } else {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -400,14 +402,14 @@ struct TranscriptView: View {
     @ViewBuilder private func title(_ t: Transcript) -> some View {
         if editingTitle {
             TextField("Title", text: $titleDraft, axis: .vertical)
-                .textFieldStyle(.plain).font(look == .native ? .system(size: 22, weight: .bold) : Ink.serif(44))
+                .textFieldStyle(.plain).font(look == .native ? .system(size: 30, weight: .bold) : Ink.serif(44))
                 .tracking(look == .native ? 0 : -1).foregroundStyle(Ink.ink).lineLimit(1...3)
                 .focused($titleFocused)
                 .onSubmit { commitTitle(t) }
                 .onChange(of: titleFocused) { _, f in if !f { commitTitle(t) } }
                 .onExitCommand { editingTitle = false }
         } else if look == .native {
-            Text(t.title).font(.system(size: 22, weight: .bold)).foregroundStyle(.primary)
+            Text(t.title).font(.system(size: 30, weight: .bold)).tracking(-0.4).foregroundStyle(.primary)
                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 .contentShape(Rectangle())
                 .onTapGesture { beginRename(t) }
@@ -584,7 +586,7 @@ struct TranscriptView: View {
                     .font(.system(size: 12.5)).foregroundStyle(Ink.mute).padding(.leading, 84)
             }
             if selecting {
-                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: textSize)
+                SelectableLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segs, textSize: fontSize)
             } else {
                 lines(t, segments: segs, editable: !showEngine)
             }
@@ -615,7 +617,7 @@ struct TranscriptView: View {
     }
 
     private func lines(_ t: Transcript, segments: [Segment], editable: Bool) -> some View {
-        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, editable: editable, textSize: textSize, selected: $selectedSegment)
+        TranscriptLines(clock: app.player.clock, isPlaying: app.player.isPlaying, transcript: t, segments: segments, editable: editable, textSize: fontSize, selected: $selectedSegment)
     }
 
     private func review(_ t: Transcript) -> some View {
@@ -738,3 +740,21 @@ struct ToggleOffsetKey: PreferenceKey {
 }
 
 extension Notification.Name { static let verbatimShowMode = Notification.Name("verbatimShowMode") }
+
+/// An action run on a transcript (Actions menu): the transcript actions read the Original text with corrections,
+/// never the Cleaned text; the result can be kept as a note.
+struct TranscriptActionSheet: View {
+    @EnvironmentObject var app: AppState
+    var action: FlowAction
+    var transcript: Transcript
+
+    var body: some View {
+        let t = transcript
+        let onOriginal = TranscriptActions.isBuiltIn(action.id)
+        ActionSheet(action: action, source: onOriginal ? TranscriptActions.source(t, timestamps: false) : t.documentText,
+                    sourceLabel: onOriginal ? "the original transcript" : "“\(t.title)”",
+                    transcript: onOriginal ? t : nil, aiLabel: TranscriptActions.madeByLabel) { text in
+            app.store.addNote(Note(text: text, aiAction: action.name), to: t.id)
+        }
+    }
+}

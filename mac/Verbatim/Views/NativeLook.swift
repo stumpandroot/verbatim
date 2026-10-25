@@ -16,24 +16,55 @@ import AppKit
 enum NativeSwap {
     /// True when this Mac uses the Native look. Read on every token and font lookup, so it's cached, and read again
     /// whenever defaults change (posted on the writing thread before SwiftUI's next render, so a switch is never stale).
+    /// Defaults can change on any thread (the iCloud container lookup, the model engine), so the cache is locked.
     static var on: Bool {
         _ = watcher
+        lock.lock(); defer { lock.unlock() }
         if let c = cache { return c }
         let v = read()
         cache = v
         return v
     }
+    private static let lock = NSLock()
     private static var cache: Bool?
     private static func read() -> Bool { UserDefaults.standard.string(forKey: AppLook.key) == AppLook.native.rawValue }
     private static let watcher: NSObjectProtocol = NotificationCenter.default.addObserver(
-        forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { _ in cache = read() }
+        forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { _ in
+            let v = read()
+            lock.lock(); cache = v; lock.unlock()
+        }
 
-    /// The system color standing in for a Verbose token (by the token's light value) under Native, resolved for the
-    /// appearance being drawn. Nil in Verbose style and for brand fills, which keep their color.
-    static func color(light: UInt32) -> NSColor? {
+    /// The system color standing in for a Verbose token (by the token's light value) under Native, for the appearance
+    /// AppKit is resolving (`dark`, `increased` contrast), not whichever appearance happens to be drawing. Nil in
+    /// Verbose style and for brand fills, which keep their color. Each (token, appearance, contrast) resolves once:
+    /// resolving a system color allocates, and every Ink color in every view asks on every render.
+    static func color(light: UInt32, dark: Bool, increased: Bool) -> NSColor? {
         guard on, let role = NativeRoles.role(light: light) else { return nil }
-        return role.nsColor.resolved(in: NSAppearance.currentDrawing())
+        let key = NativeRoles.cacheKey(light: light, dark: dark, increased: increased)
+        _ = colorWatchers
+        colorLock.lock()
+        if let hit = colors[key] { colorLock.unlock(); return hit }
+        colorLock.unlock()
+        let out = role.resolved(dark: dark, increased: increased)
+        colorLock.lock(); colors[key] = out; colorLock.unlock()
+        return out
     }
+
+    /// `color(light:dark:increased:)` for the appearance drawing now (the self-test's checks).
+    static func color(light: UInt32) -> NSColor? {
+        color(light: light, dark: NSAppearance.currentDrawing().isDark, increased: ContrastSetting.increased)
+    }
+
+    private static let colorLock = NSLock()
+    private static var colors: [UInt64: NSColor] = [:]
+    /// System colors can change under us (accessibility display options, the system's own palette): start over then.
+    private static let colorWatchers: [NSObjectProtocol] = [
+        NotificationCenter.default.addObserver(forName: NSColor.systemColorsDidChangeNotification, object: nil, queue: nil) { _ in flush() },
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: nil) { _ in flush() },
+    ]
+    static func flush() { colorLock.lock(); colors.removeAll(); colorLock.unlock() }
+    /// How many resolved colors are cached (the self-test checks a repeat lookup doesn't add one).
+    static var cachedColorCount: Int { colorLock.lock(); defer { colorLock.unlock() }; return colors.count }
 
     /// The serif type role in Native: SF Pro, a step smaller and semibold for titles (serif display sizes run large).
     static func serif(_ size: CGFloat, weight: Font.Weight) -> Font {
@@ -42,10 +73,28 @@ enum NativeSwap {
     }
 }
 
+/// Increase Contrast, read once and again only when it changes (it was asked on every color resolve).
+enum ContrastSetting {
+    static var increased: Bool {
+        _ = watcher
+        lock.lock(); defer { lock.unlock() }
+        return value
+    }
+    private static let lock = NSLock()
+    private static var value = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    private static let watcher: NSObjectProtocol = NSWorkspace.shared.notificationCenter.addObserver(
+        forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: nil) { _ in
+            let v = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+            lock.lock(); value = v; lock.unlock()
+        }
+}
+
 extension NativeRole {
+    /// The role's color. The window is Premium Native's warm off-white (black in dark, DESIGN.md §13.2), not the
+    /// system's window gray; the rest are system colors.
     var nsColor: NSColor {
         switch self {
-        case .window: return .windowBackgroundColor
+        case .window: return PremiumInk.windowNS
         case .content: return .controlBackgroundColor
         case .label: return .labelColor
         case .secondaryLabel: return .secondaryLabelColor
@@ -54,6 +103,15 @@ extension NativeRole {
         case .selection: return .unemphasizedSelectedContentBackgroundColor
         case .fill: return .quaternaryLabelColor
         }
+    }
+}
+
+extension NativeRole {
+    /// The role's color as drawn in light or dark, with or without Increase Contrast, as a plain sRGB color.
+    func resolved(dark: Bool, increased: Bool) -> NSColor {
+        let name: NSAppearance.Name = increased ? (dark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua) : (dark ? .darkAqua : .aqua)
+        guard let appearance = NSAppearance(named: name) ?? NSAppearance(named: dark ? .darkAqua : .aqua) else { return nsColor }
+        return nsColor.resolved(in: appearance)
     }
 }
 
@@ -68,7 +126,8 @@ extension NSColor {
 
 /// System colors for code that draws Native on purpose (the Native layouts and the kit's Native branches).
 enum NativeInk {
-    static let window = Color(nsColor: .windowBackgroundColor)
+    /// The window: Premium Native's warm off-white, black in dark (`PremiumInk`).
+    static let window = PremiumInk.window
     static let content = Color(nsColor: .controlBackgroundColor)
     static let separator = Color(nsColor: .separatorColor)
     static let accent = Ink.nativeAccent
@@ -152,7 +211,8 @@ enum NativeButtonSize {
     var padding: CGFloat { switch self { case .mini: return 10; case .regular: return 14; case .large: return 18 } }
 }
 
-/// The face of a Native button: `.borderedProminent` (the accent, white text) or `.bordered` (a gray wash), title case.
+/// The face of a Native button: `.borderedProminent` (the accent, white text in light and black in dark, where white on
+/// #FF6B47 measures 2.8:1) or `.bordered` (a gray wash), title case.
 /// Used where the kit keeps its own click handling (PillButton, cards that show a button).
 struct NativeButtonFace: View {
     var title: String
@@ -167,7 +227,7 @@ struct NativeButtonFace: View {
         Text(titleCase ? NativeText.titleCase(title) : title)
             .font(.system(size: size.font, weight: prominent ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .foregroundStyle(prominent ? PremiumInk.onAccent : Color.primary)
             .padding(.horizontal, size.padding)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(height: size.height)
@@ -196,7 +256,7 @@ struct NativeButtonStyleFace: View {
         configuration.label
             .font(.system(size: size.font, weight: prominent ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(prominent ? Color.white : (tint ?? Color.primary))
+            .foregroundStyle(prominent ? PremiumInk.onAccent : (tint ?? Color.primary))
             .padding(.horizontal, size.padding)
             .frame(height: size.height)
             .background {
@@ -228,7 +288,7 @@ struct NativeChipFace: View {
         }
         .font(.system(size: small ? 11.5 : 12, weight: .medium))
         .lineLimit(1)
-        .foregroundStyle(selected ? Color.white : Color.primary)
+        .foregroundStyle(selected ? PremiumInk.onAccent : Color.primary)
         .padding(.horizontal, small ? 9 : 11)
         .frame(height: small ? 22 : 26)
         .background(Capsule().fill(selected ? Ink.nativeAccent : (hover ? NativeInk.borderedHover : NativeInk.bordered)))
@@ -293,7 +353,7 @@ struct NativeEmptyState: View {
             Text(message)
         } actions: {
             if let button, let action {
-                Button(NativeText.titleCase(button), action: action).buttonStyle(.borderedProminent)
+                Button(NativeText.titleCase(button), action: action).buttonStyle(PremiumProminentButtonStyle())
             }
         }
         .frame(maxWidth: .infinity)
