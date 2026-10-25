@@ -70,6 +70,32 @@ var noHost = fresh; noHost.host = nil
 check("no host from the keyboard: none (the breadcrumb may still lead back)",
       BridgeTrust.decide(linkRequest: r, linkDictation: d, stored: noHost, consumed: [], now: now) == .start(host: nil, dictation: d))
 
+// MARK: The session route (the keyboard's Start a session opens Verbose straight into the session)
+
+typealias Route = BridgeTrust.SessionRoute
+let kbURL = Route.url(request: r, host: "com.apple.MobileSMS", dictation: d)
+check("the keyboard's link uses verbatim://session", kbURL.scheme == "verbatim" && kbURL.host == "session", kbURL.absoluteString)
+check("the keyboard's link asks to start", kbURL.absoluteString.contains("start=1"), kbURL.absoluteString)
+check("the keyboard's link round-trips request, host, and dictation",
+      Route.parse(kbURL) == Route.Link(request: r, host: "com.apple.MobileSMS", dictation: d, source: nil))
+check("App Store builds send no host: the link leaves it out",
+      Route.parse(Route.url(request: r, host: nil)) == Route.Link(request: r, host: nil) && !Route.url(request: r, host: "").absoluteString.contains("host="))
+check("each start source round-trips",
+      [Route.StartSource.control, .shortcut, .widget, .app, .island].allSatisfy { Route.parse(Route.url(from: $0)) == Route.Link(request: nil, host: nil, source: $0) })
+check("Restart in the Dynamic Island names its source", Route.url(from: .island).absoluteString == "verbatim://session?start=1&from=island")
+check("the Lock Screen widget's link still parses", Route.parse(URL(string: "verbatim://session?start=1&from=widget")!)?.source == .widget)
+check("the first keyboard's dictate link still parses",
+      Route.parse(URL(string: "verbatim://dictate?session=\(r.uuidString)")!)?.request == r)
+check("another host isn't a session link", Route.parse(URL(string: "verbatim://open")!) == nil)
+check("another scheme isn't a session link", Route.parse(URL(string: "https://session?request=\(r.uuidString)")!) == nil)
+check("a malformed request reads as none, never a match", Route.parse(URL(string: "verbatim://session?request=nope")!)?.request == nil)
+check("an unknown source reads as none", Route.parse(URL(string: "verbatim://session?from=elsewhere")!)?.source == nil)
+check("an empty host reads as none", Route.parse(URL(string: "verbatim://session?request=\(r.uuidString)&host=")!)?.host == nil)
+check("a parsed link still needs the App Group's request to start",
+      BridgeTrust.decide(linkRequest: Route.parse(kbURL)?.request, linkDictation: Route.parse(kbURL)?.dictation, stored: fresh, consumed: [], now: now)
+        == .start(host: "com.apple.MobileSMS", dictation: d)
+      && BridgeTrust.decide(linkRequest: Route.parse(Route.url(from: .island))?.request, linkDictation: nil, stored: fresh, consumed: [], now: now) == .confirm)
+
 // MARK: Bundle IDs
 
 check("a bundle ID passes", BridgeTrust.validHost("net.whatsapp.WhatsApp") == "net.whatsapp.WhatsApp")

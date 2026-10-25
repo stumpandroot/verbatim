@@ -65,6 +65,8 @@ enum KB {
 /// position, and style follow Settings › Keyboard › Dictate button (`DictateButton`, the notch mockup's section 05):
 /// Typing's Start, Home's Tap to talk, and Listening's done button move and change with it.
 /// - Home: close and ABC (to Typing), Recent, and Settings over your numbers in the serif, with one butter Tap to talk.
+///   With no session, the same layout offers Start a session instead (it opens Verbose straight into one), with
+///   "Or use Control Center or the Action button" under it; when Verbose couldn't be opened, the other ways.
 /// - Typing: the menu and a butter Start over the full keyboard. Words that go in come back here with
 ///   "✓ Inserted · 14 words" and Undo for a few seconds.
 /// - Listening: cancel, the cleanup chip, and a butter done button over your words, the voice bars, "Listening", and
@@ -169,37 +171,61 @@ struct KeyboardView: View {
             FullAccessCard()
                 .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 10)
         } else if model.needsSessionCard {
-            StartSessionCard()
-                .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 10)
+            VStack(spacing: 0) {
+                switch model.startCard {
+                case .start:
+                    StartSessionHeadline(returnsByItself: Distribution.current.returnsToHostApp)
+                        .frame(maxHeight: .infinity)
+                case .instructions:
+                    StartSessionWays()
+                        .padding(.horizontal, 10).padding(.top, 10)
+                        .frame(maxHeight: .infinity)
+                }
+                Group {
+                    if model.notice != nil || model.info != nil { statusLine }
+                    else {
+                        Text(StartCard.secondary)
+                            .font(.system(size: 12.5)).foregroundStyle(KB.muted)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                }
+                .padding(.horizontal, 18).padding(.top, 6).padding(.bottom, 6)
+                talkRow(label: StartCard.title, hint: Distribution.current.returnsToHostApp
+                        ? "Opens Verbose for a second to turn on the microphone, then comes back here"
+                        : "Opens Verbose to turn on the microphone. Then tap the back link at the top left to come back")
+            }
         } else {
             VStack(spacing: 0) {
                 StatsPager(pages: model.statsPages, page: model.statsPage,
                            next: model.nextStatsPage, previous: model.previousStatsPage)
                     .frame(maxHeight: .infinity)
                 statusLine.padding(.horizontal, 18).padding(.bottom, 6)
-                ZStack {
-                    // Tap to talk sits where the dictate button does (left, center, or right), clear of the globe.
-                    HStack(spacing: 0) {
-                        if look.position != .left { Spacer(minLength: 0) }
-                        TalkPill(label: "Tap to talk", style: look.style, action: model.record)
-                            .accessibilityHint(model.sessionLive ? "Starts listening right away"
-                                               : "Opens Verbose for a second to turn on the microphone, then comes back here")
-                        if look.position != .right { Spacer(minLength: 0) }
-                    }
-                    .padding(.leading, look.position == .left && model.showsGlobe ? 42 : 0)
-                    if model.showsGlobe {
-                        HStack {
-                            globe
-                            Spacer()
-                        }
-                    }
-                }
-                .padding(.horizontal, KB.barInset).padding(.bottom, 10)
+                talkRow(label: "Tap to talk", hint: model.sessionPaused ? "Paused for a call" : "Starts listening right away")
             }
         }
     }
 
-    /// A failure, or a short confirmation ("Copied."), above Tap to talk.
+    /// Home's one big action where the dictate button sits (left, center, or right), clear of the globe.
+    private func talkRow(label: String, hint: String) -> some View {
+        ZStack {
+            HStack(spacing: 0) {
+                if look.position != .left { Spacer(minLength: 0) }
+                TalkPill(label: label, style: look.style, action: model.record)
+                    .accessibilityHint(hint)
+                if look.position != .right { Spacer(minLength: 0) }
+            }
+            .padding(.leading, look.position == .left && model.showsGlobe ? 42 : 0)
+            if model.showsGlobe {
+                HStack {
+                    globe
+                    Spacer()
+                }
+            }
+        }
+        .padding(.horizontal, KB.barInset).padding(.bottom, 10)
+    }
+
+    /// A failure, a short confirmation ("Copied."), or Paused for a call, above Tap to talk.
     @ViewBuilder private var statusLine: some View {
         if let n = model.notice {
             Text(n).font(.system(size: 12.5)).foregroundStyle(KB.deep)
@@ -208,6 +234,10 @@ struct KeyboardView: View {
         } else if let i = model.info {
             Text(i).font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.muted)
                 .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+        } else if model.sessionPaused {
+            Text("Paused for a call · picks up when it ends").font(.system(size: 12.5, weight: .medium)).foregroundStyle(KB.muted)
+                .lineLimit(1).minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
         }
     }
@@ -302,6 +332,10 @@ struct KeyboardView: View {
             Text(i).font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
                 .lineLimit(2).minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.updatesFrequently)
+        } else if model.sessionPaused {
+            Text("Paused for a call").font(.system(size: 12, weight: .medium)).foregroundStyle(KB.muted)
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.updatesFrequently)
         }
     }
 
@@ -313,8 +347,10 @@ struct KeyboardView: View {
 
     private var startHint: String {
         guard model.hasFullAccess else { return "Explains how to turn on dictation" }
-        if model.needsSessionCard && !model.sessionLive { return "Shows how to start a session" }
-        return model.sessionLive ? "Starts listening right away" : "Opens Verbose for a second to turn on the microphone, then comes back here"
+        if model.sessionPaused { return "Paused for a call" }
+        if model.sessionLive { return "Starts listening right away" }
+        return Distribution.current.returnsToHostApp ? "Opens Verbose for a second to turn on the microphone, then comes back here"
+            : "Opens Verbose to turn on the microphone. Then tap the back link at the top left to come back"
     }
 
     /// After a spoken correction changed the inserted words: what changed, Use as spoken, and Turn off.
@@ -357,7 +393,7 @@ struct KeyboardView: View {
                 VoiceWave(clock: model.clock, active: model.stage == .listening, color: KB.ink, count: 13, barWidth: 6)
                     .frame(width: 170, height: 36)
                 ListeningStatus(clock: model.clock, stage: model.stage, polishing: model.polishing,
-                                words: model.insertion?.words ?? 0, micName: model.micName)
+                                words: model.insertion?.words ?? 0, micName: model.micName, engineReady: model.engineReady)
             }
             .padding(.horizontal, 22)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -492,6 +528,13 @@ private struct ListeningStatus: View {
     /// The inserted words, shown while polishing.
     var words: Int
     var micName: String
+    /// False while the app's speech model loads (the first dictation): "Getting ready".
+    var engineReady = true
+
+    private var warming: (title: String, detail: String)? {
+        guard !polishing else { return nil }
+        return ListeningCopy.lines(stage: stage == .listening ? "listening" : stage == .writing ? "writing" : "other", engineReady: engineReady)
+    }
 
     var body: some View {
         VStack(spacing: 3) {
@@ -510,6 +553,7 @@ private struct ListeningStatus: View {
 
     private var title: String {
         if polishing { return "Polishing…" }
+        if let w = warming { return w.title }
         switch stage {
         case .starting: return "Opening Verbose…"
         case .writing: return "Writing it down"
@@ -520,14 +564,21 @@ private struct ListeningStatus: View {
     /// The microphone and the time while listening or writing (mono: it's data); a plain line otherwise.
     private var detail: String {
         if polishing { return "Inserted · \(words) \(words == 1 ? "word" : "words")" }
-        if stage == .starting { return "Verbose opens for a second, then comes back" }
+        if let w = warming { return w.detail }
+        if stage == .starting {
+            return Distribution.current.returnsToHostApp ? "Verbose opens for a second, then comes back" : "Verbose opens; tap ◀ at the top left to come back"
+        }
         return "\(micName) · \(KeyboardView.clock(clock.elapsed))"
     }
 
-    private var detailIsData: Bool { !polishing && stage != .starting }
+    private var detailIsData: Bool { !polishing && stage != .starting && warming == nil }
 
     private var accessibility: String {
         if polishing { return "Inserted. Polishing your words" }
+        if warming != nil {
+            return stage == .listening ? "Getting ready. The first one takes a few seconds. Verbose is already listening."
+                : "Getting ready. The first one takes a few seconds."
+        }
         switch stage {
         case .starting: return "Starting a session"
         case .writing: return "Writing it down"
@@ -993,27 +1044,43 @@ private struct FullAccessCard: View {
     }
 }
 
-/// App Store builds with no session: the keyboard can't open Verbatim by itself, so this card says how to start
-/// a session instead of offering a record button.
-private struct StartSessionCard: View {
+/// Home with no session, in the kb2 Home's place for the numbers: "Start a session *to dictate.*" in the serif
+/// and what Start a session does. The butter Start a session pill and the quieter line sit below it, where Tap to
+/// talk does.
+private struct StartSessionHeadline: View {
+    var returnsByItself: Bool
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("\(Text("Start a session "))\(Text("to dictate.").italic())")
+                .font(Ink.serif(34)).tracking(-0.6).foregroundStyle(KB.ink)
+                .multilineTextAlignment(.center)
+                .lineLimit(2).minimumScaleFactor(0.6)
+            Text(StartCard.detail(returnsByItself: returnsByItself))
+                .font(.system(size: 14)).foregroundStyle(KB.dim)
+                .multilineTextAlignment(.center).lineSpacing(1.5)
+                .lineLimit(2).minimumScaleFactor(0.8)
+                .frame(maxWidth: 320)
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// When the keyboard couldn't open Verbose (iOS refused): the three other ways to start a session, in the notice
+/// card. Start a session stays below it, to try again.
+private struct StartSessionWays: View {
+    private static let symbols = ["square.grid.2x2", "button.horizontal.top.press", "arrow.up.forward.app"]
+
     var body: some View {
         CardShell {
-            HStack(alignment: .top, spacing: 14) {
-                ZStack {
-                    Circle().fill(Ink.butterTint)
-                    KBGlyph(art: .iconDictations, size: 22, color: Ink.butterText)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(Text("Verbose didn't open. "))\(Text("Try one of these.").italic())")
+                    .font(Ink.serif(19)).foregroundStyle(KB.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                ForEach(Array(StartCard.ways.enumerated()), id: \.offset) { i, text in
+                    way(Self.symbols[i], text)
                 }
-                .frame(width: 44, height: 44)
-                .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(Text("Start a session to "))\(Text("dictate.").italic())")
-                        .font(Ink.serif(20)).foregroundStyle(KB.ink)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    way("square.grid.2x2", "Open Control Center and tap Verbose")
-                    way("button.horizontal.top.press", "Press the Action button, if you set it to Verbose")
-                    way("arrow.up.forward.app", "Or open Verbose and tap Start keyboard session")
-                }
-                Spacer(minLength: 0)
             }
             .padding(14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

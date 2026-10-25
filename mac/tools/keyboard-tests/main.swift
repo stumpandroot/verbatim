@@ -255,5 +255,28 @@ check("segment titles match the mockup", DictateButton.Size.allCases.map(\.title
       && DictateButton.Style.allCases.map(\.title) == ["Filled", "Outline"])
 check("VoiceOver label", DictateButton.accessibilityLabel == "Start dictation")
 
+// MARK: The session as the keyboard sees it, and Home without one (KeyboardHome.swift)
+
+let nowS = 1_800_000_000.0
+check("a fresh heartbeat: live", KeyboardPresence.from(active: true, heartbeatAge: 1, pausedAt: 0, now: nowS) == .live)
+check("a stale heartbeat: no session", KeyboardPresence.from(active: true, heartbeatAge: 7, pausedAt: 0, now: nowS) == .off)
+check("not active: no session, even mid-pause", KeyboardPresence.from(active: false, heartbeatAge: 1, pausedAt: nowS - 5, now: nowS) == .off)
+check("paused for a call: paused, even with a stale heartbeat (iOS suspended the app)",
+      KeyboardPresence.from(active: true, heartbeatAge: 600, pausedAt: nowS - 600, now: nowS) == .paused)
+check("paused with a fresh heartbeat: still paused", KeyboardPresence.from(active: true, heartbeatAge: 1, pausedAt: nowS - 1, now: nowS) == .paused)
+check("a pause over 3 hours old reads as no session",
+      KeyboardPresence.from(active: true, heartbeatAge: 99_999, pausedAt: nowS - KeyboardPresence.pauseLimit, now: nowS) == .off)
+check("a pause from the future reads as no session", KeyboardPresence.from(active: true, heartbeatAge: 1, pausedAt: nowS + 60, now: nowS) == .off)
+check("Home offers Start a session", StartCard.shown(openFailed: false) == .start && StartCard.title == "Start a session")
+check("when Verbose didn't open, Home shows the three other ways", StartCard.shown(openFailed: true) == .instructions && StartCard.ways.count == 3)
+check("the secondary line", StartCard.secondary == "Or use Control Center or the Action button")
+check("App Store builds say to come back with ◀", StartCard.detail(returnsByItself: false).contains("◀")
+      && !StartCard.detail(returnsByItself: true).contains("◀"))
+check("Getting ready while the model loads, listening or writing",
+      ListeningCopy.lines(stage: "listening", engineReady: false)?.title == "Getting ready"
+      && ListeningCopy.lines(stage: "writing", engineReady: false)?.detail == "The first one takes a few seconds")
+check("the usual words once the model is ready", ListeningCopy.lines(stage: "listening", engineReady: true) == nil)
+check("Getting ready never shows while opening Verbose", ListeningCopy.lines(stage: "starting", engineReady: false) == nil)
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

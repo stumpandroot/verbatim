@@ -56,6 +56,66 @@ enum InsertedBar {
     }
 }
 
+// MARK: - The session, as the keyboard sees it
+
+/// Whether the app's session can take a dictation, is paused for a call, or isn't there.
+enum KeyboardPresence: Equatable {
+    /// The app's heartbeat is fresh and it isn't paused: dictation starts right here.
+    case live
+    /// A phone or FaceTime call (or Siri) has the audio; the app picks the session up when it ends. iOS may suspend
+    /// the app during the call, so the heartbeat can go stale; the pause still counts for `pauseLimit`.
+    case paused
+    /// No session: Home shows Start a session.
+    case off
+
+    /// A pause older than this is treated as no session (the app was closed during the call, say).
+    static let pauseLimit: TimeInterval = 3 * 3600
+
+    /// From the App Group: `active` (the app says a session is on), the heartbeat's age, and when the app paused
+    /// (seconds since 1970; 0 when it isn't paused). `stale` is `KeyboardBridge.heartbeatStale`.
+    static func from(active: Bool, heartbeatAge: TimeInterval, pausedAt: Double, now: Double, stale: TimeInterval = 6) -> KeyboardPresence {
+        guard active else { return .off }
+        if pausedAt > 0 {
+            let age = now - pausedAt
+            return age >= -2 && age < pauseLimit ? .paused : .off
+        }
+        return heartbeatAge >= 0 && heartbeatAge < stale ? .live : .off
+    }
+}
+
+/// What Home shows with Full Access and no session: Start a session (it opens Verbose straight into the session),
+/// or, when opening Verbose didn't work, the three other ways to start one.
+enum StartCard: Equatable {
+    case start
+    case instructions
+
+    /// `openFailed`: the last Start a session couldn't open Verbose. A session coming on clears it.
+    static func shown(openFailed: Bool) -> StartCard { openFailed ? .instructions : .start }
+
+    static let title = "Start a session"
+    static let secondary = "Or use Control Center or the Action button"
+    /// The three ways when the keyboard couldn't open Verbose.
+    static let ways = ["Open Control Center and tap Verbose",
+                       "Press the Action button, if you set it to Verbose",
+                       "Or open Verbose and tap Start keyboard session"]
+
+    /// The line under the headline: what Start a session does. App Store builds can't switch back by themselves,
+    /// so you come back with the ◀ at the top left.
+    static func detail(returnsByItself: Bool) -> String {
+        returnsByItself ? "Verbose opens for a second to turn on the microphone, then comes back here."
+                        : "Verbose opens to turn on the microphone. Then tap ◀ at the top left to come back."
+    }
+}
+
+/// The Listening view's words while the speech model loads for the first dictation (the app says when it's ready).
+enum ListeningCopy {
+    /// Title and line for Listening and Writing it down. `engineReady` comes from the App Group; missing reads as ready.
+    static func lines(stage: String, engineReady: Bool) -> (title: String, detail: String)? {
+        guard !engineReady, stage == "listening" || stage == "writing" else { return nil }
+        return ("Getting ready", "The first one takes a few seconds")
+    }
+}
+
 // MARK: - Stats pages
 
 /// One Home page: the big number and its italic unit in the serif, and the line under it.
