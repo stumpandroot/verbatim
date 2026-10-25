@@ -16,6 +16,10 @@ struct GeneralSettingsPane: View {
     var body: some View {
         SettingsPane(tab: .general) {
             SettingsGroup {
+                // The look: Verbose style or Native, as two live thumbnails. Applies at once, with a crossfade.
+                SettingsRow("general.look") {
+                    LookPicker(thumbnail: 128, captions: false).padding(.vertical, 4)
+                }
                 SettingsRow("general.appearance") {
                     Picker("Appearance", selection: Binding(get: { app.appearance }, set: { app.appearance = $0; app.applyAppearance() })) {
                         Text("Match the system").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")

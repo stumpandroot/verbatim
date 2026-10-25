@@ -12,8 +12,26 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var tab: SettingsTab = .general
     @ObservedObject private var model = SettingsModel.shared
     @FocusState private var searchFocused: Bool
+    @Environment(\.look) private var look
 
     var body: some View {
+        Group {
+            if look == .native {
+                // Native: System Settings' layout, a sidebar with SF Symbols and a grouped form (NativeSettings.swift).
+                NativeSettingsSplit(tab: $tab) {
+                    if model.isSearching { SettingsSearchResults() } else { pane.id(tab) }
+                }
+                .frame(minWidth: 820, idealWidth: 920, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
+                .lookTint(look)
+            } else {
+                verbose
+            }
+        }
+        .lookRebuild()
+        .background(WindowReader { w in configure(w) })
+    }
+
+    private var verbose: some View {
         HStack(spacing: 0) {
             SettingsSidebar(tab: $tab, searchFocused: $searchFocused)
                 .frame(width: 230)
@@ -38,7 +56,6 @@ struct SettingsView: View {
                 .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
         }
         .onExitCommand { if model.isSearching { model.query = "" } }
-        .background(WindowReader { w in configure(w) })
     }
 
     @ViewBuilder private var pane: some View {
