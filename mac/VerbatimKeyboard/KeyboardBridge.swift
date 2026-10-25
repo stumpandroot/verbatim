@@ -31,9 +31,6 @@ enum KeyboardBridge {
     /// Must match `com.apple.security.application-groups` in both entitlements (project.yml).
     static let appGroup = "group.co.stumpandroot.verbatim.ios"
     static let scheme = "verbatim"
-    static let sessionHost = "session"
-    /// The first keyboard's per-dictation link. The app treats it as a session request.
-    static let legacyDictateHost = "dictate"
 
     /// A dictation stops on its own after this long (a keyboard dictation, not a meeting).
     static let maxSeconds: TimeInterval = 5 * 60
