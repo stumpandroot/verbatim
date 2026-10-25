@@ -302,6 +302,7 @@ targets:
       - Verbatim/Export/ExportOptionsForm.swift
       - Verbatim/Export/ZipWriter.swift
       - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
       - Verbatim/Views/ThumbCache.swift
       - Verbatim/Views/HomeKit.swift
@@ -443,6 +444,7 @@ targets:
       - path: VerbatimKeyboard
         excludes: ["Info.plist", "VerbatimKeyboard.entitlements"]
       - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
       # Pure string rules: strikes out spoken corrections in the live words, and the notice after inserting.
       - Verbatim/Flow/SpokenCorrections.swift
@@ -496,6 +498,7 @@ targets:
       - path: VerbatimWidgets
         excludes: ["Info.plist", "VerbatimWidgets.entitlements"]
       - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift
       - VerbatimKeyboard/KeyboardBridge.swift
       - VerbatimKeyboard/BridgeTrust.swift
@@ -542,6 +545,7 @@ targets:
       - path: VerbatimShare
         excludes: ["Info.plist", "VerbatimShare.entitlements"]
       - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
     info:
       path: VerbatimShare/Info.plist
       properties:
