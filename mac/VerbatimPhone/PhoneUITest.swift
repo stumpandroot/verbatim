@@ -529,14 +529,16 @@ enum PhoneUITest {
     /// name, the card is captured mid-switch into Documents/screens.
     private static func lookSwitch(to look: AppLook, on screen: String, card: String?) async {
         guard look != AppLook.current else { return }
+        let before = LookSwitch.shared.cardsShown
         let switching = Task { await LookSwitch.shared.switchTo(look) }
-        try? await Task.sleep(nanoseconds: 60_000_000)
-        let shown = LookSwitch.shared.card == look
         if let card {
-            try? await Task.sleep(nanoseconds: 190_000_000)   // past the card's fade in
+            try? await Task.sleep(nanoseconds: 250_000_000)   // past the card's fade in
             if LookSwitch.shared.card != nil { snapshot(card) }
         }
         let ms = await switching.value
+        // Counted when the card is set, so a busy main thread on the CI machine can't make the check miss it (sampling
+        // `card == look` 60 ms in could land after the card had already gone).
+        let shown = LookSwitch.shared.cardsShown > before
         try? await Task.sleep(nanoseconds: 300_000_000)   // the card's fade out
         lookCheck("switching to \(look.label) shows the card, then the look (card \(shown ? "shown" : "missing"))",
                   shown && AppLook.current == look && LookSwitch.shared.card == nil)
