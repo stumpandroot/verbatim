@@ -1,0 +1,93 @@
+name: Symbolicate build 221 (one-off)
+
+# One-off: rebuilds the iPhone archive of build 221 (commit 4805c61) the way the TestFlight job did, on the same
+# runner image and Xcode, with no secrets and no upload, then symbolicates the Verbatim frames of the New thought
+# widget crash and the disk-writes report against the rebuilt dSYM. Runs only when this file changes on the
+# widget-crash branch. Delete this file once the crash is understood.
+
+on:
+  push:
+    branches: [widget-crash]
+    paths:
+      - ".github/workflows/symbolicate-221.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  symbolicate:
+    name: Rebuild 221 and symbolicate
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          ref: 4805c6198ad82807fef90aa2d6e021d56958ebba
+      - name: Select Xcode 26.6 (build 221 used 17F113)
+        run: |
+          X="$(ls -d /Applications/Xcode_26.6*.app 2>/dev/null | head -1)"
+          [ -n "$X" ] || X="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$X"; xcodebuild -version
+      - name: Install Rust (Harper grammar engine)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: 1.97.0
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mac/harper-ffi/target
+          key: cargo-ios-${{ runner.os }}-${{ hashFiles('mac/harper-ffi/Cargo.lock', 'mac/harper-ffi/Cargo.toml', 'mac/harper-ffi/rust-toolchain.toml') }}
+      - name: Cache FFmpeg
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: mac/Vendor/ffmpeg
+          key: ffmpeg-${{ hashFiles('mac/ffmpeg/build.sh') }}
+      - name: Build FFmpeg and Harper, generate the project, and fetch packages
+        run: |
+          set -o pipefail
+          bash ffmpeg/build.sh
+          bash Vendor/harper/build-ios.sh
+          brew install xcodegen
+          [ -f Local.xcconfig ] || : > Local.xcconfig
+          xcodegen generate --quiet
+          bash tools/package-resolved.sh install
+          xcodebuild -resolvePackageDependencies -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" \
+            -clonedSourcePackagesDirPath build/spm > "$RUNNER_TEMP/resolve.log" 2>&1 || { tail -n 30 "$RUNNER_TEMP/resolve.log"; exit 1; }
+      - name: Stamp the release notes as build 221
+        run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build 221
+      - name: Archive as build 221 (ad hoc, no upload)
+        run: |
+          set -o pipefail
+          ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
+          xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -configuration AppStore -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+            "VERBATIM_PHONE_CONDITIONS_YES=APP_STORE YOUTUBE_ON_DEVICE" \
+            DEVELOPMENT_TEAM=VK9YQY88Q9 CURRENT_PROJECT_VERSION=221 \
+            CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY=- AD_HOC_CODE_SIGNING_ALLOWED=YES archive > "$RUNNER_TEMP/archive.log" 2>&1 || {
+              grep -E "error:" "$RUNNER_TEMP/archive.log" | sort -u | head -n 20; tail -n 40 "$RUNNER_TEMP/archive.log"; exit 1; }
+      - name: Symbolicate
+        run: |
+          ARCHIVE="$RUNNER_TEMP/VerbatimPhone.xcarchive"
+          DSYM="$ARCHIVE/dSYMs/Verbatim.app.dSYM"
+          ls "$ARCHIVE/dSYMs"
+          echo "Rebuilt UUID: $(dwarfdump --uuid "$DSYM" | head -1)"
+          echo "Crash UUID:   91120E22-95C1-3A44-9A41-87703F84F662"
+          BIN="$DSYM/Contents/Resources/DWARF/Verbatim"
+          sym() { echo "== $1"; shift; for o in "$@"; do printf '%-10s ' "$o"; atos -arch arm64 -o "$BIN" -l 0x100000000 $(printf '0x%x' $((0x100000000 + o))); done; }
+          sym "Main thread (AVAudioSession setActive caller, innermost first)" 4882716 3896848 3895564 352529 4003693
+          sym "Core ML load thread (innermost first)" 9215428 11185888 9373405 1263545 1260029
+          sym "Disk writes heaviest stack (innermost first)" 9215428 11185888 9373405 1263545 1260028 352528
+          mkdir -p "$RUNNER_TEMP/dsym" && (cd "$ARCHIVE/dSYMs" && zip -qry "$RUNNER_TEMP/dsym/VerbatimPhone-221-rebuilt-dSYMs.zip" .)
+      - name: Upload the rebuilt dSYMs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rebuilt-221-dsyms
+          path: ${{ runner.temp }}/dsym/VerbatimPhone-221-rebuilt-dSYMs.zip
+          retention-days: 7
