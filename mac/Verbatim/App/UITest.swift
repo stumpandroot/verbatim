@@ -2051,10 +2051,19 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 800_000_000)
         check("thoughts: the menu bar has New thought, Today's count, Open today's page, and Show the bubble",
               ["menu-new-thought", "menu-today-count", "menu-open-page", "menu-show-bubble"].allSatisfy { frames[$0] != nil })
+        // Show the bubble before Open today's page: that row's dismiss() runs against this stand-in panel, which a
+        // real menu bar panel never outlives, so nothing is clicked in it afterwards.
+        Log.note("UITEST thoughts: before Show the bubble, showBubble=\(Thoughts.showBubble) showing=\(ThoughtBubble.shared.isShowing)")
+        await panelStep("thoughts: the menu's Show the bubble hides it", menu, target: "menu-show-bubble", check: {
+            Log.note("UITEST thoughts: after the first click, showBubble=\(Thoughts.showBubble) showing=\(ThoughtBubble.shared.isShowing)")
+            return !Thoughts.showBubble && !ThoughtBubble.shared.isShowing
+        })
+        await panelStep("thoughts: and shows it again", menu, target: "menu-show-bubble", check: {
+            Log.note("UITEST thoughts: after the second click, showBubble=\(Thoughts.showBubble) showing=\(ThoughtBubble.shared.isShowing)")
+            return Thoughts.showBubble && ThoughtBubble.shared.isShowing
+        })
         await panelStep("thoughts: the menu's Open today's page opens it", menu, target: "menu-open-page", check: { pad.isOpen })
         pad.close()
-        await panelStep("thoughts: the menu's Show the bubble hides it", menu, target: "menu-show-bubble", check: { !Thoughts.showBubble && !ThoughtBubble.shared.isShowing })
-        await panelStep("thoughts: and shows it again", menu, target: "menu-show-bubble", check: { Thoughts.showBubble && ThoughtBubble.shared.isShowing })
         menu.orderOut(nil)
         capture.simulate = false
         Thoughts.showBubble = false

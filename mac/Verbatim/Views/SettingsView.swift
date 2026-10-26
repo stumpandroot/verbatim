@@ -363,8 +363,8 @@ struct ThoughtsMenuSection: View {
             }
             .uiTarget("menu-open-page")
             row("Show the bubble", keys: nil, art: nil, checked: showBubble) {
-                showBubble.toggle()
-                ThoughtBubble.shared.refresh()
+                // The stored setting decides (the setter refreshes the bubble); the row's @AppStorage only draws the check.
+                Thoughts.showBubble = !Thoughts.showBubble
             }
             .uiTarget("menu-show-bubble")
         }
