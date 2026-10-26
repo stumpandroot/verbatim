@@ -309,10 +309,11 @@ struct ScrollPlace: NSViewRepresentable {
         /// Scrolling lays the content out again, which lands back here.
         private var applying = false
         private var frameObserver: NSObjectProtocol?
-        /// After a restore, the offset is held for a moment: a move away from it that isn't you scrolling (the screen's
-        /// later layout passes, or focus landing in a field up top, scrolled the Library back to the top in build 222)
-        /// is put back in the same pass, before it's drawn.
-        private var held: (y: CGFloat, until: Date, resets: Int)?
+        /// For a moment after a restore below the top: a jump back to the very top that isn't you scrolling. Build 222's
+        /// Verbose Library ended at the top after restoring 548, with the window itself first responder (no field had
+        /// focus). Build 223's 1.2 s hold put back every move instead, so it undid the self-test's own scroll and both
+        /// Back checks failed. Now only that jump is caught, once, and logged; any other move ends the watch.
+        private var watch: (y: CGFloat, until: Date, docHeight: CGFloat)?
         private var boundsObserver: NSObjectProtocol?
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -330,7 +331,7 @@ struct ScrollPlace: NSViewRepresentable {
                 // A restore that never landed keeps the offset it was given.
                 if pending == nil, let y = currentOffset { ScreenPlaces.shared.setOffset(key, y) }
                 stop()
-                endHold()
+                endWatch()
             }
             super.viewWillMove(toWindow: newWindow)
         }
@@ -395,7 +396,7 @@ struct ScrollPlace: NSViewRepresentable {
                 if maxY + 0.5 >= y {
                     ScreenPlaces.shared.restored(key, y, early: firstTurn)
                     stop()
-                    hold(y, s)
+                    watchForReset(target, s)
                     return
                 }
                 if maxOffset(s) <= maxY + 0.5 { return }
@@ -407,30 +408,34 @@ struct ScrollPlace: NSViewRepresentable {
             if let o = frameObserver { NotificationCenter.default.removeObserver(o); frameObserver = nil }
         }
 
-        private func hold(_ y: CGFloat, _ s: NSScrollView) {
-            endHold()
-            held = (y, Date().addingTimeInterval(1.2), 0)
+        private func watchForReset(_ y: CGFloat, _ s: NSScrollView) {
+            endWatch()
+            let top = -s.contentInsets.top
+            guard y > top + 1 else { return }   // restored to the top: nothing to lose
+            watch = (y, Date().addingTimeInterval(1.0), s.documentView?.frame.height ?? 0)
             let clip = s.contentView
             clip.postsBoundsChangedNotifications = true
             boundsObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: nil) { [weak self] _ in
-                MainActor.assumeIsolated { self?.keepHeld() }
+                MainActor.assumeIsolated { self?.checkReset() }
             }
         }
 
-        private func endHold() {
-            held = nil
+        private func endWatch() {
+            watch = nil
             if let o = boundsObserver { NotificationCenter.default.removeObserver(o); boundsObserver = nil }
         }
 
-        private func keepHeld() {
-            guard let h = held, !applying, let s = scrollView else { return }
-            if Date() > h.until || Self.youAreScrolling { endHold(); return }
+        private func checkReset() {
+            guard let w = watch, !applying, let s = scrollView else { return }
             let clip = s.contentView
-            let target = min(h.y, maxOffset(s))
-            guard abs(clip.bounds.origin.y - target) > 1 else { return }
-            if h.resets >= 6 { Log.note("scroll place \(key): gave up holding \(Int(h.y))"); endHold(); return }
-            Log.note("scroll place \(key): put back \(Int(target)) after a move to \(Int(clip.bounds.origin.y)) (event \(NSApp.currentEvent.map { "\($0.type.rawValue)" } ?? "none"), first responder \(window?.firstResponder.map { "\(type(of: $0))" } ?? "none"))")
-            held?.resets += 1
+            let now = clip.bounds.origin.y
+            guard abs(now - w.y) > 1 else { return }
+            let top = -s.contentInsets.top
+            // Anything but a jump to the very top in the first second is a scroll someone meant: leave it.
+            guard Date() <= w.until, abs(now - top) <= 1, !Self.youAreScrolling else { endWatch(); return }
+            endWatch()
+            let target = min(w.y, maxOffset(s))
+            Log.note("scroll place \(key): reset to the top after restoring \(Int(w.y)); put back once (content \(Int(w.docHeight)) then \(Int(s.documentView?.frame.height ?? 0)) tall, event \(NSApp.currentEvent.map { "\($0.type.rawValue)" } ?? "none"), first responder \(window?.firstResponder.map { "\(type(of: $0))" } ?? "none"))")
             applying = true
             clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: target))
             s.reflectScrolledClipView(clip)

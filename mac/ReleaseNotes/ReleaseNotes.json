@@ -5,6 +5,7 @@
       "title": "Back where you were, and clearer noisy transcripts",
       "items": [
         "Mac: a Back button on every transcript returns you to the Library right where you were, with the same row, search, and filters. ⌘[ works too.",
+        "Mac: the Library no longer jumps back to the top a moment after Back returns you to it.",
         "Mac: Actions › Transcribe again with Whisper Turbo listens to the recording again with a bigger model. It's slower, and it hears names and noisy stretches better. The first time, it downloads the model (1.6 GB).",
         "iPhone: Actions › Transcribe again with Whisper Turbo sends the recording to your Mac. The transcript says “Waiting for your Mac” until the new words are in.",
         "Mac and iPhone: after Transcribe again with Whisper Turbo, your speaker names, notes, and moments stay, and Actions › Switch to puts the earlier words back.",
