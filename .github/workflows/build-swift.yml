@@ -1180,3 +1180,22 @@ jobs:
             security list-keychains -d user -s login.keychain-db || true
             security delete-keychain "$RUNNER_TEMP/testflight.keychain-db" 2>/dev/null || true
           fi
+
+      # The archive's dSYMs, so a TestFlight crash report can be symbolicated against this build (the export sends them
+      # to App Store Connect, which doesn't hand them back). The UUIDs printed here match a crash report's slice_uuid.
+      - name: Zip the iPhone dSYMs
+        if: always() && env.HAS_ASC == 'true'
+        run: |
+          D="$RUNNER_TEMP/VerbatimPhone.xcarchive/dSYMs"
+          [ -d "$D" ] || { echo "No archive, so no dSYMs to keep"; exit 0; }
+          mkdir -p "$RUNNER_TEMP/dsyms"
+          (cd "$D" && zip -qry "$RUNNER_TEMP/dsyms/VerbatimPhone-${GITHUB_RUN_NUMBER}-dSYMs.zip" .)
+          for f in "$D"/*.dSYM; do dwarfdump --uuid "$f"; done
+      - name: Upload the iPhone dSYMs
+        if: always() && env.HAS_ASC == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phone-dsyms-${{ github.run_number }}
+          path: ${{ runner.temp }}/dsyms/
+          retention-days: 30
+          if-no-files-found: ignore
