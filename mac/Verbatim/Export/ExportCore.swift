@@ -83,6 +83,8 @@ struct ExportOptions: Equatable {
     /// Sponsor reads found in podcasts and videos (Sponsors.swift). Left out unless this is on; Copy always leaves
     /// them out.
     var includeSponsors = false
+    /// "[unclear 2:10]" where speech was heard but the words are missing or unsure (UnclearRules). Off by default.
+    var includeUnclear = false
     var singleParagraph = false
     /// The "Transcribed with Verbatim" footer.
     var provenance = false
@@ -119,6 +121,7 @@ struct ExportOptions: Equatable {
         if let s = d.string(forKey: "export.moments"), let v = MomentsMode(rawValue: s) { o.moments = v }
         o.includeHidden = d.bool(forKey: "export.hidden")
         o.includeSponsors = d.bool(forKey: "export.sponsors")
+        o.includeUnclear = d.bool(forKey: "export.unclear")
         o.singleParagraph = d.bool(forKey: "export.single")
         o.provenance = d.bool(forKey: "export.prov")
         if d.object(forKey: "export.aiNote") != nil { o.aiNote = d.bool(forKey: "export.aiNote") }
@@ -143,6 +146,7 @@ struct ExportOptions: Equatable {
         d.set(moments.rawValue, forKey: "export.moments")
         d.set(includeHidden, forKey: "export.hidden")
         d.set(includeSponsors, forKey: "export.sponsors")
+        d.set(includeUnclear, forKey: "export.unclear")
         d.set(singleParagraph, forKey: "export.single")
         d.set(provenance, forKey: "export.prov")
         d.set(aiNote, forKey: "export.aiNote")
@@ -285,6 +289,8 @@ struct ExportDocument {
     var paragraphs: [ExportParagraph]
     var moments: [ExportMoment]
     var footer: String
+    /// Where unclear spans start, in seconds (shown with `ExportOptions.includeUnclear`).
+    var unclear: [Double] = []
     /// "Cleaned by Apple Intelligence from the original transcript." when the model touched the text (shown when
     /// `ExportOptions.aiNote` is on).
     var aiNote: String? = nil
@@ -369,6 +375,7 @@ enum ExportLayout {
         var previous: String?? = .none
         var nextStamp = 0.0
         var moments = o.moments == .inline ? doc.moments.sorted { $0.at < $1.at } : []
+        var unclear = o.includeUnclear ? doc.unclear.sorted() : []
         func stamp(_ t: Double) -> (String, String) {
             let plain = Timecode.format(t, style: o.timecodeStyle, offset: o.timecodeOffset)
             if let u = doc.link?(t) { return (plain, "[\(Timecode.digits(t, style: o.timecodeStyle, offset: o.timecodeOffset))](\(u))") }
@@ -389,6 +396,9 @@ enum ExportLayout {
                 while let m = moments.first, m.at <= piece.start + 0.001 {
                     parts.append("[★ \(m.label)]"); moments.removeFirst()
                 }
+                while let u = unclear.first, u <= piece.start + 0.001 {
+                    parts.append(unclearMarker(u, offset: o.timecodeOffset)); unclear.removeFirst()
+                }
                 if o.timecodeMode == .every30s, piece.start + 0.0005 >= nextStamp {
                     let s = stamp(piece.start)
                     if i == 0 { lead = s.0; mdLead = s.1 } else { parts.append(s.0) }
@@ -396,11 +406,21 @@ enum ExportLayout {
                 }
                 parts.append(piece.text)
             }
-            if pi == doc.paragraphs.count - 1 { while let m = moments.first { parts.append("[★ \(m.label)]"); moments.removeFirst() } }
+            if pi == doc.paragraphs.count - 1 {
+                while let m = moments.first { parts.append("[★ \(m.label)]"); moments.removeFirst() }
+                while let u = unclear.first { parts.append(unclearMarker(u, offset: o.timecodeOffset)); unclear.removeFirst() }
+            }
             let speaker = p.speaker != nil && (o.speakerMode == .everyParagraph || (o.speakerMode == .onChange && changed)) ? p.speaker : nil
             out.append(.paragraph(lead: lead, markdownLead: mdLead, speaker: speaker, text: parts.joined(separator: " ")))
         }
         return out
+    }
+
+    /// "[unclear 2:10]" ("[unclear 1:02:14]" past an hour), with the export's start offset added.
+    static func unclearMarker(_ seconds: Double, offset: Double = 0) -> String {
+        let s = max(0, Int((seconds + offset + 0.0005).rounded(.down)))
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return "[unclear " + (h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)) + "]"
     }
 
     // MARK: Writers

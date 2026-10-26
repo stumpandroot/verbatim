@@ -373,6 +373,8 @@ targets:
       - Verbatim/App/Log.swift
       - Verbatim/App/Links.swift
       - Verbatim/Audio/Player.swift
+      # Reduce background noise while listening (Apple's voice isolation), shared with the Mac.
+      - Verbatim/Audio/ListeningCleanup.swift
       - Verbatim/Audio/Recorder.swift
       - Verbatim/Audio/LiveMeter.swift
       - Verbatim/Audio/LiveTranscriber.swift
@@ -394,6 +396,9 @@ targets:
       - Verbatim/Views/ThoughtViews.swift
       - Verbatim/Views/SpeakerSuggestionRows.swift
       - Verbatim/Views/SponsorViews.swift
+      # The reading view's "unclear 2:10" chips, low-confidence words, and the Reduce background noise item.
+      - Verbatim/Views/NoisyAudioViews.swift
+      - Verbatim/Views/NoisyAudioChecks.swift
       - Verbatim/Views/LibraryFilterBar.swift
       - Verbatim/Views/SummaryBlock.swift
       - Verbatim/Views/VoiceEnrollment.swift
