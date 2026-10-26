@@ -167,7 +167,7 @@ private struct StepCard<Footer: View>: View {
             HStack(spacing: 10) {
                 SettingsLabel(icon: icon, tint: Ink.sageTint, art: art, title: "")
                     .fixedSize()
-                WebText.serif(title.0, italic: title.1, size: 20).foregroundStyle(.lookInk)
+                SerifTitle(title.0, italic: title.1, size: 20).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
             }
             ForEach(Array(steps.enumerated()), id: \.offset) { i, step in

@@ -104,7 +104,7 @@ struct DayPageScreen: View {
                 Overline(text: thoughts ? ThoughtRules.eyebrow(dayLabel: DayPages.eyebrowDay(day), isToday: isToday, count: items.count)
                                         : "\(isToday ? "Today" : DayPages.eyebrowDay(day)) · \(DayPages.count(items.count, "entry", "entries"))")
                     .padding(.top, 8)
-                WebText.serif("\(name) ·", italic: DayPages.dateTitle(day), size: 30)
+                SerifTitle("\(name) ·", italic: DayPages.dateTitle(day), size: 30)
                     .foregroundStyle(.lookInk)
                     .padding(.top, 6)
                     .accessibilityAddTraits(.isHeader)
@@ -530,7 +530,7 @@ struct ByDayScreen: View {
                         HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 3) {
                                 let title = dayTitle(p.day)
-                                WebText.serif(title.0, italic: title.1.isEmpty ? nil : title.1, size: 18).foregroundStyle(.lookInk)
+                                SerifTitle(title.0, italic: title.1.isEmpty ? nil : title.1, size: 18).foregroundStyle(.lookInk)
                                 Text(preview(p.items)).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(1)
                             }
                             Spacer(minLength: 8)
@@ -634,7 +634,7 @@ private struct VerboseMonthCalendar: View {
         let thisMonth = Calendar.current.isDate(month, equalTo: today, toGranularity: .month)
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                WebText.serif(parts.first ?? title, italic: parts.count > 1 ? parts[1] : nil, size: 20).foregroundStyle(Ink.ink)
+                SerifTitle(parts.first ?? title, italic: parts.count > 1 ? parts[1] : nil, size: 20).foregroundStyle(Ink.ink)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Button { month = DayPages.month(month, moved: -1) } label: {
@@ -681,6 +681,35 @@ private struct VerboseMonthCalendar: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(DayPages.dateTitle(d))\(isToday ? ", today" : "")")
                 .accessibilityHidden(!inMonth)
+        }
+    }
+}
+
+// MARK: - Pieces
+
+/// Serif text with an italic last part ("Thoughts · *Mon, Oct 26*", "Action *button*"); one upright run in Native.
+struct SerifTitle: View {
+    var plain: String
+    var italic: String?
+    var size: CGFloat
+    @Environment(\.look) private var look
+
+    init(_ plain: String, italic: String? = nil, size: CGFloat) {
+        self.plain = plain
+        self.italic = italic
+        self.size = size
+    }
+
+    var body: some View {
+        if let italic, !italic.isEmpty {
+            let lead = plain.isEmpty ? "" : plain + " "
+            if look.isNative {
+                Text(lead + italic).lookSerif(size)
+            } else {
+                (Text(lead) + Text(italic).italic()).lookSerif(size)
+            }
+        } else {
+            Text(plain).lookSerif(size)
         }
     }
 }
