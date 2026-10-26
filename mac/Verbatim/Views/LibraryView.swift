@@ -37,6 +37,8 @@ struct LibraryView: View {
         let order = groups.flatMap { $0.items.map(\.id) }
         // Project names by ID, once per render (rows italicize after their project's name and name it outside it).
         let projectNames = Dictionary(app.store.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        // The row you opened last, lit when you come back (ScreenPlaces, App/NavTrail.swift); set only by navigating.
+        let current = selecting ? nil : ScreenPlaces.shared.selectedRow(app.projectFilter)
         GeometryReader { geo in
             let inner = min(Self.maxContent, max(320, geo.size.width - 2 * Self.margin))
             // The projects column: on wide windows, outside a project, and not in the Journal's reading view.
@@ -60,9 +62,9 @@ struct LibraryView: View {
                                 emptyState(typeFilter).padding(.top, 22).staggerIn(1)
                             }
                             if kind == .journal && !selecting {
-                                journal(list, order: order).padding(.top, 20)
+                                journal(list, order: order, current: current).padding(.top, 20)
                             } else {
-                                rows(groups, order: order, projectNames: projectNames)
+                                rows(groups, order: order, projectNames: projectNames, current: current)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,6 +76,8 @@ struct LibraryView: View {
                 .frame(width: inner, alignment: .leading)
                 .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, selecting ? 90 : 40)
                 .frame(maxWidth: .infinity)
+                // Back and the sidebar bring the Library back where you left it (App/NavTrail.swift).
+                .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter), look: .verbose))
                 .navMarkWhenLaidOut("library-laid-out")
             }
             .animation(Motion.settle, value: lists.ids)
@@ -199,7 +203,7 @@ struct LibraryView: View {
 
     /// Lazy, so a library of hundreds builds only the rows on screen. Rows and day headers don't stagger in: they
     /// arrive with the screen.
-    private func rows(_ groups: [(label: String, items: [Transcript])], order: [UUID], projectNames: [UUID: String]) -> some View {
+    private func rows(_ groups: [(label: String, items: [Transcript])], order: [UUID], projectNames: [UUID: String], current: UUID?) -> some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(groups.enumerated()), id: \.element.label) { gi, g in
                 HStack(spacing: 12) {
@@ -216,11 +220,13 @@ struct LibraryView: View {
                 ForEach(Array(g.items.enumerated()), id: \.element.id) { ii, t in
                     let own = t.projectId.flatMap { projectNames[$0] }
                     HistoryRow(transcript: t, selected: selecting ? selection.contains(t.id) : nil,
+                               current: t.id == current,
                                project: app.projectFilter == nil ? own : nil, projectName: own,
                                dragIDs: { selection.contains(t.id) ? Array(selection) : [t.id] },
                                open: { click(t.id, order: order) })
                         .contextMenu { RowMenu(transcript: t) }
                         .padding(.top, ii == 0 ? 0 : 2)
+                        .modifier(LibraryRowTarget(id: t.id))
                 }
             }
         }
@@ -323,14 +329,14 @@ struct LibraryView: View {
 
     /// Journal reads by day: "Today · Sat 17 Oct", then each entry as a flat row with its serif title, time, length,
     /// and opening lines.
-    private func journal(_ list: [Transcript], order: [UUID]) -> some View {
+    private func journal(_ list: [Transcript], order: [UUID], current: UUID?) -> some View {
         LazyVStack(alignment: .leading, spacing: 22) {
             ForEach(JournalDays.group(list)) { day in
                 VStack(alignment: .leading, spacing: 8) {
                     DayHeader(text: day.label == day.date ? day.label : "\(day.label) · \(day.date)")
                     VStack(spacing: 2) {
                         ForEach(day.entries) { t in
-                            FlatRowButton(action: { click(t.id, order: order) }) { _ in
+                            FlatRowButton(selected: t.id == current, action: { click(t.id, order: order) }) { _ in
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                                         WebText.serif(t.title, size: 22).foregroundStyle(Ink.ink).lineLimit(1)
@@ -426,6 +432,14 @@ struct LibraryView: View {
         .background(Ink.bar, in: Capsule())
         .overlay(Capsule().strokeBorder(Ink.hairline))
         .shadow(color: Ink.inkFixed.opacity(0.08), radius: 3, y: 1)
+    }
+}
+
+/// The self-test's handle on each Library row (only while its Back steps run, `UITest.rowTargets`).
+struct LibraryRowTarget: ViewModifier {
+    var id: UUID
+    func body(content: Content) -> some View {
+        if UITest.rowTargets { content.uiTarget("lib-row-\(id.uuidString)") } else { content }
     }
 }
 

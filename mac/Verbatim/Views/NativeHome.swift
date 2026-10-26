@@ -36,6 +36,8 @@ extension HomeView {
                 .frame(width: width, alignment: .leading)
                 .padding(.horizontal, 32).padding(.top, 8).padding(.bottom, 110)
                 .frame(maxWidth: .infinity)
+                // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
+                .scrollPlace(ScreenPlaces.scrollKey("home", look: .native), restore: NavTrail.shared.movingThroughHistory)
             }
         }
     }

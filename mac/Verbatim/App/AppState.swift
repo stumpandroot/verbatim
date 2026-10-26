@@ -251,7 +251,13 @@ final class AppState: ObservableObject {
         if UITest.enabled { LookSwitch.beginNavigationMarks() }
         if let open = navInterval { Perf.signposter.endInterval("Navigate", open) }
         navInterval = Perf.signposter.beginInterval("Navigate", "\(self.key(next), privacy: .public)")
+        // Back and Forward's trail and what the screen you're leaving comes back to (App/NavTrail.swift). Plain
+        // storage; only Back and Forward's enabled state publishes, and only when it changes.
+        let trail = NavTrail.shared
+        trail.record(from: NavStop(screen, project: projectFilter), to: NavStop(next, project: projectFilter))
+        ScreenPlaces.shared.navigating(from: screen, to: next, app: self)
         nav = Nav(screen: next, direction: direction, count: nav.count + 1)
+        trail.publish()
     }
 
     func goHome() { go(.home) }

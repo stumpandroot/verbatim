@@ -13,7 +13,8 @@ import AppKit
 struct NativeLibraryView: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var nav: NativeNav
-    @State private var selection: Set<String> = []
+    /// View as Table's selection, kept across screens (ScreenPlaces, App/NavTrail.swift).
+    @State private var selection: Set<String> = ScreenPlaces.shared.tableSelection
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     @FocusState private var listFocused: Bool
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
@@ -39,6 +40,7 @@ struct NativeLibraryView: View {
                 emptyState.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if nav.libraryTable {
                 table(groups.flatMap { g in [Row(id: "h:" + g.label, header: g.label)] + g.items.map { Row(id: $0.id.uuidString, transcript: $0) } })
+                    .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter) + "|table", look: .native), sibling: true)
                     .padding(.top, 6)
             } else {
                 premiumList(groups)
@@ -46,6 +48,7 @@ struct NativeLibraryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: app.projectFilter) { _, _ in selection = []; nav.librarySelection = nil }
+        .onChange(of: selection) { _, s in ScreenPlaces.shared.tableSelection = s }
         .onAppear { KeptMedia.shared.refresh() }
     }
 
@@ -69,12 +72,15 @@ struct NativeLibraryView: View {
                             PremiumRecordingItem(transcript: t, selected: t.id == current, onSelect: { select(t.id) })
                                 .id(t.id)
                                 .modifier(FirstItemsTarget(id: t.id, flat: flat))
+                                .modifier(NativeLibraryRowTarget(id: t.id))
                         }
                     }
                 }
                 .padding(.horizontal, 32).padding(.top, 4).padding(.bottom, 110)
                 .frame(maxWidth: 780, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // Back and the sidebar bring the list back where you left it, its item still selected.
+                .scrollPlace(ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(app.projectFilter), look: .native))
             }
             .focusable()
             .focused($listFocused)
@@ -265,6 +271,14 @@ private struct FirstItemsTarget: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// The self-test's handle on each item (only while its Back steps run, `UITest.rowTargets`).
+private struct NativeLibraryRowTarget: ViewModifier {
+    var id: UUID
+    func body(content: Content) -> some View {
+        if UITest.rowTargets { content.uiWindowTarget("lib-row-\(id.uuidString)") } else { content }
     }
 }
 
