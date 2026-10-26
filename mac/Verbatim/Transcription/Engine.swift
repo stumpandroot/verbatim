@@ -6,6 +6,9 @@ struct EngineResult {
     var language: String?
     var engine: String
     var model: String
+    /// Speech probabilities the engine already worked out (Whisper's speech clips), so the job doesn't run the
+    /// detector twice for the unclear spans.
+    var speech: SpeechProbabilities? = nil
 }
 
 enum EngineProgress {

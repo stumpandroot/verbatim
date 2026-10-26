@@ -9,6 +9,9 @@ struct SectionWord: Codable, Equatable, Sendable {
     var text: String
     var start: Double
     var end: Double
+    /// The engine's confidence in the word (0…1), when it gives one (`WordSpan.confidence`). Saved sections from
+    /// builds before this read without it.
+    var p: Double? = nil
 
     var center: Double { (start + end) / 2 }
 }
@@ -106,7 +109,7 @@ struct SectionPlan: Equatable, Sendable {
 enum SectionStitcher {
     /// Shifts a section's words (relative to the section's start) to the recording's time.
     static func offset(_ words: [SectionWord], by seconds: Double) -> [SectionWord] {
-        words.map { SectionWord(text: $0.text, start: $0.start + seconds, end: $0.end + seconds) }
+        words.map { SectionWord(text: $0.text, start: $0.start + seconds, end: $0.end + seconds, p: $0.p) }
     }
 
     /// `earlier` is everything so far; `later` is the next section's words, already offset. The sections overlap
