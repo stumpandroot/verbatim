@@ -141,7 +141,7 @@ enum ShortcutCheck {
     /// Verbose's own global shortcuts (Recent dictations is passed in; it's a setting).
     static let verbose: [Known] = [
         k(9, [.control, .command], "Verbose", "pastes your last dictation"),
-        k(35, [.control, .option], "Verbose", "opens the Thought pad"),
+        k(35, [.control, .option], "Verbose", "starts a thought"),
         k(15, [.option, .shift], "Verbose", "starts a recording"),
         k(8, [.option, .command], "Verbose", "opens Live captions"),
     ]

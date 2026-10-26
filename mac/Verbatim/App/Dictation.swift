@@ -98,7 +98,7 @@ final class DictationController: ObservableObject {
     private var escapeCancels: Bool { isListening || writingSession != nil }
     @Published private(set) var handsFree = false
     @Published private(set) var targetAppName = ""
-    /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or the thought pad's
+    /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or today's page's
     /// Send) so ⌃⌘V (or Copy last dictation in the floating menu) can always bring it back.
     @Published private(set) var lastResult: String? = nil
     /// Whether the target app confirmed it read `lastResult` (the paste receipt arrived).
@@ -144,7 +144,7 @@ final class DictationController: ObservableObject {
     private var lastPressTS: TimeInterval = 0
     private var lastTrusted = false
     private var lastDuration: Double = 0
-    /// Whether this dictation goes to the thought pad, decided when it starts (not when the text arrives).
+    /// Whether this dictation goes to today's Thoughts page (the page was open when it started), decided when it starts.
     private var toPad = false
     /// The mic is running its short tail after you let go (`DictationTiming.tail`).
     private var tailing = false
@@ -378,7 +378,7 @@ final class DictationController: ObservableObject {
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.handle(e) }) { monitors.append(g) }
         if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in
-            // ⌃⌥P and ⌃⌘V are ours; don't also send them to the text field in front (the thought pad's, say).
+            // ⌃⌥P and ⌃⌘V are ours; don't also send them to the text field in front (a thought being edited, say).
             if e.type == .keyDown, self?.hotkeySuspended != true, Self.isOwnShortcut(e) { self?.handle(e); return nil }
             self?.handle(e); return e
         }) { monitors.append(l) }
@@ -459,7 +459,7 @@ final class DictationController: ObservableObject {
             else if keyDown { released(at: ts) }
         case .pasteLast: if down { pasteLast() }
         case .copyLast: if down { copyLast() }
-        case .thoughtPad: if down { ThoughtPadController.shared.toggle() }
+        case .thoughtPad: if down { ThoughtCapture.shared.toggle() }
         case .escape: if down { if isListening { cancel() } else if writingSession != nil { cancelWriting() } }
         }
     }
@@ -482,13 +482,13 @@ final class DictationController: ObservableObject {
         if e.type == .keyDown {
             if e.keyCode == UInt16(kVK_Escape), isListening { cancel(); return }
             if e.keyCode == UInt16(kVK_Escape), writingSession != nil { cancelWriting(); return }
-            // Esc closes the didn't-paste notice (the words stay on the clipboard and in the thought pad).
+            // Esc closes the didn't-paste notice (the words stay on the clipboard and in Dictations).
             if e.keyCode == UInt16(kVK_Escape), rescuing, bar?.model.phase == .prompt { rescuing = false; bar?.dismissPrompt(); return }
             // Esc closes an error the notch or the floating button holds until you act.
             if e.keyCode == UInt16(kVK_Escape), bar?.dismissStickyNotice() == true { return }
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if e.keyCode == UInt16(kVK_ANSI_V), mods == [.command, .control] { if !e.isARepeat { pasteLast() }; return }
-            if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtPadController.shared.toggle(); return }
+            if e.keyCode == UInt16(kVK_ANSI_P), mods == [.control, .option], !e.isARepeat { ThoughtCapture.shared.toggle(); return }
         }
         switch hotkey {
         case .rightOption: modifier(e, code: 61, flag: .option)          // kVK_RightOption
@@ -751,7 +751,7 @@ final class DictationController: ObservableObject {
         Log.note("dictation: cancelled while writing; kept in Dictations, not pasted")
     }
 
-    /// The writing phase of `mine` is over (its text went to the paster, the thought pad, or nowhere). A dictation
+    /// The writing phase of `mine` is over (its text went to the paster, today's Thoughts page, or nowhere). A dictation
     /// that was waiting starts now.
     private func endWriting(_ mine: Int) {
         guard writingSession == mine else { return }
@@ -823,6 +823,17 @@ final class DictationController: ObservableObject {
         }
         guard !DictationTiming.isStrayTap(duration: duration, tail: tail) else {   // too short: discard, like Wispr Flow
             try? FileManager.default.removeItem(at: url); bar?.setPhase(.idle); return
+        }
+        // Today's page was open when it started: the recording becomes a thought on the day it started, saved as audio
+        // and transcribed like any thought (Flow/Thoughts.swift), never pasted.
+        if toPad, !command {
+            toPad = false
+            bar?.setPhase(.idle)
+            ThoughtCapture.shared.file(url: url, duration: duration, envelope: env, startedAt: startedAt ?? Date())
+            Sounds.done()
+            bar?.flash("Added to Thoughts", seconds: 1.8)
+            Log.note("dictation: today's page is open; kept as a thought")
+            return
         }
         // Nothing but silence: don't run the models (Whisper in particular invents words in silence).
         // Not after the time limit: a long hands-free dictation can be mostly quiet, and what was said still counts
@@ -1010,20 +1021,8 @@ final class DictationController: ObservableObject {
         lastResult = text
         let ctx = context, tgt = target
         let wasCommand = command
-        let duration = lastDuration
         let atLimit = stoppedAtLimit
         command = false
-        // With the thought pad open, a dictation becomes a piece of the pad instead of a paste.
-        if !wasCommand, toPad {
-            toPad = false
-            ThoughtPad.shared.add(text, seconds: duration)
-            if !ThoughtPadController.shared.isOpen { ThoughtPadController.shared.open() }   // closed meanwhile: show where it went
-            Sounds.done()
-            bar?.flash("Added to the thought pad", seconds: 1.8)
-            if let id = transcriptID { app?.store.update(id) { $0.flow?.app = "Thought pad" } }
-            endWriting(mine)
-            return
-        }
         toPad = false
         // Never into a password field: the field focused now decides, or the one focused when dictation started.
         let secureNow = tgt.flatMap { AppContext.focusedSecure(pid: $0.processIdentifier) }
@@ -1038,7 +1037,7 @@ final class DictationController: ObservableObject {
             endWriting(mine)
             return
         }
-        // The pad may hold keyboard focus; hand it back to the app the text is for, or ⌘V lands in the pad.
+        // Today's page may hold keyboard focus (a thought being edited); hand it back to the app the text is for.
         ThoughtPadController.shared.yieldKeyboard(to: tgt)
         let spaced = (ctx?.selection.isEmpty ?? true) && !wasCommand && needsLeadingSpace(ctx) ? " " + text : text
         lastPasteConfirmed = false
@@ -1050,7 +1049,7 @@ final class DictationController: ObservableObject {
         Task { @MainActor in
             let pasteStarted = Date()
             // A paste that doesn't land leaves the words on the clipboard (unless you copied something else
-            // meanwhile) and, for a dictation, in the thought pad too. With Also copy each dictation to the
+            // meanwhile), and every dictation stays in Dictations. With Also copy each dictation to the
             // clipboard on, a paste that lands leaves them on the clipboard as well.
             let outcome = await Paster.paste(spaced + (wasCommand ? "" : trailingSpace(text)), into: tgt, focusedField: ctx?.hasFocusedField ?? true,
                                              onFailure: .leaveOnClipboard, keepOnClipboard: !wasCommand && AlwaysCopy.isOn)
@@ -1059,15 +1058,14 @@ final class DictationController: ObservableObject {
             Log.note(DictationTiming.timingLine(total: now.timeIntervalSince(timing.released), tail: timing.tail, transcribe: timing.transcribe,
                                                 cleanup: timing.cleanup, paste: now.timeIntervalSince(pasteStarted), cleaned: timing.cleaned, note: timing.note))
             // A newer dictation is listening or being written: its Ribbon and sounds win. This one's text still
-            // lands in Dictations, and in the thought pad when the paste missed.
+            // lands in Dictations.
             let current = session == mine && !isListening && !isWorking
             if current { Sounds.done(); stoppedAtLimit = false }
             if let rescue = Recall.rescue(for: outcome, command: wasCommand) {
                 // No text field, or the app never read the paste: the Ribbon holds the words with Copy and Paste again.
-                ThoughtPad.shared.add(text, seconds: duration, missed: true)
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
                 if current { offerRescue(text, title: Recall.rescueTitle(rescue, app: appName, onClipboard: Paster.leftTextOnClipboard)) }
-                Log.note("dictation not pasted (\(rescue)); kept in the \(current ? "Ribbon" : "thought pad"), clipboard=\(Paster.leftTextOnClipboard)")
+                Log.note("dictation not pasted (\(rescue)); kept in the \(current ? "Ribbon" : "Dictations"), clipboard=\(Paster.leftTextOnClipboard)")
                 return
             }
             switch outcome {
@@ -1082,13 +1080,11 @@ final class DictationController: ObservableObject {
                 // Settings › Dictation › After pasting: Return or ⌘Return to send (Flow/AutoSend.swift).
                 if !wasCommand { await AutoSend.afterPaste(target: tgt, category: ctx?.category, secureAtStart: ctx?.secureField ?? false) }
             case .copiedOnly:
-                // Nowhere to paste: it's on the clipboard, and kept in the thought pad too.
-                if !wasCommand { ThoughtPad.shared.add(text, seconds: duration, missed: true) }
-                if current { bar?.flash(wasCommand ? "Copied. Click a text field and press ⌘V." : "Copied, and saved to the thought pad.", seconds: 5) }
+                // Nowhere to paste: it's on the clipboard, and kept in Dictations.
+                if current { bar?.flash(wasCommand ? "Copied. Click a text field and press ⌘V." : "Copied, and saved in Dictations.", seconds: 5) }
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
             case .failed(let why):
                 if let id = transcriptID { app?.store.update(id) { $0.flow?.pastedOK = false } }
-                if !wasCommand { ThoughtPad.shared.add(text, seconds: duration, missed: true) }
                 guard current else { return }
                 if wasCommand {
                     if why == .notTrusted {
@@ -1099,11 +1095,11 @@ final class DictationController: ObservableObject {
                 } else {
                     switch why {
                     case .notTrusted:
-                        bar?.flash("Saved to the thought pad. Allow Accessibility to paste.", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.openAccessibilitySettings() }
+                        bar?.flash("Saved in Dictations. Allow Accessibility to paste.", action: "Open", seconds: 6, tone: .error) { [weak self] in self?.openAccessibilitySettings() }
                     case .notRead:
-                        bar?.flash("\(appName) didn't take the paste. Saved to the thought pad; ⌃⌘V tries again.", seconds: 5, tone: .error)
+                        bar?.flash("\(appName) didn't take the paste. Saved in Dictations; ⌃⌘V tries again.", seconds: 5, tone: .error)
                     case .typingInterrupted:
-                        bar?.flash("Typing stopped part way. The full text is in the thought pad.", seconds: 5, tone: .error)
+                        bar?.flash("Typing stopped part way. The full text is in Dictations.", seconds: 5, tone: .error)
                     }
                 }
             }
@@ -1271,7 +1267,7 @@ final class DictationController: ObservableObject {
     }
 
     /// A dictation that didn't land stays in the Ribbon for 12 seconds: what it says, Copy, and Paste again (after
-    /// you click the text field you meant). Esc or the X closes it; it stays in Dictations and the thought pad.
+    /// you click the text field you meant). Esc or the X closes it; it stays in Dictations.
     private func offerRescue(_ text: String, title: String) {
         rescuing = true
         bar?.ask(.init(title: title, body: "", quote: Recall.truncate(text, to: 110), after: "",
@@ -1477,7 +1473,7 @@ struct DictationHotkeyRows: View {
         SettingsRow("dictate.shortcuts", detail: secureNote, detailColor: dictation.secureInputOn ? Ink.accentText : Ink.mute) {
             HStack(spacing: 6) {
                 KeyChip(text: "⌃⌘V").help("Paste last dictation")
-                KeyChip(text: "⌃⌥P").help("Thought pad")
+                KeyChip(text: "⌃⌥P").help("New thought")
             }
         }
     }

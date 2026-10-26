@@ -654,7 +654,7 @@ final class FlowBarController {
             run: { [weak dictation] a in dictation?.apply(a) },
             editActions: { [weak dictation] in dictation?.openSettings(tab: .actions) },
             projects: dictation.projects,
-            thoughtPad: { ThoughtPadController.shared.toggle() }
+            newThought: { ThoughtCapture.shared.toggle() }
         )) { [weak self] in self?.pointerMoved() }
     }
 }
