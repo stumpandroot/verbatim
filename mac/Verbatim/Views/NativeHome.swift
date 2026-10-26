@@ -90,6 +90,8 @@ extension HomeView {
         case .projects: HomeProjectsMac(size: item.size)
         case .moments: HomeMomentsMac(size: item.size)
         case .queue: HomeQueueMac(size: item.size)
+        case .thoughts: HomeThoughtsMac(size: item.size)
+        case .journal: HomeJournalMac(size: item.size)
         }
     }
 
@@ -151,7 +153,8 @@ extension HomeView {
     }
 
     @ViewBuilder private func premiumTile(_ t: HomeTile, tall: Bool, importAnchor: Bool) -> some View {
-        let badge: String? = t == .dictate ? dictateKey.1.map { $0.prefix(1).uppercased() + String($0.dropFirst()) } : nil
+        let badge: String? = t == .dictate ? dictateKey.1.map { $0.prefix(1).uppercased() + String($0.dropFirst()) }
+            : t == .newThought ? Thoughts.hotkey : nil
         let base = PremiumTile(title: t.title, detail: tileDetail(t), badge: badge, symbol: t.symbol, hint: Self.tileHint(t),
                                highlighted: t == .importMedia && fileOver, tall: tall) { runTile(t) }
         switch t {

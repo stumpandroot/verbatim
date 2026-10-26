@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Pushed onto the Home stack (the Dictate tile) or the Library stack (the Dictations row) to open the Dictations list.
+/// With Dictations in the tab bar, the list is that tab's root too.
 struct DictationsRoute: Hashable {}
 
 /// The Library's row for every dictation, flat on the paper like the rows under it: the butter mark, "Dictations"
@@ -119,9 +120,7 @@ struct DictationsListScreen: View {
     }
 
     /// Opens the transcript on whichever stack this list is on.
-    private func open(_ id: UUID) {
-        if app.tab == .home { app.homePath.append(id) } else { app.libraryPath.append(id) }
-    }
+    private func open(_ id: UUID) { app.pushHere(id) }
 
     /// The keyboard, explained: sage with grain and the lines drawing. Opens the keyboard's settings.
     private var keyboardPanel: some View {

@@ -8,18 +8,8 @@ import UIKit
 /// transcript, note, bookmark, project, and Dictionary word syncs through iCloud both ways.
 @MainActor
 final class PhoneState: ObservableObject {
-    enum Tab: Hashable {
-        case home, library, moments, settings
-        /// Left-to-right position in the tab bar, so a new tab's content can enter from the side you moved toward.
-        var order: Int {
-            switch self {
-            case .home: return 0
-            case .library: return 1
-            case .moments: return 2
-            case .settings: return 3
-            }
-        }
-    }
+    /// A tab: Home, Settings, and the up to three you pick between them (PhoneTabBar.swift).
+    typealias Tab = PhoneTab
 
     let store = Store()
     let recorder = Recorder()
@@ -32,9 +22,17 @@ final class PhoneState: ObservableObject {
     /// and it's the selected tab (`TabEntrance`).
     private(set) var tabFrom: Tab = .home
     @Published private(set) var tabEpoch = 0
+    /// Each tab keeps its own navigation stack.
     @Published var homePath = NavigationPath()
     @Published var libraryPath = NavigationPath()
     @Published var momentsPath = NavigationPath()
+    @Published var thoughtsPath = NavigationPath()
+    @Published var journalPath = NavigationPath()
+    @Published var dictationsPath = NavigationPath()
+    @Published var projectsPath = NavigationPath()
+    /// Settings › Personalization and preferences › Tab bar: which tabs sit between Home and Settings, on this iPhone.
+    let tabBarStore = PhoneTabBarStore.shared
+    var tabBar: PhoneTabBar { tabBarStore.bar }
     @Published var toast: String? = nil
     @Published var showRecorder = false
     /// The screenshot tour's stand-in for a running recording (no microphone in the simulator). UI test mode only.
@@ -208,12 +206,7 @@ final class PhoneState: ObservableObject {
 
     func open(_ id: UUID, segment: UUID? = nil) {
         focusSegment = segment
-        switch tab {
-        case .home: homePath.append(id)
-        case .library: libraryPath.append(id)
-        case .moments: momentsPath.append(id)
-        case .settings: tab = .library; libraryPath.append(id)
-        }
+        pushHere(id)
     }
 
     // MARK: Recording
@@ -919,7 +912,7 @@ final class PhoneState: ObservableObject {
         session.end(reason: nil)
         session.forgetTakes()
         player.stop()
-        homePath = NavigationPath(); libraryPath = NavigationPath(); momentsPath = NavigationPath()
+        for t in PhoneTab.allCases { setPath(t, NavigationPath()) }
         coordinator.cancelAll()   // once, so cancelling one job doesn't start the next queued one
         for task in linkTasks.values { task.cancel() }
         linkTasks = [:]; linkImports = [:]; latestLinkImport = nil

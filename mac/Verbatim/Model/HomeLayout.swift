@@ -34,7 +34,7 @@ enum HomeCardSize: String, CaseIterable, Sendable {
 
 /// A section of Home. The header (greeting and date) and the What's new note aren't sections: they always lead.
 enum HomeSection: String, CaseIterable, Sendable {
-    case record, tiles, week, stats, recent, lastDictation, projects, moments, queue
+    case record, tiles, week, stats, recent, lastDictation, projects, moments, queue, thoughts, journal
 
     var title: String {
         switch self {
@@ -47,6 +47,8 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .projects: return "Projects"
         case .moments: return "Moments"
         case .queue: return "Queue"
+        case .thoughts: return "Today's thoughts"
+        case .journal: return "Journal"
         }
     }
 
@@ -73,6 +75,8 @@ enum HomeSection: String, CaseIterable, Sendable {
         case .projects: return "Each project and how much is in it"
         case .moments: return "Your latest saved moment"
         case .queue: return "Shows while something transcribes"
+        case .thoughts: return "Today's last few thoughts, with New thought"
+        case .journal: return "Your latest entry and this week's days"
         }
     }
 }
@@ -82,6 +86,7 @@ enum HomeTile: String, CaseIterable, Sendable {
     case dictate
     case importMedia = "import"
     case whatsPlaying, appAudio, captions, pasteLink, thoughtPad, search, moments, queue, dictations, dictionary, projects
+    case newThought, journal
 
     var title: String {
         switch self {
@@ -91,13 +96,15 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .appAudio: return "App audio"
         case .captions: return "Live captions"
         case .pasteLink: return "Paste a link"
-        case .thoughtPad: return "Thoughts"
+        case .thoughtPad: return "Today's page"
         case .search: return "Search"
         case .moments: return "Moments"
         case .queue: return "Queue"
         case .dictations: return "Dictations"
         case .dictionary: return "Dictionary"
         case .projects: return "Projects"
+        case .newThought: return "New thought"
+        case .journal: return "Journal"
         }
     }
 
@@ -110,17 +117,20 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .appAudio: return "Another app's sound"
         case .captions: return "Words as they're said"
         case .pasteLink: return "Transcribe a video"
-        case .thoughtPad: return "Today's page"
+        case .thoughtPad: return "Your thoughts, floating"
         case .search: return "Find the line you need"
         case .moments: return "Lines you saved"
         case .queue: return "What's transcribing"
         case .dictations: return "Everything you dictated"
         case .dictionary: return "Words to spell your way"
         case .projects: return "Your projects"
+        case .newThought: return "Record one now"
+        case .journal: return "Your journal, by day"
         }
     }
 
-    /// What's playing is the iPhone's (a broadcast of another app's sound); App audio and Thoughts' page are the Mac's.
+    /// What's playing is the iPhone's (a broadcast of another app's sound); App audio and the floating Today's page are
+    /// the Mac's. New thought and Journal are on both.
     var platformOnly: HomePlatform? {
         switch self {
         case .whatsPlaying: return .phone
@@ -163,7 +173,8 @@ struct HomeLayout: Equatable, Sendable {
     // MARK: Defaults
 
     /// Home as it was before Edit Home, in each look. Verbose style leads with the Record panel; Premium Native leads
-    /// with This week and hides the Record section, because the floating record button stands in for it.
+    /// with This week and hides the Record section, because the floating record button stands in for it. Today's
+    /// thoughts and Journal came later and start hidden, so no one's Home changes until they show them.
     static func defaults(_ platform: HomePlatform, _ look: HomeLook) -> HomeLayout {
         func on(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: true, size: size) }
         func off(_ s: HomeSection, _ size: HomeCardSize) -> Item { Item(section: s, visible: false, size: size) }
@@ -171,16 +182,19 @@ struct HomeLayout: Equatable, Sendable {
         switch (platform, look) {
         case (.phone, .verbose):
             items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large),
-                     off(.lastDictation, .compact), off(.projects, .compact), off(.moments, .large), off(.queue, .compact)]
+                     off(.lastDictation, .compact), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
+                     off(.thoughts, .large), off(.journal, .large)]
         case (.phone, .native):
             items = [on(.week, .large), off(.record, .large), on(.tiles, .compact), on(.recent, .large),
-                     off(.lastDictation, .compact), off(.projects, .compact), off(.moments, .large), off(.queue, .compact)]
+                     off(.lastDictation, .compact), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
+                     off(.thoughts, .large), off(.journal, .large)]
         case (.mac, .verbose):
             items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large), on(.lastDictation, .large),
-                     off(.projects, .compact), off(.moments, .large), off(.queue, .compact)]
+                     off(.projects, .compact), off(.moments, .large), off(.queue, .compact), off(.thoughts, .large), off(.journal, .large)]
         case (.mac, .native):
             items = [on(.week, .large), on(.stats, .large), on(.tiles, .compact), on(.recent, .large),
-                     off(.lastDictation, .compact), off(.record, .large), off(.projects, .compact), off(.moments, .large), off(.queue, .compact)]
+                     off(.lastDictation, .compact), off(.record, .large), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
+                     off(.thoughts, .large), off(.journal, .large)]
         }
         let tiles: [HomeTile] = platform == .phone ? [.dictate, .importMedia, .whatsPlaying, .captions] : [.dictate, .importMedia, .appAudio, .captions]
         return HomeLayout(items: items, tiles: tiles)
@@ -341,6 +355,50 @@ struct HomeLayout: Equatable, Sendable {
 
     /// The defaults key for a look's layout.
     static func key(_ look: HomeLook) -> String { "home.layout.\(look.rawValue)" }
+}
+
+// MARK: - Today's thoughts and Journal
+
+/// What Home's Today's thoughts section shows (both apps): Large lists the latest few of today's thoughts in the order
+/// they started; Compact is one row with the count and the latest.
+enum HomeThoughts {
+    static let largeCount = 4
+
+    /// The latest `count` of a page that's in time order, still in time order.
+    static func latest<T>(_ page: [T], count: Int = largeCount) -> [T] { Array(page.suffix(max(0, count))) }
+
+    /// "6 thoughts today", "1 thought today", or "No thoughts yet today".
+    static func countLine(_ n: Int) -> String {
+        n == 0 ? "No thoughts yet today" : n == 1 ? "1 thought today" : "\(n) thoughts today"
+    }
+}
+
+/// This week's days on Home's Journal section: a dot for each, filled where a page has an entry.
+enum HomeJournalWeek {
+    struct Day: Equatable, Sendable {
+        var start: Date
+        var hasEntry: Bool
+        var isToday: Bool
+        var isFuture: Bool
+    }
+
+    /// The seven days of the week `today` is in (the calendar's first weekday first). `entryDays` are page days (the
+    /// start of each day with an entry); `today` is today's page.
+    static func days(entryDays: [Date], today: Date, calendar: Calendar = .current) -> [Day] {
+        let todayStart = calendar.startOfDay(for: today)
+        let start = calendar.dateInterval(of: .weekOfYear, for: todayStart)?.start ?? todayStart
+        let have = Set(entryDays.map { calendar.startOfDay(for: $0) })
+        return (0..<7).compactMap { i in
+            guard let d = calendar.date(byAdding: .day, value: i, to: start) else { return nil }
+            return Day(start: d, hasEntry: have.contains(d), isToday: d == todayStart, isFuture: d > todayStart)
+        }
+    }
+
+    /// "3 days this week" (VoiceOver and the Compact line).
+    static func countLine(_ days: [Day]) -> String {
+        let n = days.filter(\.hasEntry).count
+        return n == 1 ? "1 day this week" : "\(n) days this week"
+    }
 }
 
 // MARK: - The Mac's grid

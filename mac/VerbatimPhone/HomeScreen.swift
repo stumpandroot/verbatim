@@ -44,8 +44,6 @@ struct HomeScreen: View {
         .tabEntrance(.home) {}
         .phonePage()
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
-        .navigationDestination(for: HomeDictionaryRoute.self) { _ in DictionaryScreen() }
         .sheet(isPresented: $editingHome) {
             NavigationStack { EditHomeView(onDone: { editingHome = false }) }
                 .environmentObject(app)
@@ -100,6 +98,8 @@ struct HomeScreen: View {
         case .projects: HomeProjectsSection(size: item.size)
         case .moments: HomeMomentsSection(size: item.size)
         case .queue: HomeQueueSection(size: item.size)
+        case .thoughts: HomeThoughtsSection(size: item.size).id("home-thoughts")
+        case .journal: HomeJournalSection(size: item.size, now: now)
         case .stats: EmptyView()
         }
     }
@@ -440,7 +440,7 @@ struct HomeScreen: View {
                     .lookSerif(sectionSize).foregroundStyle(.lookInk)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
-                Button("Library") { app.tab = .library }
+                Button("Library") { app.go(.library) }
                     .font(.system(size: 14, weight: .semibold)).foregroundStyle(.lookAccentText)
                     .buttonStyle(.plain)
                     .accessibilityHint("Opens your library.")

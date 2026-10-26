@@ -123,12 +123,17 @@ extension PhoneState {
         }
     }
 
-    /// Opens a day's Thoughts page in Library (today's from a widget or the Live Activity).
+    /// Opens a day's Thoughts page (today's from a widget or the Live Activity): in the Thoughts tab when it's in the
+    /// bar (today is its root), otherwise pushed inside Library, or Home when Library isn't in the bar either.
     func openThoughtPage(_ day: Date? = nil) {
-        tab = .library
+        let d = Calendar.current.startOfDay(for: day ?? todayPage)
+        let host = tabBar.host(for: .thoughts)
         var path = NavigationPath()
-        path.append(DayPageRoute(kind: .idea, day: day ?? todayPage))
-        libraryPath = path
+        if host != .thoughts || d != todayPage { path.append(DayPageRoute(kind: .idea, day: d)) }
+        tab = host
+        setPath(host, path)
+        // The Thoughts tab's root comes back to today if its arrows had moved it.
+        if host == .thoughts { NotificationCenter.default.post(name: .verbatimDayPageMove, object: "today") }
     }
 }
 

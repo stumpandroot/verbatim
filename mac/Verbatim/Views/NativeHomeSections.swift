@@ -369,6 +369,148 @@ struct NativeHomeQueue: View {
     }
 }
 
+// MARK: - Today's thoughts and Journal
+
+/// Today's thoughts on white cards. Large: the latest four, each with its time, and New Thought. Compact: one row with
+/// the count and the latest. A click opens today's page; New Thought records in place (⌃⌥P).
+struct NativeHomeThoughts: View {
+    @EnvironmentObject var app: AppState
+    var size: HomeCardSize
+    var page: [Transcript]
+    @ObservedObject private var capture = ThoughtCapture.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if size == .large { NativeHomeHeading(title: "Today's Thoughts", link: "Today's Page") { HomeDayPages.openToday(app) } }
+            HStack(alignment: size == .large ? .bottom : .center, spacing: 12) {
+                Button { HomeDayPages.openToday(app) } label: { size == .large ? AnyView(list) : AnyView(row) }
+                    .buttonStyle(PremiumCardPress(radius: 18))
+                    .accessibilityHint("Opens today's Thoughts page.")
+                if size == .compact { newThought }
+            }
+            if size == .large { newThought }
+        }
+        .uiTarget("home-thoughts")
+    }
+
+    private func words(_ t: Transcript) -> String {
+        switch t.status {
+        case .processing: return "Saved as audio. Transcribing…"
+        case .failed: return "Couldn't transcribe it. The audio is kept."
+        case .ready: let w = Thoughts.words(t); return w.isEmpty ? "Nothing heard" : w
+        }
+    }
+
+    private var list: some View {
+        VStack(spacing: 0) {
+            if page.isEmpty {
+                Text("No thoughts yet today. \(Thoughts.hotkey) starts one from any app.").font(.system(size: 13)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading).padding(.horizontal, 16)
+            }
+            let shown = HomeThoughts.latest(page)
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(Thoughts.time(t.createdAt, native: true)).font(.system(size: 12.5).monospacedDigit()).foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .leading)
+                    Text(words(t)).font(.system(size: 14)).foregroundStyle(t.status == .ready ? Color.primary : Color.secondary).lineLimit(2)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 11)
+                .overlay(alignment: .bottom) {
+                    if i < shown.count - 1 { Rectangle().fill(PremiumInk.separator).frame(height: 0.5).padding(.leading, 92) }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard()
+    }
+
+    private var row: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "lightbulb").font(.system(size: 14)).foregroundStyle(PremiumInk.accentText).frame(width: 22)
+            Text(HomeThoughts.countLine(page.count)).font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).lineLimit(1).fixedSize()
+            if let last = page.last { Text(words(last)).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1) }
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 56, alignment: .leading)
+        .premiumCard()
+    }
+
+    private var newThought: some View {
+        Button { capture.toggle() } label: {
+            Label { Text(capture.isRecording ? "Stop" : "New Thought") } icon: { ThoughtGlyph(color: .white, lineWidth: 1.4).frame(width: 14, height: 14) }
+        }
+        .buttonStyle(.borderedProminent).tint(Ink.nativeAccent)
+        .help("New thought (\(Thoughts.hotkey))")
+        .uiTarget("home-thoughts-new")
+    }
+}
+
+/// Journal on a white card: the newest entry (date, bold title, two lines, a play pill with the length) and this
+/// week's days as accent dots. Compact: one row with the title and the dots. A click opens Journal By day.
+struct NativeHomeJournal: View {
+    @EnvironmentObject var app: AppState
+    var size: HomeCardSize
+    var latest: Transcript?
+    var week: [HomeJournalWeek.Day]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if size == .large { NativeHomeHeading(title: "Journal", link: "By Day") { HomeDayPages.openJournal(app) } }
+            // The play pill sits beside the card's button, not inside it (macOS 26 click safety).
+            ZStack(alignment: .bottomTrailing) {
+                Button { HomeDayPages.openJournal(app) } label: { size == .large ? AnyView(card) : AnyView(row) }
+                    .buttonStyle(PremiumCardPress(radius: 18))
+                    .accessibilityValue(HomeJournalWeek.countLine(week))
+                    .accessibilityHint("Opens Journal by day.")
+                if size == .large { play.padding(.trailing, 16).padding(.bottom, 16) }
+            }
+        }
+        .uiTarget("home-journal")
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let t = latest {
+                Text(PremiumDateLine.line(t.createdAt)).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.primary).lineLimit(2)
+                Text(PremiumPreview.text(t)).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2)
+            } else {
+                Text("Record with the Journal kind, and your newest entry shows here.").font(.system(size: 13)).foregroundStyle(.secondary)
+            }
+            HomeWeekDots(week: week, size: 9, letters: true).padding(.top, 8)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard()
+    }
+
+    private var row: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "book").font(.system(size: 14)).foregroundStyle(PremiumInk.accentText).frame(width: 22)
+            Text("Journal").font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary).fixedSize()
+            Text(latest?.title ?? "No entries yet").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 8)
+            HomeWeekDots(week: week, size: 7)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 56, alignment: .leading)
+        .premiumCard()
+    }
+
+    @ViewBuilder private var play: some View {
+        if let t = latest, t.audioFileName != nil, t.status == .ready {
+            Button { NativeNav.shared.play(t, app: app) } label: {
+                Label { Text(HomeRecentStyle.length(t.duration)).monospacedDigit() } icon: { Image(systemName: "play.fill") }
+                    .font(.system(size: 12.5, weight: .semibold))
+            }
+            .buttonStyle(.bordered).controlSize(.small)
+            .accessibilityLabel("Play, \(HomeRecentStyle.length(t.duration))")
+        }
+    }
+}
+
 /// A Native section heading on Home: bold title, an accent link on the right.
 struct NativeHomeHeading: View {
     var title: String

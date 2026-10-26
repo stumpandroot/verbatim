@@ -476,6 +476,7 @@ enum UITest {
         await reveal("home-week", in: window)
         await show("02c-home-week")
         await editHomeSteps(app: app, window: window, look: .verbose, suffix: "")
+        await homeThoughtsSteps(app: app, window: window, look: .verbose, suffix: "")
         app.requestRecord()                       // no mic on the runner: the permission sheet
         await show("03-mic-sheet")
         app.showMicSheet = false
@@ -722,6 +723,7 @@ enum UITest {
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
         await editHomeSteps(app: app, window: window, look: .native, suffix: "-native")
+        await homeThoughtsSteps(app: app, window: window, look: .native, suffix: "-native")
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.library)
         await show("05-library-native")
@@ -830,6 +832,61 @@ enum UITest {
         if look == .native {
             check("edit home\(suffix): Record starts hidden in Native, where the floating record button stands in", !store.layout(hl).isVisible(.record) && HomeProbe.sections[.record] == nil)
         }
+    }
+
+    /// Home's Today's thoughts and Journal sections and the New thought and Journal tiles (HomeSectionsMac.swift,
+    /// NativeHomeSections.swift): shown from Edit Home's model, they render, Large and Compact; the New thought tile
+    /// starts and stops a thought (simulated audio) that lands on today's page; the section's New thought does the same;
+    /// the Journal tile opens Journal By day. Then the layout is reset.
+    private static func homeThoughtsSteps(app: AppState, window: NSWindow, look: AppLook, suffix: String) async {
+        let store = HomeLayoutStore.shared
+        let capture = ThoughtCapture.shared
+        let hl = look.homeLook
+        let hour = Thoughts.newPageHour
+        let today = DayPages.today(hour: hour)
+        let wasSimulating = capture.simulate
+        let name = "home thoughts\(suffix)"
+        store.reset(hl)
+        check("\(name): Today's thoughts and Journal start hidden", !store.layout(hl).isVisible(.thoughts) && !store.layout(hl).isVisible(.journal))
+        store.update(hl) { l in
+            l.setVisible(.thoughts, true)
+            l.setVisible(.journal, true)
+            l.tiles = [.newThought, .journal, .dictate, .importMedia]
+        }
+        app.go(.home); app.captureMode = "voice"
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        await reveal("home-thoughts", in: window)
+        await show("02h-home-thoughts-journal\(suffix)")
+        check("\(name): the shown sections render (Today's thoughts and Journal, Large)",
+              HomeProbe.sections[.thoughts] == .large && HomeProbe.sections[.journal] == .large)
+        check("\(name): the New thought and Journal tiles reach Home", HomeProbe.tiles.contains(.newThought) && HomeProbe.tiles.contains(.journal))
+        check("\(name): the Today's page tile and New thought have different names", HomeTile.thoughtPad.title != HomeTile.newThought.title)
+
+        capture.simulate = true
+        var before = app.store.page(.idea, day: today, hour: hour).count
+        await reveal(HomeView.tileTarget(.newThought), in: window)
+        await step("\(name): the New thought tile starts a thought in place", window, target: HomeView.tileTarget(.newThought), check: { capture.isRecording })
+        await step("\(name): a second click adds it to today's page", window, target: HomeView.tileTarget(.newThought),
+                   check: { !capture.isRecording && app.store.page(.idea, day: today, hour: hour).count == before + 1 })
+        check("\(name): New thought keeps you on Home", app.screen == .home)
+        try? await Task.sleep(nanoseconds: 2_200_000_000)   // the bubble's Added note goes
+        before = app.store.page(.idea, day: today, hour: hour).count
+        await reveal("home-thoughts-new", in: window)
+        await step("\(name): the section's New thought starts one", window, target: "home-thoughts-new", check: { capture.isRecording })
+        await step("\(name): and stops it onto today's page", window, target: "home-thoughts-new",
+                   check: { !capture.isRecording && app.store.page(.idea, day: today, hour: hour).count == before + 1 })
+        capture.simulate = wasSimulating
+
+        store.update(hl) { l in l.setSize(.thoughts, .compact); l.setSize(.journal, .compact) }
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        await reveal("home-thoughts", in: window)
+        await show("02i-home-thoughts-journal-compact\(suffix)")
+        check("\(name): Compact reaches Home", HomeProbe.sections[.thoughts] == .compact && HomeProbe.sections[.journal] == .compact)
+        await reveal(HomeView.tileTarget(.journal), in: window)
+        await step("\(name): the Journal tile opens Journal By day", window, target: HomeView.tileTarget(.journal), check: { app.screen == .byDay(.journal) })
+        store.reset(hl)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
     /// Checks that only hold while Native is on: tokens turn into Native's colors, resolved for the appearance asked

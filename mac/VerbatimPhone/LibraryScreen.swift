@@ -20,6 +20,10 @@ struct LibraryScreen: View {
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
     @Environment(\.look) private var look
+    /// Pushed inside another tab (Library isn't in the bar, or a project from the Projects tab), opened on this chip.
+    /// Nil for the Library tab itself.
+    var route: LibraryRoute? = nil
+    @State private var routeApplied = false
 
     enum Filter: Hashable { case all, pinned, working, project(UUID), kind(RecordingKind) }
 
@@ -190,16 +194,20 @@ struct LibraryScreen: View {
         }
         .modifier(NativeSearchable(enabled: look.isNative, text: $search))
         .tabEntrance(.library) { seen.entered(); entrance += 1 }
-        .onChange(of: search) { _, v in LookKeep.librarySearch = v }
-        .onChange(of: filter) { _, v in LookKeep.libraryFilter = v }
+        .onChange(of: search) { _, v in if route == nil { LookKeep.librarySearch = v } }
+        .onChange(of: filter) { _, v in if route == nil { LookKeep.libraryFilter = v } }
+        .onAppear {
+            // Pushed: starts on its own chip and an empty search, once.
+            guard let route, !routeApplied else { return }
+            routeApplied = true
+            search = ""
+            if let r = route.request { applyRequest(r) } else { filter = .all }
+        }
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
         .phonePage()
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
-        .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
-        .navigationDestination(for: ByDayRoute.self) { r in ByDayScreen(kind: r.kind) }
-        .navigationDestination(for: DayPageRoute.self) { r in DayPageScreen(kind: r.kind, day: r.day).id(r) }
         .toolbar {
             // Verbose style: the serif title sits on the paper; the bar keeps only Apple's buttons. Native: the large title.
             if !look.isNative {
@@ -219,16 +227,10 @@ struct LibraryScreen: View {
         }
         .onReceive(app.$libraryFilterRequest) { r in
             // The screenshot tour (and anything else) can open Library on a kind, or back on All; Home's tiles and
-            // sections open it on what's transcribing ("working") or on a project ("project:<id>").
-            guard let r else { return }
-            if r == "working" {
-                filter = .working
-            } else if r.hasPrefix("project:"), let id = UUID(uuidString: String(r.dropFirst("project:".count))) {
-                filter = .project(id)
-            } else {
-                filter = RecordingKind(rawValue: r).map { .kind($0) } ?? .all
-            }
-            if filter != .all { setType(.all) }
+            // sections open it on what's transcribing ("working") or on a project ("project:<id>"). For the Library
+            // tab only; a pushed Library has its own (`route`).
+            guard let r, route == nil else { return }
+            applyRequest(r)
             app.libraryFilterRequest = nil
         }
         .sheet(isPresented: Binding(get: { app.addFromLibrary != nil }, set: { if !$0 { app.addFromLibrary = nil } })) {
@@ -243,6 +245,18 @@ struct LibraryScreen: View {
                 projectName = ""
             }
         }
+    }
+
+    /// Puts the Library on a chip from a request: "working", "project:<id>", a kind's raw value, or anything else for All.
+    private func applyRequest(_ r: String) {
+        if r == "working" {
+            filter = .working
+        } else if r.hasPrefix("project:"), let id = UUID(uuidString: String(r.dropFirst("project:".count))) {
+            filter = .project(id)
+        } else {
+            filter = RecordingKind(rawValue: r).map { .kind($0) } ?? .all
+        }
+        if filter != .all { setType(.all) }
     }
 
     // MARK: Rows
@@ -465,7 +479,7 @@ extension LibraryScreen {
             NavigationLink(value: DictationsRoute()) { collection("Dictations", symbol: "text.bubble", count: dictations.count) }
                 .buttonStyle(PhoneCardPress())
                 .accessibilityHint("Opens your dictations.")
-            Button { app.tab = .moments } label: { collection("Moments", symbol: "bookmark", count: moments) }
+            Button { app.go(.moments) } label: { collection("Moments", symbol: "bookmark", count: moments) }
                 .buttonStyle(PhoneCardPress())
                 .accessibilityHint("Opens Moments.")
             Menu {

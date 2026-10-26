@@ -14,6 +14,8 @@ struct EditHomeView: View {
     @Environment(\.look) private var look
     @Environment(\.limitMotion) private var limitMotion
     @State private var pickingTiles = false
+    /// Tab bar…: the tab bar picker (TabBarSettings.swift), as a sheet over Edit Home.
+    @State private var editingTabBar = false
     @State private var confirmReset = false
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 34
     /// Whether Edit Home is on screen, for the self-test.
@@ -69,6 +71,13 @@ struct EditHomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .verbatimHomeTilePicker)) { note in
             pickingTiles = (note.object as? Bool) ?? true
         }
+        .sheet(isPresented: $editingTabBar) {
+            NavigationStack { TabBarSettingsScreen(onDone: { editingTabBar = false }) }
+                .environmentObject(app)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .verbatimEditTabBar)) { note in
+            editingTabBar = (note.object as? Bool) ?? true
+        }
         .onAppear { Self.visible = true }
         .onDisappear { Self.visible = false }
     }
@@ -99,6 +108,12 @@ struct EditHomeView: View {
             Text("Drag to reorder. Choose Compact or Large for each section, and hide what you don't use.")
                 .font(.system(size: 15)).foregroundStyle(.lookDim)
                 .fixedSize(horizontal: false, vertical: true)
+            Button("Tab bar…") { editingTabBar = true }
+                .buttonStyle(.borderless)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.lookAccentText)
+                .accessibilityHint("Choose up to three tabs between Home and Settings.")
+                .accessibilityIdentifier("editHome.tabBar")
         }
         .padding(.vertical, 4)
     }
@@ -356,4 +371,6 @@ struct HomeTilePicker: View {
 extension Notification.Name {
     /// Opens (true) or closes (false) Edit Home's tile picker; the self-test uses it.
     static let verbatimHomeTilePicker = Notification.Name("verbatimHomeTilePicker")
+    /// Opens (true) or closes (false) Edit Home's Tab bar… sheet; the self-test uses it.
+    static let verbatimEditTabBar = Notification.Name("verbatimEditTabBar")
 }

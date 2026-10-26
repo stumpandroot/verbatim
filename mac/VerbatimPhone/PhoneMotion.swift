@@ -114,7 +114,8 @@ struct TabEntrance: ViewModifier {
         guard app.tab == tab, app.tabFrom != tab else { return }
         onEnter()
         guard PhoneMotion.on else { return }
-        let from: CGFloat = limitMotion ? 0 : (tab.order > app.tabFrom.order ? 26 : -26)
+        let bar = app.tabBar
+        let from: CGFloat = limitMotion ? 0 : ((bar.position(tab) ?? 0) > (bar.position(app.tabFrom) ?? 0) ? 26 : -26)
         var start = Transaction()
         start.disablesAnimations = true
         withTransaction(start) { dx = from; alpha = 0 }

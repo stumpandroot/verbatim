@@ -36,6 +36,13 @@ struct SettingsScreen: View {
     @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true
     /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
     @ObservedObject private var flow = FlowSettings.shared
+    /// The tab bar's picks, for the Tab bar row's value.
+    @ObservedObject private var tabBarStore = PhoneTabBarStore.shared
+    /// "Library, Moments": the tabs between Home and Settings, or "Home and Settings" with none.
+    private var tabBarValue: String {
+        let m = tabBarStore.bar.middle
+        return m.isEmpty ? "Home and Settings" : m.map(\.title).joined(separator: ", ")
+    }
     /// Groups stagger in when you switch to Settings.
     @State private var seen = SeenRows()
     @State private var entrance = 0
@@ -198,6 +205,7 @@ struct SettingsScreen: View {
         case .shortcuts: ShortcutsInfoScreen()
         case .customizeHome: CustomizeHomeDestination()
         case .thoughts: ThoughtsSettingsScreen()
+        case .tabBar: TabBarSettingsScreen()
         }
     }
 
@@ -313,6 +321,8 @@ struct SettingsScreen: View {
             SettingsDivider()
             pageRow("customizeHomeRow", .customizeHome, icon: "house", tint: Ink.butterTint, art: .iconHome, title: "Customize Home", value: "Edit")
         }
+        SettingsDivider()
+        pageRow("tabBarRow", .tabBar, icon: "dock.rectangle", tint: Ink.sageTint, art: .iconTabBar, title: "Tab bar", value: tabBarValue)
         SettingsDivider()
         pageRow("aboutMeRow", .aboutMe, icon: "person", tint: Ink.petalTint, art: .iconAboutMe, title: "About me", value: aboutMe.isEmpty ? "Add" : "Added")
         SettingsDivider()
