@@ -291,7 +291,7 @@ final class ThoughtCapture: ObservableObject {
 @MainActor
 enum ThoughtPadMigration {
     static let doneKey = "thoughts.padMigrated"
-    static var file: URL {
+    nonisolated static var file: URL {
         Paths.local.appendingPathComponent(ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" ? "thoughtpad-uitest.json" : "thoughtpad.json")
     }
 
