@@ -300,7 +300,15 @@ final class PhoneState: ObservableObject {
 
     /// Loads the speech model while you talk, so transcription starts the moment you stop. iOS clears it from
     /// memory when Verbatim is closed, so without this every recording would wait for it to load first.
+    ///
+    /// Not for a recording started in place from a widget, control, Siri, or the Action button with Verbose in the
+    /// background: loading the model there competes with the intent's start for the Neural Engine and the disk, and
+    /// the model loads when Verbose comes forward (`KeyboardSession.warmAhead`) or when transcription starts.
     func warmModel() {
+        guard UIApplication.shared.applicationState == .active else {
+            Log.note("speech model warm-up skipped: the recording started with Verbose in the background")
+            return
+        }
         let (engineId, model) = engineChoice
         guard engineId == "fluid" else { return }
         Task.detached(priority: .utility) { await FluidEngine.shared.warm(model: model) }
