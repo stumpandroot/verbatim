@@ -382,6 +382,10 @@ private struct NativeActionsItem: View {
                 Divider()
                 Button(SummaryAction.title(t)) { nav.summarize(t, app: app) }
                     .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
+                Divider()
+                Button(TurboRerun.title + "…") { app.turboAsk = t.id }
+                    .disabled(TurboRerun.unavailableReason(t) != nil)
+                if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
             } label: { Label("Actions", systemImage: "sparkles") }
                 .disabled(t.status != .ready)
                 .help("Run a saved action: decisions and next steps, a brief, an email; summarize; or record more")

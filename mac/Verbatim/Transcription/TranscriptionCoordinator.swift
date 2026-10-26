@@ -207,6 +207,32 @@ final class TranscriptionCoordinator: ObservableObject {
         if let fresh = store.transcript(id) { retry(fresh) }
     }
 
+    /// Transcribes a finished transcript again with another engine (Transcribe again with Whisper Turbo), keeping the
+    /// words it replaces as `previousVersion` to switch back to. The request rides on the transcript (`rerunRequest`),
+    /// so a job a quit interrupted picks up the same way. Speakers, notes, and moments carry over
+    /// (TranscriptVersions.swift); a failure or Cancel leaves the transcript as it was.
+    func rerun(_ id: UUID, engine: String, model: String) {
+        guard let t = store.transcript(id), t.audioFileName != nil, t.pendingAppend == nil else { return }
+        queue.removeAll { $0 == id }
+        if runningID == id { stopRunning() }
+        if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
+        store.update(id) { x in
+            var req = x.rerunRequest ?? RerunRequest(engine: engine, model: model, device: Device.id, deviceName: Device.name)
+            req.engine = engine; req.model = model
+            x.rerunRequest = req
+        }
+        if let fresh = store.transcript(id) { retry(fresh) }
+    }
+
+    /// A rerun stopped (failed or cancelled): the transcript goes back to its words as they were.
+    private func restoreAfterRerun(_ id: UUID, error: Error?) {
+        store.update(id) { x in
+            x.status = .ready; x.stage = nil; x.error = nil; x.rerunRequest = nil
+            x.processingDevice = nil; x.processingDeviceName = nil
+        }
+        if let error { host?.notify("Couldn't transcribe again: \(error.localizedDescription) Your transcript is as it was.") }
+    }
+
     func retry(_ t: Transcript) {
         guard t.audioFileName != nil else { host?.notify("That recording's audio is missing."); return }
         if t.pendingAppend != nil {
@@ -225,6 +251,13 @@ final class TranscriptionCoordinator: ObservableObject {
         if store.transcript(id)?.pendingAppend != nil {
             // The transcript stays as it was; the new recording is kept, ready to add with Retry.
             store.update(id) { $0.stage = "New recording not added yet"; $0.processingDevice = nil; $0.processingDeviceName = nil }
+            if runningID == id { stopRunning(); pump() }
+            return
+        }
+        if let t = store.transcript(id), t.rerunRequest != nil, t.status == .processing {
+            // Transcribe again with another engine: the words it would replace are still here.
+            restoreAfterRerun(id, error: nil)
+            if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
             if runningID == id { stopRunning(); pump() }
             return
         }
@@ -401,11 +434,22 @@ final class TranscriptionCoordinator: ObservableObject {
     private func run(_ id: UUID) {
         if let t = store.transcript(id), t.pendingAppend != nil, let url = store.audioURL(for: t) { runAppend(id, t, url); return }
         guard let t = store.transcript(id), let url = store.audioURL(for: t) else {
-            store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "The audio file is missing." }
+            if store.transcript(id)?.rerunRequest != nil {
+                // Transcribe again with another engine: the words it would replace stay.
+                restoreAfterRerun(id, error: NSError(domain: "Verbatim", code: 23, userInfo: [NSLocalizedDescriptionKey: "The audio file is missing."]))
+            } else {
+                store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = "The audio file is missing." }
+            }
             runningID = nil; pump(); return
         }
         host?.runWillBegin(id)
-        let s = settings
+        var s = settings
+        // Transcribe again with another engine: its engine and model, and speakers carried over by time when the
+        // words had them (TranscriptVersions.swift) instead of found again.
+        if let req = t.rerunRequest {
+            s.engineId = req.engine; s.model = req.model
+            if t.speakers.count >= 1, t.segments.contains(where: { $0.speaker != nil }) { s.wantSpeakers = false }
+        }
         let dict = s.applyDictionary ? store.dictionary : []
         let token = UUID(); runToken = token
         if config.logsJobs { Log.note("transcribe start engine=\(s.engineId) model=\(s.model) file=\(url.lastPathComponent)") }
@@ -427,11 +471,20 @@ final class TranscriptionCoordinator: ObservableObject {
         let logsJobs = config.logsJobs
         let progress = progressHandler(id)
         let options = jobOptions(id, t)
+        let keepsVersion = t.rerunRequest != nil
         runningTask = Task.detached(priority: .userInitiated) {
             do {
                 // A recording just handed to iCloud is moved into the audio folder in the background first.
                 await self.store.waitForAdoption(of: url)
-                if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
+                // A rerun asked for on the iPhone: its audio may still be in iCloud on this Mac. Without it, nothing
+                // downloads or runs (Whisper Turbo is 1.6 GB), and the transcript stays as it was.
+                let missing = NSError(domain: "Verbatim", code: 23, userInfo: [NSLocalizedDescriptionKey: "The audio file is missing."])
+                if keepsVersion {
+                    let inCloud = (try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]))?.ubiquitousItemDownloadingStatus != nil
+                    guard inCloud || FileManager.default.fileExists(atPath: url.path) else { throw missing }
+                }
+                if waitForDownload || keepsVersion { _ = await Cloud.ensureDownloaded(url) }
+                if keepsVersion, !FileManager.default.fileExists(atPath: url.path) { throw missing }
                 let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let original = out.original, fixed = out.fixed, speakers = out.speakers, corrections = out.corrections, wave = out.wave
@@ -440,6 +493,9 @@ final class TranscriptionCoordinator: ObservableObject {
                     // Cancelled while running (or started again): keep the cancellation, drop the late result.
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
                     self.store.update(id) { x in
+                        // Transcribe again with another engine: the words it replaces stay, to switch back to.
+                        let old: TranscriptVersion? = keepsVersion ? x.currentVersion : nil
+                        x.unclear = out.unclear
                         x.original = original
                         x.segments = fixed
                         x.speakers = speakers
@@ -454,8 +510,13 @@ final class TranscriptionCoordinator: ObservableObject {
                         if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                         // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
+                        if let old {
+                            x.previousVersion = old
+                            x.carryOver(from: old)
+                            x.rerunRequest = nil
+                        }
                     }
-                    SpeakerVoices.keep(id, voices: out.voices)
+                    if !keepsVersion || !out.voices.isEmpty { SpeakerVoices.keep(id, voices: out.voices) }
                     self.dropSections(t)
                     // In a batch, stay quiet until the last one.
                     self.host?.transcriptReady(id, corrections: corrections.count, queueEmpty: self.queue.isEmpty)
@@ -465,6 +526,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 await MainActor.run {
                     defer { self.finished(id, token: token) }
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { return }
+                    if keepsVersion { self.restoreAfterRerun(id, error: error); return }
                     self.store.update(id) { $0.status = .failed; $0.stage = nil; $0.error = error.localizedDescription }
                     self.host?.jobFailed(id, error: error)
                 }
@@ -535,7 +597,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 let proceed = await MainActor.run { () -> Bool in
                     guard self.runToken == token, self.store.transcript(id).map({ $0.status == .processing && $0.jobIsMine() }) == true else { self.finished(id, token: token); return false }
                     self.store.update(id) { x in
-                        x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections
+                        x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections; x.unclear = out.unclear
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
                         if !out.wave.isEmpty { x.waveform = out.wave }

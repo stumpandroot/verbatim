@@ -82,6 +82,12 @@ struct TranscriptView: View {
         .alert("Summaries need Apple Intelligence", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(summaryUnavailable ?? "") }
+        // Transcribe again with Whisper Turbo, from the Actions menu (either look): what it does, the download when
+        // the model isn't here, and that your edits stay with the words you can switch back to.
+        .alert(TurboRerun.title + "?", isPresented: Binding(get: { app.turboAsk == id }, set: { if !$0, app.turboAsk == id { app.turboAsk = nil } })) {
+            Button("Cancel", role: .cancel) {}
+            Button(TurboRerun.confirm(needsDownload: !app.turboDownloaded)) { app.transcribeAgainWithTurbo(id) }
+        } message: { Text(transcript.map { TurboRerun.message($0, onMac: true, needsDownload: !app.turboDownloaded) } ?? "") }
     }
 
     /// The Summarize action: runs it, or says why it can't run on this Mac.
@@ -540,6 +546,10 @@ struct TranscriptView: View {
                 Divider()
                 Button(SummaryAction.title(t)) { summarize(t) }
                     .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
+                Divider()
+                Button(TurboRerun.title + "…") { app.turboAsk = t.id }
+                    .disabled(TurboRerun.unavailableReason(t) != nil)
+                if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
             } label: { ToolLabel(title: "Actions", art: .refine, compact: compact) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .disabled(t.status != .ready)

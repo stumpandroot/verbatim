@@ -974,6 +974,37 @@ extension PhoneState: TranscriptionHost {
         coordinator.rerun(id, language: language)
     }
 
+    /// Whether a Mac can take Transcribe again with Whisper Turbo: the library syncs and a Mac has worked on it.
+    var macCanTranscribe: Bool { Cloud.enabled && macSeen }
+
+    /// Transcribe again with Whisper Turbo: the Mac does it (TurboRerun.swift). The request syncs with the
+    /// transcript; the Mac picks it up, and the transcript says "Waiting for your Mac" until then. With no Mac, it
+    /// says so instead.
+    func requestTurbo(_ id: UUID) {
+        guard macCanTranscribe else { say(TurboRerun.needsMac); return }
+        guard let t = store.transcript(id), TurboRerun.unavailableReason(t) == nil else { return }
+        store.update(id) { x in
+            x.rerunRequest = RerunRequest(engine: Transcript.turboEngine, model: Transcript.turboModel, device: Device.id, deviceName: Device.name)
+            x.processingDevice = nil; x.processingDeviceName = nil
+        }
+        say("Waiting for your Mac")
+    }
+
+    /// Takes back a request no Mac has picked up yet.
+    func cancelTurboRequest(_ id: UUID) {
+        guard let t = store.transcript(id), t.rerunRequest != nil, t.status == .ready, t.processingDevice == nil else { return }
+        store.update(id) { $0.rerunRequest = nil }
+        say("Cancelled")
+    }
+
+    /// Swaps the words with the version kept by Transcribe again (Switch to …).
+    func switchTranscriptVersion(_ id: UUID) {
+        guard store.transcript(id)?.previousVersion != nil else { return }
+        player.stop()
+        store.update(id) { _ = $0.switchVersion() }
+        say("Switched to \(store.transcript(id)?.model ?? "the other words")")
+    }
+
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
         if queueEmpty { say("Transcript ready"); UINotificationFeedbackGenerator().notificationOccurred(.success) }
     }
