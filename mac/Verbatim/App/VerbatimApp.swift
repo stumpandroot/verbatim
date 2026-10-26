@@ -75,9 +75,7 @@ struct VerbatimApp: App {
             // View › Edit Home: outlines Home's sections and opens Edit Home's inspector (Views/EditHome.swift).
             CommandGroup(after: .sidebar) {
                 Button("Edit Home") { app.goHome(); HomeEditSession.shared.editing = true }
-                // View › Back and Forward (⌘[ and ⌘]), both looks (App/NavTrail.swift).
-                Divider()
-                NavBackCommands(app: app)
+                // View › Back and Forward (⌘[ and ⌘]) follow as AppKit items (NavMenuItems, App/NavTrail.swift).
             }
         }
 

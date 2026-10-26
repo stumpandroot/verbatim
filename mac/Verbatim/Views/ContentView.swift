@@ -75,7 +75,6 @@ struct ContentView: View {
         .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         .lookTint(look)   // switches and checkboxes in brand sage (Verbose style) or the persimmon accent (Native)
-        .navTrailState()  // View › Back and Forward follow this window's trail (App/NavTrail.swift)
         .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app).lookRoot() }
     }
 

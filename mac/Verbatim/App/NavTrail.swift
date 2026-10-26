@@ -52,6 +52,7 @@ final class NavTrail: ObservableObject {
     func publish() {
         if canGoBack != history.canGoBack { canGoBack = history.canGoBack }
         if canGoForward != history.canGoForward { canGoForward = history.canGoForward }
+        NavMenuItems.shared.refresh()
     }
 
     func goBack(_ app: AppState) {
@@ -117,6 +118,7 @@ final class NavTrail: ObservableObject {
     /// The mouse's back and forward buttons and the trackpad's swipe between pages, in the main window. A side
     /// button that's the dictation hotkey stays dictation's (MouseButtonTap takes it; a listen-only tap doesn't).
     func installMonitor(_ app: AppState) {
+        NavMenuItems.shared.install(app)
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .swipe]) { [weak self, weak app] e in
             guard let self, let app, let w = e.window, w === app.mainWindow, w.attachedSheet == nil else { return e }
@@ -138,54 +140,73 @@ final class NavTrail: ObservableObject {
     }
 }
 
-/// Whether Back and Forward can go, handed to the menu bar by the main window (`navTrailState`). Build 222's menu
-/// observed NavTrail directly and SwiftUI never refreshed it: Forward stayed off after going back, so ⌘] did nothing.
-/// Commands follow focused values reliably.
-struct NavTrailState: Equatable {
-    var back: Bool
-    var forward: Bool
-}
+/// View › Back and Forward (⌘[ and ⌘]) for the main window in both looks, as AppKit menu items. Builds 222 and 224
+/// drew them as SwiftUI commands, first observing NavTrail and then a focused scene value; the menu bar didn't
+/// refresh from either, so Forward stayed off after going back and ⌘] did nothing. AppKit validates these when the
+/// menu opens and when a key equivalent is looked up, reading the trail then, whichever window is in front.
+@MainActor
+final class NavMenuItems: NSObject, NSMenuItemValidation {
+    static let shared = NavMenuItems()
+    private weak var app: AppState?
+    private let separator = NSMenuItem.separator()
+    private lazy var back = item("Back", "[", #selector(goBack(_:)))
+    private lazy var forward = item("Forward", "]", #selector(goForward(_:)))
+    private var observers: [NSObjectProtocol] = []
+    private var placing = false
 
-private struct NavTrailStateKey: FocusedValueKey { typealias Value = NavTrailState }
-
-extension FocusedValues {
-    var navTrail: NavTrailState? {
-        get { self[NavTrailStateKey.self] }
-        set { self[NavTrailStateKey.self] = newValue }
+    /// Puts the items in the View menu, after Edit Home, and back there whenever SwiftUI rebuilds the menu bar.
+    func install(_ app: AppState) {
+        self.app = app
+        place()
+        guard observers.isEmpty else { return }
+        for name in [NSMenu.didAddItemNotification, NSMenu.didRemoveItemNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                MainActor.assumeIsolated { self?.placeSoon() }
+            })
+        }
+        placeSoon()
     }
-}
 
-extension View {
-    /// The main window's Back and Forward state for View › Back and Forward. Observes only NavTrail's two flags.
-    func navTrailState() -> some View { modifier(NavTrailStateModifier()) }
-}
-
-private struct NavTrailStateModifier: ViewModifier {
-    @ObservedObject private var trail = NavTrail.shared
-    func body(content: Content) -> some View {
-        content.focusedSceneValue(\.navTrail, NavTrailState(back: trail.canGoBack, forward: trail.canGoForward))
-    }
-}
-
-/// View › Back and Forward (⌘[ and ⌘]), for the main window in both looks.
-struct NavBackCommands: View {
-    let app: AppState
-    @FocusedValue(\.navTrail) private var state
-
-    var body: some View {
+    /// Enabled as the trail can go (for a menu that doesn't validate its items).
+    func refresh() {
         let trail = NavTrail.shared
-        Button("Back") { if mainWindowFront { trail.goBack(app) } }
-            .keyboardShortcut("[", modifiers: .command)
-            .disabled(state?.back != true)
-        Button("Forward") { if mainWindowFront { trail.goForward(app) } }
-            .keyboardShortcut("]", modifiers: .command)
-            .disabled(state?.forward != true)
+        if back.isEnabled != trail.canGoBack { back.isEnabled = trail.canGoBack }
+        if forward.isEnabled != trail.canGoForward { forward.isEnabled = trail.canGoForward }
     }
 
-    /// Settings and other windows keep the keys to themselves.
-    private var mainWindowFront: Bool {
-        guard let key = NSApp.keyWindow else { return true }
-        return key === app.mainWindow || key is NSPanel
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem === back { return NavTrail.shared.canGoBack && app != nil }
+        if menuItem === forward { return NavTrail.shared.canGoForward && app != nil }
+        return true
+    }
+
+    @objc private func goBack(_ sender: Any?) { if let app { NavTrail.shared.goBack(app) } }
+    @objc private func goForward(_ sender: Any?) { if let app { NavTrail.shared.goForward(app) } }
+
+    private func item(_ title: String, _ key: String, _ action: Selector) -> NSMenuItem {
+        let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        i.keyEquivalentModifierMask = .command
+        i.target = self
+        return i
+    }
+
+    /// Menus change rarely (SwiftUI building the menu bar); the check runs once on the next turn after a burst.
+    private func placeSoon() {
+        guard !placing else { return }
+        placing = true
+        DispatchQueue.main.async { [weak self] in
+            self?.placing = false
+            self?.place()
+        }
+    }
+
+    private func place() {
+        guard let menu = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == "View" })?.submenu else { return }
+        refresh()
+        if back.menu === menu, forward.menu === menu, separator.menu === menu { return }
+        for i in [separator, back, forward] { i.menu?.removeItem(i) }
+        var at = menu.items.firstIndex { $0.title == "Edit Home" }.map { $0 + 1 } ?? menu.items.count
+        for i in [separator, back, forward] { menu.insertItem(i, at: at); at += 1 }
     }
 }
 

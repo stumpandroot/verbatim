@@ -1950,7 +1950,8 @@ private struct UIWindowTarget: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let v = Probe()
         v.id = id
-        UITest.windowFrames[id] = { [weak v] in v?.frameInWindow }
+        let earlier = UITest.windowFrames[id]
+        UITest.windowFrames[id] = { [weak v] in v?.frameInWindow ?? earlier?() }
         return v
     }
     func updateNSView(_ v: NSView, context: Context) {}
@@ -1961,7 +1962,11 @@ private struct UIWindowTarget: NSViewRepresentable {
         /// (registered when made) then pointed at nothing.
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if window != nil, !id.isEmpty { UITest.windowFrames[id] = { [weak self] in self?.frameInWindow } }
+            // A copy SwiftUI keeps hidden (or drops) mustn't hide the one on screen: fall back to the earlier handle.
+            if window != nil, !id.isEmpty {
+                let earlier = UITest.windowFrames[id]
+                UITest.windowFrames[id] = { [weak self] in self?.frameInWindow ?? earlier?() }
+            }
         }
         var frameInWindow: CGRect? {
             guard let w = window, let content = w.contentView, !isHiddenOrHasHiddenAncestor else { return nil }
@@ -2256,7 +2261,10 @@ extension UITest {
         ScreenPlaces.shared.scrollLive(key, by: 600)
         try? await Task.sleep(nanoseconds: 800_000_000)
         let h = window.contentView?.bounds.height ?? 0
-        func rowFrame(_ id: UUID) -> CGRect? { native ? windowFrames["lib-row-\(id.uuidString)"]?() : frames["lib-row-\(id.uuidString)"] }
+        // Native's items carry both handles: the window's (exact, for clicks) and SwiftUI's frame (for "in view").
+        func rowFrame(_ id: UUID) -> CGRect? {
+            native ? (windowFrames["lib-row-\(id.uuidString)"]?() ?? frames["lib-row-\(id.uuidString)"]) : frames["lib-row-\(id.uuidString)"]
+        }
         // The row nearest the window's lower middle, well inside the list.
         var picked: (id: UUID, distance: CGFloat)?
         for id in ids {
@@ -2278,7 +2286,8 @@ extension UITest {
                    clicks: native ? 2 : 1, check: { app.screen == .transcript(row) })
         oneScreen("opening a transcript from the scrolled Library\(native ? " (native)" : "")", app: app)
 
-        // 2. Back: the same row, offset, search, and filter.
+        // 2. Back: the same row, offset, search, and filter. Frames come from the Library built by Back, not this one.
+        frames = frames.filter { !$0.key.hasPrefix("lib-row-") }
         await step("\(tag): \(native ? "the toolbar's Back" : "the transcript's back pill") returns to the Library", window,
                    target: native ? "tb-back" : "transcript-back", check: { app.screen == .library })
         oneScreen("Back to the Library\(native ? " (native)" : "")", app: app)

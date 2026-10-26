@@ -278,7 +278,7 @@ private struct FirstItemsTarget: ViewModifier {
 private struct NativeLibraryRowTarget: ViewModifier {
     var id: UUID
     func body(content: Content) -> some View {
-        if UITest.rowTargets { content.uiWindowTarget("lib-row-\(id.uuidString)") } else { content }
+        if UITest.rowTargets { content.uiWindowTarget("lib-row-\(id.uuidString)").uiTarget("lib-row-\(id.uuidString)") } else { content }
     }
 }
 
