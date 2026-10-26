@@ -4,7 +4,7 @@ import WidgetKit
 
 /// Keeps the widgets' snapshot (VerbatimWidgets/WidgetSnapshot.swift) current, on the Mac and iPhone: the five newest
 /// recordings and dictations (short titles, dates, lengths, and labels only), how many you've kept, this week's
-/// dictated words per day, and the look. Written to the App Group container when the library, the Mac's Activity, or
+/// dictated words per day, today's Thoughts page (its count and last two thoughts), and the look. Written to the App Group container when the library, the Mac's Activity, or
 /// the look changes, and only when the snapshot differs from the file; then the widgets reload. The screenshot tour
 /// and the bench never write it, so made-up recordings never reach your widgets.
 @MainActor
@@ -47,8 +47,8 @@ final class WidgetFeed {
         let all = store.transcripts
         #if os(macOS)
         let events = ActivityLog.shared.events.map { (date: $0.date, words: $0.words) }
-        let hour = Thoughts.newPageHour
         #endif
+        let hour = DayPages.storedHour()
         Self.queue.async {
             let live = all.filter { $0.deletedAt == nil }
             let recent = live.sorted { $0.createdAt > $1.createdAt }.prefix(WidgetSnapshot.maxRecent).map(Self.item)
@@ -59,13 +59,12 @@ final class WidgetFeed {
             let entries = HomeCounts.entries(fromDictations: live.filter { $0.createdAt >= weekStart }).map { (date: $0.date, words: $0.words) }
             #endif
             var snapshot = WidgetSnapshot.make(items: Array(recent), kept: live.count, entries: entries, look: lookRaw)
-            #if os(macOS)
-            // Today's thoughts (the Mac's medium widget): the page's last two thoughts and its counts.
+            // Today's thoughts (the medium widget, and the count on the iPhone's Lock Screen widget): the page's last
+            // two thoughts and its counts.
             let page = DayPages.pageInterval(DayPages.today(hour: hour), hour: hour)
             let thoughts = live.filter { $0.kind == .idea && !$0.isDictation && page.contains($0.createdAt) }
-                .map { (id: $0.id, date: $0.createdAt, text: Thoughts.words($0), transcribing: $0.status == .processing) }
+                .map { (id: $0.id, date: $0.createdAt, text: ThoughtText.words($0), transcribing: $0.status == .processing) }
             snapshot.today = WidgetSnapshot.todayThoughts(start: page.start, end: page.end, thoughts: thoughts)
-            #endif
             guard let data = snapshot.encoded(), WidgetSnapshotStore.write(data) else { return }
             WidgetCenter.shared.reloadAllTimelines()
         }
