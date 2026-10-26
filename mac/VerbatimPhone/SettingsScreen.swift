@@ -197,6 +197,7 @@ struct SettingsScreen: View {
         case .widgets: WidgetsInfoScreen()
         case .shortcuts: ShortcutsInfoScreen()
         case .customizeHome: CustomizeHomeDestination()
+        case .thoughts: ThoughtsSettingsScreen()
         }
     }
 
@@ -512,12 +513,18 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var features: some View {
+        pageRow("thoughtsRow", .thoughts, icon: "lightbulb", tint: Ink.butterTint, art: .iconThought, title: "Thoughts",
+                value: Self.thoughtsValue(app.store.todaysThoughts().count))
+        SettingsDivider()
         pageRow("widgetsRow", .widgets, icon: "square.grid.2x2", tint: Ink.persimmonTint, art: .iconHome, title: "Widgets and controls")
         SettingsDivider()
         pageRow("shortcutsRow", .shortcuts, icon: "bolt.circle", tint: Ink.sageTint, art: .iconAI, title: "Shortcuts and Siri")
         SettingsDivider()
         pageRow("tourRow", .tour, icon: "play.rectangle", tint: Ink.sageTint, art: .iconTour, title: "Welcome tour")
     }
+
+    /// Thoughts' row: today's count ("3 today"), or nothing yet.
+    static func thoughtsValue(_ n: Int) -> String? { n > 0 ? "\(n) today" : nil }
 
     private var footer: some View {
         // "Version 1.0 beta (217)": the marketing version, the channel, and the build (VERSIONING.md).
