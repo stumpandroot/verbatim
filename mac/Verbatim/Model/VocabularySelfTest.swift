@@ -28,6 +28,47 @@ enum VocabularySelfTest {
         check("vocabulary: links, addresses, and code stay", same("Open https://github.com/stumpandroot/verbatim now.")
               && same("Go to github.com and sign in.") && same("Email tim@github.com today.") && same("Run `git hub push` here."))
 
+        // Word patch 1 (version 2): a sample of the new terms, the longest match winning, and look-alikes that stay.
+        check("vocabulary: patch 1 is in the list", BuiltInVocabulary.terms.count >= 800
+              && BuiltInVocabulary.terms.contains { $0.term == "NVIDIA" } && !BuiltInVocabulary.terms.contains { $0.term == "Nvidia" })
+        check("vocabulary: new names and places", fixes("Ask gemeni, then chatgbt.", "Ask Gemini, then ChatGPT.")
+              && fixes("We flew to albequerque via philidelphia.", "We flew to Albuquerque via Philadelphia.")
+              && fixes("Did nvidia and huawai report?", "Did NVIDIA and Huawei report?")
+              && fixes("Sam oltman met mark benioff.", "Sam Altman met Marc Benioff."))
+        check("vocabulary: film, business, and general terms", fixes("Shoot h 264 on the sony fx3 with a kino flow.", "Shoot H.264 on the Sony FX3 with a Kino Flo.")
+              && fixes("Our roas and the e b i t d a are up.", "Our ROAS and the EBITDA are up.")
+              && fixes("Is it hippa compliant, per say?", "Is it HIPAA compliant, per se?"))
+        check("vocabulary: the longest match wins", fixes("Get the i phone air.", "Get the iPhone Air.")
+              && fixes("Record in black magic raw.", "Record in Blackmagic RAW.") && fixes("Gen alpha loves it.", "Gen Alpha loves it.")
+              && fixes("Use a sure sm7b.", "Use a Shure SM7B.") && same("I record on a Shure SM7B."))
+        check("vocabulary: plus names change only next to a context word", fixes("Watch the disney plus show.", "Watch the Disney+ show.")
+              && same("We compared Netflix, Disney plus Universal, and Max.") && same("We use Alexa plus Google Home in the kitchen."))
+        check("vocabulary: look-alike names stay", same("Every day I phone my mom.") && same("We met at Columbia University.")
+              && same("He ordered chicken Kiev.") && same("I met Kofi Annan once.") && same("She walked through the open glass door.")
+              && same("The birds twitter at dawn.") && same("Let's be real about the budget.") && same("That's a meta AI question."))
+        check("vocabulary: look-alike names change next to their context words", fixes("We drove to Pittsburg PA.", "We drove to Pittsburgh PA.")
+              && fixes("Send it to my Kofi page.", "Send it to my Ko-fi page."))
+
+        // Everyday fixes: every example in the file becomes its fix, every "keep" stays, and a few more.
+        let everyday = EverydayFixes.fixes
+        func mended(_ s: String) -> String { EverydayFixes.apply(s, fixes: everyday) }
+        let wrongExamples = EverydayFixes.samples.examples.filter { mended($0.0) != $0.1 }
+        for e in wrongExamples.prefix(5) { Log.note("UITEST everyday fix got “\(mended(e.0))” for “\(e.0)”") }
+        let movedKeeps = EverydayFixes.samples.keep.filter { mended($0) != $0 }
+        for k in movedKeeps.prefix(5) { Log.note("UITEST everyday fix changed “\(k)” to “\(mended(k))”") }
+        check("everyday fixes: the list loads", everyday.count >= 50 && EverydayFixes.samples.examples.count >= 50)
+        check("everyday fixes: every example is fixed", !EverydayFixes.samples.examples.isEmpty && wrongExamples.isEmpty)
+        check("everyday fixes: every keep sentence stays", !EverydayFixes.samples.keep.isEmpty && movedKeeps.isEmpty)
+        check("everyday fixes: mix-ups", mended("I could of been there an then left.") == "I could have been there and then left."
+              && mended("For all intensive purposes, it's a sneak peak.") == "For all intents and purposes, it's a sneak peek."
+              && mended("Can you here me? I don’t no why.") == "Can you hear me? I don’t know why.")
+        check("everyday fixes: ordinary sentences stay", mended("You could of course ask.") == "You could of course ask."
+              && mended("There are two much bigger rooms.") == "There are two much bigger rooms."
+              && mended("We need eggs, milk, and bread.") == "We need eggs, milk, and bread."
+              && mended("It was an historic day.") == "It was an historic day."
+              && mended("Three things:\n1. The photos\n2. the copy") == "Three things:\n1. The photos\n2. the copy")
+        check("everyday fixes: before the grammar pass", GrammarPass.fix(mended("me an you should talk.")).lowercased() == "me and you should talk.")
+
         // Your Dictionary wins: its spelling and its "heard as" forms are left alone.
         let mine = [DictionaryEntry(preferred: "Github", heardAs: ["git hub"], learnedFrom: "Added by you"),
                     DictionaryEntry(preferred: "Youtube", heardAs: ["you tube"], learnedFrom: "Added by you")]
