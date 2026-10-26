@@ -211,17 +211,19 @@ struct ContentView: View {
 /// stays unanimated and the outgoing screen is gone at once. Until it appears the screen takes no clicks (what
 /// `ScreenSlide` did for a lingering screen; nothing lingers now). A look switch's rebuild doesn't slide.
 struct ScreenEntrance: ViewModifier {
-    let x: CGFloat
-    @State private var arrived = false
+    /// Where the screen starts, taken once when the screen is made (a later change of direction or Limit Motion
+    /// doesn't move a screen that's already there).
+    @State private var x: CGFloat
+    init(x: CGFloat) { _x = State(initialValue: x) }
 
     func body(content: Content) -> some View {
         content
-            .offset(x: arrived || x == 0 ? 0 : x)
-            .allowsHitTesting(arrived || x == 0)
+            .offset(x: x)
+            .allowsHitTesting(x == 0)
             .onAppear {
-                guard x != 0, !arrived else { return }
-                if LookSwitch.rebuilding { arrived = true; return }
-                withAnimation(.easeOut(duration: 0.15)) { arrived = true }
+                guard x != 0 else { return }
+                if LookSwitch.rebuilding { x = 0; return }
+                withAnimation(.easeOut(duration: 0.15)) { x = 0 }
             }
     }
 }
