@@ -80,12 +80,24 @@ enum DayPages {
 
     // MARK: Labels
 
+    private static let formattersLock = NSLock()
+    private static var formatters: [String: DateFormatter] = [:]
+
+    /// A formatter for `template` in `calendar` and `locale`, made once per combination and then reused. Making one
+    /// (and its localized pattern) is slow, and By day asked for about fifty per render: each calendar cell's spoken
+    /// date, each day row, and the titles.
     private static func formatter(_ template: String, calendar: Calendar, locale: Locale) -> DateFormatter {
+        let key = "\(template)|\(calendar.identifier)|\(calendar.timeZone.identifier)|\(locale.identifier)"
+        formattersLock.lock(); defer { formattersLock.unlock() }
+        if let f = formatters[key] { return f }
         let f = DateFormatter()
         f.locale = locale
         f.calendar = calendar
         f.timeZone = calendar.timeZone
         f.setLocalizedDateFormatFromTemplate(template)
+        // Locale or time zone changes make new keys; keep the table small all the same.
+        if formatters.count >= 32 { formatters.removeAll(keepingCapacity: true) }
+        formatters[key] = f
         return f
     }
 
