@@ -201,7 +201,7 @@ enum PhoneUITest {
                 app.libraryFilterRequest = "all"
                 // Thoughts (ThoughtsScreens.swift): today's page, the day arrows, and By day for Thoughts and Journal.
                 await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
-                if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app) }
+                if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app); await actionButtonDictateChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
                 if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
                     app.addFromLibrary = project.id
@@ -614,6 +614,32 @@ enum PhoneUITest {
             check("New thought from the widget doesn't throw (\(error))", false)
         }
         app.pendingThought = false
+    }
+
+    /// The Action button set to Dictate with no session on, run as a press runs it (`ActionButtonIntent.run`, with
+    /// Verbose's foreground continuation stood in for). It's an audio recording intent, so the session's Live Activity
+    /// must show before the microphone turns on. The self-test can't show one (as when Live Activities are off), so
+    /// Verbose asks "Start a keyboard session?" instead: the microphone stays off and no Live Activity is left. No trap.
+    private static func actionButtonDictateChecks(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") ribbon: \(name)") }
+        let session = app.session
+        guard !session.isOn, session.stage == .off else { return }
+        let category = AVAudioSession.sharedInstance().category
+        let activitiesBefore = Activity<VerbatimSessionAttributes>.activities.count
+        var opened = false
+        do {
+            try await ActionButtonIntent.run(choice: .dictate) { then in opened = true; await MainActor.run { then() } }
+            check("the Action button's Dictate with no session opens Verbose", opened)
+            check("without its Live Activity, Verbose asks before turning on the microphone",
+                  session.confirming == .shortcut && session.showScreen && session.stage == .off && !session.isOn)
+            check("without its Live Activity, the audio session isn't touched", AVAudioSession.sharedInstance().category == category)
+            check("without its Live Activity, none is left behind", Activity<VerbatimSessionAttributes>.activities.count <= activitiesBefore)
+        } catch {
+            check("the Action button's Dictate with no session doesn't throw (\(error))", false)
+        }
+        session.declineStart()
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("Not now closes the ask with the microphone off", session.confirming == nil && !session.showScreen && !session.isOn)
     }
 
     /// Settings › Features › Thoughts, and its rows' values.

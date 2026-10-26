@@ -12,7 +12,8 @@
         "Mac and iPhone: Export can add “[unclear 2:10]” markers. They're off unless you turn on Unclear markers.",
         "Mac and iPhone: Reduce background noise in the player's speed menu turns down wind or a mower while you listen. It doesn't change the transcript or the recording.",
         "iPhone: AirPods record in higher quality on iOS 26, instead of over the phone-call link.",
-        "iPhone: tapping the New thought widget no longer closes Verbose. The thought records behind its Live Activity, or Verbose opens to the recorder."
+        "iPhone: tapping the New thought widget no longer closes Verbose. The thought records behind its Live Activity, or Verbose opens to the recorder.",
+        "iPhone: the Action button set to Dictate no longer risks closing Verbose when it starts a session. The session's Live Activity shows first, or Verbose asks before it turns on the microphone."
       ]
     },
     {

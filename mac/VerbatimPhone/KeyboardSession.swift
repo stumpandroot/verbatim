@@ -145,6 +145,11 @@ final class KeyboardSession: ObservableObject {
     private var consumedRequests: Set<UUID> = []
     /// The keyboard request a link to confirm named, when it matched the one in the App Group (answered on Start).
     private var confirmingRequest: UUID?
+    /// The start being confirmed also starts a take (the Action button's Dictate, asked in Verbose instead).
+    private var confirmingTake = false
+    /// This start came from an audio recording intent (the Action button, Restart): its Live Activity must start
+    /// before the microphone, and without one the microphone stays off (`beginCapture`, `InPlaceRecording`).
+    private var startedByRecordingIntent = false
     /// The session's audio across calls (`Ribbon.audio`).
     private var audioState: Ribbon.AudioState = .running
     /// The Parakeet model that's loaded and warm in this process, as far as the session knows (nil after a memory
@@ -167,7 +172,7 @@ final class KeyboardSession: ObservableObject {
         }
         // Control Center, the Action button, and Shortcuts (StartKeyboardSessionIntent, DictateIntent, ActionButtonIntent,
         // SetSessionIntent) start sessions here.
-        SessionStartSignal.attach { [weak self] s in self?.startFromOutside(s.source, take: s.take) }
+        SessionStartSignal.attach { [weak self] s in self?.startFromOutside(s.source, take: s.take, recordingIntent: s.recordingIntent) }
         // The ribbon's intents run in this process (LiveActivityIntent) and call the session directly; from the
         // widget's process they leave the command in the App Group and post a content-free Darwin notification.
         // Any app can post that notification, so it only means "look again" (`checkMailbox`).
@@ -229,6 +234,7 @@ final class KeyboardSession: ObservableObject {
             guard stage == .off else { return true }
             Log.note("keyboard session: a link without a fresh keyboard request; asking before turning on the microphone")
             confirmingRequest = request
+            confirmingTake = false
             confirming = source
             needsManualReturn = false
             showScreen = true
@@ -249,13 +255,16 @@ final class KeyboardSession: ObservableObject {
         confirming = nil
         let r = confirmingRequest
         confirmingRequest = nil
+        let take = confirmingTake
+        confirmingTake = false
         if let r { consumedRequests.insert(r) }
-        start(request: r, host: nil, dictation: nil, source: source, fromLink: true)
+        start(request: r, host: nil, dictation: nil, source: source, take: take, fromLink: true)
     }
 
     /// Not now on the confirmation screen: nothing starts.
     func declineStart() {
         confirming = nil
+        confirmingTake = false
         if let r = confirmingRequest, stage == .off {
             confirmingRequest = nil
             request = r
@@ -268,17 +277,21 @@ final class KeyboardSession: ObservableObject {
 
     /// Starts a session from outside the keyboard: Control Center, the Action button or Shortcuts
     /// (`StartKeyboardSessionIntent`), the Lock Screen widget, or Settings › Keyboard.
-    func startFromOutside(_ source: KeyboardBridge.StartSource, take: Bool = false) {
-        start(request: nil, host: nil, dictation: nil, source: source, take: take)
+    func startFromOutside(_ source: KeyboardBridge.StartSource, take: Bool = false, recordingIntent: Bool = false) {
+        start(request: nil, host: nil, dictation: nil, source: source, take: take, recordingIntent: recordingIntent)
     }
 
     /// `take`: also start a ribbon take as soon as the microphone is on (the Action button's first press).
     /// `fromLink`: a `verbatim://` link asked, so onboarding stays up if it's showing.
+    /// `recordingIntent`: an audio recording intent asked (the Action button, Restart). iOS 27 closes the app when
+    /// such an intent turns the audio session on with no Live Activity showing, so the session's Live Activity starts
+    /// first, and when none can, the microphone stays off and Verbose asks instead (`askInVerbose`).
     func start(request r: UUID?, host h: String?, dictation d: UUID? = nil, source: KeyboardBridge.StartSource? = nil, take: Bool = false,
-               fromLink: Bool = false) {
+               recordingIntent: Bool = false, fromLink: Bool = false) {
         guard let app else { return }
         confirming = nil
         confirmingRequest = nil
+        confirmingTake = false
         request = r
         host = h
         firstTapDictation = d
@@ -314,6 +327,12 @@ final class KeyboardSession: ObservableObject {
             app.askToFinishRecording(for: "the keyboard")
             return
         }
+        // No Live Activity can show (Live Activities are off): nothing turns on, not even the permission question.
+        if recordingIntent && !activitiesAllowed {
+            askInVerbose(source: source ?? .shortcut, take: take, why: "Live Activities can't show here")
+            return
+        }
+        startedByRecordingIntent = recordingIntent
         stage = .starting
         needsManualReturn = false
         if !fromLink { app.showOnboarding = false }
@@ -356,11 +375,19 @@ final class KeyboardSession: ObservableObject {
     }
 
     private func beginCapture() {
+        // The Live Activity before the microphone, every time (as for voice notes and thoughts, `InPlaceRecording`).
+        // From an audio recording intent there's no microphone without one: Verbose, already in front, asks instead.
+        if !startActivity() && startedByRecordingIntent {
+            askInVerbose(source: startSource ?? .shortcut, take: pendingRibbonTake, why: "its Live Activity didn't start")
+            return
+        }
         do {
             try startAudio()
         } catch {
             capture.stop()
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            endActivity()
+            startedByRecordingIntent = false
             stage = .off
             showScreen = false
             pendingRibbonTake = false
@@ -373,6 +400,21 @@ final class KeyboardSession: ObservableObject {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         // Back to your app as soon as the capture is running. A short beat lets the screen draw first.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.goBack() }
+    }
+
+    /// An audio recording intent's start that can't have its Live Activity: the microphone stays off, and the start
+    /// screen asks "Start a keyboard session?" in Verbose. Start session there is your tap, outside the intent.
+    private func askInVerbose(source: KeyboardBridge.StartSource, take: Bool, why: String) {
+        Log.note("keyboard session: \(why); asking in Verbose before turning on the microphone")
+        stage = .off
+        startedByRecordingIntent = false
+        pendingRibbonTake = false
+        startedForTake = false
+        confirmingRequest = nil
+        confirmingTake = take
+        confirming = source
+        needsManualReturn = false
+        showScreen = true
     }
 
     /// Everything after the capture is running: the session is on.
@@ -399,23 +441,37 @@ final class KeyboardSession: ObservableObject {
         if pendingRibbonTake { pendingRibbonTake = false; startTake(source: .intent) }
         answer(ok: true)
         startHeartbeat()
-        startActivity()
+        // Normally already showing (`beginCapture`, `restartInPlace` start it before the microphone).
+        if activity == nil { startActivity() }
+        startedByRecordingIntent = false
         reloadControl()
     }
 
     /// Restart in the Dynamic Island or on the Lock Screen (`RestartSessionIntent`): turns the session back on
-    /// without opening Verbose when iOS allows it. Returns false, having touched nothing, when it can't (no
-    /// microphone permission, a voice memo recording, or iOS refusing to start recording from the background); the
-    /// intent then opens Verbose straight into the session (`SessionStartSignal.fire(.island)`).
+    /// without opening Verbose when iOS allows it. Returns false, with the microphone off and no Live Activity left,
+    /// when it can't (no microphone permission, a voice memo recording, no Live Activity, or iOS refusing to start
+    /// recording from the background); the intent then opens Verbose straight into the session
+    /// (`SessionStartSignal.fire(.island)`). Restart is an audio recording intent, so its Live Activity starts before
+    /// the microphone, and without one the microphone is never touched (`InPlaceRecording`).
     func restartInPlace() -> Bool {
         if stage != .off { return true }
         guard let app, !app.recorder.isRecording, AVAudioApplication.shared.recordPermission == .granted else { return false }
-        do {
-            try startAudio()
-        } catch {
-            capture.stop()
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            Log.note("keyboard session: Restart couldn't turn on the microphone in place (\(error.localizedDescription)); opening Verbose")
+        let outcome = InPlaceRecording.start(
+            startActivity: { startActivity() },
+            startRecording: {
+                do {
+                    try startAudio()
+                    return true
+                } catch {
+                    capture.stop()
+                    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                    Log.note("keyboard session: Restart couldn't turn on the microphone in place (\(error.localizedDescription))")
+                    return false
+                }
+            },
+            endActivity: { endActivity() })
+        if case .openVerbose(let why) = outcome {
+            Log.note("keyboard session: Restart: \(why); opening Verbose")
             return false
         }
         observe()
@@ -429,12 +485,6 @@ final class KeyboardSession: ObservableObject {
         defaults?.removeObject(forKey: KeyboardBridge.Key.endReason)
         defaults?.set(PhoneDictation.level.title, forKey: KeyboardBridge.Key.levelLabel)
         captureStarted()
-        // From the background, iOS keeps recording only with a Live Activity showing it: without one, open Verbose.
-        if UIApplication.shared.applicationState != .active, activity == nil, activitiesAllowed {
-            Log.note("keyboard session: Restart turned on the microphone, but its Live Activity didn't start; opening Verbose")
-            end(reason: nil)
-            return false
-        }
         Log.note("keyboard session: restarted in place from the Live Activity (app \(UIApplication.shared.applicationState == .active ? "in front" : "in the background"))")
         return true
     }
@@ -1614,7 +1664,8 @@ final class KeyboardSession: ObservableObject {
         guard let app else { return }
         switch choice {
         case .dictate:
-            if stage == .on { toggleTake(source: .intent) } else { startFromOutside(.shortcut, take: true) }
+            // From the Action button's audio recording intent: the Live Activity before the microphone.
+            if stage == .on { toggleTake(source: .intent) } else { startFromOutside(.shortcut, take: true, recordingIntent: true) }
         case .voiceNote:
             app.requestRecord()
         case .captions:

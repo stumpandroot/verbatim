@@ -90,8 +90,10 @@ extension ActionButtonIntent: ForegroundContinuableIntent {
 
 /// iOS 18 and later: tells iOS the Action button's intent may start recording audio, so Record a voice note can
 /// start in place, behind the recording's Live Activity, without opening Verbose (`PhoneState.startVoiceNoteInPlace`).
-/// iOS stops such a recording unless a Live Activity starts with it; when one can't (iOS has refused activities
-/// from the background), the intent opens Verbose as before. Dictate keeps using the session's Live Activity.
+/// iOS 27 closes the app when such an intent turns the audio session on with no Live Activity showing, so every
+/// recording it starts shows its Live Activity first: a voice note's or thought's (`InPlaceRecording`), or, for
+/// Dictate with no session, the session's (`KeyboardSession.start(recordingIntent:)`). When none can start, the
+/// microphone stays off and Verbose opens (or asks) instead.
 @available(iOS 18.0, *)
 extension ActionButtonIntent: AudioRecordingIntent {}
 
@@ -129,7 +131,7 @@ struct RestartSessionIntent: LiveActivityIntent {
         let outcome = await MainActor.run { RibbonSignal.send(.restartSession) }
         #if !VERBATIM_WIDGETS
         if outcome == .needsForeground {
-            try await continueInVerbose { SessionStartSignal.fire(.island) }
+            try await continueInVerbose { SessionStartSignal.fire(.island, recordingIntent: true) }
         }
         #endif
         _ = outcome
@@ -204,36 +206,47 @@ struct ActionButtonIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         #if !VERBATIM_WIDGETS
         let choice = Ribbon.actionChoice(UserDefaults.standard.string(forKey: Ribbon.actionChoiceKey))
-        if #available(iOS 18.0, *), choice == .voiceNote {
-            let started = await MainActor.run { ActionButtonSignal.startVoiceNoteInPlace() }
-            if started { return .result() }
-        }
-        if choice == .quickCapture {
-            // New thought: the same as the New thought control (in place, a second press stops it, or Verbose).
-            switch await MainActor.run(body: { ThoughtSignal.decide() }) {
-            case .stop:
-                await MainActor.run { ThoughtSignal.stop() }
-                return .result()
-            case .inPlace:
-                if #available(iOS 18.0, *), await MainActor.run(body: { ThoughtSignal.startInPlace() }) { return .result() }
-            case .openVerbose:
-                break
-            }
-        }
-        if choice.needsForeground {
-            try await continueInVerbose { ActionButtonSignal.fire(choice) }
-            return .result()
-        }
-        let outcome = await MainActor.run { RibbonSignal.send(.toggle) }
-        if outcome == .needsForeground {
-            try await continueInVerbose { SessionStartSignal.fire(.shortcut, take: true) }
-        }
+        try await Self.run(choice: choice) { then in try await continueInVerbose(then) }
         #else
         _ = await MainActor.run { RibbonSignal.send(.toggle) }
         #endif
         return .result()
     }
 }
+
+#if !VERBATIM_WIDGETS
+extension ActionButtonIntent {
+    /// What `perform` does for `choice`, with the way Verbose comes forward passed in, so the self-test runs it as a
+    /// press does (`PhoneUITest.actionButtonDictateChecks`). Dictate with no session opens Verbose to start one, marked
+    /// as an audio recording intent's start: its Live Activity before the microphone, or Verbose asks first.
+    static func run(choice: Ribbon.ActionChoice, openVerbose: (@escaping @MainActor () -> Void) async throws -> Void) async throws {
+        if #available(iOS 18.0, *), choice == .voiceNote {
+            let started = await MainActor.run { ActionButtonSignal.startVoiceNoteInPlace() }
+            if started { return }
+        }
+        if choice == .quickCapture {
+            // New thought: the same as the New thought control (in place, a second press stops it, or Verbose).
+            switch await MainActor.run(body: { ThoughtSignal.decide() }) {
+            case .stop:
+                await MainActor.run { ThoughtSignal.stop() }
+                return
+            case .inPlace:
+                if #available(iOS 18.0, *), await MainActor.run(body: { ThoughtSignal.startInPlace() }) { return }
+            case .openVerbose:
+                break
+            }
+        }
+        if choice.needsForeground {
+            try await openVerbose { ActionButtonSignal.fire(choice) }
+            return
+        }
+        let outcome = await MainActor.run { RibbonSignal.send(.toggle) }
+        if outcome == .needsForeground {
+            try await openVerbose { SessionStartSignal.fire(.shortcut, take: true, recordingIntent: true) }
+        }
+    }
+}
+#endif
 
 /// The Control Center switch ("Verbose · Session on"). On with no session opens Verbose for a moment and starts
 /// one; off ends the session without opening Verbose.

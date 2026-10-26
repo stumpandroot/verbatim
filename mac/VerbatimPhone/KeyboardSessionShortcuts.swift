@@ -9,6 +9,9 @@ enum SessionStartSignal {
         var source: KeyboardBridge.StartSource
         /// Also start a take as soon as the microphone is on (the Action button's first press).
         var take: Bool
+        /// An audio recording intent asked (the Action button, Restart): the session's Live Activity starts before
+        /// the microphone, or Verbose asks first (`KeyboardSession.start`).
+        var recordingIntent = false
     }
 
     @MainActor private static var handler: ((Start) -> Void)?
@@ -23,8 +26,8 @@ enum SessionStartSignal {
         DispatchQueue.main.async { h(p) }
     }
 
-    @MainActor static func fire(_ source: KeyboardBridge.StartSource, take: Bool = false) {
-        let s = Start(source: source, take: take)
+    @MainActor static func fire(_ source: KeyboardBridge.StartSource, take: Bool = false, recordingIntent: Bool = false) {
+        let s = Start(source: source, take: take, recordingIntent: recordingIntent)
         if let handler { handler(s) } else { pending = s }
     }
 }
