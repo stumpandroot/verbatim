@@ -1,0 +1,2998 @@
+{
+  "area": "specialty",
+  "categories": {
+    "Medical": {
+      "default_on": false,
+      "reason": "Corrections touch drug names and dosing context; a wrong fix is a safety issue, and generic users never need it."
+    },
+    "Legal": {
+      "default_on": false,
+      "reason": "Several entries rely on context gates around ordinary words (lean, tortuous, ex party)."
+    },
+    "Bible and faith": {
+      "default_on": false,
+      "reason": "Heard forms are safe, but spelling traditions differ (Catholic, Jewish, translation-specific) and context gates touch 'Philippines' and 'revelations'. Offer at onboarding."
+    },
+    "Film production": {
+      "default_on": true,
+      "reason": "Codec and brand forms are non-words or spaced letters; context gates require specific model names."
+    },
+    "Business and marketing": {
+      "default_on": true,
+      "reason": "Spaced-letter acronyms and split brand names; short word-like acronyms are kept out of boosting."
+    }
+  },
+  "candidates": [
+    {
+      "term": "metformin",
+      "category": "Medical",
+      "heard": [
+        "metforman",
+        "met formin"
+      ],
+      "confidence": "medium",
+      "why": "Documented ASR spelling error 'metforman' in a vendor drug-name accuracy analysis.",
+      "sources": [
+        "https://assemblyai.com/blog/ai-transcription-accuracy-pharmaceutical-drug-names"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "adalimumab",
+      "category": "Medical",
+      "heard": [
+        "a dalimumab",
+        "adalimamab"
+      ],
+      "confidence": "medium",
+      "why": "Documented fragmentation error 'a dalimumab'; -mab biologics are the highest-risk group.",
+      "sources": [
+        "https://assemblyai.com/blog/ai-transcription-accuracy-pharmaceutical-drug-names"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "risankizumab",
+      "category": "Medical",
+      "heard": [
+        "rezenquizumab",
+        "risankizimab"
+      ],
+      "confidence": "medium",
+      "why": "Documented non-word output 'rezenquizumab'.",
+      "sources": [
+        "https://assemblyai.com/blog/ai-transcription-accuracy-pharmaceutical-drug-names"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Biktarvy",
+      "category": "Medical",
+      "heard": [
+        "bactarvy",
+        "biktarvy",
+        "bik tarvy"
+      ],
+      "confidence": "medium",
+      "why": "Documented non-word output 'bactarvy'; brand coinage.",
+      "sources": [
+        "https://assemblyai.com/blog/ai-transcription-accuracy-pharmaceutical-drug-names"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "spironolactone",
+      "category": "Medical",
+      "heard": [
+        "spinal lactone",
+        "spirono lactone"
+      ],
+      "confidence": "medium",
+      "why": "Dragon output 'Spinal Lactone' reported by a family physician.",
+      "sources": [
+        "https://aafp.org/news/blogs/freshperspectives/entry/20200113fp-ehrnotes.html"
+      ],
+      "risk": "'spinal lactone' is not an ordinary phrase."
+    },
+    {
+      "term": "Xarelto",
+      "category": "Medical",
+      "heard": [
+        "zarelto",
+        "xarelto"
+      ],
+      "confidence": "low",
+      "why": "Dragon misheard Xarelto (as 'Zero', which can't be fixed); X pronounced Z gives non-word 'zarelto'.",
+      "sources": [
+        "https://aafp.org/news/blogs/freshperspectives/entry/20200113fp-ehrnotes.html"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Ozempic",
+      "category": "Medical",
+      "heard": [
+        "ozempic",
+        "ozempik",
+        "ozimpic"
+      ],
+      "confidence": "low",
+      "why": "Recent brand coinage; lowercase output from Whisper needs brand casing.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Wegovy",
+      "category": "Medical",
+      "heard": [
+        "wegovy",
+        "wegovi",
+        "weegovy"
+      ],
+      "confidence": "low",
+      "why": "Recent brand coinage with non-phonetic spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Mounjaro",
+      "category": "Medical",
+      "heard": [
+        "mounjaro",
+        "monjaro",
+        "mon jaro",
+        "moon jaro"
+      ],
+      "confidence": "low",
+      "why": "Recent coinage; 'Monjaro' is a frequent misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Zepbound",
+      "category": "Medical",
+      "heard": [
+        "zepbound",
+        "zep bound"
+      ],
+      "confidence": "low",
+      "why": "Recent coinage likely split into two words.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "semaglutide",
+      "category": "Medical",
+      "heard": [
+        "semiglutide",
+        "sema glutide",
+        "semi glutide"
+      ],
+      "confidence": "low",
+      "why": "Long generic coinage; likely split or misspelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "tirzepatide",
+      "category": "Medical",
+      "heard": [
+        "tirzepitide",
+        "tirzapatide",
+        "terzepatide"
+      ],
+      "confidence": "low",
+      "why": "Long generic coinage with ambiguous vowels.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Eliquis",
+      "category": "Medical",
+      "heard": [
+        "eliquis",
+        "eloquis",
+        "elequis"
+      ],
+      "confidence": "low",
+      "why": "Brand name; non-word phonetic variants.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Jardiance",
+      "category": "Medical",
+      "heard": [
+        "jardiance",
+        "jardians"
+      ],
+      "confidence": "low",
+      "why": "Brand name; non-phonetic spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Dupixent",
+      "category": "Medical",
+      "heard": [
+        "dupixent",
+        "dupixant"
+      ],
+      "confidence": "low",
+      "why": "Brand name; non-phonetic spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Skyrizi",
+      "category": "Medical",
+      "heard": [
+        "skyrizi",
+        "sky rizi",
+        "skyrisi"
+      ],
+      "confidence": "low",
+      "why": "Brand name likely split ('sky rizi').",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Rinvoq",
+      "category": "Medical",
+      "heard": [
+        "rinvoq",
+        "rinvoke",
+        "rinvok"
+      ],
+      "confidence": "low",
+      "why": "Brand name with non-phonetic -oq ending.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Keytruda",
+      "category": "Medical",
+      "heard": [
+        "keytruda",
+        "key truda"
+      ],
+      "confidence": "low",
+      "why": "Brand name likely split ('key truda').",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "levothyroxine",
+      "category": "Medical",
+      "heard": [
+        "levothyroxin",
+        "levo thyroxine",
+        "levathyroxine"
+      ],
+      "confidence": "low",
+      "why": "Long generic; common misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "acetaminophen",
+      "category": "Medical",
+      "heard": [
+        "acetometaphen",
+        "acetaminophin",
+        "acetaminofen"
+      ],
+      "confidence": "low",
+      "why": "Common mispronunciation 'acetometaphen' and misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "amoxicillin",
+      "category": "Medical",
+      "heard": [
+        "amoxacillin",
+        "amoxicilin",
+        "amoxicillan"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspelling 'amoxacillin'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ibuprofen",
+      "category": "Medical",
+      "heard": [
+        "ibuprofin",
+        "ibuprophen"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "hydrochlorothiazide",
+      "category": "Medical",
+      "heard": [
+        "hydro chlorothiazide",
+        "hydrochlorathiazide"
+      ],
+      "confidence": "low",
+      "why": "Very long generic; likely split.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "lisinopril",
+      "category": "Medical",
+      "heard": [
+        "lysinopril",
+        "lisinipril"
+      ],
+      "confidence": "low",
+      "why": "Common misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "gabapentin",
+      "category": "Medical",
+      "heard": [
+        "gabapenten",
+        "gaba pentin"
+      ],
+      "confidence": "low",
+      "why": "Likely split or misspelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Klebsiella",
+      "category": "Medical",
+      "heard": [
+        "clubs yella",
+        "klebsiela"
+      ],
+      "confidence": "low",
+      "why": "Forum anecdote: rendered 'Clubs Yella'.",
+      "sources": [
+        "https://blog.hospitalmedicine.org/hilarious-medical-transcription-snafus-my-faves-and-yours/"
+      ],
+      "risk": "Forum anecdote only."
+    },
+    {
+      "term": "molluscum contagiosum",
+      "category": "Medical",
+      "heard": [
+        "molested contagiosum",
+        "mollusk contagiosum"
+      ],
+      "confidence": "low",
+      "why": "Dermatologist anecdote: Dragon output 'Molested contagiosum'.",
+      "sources": [
+        "https://mdedge.com/content/dragons-funniest-progress-notes"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "alopecia universalis",
+      "category": "Medical",
+      "heard": [
+        "alopecia universe alice"
+      ],
+      "confidence": "low",
+      "why": "Dermatologist anecdote: Dragon output 'alopecia universe Alice'.",
+      "sources": [
+        "https://mdedge.com/content/dragons-funniest-progress-notes"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "seborrheic keratoses",
+      "category": "Medical",
+      "heard": [
+        "systolic keratoses",
+        "seborrhic keratoses",
+        "seborheic keratoses"
+      ],
+      "confidence": "low",
+      "why": "Dermatologist anecdote: Dragon output 'systolic keratoses'.",
+      "sources": [
+        "https://mdedge.com/content/dragons-funniest-progress-notes"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "HIPAA",
+      "category": "Medical",
+      "heard": [
+        "hippa",
+        "hipaa",
+        "h i p a a"
+      ],
+      "confidence": "high",
+      "why": "'HIPPA' is the best-documented misspelling of the act; output from engines that spell it phonetically.",
+      "sources": [
+        "https://www.atlantic.net/hipaa-compliant-hosting/hipaa-vs-hippa/"
+      ],
+      "risk": "Safe; consider moving to a default-on category."
+    },
+    {
+      "term": "Crohn's disease",
+      "category": "Medical",
+      "heard": [
+        "crones disease",
+        "crone's disease",
+        "crohns disease",
+        "chrons disease",
+        "chron's disease"
+      ],
+      "confidence": "medium",
+      "why": "Homophone 'crone' and the common misspelling 'Chron's'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Hashimoto's",
+      "category": "Medical",
+      "heard": [
+        "hashimotos"
+      ],
+      "confidence": "low",
+      "why": "Possessive eponym often output without apostrophe.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Sjögren's",
+      "category": "Medical",
+      "heard": [
+        "sjogren's",
+        "sjogrens",
+        "sjögrens",
+        "showgrens"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic eponym with diacritic (pronounced 'show-grins').",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Ehlers-Danlos",
+      "category": "Medical",
+      "heard": [
+        "ehlers danlos",
+        "ehler danlos",
+        "ellers danlos"
+      ],
+      "confidence": "low",
+      "why": "Hyphenated eponym, often unhyphenated or misspelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Guillain-Barré",
+      "category": "Medical",
+      "heard": [
+        "guillain barre",
+        "guillain-barre",
+        "gillian barre",
+        "guillain barré"
+      ],
+      "confidence": "low",
+      "why": "French eponym; 'Gillian Barre' is a common misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Raynaud's",
+      "category": "Medical",
+      "heard": [
+        "raynauds",
+        "reynauds",
+        "reynaud's"
+      ],
+      "confidence": "low",
+      "why": "French eponym; often output without apostrophe or as 'Reynaud's'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "COVID-19",
+      "category": "Medical",
+      "heard": [
+        "covid 19",
+        "covid nineteen",
+        "covid19"
+      ],
+      "confidence": "low",
+      "why": "Number suffix often spaced or spelled out.",
+      "sources": [],
+      "risk": "Safe; could be default-on."
+    },
+    {
+      "term": "MRSA",
+      "category": "Medical",
+      "heard": [
+        "mersa",
+        "mrsa",
+        "m r s a"
+      ],
+      "confidence": "low",
+      "why": "Spoken as 'mersa'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "C. diff",
+      "category": "Medical",
+      "heard": [
+        "c diff",
+        "c-diff"
+      ],
+      "confidence": "low",
+      "why": "Abbreviated organism name with period.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "COPD",
+      "category": "Medical",
+      "heard": [
+        "copd",
+        "c o p d"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "GERD",
+      "category": "Medical",
+      "heard": [
+        "g e r d"
+      ],
+      "context": [
+        "gerd"
+      ],
+      "after": [
+        "symptoms",
+        "reflux",
+        "flare",
+        "medication",
+        "diagnosis"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Spoken as a word; 'Gerd' is also a given name, so lowercase/name form only near context.",
+      "sources": [],
+      "risk": "'Gerd' is a German given name; gated by context."
+    },
+    {
+      "term": "A1C",
+      "category": "Medical",
+      "heard": [
+        "a1c",
+        "a 1 c",
+        "a one c"
+      ],
+      "confidence": "low",
+      "why": "Lab test name spoken 'A one C'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "SpO2",
+      "category": "Medical",
+      "heard": [
+        "spo2",
+        "sp o2",
+        "s p o 2",
+        "sp o 2"
+      ],
+      "confidence": "low",
+      "why": "Mixed-case abbreviation with digit.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "EKG",
+      "category": "Medical",
+      "heard": [
+        "e k g"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "DVT",
+      "category": "Medical",
+      "heard": [
+        "d v t"
+      ],
+      "confidence": "low",
+      "why": "Forum anecdote of a severe mishearing; spaced letters are the safe fix.",
+      "sources": [
+        "https://blog.hospitalmedicine.org/hilarious-medical-transcription-snafus-my-faves-and-yours/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "PRN",
+      "category": "Medical",
+      "heard": [
+        "p r n"
+      ],
+      "confidence": "low",
+      "why": "Dosing abbreviation; forum report of a 'PORN' slip.",
+      "sources": [
+        "https://blog.hospitalmedicine.org/hilarious-medical-transcription-snafus-my-faves-and-yours/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "NPO",
+      "category": "Medical",
+      "heard": [
+        "n p o"
+      ],
+      "confidence": "low",
+      "why": "Dosing abbreviation output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "habeas corpus",
+      "category": "Legal",
+      "heard": [
+        "habeus corpus",
+        "habius corpus",
+        "habeas corpse"
+      ],
+      "context": [
+        "have this corpus"
+      ],
+      "after": [
+        "petition",
+        "petitions",
+        "writ",
+        "relief",
+        "claim"
+      ],
+      "confidence": "medium",
+      "why": "Legal transcription vendor lists 'Have this corpus'; misspellings 'habeus'.",
+      "sources": [
+        "https://www.gmrtranscription.com/blog/difficult-words-and-terms-in-legal-transcription"
+      ],
+      "risk": "'have this corpus' occurs in data-science speech; gated by context."
+    },
+    {
+      "term": "pro bono",
+      "category": "Legal",
+      "context": [
+        "pro bonus"
+      ],
+      "after": [
+        "work",
+        "basis",
+        "case",
+        "cases",
+        "attorney",
+        "lawyer",
+        "representation",
+        "clients",
+        "hours"
+      ],
+      "confidence": "medium",
+      "why": "Legal transcription vendor lists 'Pro bonus'.",
+      "sources": [
+        "https://www.gmrtranscription.com/blog/difficult-words-and-terms-in-legal-transcription"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "voir dire",
+      "category": "Legal",
+      "heard": [
+        "vwar dire",
+        "voir deer",
+        "voire dire",
+        "vwah deer"
+      ],
+      "context": [
+        "war dire"
+      ],
+      "after": [
+        "jury",
+        "juror",
+        "jurors",
+        "process",
+        "questioning",
+        "examination"
+      ],
+      "confidence": "medium",
+      "why": "French-derived term with non-phonetic spelling; listed as a hard legal term.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "res judicata",
+      "category": "Legal",
+      "heard": [
+        "res judicada",
+        "race judicata",
+        "res judicatta"
+      ],
+      "confidence": "low",
+      "why": "Latin; listed as a hard legal term.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "res ipsa loquitur",
+      "category": "Legal",
+      "heard": [
+        "res ipsa loquiter",
+        "res ipsa loquitor"
+      ],
+      "confidence": "low",
+      "why": "Latin; 'loquiter' and 'loquitor' are frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "stare decisis",
+      "category": "Legal",
+      "heard": [
+        "starry decisis",
+        "stary decisis",
+        "stare decises",
+        "stare decisus"
+      ],
+      "confidence": "medium",
+      "why": "Legal transcription vendor: 'often misheard or omitted'.",
+      "sources": [
+        "https://www.gmrtranscription.com/blog/difficult-words-and-terms-in-legal-transcription"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "certiorari",
+      "category": "Legal",
+      "heard": [
+        "certiori",
+        "certierari",
+        "certioari"
+      ],
+      "confidence": "low",
+      "why": "Latin with non-phonetic spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "amicus curiae",
+      "category": "Legal",
+      "heard": [
+        "amicus curie",
+        "amicus curae",
+        "amicus curiea"
+      ],
+      "confidence": "low",
+      "why": "Latin; 'curie' and 'curae' are frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "mens rea",
+      "category": "Legal",
+      "heard": [
+        "mens ria",
+        "men's rea",
+        "mens reya"
+      ],
+      "confidence": "low",
+      "why": "Latin; listed as a hard legal term.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "actus reus",
+      "category": "Legal",
+      "heard": [
+        "actus rheus",
+        "actus reas"
+      ],
+      "confidence": "low",
+      "why": "Latin pair of mens rea.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "prima facie",
+      "category": "Legal",
+      "heard": [
+        "prima facia",
+        "prima fascia"
+      ],
+      "confidence": "medium",
+      "why": "'prima facia' and 'prima fascia' are well-known misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "per se",
+      "category": "Legal",
+      "heard": [
+        "per say"
+      ],
+      "confidence": "medium",
+      "why": "Usage guide flags 'per say' as the worse error.",
+      "sources": [
+        "https://brians.wsu.edu/?p=2863"
+      ],
+      "risk": "Not legal-only; consider a general category."
+    },
+    {
+      "term": "sua sponte",
+      "category": "Legal",
+      "heard": [
+        "sua spontay",
+        "sua sponti",
+        "sue a sponte"
+      ],
+      "confidence": "low",
+      "why": "Latin; likely split or respelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "in limine",
+      "category": "Legal",
+      "heard": [
+        "in limini",
+        "in liminy"
+      ],
+      "context": [
+        "in lemony"
+      ],
+      "after": [
+        "motion",
+        "motions"
+      ],
+      "confidence": "low",
+      "why": "Latin; 'motion in limine' heard as nonsense phrases.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "nolo contendere",
+      "category": "Legal",
+      "heard": [
+        "nolo contendre",
+        "nolo contender"
+      ],
+      "confidence": "low",
+      "why": "Latin; 'contendre' is a frequent misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ex parte",
+      "category": "Legal",
+      "context": [
+        "ex party"
+      ],
+      "after": [
+        "motion",
+        "hearing",
+        "order",
+        "communication",
+        "communications",
+        "application",
+        "relief"
+      ],
+      "confidence": "low",
+      "why": "Latin; homophone 'ex party'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "en banc",
+      "category": "Legal",
+      "heard": [
+        "en bank"
+      ],
+      "confidence": "low",
+      "why": "French; 'en bank' is a phonetic respelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "pro hac vice",
+      "category": "Legal",
+      "heard": [
+        "pro hoc vice",
+        "pro hack vice"
+      ],
+      "confidence": "low",
+      "why": "Latin with ecclesiastical pronunciation.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "duces tecum",
+      "category": "Legal",
+      "heard": [
+        "duces tekum",
+        "duchess tecum"
+      ],
+      "confidence": "low",
+      "why": "Latin in 'subpoena duces tecum'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "affidavit",
+      "category": "Legal",
+      "heard": [
+        "affidavid"
+      ],
+      "confidence": "medium",
+      "why": "Legal transcription vendor lists 'affidate'; 'affidavid' is a frequent respelling.",
+      "sources": [
+        "https://www.gmrtranscription.com/blog/difficult-words-and-terms-in-legal-transcription"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "lis pendens",
+      "category": "Legal",
+      "heard": [
+        "lis pendins",
+        "liss pendens"
+      ],
+      "confidence": "low",
+      "why": "Latin; likely respelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "quantum meruit",
+      "category": "Legal",
+      "heard": [
+        "quantum meriut"
+      ],
+      "confidence": "low",
+      "why": "Latin; vowel order misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "qui tam",
+      "category": "Legal",
+      "heard": [
+        "key tam",
+        "kwee tam"
+      ],
+      "confidence": "low",
+      "why": "Latin pronounced 'key tam'; listed as a hard legal term.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "'key tam' is not an English phrase."
+    },
+    {
+      "term": "mandamus",
+      "category": "Legal",
+      "heard": [
+        "mandamous",
+        "man damus"
+      ],
+      "confidence": "low",
+      "why": "Latin writ name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "force majeure",
+      "category": "Legal",
+      "heard": [
+        "force majeur",
+        "force majure"
+      ],
+      "confidence": "medium",
+      "why": "French; 'force majeur' and 'force majure' are frequent misspellings; listed as a hard legal term.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "spoliation",
+      "category": "Legal",
+      "heard": [
+        "spoilation"
+      ],
+      "confidence": "medium",
+      "why": "'spoilation' is a common non-standard form; listed as a hard legal term.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "tortious",
+      "category": "Legal",
+      "context": [
+        "tortuous"
+      ],
+      "after": [
+        "interference",
+        "conduct",
+        "act",
+        "acts",
+        "liability"
+      ],
+      "confidence": "medium",
+      "why": "Court-reporter guide flags 'tortuous conduct'; ASR picks the more common homophone.",
+      "sources": [
+        "https://open-exam-prep.com/study-guides/rpr/ch09-grammar-usage/sec03-word-usage-homophones"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "eminent domain",
+      "category": "Legal",
+      "heard": [
+        "imminent domain"
+      ],
+      "confidence": "medium",
+      "why": "'imminent domain' is a recorded eggcorn; court-reporter guide flags it.",
+      "sources": [
+        "https://open-exam-prep.com/study-guides/rpr/ch09-grammar-usage/sec03-word-usage-homophones",
+        "https://listserv.linguistlist.org/pipermail/ads-l/2013-June/127453.html"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "12(b)(6)",
+      "category": "Legal",
+      "heard": [
+        "12 b 6",
+        "12b6",
+        "12 b six",
+        "twelve b six",
+        "12(b) six"
+      ],
+      "confidence": "medium",
+      "why": "Legal dictation guide documents '12 B 6', '12(b) six', 'Rule twelve B six'.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "TRO",
+      "category": "Legal",
+      "heard": [
+        "t r o"
+      ],
+      "confidence": "low",
+      "why": "Legal transcription vendor lists 'trial order'; spaced letters are the safe fix.",
+      "sources": [
+        "https://www.gmrtranscription.com/blog/difficult-words-and-terms-in-legal-transcription"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "NDA",
+      "category": "Legal",
+      "heard": [
+        "n d a"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters; listed as a common legal acronym.",
+      "sources": [
+        "https://gotranscript.com/en/blog/improve-dictation-accuracy-legal-terms-glossary-template"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "SCOTUS",
+      "category": "Legal",
+      "heard": [
+        "scotus"
+      ],
+      "confidence": "low",
+      "why": "Acronym spoken as a word.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "per curiam",
+      "category": "Legal",
+      "heard": [
+        "per curium",
+        "per curriam"
+      ],
+      "confidence": "low",
+      "why": "'per curium' is a frequent misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "estoppel",
+      "category": "Legal",
+      "heard": [
+        "estopple",
+        "estoppal"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "bona fide",
+      "category": "Legal",
+      "heard": [
+        "bonafide"
+      ],
+      "confidence": "low",
+      "why": "'bonafide' is a frequent one-word misspelling.",
+      "sources": [],
+      "risk": "Not legal-only."
+    },
+    {
+      "term": "lien",
+      "category": "Legal",
+      "context": [
+        "lean"
+      ],
+      "after": [
+        "waiver",
+        "waivers",
+        "holder",
+        "holders",
+        "release",
+        "releases"
+      ],
+      "confidence": "low",
+      "why": "Homophone 'lean'.",
+      "sources": [],
+      "risk": "Gated by context."
+    },
+    {
+      "term": "parol evidence",
+      "category": "Legal",
+      "context": [
+        "parole evidence"
+      ],
+      "after": [
+        "rule"
+      ],
+      "confidence": "low",
+      "why": "Homophone 'parole'.",
+      "sources": [],
+      "risk": "Only replaced in 'parole evidence rule'."
+    },
+    {
+      "term": "codicil",
+      "category": "Legal",
+      "heard": [
+        "codisil",
+        "codicile"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Philippians",
+      "category": "Bible and faith",
+      "heard": [
+        "phillipians",
+        "philipians",
+        "phillippians"
+      ],
+      "context": [
+        "philippines"
+      ],
+      "after": [
+        "chapter",
+        "verse",
+        "verses"
+      ],
+      "confidence": "high",
+      "why": "Sermon-caption analysis: models output 'Philippines'. Context-gated; misspellings are safe.",
+      "sources": [
+        "https://quso.ai/blog/sermon-captions-and-bible-reference-accuracy"
+      ],
+      "risk": "'Philippines chapter' (of an organization) would change; low frequency."
+    },
+    {
+      "term": "Hosea",
+      "category": "Bible and faith",
+      "context": [
+        "hosier"
+      ],
+      "after": [
+        "chapter",
+        "verse",
+        "prophet"
+      ],
+      "confidence": "medium",
+      "why": "Sermon-caption analysis: output 'hosier'.",
+      "sources": [
+        "https://quso.ai/blog/sermon-captions-and-bible-reference-accuracy"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Titus",
+      "category": "Bible and faith",
+      "context": [
+        "tightest"
+      ],
+      "after": [
+        "chapter",
+        "verse"
+      ],
+      "confidence": "medium",
+      "why": "Sermon-caption analysis: output 'tightest'.",
+      "sources": [
+        "https://quso.ai/blog/sermon-captions-and-bible-reference-accuracy"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Habakkuk",
+      "category": "Bible and faith",
+      "heard": [
+        "habakkuk",
+        "habakuk",
+        "habbakuk",
+        "habbakkuk"
+      ],
+      "confidence": "medium",
+      "why": "Named as a transliterated name that rarely survives; 'Habbakkuk' misspelling found even in Bible software.",
+      "sources": [
+        "https://quso.ai/blog/sermon-captions-and-bible-reference-accuracy",
+        "https://bibleanalyzer.com/forum/viewtopic.php?p=5914"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Nebuchadnezzar",
+      "category": "Bible and faith",
+      "heard": [
+        "nebuchadnezzer",
+        "nebuchadnezar",
+        "nebuchanezzar",
+        "nebuchadnezer",
+        "nebakanezzar"
+      ],
+      "confidence": "medium",
+      "why": "Named as a transliterated name that rarely survives transcription.",
+      "sources": [
+        "https://quso.ai/blog/sermon-captions-and-bible-reference-accuracy"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Melchizedek",
+      "category": "Bible and faith",
+      "heard": [
+        "melchizedec",
+        "melchezedek",
+        "melchisedek",
+        "melkizedek"
+      ],
+      "confidence": "medium",
+      "why": "Named as a transliterated name that rarely survives transcription.",
+      "sources": [
+        "https://quso.ai/blog/sermon-captions-and-bible-reference-accuracy"
+      ],
+      "risk": "Douay spelling 'Melchisedech' deliberately not mapped."
+    },
+    {
+      "term": "Revelation",
+      "category": "Bible and faith",
+      "context": [
+        "revelations"
+      ],
+      "after": [
+        "chapter",
+        "verse"
+      ],
+      "confidence": "medium",
+      "why": "Style guides flag 'Revelations' for the book; ordinary word, so context-gated.",
+      "sources": [
+        "https://www.goodreads.com/author_blog_posts/23917521-7-common-bible-mistakes-that-are-easy-to-fix?tab=author"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Ecclesiastes",
+      "category": "Bible and faith",
+      "heard": [
+        "ecclesiates",
+        "eclesiastes",
+        "ecclesiasties"
+      ],
+      "context": [
+        "ecclesiastics"
+      ],
+      "after": [
+        "chapter",
+        "verse"
+      ],
+      "confidence": "low",
+      "why": "Near-homophone of 'ecclesiastics'; long non-phonetic name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Gethsemane",
+      "category": "Bible and faith",
+      "heard": [
+        "gethsemene",
+        "gethsemany",
+        "gethsemanie",
+        "gethsamane"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings ('Gethsemene').",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Zephaniah",
+      "category": "Bible and faith",
+      "heard": [
+        "zephania",
+        "zepheniah"
+      ],
+      "confidence": "low",
+      "why": "Minor-prophet name with non-phonetic spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Thessalonians",
+      "category": "Bible and faith",
+      "heard": [
+        "thessalonions",
+        "thesselonians",
+        "thessolonians"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Colossians",
+      "category": "Bible and faith",
+      "heard": [
+        "collosians",
+        "colosians",
+        "collossians"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Ephesians",
+      "category": "Bible and faith",
+      "heard": [
+        "ephesions",
+        "ephisians",
+        "efesians"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Galatians",
+      "category": "Bible and faith",
+      "heard": [
+        "galations",
+        "galacians"
+      ],
+      "confidence": "low",
+      "why": "'Galations' is a frequent misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Deuteronomy",
+      "category": "Bible and faith",
+      "heard": [
+        "deutoronomy",
+        "duteronomy",
+        "deuteronomey"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Abednego",
+      "category": "Bible and faith",
+      "heard": [
+        "abednigo",
+        "abendigo",
+        "abednago"
+      ],
+      "confidence": "low",
+      "why": "Transliterated name; frequent respellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Meshach",
+      "category": "Bible and faith",
+      "heard": [
+        "meshack"
+      ],
+      "confidence": "low",
+      "why": "Transliterated name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Beelzebub",
+      "category": "Bible and faith",
+      "heard": [
+        "beezlebub",
+        "bealzebub",
+        "beelzebubb"
+      ],
+      "confidence": "low",
+      "why": "'Beezlebub' is a frequent misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Methuselah",
+      "category": "Bible and faith",
+      "heard": [
+        "methusela",
+        "methusaleh",
+        "methuseleh"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Barabbas",
+      "category": "Bible and faith",
+      "heard": [
+        "barrabas",
+        "barabus",
+        "barrabbas"
+      ],
+      "confidence": "low",
+      "why": "Frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Capernaum",
+      "category": "Bible and faith",
+      "heard": [
+        "capernum",
+        "caperneum",
+        "capernaam"
+      ],
+      "confidence": "low",
+      "why": "Place name with silent vowel.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Galilee",
+      "category": "Bible and faith",
+      "heard": [
+        "gallilee",
+        "galillee",
+        "gallilea"
+      ],
+      "confidence": "low",
+      "why": "Double-letter misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Golgotha",
+      "category": "Bible and faith",
+      "heard": [
+        "golgatha",
+        "gogotha"
+      ],
+      "confidence": "low",
+      "why": "Place name; vowel misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Sanhedrin",
+      "category": "Bible and faith",
+      "heard": [
+        "sanhedren",
+        "san hedrin"
+      ],
+      "confidence": "low",
+      "why": "Transliterated term.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Sadducees",
+      "category": "Bible and faith",
+      "heard": [
+        "saducees",
+        "sadduces",
+        "sadducess"
+      ],
+      "confidence": "low",
+      "why": "Double-letter misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Septuagint",
+      "category": "Bible and faith",
+      "heard": [
+        "septuigint",
+        "septuagent"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic Latin-derived name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Pentateuch",
+      "category": "Bible and faith",
+      "heard": [
+        "pentatuch",
+        "pentatuke",
+        "penta tuke"
+      ],
+      "confidence": "low",
+      "why": "Silent 'eu' spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Yahweh",
+      "category": "Bible and faith",
+      "heard": [
+        "yahweh",
+        "yaweh",
+        "yahwe"
+      ],
+      "confidence": "low",
+      "why": "'Yaweh' is a frequent misspelling; lowercase needs casing.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Shekinah",
+      "category": "Bible and faith",
+      "heard": [
+        "shekina",
+        "shakina"
+      ],
+      "confidence": "low",
+      "why": "Transliterated term.",
+      "sources": [],
+      "risk": "'Shechinah' is a valid variant and is not mapped."
+    },
+    {
+      "term": "eschatology",
+      "category": "Bible and faith",
+      "heard": [
+        "escatology",
+        "eschatalogy",
+        "eschotology"
+      ],
+      "confidence": "low",
+      "why": "Silent 'h' after 'sc'; frequent misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "soteriology",
+      "category": "Bible and faith",
+      "heard": [
+        "soterology",
+        "sotieriology"
+      ],
+      "confidence": "low",
+      "why": "Rare term; vowel misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "pneumatology",
+      "category": "Bible and faith",
+      "heard": [
+        "neumatology",
+        "numatology",
+        "pneumotology"
+      ],
+      "confidence": "low",
+      "why": "Silent 'p'; engines that spell phonetically drop it.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "propitiation",
+      "category": "Bible and faith",
+      "heard": [
+        "propiciation",
+        "propitation"
+      ],
+      "confidence": "low",
+      "why": "Rare word; likely misspelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "hermeneutics",
+      "category": "Bible and faith",
+      "heard": [
+        "hermaneutics",
+        "hermenutics",
+        "her meneutics"
+      ],
+      "confidence": "low",
+      "why": "'hermaneutics' is a frequent misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "eisegesis",
+      "category": "Bible and faith",
+      "heard": [
+        "isegesis",
+        "eisegisis",
+        "icegesis"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic 'ei' spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "exegesis",
+      "category": "Bible and faith",
+      "heard": [
+        "exegisis",
+        "exogesis"
+      ],
+      "confidence": "low",
+      "why": "Vowel misspellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "imago Dei",
+      "category": "Bible and faith",
+      "heard": [
+        "imago day",
+        "imago dei"
+      ],
+      "confidence": "medium",
+      "why": "Latin; 'Dei' sounds like 'day'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "sola scriptura",
+      "category": "Bible and faith",
+      "heard": [
+        "sola scripture",
+        "sola scriptora"
+      ],
+      "confidence": "low",
+      "why": "Latin; English 'scripture' substitutes.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "premillennialism",
+      "category": "Bible and faith",
+      "heard": [
+        "premillenialism",
+        "pre millennialism",
+        "pre-millenialism"
+      ],
+      "confidence": "low",
+      "why": "Single-n 'millenial' is a very common misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "amillennialism",
+      "category": "Bible and faith",
+      "heard": [
+        "amillenialism",
+        "a millennialism"
+      ],
+      "confidence": "low",
+      "why": "Single-n misspelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Arminianism",
+      "category": "Bible and faith",
+      "heard": [
+        "armenianism"
+      ],
+      "confidence": "low",
+      "why": "Homophone 'Armenian'; only the non-word '-ism' form is mapped.",
+      "sources": [],
+      "risk": "'Armenianism' is very rare as Armenian identity; plain 'Armenian' is not mapped."
+    },
+    {
+      "term": "ARRI",
+      "category": "Film production",
+      "heard": [
+        "arri",
+        "a r r i"
+      ],
+      "context": [
+        "ari"
+      ],
+      "after": [
+        "alexa",
+        "amira",
+        "camera",
+        "cameras",
+        "skypanel",
+        "lenses",
+        "signature"
+      ],
+      "confidence": "medium",
+      "why": "All-caps brand; 'Ari' is a given name, so it's context-gated.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ARRI Alexa",
+      "category": "Film production",
+      "heard": [
+        "arri alexa",
+        "ari alexa",
+        "arri alexia"
+      ],
+      "confidence": "low",
+      "why": "Brand plus model.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "RED KOMODO",
+      "category": "Film production",
+      "heard": [
+        "red komodo"
+      ],
+      "confidence": "low",
+      "why": "RED writes model names in caps (red.com/camera/KOMODO).",
+      "sources": [
+        "https://www.red.com/camera/KOMODO"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "RED V-RAPTOR",
+      "category": "Film production",
+      "heard": [
+        "red v raptor",
+        "red v-raptor"
+      ],
+      "confidence": "low",
+      "why": "RED writes model names in caps.",
+      "sources": [
+        "https://www.red.com/camera/KOMODO"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "H.264",
+      "category": "Film production",
+      "heard": [
+        "h264",
+        "h 264",
+        "h dot 264",
+        "h two sixty four",
+        "h two six four"
+      ],
+      "confidence": "medium",
+      "why": "Codec name with period; engines output 'h264' or spelled-out forms.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "H.265",
+      "category": "Film production",
+      "heard": [
+        "h265",
+        "h 265",
+        "h dot 265",
+        "h two sixty five",
+        "h two six five"
+      ],
+      "confidence": "medium",
+      "why": "Codec name with period.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "HEVC",
+      "category": "Film production",
+      "heard": [
+        "hevc",
+        "h e v c"
+      ],
+      "confidence": "medium",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "AV1",
+      "category": "Film production",
+      "heard": [
+        "av1",
+        "a v 1"
+      ],
+      "confidence": "low",
+      "why": "Codec initialism with digit.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "XAVC",
+      "category": "Film production",
+      "heard": [
+        "xavc",
+        "x a v c"
+      ],
+      "confidence": "low",
+      "why": "Sony codec initialism.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Blackmagic RAW",
+      "category": "Film production",
+      "heard": [
+        "blackmagic raw",
+        "black magic raw"
+      ],
+      "confidence": "low",
+      "why": "Official casing; existing Blackmagic context rule would yield 'Blackmagic raw'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "BRAW",
+      "category": "Film production",
+      "heard": [
+        "b raw",
+        "b-raw"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Spoken 'B raw'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "DNxHR",
+      "category": "Film production",
+      "heard": [
+        "dnxhr",
+        "dnx hr",
+        "d n x h r"
+      ],
+      "confidence": "low",
+      "why": "Mixed-case Avid codec name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "DNxHD",
+      "category": "Film production",
+      "heard": [
+        "dnxhd",
+        "dnx hd",
+        "d n x h d"
+      ],
+      "confidence": "low",
+      "why": "Mixed-case Avid codec name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "S-Log3",
+      "category": "Film production",
+      "heard": [
+        "s log 3",
+        "s-log 3",
+        "slog 3",
+        "slog3",
+        "s log three"
+      ],
+      "confidence": "low",
+      "why": "Sony log profile; hyphen and digit.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "C-Log",
+      "category": "Film production",
+      "heard": [
+        "c log",
+        "c-log"
+      ],
+      "confidence": "low",
+      "why": "Canon log profile.",
+      "sources": [],
+      "risk": "'clog' (one word) is not mapped."
+    },
+    {
+      "term": "Rec. 709",
+      "category": "Film production",
+      "heard": [
+        "rec 709",
+        "rec709",
+        "rec seven oh nine"
+      ],
+      "confidence": "medium",
+      "why": "Standard name with abbreviation period.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Rec. 2020",
+      "category": "Film production",
+      "heard": [
+        "rec2020"
+      ],
+      "exact": [
+        "Rec 2020"
+      ],
+      "confidence": "low",
+      "why": "Standard name with abbreviation period.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "DCI-P3",
+      "category": "Film production",
+      "heard": [
+        "dci p3",
+        "dci p 3",
+        "d c i p 3"
+      ],
+      "confidence": "low",
+      "why": "Color space name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Steadicam",
+      "category": "Film production",
+      "heard": [
+        "steadycam",
+        "steady cam",
+        "steddicam"
+      ],
+      "confidence": "medium",
+      "why": "Trademark spelling differs from phonetic 'steadycam'.",
+      "sources": [
+        "https://trademarks.justia.com/731/11/steadicam-73111140.html"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "C-stand",
+      "category": "Film production",
+      "context": [
+        "c stand",
+        "c stands"
+      ],
+      "after": [
+        "sandbag",
+        "sandbags",
+        "arm",
+        "arms",
+        "grip",
+        "boom",
+        "flag",
+        "flags"
+      ],
+      "confidence": "low",
+      "why": "Grip term spoken as letter plus word; 'what does C stand for' makes a bare heard form unsafe.",
+      "sources": [],
+      "risk": "Context-gated because 'C stands for' is ordinary English."
+    },
+    {
+      "term": "Kino Flo",
+      "category": "Film production",
+      "heard": [
+        "kino flow",
+        "keno flow",
+        "kinoflo"
+      ],
+      "confidence": "low",
+      "why": "Brand; 'flow' substitution.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Aputure",
+      "category": "Film production",
+      "heard": [
+        "aputure"
+      ],
+      "context": [
+        "aperture"
+      ],
+      "after": [
+        "300d",
+        "600d",
+        "1200d",
+        "amaran",
+        "nova",
+        "storm"
+      ],
+      "confidence": "low",
+      "why": "Brand that engines hear as 'aperture'; gated by model names.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Godox",
+      "category": "Film production",
+      "heard": [
+        "godox",
+        "go dox"
+      ],
+      "confidence": "low",
+      "why": "Lighting brand.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Sennheiser",
+      "category": "Film production",
+      "heard": [
+        "senheiser",
+        "sennheizer",
+        "sen heiser",
+        "sennhiser"
+      ],
+      "confidence": "low",
+      "why": "German brand with non-phonetic spelling.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "TASCAM",
+      "category": "Film production",
+      "heard": [
+        "tascam",
+        "task cam"
+      ],
+      "confidence": "low",
+      "why": "All-caps brand; 'task cam' split.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "iZotope",
+      "category": "Film production",
+      "heard": [
+        "izotope"
+      ],
+      "context": [
+        "isotope"
+      ],
+      "after": [
+        "rx",
+        "ozone",
+        "rx10",
+        "rx11"
+      ],
+      "confidence": "low",
+      "why": "Camel-cased brand; homophone 'isotope' gated by product names.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Teradek",
+      "category": "Film production",
+      "heard": [
+        "teradek",
+        "tera deck",
+        "terra deck",
+        "teradeck"
+      ],
+      "confidence": "low",
+      "why": "Brand likely split.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Atomos",
+      "category": "Film production",
+      "heard": [
+        "atomos"
+      ],
+      "confidence": "low",
+      "why": "Monitor/recorder brand.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "SmallRig",
+      "category": "Film production",
+      "heard": [
+        "smallrig"
+      ],
+      "exact": [
+        "Small Rig"
+      ],
+      "confidence": "low",
+      "why": "Camel-cased brand; 'small rig' is ordinary, so only exact split casing.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Sachtler",
+      "category": "Film production",
+      "heard": [
+        "sachtler",
+        "sacktler"
+      ],
+      "confidence": "low",
+      "why": "German brand.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "CFexpress",
+      "category": "Film production",
+      "heard": [
+        "cfexpress",
+        "cf express",
+        "c f express"
+      ],
+      "confidence": "medium",
+      "why": "Unusual casing of a card standard.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ND filter",
+      "category": "Film production",
+      "heard": [
+        "nd filter",
+        "n d filter"
+      ],
+      "confidence": "low",
+      "why": "Initialism plus noun.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ND filters",
+      "category": "Film production",
+      "heard": [
+        "nd filters",
+        "n d filters"
+      ],
+      "confidence": "low",
+      "why": "Plural form.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "lavalier",
+      "category": "Film production",
+      "heard": [
+        "lavalear",
+        "lavalair",
+        "lava lier"
+      ],
+      "confidence": "low",
+      "why": "French-derived word; phonetic misspellings. 'lavaliere' is valid and not mapped.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Fresnel",
+      "category": "Film production",
+      "heard": [
+        "frenel",
+        "fresnell"
+      ],
+      "confidence": "low",
+      "why": "Silent 's'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "FX3",
+      "category": "Film production",
+      "heard": [
+        "fx3",
+        "fx 3",
+        "f x 3"
+      ],
+      "confidence": "low",
+      "why": "Sony cinema line model.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "FX6",
+      "category": "Film production",
+      "heard": [
+        "fx6",
+        "fx 6",
+        "f x 6"
+      ],
+      "confidence": "low",
+      "why": "Sony cinema line model.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "FX30",
+      "category": "Film production",
+      "heard": [
+        "fx30",
+        "fx 30",
+        "f x 30"
+      ],
+      "confidence": "low",
+      "why": "Sony cinema line model.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Canon C70",
+      "category": "Film production",
+      "heard": [
+        "canon c 70",
+        "canon c seventy"
+      ],
+      "confidence": "low",
+      "why": "Model number split.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "BMPCC",
+      "category": "Film production",
+      "heard": [
+        "bmpcc",
+        "b m p c c"
+      ],
+      "confidence": "low",
+      "why": "Blackmagic Pocket Cinema Camera initialism.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "EDL",
+      "category": "Film production",
+      "heard": [
+        "e d l"
+      ],
+      "confidence": "low",
+      "why": "Edit decision list initialism.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "DIT",
+      "category": "Film production",
+      "heard": [
+        "d i t"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Digital imaging technician initialism.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Boris FX",
+      "category": "Film production",
+      "heard": [
+        "boris fx",
+        "boris f x"
+      ],
+      "confidence": "low",
+      "why": "Plugin brand.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "StudioBinder",
+      "category": "Film production",
+      "heard": [
+        "studiobinder",
+        "studio binder"
+      ],
+      "confidence": "low",
+      "why": "Camel-cased production software.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "LucidLink",
+      "category": "Film production",
+      "heard": [
+        "lucidlink",
+        "lucid link"
+      ],
+      "confidence": "low",
+      "why": "Camel-cased storage product.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "WriterDuet",
+      "category": "Film production",
+      "heard": [
+        "writerduet",
+        "writer duet"
+      ],
+      "confidence": "low",
+      "why": "Camel-cased screenwriting app.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "SkyPanel",
+      "category": "Film production",
+      "heard": [
+        "skypanel"
+      ],
+      "context": [
+        "sky panel"
+      ],
+      "after": [
+        "arri",
+        "s30",
+        "s60",
+        "s120",
+        "s360"
+      ],
+      "confidence": "low",
+      "why": "ARRI light; 'sky panel' gated by model words.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ProRes",
+      "category": "Film production",
+      "heard": [
+        "pro rez"
+      ],
+      "existing": true,
+      "confidence": "low",
+      "why": "Extra respelling of an existing term.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "OKR",
+      "category": "Business and marketing",
+      "heard": [
+        "okr",
+        "o k r"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "OKRs",
+      "category": "Business and marketing",
+      "heard": [
+        "okrs",
+        "o k r s",
+        "o k rs"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ROAS",
+      "category": "Business and marketing",
+      "heard": [
+        "roas",
+        "r o a s"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Spoken 'row-as'; only literal forms are mapped (ASR output 'rows' can't be fixed safely).",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "CPC",
+      "category": "Business and marketing",
+      "heard": [
+        "c p c"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "CPM",
+      "category": "Business and marketing",
+      "heard": [
+        "c p m"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "CAC",
+      "category": "Business and marketing",
+      "heard": [
+        "c a c"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "LTV",
+      "category": "Business and marketing",
+      "heard": [
+        "l t v"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "MRR",
+      "category": "Business and marketing",
+      "heard": [
+        "m r r"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ARR",
+      "category": "Business and marketing",
+      "heard": [
+        "a r r"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "Lowercase 'arr' (pirate) is not mapped."
+    },
+    {
+      "term": "NPS",
+      "category": "Business and marketing",
+      "heard": [
+        "n p s"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "CTR",
+      "category": "Business and marketing",
+      "heard": [
+        "c t r"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "PPC",
+      "category": "Business and marketing",
+      "heard": [
+        "p p c"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "CRO",
+      "category": "Business and marketing",
+      "heard": [
+        "c r o"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "UTM",
+      "category": "Business and marketing",
+      "heard": [
+        "utm",
+        "u t m"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ICP",
+      "category": "Business and marketing",
+      "heard": [
+        "i c p"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "MQL",
+      "category": "Business and marketing",
+      "heard": [
+        "m q l"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "GTM",
+      "category": "Business and marketing",
+      "heard": [
+        "g t m"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "SKU",
+      "category": "Business and marketing",
+      "heard": [
+        "s k u"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ERP",
+      "category": "Business and marketing",
+      "heard": [
+        "e r p"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "SOW",
+      "category": "Business and marketing",
+      "heard": [
+        "s o w"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "RFP",
+      "category": "Business and marketing",
+      "heard": [
+        "r f p"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "MVP",
+      "category": "Business and marketing",
+      "heard": [
+        "m v p"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "YoY",
+      "category": "Business and marketing",
+      "heard": [
+        "yoy",
+        "y o y"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "QoQ",
+      "category": "Business and marketing",
+      "heard": [
+        "qoq",
+        "q o q"
+      ],
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ARPU",
+      "category": "Business and marketing",
+      "heard": [
+        "arpu",
+        "a r p u"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "SERP",
+      "category": "Business and marketing",
+      "heard": [
+        "serp",
+        "s e r p"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Initialism output as spaced letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "EBITDA",
+      "category": "Business and marketing",
+      "heard": [
+        "ebitda",
+        "e bit da",
+        "ebit da",
+        "e b i t d a"
+      ],
+      "confidence": "low",
+      "why": "Acronym spoken as a word ('ee-bit-dah').",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "P&L",
+      "category": "Business and marketing",
+      "heard": [
+        "p and l",
+        "p & l"
+      ],
+      "confidence": "low",
+      "why": "Spoken 'P and L'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "GA4",
+      "category": "Business and marketing",
+      "heard": [
+        "ga4",
+        "ga 4",
+        "g a 4",
+        "ga four"
+      ],
+      "confidence": "low",
+      "why": "Product name with digit.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "W-9",
+      "category": "Business and marketing",
+      "heard": [
+        "w9",
+        "w 9"
+      ],
+      "confidence": "low",
+      "why": "Tax form name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Finsweet",
+      "category": "Business and marketing",
+      "heard": [
+        "finsweet",
+        "fin sweet"
+      ],
+      "confidence": "low",
+      "why": "Webflow tools brand.",
+      "sources": [
+        "https://relume.io/resources/docs/working-with-finsweet-tools"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Relume",
+      "category": "Business and marketing",
+      "heard": [
+        "re lume",
+        "re-lume"
+      ],
+      "exact": [
+        "relume"
+      ],
+      "confidence": "low",
+      "why": "Webflow component library.",
+      "sources": [
+        "https://relume.io/resources/docs/working-with-finsweet-tools"
+      ],
+      "risk": "'relume' is an archaic English verb; only exact lowercase is fixed."
+    },
+    {
+      "term": "Memberstack",
+      "category": "Business and marketing",
+      "heard": [
+        "memberstack",
+        "member stack"
+      ],
+      "confidence": "low",
+      "why": "Webflow membership tool.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "n8n",
+      "category": "Business and marketing",
+      "heard": [
+        "n 8 n",
+        "n eight n"
+      ],
+      "confidence": "medium",
+      "why": "Pronounced 'n-eight-n'; impossible to spell from sound.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Make.com",
+      "category": "Business and marketing",
+      "heard": [
+        "make dot com"
+      ],
+      "confidence": "low",
+      "why": "Automation platform; 'make' alone is ordinary.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ClickFunnels",
+      "category": "Business and marketing",
+      "heard": [
+        "clickfunnels",
+        "click funnels"
+      ],
+      "confidence": "low",
+      "why": "Camel-cased brand.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Hootsuite",
+      "category": "Business and marketing",
+      "heard": [
+        "hootsuite",
+        "hoot suite"
+      ],
+      "confidence": "low",
+      "why": "Brand likely split.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "metafields",
+      "category": "Business and marketing",
+      "context": [
+        "meta fields"
+      ],
+      "after": [
+        "shopify",
+        "product",
+        "custom"
+      ],
+      "confidence": "low",
+      "why": "Shopify term likely split; 'meta fields' is ordinary SEO talk, so context-gated.",
+      "sources": [],
+      "risk": "Context-gated; HTML meta fields stay untouched."
+    },
+    {
+      "term": "metaobjects",
+      "category": "Business and marketing",
+      "context": [
+        "meta objects"
+      ],
+      "after": [
+        "shopify",
+        "custom"
+      ],
+      "confidence": "low",
+      "why": "Shopify term likely split.",
+      "sources": [],
+      "risk": "Context-gated."
+    },
+    {
+      "term": "Shopify POS",
+      "category": "Business and marketing",
+      "heard": [
+        "shopify pos",
+        "shopify p o s"
+      ],
+      "confidence": "low",
+      "why": "Product name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Yotpo",
+      "category": "Business and marketing",
+      "heard": [
+        "yotpo",
+        "yot po"
+      ],
+      "confidence": "low",
+      "why": "Shopify reviews app.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Gorgias",
+      "category": "Business and marketing",
+      "heard": [
+        "gorgias"
+      ],
+      "context": [
+        "gorgeous"
+      ],
+      "after": [
+        "helpdesk",
+        "macros",
+        "integration"
+      ],
+      "confidence": "low",
+      "why": "Helpdesk heard as 'gorgeous'; gated by context.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "PageFly",
+      "category": "Business and marketing",
+      "heard": [
+        "pagefly",
+        "page fly"
+      ],
+      "confidence": "low",
+      "why": "Shopify page builder.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "GemPages",
+      "category": "Business and marketing",
+      "heard": [
+        "gempages",
+        "gem pages"
+      ],
+      "confidence": "low",
+      "why": "Shopify page builder.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Omnisend",
+      "category": "Business and marketing",
+      "heard": [
+        "omnisend",
+        "omni send"
+      ],
+      "confidence": "low",
+      "why": "Email platform.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Northbeam",
+      "category": "Business and marketing",
+      "heard": [
+        "northbeam",
+        "north beam"
+      ],
+      "confidence": "low",
+      "why": "Attribution tool.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Triple Whale",
+      "category": "Business and marketing",
+      "heard": [
+        "triple whale",
+        "triplewhale"
+      ],
+      "confidence": "low",
+      "why": "Attribution tool.",
+      "sources": [],
+      "risk": "none"
+    }
+  ]
+}

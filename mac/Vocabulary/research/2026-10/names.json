@@ -1,0 +1,1909 @@
+{
+  "area": "names and places",
+  "candidates": [
+    {
+      "term": "Albuquerque",
+      "category": "Places",
+      "heard": [
+        "albequerque",
+        "albuquerqe",
+        "albuqueque",
+        "albaquerque",
+        "albuquerky",
+        "al buquerque"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; silent 'ue' pairs; even a state DOT sign shipped 'Albuqueque'. Whisper learns from web text that carries these misspellings.",
+      "sources": [
+        "https://business.dptribune.com/dptribune/news/read/42582053/highway_sign_mishap_in_new_mexico",
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Poughkeepsie",
+      "category": "Places",
+      "heard": [
+        "poughkeepsy",
+        "poughkepsie",
+        "pokipsie",
+        "pokipsy",
+        "poughkipsie",
+        "po kipsie"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; spelling gives no clue to the 'puh-KIP-see' sound.",
+      "sources": [
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Schenectady",
+      "category": "Places",
+      "heard": [
+        "schenectedy",
+        "skenectady",
+        "schenactady",
+        "schenecktady",
+        "schenectity"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; Dutch 'sch' read as 'sk'.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Worcester",
+      "category": "Places",
+      "heard": [
+        "worchester",
+        "worcestor",
+        "worchestor"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; said 'WUSS-ter'; 'Worchester' is the usual phonetic respelling.",
+      "sources": [
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/",
+        "https://www.nbcboston.com/news/local/report-worcester-among-the-top-14-mispronounced-places/119384/"
+      ],
+      "risk": "Wooster (Ohio city, P. G. Wodehouse's Bertie Wooster) deliberately left out."
+    },
+    {
+      "term": "Worcestershire",
+      "category": "Places",
+      "heard": [
+        "worchestershire",
+        "woostershire",
+        "worcestshire",
+        "worstershire",
+        "worcester shire"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; county and sauce name; same silent syllables as Worcester.",
+      "sources": [
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Tucson",
+      "category": "Places",
+      "heard": [
+        "tuscon"
+      ],
+      "confidence": "medium",
+      "why": "Transposition so common that Google Books shows it rising for decades.",
+      "sources": [
+        "https://www.tucsonsentinel.com/opinion/report/020611_tusconproblem/",
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/"
+      ],
+      "risk": "TusCon is a local sci-fi convention; it is usually written with a capital C and would be lowercased only if typed 'Tuscon'."
+    },
+    {
+      "term": "Cincinnati",
+      "category": "Places",
+      "heard": [
+        "cincinatti",
+        "cincinnatti",
+        "cincinati",
+        "cinncinati",
+        "cinncinnati"
+      ],
+      "confidence": "medium",
+      "why": "Double-letter placement is unpredictable from sound.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Pittsburgh",
+      "category": "Places",
+      "heard": [
+        "pitsburgh",
+        "pittsburhg"
+      ],
+      "context": [
+        "Pittsburg"
+      ],
+      "after": [
+        "PA",
+        "Pennsylvania",
+        "Steelers",
+        "Penguins",
+        "Pirates",
+        "Pitt"
+      ],
+      "confidence": "medium",
+      "why": "The final 'h' is silent; Pittsburg without 'h' is a real spelling elsewhere, so the bare form is context-only.",
+      "sources": [],
+      "risk": "Pittsburg, Kansas, California, and Texas exist; 'Pittsburg' is replaced only next to the context words."
+    },
+    {
+      "term": "Philadelphia",
+      "category": "Places",
+      "heard": [
+        "philidelphia",
+        "philedelphia",
+        "philadephia",
+        "philadelpia",
+        "phillidelphia"
+      ],
+      "confidence": "medium",
+      "why": "Unstressed vowels are spelled unpredictably.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Massachusetts",
+      "category": "Places",
+      "heard": [
+        "massachusets",
+        "massachussetts",
+        "massachussets",
+        "massachusettes",
+        "masachusetts"
+      ],
+      "confidence": "medium",
+      "why": "Commonly misspelled state; double s and double t placement.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Connecticut",
+      "category": "Places",
+      "heard": [
+        "conneticut",
+        "connecticutt",
+        "connetticut",
+        "conecticut"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; the middle 'c' is silent.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Mississippi",
+      "category": "Places",
+      "heard": [
+        "missisippi",
+        "mississipi",
+        "missisipi",
+        "mississppi"
+      ],
+      "confidence": "medium",
+      "why": "Repeated doubled letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Tennessee",
+      "category": "Places",
+      "heard": [
+        "tennesee",
+        "tenessee",
+        "tennesse"
+      ],
+      "confidence": "medium",
+      "why": "Repeated doubled letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Pennsylvania",
+      "category": "Places",
+      "heard": [
+        "pennsylvannia",
+        "pensylvania",
+        "pennsilvania",
+        "pennsylvaina"
+      ],
+      "confidence": "medium",
+      "why": "Single and double n and the 'syl' syllable are commonly confused.",
+      "sources": [],
+      "risk": "'Pensilvania' (Spanish spelling) deliberately left out."
+    },
+    {
+      "term": "Phoenix",
+      "category": "Places",
+      "heard": [
+        "pheonix"
+      ],
+      "confidence": "medium",
+      "why": "The 'oe' digraph is unusual in English and often reversed.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Sacramento",
+      "category": "Places",
+      "heard": [
+        "sacremento",
+        "sacromento"
+      ],
+      "confidence": "medium",
+      "why": "Unstressed vowel spelled unpredictably.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Des Moines",
+      "category": "Places",
+      "heard": [
+        "des moine",
+        "demoine",
+        "demoines"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; French name with a silent final 's'.",
+      "sources": [
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Kissimmee",
+      "category": "Places",
+      "heard": [
+        "kissimee",
+        "kisimmee",
+        "kissimme"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; double s and double m are not audible.",
+      "sources": [
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Coeur d'Alene",
+      "category": "Places",
+      "heard": [
+        "cour d'alene",
+        "coeur dalene",
+        "cour dalene",
+        "coeur d alene"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; French spelling with an apostrophe.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Tallahassee",
+      "category": "Places",
+      "heard": [
+        "tallahasee",
+        "talahassee",
+        "tallahasse"
+      ],
+      "confidence": "medium",
+      "why": "Repeated doubled letters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Milwaukee",
+      "category": "Places",
+      "heard": [
+        "milwakee",
+        "milwalkee"
+      ],
+      "confidence": "low",
+      "why": "The 'au' and double 'e' are inaudible.",
+      "sources": [],
+      "risk": "Milwaukie, Oregon, is a real city, so that spelling is left alone."
+    },
+    {
+      "term": "Louisville",
+      "category": "Places",
+      "heard": [
+        "louieville",
+        "louisvile"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; locals say 'LOO-uh-vul'; engines may respell phonetically.",
+      "sources": [
+        "https://www.dictionary.com/e/commonly-mispronounced-us-city-names/"
+      ],
+      "risk": "Lewisville, Texas, is real and left alone."
+    },
+    {
+      "term": "Willamette",
+      "category": "Places",
+      "heard": [
+        "willamete",
+        "wilamette",
+        "willamett"
+      ],
+      "confidence": "low",
+      "why": "Unpredictable doubled letters; often heard in wine and Oregon contexts.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Bothell",
+      "category": "Places",
+      "context": [
+        "Bath Cell",
+        "Bodwell"
+      ],
+      "after": [
+        "WA",
+        "Washington",
+        "Kenmore",
+        "Woodinville",
+        "Seattle"
+      ],
+      "confidence": "high",
+      "why": "Documented: Siri turned 'Bothell' into 'Bath Cell' and 'Bodwell' (forum anecdote).",
+      "sources": [
+        "https://forums.imore.com/threads/how-can-i-get-siri-to-understand-the-name-of-my-home-town.319326/"
+      ],
+      "risk": "Context-only: 'bath cell' is two ordinary words and Bodwell is a surname."
+    },
+    {
+      "term": "Chihuahua",
+      "category": "Places",
+      "heard": [
+        "chihuahau",
+        "chiuahua",
+        "chiwawa",
+        "chiwowa",
+        "chihuaha",
+        "chiwahwah"
+      ],
+      "confidence": "medium",
+      "why": "Most-searched 'how to spell' word in three US states; the Mexican state and the dog breed share the spelling.",
+      "sources": [
+        "https://www.mentalfloss.com/language/spelling/most-misspelled-word-every-state"
+      ],
+      "risk": "Output is capitalized, matching Merriam-Webster for both senses. 'Chiwawa' is also a small river in Washington."
+    },
+    {
+      "term": "Caribbean",
+      "category": "Places",
+      "heard": [
+        "carribean",
+        "carribbean",
+        "caribean"
+      ],
+      "confidence": "medium",
+      "why": "Single r, double b is counterintuitive.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Mediterranean",
+      "category": "Places",
+      "heard": [
+        "mediteranean",
+        "mediterranian",
+        "meditteranean",
+        "mediterrenean"
+      ],
+      "confidence": "medium",
+      "why": "Long word with an unpredictable doubled r.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Lancaster",
+      "category": "Places",
+      "heard": [
+        "lang caster",
+        "lan caster",
+        "lankaster",
+        "lancastor"
+      ],
+      "confidence": "low",
+      "why": "Locals say 'LANK-ister'; engines without the word may split it ('Lang Caster').",
+      "sources": [],
+      "risk": "'Lankaster' could be a rare surname."
+    },
+    {
+      "term": "Strasburg",
+      "category": "Places",
+      "context": [
+        "Strasbourg",
+        "Strassburg"
+      ],
+      "after": [
+        "PA",
+        "Pennsylvania",
+        "Virginia",
+        "VA",
+        "Ohio",
+        "Lancaster",
+        "Township",
+        "borough"
+      ],
+      "confidence": "medium",
+      "why": "Strasbourg (France) dominates training text, so engines output it for Strasburg, Pennsylvania, Virginia, and Ohio.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Strasburg,_Pennsylvania"
+      ],
+      "risk": "Replaced only next to US context words; Strasbourg, France, is untouched."
+    },
+    {
+      "term": "Strasburg Rail Road",
+      "category": "Places",
+      "heard": [
+        "strasbourg railroad",
+        "strasbourg rail road",
+        "strasburg railroad"
+      ],
+      "confidence": "medium",
+      "why": "Official name is two words, 'Rail Road'; first part also pulled toward Strasbourg.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Strasburg_Rail_Road"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Intercourse",
+      "category": "Places",
+      "context": [
+        "intercourse"
+      ],
+      "after": [
+        "PA",
+        "Pennsylvania",
+        "Lancaster"
+      ],
+      "confidence": "low",
+      "why": "Ordinary word as a village name; engines lowercase it. Capitalize only next to place context.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Intercourse,_Pennsylvania"
+      ],
+      "risk": "Only when adjacent to PA, Pennsylvania, or Lancaster."
+    },
+    {
+      "term": "Bird-in-Hand",
+      "category": "Places",
+      "context": [
+        "bird in hand",
+        "Bird in Hand"
+      ],
+      "after": [
+        "PA",
+        "Pennsylvania",
+        "Lancaster",
+        "village",
+        "bakery"
+      ],
+      "confidence": "medium",
+      "why": "Village spelling is hyphenated; engines write the proverb 'bird in hand'.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Bird-in-Hand,_Pennsylvania"
+      ],
+      "risk": "Context-only, because 'a bird in hand' is ordinary English and Bird in Hand is also a winery and pub name."
+    },
+    {
+      "term": "Lititz",
+      "category": "Places",
+      "heard": [
+        "lidditz",
+        "littitz",
+        "liditz",
+        "lititts",
+        "lidits"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; German-derived; the 'tz' and 'tit' read ambiguously.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Lititz,_Pennsylvania"
+      ],
+      "risk": "'lit its' deliberately left out because it is ordinary English."
+    },
+    {
+      "term": "Ephrata",
+      "category": "Places",
+      "heard": [
+        "ephrada",
+        "efrada"
+      ],
+      "context": [
+        "Efrata"
+      ],
+      "after": [
+        "PA",
+        "Pennsylvania",
+        "Lancaster",
+        "Cloister"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; 'ph' for 'f'; locals say 'EF-ruh-tuh'.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Ephrata,_Pennsylvania"
+      ],
+      "risk": "'Efrata' is context-only (Hebrew transliteration); Ephratah, New York, is real and left alone."
+    },
+    {
+      "term": "Schuylkill",
+      "category": "Places",
+      "heard": [
+        "schuylkil",
+        "schuykill",
+        "schulykill",
+        "skookill",
+        "skoo kill"
+      ],
+      "context": [
+        "school kill"
+      ],
+      "after": [
+        "River",
+        "County",
+        "Expressway",
+        "Trail"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; Dutch name said 'SKOO-kul'.",
+      "sources": [],
+      "risk": "'school kill' is context-only."
+    },
+    {
+      "term": "Susquehanna",
+      "category": "Places",
+      "heard": [
+        "susquehana",
+        "susquahanna",
+        "susquehannah",
+        "susquehanah",
+        "sasquehanna"
+      ],
+      "confidence": "medium",
+      "why": "Long Algonquian-derived name with unpredictable vowels.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Wilkes-Barre",
+      "category": "Places",
+      "heard": [
+        "wilkes barry",
+        "wilkes-barry",
+        "wilkes berry",
+        "wilkesbarre",
+        "wilkes barre"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; 'Barre' is said 'berry' or 'bar'; hyphen is official.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Punxsutawney",
+      "category": "Places",
+      "heard": [
+        "punxatawney",
+        "punxsatawney",
+        "punksutawney",
+        "punxutawney",
+        "punxsutawny"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; the 'x' is easy to drop; famously hard to spell (Groundhog Day).",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Punxsutawney,_Pennsylvania",
+        "https://languagelog.ldc.upenn.edu/nll/?p=68209"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Conshohocken",
+      "category": "Places",
+      "heard": [
+        "conshohoken",
+        "conshocken",
+        "conshahocken"
+      ],
+      "confidence": "low",
+      "why": "Long Lenape-derived name.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Duquesne",
+      "category": "Places",
+      "context": [
+        "Dukane",
+        "Du Kane"
+      ],
+      "after": [
+        "University",
+        "Incline",
+        "Light",
+        "Dukes",
+        "Pittsburgh"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; French spelling said 'doo-KANE'.",
+      "sources": [],
+      "risk": "Context-only: DuKane is a separate company name."
+    },
+    {
+      "term": "Manheim",
+      "category": "Places",
+      "context": [
+        "Mannheim"
+      ],
+      "after": [
+        "PA",
+        "Pennsylvania",
+        "Lancaster",
+        "Township"
+      ],
+      "confidence": "low",
+      "why": "Mannheim (Germany) dominates training text; Manheim, Pennsylvania, has one n.",
+      "sources": [],
+      "risk": "Context-only so Mannheim, Germany, stays untouched."
+    },
+    {
+      "term": "Monongahela",
+      "category": "Places",
+      "heard": [
+        "monongahala",
+        "monongehela",
+        "monongahella"
+      ],
+      "confidence": "low",
+      "why": "Long Lenape-derived river name with unpredictable vowels.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Reykjavík",
+      "category": "Places",
+      "heard": [
+        "reykjavic",
+        "rekyavik",
+        "reykavik",
+        "raykjavik",
+        "reykjavick",
+        "reikjavik",
+        "reykyavik"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; Icelandic 'kj' cluster. Output uses the official accented form.",
+      "sources": [],
+      "risk": "The plain English spelling 'Reykjavik' is left alone; only misspellings are fixed."
+    },
+    {
+      "term": "Kyiv",
+      "category": "Places",
+      "heard": [
+        "keev",
+        "kyev",
+        "kyiev"
+      ],
+      "context": [
+        "Kiev"
+      ],
+      "after": [
+        "Ukraine",
+        "Ukrainian",
+        "capital",
+        "mayor",
+        "oblast",
+        "region"
+      ],
+      "confidence": "medium",
+      "why": "Older training text favors 'Kiev'; AP and the US Board on Geographic Names switched to 'Kyiv' in 2019.",
+      "sources": [
+        "https://archive.kyivpost.com/ukraine-politics/kiev-no-more-ap-stylebook-changes-spelling-of-ukrainian-capital-to-kyiv.html",
+        "https://languagetool.org/insights/post/ukraine/"
+      ],
+      "risk": "'Kiev' is context-only so 'chicken Kiev' and historical text are untouched."
+    },
+    {
+      "term": "Kharkiv",
+      "category": "Places",
+      "heard": [
+        "harkiv",
+        "karkiv"
+      ],
+      "context": [
+        "Kharkov"
+      ],
+      "after": [
+        "Ukraine",
+        "Ukrainian",
+        "oblast",
+        "region"
+      ],
+      "confidence": "low",
+      "why": "Ukrainian-form spelling preferred over Russian-derived 'Kharkov'.",
+      "sources": [
+        "https://languagetool.org/insights/post/ukraine/"
+      ],
+      "risk": "Style choice; 'Kharkov' is context-only so WWII history ('Battle of Kharkov') stays."
+    },
+    {
+      "term": "Lviv",
+      "category": "Places",
+      "heard": [
+        "leviv"
+      ],
+      "context": [
+        "Lvov"
+      ],
+      "after": [
+        "Ukraine",
+        "Ukrainian",
+        "oblast",
+        "region"
+      ],
+      "confidence": "low",
+      "why": "Ukrainian-form spelling preferred over 'Lvov'.",
+      "sources": [
+        "https://languagetool.org/insights/post/ukraine/"
+      ],
+      "risk": "Style choice; 'Lvov' is context-only."
+    },
+    {
+      "term": "Qatar",
+      "category": "Places",
+      "heard": [
+        "quatar",
+        "qatarr"
+      ],
+      "context": [
+        "Katar"
+      ],
+      "after": [
+        "Airways",
+        "Doha",
+        "World Cup",
+        "Emir"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; 'Q' with no 'u'; often written 'Quatar'.",
+      "sources": [],
+      "risk": "'Katar' (German spelling; also a dagger) is context-only."
+    },
+    {
+      "term": "Côte d'Ivoire",
+      "category": "Places",
+      "heard": [
+        "cote d'ivoire",
+        "cote divoire",
+        "côte divoire",
+        "cote d ivoire",
+        "coat d'ivoire",
+        "cote de ivoire",
+        "cote d'ivoir"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; French name with a circumflex and apostrophe; the official English short name.",
+      "sources": [],
+      "risk": "'Ivory Coast' is valid English and left alone."
+    },
+    {
+      "term": "Philippines",
+      "category": "Places",
+      "heard": [
+        "phillipines",
+        "philipines",
+        "phillippines",
+        "philippenes",
+        "phillipenes"
+      ],
+      "confidence": "medium",
+      "why": "Double p, single l is counterintuitive; listed among the most misspelled countries.",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Colombia",
+      "category": "Places",
+      "context": [
+        "Columbia"
+      ],
+      "after": [
+        "Bogotá",
+        "Bogota",
+        "Medellín",
+        "Medellin",
+        "Cali",
+        "Cartagena",
+        "Barranquilla"
+      ],
+      "confidence": "medium",
+      "why": "Confused with 'Columbia' (District of Columbia, Columbia University).",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "Context-only; 'Columbia' is a real US name."
+    },
+    {
+      "term": "Morocco",
+      "category": "Places",
+      "heard": [
+        "morroco",
+        "morrocco"
+      ],
+      "confidence": "medium",
+      "why": "One r, two c; listed among the most misspelled countries.",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Herzegovina",
+      "category": "Places",
+      "heard": [
+        "hertzegovina",
+        "herzogovina",
+        "herzegovena"
+      ],
+      "confidence": "medium",
+      "why": "Often spelled like 'Hertz'.",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "Local 'Hercegovina' spelling left alone."
+    },
+    {
+      "term": "Liechtenstein",
+      "category": "Places",
+      "heard": [
+        "leichtenstein",
+        "liechenstein",
+        "lichtenstien",
+        "liechtenstien"
+      ],
+      "context": [
+        "Lichtenstein"
+      ],
+      "after": [
+        "Principality",
+        "Vaduz",
+        "Switzerland",
+        "Austria"
+      ],
+      "confidence": "medium",
+      "why": "Contains both 'ie' and 'ei'.",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "'Lichtenstein' (surname; artist Roy Lichtenstein) is context-only."
+    },
+    {
+      "term": "Kyrgyzstan",
+      "category": "Places",
+      "heard": [
+        "kyrgystan",
+        "kyrgistan",
+        "krygyzstan",
+        "kyrgzstan",
+        "kirgistan"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; unusual 'yrgy' cluster.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Kazakhstan",
+      "category": "Places",
+      "heard": [
+        "kazakstan",
+        "kazakhistan",
+        "kazachstan"
+      ],
+      "confidence": "medium",
+      "why": "Silent 'h' is easy to drop.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Djibouti",
+      "category": "Places",
+      "heard": [
+        "jibuti",
+        "djibuti",
+        "djibooti",
+        "jibouti"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; silent 'D', French 'ou'.",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Mauritius",
+      "category": "Places",
+      "heard": [
+        "mauritus",
+        "mauritious",
+        "maurititus"
+      ],
+      "confidence": "medium",
+      "why": "The second 'u' is often dropped.",
+      "sources": [
+        "https://bestlifeonline.com/most-misspelled-countries/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Tbilisi",
+      "category": "Places",
+      "heard": [
+        "tiblisi",
+        "tbilissi"
+      ],
+      "confidence": "medium",
+      "why": "Initial 'Tb' cluster is reversed by most English writers.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Shenzhen",
+      "category": "Places",
+      "heard": [
+        "shenzen",
+        "shenjen"
+      ],
+      "confidence": "medium",
+      "why": "Pinyin 'zh' is often dropped.",
+      "sources": [],
+      "risk": "Split 'Shen Zhen' left out because it can be a personal name."
+    },
+    {
+      "term": "Guangzhou",
+      "category": "Places",
+      "heard": [
+        "guangzou",
+        "gwangzhou",
+        "guangjo"
+      ],
+      "confidence": "low",
+      "why": "Pinyin 'zh' and 'ou' are unfamiliar.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Chongqing",
+      "category": "Places",
+      "heard": [
+        "chongching",
+        "chongquing"
+      ],
+      "confidence": "low",
+      "why": "Pinyin 'q' for 'ch'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Ljubljana",
+      "category": "Places",
+      "heard": [
+        "lubljana",
+        "ljubliana",
+        "lublijana",
+        "ljublijana"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; Slovene 'lj' clusters.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Ouagadougou",
+      "category": "Places",
+      "heard": [
+        "wagadugu",
+        "ouagadugu",
+        "wagadougou"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; French 'ou' spellings.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Abu Dhabi",
+      "category": "Places",
+      "heard": [
+        "abu dabi",
+        "abu dahbi",
+        "abudhabi"
+      ],
+      "confidence": "medium",
+      "why": "Silent 'h' after 'D'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Guadalajara",
+      "category": "Places",
+      "heard": [
+        "guadalahara",
+        "guadalajarra",
+        "wadalahara"
+      ],
+      "confidence": "low",
+      "why": "Spanish 'j' said as 'h'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Edinburgh",
+      "category": "Places",
+      "heard": [
+        "edinborough",
+        "edinburough",
+        "edinbrough"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; said 'ED-in-bruh'; often respelled with '-borough'.",
+      "sources": [],
+      "risk": "Edinboro, Pennsylvania, and Edinburg, Texas, are real and left alone; 'Edinborough' is also a park name in Edina, Minnesota."
+    },
+    {
+      "term": "Venezuela",
+      "category": "Places",
+      "heard": [
+        "venezuala",
+        "venezula",
+        "venezeula"
+      ],
+      "confidence": "medium",
+      "why": "Vowel order is often scrambled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Nicaragua",
+      "category": "Places",
+      "heard": [
+        "nicaragura",
+        "nicuragua",
+        "nicarauga"
+      ],
+      "confidence": "low",
+      "why": "Vowel order is often scrambled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Zuckerberg",
+      "category": "People",
+      "heard": [
+        "zuckerburg",
+        "zuckerburgh",
+        "zukerberg",
+        "zuckerbergh",
+        "suckerberg"
+      ],
+      "confidence": "medium",
+      "why": "Person names have the highest entity error rate in ASR (about 42-52% WER on Earnings-21); '-burg' is the usual misspelling.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "A real Zuckerburg surname is vanishingly rare."
+    },
+    {
+      "term": "Nadella",
+      "category": "People",
+      "heard": [
+        "nadela",
+        "nadalla",
+        "nadala"
+      ],
+      "confidence": "low",
+      "why": "Unfamiliar Telugu surname; double l is inaudible.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "'Nadala' could be a rare surname."
+    },
+    {
+      "term": "Sam Altman",
+      "category": "People",
+      "heard": [
+        "sam altmann",
+        "sam oltman",
+        "sam altmen",
+        "sam altmon"
+      ],
+      "confidence": "low",
+      "why": "Engines pick the more common German spelling 'Altmann'.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "Full-name forms only."
+    },
+    {
+      "term": "Jensen Huang",
+      "category": "People",
+      "heard": [
+        "jensen hwang",
+        "jenson huang",
+        "jensen hwong"
+      ],
+      "context": [
+        "Jensen Wong"
+      ],
+      "after": [
+        "NVIDIA",
+        "Nvidia",
+        "CEO",
+        "keynote",
+        "GTC"
+      ],
+      "confidence": "low",
+      "why": "Chinese surname with several romanizations.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "'Jensen Wong' is context-only because people with that name exist."
+    },
+    {
+      "term": "Sundar Pichai",
+      "category": "People",
+      "heard": [
+        "sundar pichay",
+        "sundar pachai",
+        "sundar pitchai",
+        "sundar pichi"
+      ],
+      "confidence": "low",
+      "why": "Tamil surname with no English spelling cue.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Dario Amodei",
+      "category": "People",
+      "heard": [
+        "dario amodai",
+        "dario amode",
+        "dario amaday",
+        "dario amadei",
+        "dario amodi"
+      ],
+      "confidence": "low",
+      "why": "Italian surname with several plausible vowel spellings.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "Full-name forms only; Amadei is a real separate surname."
+    },
+    {
+      "term": "Demis Hassabis",
+      "category": "People",
+      "heard": [
+        "demis hasabis",
+        "dennis hassabis",
+        "demis hassibis",
+        "demis hasabbis"
+      ],
+      "confidence": "low",
+      "why": "'Demis' is pulled to 'Dennis'; Greek-Cypriot surname.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Ilya Sutskever",
+      "category": "People",
+      "heard": [
+        "ilya sutskiver",
+        "ilya sutzkever",
+        "ilya sutskeva",
+        "ilya sutskevar"
+      ],
+      "confidence": "low",
+      "why": "Unfamiliar surname.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "Single-word 'Sutzkever' left out (Yiddish poet Abraham Sutzkever)."
+    },
+    {
+      "term": "Andrej Karpathy",
+      "category": "People",
+      "heard": [
+        "andre karpathy",
+        "andrej karpathi",
+        "andrei karpathy",
+        "karpathi"
+      ],
+      "confidence": "low",
+      "why": "Slovak first name spelling 'Andrej' is unusual in English.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Yann LeCun",
+      "category": "People",
+      "heard": [
+        "yan lecun",
+        "yann le cun",
+        "jan lecun",
+        "yann lekun",
+        "yann lacoon"
+      ],
+      "exact": [
+        "Yann Lecun",
+        "LeCunn",
+        "Lecun"
+      ],
+      "confidence": "medium",
+      "why": "Internal capital C is unusual; engines write 'Lecun'.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Geoffrey Hinton",
+      "category": "People",
+      "context": [
+        "Jeffrey Hinton"
+      ],
+      "after": [
+        "AI",
+        "Nobel",
+        "godfather",
+        "deep learning",
+        "Google"
+      ],
+      "confidence": "low",
+      "why": "'Geoffrey' and 'Jeffrey' sound identical.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "Context-only; other Jeffrey Hintons exist."
+    },
+    {
+      "term": "Fei-Fei Li",
+      "category": "People",
+      "heard": [
+        "fei fei li",
+        "feifei li",
+        "fei-fei lee",
+        "fei fei lee",
+        "faye faye li"
+      ],
+      "confidence": "medium",
+      "why": "Hyphenated given name and one-letter surname that engines write as 'Lee'.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Mira Murati",
+      "category": "People",
+      "heard": [
+        "meera murati",
+        "mira morati",
+        "mira murrati"
+      ],
+      "confidence": "low",
+      "why": "Albanian surname; given name has several spellings.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Mustafa Suleyman",
+      "category": "People",
+      "context": [
+        "Mustafa Suleiman"
+      ],
+      "after": [
+        "Microsoft",
+        "DeepMind",
+        "Inflection",
+        "AI"
+      ],
+      "confidence": "low",
+      "why": "Several romanizations of Süleyman; the more common 'Suleiman' wins.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "Context-only; Mustafa Suleiman is a common name."
+    },
+    {
+      "term": "Jeff Bezos",
+      "category": "People",
+      "heard": [
+        "jeff bayzos",
+        "jeff besos",
+        "jeff bezo"
+      ],
+      "confidence": "low",
+      "why": "Surname pronunciation 'BAY-zohs' does not match spelling.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Andy Jassy",
+      "category": "People",
+      "heard": [
+        "andy jassey",
+        "andy jassie"
+      ],
+      "confidence": "low",
+      "why": "Several plausible spellings of the surname.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Marc Benioff",
+      "category": "People",
+      "heard": [
+        "mark benioff",
+        "marc beniof",
+        "mark beniof",
+        "marc benyoff"
+      ],
+      "confidence": "low",
+      "why": "'Marc' vs 'Mark' is invisible in audio.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "'Mark Benioff' would override a different Mark Benioff; very rare."
+    },
+    {
+      "term": "Warren Buffett",
+      "category": "People",
+      "heard": [
+        "warren buffet",
+        "warren buffit"
+      ],
+      "confidence": "medium",
+      "why": "Double t is routinely dropped toward 'buffet'.",
+      "sources": [
+        "https://arxiv.org/abs/2104.11348"
+      ],
+      "risk": "'Warren buffet' could mean a buffet in Warren, Michigan or Ohio; rare."
+    },
+    {
+      "term": "Jimmy Buffett",
+      "category": "People",
+      "heard": [
+        "jimmy buffet"
+      ],
+      "confidence": "medium",
+      "why": "Same double-t problem as Warren Buffett.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Zelenskyy",
+      "category": "People",
+      "heard": [
+        "zelenski",
+        "zelenskij",
+        "volodimir zelensky"
+      ],
+      "context": [
+        "Zelensky",
+        "Zelenskiy"
+      ],
+      "after": [
+        "Volodymyr",
+        "President",
+        "Ukrainian"
+      ],
+      "confidence": "low",
+      "why": "The president's preferred transliteration and AP style use '-yy'.",
+      "sources": [
+        "https://mediablog.prnewswire.com/2022/03/16/ap-style-roundup-march2022",
+        "https://languagetool.org/insights/post/ukraine/"
+      ],
+      "risk": "Style choice: NYT, BBC, and Reuters use other spellings. Bare 'Zelensky' and 'Zelenskiy' are context-only."
+    },
+    {
+      "term": "Schwarzenegger",
+      "category": "People",
+      "heard": [
+        "schwartzenegger",
+        "schwarzeneger",
+        "schwarzenager",
+        "schwartzenager",
+        "schwarzenneger",
+        "schwarzeneggar"
+      ],
+      "confidence": "medium",
+      "why": "255 recorded misspellings in one trivia sample; 'Schwartzenegger' leads.",
+      "sources": [
+        "https://watercoolertrivia.com/blog/schwarzenegger",
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "McConaughey",
+      "category": "People",
+      "heard": [
+        "mcconaughy",
+        "mcconaghey",
+        "mcconahey",
+        "mcconaughay",
+        "mcconnaughey",
+        "mcconnaughy",
+        "mcconahay"
+      ],
+      "confidence": "medium",
+      "why": "Only 37% of 10,000 people spelled it right.",
+      "sources": [
+        "https://www.pedestrian.tv/tech-gaming/matthew-mcconaughey-spelling/",
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Gyllenhaal",
+      "category": "People",
+      "heard": [
+        "gyllenhall",
+        "gyllenhal",
+        "gylenhaal",
+        "jillenhall",
+        "jillenhaal",
+        "gyllenhaul"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; Swedish surname said 'JIL-en-hall'.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Scorsese",
+      "category": "People",
+      "heard": [
+        "scorcese",
+        "scorsesi",
+        "scorcesi",
+        "scorseze"
+      ],
+      "confidence": "medium",
+      "why": "Italian surname; 'c' vs 's' is inaudible.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Saoirse Ronan",
+      "category": "People",
+      "heard": [
+        "sersha ronan",
+        "seersha ronan",
+        "searsha ronan",
+        "saorise ronan",
+        "sorsha ronan"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; Irish given name said 'SER-sha'.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Timothée Chalamet",
+      "category": "People",
+      "heard": [
+        "timothee chalamet",
+        "timothy chalamet",
+        "timothy shalamay",
+        "timothée chalomet"
+      ],
+      "confidence": "medium",
+      "why": "French accent and pronunciation 'SHAL-a-may'.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Joaquin Phoenix",
+      "category": "People",
+      "heard": [
+        "joaquin pheonix",
+        "wakeen phoenix",
+        "whakeen phoenix",
+        "joachin phoenix"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; Spanish 'Joaquin' said 'wah-KEEN'.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Chiwetel Ejiofor",
+      "category": "People",
+      "heard": [
+        "chiwetel ejifor",
+        "chewitel ejiofor",
+        "chiwetel ejiofer"
+      ],
+      "confidence": "low",
+      "why": "Nigerian name with unfamiliar letter combinations.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Galifianakis",
+      "category": "People",
+      "heard": [
+        "galifinakis",
+        "galafianakis",
+        "galifianakas",
+        "galifinakus"
+      ],
+      "confidence": "low",
+      "why": "Long Greek surname.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Ralph Fiennes",
+      "category": "People",
+      "heard": [
+        "ralph fines",
+        "rafe fines",
+        "rafe fiennes",
+        "ralph finnes",
+        "ralph fiens"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; said 'Rafe Fines'.",
+      "sources": [],
+      "risk": "'Rafe Fiennes' maps to Ralph because that is how his name sounds."
+    },
+    {
+      "term": "Denis Villeneuve",
+      "category": "People",
+      "heard": [
+        "dennis villeneuve",
+        "denis villenueve",
+        "denis villanueve",
+        "denis vilneuve",
+        "villenueve"
+      ],
+      "confidence": "low",
+      "why": "French-Canadian name; 'Denis' with one n.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Taika Waititi",
+      "category": "People",
+      "heard": [
+        "taika watiti",
+        "tyka waititi",
+        "taika wahtiti"
+      ],
+      "confidence": "low",
+      "why": "Māori surname with repeated syllables.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Spielberg",
+      "category": "People",
+      "heard": [
+        "spielburg",
+        "speilberg",
+        "spielburgh"
+      ],
+      "confidence": "medium",
+      "why": "'-berg' vs '-burg' and 'ie' vs 'ei'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Tarantino",
+      "category": "People",
+      "heard": [
+        "tarrantino",
+        "tarentino",
+        "tarantinio"
+      ],
+      "confidence": "medium",
+      "why": "Single r is counterintuitive.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Shyamalan",
+      "category": "People",
+      "heard": [
+        "shamalan",
+        "shyamalon",
+        "shamalon",
+        "shymalan",
+        "shyamalam"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; the 'y' is silent in pronunciation.",
+      "sources": [
+        "https://bestlifeonline.com/misspelled-celebrity-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "NVIDIA",
+      "category": "Brands",
+      "heard": [
+        "nvidea",
+        "envidea",
+        "nvdia"
+      ],
+      "exact": [
+        "NVidia",
+        "nVidia",
+        "Nvidia"
+      ],
+      "existing": true,
+      "confidence": "high",
+      "why": "NVIDIA's brand guidelines say 'Always write NVIDIA in all caps.' The existing term outputs 'Nvidia' (AP style); switch the output to 'NVIDIA' and add these heard forms.",
+      "sources": [
+        "https://www.nvidia.com/content/dam/en-zz/Solutions/about-us/NVIDIA-Partner-Network-Brand-Guidelines-May-2020.pdf",
+        "https://docs.fluidinference.com/asr/custom-vocabulary"
+      ],
+      "risk": "Existing term has heard 'envidia', which is the Spanish word for 'envy'; remove it for bilingual users. Some users prefer AP 'Nvidia'."
+    },
+    {
+      "term": "Procter & Gamble",
+      "category": "Brands",
+      "heard": [
+        "proctor and gamble",
+        "proctor & gamble",
+        "procter and gamble"
+      ],
+      "confidence": "medium",
+      "why": "'Procter' is routinely written 'Proctor'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Volkswagen",
+      "category": "Brands",
+      "heard": [
+        "volkswagon",
+        "volks wagon",
+        "volkswagan"
+      ],
+      "confidence": "medium",
+      "why": "German 'wagen' respelled as English 'wagon'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Häagen-Dazs",
+      "category": "Brands",
+      "heard": [
+        "haagen dazs",
+        "haagen-dazs",
+        "hagen dazs",
+        "hagen-dazs",
+        "hagen das",
+        "häagen dazs",
+        "haagen daz",
+        "hagen daz"
+      ],
+      "confidence": "medium",
+      "why": "Invented pseudo-Scandinavian name with an umlaut and hyphen. FluidAudio's own docs list these variants (and misspell the canonical as 'Hagen-Dazs').",
+      "sources": [
+        "https://docs.fluidinference.com/asr/custom-vocabulary"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Porsche",
+      "category": "Brands",
+      "heard": [
+        "porshe"
+      ],
+      "confidence": "low",
+      "why": "Silent-looking 'c'.",
+      "sources": [],
+      "risk": "'Porche' left out (French for porch)."
+    },
+    {
+      "term": "Lamborghini",
+      "category": "Brands",
+      "heard": [
+        "lamborgini",
+        "lamborghinni",
+        "lambourghini"
+      ],
+      "confidence": "low",
+      "why": "Italian 'gh'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Hyundai",
+      "category": "Brands",
+      "heard": [
+        "hyundia",
+        "hundai",
+        "hyundae",
+        "hyunday"
+      ],
+      "confidence": "low",
+      "why": "Korean romanization; pronunciation varies by market.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Huawei",
+      "category": "Brands",
+      "heard": [
+        "huawai",
+        "hauwei",
+        "huawey"
+      ],
+      "confidence": "medium",
+      "why": "Non-phonetic spelling; pinyin said 'WAH-way'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Xiaomi",
+      "category": "Brands",
+      "heard": [
+        "shaomi",
+        "xaomi",
+        "shaomee"
+      ],
+      "confidence": "low",
+      "why": "Non-phonetic spelling; pinyin 'x' said 'sh'.",
+      "sources": [],
+      "risk": "'show me' is ordinary English and 'Xiao Mi' can be a personal name; both left out."
+    },
+    {
+      "term": "Palantir",
+      "category": "Brands",
+      "heard": [
+        "palanteer",
+        "palantear",
+        "pallantir",
+        "palentir"
+      ],
+      "confidence": "low",
+      "why": "Tolkien coinage.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Goldman Sachs",
+      "category": "Brands",
+      "heard": [
+        "goldman sacks",
+        "goldman sax",
+        "goldmann sachs"
+      ],
+      "confidence": "medium",
+      "why": "'Sachs' sounds like 'sacks'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Berkshire Hathaway",
+      "category": "Brands",
+      "heard": [
+        "berkshire hathoway",
+        "berkshire hathway",
+        "berkshire hatheway"
+      ],
+      "confidence": "low",
+      "why": "Unstressed vowel in 'Hathaway'.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Deloitte",
+      "category": "Brands",
+      "heard": [
+        "deloite",
+        "deloit",
+        "delloitte"
+      ],
+      "confidence": "low",
+      "why": "French-derived double t.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Ghirardelli",
+      "category": "Brands",
+      "heard": [
+        "ghiradelli",
+        "girardelli",
+        "ghirardeli",
+        "gharardelli"
+      ],
+      "confidence": "medium",
+      "why": "Italian 'gh' and r placement; commonly misspelled.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Lululemon",
+      "category": "Brands",
+      "heard": [
+        "lulu lemon",
+        "lululemmon"
+      ],
+      "confidence": "low",
+      "why": "Coined one-word brand.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Databricks",
+      "category": "Brands",
+      "context": [
+        "data bricks"
+      ],
+      "after": [
+        "notebook",
+        "workspace",
+        "cluster",
+        "Spark",
+        "lakehouse",
+        "Unity Catalog"
+      ],
+      "confidence": "low",
+      "why": "Compound brand that engines split into two ordinary words.",
+      "sources": [],
+      "risk": "Context-only."
+    }
+  ]
+}

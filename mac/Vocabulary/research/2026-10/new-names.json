@@ -1,0 +1,2590 @@
+{
+  "area": "new-names",
+  "candidates": [
+    {
+      "term": "ChatGPT",
+      "category": "AI",
+      "heard": [
+        "chatgbt",
+        "chatgtp",
+        "chatgdp",
+        "chat g b t",
+        "chat-gbt",
+        "chat gee pee tee"
+      ],
+      "existing": true,
+      "confidence": "medium",
+      "why": "Existing term. Ahrefs data (October 2026) puts 'chatgbt' and 'chat gbt' above 1M US searches a month and 'chatgtp' above 100K. Whisper learns from web text, so typed misspellings leak into output; letter-spelling engines also emit 'g b t'. Adds the forms the file lacks.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/",
+        "https://gptprompts.ai/chatgbt"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Gemini",
+      "category": "AI",
+      "heard": [
+        "gemeni",
+        "gemni",
+        "gemenai"
+      ],
+      "existing": true,
+      "confidence": "medium",
+      "why": "Existing term (context-only today). 'gemeni' (100K+ searches a month) and 'gemni' are non-words, so they're safe as heard forms.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Claude",
+      "category": "AI",
+      "heard": [
+        "cluade",
+        "claud ai",
+        "cloude ai"
+      ],
+      "existing": true,
+      "confidence": "medium",
+      "why": "Existing term. 'cluade', 'claud ai', and 'cloude ai' are documented misspellings (1K–10K searches a month). Bare 'claud' is left out because Claud is a given name.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Claude Code",
+      "category": "AI",
+      "heard": [
+        "cluade code",
+        "cloude code"
+      ],
+      "existing": true,
+      "confidence": "high",
+      "why": "Existing term. 'cloud code' and 'clawed code' are documented dictation errors (Superwhisper trainer). Adds the typed misspelling 'cluade code'.",
+      "sources": [
+        "https://github.com/verygoodplugins/superwhisper-trainer",
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Anthropic",
+      "category": "AI",
+      "heard": [
+        "antropic",
+        "anthropik ai"
+      ],
+      "existing": true,
+      "confidence": "medium",
+      "why": "Existing term. 'antropic' is a documented misspelling (1K+ searches a month) and matches how many speakers drop the 'h'.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "DeepSeek",
+      "category": "AI",
+      "heard": [
+        "deepseak",
+        "deepsek",
+        "dipsik",
+        "deep seak"
+      ],
+      "existing": true,
+      "confidence": "medium",
+      "why": "Existing term. 'deepseak', 'deepsek', and 'dipsik' are documented misspellings.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Grok",
+      "category": "AI",
+      "heard": [
+        "grock ai"
+      ],
+      "existing": true,
+      "confidence": "low",
+      "why": "Existing term. 'grock ai' is a documented misspelling (1K+). Bare 'grok' and 'grock' are left out because 'grok' is an English verb.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Perplexity",
+      "category": "AI",
+      "heard": [
+        "perplexcity",
+        "perplexety",
+        "perplexitiy"
+      ],
+      "existing": true,
+      "confidence": "low",
+      "why": "Existing term (context-only today). 'perplexcity' and 'perplexety' are documented non-word misspellings.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Midjourney",
+      "category": "AI",
+      "heard": [
+        "midjurney",
+        "midjorney"
+      ],
+      "existing": true,
+      "confidence": "low",
+      "why": "Existing term. 'midjurney' and 'midjorney' are documented non-word misspellings.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "OpenAI",
+      "category": "AI",
+      "heard": [
+        "openia"
+      ],
+      "existing": true,
+      "confidence": "low",
+      "why": "Existing term. 'openia' (Spanish word order) is a documented misspelling and a likely Whisper output for bilingual speakers.",
+      "sources": [
+        "https://felloai.com/misspelled-ai-names/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Wispr Flow",
+      "category": "AI",
+      "heard": [
+        "wisprflow",
+        "whisperflow"
+      ],
+      "existing": true,
+      "confidence": "medium",
+      "why": "Existing term. Users write the name run together ('WisprFlow', 'whisperflow'); a closed-up engine output would slip past the spaced forms already listed.",
+      "sources": [
+        "https://www.skool.com/cliefnotes/tired-of-wisprflow-getting-it-wrong"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Qwen",
+      "category": "AI",
+      "heard": [
+        "qwen",
+        "quen",
+        "kwen"
+      ],
+      "confidence": "medium",
+      "why": "Alibaba's open model family (Qwen 2.5, Qwen3). Non-phonetic Pinyin spelling; English speakers say 'kwen' or 'chwen', so engines write 'Quen' or 'Kwen'.",
+      "sources": [
+        "https://qwen.ai/",
+        "https://redlib.ssps.io/r/LocalLLaMA/comments/1jgio2g/qwen_3_is_coming_soon/mj4swp3/?context=3"
+      ],
+      "risk": "'Quen' is a rare surname; acceptable."
+    },
+    {
+      "term": "Nano Banana",
+      "category": "AI",
+      "heard": [
+        "nano banana",
+        "nano-banana"
+      ],
+      "confidence": "medium",
+      "why": "Google's popular name for Gemini 2.5 Flash Image (August 2025), later Nano Banana Pro. Engines output it lowercase as two common nouns.",
+      "sources": [
+        "https://www.androidauthority.com/google-explains-nano-banana-name-3613293",
+        "https://news.lmarena.ai/nano-banana"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Veo 3",
+      "category": "AI",
+      "heard": [
+        "veo 3",
+        "veo three",
+        "vio 3",
+        "vio three",
+        "veo3"
+      ],
+      "confidence": "medium",
+      "why": "Google's video model (May 2025; Veo 3.1 in October 2025). 'Veo' sounds like 'vio' or 'vo'; engines don't know the spelling.",
+      "sources": [
+        "https://deepmind.google/models/veo/"
+      ],
+      "risk": "'Vio' is a rare name; with the number attached it's safe."
+    },
+    {
+      "term": "Gemini CLI",
+      "category": "AI",
+      "heard": [
+        "gemini cli",
+        "gemini c l i",
+        "gemini c.l.i."
+      ],
+      "confidence": "medium",
+      "why": "Google's open-source terminal agent (June 2025). Letters get spelled out or lowercased.",
+      "sources": [
+        "https://github.com/google-gemini/gemini-cli"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Codex",
+      "category": "AI",
+      "context": [
+        "codex"
+      ],
+      "after": [
+        "openai",
+        "cli",
+        "chatgpt",
+        "agent",
+        "cloud",
+        "task",
+        "tasks",
+        "app",
+        "review"
+      ],
+      "boost": false,
+      "confidence": "medium",
+      "why": "OpenAI's coding agent and CLI (2025). 'codex' is an ordinary noun, so it's context-only to fix capitalization.",
+      "sources": [
+        "https://hidekazu-konishi.com/entry/openai_gpt_model_release_timeline.html"
+      ],
+      "risk": "Only fires next to the listed words."
+    },
+    {
+      "term": "gpt-oss",
+      "category": "AI",
+      "heard": [
+        "gpt oss",
+        "gpt o s s",
+        "g p t o s s",
+        "g p t oss"
+      ],
+      "confidence": "medium",
+      "why": "OpenAI's open-weight models (gpt-oss-20b, gpt-oss-120b, August 2025). Lowercase, hyphenated brand style that engines never produce.",
+      "sources": [
+        "https://openai.com/index/introducing-gpt-oss/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "o4-mini",
+      "category": "AI",
+      "heard": [
+        "o4 mini",
+        "o 4 mini",
+        "o four mini",
+        "o-4 mini"
+      ],
+      "confidence": "low",
+      "why": "OpenAI reasoning model (April 2025). Lowercase 'o' plus hyphen; engines write 'O4 mini' or 'o four mini'. Being phased out in favor of GPT-5.",
+      "sources": [
+        "https://hidekazu-konishi.com/entry/openai_gpt_model_release_timeline.html"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "o3",
+      "category": "AI",
+      "context": [
+        "O3",
+        "o three"
+      ],
+      "after": [
+        "model",
+        "openai",
+        "chatgpt",
+        "pro",
+        "reasoning",
+        "api"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "OpenAI reasoning model (April 2025). Engines write 'O3' (capital, like ozone) or 'o three'.",
+      "sources": [
+        "https://hidekazu-konishi.com/entry/openai_gpt_model_release_timeline.html"
+      ],
+      "risk": "'O3' is also ozone; context words keep chemistry text safe."
+    },
+    {
+      "term": "ChatGPT Atlas",
+      "category": "AI",
+      "heard": [
+        "chatgpt atlas",
+        "chat gpt atlas"
+      ],
+      "confidence": "medium",
+      "why": "OpenAI's web browser (October 2025). Inherits the ChatGPT spelling problem plus capitalization of Atlas.",
+      "sources": [
+        "https://www.fox4news.com/news/chat-gpt-atlas-browser-open-ai-google-sora"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Meta AI",
+      "category": "AI",
+      "heard": [
+        "meta ai",
+        "meta a i",
+        "meta a.i."
+      ],
+      "confidence": "medium",
+      "why": "Meta's assistant in WhatsApp, Instagram, and the Meta AI app (2024–2025). Engines lowercase or space the letters.",
+      "sources": [
+        "https://www.meta.ai/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Llama 4",
+      "category": "AI",
+      "heard": [
+        "llama 4"
+      ],
+      "confidence": "medium",
+      "why": "Meta's 2025 model family. 'llama' is lowercased by engines; the existing file only covers Llama 3.",
+      "sources": [
+        "https://www.llama.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Suno",
+      "category": "AI",
+      "heard": [
+        "suno ai",
+        "suno a i"
+      ],
+      "context": [
+        "suno"
+      ],
+      "after": [
+        "song",
+        "songs",
+        "track",
+        "tracks",
+        "music",
+        "app",
+        "v4",
+        "v5",
+        "prompt"
+      ],
+      "boost": false,
+      "confidence": "medium",
+      "why": "AI music generator (v4 2024, v5 2025). Unfamiliar word; engines write 'Sumo', 'Soono', or lowercase.",
+      "sources": [
+        "https://suno.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Udio",
+      "category": "AI",
+      "heard": [
+        "udio",
+        "udio ai"
+      ],
+      "confidence": "low",
+      "why": "AI music generator (2024). Coined word; engines may output 'audio' or lowercase 'udio'. Only the safe coined form is listed.",
+      "sources": [
+        "https://www.udio.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "HeyGen",
+      "category": "AI",
+      "heard": [
+        "heygen",
+        "hey-gen"
+      ],
+      "context": [
+        "hey gen"
+      ],
+      "after": [
+        "avatar",
+        "avatars",
+        "video",
+        "videos",
+        "ai",
+        "account",
+        "translation"
+      ],
+      "confidence": "medium",
+      "why": "AI avatar video company. Camel-case coinage; engines write 'Hey Gen'. 'hey gen' is context-only because 'hey Gen Z' is ordinary.",
+      "sources": [
+        "https://www.heygen.com/"
+      ],
+      "risk": "Must not fire on 'hey Gen Z'; keep 'hey gen' out of heard."
+    },
+    {
+      "term": "Synthesia",
+      "category": "AI",
+      "heard": [
+        "synthesia"
+      ],
+      "context": [
+        "synesthesia"
+      ],
+      "after": [
+        "avatar",
+        "avatars",
+        "ai",
+        "video",
+        "videos",
+        "account",
+        "studio"
+      ],
+      "confidence": "medium",
+      "why": "AI avatar video company. Near-homophone of 'synesthesia', which is what engines pick.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Synthesia_(company)"
+      ],
+      "risk": "'synesthesia' is a real word; context-only."
+    },
+    {
+      "term": "Luma AI",
+      "category": "AI",
+      "heard": [
+        "luma ai",
+        "luma a i"
+      ],
+      "confidence": "low",
+      "why": "Video model company (Dream Machine, Ray2). Casing and letter spacing.",
+      "sources": [
+        "https://lumalabs.ai/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Pika",
+      "category": "AI",
+      "heard": [
+        "pika labs",
+        "pika ai"
+      ],
+      "confidence": "low",
+      "why": "AI video app (Pika Labs). 'pika' alone is too ambiguous; only the brand phrases are listed.",
+      "sources": [
+        "https://pika.art/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Higgsfield",
+      "category": "AI",
+      "heard": [
+        "higgsfield",
+        "higgs field ai"
+      ],
+      "context": [
+        "higgs field"
+      ],
+      "after": [
+        "ai",
+        "video",
+        "videos",
+        "app",
+        "soul",
+        "preset",
+        "presets"
+      ],
+      "confidence": "low",
+      "why": "AI video and image platform popular with creators (2025). Engines split it into the physics term 'Higgs field'.",
+      "sources": [
+        "https://higgsfield.ai/"
+      ],
+      "risk": "'Higgs field' is a physics term; context-only."
+    },
+    {
+      "term": "Freepik",
+      "category": "AI",
+      "heard": [
+        "freepik",
+        "freepick",
+        "free pik"
+      ],
+      "context": [
+        "free pick"
+      ],
+      "after": [
+        "account",
+        "images",
+        "ai",
+        "premium",
+        "stock",
+        "assets",
+        "license"
+      ],
+      "confidence": "medium",
+      "why": "Stock and AI image platform used by designers. Non-phonetic 'pik'; engines write 'Freepick' or 'Free Pick'.",
+      "sources": [
+        "https://www.freepik.com/"
+      ],
+      "risk": "'free pick' occurs in sports; context-only."
+    },
+    {
+      "term": "OpenRouter",
+      "category": "AI",
+      "heard": [
+        "openrouter"
+      ],
+      "context": [
+        "open router"
+      ],
+      "after": [
+        "api",
+        "key",
+        "model",
+        "models",
+        "credits",
+        "account"
+      ],
+      "confidence": "medium",
+      "why": "Model-routing API widely used by developers (2024–2026). Engines write 'open router'.",
+      "sources": [
+        "https://openrouter.ai/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "LangGraph",
+      "category": "AI",
+      "heard": [
+        "langgraph",
+        "lang graph"
+      ],
+      "confidence": "medium",
+      "why": "Agent framework from LangChain. Camel-case coinage; existing file has LangChain only.",
+      "sources": [
+        "https://www.langchain.com/langgraph"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "LlamaIndex",
+      "category": "AI",
+      "heard": [
+        "llamaindex",
+        "llama index"
+      ],
+      "confidence": "medium",
+      "why": "RAG and agent framework. Camel-case coinage written as two words by engines.",
+      "sources": [
+        "https://www.llamaindex.ai/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "CrewAI",
+      "category": "AI",
+      "heard": [
+        "crewai",
+        "crew a i"
+      ],
+      "context": [
+        "crew ai"
+      ],
+      "after": [
+        "agent",
+        "agents",
+        "framework",
+        "flow",
+        "flows",
+        "python"
+      ],
+      "confidence": "low",
+      "why": "Multi-agent framework. Closed-up camel case; engines write 'crew AI'.",
+      "sources": [
+        "https://www.crewai.com/"
+      ],
+      "risk": "'crew AI' could be ordinary; context-only for the spaced form."
+    },
+    {
+      "term": "n8n",
+      "category": "AI",
+      "heard": [
+        "n 8 n",
+        "n eight n",
+        "n-8-n",
+        "n-eight-n",
+        "en eight en",
+        "n8 n"
+      ],
+      "confidence": "medium",
+      "why": "Workflow automation tool, central to 2025 AI-agent tutorials. Said 'n-eight-n', so engines write 'N 8 N' or 'N eight N'.",
+      "sources": [
+        "https://nordflux.de/en/insights/how-is-n8n-pronounced-and-what-does-the-name-stand-for",
+        "https://n8n.io/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Make.com",
+      "category": "AI",
+      "heard": [
+        "make dot com"
+      ],
+      "confidence": "low",
+      "why": "Automation platform (formerly Integromat). 'make' is ordinary; only the spoken domain form is safe.",
+      "sources": [
+        "https://www.make.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "whisper.cpp",
+      "category": "AI",
+      "heard": [
+        "whisper cpp",
+        "whisper c p p",
+        "whisper dot cpp",
+        "whisper dot c p p"
+      ],
+      "confidence": "medium",
+      "why": "On-device Whisper engine (Verbose uses it). Dotted lowercase name dictated as 'whisper C P P'.",
+      "sources": [
+        "https://github.com/ggml-org/whisper.cpp"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "llama.cpp",
+      "category": "AI",
+      "heard": [
+        "llama cpp",
+        "llama c p p",
+        "llama dot cpp",
+        "llama dot c p p"
+      ],
+      "confidence": "medium",
+      "why": "Local LLM runtime. Dotted lowercase name dictated as 'llama C P P'.",
+      "sources": [
+        "https://github.com/ggml-org/llama.cpp"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "MLX",
+      "category": "AI",
+      "heard": [
+        "m l x",
+        "m.l.x."
+      ],
+      "confidence": "medium",
+      "why": "Apple's machine-learning framework for Apple silicon. Spelled out letter by letter.",
+      "sources": [
+        "https://github.com/ml-explore/mlx"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Core ML",
+      "category": "AI",
+      "heard": [
+        "coreml",
+        "core ml",
+        "core m l"
+      ],
+      "confidence": "medium",
+      "why": "Apple's on-device ML framework. Written 'CoreML' or 'core ML' by engines and users.",
+      "sources": [
+        "https://developer.apple.com/machine-learning/core-ml/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Vertex AI",
+      "category": "AI",
+      "heard": [
+        "vertex ai",
+        "vertex a i"
+      ],
+      "confidence": "medium",
+      "why": "Google Cloud's AI platform. Casing and letter spacing.",
+      "sources": [
+        "https://cloud.google.com/vertex-ai"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Copilot+ PC",
+      "category": "AI",
+      "heard": [
+        "copilot plus pc",
+        "co-pilot plus pc",
+        "copilot+ pc"
+      ],
+      "confidence": "medium",
+      "why": "Microsoft's 2024 PC class. The plus sign is never produced by speech engines.",
+      "sources": [
+        "https://www.microsoft.com/en-us/windows/copilot-plus-pcs"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Alexa+",
+      "category": "AI",
+      "context": [
+        "alexa plus"
+      ],
+      "after": [
+        "subscription",
+        "amazon",
+        "upgrade",
+        "assistant",
+        "early",
+        "access",
+        "prime"
+      ],
+      "confidence": "medium",
+      "why": "Amazon's generative assistant (2025). Engines write 'Alexa plus'.",
+      "sources": [
+        "https://www.aboutamazon.com/news/devices/new-alexa-generative-artificial-intelligence"
+      ],
+      "risk": "'Alexa plus Google Home' is ordinary; context-only."
+    },
+    {
+      "term": "CoreWeave",
+      "category": "Brands",
+      "heard": [
+        "coreweave",
+        "core weave"
+      ],
+      "confidence": "medium",
+      "why": "AI cloud company (2025 IPO). Camel-case coinage; engines write 'core weave'.",
+      "sources": [
+        "https://www.coreweave.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Genmoji",
+      "category": "Software",
+      "heard": [
+        "genmoji",
+        "gen moji",
+        "jen moji",
+        "gen-moji",
+        "genmojis"
+      ],
+      "confidence": "medium",
+      "why": "Apple Intelligence custom emoji (iOS 18.2, December 2024). New coinage; engines write 'Gen Moji' or 'Jen Moji'.",
+      "sources": [
+        "https://www.businesswire.com/news/home/20241211256325/en/Apple-Intelligence-now-features-Image-Playground-Genmoji-Writing-Tools-enhancements-seamless-support-for-ChatGPT-and-visual-intelligence"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "SpeechAnalyzer",
+      "category": "Software",
+      "heard": [
+        "speechanalyzer"
+      ],
+      "exact": [
+        "Speech Analyzer"
+      ],
+      "context": [
+        "speech analyzer"
+      ],
+      "after": [
+        "api",
+        "framework",
+        "apple",
+        "module",
+        "class",
+        "swift",
+        "transcriber"
+      ],
+      "confidence": "medium",
+      "why": "Apple's 2025 speech-to-text API. One camel-case word; engines write 'speech analyzer'.",
+      "sources": [
+        "https://developer.apple.com/documentation/speech/speechanalyzer"
+      ],
+      "risk": "'speech analyzer' is a generic phrase; context-only."
+    },
+    {
+      "term": "iPhone Air",
+      "category": "Devices",
+      "heard": [
+        "iphone air",
+        "i phone air"
+      ],
+      "confidence": "medium",
+      "why": "Apple's thin iPhone (September 2025). The existing iPhone rule fixes 'iPhone' but leaves 'air' lowercase.",
+      "sources": [
+        "https://www.apple.com/iphone-air/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "iPhone 16e",
+      "category": "Devices",
+      "heard": [
+        "iphone 16 e",
+        "iphone sixteen e",
+        "i phone 16 e"
+      ],
+      "confidence": "medium",
+      "why": "Apple's 2025 budget iPhone. Engines write 'iPhone 16 E' or 'sixteen E'.",
+      "sources": [
+        "https://www.apple.com/iphone-16e/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "SwiftData",
+      "category": "Software",
+      "heard": [
+        "swiftdata"
+      ],
+      "context": [
+        "swift data"
+      ],
+      "after": [
+        "model",
+        "models",
+        "query",
+        "container",
+        "schema",
+        "migration",
+        "framework",
+        "store",
+        "context"
+      ],
+      "confidence": "medium",
+      "why": "Apple's persistence framework. One camel-case word; 'swift data' is ordinary, so context-only for the spaced form.",
+      "sources": [
+        "https://developer.apple.com/documentation/swiftdata"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "StoreKit",
+      "category": "Software",
+      "heard": [
+        "storekit"
+      ],
+      "context": [
+        "store kit"
+      ],
+      "after": [
+        "2",
+        "api",
+        "purchase",
+        "purchases",
+        "subscription",
+        "subscriptions",
+        "transaction",
+        "transactions",
+        "testing",
+        "configuration"
+      ],
+      "confidence": "medium",
+      "why": "Apple's in-app purchase framework. 'store kit' is ordinary English, so context-only.",
+      "sources": [
+        "https://developer.apple.com/storekit/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "WidgetKit",
+      "category": "Software",
+      "heard": [
+        "widgetkit"
+      ],
+      "context": [
+        "widget kit"
+      ],
+      "after": [
+        "timeline",
+        "extension",
+        "widget",
+        "widgets",
+        "api",
+        "swiftui"
+      ],
+      "confidence": "low",
+      "why": "Apple's widget framework. Camel-case coinage.",
+      "sources": [
+        "https://developer.apple.com/documentation/widgetkit"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "HealthKit",
+      "category": "Software",
+      "heard": [
+        "healthkit"
+      ],
+      "context": [
+        "health kit"
+      ],
+      "after": [
+        "data",
+        "api",
+        "permission",
+        "permissions",
+        "access",
+        "integration",
+        "sample",
+        "samples",
+        "entitlement",
+        "sync"
+      ],
+      "confidence": "medium",
+      "why": "Apple's health data framework. 'health kit' is ordinary (first-aid kit), so context-only.",
+      "sources": [
+        "https://developer.apple.com/documentation/healthkit"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "CloudKit",
+      "category": "Software",
+      "heard": [
+        "cloudkit"
+      ],
+      "context": [
+        "cloud kit"
+      ],
+      "after": [
+        "sync",
+        "database",
+        "container",
+        "record",
+        "records",
+        "schema",
+        "dashboard",
+        "zone"
+      ],
+      "confidence": "medium",
+      "why": "Apple's iCloud database framework. Camel-case; 'cloud kit' context-only.",
+      "sources": [
+        "https://developer.apple.com/icloud/cloudkit/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "ARKit",
+      "category": "Software",
+      "heard": [
+        "arkit",
+        "a r kit",
+        "ar kit"
+      ],
+      "confidence": "low",
+      "why": "Apple's AR framework. Letters 'A R' get spaced or merged into 'arc it'.",
+      "sources": [
+        "https://developer.apple.com/augmented-reality/arkit/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "RealityKit",
+      "category": "Software",
+      "heard": [
+        "realitykit",
+        "reality kit"
+      ],
+      "confidence": "low",
+      "why": "Apple's 3D and visionOS rendering framework. Camel-case coinage.",
+      "sources": [
+        "https://developer.apple.com/documentation/realitykit"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "RevenueCat",
+      "category": "Software",
+      "heard": [
+        "revenuecat",
+        "revenue cat"
+      ],
+      "confidence": "medium",
+      "why": "Subscription infrastructure for iOS and Android apps. Camel-case coinage; engines write 'revenue cat'.",
+      "sources": [
+        "https://www.revenuecat.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Android XR",
+      "category": "Software",
+      "heard": [
+        "android xr",
+        "android x r"
+      ],
+      "confidence": "medium",
+      "why": "Google's headset and glasses platform (announced December 2024). Letters spaced or lowercased.",
+      "sources": [
+        "https://www.android.com/xr/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Wear OS",
+      "category": "Software",
+      "heard": [
+        "wear os",
+        "wearos",
+        "wear o s"
+      ],
+      "confidence": "medium",
+      "why": "Google's watch platform. Engines write 'wear OS' or 'WearOS'.",
+      "sources": [
+        "https://wearos.google.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "ChromeOS",
+      "category": "Software",
+      "heard": [
+        "chromeos",
+        "chrome os",
+        "chrome o s"
+      ],
+      "confidence": "medium",
+      "why": "Google renamed Chrome OS to ChromeOS (one word). Engines and users still split it.",
+      "sources": [
+        "https://chromeos.google/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Pixel 10",
+      "category": "Devices",
+      "heard": [
+        "pixel 10",
+        "pixel ten"
+      ],
+      "confidence": "low",
+      "why": "Google's August 2025 phone; mirrors the existing Pixel 9 entry.",
+      "sources": [
+        "https://store.google.com/product/pixel_10"
+      ],
+      "risk": "'pixel ten' rarely ordinary; acceptable."
+    },
+    {
+      "term": "Nintendo Switch 2",
+      "category": "Devices",
+      "heard": [
+        "nintendo switch two"
+      ],
+      "confidence": "low",
+      "why": "Nintendo's June 2025 console. Engines spell the number out.",
+      "sources": [
+        "https://www.nintendo.com/us/gaming-systems/switch-2/"
+      ],
+      "risk": "'switch 2' alone is ordinary; only the full name is listed."
+    },
+    {
+      "term": "Insta360",
+      "category": "Devices",
+      "heard": [
+        "insta360",
+        "insta 360",
+        "insta three sixty",
+        "insta three-sixty"
+      ],
+      "confidence": "medium",
+      "why": "360 and action camera brand popular with creators. Number attached; engines write 'Insta 360' or 'three sixty'.",
+      "sources": [
+        "https://www.insta360.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Osmo Pocket",
+      "category": "Devices",
+      "heard": [
+        "osmo pocket",
+        "ozmo pocket"
+      ],
+      "confidence": "medium",
+      "why": "DJI's gimbal camera line (Pocket 3). Unfamiliar word 'Osmo' gets lowercased or misspelled.",
+      "sources": [
+        "https://www.dji.com/osmo-pocket-3"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Sony FX3",
+      "category": "Devices",
+      "heard": [
+        "sony fx3",
+        "sony f x 3",
+        "sony fx 3",
+        "sony f x three"
+      ],
+      "confidence": "medium",
+      "why": "Cinema camera common in creator kits. Model code gets spaced ('F X 3').",
+      "sources": [
+        "https://electronics.sony.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "WHOOP",
+      "category": "Devices",
+      "context": [
+        "whoop"
+      ],
+      "after": [
+        "band",
+        "strap",
+        "app",
+        "recovery",
+        "strain",
+        "membership",
+        "sleep",
+        "score",
+        "4.0",
+        "mg"
+      ],
+      "boost": false,
+      "confidence": "medium",
+      "why": "Fitness wearable; brand is all caps. 'whoop' is an ordinary word, so context-only.",
+      "sources": [
+        "https://www.whoop.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Cybertruck",
+      "category": "Devices",
+      "heard": [
+        "cybertruck",
+        "cyber truck",
+        "cyber-truck"
+      ],
+      "confidence": "medium",
+      "why": "Tesla's pickup (deliveries from late 2023). One word; engines write 'cyber truck'.",
+      "sources": [
+        "https://www.tesla.com/cybertruck"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Waymo",
+      "category": "Brands",
+      "heard": [
+        "waymo",
+        "way mo",
+        "waymoe",
+        "way-mo"
+      ],
+      "confidence": "medium",
+      "why": "Robotaxi service expanding 2024–2026. Coined word; engines write 'Way Mo' or 'Waymoe'.",
+      "sources": [
+        "https://waymo.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Neuralink",
+      "category": "Brands",
+      "heard": [
+        "neuralink"
+      ],
+      "context": [
+        "neural link"
+      ],
+      "after": [
+        "implant",
+        "chip",
+        "patient",
+        "patients",
+        "trial",
+        "elon",
+        "musk",
+        "device"
+      ],
+      "confidence": "low",
+      "why": "Brain-implant company. 'neural link' is ordinary, so context-only for the spaced form.",
+      "sources": [
+        "https://neuralink.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "MrBeast",
+      "category": "Brands",
+      "heard": [
+        "mrbeast",
+        "mr beast",
+        "mr. beast",
+        "mister beast"
+      ],
+      "confidence": "medium",
+      "why": "Biggest YouTube creator; name is one camel-case word with no period. Engines write 'Mr. Beast' or 'Mister Beast'.",
+      "sources": [
+        "https://www.youtube.com/@MrBeast"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Ko-fi",
+      "category": "Platforms",
+      "heard": [
+        "ko fi"
+      ],
+      "context": [
+        "kofi"
+      ],
+      "after": [
+        "page",
+        "link",
+        "account",
+        "shop",
+        "membership",
+        "tip",
+        "tips",
+        "donation",
+        "donations",
+        "supporters"
+      ],
+      "confidence": "medium",
+      "why": "Creator tipping platform. Hyphenated; 'Kofi' is also a common given name, so the closed form is context-only.",
+      "sources": [
+        "https://ko-fi.com/"
+      ],
+      "risk": "'Kofi' is a Ghanaian given name; context-only."
+    },
+    {
+      "term": "OnlyFans",
+      "category": "Platforms",
+      "heard": [
+        "onlyfans"
+      ],
+      "context": [
+        "only fans"
+      ],
+      "after": [
+        "account",
+        "page",
+        "creator",
+        "creators",
+        "subscription",
+        "link",
+        "model"
+      ],
+      "confidence": "medium",
+      "why": "Subscription creator platform. 'only fans' is ordinary English, so the spaced form is context-only.",
+      "sources": [
+        "https://onlyfans.com/"
+      ],
+      "risk": "'only fans allowed' must not change; context-only."
+    },
+    {
+      "term": "Lemon8",
+      "category": "Platforms",
+      "heard": [
+        "lemon8",
+        "lemon eight app"
+      ],
+      "context": [
+        "lemon 8",
+        "lemon eight"
+      ],
+      "after": [
+        "app",
+        "post",
+        "posts",
+        "account",
+        "profile"
+      ],
+      "confidence": "low",
+      "why": "ByteDance photo and lifestyle app. Digit in the name; engines write 'Lemon 8' or 'lemon eight'.",
+      "sources": [
+        "https://www.lemon8-app.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "RedNote",
+      "category": "Platforms",
+      "heard": [
+        "rednote"
+      ],
+      "context": [
+        "red note"
+      ],
+      "after": [
+        "app",
+        "account",
+        "post",
+        "posts",
+        "tiktok",
+        "refugee",
+        "refugees",
+        "xiaohongshu"
+      ],
+      "confidence": "low",
+      "why": "English name for Xiaohongshu, which drew US users during the January 2025 TikTok ban. 'red note' is ordinary, so context-only.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Xiaohongshu"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Xiaohongshu",
+      "category": "Platforms",
+      "heard": [
+        "xiaohongshu",
+        "xiao hong shu",
+        "shao hong shu",
+        "shaohongshu"
+      ],
+      "confidence": "low",
+      "why": "Chinese lifestyle platform (RedNote). Pinyin spelling that English engines can't produce.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Xiaohongshu"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "BeReal",
+      "category": "Platforms",
+      "heard": [
+        "bereal"
+      ],
+      "context": [
+        "be real"
+      ],
+      "after": [
+        "app",
+        "notification",
+        "post",
+        "streak",
+        "dual",
+        "camera"
+      ],
+      "confidence": "low",
+      "why": "Photo-sharing app. 'be real' is ordinary, so context-only.",
+      "sources": [
+        "https://bereal.com/"
+      ],
+      "risk": "'let's be real' must not change; context-only."
+    },
+    {
+      "term": "Letterboxd",
+      "category": "Platforms",
+      "heard": [
+        "letterboxd"
+      ],
+      "context": [
+        "letterboxed",
+        "letterbox"
+      ],
+      "after": [
+        "app",
+        "review",
+        "reviews",
+        "account",
+        "profile",
+        "list",
+        "lists",
+        "diary",
+        "rating",
+        "ratings",
+        "watchlist",
+        "log"
+      ],
+      "confidence": "medium",
+      "why": "Film diary app. Non-phonetic spelling (no 'e'); engines write the ordinary word 'letterboxed'.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Letterboxd",
+        "https://letterboxd.com/"
+      ],
+      "risk": "'letterboxed' is a film-format word; context-only."
+    },
+    {
+      "term": "Goodreads",
+      "category": "Platforms",
+      "heard": [
+        "goodreads"
+      ],
+      "context": [
+        "good reads"
+      ],
+      "after": [
+        "account",
+        "app",
+        "review",
+        "reviews",
+        "shelf",
+        "list",
+        "challenge",
+        "profile",
+        "rating"
+      ],
+      "confidence": "low",
+      "why": "Book-tracking site. 'good reads' is ordinary, so context-only.",
+      "sources": [
+        "https://www.goodreads.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Duolingo",
+      "category": "Platforms",
+      "heard": [
+        "duolingo",
+        "duo lingo",
+        "dualingo",
+        "duo-lingo"
+      ],
+      "confidence": "medium",
+      "why": "Language app; 'Dualingo' is its most common misspelling and engines split it into 'Duo Lingo'.",
+      "sources": [
+        "https://www.duolingo.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Crunchyroll",
+      "category": "Platforms",
+      "heard": [
+        "crunchyroll"
+      ],
+      "context": [
+        "crunchy roll"
+      ],
+      "after": [
+        "anime",
+        "subscription",
+        "account",
+        "premium",
+        "app",
+        "stream",
+        "streaming"
+      ],
+      "confidence": "low",
+      "why": "Anime streaming service. 'crunchy roll' is a food phrase, so context-only for the spaced form.",
+      "sources": [
+        "https://www.crunchyroll.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Disney+",
+      "category": "Platforms",
+      "heard": [
+        "disney plus",
+        "disneyplus"
+      ],
+      "confidence": "medium",
+      "why": "Streaming service. Speech engines never output the plus sign.",
+      "sources": [
+        "https://www.disneyplus.com/"
+      ],
+      "risk": "'Disney plus Universal' (a list) would become 'Disney+ Universal'; rare."
+    },
+    {
+      "term": "Paramount+",
+      "category": "Platforms",
+      "heard": [
+        "paramount plus",
+        "paramountplus"
+      ],
+      "confidence": "medium",
+      "why": "Streaming service. Speech engines never output the plus sign.",
+      "sources": [
+        "https://www.paramountplus.com/"
+      ],
+      "risk": "Same list risk as Disney+; rare."
+    },
+    {
+      "term": "vidIQ",
+      "category": "Creative tools",
+      "heard": [
+        "vidiq",
+        "vid iq",
+        "vid i q",
+        "vid i.q."
+      ],
+      "confidence": "medium",
+      "why": "YouTube growth tool. Mixed-case 'IQ'; engines write 'Vid IQ'.",
+      "sources": [
+        "https://vidiq.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "TubeBuddy",
+      "category": "Creative tools",
+      "heard": [
+        "tubebuddy",
+        "tube buddy"
+      ],
+      "confidence": "medium",
+      "why": "YouTube growth extension. Camel-case coinage.",
+      "sources": [
+        "https://www.tubebuddy.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "OpusClip",
+      "category": "Creative tools",
+      "heard": [
+        "opusclip",
+        "opus clip"
+      ],
+      "confidence": "medium",
+      "why": "AI short-clip tool. Brand closed up as one word; engines write 'Opus Clip'.",
+      "sources": [
+        "https://www.opus.pro/",
+        "https://apps.apple.com/app/id6743615403"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Submagic",
+      "category": "Creative tools",
+      "heard": [
+        "submagic",
+        "sub magic"
+      ],
+      "confidence": "low",
+      "why": "AI captioning tool for short-form video. Closed-up coinage.",
+      "sources": [
+        "https://www.submagic.co/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "InShot",
+      "category": "Creative tools",
+      "heard": [
+        "inshot"
+      ],
+      "context": [
+        "in shot"
+      ],
+      "after": [
+        "app",
+        "editor",
+        "video",
+        "videos",
+        "edit"
+      ],
+      "confidence": "low",
+      "why": "Mobile video editor. 'in shot' is ordinary, so context-only for the spaced form.",
+      "sources": [
+        "https://inshot.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Filmora",
+      "category": "Creative tools",
+      "heard": [
+        "filmora",
+        "film ora",
+        "filmorra"
+      ],
+      "confidence": "medium",
+      "why": "Wondershare's video editor. Coined word; engines write 'Film Ora' or 'Filmorra'.",
+      "sources": [
+        "https://filmora.wondershare.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Camtasia",
+      "category": "Creative tools",
+      "heard": [
+        "camtasia",
+        "cam tasia",
+        "camtasha"
+      ],
+      "confidence": "low",
+      "why": "TechSmith screen-recording editor. Coined word.",
+      "sources": [
+        "https://www.techsmith.com/camtasia/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "ScreenFlow",
+      "category": "Creative tools",
+      "heard": [
+        "screenflow"
+      ],
+      "context": [
+        "screen flow"
+      ],
+      "after": [
+        "recording",
+        "app",
+        "project",
+        "export",
+        "mac"
+      ],
+      "confidence": "low",
+      "why": "Mac screen recorder. Camel-case; 'screen flow' context-only.",
+      "sources": [
+        "https://www.telestream.net/screenflow/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "CleanShot X",
+      "category": "Creative tools",
+      "heard": [
+        "cleanshot x",
+        "clean shot x"
+      ],
+      "confidence": "low",
+      "why": "Mac screenshot tool. Camel-case plus the letter X.",
+      "sources": [
+        "https://cleanshot.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Streamlabs",
+      "category": "Creative tools",
+      "heard": [
+        "streamlabs",
+        "stream labs"
+      ],
+      "confidence": "medium",
+      "why": "Streaming software and overlays. Closed-up coinage.",
+      "sources": [
+        "https://streamlabs.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Riverside.fm",
+      "category": "Creative tools",
+      "heard": [
+        "riverside fm",
+        "riverside dot fm",
+        "riverside f m"
+      ],
+      "confidence": "low",
+      "why": "Remote podcast and video recording platform. 'riverside' alone is ordinary; only the spoken domain is safe.",
+      "sources": [
+        "https://riverside.fm/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Buzzsprout",
+      "category": "Creative tools",
+      "heard": [
+        "buzzsprout",
+        "buzz sprout"
+      ],
+      "confidence": "medium",
+      "why": "Podcast host. Closed-up coinage.",
+      "sources": [
+        "https://www.buzzsprout.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Hootsuite",
+      "category": "Platforms",
+      "heard": [
+        "hootsuite",
+        "hoot suite",
+        "hootsweet"
+      ],
+      "confidence": "medium",
+      "why": "Social media scheduler. Engines write 'Hoot Suite' or 'Hootsweet'.",
+      "sources": [
+        "https://www.hootsuite.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Manychat",
+      "category": "Platforms",
+      "heard": [
+        "manychat"
+      ],
+      "context": [
+        "many chat"
+      ],
+      "after": [
+        "automation",
+        "flow",
+        "flows",
+        "bot",
+        "dm",
+        "dms",
+        "keyword",
+        "comment"
+      ],
+      "confidence": "low",
+      "why": "Instagram DM automation tool. Closed-up coinage; verify current casing (the company has used both 'ManyChat' and 'Manychat').",
+      "sources": [
+        "https://manychat.com/",
+        "https://www.aixploria.com/en/manychat-ai-chatbot/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Flodesk",
+      "category": "Platforms",
+      "heard": [
+        "flodesk",
+        "flo desk"
+      ],
+      "context": [
+        "flow desk"
+      ],
+      "after": [
+        "email",
+        "emails",
+        "form",
+        "forms",
+        "account",
+        "template",
+        "templates",
+        "newsletter"
+      ],
+      "confidence": "low",
+      "why": "Email marketing tool for creators. Engines write 'Flow Desk'.",
+      "sources": [
+        "https://flodesk.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Soundstripe",
+      "category": "Creative tools",
+      "heard": [
+        "soundstripe",
+        "sound stripe"
+      ],
+      "confidence": "low",
+      "why": "Royalty-free music library. Closed-up coinage.",
+      "sources": [
+        "https://www.soundstripe.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Storyblocks",
+      "category": "Creative tools",
+      "heard": [
+        "storyblocks"
+      ],
+      "context": [
+        "story blocks"
+      ],
+      "after": [
+        "footage",
+        "stock",
+        "subscription",
+        "clip",
+        "clips",
+        "account"
+      ],
+      "confidence": "low",
+      "why": "Stock footage subscription. 'story blocks' context-only.",
+      "sources": [
+        "https://www.storyblocks.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Pixelmator",
+      "category": "Creative tools",
+      "heard": [
+        "pixelmator",
+        "pixel mator",
+        "pixel mater",
+        "pixelmater"
+      ],
+      "confidence": "medium",
+      "why": "Mac image editor (Pixelmator Pro; acquired by Apple 2024). Engines write 'Pixel Mater'.",
+      "sources": [
+        "https://www.pixelmator.com/pro/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Luminar Neo",
+      "category": "Creative tools",
+      "heard": [
+        "luminar neo",
+        "lumina neo"
+      ],
+      "confidence": "low",
+      "why": "Skylum's AI photo editor. 'Luminar' gets written 'Lumina'.",
+      "sources": [
+        "https://skylum.com/luminar"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Penpot",
+      "category": "Creative tools",
+      "heard": [
+        "penpot"
+      ],
+      "context": [
+        "pen pot"
+      ],
+      "after": [
+        "design",
+        "file",
+        "files",
+        "tokens",
+        "project",
+        "app",
+        "board"
+      ],
+      "confidence": "low",
+      "why": "Open-source design tool with native design tokens. 'pen pot' context-only.",
+      "sources": [
+        "https://penpot.app/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Rive",
+      "category": "Creative tools",
+      "context": [
+        "rive"
+      ],
+      "after": [
+        "animation",
+        "animations",
+        "runtime",
+        "state",
+        "machine",
+        "file",
+        "editor",
+        "character"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Interactive animation tool with state machines. Ordinary-looking word; engines write 'Reeve' or lowercase.",
+      "sources": [
+        "https://rive.app/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Lottie",
+      "category": "Creative tools",
+      "context": [
+        "lottie",
+        "lotty"
+      ],
+      "after": [
+        "animation",
+        "animations",
+        "file",
+        "files",
+        "json",
+        "player"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "JSON animation format. Also a given name, so context-only.",
+      "sources": [
+        "https://airbnb.io/lottie/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Klarna",
+      "category": "Finance",
+      "heard": [
+        "klarna",
+        "clarna",
+        "klarnah"
+      ],
+      "confidence": "medium",
+      "why": "Buy-now-pay-later company (2025 IPO). Engines write 'Clarna'.",
+      "sources": [
+        "https://www.klarna.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Afterpay",
+      "category": "Finance",
+      "heard": [
+        "afterpay"
+      ],
+      "context": [
+        "after pay"
+      ],
+      "after": [
+        "checkout",
+        "payment",
+        "payments",
+        "account",
+        "installments",
+        "card"
+      ],
+      "confidence": "medium",
+      "why": "Buy-now-pay-later service. 'after pay' context-only.",
+      "sources": [
+        "https://www.afterpay.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Robinhood",
+      "category": "Finance",
+      "heard": [
+        "robinhood"
+      ],
+      "context": [
+        "robin hood"
+      ],
+      "after": [
+        "app",
+        "account",
+        "stock",
+        "stocks",
+        "crypto",
+        "shares",
+        "trading",
+        "portfolio",
+        "gold"
+      ],
+      "confidence": "low",
+      "why": "Trading app. 'Robin Hood' is the folk hero, so the spaced form is context-only.",
+      "sources": [
+        "https://robinhood.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Coinbase",
+      "category": "Finance",
+      "heard": [
+        "coinbase",
+        "coin base"
+      ],
+      "confidence": "medium",
+      "why": "Crypto exchange. Closed-up coinage; engines write 'coin base'.",
+      "sources": [
+        "https://www.coinbase.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Revolut",
+      "category": "Finance",
+      "heard": [
+        "revolut"
+      ],
+      "context": [
+        "revolute"
+      ],
+      "after": [
+        "card",
+        "account",
+        "app",
+        "transfer",
+        "bank"
+      ],
+      "confidence": "low",
+      "why": "Fintech bank. Non-phonetic ending; engines write 'Revolute'.",
+      "sources": [
+        "https://www.revolut.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "SoFi",
+      "category": "Finance",
+      "heard": [
+        "so fi",
+        "so-fi"
+      ],
+      "context": [
+        "sofi"
+      ],
+      "after": [
+        "bank",
+        "account",
+        "loan",
+        "loans",
+        "card",
+        "money",
+        "stadium",
+        "invest",
+        "app"
+      ],
+      "confidence": "low",
+      "why": "Fintech bank and stadium name. Mixed case; 'Sofi' is a given name, so context-only.",
+      "sources": [
+        "https://www.sofi.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Wealthfront",
+      "category": "Finance",
+      "heard": [
+        "wealthfront",
+        "wealth front"
+      ],
+      "confidence": "low",
+      "why": "Robo-advisor. Closed-up coinage.",
+      "sources": [
+        "https://www.wealthfront.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Splitwise",
+      "category": "Finance",
+      "heard": [
+        "splitwise",
+        "split wise"
+      ],
+      "confidence": "medium",
+      "why": "Expense-splitting app. Closed-up coinage.",
+      "sources": [
+        "https://www.splitwise.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Kalshi",
+      "category": "Finance",
+      "heard": [
+        "kalshi",
+        "kal shi",
+        "kalshee",
+        "calshi"
+      ],
+      "confidence": "medium",
+      "why": "CFTC-regulated prediction market that grew fast in 2024–2026. Unfamiliar word; engines write 'Cal Shi' or 'Kalshee'.",
+      "sources": [
+        "https://kalshi.com/",
+        "https://next.io/prediction-markets/guide/kalshi-vs-polymarket/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Polymarket",
+      "category": "Finance",
+      "heard": [
+        "polymarket",
+        "poly market"
+      ],
+      "confidence": "medium",
+      "why": "Crypto prediction market. Closed-up coinage.",
+      "sources": [
+        "https://polymarket.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "USDC",
+      "category": "Finance",
+      "heard": [
+        "usdc",
+        "u s d c",
+        "usd c"
+      ],
+      "confidence": "medium",
+      "why": "Circle's dollar stablecoin. Letters spoken individually.",
+      "sources": [
+        "https://www.circle.com/usdc"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Temu",
+      "category": "Brands",
+      "heard": [
+        "temu",
+        "tee moo",
+        "tea moo"
+      ],
+      "confidence": "medium",
+      "why": "Shopping app (2023+). Engines write 'Teemu' or 'Tee Moo'.",
+      "sources": [
+        "https://www.temu.com/"
+      ],
+      "risk": "'Teemu' (Finnish name) deliberately left out."
+    },
+    {
+      "term": "Labubu",
+      "category": "Brands",
+      "heard": [
+        "labubu",
+        "la boo boo",
+        "la-boo-boo",
+        "lah boo boo",
+        "labubus"
+      ],
+      "confidence": "medium",
+      "why": "Pop Mart collectible that went viral in 2025. Said 'lah-boo-boo'; engines split it.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Labubu",
+        "https://www.getpronounce.com/how-to-pronounce/labubu"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Pop Mart",
+      "category": "Brands",
+      "heard": [
+        "popmart",
+        "pop mart"
+      ],
+      "confidence": "low",
+      "why": "Chinese collectible toy company (Labubu). Casing; engines may close it up.",
+      "sources": [
+        "https://www.popmart.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Owala",
+      "category": "Brands",
+      "heard": [
+        "owala",
+        "o wala",
+        "oh wala"
+      ],
+      "confidence": "low",
+      "why": "Water bottle brand popular 2024–2025. Coined word; engines write 'O Wala'.",
+      "sources": [
+        "https://owalalife.com/"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "Crumbl",
+      "category": "Brands",
+      "context": [
+        "crumble"
+      ],
+      "after": [
+        "cookie",
+        "cookies",
+        "flavor",
+        "flavors",
+        "box",
+        "order",
+        "store"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Cookie chain; spelled without the 'e'. Engines write 'Crumble', an ordinary word, so context-only.",
+      "sources": [
+        "https://crumblcookies.com/"
+      ],
+      "risk": "'apple crumble cookies' would change; keep it low priority or drop."
+    },
+    {
+      "term": "POV",
+      "category": "Internet",
+      "heard": [
+        "pov",
+        "p o v",
+        "p.o.v."
+      ],
+      "confidence": "medium",
+      "why": "Short-form video caption staple. Engines spell the letters or lowercase them.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/POV"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "IYKYK",
+      "category": "Internet",
+      "heard": [
+        "iykyk",
+        "i y k y k"
+      ],
+      "confidence": "medium",
+      "why": "'If you know, you know.' Letter string only ever spelled out.",
+      "sources": [
+        "https://www.merriam-webster.com/slang/iykyk"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "FOMO",
+      "category": "Internet",
+      "heard": [
+        "fomo"
+      ],
+      "confidence": "medium",
+      "why": "Settled all-caps acronym; engines write 'fomo'.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/FOMO"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "YOLO",
+      "category": "Internet",
+      "heard": [
+        "yolo"
+      ],
+      "confidence": "low",
+      "why": "Settled all-caps acronym; engines write 'yolo'.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/YOLO"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "TL;DR",
+      "category": "Internet",
+      "heard": [
+        "tldr",
+        "tl dr",
+        "t l d r",
+        "t.l.d.r."
+      ],
+      "confidence": "medium",
+      "why": "Semicolon form is the settled spelling; engines write 'TLDR' or 'T L D R'.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/TL%3BDR"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "ICYMI",
+      "category": "Internet",
+      "heard": [
+        "icymi",
+        "i c y m i"
+      ],
+      "confidence": "low",
+      "why": "'In case you missed it.' Spelled-out letter string.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/ICYMI"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "NGL",
+      "category": "Internet",
+      "heard": [
+        "ngl",
+        "n g l"
+      ],
+      "confidence": "low",
+      "why": "'Not gonna lie.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "TBH",
+      "category": "Internet",
+      "heard": [
+        "tbh",
+        "t b h"
+      ],
+      "confidence": "low",
+      "why": "'To be honest.' Spelled-out letter string.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/TBH"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "IMO",
+      "category": "Internet",
+      "heard": [
+        "imo",
+        "i m o"
+      ],
+      "confidence": "low",
+      "why": "'In my opinion.' Spelled-out letter string.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/IMO"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "IMHO",
+      "category": "Internet",
+      "heard": [
+        "imho",
+        "i m h o"
+      ],
+      "confidence": "low",
+      "why": "'In my humble opinion.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "FWIW",
+      "category": "Internet",
+      "heard": [
+        "fwiw",
+        "f w i w"
+      ],
+      "confidence": "low",
+      "why": "'For what it's worth.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "AFAIK",
+      "category": "Internet",
+      "heard": [
+        "afaik",
+        "a f a i k"
+      ],
+      "confidence": "low",
+      "why": "'As far as I know.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "IIRC",
+      "category": "Internet",
+      "heard": [
+        "iirc",
+        "i i r c"
+      ],
+      "confidence": "low",
+      "why": "'If I recall correctly.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "LMK",
+      "category": "Internet",
+      "heard": [
+        "lmk",
+        "l m k"
+      ],
+      "confidence": "low",
+      "why": "'Let me know.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "BRB",
+      "category": "Internet",
+      "heard": [
+        "brb",
+        "b r b"
+      ],
+      "confidence": "low",
+      "why": "'Be right back.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ELI5",
+      "category": "Internet",
+      "heard": [
+        "eli5",
+        "eli 5",
+        "e l i 5",
+        "e l i five"
+      ],
+      "confidence": "medium",
+      "why": "'Explain like I'm five,' common in AI prompts. Letters plus digit get spelled out.",
+      "sources": [],
+      "risk": "'Eli 5' with a name is unlikely; acceptable."
+    },
+    {
+      "term": "GRWM",
+      "category": "Internet",
+      "heard": [
+        "grwm",
+        "g r w m"
+      ],
+      "confidence": "medium",
+      "why": "'Get ready with me' video format. Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "FYP",
+      "category": "Internet",
+      "heard": [
+        "fyp",
+        "f y p"
+      ],
+      "confidence": "medium",
+      "why": "TikTok 'For You page.' Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "OOTD",
+      "category": "Internet",
+      "heard": [
+        "ootd",
+        "o o t d"
+      ],
+      "confidence": "low",
+      "why": "'Outfit of the day' tag. Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "ASMR",
+      "category": "Internet",
+      "heard": [
+        "asmr",
+        "a s m r"
+      ],
+      "confidence": "medium",
+      "why": "Settled all-caps acronym; spoken letter by letter.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/ASMR"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "CTR",
+      "category": "Internet",
+      "heard": [
+        "c t r"
+      ],
+      "confidence": "low",
+      "why": "Click-through rate (YouTube analytics). Spelled-out letter string.",
+      "sources": [],
+      "risk": "Lowercase 'ctr' left out because it abbreviates 'center'."
+    },
+    {
+      "term": "CPM",
+      "category": "Internet",
+      "heard": [
+        "cpm",
+        "c p m"
+      ],
+      "confidence": "low",
+      "why": "Cost per mille (creator ad revenue). Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "MRR",
+      "category": "Internet",
+      "heard": [
+        "mrr",
+        "m r r"
+      ],
+      "confidence": "low",
+      "why": "Monthly recurring revenue (app and SaaS creators). Spelled-out letter string.",
+      "sources": [],
+      "risk": "none"
+    },
+    {
+      "term": "Gen Alpha",
+      "category": "Internet",
+      "heard": [
+        "gen alpha",
+        "jen alpha",
+        "gen-alpha"
+      ],
+      "confidence": "medium",
+      "why": "Generation after Gen Z; companion to the existing Gen Z term. Engines write 'gen alpha' or 'Jen Alpha'.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/Generation%20Alpha"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "delulu",
+      "category": "Internet",
+      "heard": [
+        "de lulu",
+        "dululu",
+        "deloulou",
+        "de-lulu"
+      ],
+      "confidence": "medium",
+      "why": "Slang for 'delusional,' added to Cambridge Dictionary in 2025. Engines split it.",
+      "sources": [
+        "https://www.fox5vegas.com/2025/08/18/cambridge-dictionary-adds-skibidi-tradwife-among-6000-new-words/",
+        "https://dictionary.cambridge.org/dictionary/english/delulu",
+        "https://www.merriam-webster.com/slang/delulu"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "skibidi",
+      "category": "Internet",
+      "heard": [
+        "skibbidi",
+        "skibiddy",
+        "skibbity",
+        "skibidy",
+        "skibbidy"
+      ],
+      "confidence": "low",
+      "why": "Gen Alpha slang from 'Skibidi Toilet,' added to Cambridge Dictionary in 2025. Engines vary the spelling.",
+      "sources": [
+        "https://www.fox5vegas.com/2025/08/18/cambridge-dictionary-adds-skibidi-tradwife-among-6000-new-words/",
+        "https://dictionary.cambridge.org/dictionary/english/skibidi",
+        "https://www.merriam-webster.com/slang/skibidi"
+      ],
+      "risk": "none"
+    },
+    {
+      "term": "tradwife",
+      "category": "Internet",
+      "heard": [
+        "trad wife",
+        "trad-wife"
+      ],
+      "confidence": "low",
+      "why": "Added to Cambridge Dictionary in 2025 as one word. Engines write 'trad wife'.",
+      "sources": [
+        "https://www.fox5vegas.com/2025/08/18/cambridge-dictionary-adds-skibidi-tradwife-among-6000-new-words/",
+        "https://dictionary.cambridge.org/dictionary/english/tradwife",
+        "https://www.merriam-webster.com/dictionary/tradwife"
+      ],
+      "risk": "Some writers prefer 'trad wife'; this is a style choice, so keep low."
+    },
+    {
+      "term": "rizz",
+      "category": "Internet",
+      "context": [
+        "riz"
+      ],
+      "after": [
+        "unspoken",
+        "got",
+        "no",
+        "has",
+        "have",
+        "w",
+        "l"
+      ],
+      "boost": false,
+      "confidence": "low",
+      "why": "Oxford's 2023 Word of the Year, now in Merriam-Webster. Engines write 'riz' or 'ris'; 'Riz' is a given name, so context-only.",
+      "sources": [
+        "https://www.merriam-webster.com/dictionary/rizz"
+      ],
+      "risk": "'Riz' (Riz Ahmed) is a name; context words are slang-only."
+    }
+  ]
+}

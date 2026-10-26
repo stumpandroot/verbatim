@@ -1,0 +1,1378 @@
+{
+  "area": "everyday",
+  "notes": "Patterns are case-insensitive. Each match is exactly the span to replace (context sits in lookarounds); replace it with `right`, matching the case of the first letter, unless `rule` or `risk` says otherwise. `harper_rule` names an existing Harper rule (default_config.json, enabled by default) that covers the same error.",
+  "items": [
+    {
+      "wrong": "could of / should of / would of",
+      "right": "could have / should have / would have",
+      "rule": "after could/should/would (or their n't forms) or \"ought to\", except before \"course\"; replace only \"of\" with \"have\"",
+      "patterns": [
+        "(?<=\\b(?:could|should|would|couldn't|shouldn't|wouldn't|mustn't|mightn't|ought to) )of\\b(?! course\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken \"could've\" is pronounced like \"could of\", and Whisper's web-text training data contains the misspelling. Never standard English.",
+      "sources": [
+        "https://brians.wsu.edu/2016/05/25/could-of-should-of-would-of/",
+        "https://www.merriam-webster.com/words-at-play/whats-worse-than-coulda",
+        "https://languagetool.org/insights/post/grammar-could-of-or-could-have/",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/modal_of.rs"
+      ],
+      "risk": "\"of course\" is excluded. No other standard sequence exists.",
+      "harper_rule": "ModalOf"
+    },
+    {
+      "wrong": "must of",
+      "right": "must have",
+      "rule": "replace only \"of\"; except before \"course\" or after \"the\"/\"a\" (wine \"must\")",
+      "patterns": [
+        "(?<!\\b(?:the|a) must )(?<=\\bmust )of\\b(?! course\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken \"must've\" sounds like \"must of\".",
+      "sources": [
+        "https://brians.wsu.edu/2016/05/25/could-of-should-of-would-of/",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/modal_of.rs"
+      ],
+      "risk": "Winemaking noun \"the must of the grapes\" is excluded by the lookbehind.",
+      "harper_rule": "ModalOf"
+    },
+    {
+      "wrong": "might of / may of",
+      "right": "might have / may have",
+      "rule": "after a subject pronoun + might/may; replace only \"of\"; except before \"course\"",
+      "patterns": [
+        "(?<=\\b(?:I|you|we|they|he|she|it|who|that|there|this|one) (?:might|may) )of\\b(?! course\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken \"might've\" and \"may've\" sound like \"might of\" and \"may of\". A pronoun subject is required because \"the might of Rome\" and \"in May of 2026\" are standard.",
+      "sources": [
+        "https://brians.wsu.edu/2016/05/25/could-of-should-of-would-of/",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/modal_of.rs"
+      ],
+      "risk": "Noun \"might\" and the month \"May\" never follow a subject pronoun directly.",
+      "harper_rule": "ModalOf"
+    },
+    {
+      "wrong": "suppose to",
+      "right": "supposed to",
+      "rule": "after a form of \"be\" or \"not\"",
+      "patterns": [
+        "(?<=\\b(?:am|is|are|was|were|be|been|being|not|isn't|aren't|wasn't|weren't|i'm|you're|we're|they're|he's|she's|it's|that's|what's) )suppose to\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "The final /d/ of \"supposed\" merges into the /t/ of \"to\", so engines often drop it. A test post using Word's dictation shows the same tense-ending loss (\"pass down\" for \"passed down\").",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://blogs.ubc.ca/meetec540/2021/09/26/task-3-voice-to-text-task/",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/SupposedTo.weir"
+      ],
+      "risk": "Harper's SupposedTo flags every \"suppose to\", including \"I suppose to some degree\"; Verbose's version requires a preceding \"be\".",
+      "harper_rule": "SupposedTo"
+    },
+    {
+      "wrong": "use to (accustomed)",
+      "right": "used to",
+      "rule": "after \"get\" or a form of \"be\"",
+      "patterns": [
+        "(?<=\\b(?:get|gets|got|getting|gotten|be|been|is|am|are|was|were|i'm|you're|we're|they're|he's|she's|it's) )use to\\b",
+        "(?<=\\b(?:am|is|are|was|were|i'm|you're|we're|they're|he's|she's|it's|isn't|aren't|wasn't|weren't) (?:not )?(?:really |quite |so |totally )?)use to\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "D-elision: \"used to\" is pronounced /juːstə/, identical to \"use to\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrase_set_corrections/mod.rs"
+      ],
+      "risk": "\"of use to\" is not matched (the word before is \"of\").",
+      "harper_rule": "UseToUsedTo"
+    },
+    {
+      "wrong": "in the passed",
+      "right": "in the past",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\bin the )passed\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophone; \"past\" and \"passed\" are pronounced the same.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/PassedPast/ToPast.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "PassedPast"
+    },
+    {
+      "wrong": "past away",
+      "right": "passed away",
+      "rule": "after an auxiliary or subject pronoun",
+      "patterns": [
+        "(?<=\\b(?:has|have|had|just|recently|sadly|peacefully|who|he|she|they|i) )past(?= away\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophone of \"passed\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/PassedPast/ToPassed.weir"
+      ],
+      "risk": "\"walked past away fans\" is not matched because the word before is a verb.",
+      "harper_rule": "PassedPast"
+    },
+    {
+      "wrong": "there own / they're own",
+      "right": "their own",
+      "rule": "always",
+      "patterns": [
+        "\\b(?:there|they're|theyre)(?= own\\b(?!-))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "Three-way homophone; only \"their\" can precede \"own\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/there_own.rs",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "Soccer \"own goal\" (\"was there an own goal\") needs \"an\" in between, so it is not matched.",
+      "harper_rule": "ThereOwn"
+    },
+    {
+      "wrong": "their is / is their a",
+      "right": "there",
+      "rule": "at sentence start before a form of \"be\", or after \"is/are\" before a/any/anything",
+      "patterns": [
+        "(?:(?<=^)|(?<=[.!?]\\s))their(?= (?:is|are|was|were|isn't|aren't|wasn't|weren't|will be|has been|have been)\\b)",
+        "(?<=\\b(?:is|are|was|were|isn't|aren't) )their(?= (?:a|an|any|anything|anyone|anybody|no|nothing|something|someone|another)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "Homophone; \"their\" cannot be a sentence subject before \"is\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/TheirToThere.weir",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "none",
+      "harper_rule": "TheirToThere"
+    },
+    {
+      "wrong": "there / they're + noun",
+      "right": "their",
+      "rule": "suggestion only",
+      "patterns": [
+        "\\b(?:there|they're)(?= (?:car|house|kids|children|parents|mom|dad|team|phone|names?|money|work|job|own)\\b)"
+      ],
+      "safe_to_auto_fix": false,
+      "confidence": "high",
+      "why": "Homophone. Can't be fixed blind: \"there\" is valid in \"is there money\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/ThereToTheir.weir",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/TheyreToTheir.weir",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "Questions (\"is there work today\") use \"there\" before a noun.",
+      "harper_rule": "ThereToTheir, TheyreToTheir"
+    },
+    {
+      "wrong": "their / there going to",
+      "right": "they're going to",
+      "rule": "suggestion only",
+      "patterns": [
+        "\\b(?:their|there)(?= (?:going|coming|not|always|never|so|really|all) )"
+      ],
+      "safe_to_auto_fix": false,
+      "confidence": "high",
+      "why": "Homophone. \"Are there going to be\" is valid, so it can't be auto-fixed.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/TheirToTheyre.weir",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "\"Are there going to be problems?\" uses \"there\".",
+      "harper_rule": "TheirToTheyre"
+    },
+    {
+      "wrong": "your welcome",
+      "right": "you're welcome",
+      "rule": "at the end of a clause, not after \"for\" or \"warm\"",
+      "patterns": [
+        "(?<!\\b(?:for|warm|thank) )\\byour(?= welcome(?=\\s*(?:[.!?,;:]|$)))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophone; reply formula.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"Thanks for your welcome.\" is excluded by the lookbehind.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "you're own",
+      "right": "your own",
+      "rule": "always",
+      "patterns": [
+        "\\byou're(?= own\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophone; only the possessive precedes \"own\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "your + predicate",
+      "right": "you're",
+      "rule": "suggestion only",
+      "patterns": [
+        "\\byour(?= (?:right|wrong|kidding|joking|welcome|going to|gonna|not|so|too|very|already|always|never|being)\\b)"
+      ],
+      "safe_to_auto_fix": false,
+      "confidence": "medium",
+      "why": "Homophone. \"your right hand\" and \"your going-away party\" are valid.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/YourPredicateAdjective.weir"
+      ],
+      "risk": "Noun uses (\"your right to vote\") are common.",
+      "harper_rule": "YourPredicateAdjective (partial: cool, serious, ready...)"
+    },
+    {
+      "wrong": "it's own",
+      "right": "its own",
+      "rule": "always",
+      "patterns": [
+        "\\bit's(?= own\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophone; only the possessive precedes \"own\". (The reverse, \"its\" before a verb, is already in Verbose's Harper pass.)",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/its_possessive.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "ItsPossessive"
+    },
+    {
+      "wrong": "me to / me two",
+      "right": "me too",
+      "rule": "a standalone reply: \"me to\" or \"me two\" alone in its sentence",
+      "patterns": [
+        "(?:(?<=^)|(?<=[.!?]\\s))me (?:to|two)(?=\\s*(?:[.!?]|$))",
+        "(?<=\\band )(?:you|me) (?:to|two)(?=\\s*(?:[.!?]|$))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "to/too/two substitutions appear in LibriSpeech confusion pairs (to==>too, too==>to, two==>too). Replace the matched phrase with \"me too\" (or \"you too\").",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/to_two_too/to_too_eos.rs",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "\"...and you to.\" can be elliptical (\"I asked him and you to.\"), which is rare in dictation.",
+      "harper_rule": "ToTwoToo"
+    },
+    {
+      "wrong": "two much / two many",
+      "right": "too much / too many",
+      "rule": "always",
+      "patterns": [
+        "\\btwo(?= (?:much|many)\\b(?!-))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "LibriSpeech confusion pairs include two==>too; \"two much\" is never standard.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "\"two many-sided shapes\" is excluded by the hyphen check.",
+      "harper_rule": "ToTwoToo"
+    },
+    {
+      "wrong": "to + degree word",
+      "right": "too",
+      "rule": "suggestion only",
+      "patterns": [
+        "\\bto(?= (?:much|many|late|early|soon|big|small|hard|bad|long|far|fast|slow|hot|cold|expensive|busy|tired)(?=\\s*(?:[.!?,;:]|$)))",
+        "(?<=\\bway )to(?= (?:much|many|late|early|big|small|hard|long|far|fast|expensive)\\b)"
+      ],
+      "safe_to_auto_fix": false,
+      "confidence": "high",
+      "why": "Documented to==>too confusion, but \"from early to late\" and \"from bad to worse\" are valid.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/to_two_too/to_too_degree_words.rs",
+        "https://www.assemblyai.com/blog/transcription-errors"
+      ],
+      "risk": "Range phrases (\"from hot to cold\").",
+      "harper_rule": "ToTwoToo"
+    },
+    {
+      "wrong": "then ever",
+      "right": "than ever",
+      "rule": "after a comparative",
+      "patterns": [
+        "(?<=\\b(?:more|less|better|worse|bigger|smaller|faster|slower|harder|easier|busier|higher|lower|greater|stronger|longer|shorter|closer|happier|louder|cheaper|earlier|later) )then(?= ever\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "then/than reduce to the same unstressed vowel /ðən/.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/then_than.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "ThenThan"
+    },
+    {
+      "wrong": "and than / since than / until than",
+      "right": "and then / since then / until then",
+      "rule": "always; replace only \"than\"",
+      "patterns": [
+        "(?<=\\b(?:and|since|until|till) )than\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Same reduced vowel. \"than\" cannot follow a conjunction or these prepositions.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/then_than.rs"
+      ],
+      "risk": "\"back than\" is deliberately left out (\"I'd rather go back than stay\").",
+      "harper_rule": "ThenThan"
+    },
+    {
+      "wrong": "comparative + then",
+      "right": "than",
+      "rule": "suggestion only",
+      "patterns": [
+        "(?<=\\b(?:more|less|fewer|rather|other|better|worse|bigger|smaller|faster|older|younger) )then\\b"
+      ],
+      "safe_to_auto_fix": false,
+      "confidence": "medium",
+      "why": "Common confusion, but dictation often lacks commas: \"once more then stop\", \"see each other then\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/then_than.rs"
+      ],
+      "risk": "Missing commas make \"then\" valid in many cases.",
+      "harper_rule": "ThenThan"
+    },
+    {
+      "wrong": "side affect / take affect / an affect on",
+      "right": "effect",
+      "rule": "in fixed noun contexts; replace \"affect\" with \"effect\" (keep any plural \"s\")",
+      "patterns": [
+        "(?<=\\b(?:a|any|no|possible|potential|common|serious|severe|bad|major|minor|known|unwanted|some|many|few|fewer|more|of|with|without|have|has|had|cause|causes|caused|the only|other) side )affect(?=s?\\b)",
+        "(?<=\\b(?:take|takes|took|taken|taking|come into|came into|comes into|go into|goes into|went into|put into) )affect\\b",
+        "(?<=\\b(?:an|no|any|little|big|huge|significant|lasting|major|direct|real|an immediate) )affect(?= on\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone (/əˈfɛkt/ vs /ɪˈfɛkt/ collapse in fast speech).",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/noun_verb_confusion/mod.rs"
+      ],
+      "risk": "Psychology uses \"affect\" as a noun (\"flat affect\"); \"the/positive/negative affect\" and bare \"side affects\" (\"one side affects the other\") are deliberately not matched.",
+      "harper_rule": "NounVerbConfusion"
+    },
+    {
+      "wrong": "effect + person",
+      "right": "affect",
+      "rule": "after a modal or negation, before an object pronoun",
+      "patterns": [
+        "(?<=\\b(?:will|won't|would|wouldn't|could|can|can't|doesn't|didn't|don't|does|did|might|may|not|really|negatively|directly|adversely) )effect(?= (?:me|you|him|us|them)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone; the verb \"effect\" (bring about) never takes a person as object.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/noun_verb_confusion/effect_affect/effect_to_affect.rs"
+      ],
+      "risk": "\"her\" is excluded because \"effect her release\" is valid.",
+      "harper_rule": "NounVerbConfusion"
+    },
+    {
+      "wrong": "except the offer",
+      "right": "accept",
+      "rule": "after a subject or modal, before an acceptable thing",
+      "patterns": [
+        "(?<=\\b(?:I|we|you|they|he|she|will|would|can|can't|cannot|won't|please|gladly|happily|don't|didn't|must|should|to) )except(?= (?:the|your|my|his|her|their|our|this|that|an|a) (?:offer|invitation|apology|job|position|terms|award|challenge|responsibility|deal|proposal|payment|request|nomination)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "LibriSpeech confusion pairs include accept==>except.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"everything except the offer\" is excluded because \"everything\" is not in the lookbehind list.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "school principle",
+      "right": "school principal",
+      "rule": "after school/assistant/vice/deputy, or before \"investigator\"",
+      "patterns": [
+        "(?<=\\b(?:school|assistant|vice|deputy) )principle\\b",
+        "\\bprinciple(?= investigators?\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/PrincipleToPrincipalRoleNoun.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "PrincipleToPrincipalRoleNoun"
+    },
+    {
+      "wrong": "backhanded complement / complements of the chef",
+      "right": "compliment",
+      "rule": "in fixed phrases; replace \"complement\" with \"compliment\" (keep any plural \"s\")",
+      "patterns": [
+        "(?<=\\bbackhanded )complement\\b",
+        "\\bcomplement(?=s of the (?:chef|house|management)\\b)",
+        "(?<=\\b(?:pay|paid|paying|pays) (?:you|him|her|them|me|us) a )complement\\b",
+        "(?<=\\bthanks for the )complement\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrase_set_corrections/mod.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "BackhandedCompliment"
+    },
+    {
+      "wrong": "weather or not",
+      "right": "whether or not",
+      "rule": "always",
+      "patterns": [
+        "\\bweather(?= or not\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones (wh-/w- merger in most accents).",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "the whether",
+      "right": "the weather",
+      "rule": "after \"the\", not before \"or\"",
+      "patterns": [
+        "(?<=\\bthe )whether\\b(?![- ]or\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/TheWhetherWeather.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "TheWhetherWeather"
+    },
+    {
+      "wrong": "sneak peak / take a peak",
+      "right": "peek",
+      "rule": "after \"sneak\", or after take/took/taking + \"a\"",
+      "patterns": [
+        "(?<=\\bsneak )peak(?=s?\\b)",
+        "(?<=\\b(?:take|takes|took|taken|taking) a (?:quick |little |sneak )?)peak\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/SneakPeekPreview.weir",
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"we hit a peak at noon\" is not matched.",
+      "harper_rule": "SneakPeekPreview"
+    },
+    {
+      "wrong": "peaked my interest",
+      "right": "piqued my interest",
+      "rule": "past tense before possessive + interest/curiosity",
+      "patterns": [
+        "\\b(?:peaked|peeked)(?= (?:my|your|his|her|our|their|the) (?:interest|curiosity)\\b(?! rates?\\b))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones (/piːk/).",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/pique_interest.rs"
+      ],
+      "risk": "\"interest rates peaked\" has a different word order and is not matched.",
+      "harper_rule": "PiqueInterest"
+    },
+    {
+      "wrong": "loose my mind / loose weight",
+      "right": "lose",
+      "rule": "before possessive + common object, or after to/can/will before \"weight\"",
+      "patterns": [
+        "(?<!\\blets? )\\bloose(?= (?:my|your|his|her|our|their) (?:mind|job|keys|phone|wallet|way|temper|patience|voice|balance|focus|place|sight|nerve|cool|touch)\\b)",
+        "(?<=\\b(?:to|can|could|will|would|did|didn't|gonna|help you|helps you) )loose(?= weight\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone; ASR and writers both confuse /luːz/ and /luːs/.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/ToLoseTooLoose.weir"
+      ],
+      "risk": "\"let loose her hair\" is excluded; \"hair\" and \"grip\" are left out.",
+      "harper_rule": "ToLoseTooLoose"
+    },
+    {
+      "wrong": "on the lose",
+      "right": "on the loose",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\bon the )lose\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "break pedal / slam on the breaks",
+      "right": "brake",
+      "rule": "in vehicle phrases",
+      "patterns": [
+        "\\bbreak(?= (?:pads?|pedals?|fluid|calipers?|rotors?)\\b)",
+        "(?<=\\b(?:slam|slammed|slamming|hit|hitting) on the )breaks\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"break lines\" is left out (\"break lines at 80 characters\").",
+      "harper_rule": null
+    },
+    {
+      "wrong": "take a brake",
+      "right": "take a break",
+      "rule": "after take + \"a\", or after lunch/coffee",
+      "patterns": [
+        "(?<=\\b(?:take|takes|took|taking) a (?:quick |short |little )?)brake\\b",
+        "(?<=\\b(?:lunch|coffee|bathroom|commercial) )brake\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"spring brake\" (truck part) is deliberately excluded.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "for all intensive purposes",
+      "right": "for all intents and purposes",
+      "rule": "always",
+      "patterns": [
+        "\\bfor all intensive purposes\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Classic mondegreen; the spoken form is near-identical.",
+      "sources": [
+        "https://brians.wsu.edu/2017/06/05/for-all-intensive-purposes/",
+        "https://en.wikipedia.org/wiki/Eggcorn",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/all_intents_and_purposes.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "AllIntentsAndPurposes"
+    },
+    {
+      "wrong": "one in the same",
+      "right": "one and the same",
+      "rule": "after a form of \"be\", at clause end",
+      "patterns": [
+        "(?<=\\b(?:are|is|were|was|be|being|been) )one in the same(?=\\s*(?:[.!?,;:]|$))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "\"and\" reduces to /ən/, heard as \"in\" (LibriSpeech and==>in is the 4th most common substitution).",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/one_and_the_same.rs"
+      ],
+      "risk": "\"we have one in the same color\" is excluded by the \"be\" and clause-end requirements.",
+      "harper_rule": "OneAndTheSame"
+    },
+    {
+      "wrong": "case and point",
+      "right": "case in point",
+      "rule": "after a/perfect/classic, or alone before punctuation",
+      "patterns": [
+        "(?<=\\b(?:a|perfect|classic|prime|another|good) )case and point\\b",
+        "(?:(?<=^)|(?<=[.!?]\\s))case and point(?=\\s*(?:[,:.]|$))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "and/in reduce to the same vowel.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/CaseInPoint.weir"
+      ],
+      "risk": "\"make the case and point out\" is excluded.",
+      "harper_rule": "CaseInPoint"
+    },
+    {
+      "wrong": "wet your appetite",
+      "right": "whet your appetite",
+      "rule": "before possessive + appetite",
+      "patterns": [
+        "\\bwet(?= (?:your|my|his|her|our|their|the) appetites?\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones (wh-/w- merger).",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/WhetYourAppetite.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "WhetYourAppetite"
+    },
+    {
+      "wrong": "baited breath",
+      "right": "bated breath",
+      "rule": "always",
+      "patterns": [
+        "\\bbaited(?= breath\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/BatedBreath.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "BatedBreath"
+    },
+    {
+      "wrong": "bare with me / bare in mind",
+      "right": "bear with me / bear in mind",
+      "rule": "before with + pronoun, or before \"in mind\"",
+      "patterns": [
+        "\\bbare(?= with (?:me|us)\\b)",
+        "\\bbare(?= in mind\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/BareWithMe.weir",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/BareInMind.weir"
+      ],
+      "risk": "Only \"me\"/\"us\" after \"with\" to avoid \"left bare with them\".",
+      "harper_rule": "BareWithMe, BareInMind"
+    },
+    {
+      "wrong": "bear minimum",
+      "right": "bare minimum",
+      "rule": "always",
+      "patterns": [
+        "\\bbear(?= minimum\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "free reign / reign it in",
+      "right": "rein",
+      "rule": "after \"free\", or reign + object + \"in\"; replace the stem \"reign\" with \"rein\" and keep any suffix",
+      "patterns": [
+        "(?<=\\bfree )reign\\b",
+        "\\breign(?=(?:s|ed|ing)? (?:it|them|him|things|spending|costs|yourself|myself|himself|herself|themselves) in\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/FreeRein.weir"
+      ],
+      "risk": "\"his reign in England\" is not matched.",
+      "harper_rule": "FreeRein"
+    },
+    {
+      "wrong": "nip it in the butt",
+      "right": "nip it in the bud",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\bnip(?:s|ped|ping)? (?:it|this|that) in the )butt\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Mondegreen.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "deep seeded",
+      "right": "deep-seated",
+      "rule": "always",
+      "patterns": [
+        "\\bdeep[- ]seeded\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Eggcorn; near-homophone.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://listserv.linguistlist.org/pipermail/ads-l/2007-April/069434.html"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "per say",
+      "right": "per se",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\bper )say\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophone of the Latin.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/PerSe.weir"
+      ],
+      "risk": "\"$10 per, say, 5 units\" without commas is rare.",
+      "harper_rule": "PerSe"
+    },
+    {
+      "wrong": "by in large",
+      "right": "by and large",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\bby )in(?= large\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "and/in vowel reduction.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "one foul swoop",
+      "right": "one fell swoop",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\bone )(?:foul|fowl)(?= swoop\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Eggcorn.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/OneFellSwoop/FoulFowl.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "OneFellSwoop"
+    },
+    {
+      "wrong": "statue of limitations",
+      "right": "statute of limitations",
+      "rule": "always",
+      "patterns": [
+        "\\bstatue(?= of limitations?\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/StatuteOfLimitations.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "StatuteOfLimitations"
+    },
+    {
+      "wrong": "wreck havoc",
+      "right": "wreak havoc",
+      "rule": "always",
+      "patterns": [
+        "\\bwreck(?=(?:s|ed|ing)? havoc\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone; match is the stem, keep the suffix.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrase_set_corrections/mod.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "WreakHavoc"
+    },
+    {
+      "wrong": "piece of mind",
+      "right": "peace of mind",
+      "rule": "always (\"a piece of my mind\" has \"my\" and is not matched)",
+      "patterns": [
+        "\\bpiece(?= of mind\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/PeaceOfMind.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "PeaceOfMind"
+    },
+    {
+      "wrong": "escape goat",
+      "right": "scapegoat",
+      "rule": "always",
+      "patterns": [
+        "\\bescape goats?\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Eggcorn. Replace with \"scapegoat\" (keep plural).",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrase_set_corrections/mod.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "ScapeGoat"
+    },
+    {
+      "wrong": "mute point",
+      "right": "moot point",
+      "rule": "always",
+      "patterns": [
+        "\\bmute(?= points?\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrase_set_corrections/mod.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "MootPoint"
+    },
+    {
+      "wrong": "tongue and cheek",
+      "right": "tongue-in-cheek",
+      "rule": "always",
+      "patterns": [
+        "\\btongue and cheek\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "and/in vowel reduction.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/TongueInCheek.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "TongueInCheek"
+    },
+    {
+      "wrong": "doesn't phase me",
+      "right": "doesn't faze me",
+      "rule": "after a negation, before an object pronoun, not before out/in",
+      "patterns": [
+        "(?<=\\b(?:doesn't|didn't|don't|won't|never|not|wouldn't|hardly|barely) )phase(?=d? (?:me|him|her|them|us|you)\\b(?! (?:out|in)\\b))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones. Match is \"phase\"; replace with \"faze\" and keep a following \"d\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"we won't phase them out\" is excluded.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "eluded to",
+      "right": "alluded to",
+      "rule": "always",
+      "patterns": [
+        "\\beluded(?= to\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/EludedTo.weir"
+      ],
+      "risk": "Passive \"eluded to capture\" is rare.",
+      "harper_rule": "EludedTo"
+    },
+    {
+      "wrong": "all of the sudden",
+      "right": "all of a sudden",
+      "rule": "always",
+      "patterns": [
+        "(?<=\\ball of )the(?= sudden\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "Nonstandard variant; \"a\" and \"the\" are the most confused pair in ASR.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://arxiv.org/abs/1610.05256",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/AllOfASudden.weir"
+      ],
+      "risk": "Some users say \"all of the sudden\" on purpose.",
+      "harper_rule": "AllOfASudden"
+    },
+    {
+      "wrong": "for sell",
+      "right": "for sale",
+      "rule": "after be/up/not",
+      "patterns": [
+        "(?<=\\b(?:is|are|was|were|be|up|not|it's|they're) for )sell\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "make due with",
+      "right": "make do with",
+      "rule": "before with/without",
+      "patterns": [
+        "(?<=\\bmak(?:e|es|ing) )due(?= with(?:out)?\\b)",
+        "(?<=\\bmade )due(?= with(?:out)?\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrase_set_corrections/mod.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "MakeDoWith"
+    },
+    {
+      "wrong": "do to the fact",
+      "right": "due to the fact",
+      "rule": "always",
+      "patterns": [
+        "\\bdo(?= to the fact\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Near-homophone.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/DoToDueTo.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "DoToDueTo"
+    },
+    {
+      "wrong": "roll model / play a roll",
+      "right": "role model / play a role",
+      "rule": "in fixed phrases",
+      "patterns": [
+        "\\broll(?= models?\\b)",
+        "(?<=\\bplay(?:s|ed|ing)? a (?:(?:big|key|major|huge|vital|important|small|minor|central) )?)roll(?= in\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "none",
+      "harper_rule": null
+    },
+    {
+      "wrong": "was aloud to",
+      "right": "was allowed to",
+      "rule": "after be/not, before \"to\"",
+      "patterns": [
+        "(?<=\\b(?:not|be|being|been|is|are|was|were|am|aren't|isn't|weren't|wasn't) )aloud(?= to\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/was_aloud.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "WasAloud"
+    },
+    {
+      "wrong": "whose going",
+      "right": "who's going",
+      "rule": "before going/coming/ready/in charge, not a hyphen",
+      "patterns": [
+        "\\bwhose(?= (?:going|coming|ready|calling|asking|in charge)\\b(?!-))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Exact homophones.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"whose going-away party\" is excluded.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "has lead to",
+      "right": "has led to",
+      "rule": "after have/has/had",
+      "patterns": [
+        "(?<=\\b(?:has|have|had|having) )lead(?= (?:to|the way)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Homophones (\"led\" and the metal \"lead\").",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "\"the pipe has lead to the valve\" (metal) is very rare.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "everytime",
+      "right": "every time",
+      "rule": "always",
+      "patterns": [
+        "\\beverytime\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "low",
+      "why": "Not a standard word; appears in web text that Whisper learned from.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/EveryTime.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "EveryTime"
+    },
+    {
+      "wrong": "everyday (adverb)",
+      "right": "every day",
+      "rule": "at the end of a clause, not after a degree word",
+      "patterns": [
+        "(?<!\\b(?:so|very|too|quite|pretty|more|less|most|rather|fairly) )\\beveryday(?=\\s*(?:[.!?,;:]|$))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically; only the adverb ends a clause.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/everyday.rs"
+      ],
+      "risk": "Predicative adjective (\"it's so everyday\") is excluded.",
+      "harper_rule": "Everyday"
+    },
+    {
+      "wrong": "every day (adjective)",
+      "right": "everyday",
+      "rule": "after a determiner, before a noun",
+      "patterns": [
+        "(?<=\\b(?:an|my|your|our|their|his|her|the|these|those) )every day(?= (?:life|use|routine|tasks?|items?|things?|carry|wear|language|people|person|objects?|situations?|problems?|basis)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically. A preceding determiner forces the adjective reading.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/everyday.rs"
+      ],
+      "risk": "Sentence-initial \"Every day life gets harder\" is not matched because it may mean \"Every day, life...\".",
+      "harper_rule": "Everyday"
+    },
+    {
+      "wrong": "everyone of",
+      "right": "every one of",
+      "rule": "before a determiner or pronoun",
+      "patterns": [
+        "\\beveryone(?= of (?:the|them|us|you|these|those|my|your|our|their|his|her)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/EachAndEveryOne.weir"
+      ],
+      "risk": "none. Note: Harper's closed-compound rule \"Everyone\" flags \"every one\" everywhere, including the correct \"every one of them\"; don't auto-apply it.",
+      "harper_rule": "EachAndEveryOne (partial)"
+    },
+    {
+      "wrong": "apart of",
+      "right": "a part of",
+      "rule": "after be/become/feel",
+      "patterns": [
+        "(?<=\\b(?:be|being|been|am|is|are|was|were|become|became|feel|felt|i'm|you're|we're|they're|it's) )apart(?= of\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/a_part.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "APart"
+    },
+    {
+      "wrong": "all though",
+      "right": "although",
+      "rule": "at sentence start",
+      "patterns": [
+        "(?:(?<=^)|(?<=[.!?]\\s))all though\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/AllThough.weir"
+      ],
+      "risk": "none",
+      "harper_rule": "AllThough"
+    },
+    {
+      "wrong": "for awhile",
+      "right": "for a while",
+      "rule": "after \"for\"",
+      "patterns": [
+        "(?<=\\bfor )awhile\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically; \"awhile\" already means \"for a while\".",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/a_while.rs"
+      ],
+      "risk": "none",
+      "harper_rule": "AWhile"
+    },
+    {
+      "wrong": "maybe (verb)",
+      "right": "may be",
+      "rule": "after a subject, before a determiner or common adjective",
+      "patterns": [
+        "(?<=\\b(?:it|this|that|there|which|what|who|they|he|she|you|we|i) )maybe(?= (?:a|an|the|true|false|possible|impossible|necessary|better|best|worth|too|more|less|different|wrong|right|late|able|useful|helpful)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically; a subject followed by a predicate needs the verb.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "Colloquial \"I maybe a little\" is uncommon; \"there's maybe a dozen\" is not matched (\"there's\").",
+      "harper_rule": null
+    },
+    {
+      "wrong": "may be (adverb)",
+      "right": "maybe",
+      "rule": "at sentence start before a pronoun or time word",
+      "patterns": [
+        "(?:(?<=^)|(?<=[.!?]\\s))may be(?= (?:we|i|you|they|he|she|next|later|tomorrow|someday|not)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Spoken identically.",
+      "sources": [
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "Labels like \"May be subject to change\" are excluded by the word list.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "setup / login / backup (as verbs)",
+      "right": "set up / log in / back up",
+      "rule": "after a modal, \"how to\", or \"need to\"",
+      "patterns": [
+        "(?<=\\b(?:will|can|could|should|would|must|need to|want to|have to|going to|gonna|let's|please|how to|i'll|we'll|you'll|i'd) )(?:setup|login|backup|signup|logout|checkout|workout|shutdown|lookup)\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Phrasal verb and noun are spoken alike; engines pick the noun spelling learned from software text. Replace with the two-word verb (setup→set up, login→log in, backup→back up, signup→sign up, logout→log out, checkout→check out, workout→work out, shutdown→shut down, lookup→look up).",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/phrasal_verb_as_compound_noun.rs",
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/weir_rules/ShutdownVerb.weir"
+      ],
+      "risk": "Noun after \"how to\" is rare (\"how to backup software works\").",
+      "harper_rule": "PhrasalVerbAsCompoundNoun, ShutdownVerb"
+    },
+    {
+      "wrong": "an (for and)",
+      "right": "and",
+      "rule": "before a pronoun, determiner, or conjunction",
+      "patterns": [
+        "\\ban(?= (?:the|then|we|they|he|she|you|so|but|that's|it's|my|your|our|their|his|this|these|those)\\b(?!-))"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "Documented ASR substitution: an==>and and and==>an are top-30 confusion pairs on LibriSpeech test-other. Harper's a/an rule may then turn this \"an\" into \"a\", so run this fix before Harper.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl",
+        "https://arxiv.org/abs/1610.05256"
+      ],
+      "risk": "\"an his\" is not standard in American English (\"an historic\" is a different word). Harper's AnA rule conflicts: it may rewrite \"an the\" as \"a the\". Apply this fix before Harper runs.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "don't no",
+      "right": "don't know",
+      "rule": "after a subject or do-auxiliary, before a wh-word or \"that\"",
+      "patterns": [
+        "(?<=\\b(?:don't|didn't|doesn't|do you|did you|you|i|we|they|let me) )no(?= (?:what|why|how|where|when|who|if|whether|that|about)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "Exact homophones; LibriSpeech confusion pairs include know==>no.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl"
+      ],
+      "risk": "\"I no longer\" and \"to no avail\" are not matched.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "can you here me",
+      "right": "hear",
+      "rule": "after can/did/could you or a subject, before a pronoun or \"about\"",
+      "patterns": [
+        "(?<=\\b(?:did you|can you|could you|can't|couldn't|didn't|i|we|they) )here(?= (?:that|about|me|you|him|her|us|them|what)\\b)"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "high",
+      "why": "Exact homophones; LibriSpeech confusion pairs include here==>hear and hear==>here.",
+      "sources": [
+        "https://huggingface.co/Lakoc/baseline_ebranchformer_v2.2_fp32_gated/blob/main/predictions_librispeech_test.other_wer7.21_hyp.trn.dtl"
+      ],
+      "risk": "\"We here at Acme\" is not matched (\"at\" is not in the list).",
+      "harper_rule": null
+    },
+    {
+      "wrong": "repeated word",
+      "right": "single word",
+      "rule": "two identical function words in a row; delete the second",
+      "patterns": [
+        "\\b(the|a|an|to|of|and|my|your|with|for) \\1\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Engines transcribe stutters and restarts verbatim; Whisper also repeats tokens when decoding loops.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/repeated_words.rs",
+        "https://arxiv.org/abs/2212.04356"
+      ],
+      "risk": "\"had had\", \"that that\", and \"is is\" are valid and left out. Replace the whole match with the single word.",
+      "harper_rule": "RepeatedWords, ToTo"
+    },
+    {
+      "wrong": "ordinal suffix mismatch (2st, 1th)",
+      "right": "2nd, 1st",
+      "rule": "digits with the wrong suffix; recompute the suffix",
+      "patterns": [
+        "\\b\\d*(?:(?<!1)1(?:th|nd|rd)|(?<!1)2(?:st|th|rd)|(?<!1)3(?:st|nd|th)|1[123](?:st|nd|rd)|[04-9](?:st|nd|rd))\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "medium",
+      "why": "Inverse text normalization can join a digit to a spoken suffix inconsistently. The correct suffix is deterministic from the digits.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/correct_number_suffix.rs",
+        "https://github.com/openai/whisper/blob/main/whisper/normalizers/english.py"
+      ],
+      "risk": "none",
+      "harper_rule": "CorrectNumberSuffix"
+    },
+    {
+      "wrong": "$5 dollars",
+      "right": "$5",
+      "rule": "a dollar sign plus the word \"dollars\"; delete \" dollars\"",
+      "patterns": [
+        "(?<=\\$\\d[\\d,]{0,15}(?:\\.\\d{1,2})?(?: (?:thousand|million|billion|k))?) dollars\\b"
+      ],
+      "safe_to_auto_fix": true,
+      "confidence": "low",
+      "why": "Whisper writes the currency symbol for spoken \"dollars\"; when it also keeps the word, the result is redundant. Whisper's own normalizer maps \"dollars\" to \"$\".",
+      "sources": [
+        "https://github.com/openai/whisper/blob/main/whisper/normalizers/english.py",
+        "https://arxiv.org/abs/2212.04356"
+      ],
+      "risk": "The match is \" dollars\" (with its leading space); delete it. \"5 dollars\" without a symbol is untouched.",
+      "harper_rule": null
+    },
+    {
+      "wrong": "decade apostrophe (90's)",
+      "right": "90s",
+      "rule": "suggestion only",
+      "patterns": [
+        "\\b(?:1[89]|20)?\\d0's\\b"
+      ],
+      "safe_to_auto_fix": false,
+      "confidence": "medium",
+      "why": "Plural decades take no apostrophe; but \"the 1990's biggest hit\" is a possessive.",
+      "sources": [
+        "https://github.com/Automattic/harper/blob/master/harper-core/src/linting/plural_decades/mod.rs",
+        "https://wpcdn.web.wsu.edu/wp-cas/uploads/sites/3483/2017/05/errorsRTF.txt"
+      ],
+      "risk": "Possessive use.",
+      "harper_rule": "PluralDecades"
+    }
+  ]
+}
