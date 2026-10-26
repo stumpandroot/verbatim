@@ -4,7 +4,14 @@
       "build": "next",
       "title": "Snappier on the Mac",
       "items": [
-        "Mac: moving between screens is quicker, most of all in Native and after you've opened Settings."
+        "Mac: moving between screens is quicker, most of all in Native and after you've opened Settings.",
+        "Mac: Thoughts. Click the floating bubble or press ⌃⌥P in any app to say a thought, and click again to keep it. It lands on today's page with its time, and the app you're in stays in front.",
+        "Mac: every thought is saved as audio before it's transcribed, so none is lost. If transcription fails, choose Transcribe again.",
+        "Mac: the Thought pad is now today's Thoughts page. Use its arrows to read earlier days. What was on your pad moved to the days you wrote it.",
+        "Mac: Library › By day shows Thoughts and Journal one page a day, with a calendar that marks the days you recorded.",
+        "Mac: the Quick capture widget is now New thought, which starts a thought without opening Verbose, and a new Today's thoughts widget shows today's page.",
+        "Mac: a dictation that doesn't paste is kept in Dictations, and ⌃⌘V still pastes it again.",
+        "The Idea kind is now called Thoughts."
       ]
     },
     {
