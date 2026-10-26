@@ -15,6 +15,8 @@
 
 Newest first. Each entry has a `build` (a run number as a string), a `date` (`YYYY-MM-DD`), a `title`, and `items`.
 The top entry's build is `"next"` and has no date: it collects the changes since the last build that shipped.
+Stamped entries also have a `version`, such as `"1.0 beta"`; entries without one count as 1.0 beta. What's new groups
+the builds under version headers, the newest version open and older ones closed. See [Versions](../VERSIONING.md).
 
 ```json
 { "build": "next", "title": "Version notes", "items": ["Tap the version at the bottom of Settings to see what changed in each build."] }
@@ -42,14 +44,16 @@ CI never commits to the file. Before the Mac build, the iPhone screenshot tour, 
 python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER"
 ```
 
-That turns `"build": "next"` into the run number and adds today's date (UTC) in the runner's checkout only, so the app
-in that build names itself in What's new. The `updates` job reads the entry for the run number, or the `"next"`
+That turns `"build": "next"` into the run number and adds today's date (UTC) and the version (project.yml's
+`MARKETING_VERSION` and `VERBOSE_CHANNEL`, or `--version`) in the runner's checkout only, so the app in that build
+names itself in What's new. The `updates` job reads the entry for the run number, or the `"next"`
 entry in its own unstamped checkout, into the appcast item's description (HTML) and the release body (Markdown).
 Without either, it falls back to the one-line "Beta build N of main." text.
 
 ## After a build ships
 
-In a follow-up commit, set the `"next"` entry's `build` to that run's number and its `date` to the build's date. Start
+In a follow-up commit, set the `"next"` entry's `build` to that run's number, its `date` to the build's date, and its
+`version` to the build's version. Start
 a new `"next"` entry with the next user-visible change. A build that finds no `"next"` entry and none for its number
 shows no note on Home, and its update shows the one-line text.
 
