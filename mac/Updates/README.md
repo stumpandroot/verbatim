@@ -97,7 +97,8 @@ The feed holds at most two items:
 | Stable (no `<sparkle:channel>`) | Everyone | Pushing a tag such as `mac-v1.2.0` |
 | Beta (`<sparkle:channel>beta</sparkle:channel>`) | Users with **Settings › General › Get beta builds** on | Every build of `main` (push or manual run); also prerelease tags such as `mac-v1.3.0-beta.1` |
 
-- Builds of `main` are versioned `0.0.0`, and **Get beta builds** defaults to on in those builds, so your own builds follow the beta channel. Tagged releases default to off.
+- Builds of `main` are version 1.0 beta (`CFBundleShortVersionString` 1.0 and `VerboseChannel` beta; see [Versions](../VERSIONING.md)), and **Get beta builds** defaults to on in builds with a channel (and in the older `0.0.0` builds), so your own builds follow the beta channel. Releases with no channel default to off.
+- The feed's `sparkle:shortVersionString` carries the channel, so the update window reads "Verbose 1.0 beta (217)". It's only shown: Sparkle compares `sparkle:version`.
 - Beta users also see the stable item. Sparkle offers whichever item has the higher build number (`sparkle:version`, which is the CI run number).
 - Each build of `main` becomes a prerelease tagged `beta-<run number>` in verbose-updates, with `Verbose.dmg` attached. CI keeps the newest five and deletes older ones with their tags. The same DMG replaces `Verbose.dmg` on the `beta-latest` prerelease.
 - Feature branches never publish updates.

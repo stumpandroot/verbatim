@@ -6,6 +6,7 @@ import Foundation
 //
 // After an update to a build with an entry, Home shows "What's new in build N" once (a banner on iPhone, a line on
 // the Mac). The last build shown is in UserDefaults (`lastSeenKey`); dismissing the note or opening What's new sets it.
+// What's new groups the builds by version ("Version 1.0 beta"), newest first (mac/VERSIONING.md).
 
 /// One build's notes: "Build 203 · Oct 25", a title, and bullet items.
 struct ReleaseNote: Decodable, Identifiable, Hashable, Sendable {
@@ -15,8 +16,16 @@ struct ReleaseNote: Decodable, Identifiable, Hashable, Sendable {
     var date: String?
     var title: String
     var items: [String]
+    /// The version the build belongs to ("1.0 beta"), stamped by CI with the build number. Absent on "next" and on
+    /// every entry from before versions were recorded, which count as `ReleaseNotes.firstVersion`.
+    var version: String? = nil
 
     var id: String { build }
+    /// "1.0 beta": the version this build is grouped under in What's new.
+    var versionName: String {
+        let v = (version ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return v.isEmpty ? ReleaseNotes.firstVersion : v
+    }
     var number: Int? { Int(build) }
     var isNext: Bool { build == ReleaseNotes.next }
 
@@ -35,8 +44,59 @@ struct ReleaseNote: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// One version's builds in What's new: "Version 1.0 beta" over its builds, newest first.
+struct ReleaseVersion: Identifiable, Hashable, Sendable {
+    var name: String
+    var notes: [ReleaseNote]
+    var id: String { name }
+    /// "Version 1.0 beta"
+    var heading: String { "Version \(name)" }
+    /// "Version 1.0 beta, 40 builds": the header's VoiceOver label.
+    var spokenHeading: String { "Version \(name), \(notes.count) build\(notes.count == 1 ? "" : "s")" }
+}
+
+/// The version people see (mac/VERSIONING.md): the marketing version (CFBundleShortVersionString, kept numeric for
+/// App Store Connect), the channel (VerboseChannel: "beta" until launch, empty for the App Store release), and the
+/// build number (CFBundleVersion). Settings, About, and What's new show "Version 1.0 beta (217)".
+enum AppVersion {
+    static let channelKey = "VerboseChannel"
+
+    static var marketing: String { info("CFBundleShortVersionString") ?? "1.0" }
+    static var channel: String { info(channelKey) ?? "" }
+    static var build: String { info("CFBundleVersion") ?? "1" }
+    /// "1.0 beta", or "1.0" with no channel.
+    static var name: String { name(marketing: marketing, channel: channel) }
+    /// "1.0 beta (217)"
+    static var label: String { label(marketing: marketing, channel: channel, build: build) }
+    /// "1.0 beta, build 217", for VoiceOver.
+    static var spoken: String { "\(name), build \(build)" }
+
+    static func name(marketing: String, channel: String) -> String {
+        let c = channel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return c.isEmpty ? marketing : "\(marketing) \(c)"
+    }
+
+    static func label(marketing: String, channel: String, build: String) -> String {
+        "\(name(marketing: marketing, channel: channel)) (\(build))"
+    }
+
+    /// App Store Connect takes only numbers and dots ("1.0", "1.2.3") as CFBundleShortVersionString.
+    static func isNumeric(_ marketing: String) -> Bool {
+        let parts = marketing.split(separator: ".", omittingEmptySubsequences: false)
+        return (1...3).contains(parts.count) && parts.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }
+    }
+
+    private static func info(_ key: String) -> String? {
+        guard let s = (Bundle.main.infoDictionary?[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !s.isEmpty else { return nil }
+        return s
+    }
+}
+
 enum ReleaseNotes {
     static let next = "next"
+    /// Every build before versions were recorded in the file was 1.0 beta.
+    static let firstVersion = "1.0 beta"
     /// The highest build whose note was shown or dismissed (an Int), per device.
     static let lastSeenKey = "releaseNotes.lastSeenBuild"
 
@@ -76,6 +136,7 @@ enum ReleaseNotes {
             } else {
                 out.append("entry \(i + 1): build must be \"next\" or a run number, not \"\(n.build)\"")
             }
+            if let v = n.version, v.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append("build \(n.build): version must be a name such as \"1.0 beta\", not empty") }
             if let date = n.date, day(date, format: "MMM d") == nil { out.append("build \(n.build): date must be YYYY-MM-DD, not \"\(date)\"") }
             if n.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append("build \(n.build) has no title") }
             if n.items.isEmpty || n.items.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
@@ -83,6 +144,16 @@ enum ReleaseNotes {
             }
         }
         if nexts > 1 { out.append("there are \(nexts) \"next\" entries; keep one") }
+        return out
+    }
+
+    /// What's new's sections: the builds grouped by version, in the file's order (newest first), each build once.
+    static func byVersion(_ notes: [ReleaseNote]) -> [ReleaseVersion] {
+        var out: [ReleaseVersion] = []
+        for n in notes {
+            if let i = out.firstIndex(where: { $0.name == n.versionName }) { out[i].notes.append(n) }
+            else { out.append(ReleaseVersion(name: n.versionName, notes: [n])) }
+        }
         return out
     }
 
@@ -131,6 +202,12 @@ enum ReleaseNotes {
             check("release notes: and not again once seen", pending(current: n, lastSeen: n, notes: bundled) == nil)
         }
         check("release notes: a new install starts at its own build", firstLastSeen(stored: nil, current: 300, ranBefore: false) == 300)
+        let versions = byVersion(bundled)
+        check("release notes: grouped by version, the newest build in the first group", versions.first?.notes.first == bundled.first)
+        check("release notes: every build in exactly one version", versions.flatMap(\.notes).count == bundled.count && Set(versions.map(\.name)).count == versions.count)
+        check("version: CFBundleShortVersionString \(AppVersion.marketing) is numbers only (App Store Connect)", AppVersion.isNumeric(AppVersion.marketing))
+        check("version: this build reads Version \(AppVersion.label)",
+              AppVersion.label == "\(AppVersion.marketing)\(AppVersion.channel.isEmpty ? "" : " " + AppVersion.channel) (\(AppVersion.build))")
     }
 
     /// "Oct 25" (or another `format`) from "2026-10-25"; nil when the date isn't YYYY-MM-DD.

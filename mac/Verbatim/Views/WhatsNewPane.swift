@@ -4,25 +4,71 @@ import SwiftUI
 //
 // What's new on the Mac: Settings › What's new (also Verbose › What's New… in the app menu, the What's New… buttons in
 // About and General › Updates, and Home's note after an update). Every build's notes, newest first, from the bundled
-// ReleaseNotes.json (Model/ReleaseNotes.swift). Verbose style: the pane's eyebrow and serif title, then a card per
-// build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and bullet items. Native: the bold title
-// and a grouped Form section per build, headed by the build.
+// ReleaseNotes.json (Model/ReleaseNotes.swift), grouped under version headers ("Version 1.0 beta"): the newest version
+// open, older ones closed until clicked. Verbose style: the pane's eyebrow and serif title, then a card per build with
+// a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and bullet items. Native: the bold title and a
+// grouped Form section per build, headed by the build.
 
 struct WhatsNewSettingsPane: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
+    /// Versions clicked open or closed; the newest starts open and the rest closed.
+    @State private var toggled: Set<String> = []
 
     var body: some View {
+        let versions = ReleaseNotes.byVersion(notes)
         SettingsPane(tab: .whatsNew) {
             VStack(alignment: .leading, spacing: 22) {
                 if notes.isEmpty {
                     Text("The release notes aren't in this build.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 }
-                ForEach(notes) { WhatsNewCard(note: $0) }
+                ForEach(Array(versions.enumerated()), id: \.element.id) { i, version in
+                    let open = (i == 0) != toggled.contains(version.id)
+                    WhatsNewVersionHeader(version: version, open: open) {
+                        if toggled.contains(version.id) { toggled.remove(version.id) } else { toggled.insert(version.id) }
+                    }
+                    if open {
+                        ForEach(version.notes) { WhatsNewCard(note: $0) }
+                    }
+                }
             }
             .settingsAnchor("whatsNew.builds")
         }
         // Opening What's new counts as seeing this build's note on Home.
         .onAppear { ReleaseNotes.markSeen() }
+    }
+}
+
+/// A version's header: a chevron, "Version 1.0 beta", and how many builds. Clicking it shows or hides the builds.
+struct WhatsNewVersionHeader: View {
+    var version: ReleaseVersion
+    var open: Bool
+    var toggle: () -> Void
+    @Environment(\.look) private var look
+
+    var body: some View {
+        let native = look == .native
+        Button(action: toggle) {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: native ? 10 : 11, weight: .semibold)).foregroundStyle(Ink.mute)
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                    .frame(width: 12)
+                Text(version.heading)
+                    .font(native ? .system(size: 15, weight: .semibold) : Ink.serif(26))
+                    .foregroundStyle(Ink.ink)
+                Text("\(version.notes.count) build\(version.notes.count == 1 ? "" : "s")")
+                    .font(.system(size: native ? 12 : 12.5)).foregroundStyle(Ink.mute)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(version.spokenHeading)
+        .accessibilityValue(open ? "Expanded" : "Collapsed")
+        .accessibilityAddTraits([.isButton, .isHeader])
+        .help(open ? "Hide this version's builds" : "Show this version's builds")
     }
 }
 

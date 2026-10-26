@@ -6,7 +6,7 @@ This script parses the existing appcast (or starts a new one), replaces the item
 writes the file back. Items of the other channel are left as they are. See mac/Updates/README.md.
 
 Example:
-  python3 appcast.py appcast.xml --channel beta --version 123 --short-version 0.0.0 \
+  python3 appcast.py appcast.xml --channel beta --version 123 --short-version "1.0 beta" \
     --url https://github.com/stumpandroot/verbose-updates/releases/download/beta-123/Verbose.dmg \
     --length 123456 --signature BASE64== --notes "Beta build 123 of main" \
     --notes-link https://github.com/stumpandroot/verbose-updates/releases/tag/beta-123
@@ -93,7 +93,7 @@ def main(argv=None):
     p.add_argument("appcast", help="path to appcast.xml (created if missing)")
     p.add_argument("--channel", required=True, help='"stable" (no channel element) or a channel name such as "beta"')
     p.add_argument("--version", required=True, type=int, help="sparkle:version = CFBundleVersion (the CI run number)")
-    p.add_argument("--short-version", required=True, help="sparkle:shortVersionString = CFBundleShortVersionString")
+    p.add_argument("--short-version", required=True, help="sparkle:shortVersionString, shown only: CFBundleShortVersionString and the channel (\"1.0 beta\")")
     p.add_argument("--url", required=True, help="enclosure URL of the DMG")
     p.add_argument("--length", required=True, type=int, help="DMG size in bytes (from sign_update)")
     p.add_argument("--signature", required=True, help="sparkle:edSignature (from sign_update)")

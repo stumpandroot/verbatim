@@ -1,11 +1,14 @@
 import SwiftUI
 
 /// What's new (the version at the foot of Settings, search, and Home's note): every build's
-/// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift). Verbose style: the
-/// compact serif title, then one card per build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif,
-/// and bullet items. Native: the large title and an inset grouped section per build, the build as its header.
+/// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift), grouped under version
+/// headers ("Version 1.0 beta"): the newest version open, older ones closed until tapped. Verbose style: the compact
+/// serif title, then one card per build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and
+/// bullet items. Native: the large title and an inset grouped section per build, the build as its header.
 struct WhatsNewScreen: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
+    /// Versions tapped open or closed; the newest starts open and the rest closed.
+    @State private var toggled: Set<String> = []
     @Environment(\.look) private var look
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
     /// How many What's new screens are on screen, for the UI tour's checks. A count rather than a flag, so a screen
@@ -24,11 +27,18 @@ struct WhatsNewScreen: View {
                         .font(.system(size: 15)).foregroundStyle(.lookMute)
                         .padding(.top, 18)
                 }
-                ForEach(Array(notes.enumerated()), id: \.element.id) { i, note in
-                    Group {
-                        if look.isNative { nativeSection(note) } else { verboseCard(note) }
+                ForEach(Array(ReleaseNotes.byVersion(notes).enumerated()), id: \.element.id) { i, version in
+                    let open = (i == 0) != toggled.contains(version.id)
+                    versionHeader(version, open: open)
+                        .padding(.top, i == 0 ? (look.isNative ? 8 : 14) : 22)
+                    if open {
+                        ForEach(Array(version.notes.enumerated()), id: \.element.id) { j, note in
+                            Group {
+                                if look.isNative { nativeSection(note) } else { verboseCard(note) }
+                            }
+                            .padding(.top, j == 0 ? (look.isNative ? 6 : 8) : (look.isNative ? 26 : 14))
+                        }
                     }
-                    .padding(.top, i == 0 ? (look.isNative ? 8 : 18) : (look.isNative ? 26 : 14))
                 }
             }
             .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
@@ -48,6 +58,34 @@ struct WhatsNewScreen: View {
             if let current = ReleaseNotes.currentBuild, current > lastSeen { lastSeen = current }
         }
         .onDisappear { Self.onScreen = max(0, Self.onScreen - 1) }
+    }
+
+    /// A version's header: a chevron, "Version 1.0 beta", and how many builds. Tapping it shows or hides the builds.
+    private func versionHeader(_ version: ReleaseVersion, open: Bool) -> some View {
+        Button {
+            if toggled.contains(version.id) { toggled.remove(version.id) } else { toggled.insert(version.id) }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookMute)
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                    .frame(width: 14)
+                Group {
+                    if look.isNative { Text(version.heading).font(.title3.weight(.semibold)) } else { Text(version.heading).lookSerif(24) }
+                }
+                .foregroundStyle(.lookInk)
+                Text("\(version.notes.count) build\(version.notes.count == 1 ? "" : "s")")
+                    .font(.system(size: 13)).foregroundStyle(.lookMute)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(version.spokenHeading)
+        .accessibilityValue(open ? "Expanded" : "Collapsed")
+        .accessibilityAddTraits([.isButton, .isHeader])
     }
 
     /// Verbose style: a card with a hairline edge, the eyebrow, the serif title, and the items.

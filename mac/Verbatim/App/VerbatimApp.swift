@@ -37,6 +37,13 @@ struct VerbatimApp: App {
         .windowToolbarStyle(.unified)
         .defaultSize(width: UITest.enabled ? 1000 : 1200, height: UITest.enabled ? 700 : 800)
         .commands {
+            // About Verbose: the standard panel, with the channel in the version, "Version 1.0 beta (217)"
+            // (VERSIONING.md). Without the option it shows only CFBundleShortVersionString, "1.0".
+            CommandGroup(replacing: .appInfo) {
+                Button("About Verbose") {
+                    NSApp.orderFrontStandardAboutPanel(options: [.applicationVersion: AppVersion.name, .version: AppVersion.build])
+                }
+            }
             CommandGroup(after: .appInfo) {
                 // Settings › What's new (Views/WhatsNewPane.swift), then Sparkle's check.
                 WhatsNewMenuButton { app.dictation.openSettings(tab: .whatsNew) }

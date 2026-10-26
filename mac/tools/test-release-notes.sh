@@ -1,7 +1,8 @@
 #!/bin/bash
 # What's new: checks mac/ReleaseNotes/ReleaseNotes.json with the app's own parser (Verbatim/Model/ReleaseNotes.swift,
 # compiled with release-notes-tests/main.swift) and with release_notes.py, then runs CI's stamping on a copy (never
-# the file itself) and checks the result, the Sparkle and GitHub renderings, and the fallbacks. Needs a Swift
+# the file itself) and checks the result, the version it records (mac/VERSIONING.md), the Sparkle and GitHub
+# renderings, and the fallbacks. Needs a Swift
 # toolchain and python3 (macOS or Linux), not Xcode.
 #   bash mac/tools/test-release-notes.sh
 set -euo pipefail
@@ -30,7 +31,22 @@ python3 -I "$py" stamp "$out/stamped.json" --build "$N"
 python3 -I "$py" check "$out/stamped.json"
 
 swiftc -O -o "$out/release-notes-tests" "$here/../Verbatim/Model/ReleaseNotes.swift" "$here/release-notes-tests/main.swift"
-"$out/release-notes-tests" "$notes" "$out/before.json" "$out/stamped.json" "$N" || fails=$((fails + 1))
+# The version project.yml builds ("1.0 beta"), which stamping records with the build number.
+VNAME="$(python3 -I "$py" version | sed -n 's/^name=//p')"
+"$out/release-notes-tests" "$notes" "$out/before.json" "$out/stamped.json" "$N" "$VNAME" || fails=$((fails + 1))
+
+check "version: project.yml's marketing version is numbers only, and the outputs agree" \
+  'python3 -I "$py" version > "$out/v.txt" && grep -Eqx "marketing=[0-9]+(\.[0-9]+){0,2}" "$out/v.txt" && [ "$(sed -n "s/^name=//p" "$out/v.txt")" = "$(sed -n "s/^marketing=//p" "$out/v.txt")$(sed -n "s/^channel=\(..*\)/ \1/p" "$out/v.txt")" ]'
+check "version: every target takes project.yml's one MARKETING_VERSION (no target sets its own)" \
+  '[ "$(grep -c "^ *MARKETING_VERSION:" "$here/../project.yml")" = 1 ]'
+check "stamping records the version from project.yml" 'grep -qF "\"version\": \"$VNAME\"" "$out/stamped.json"'
+check "stamping takes --version" \
+  'cp "$out/before.json" "$out/v2.json" && python3 -I "$py" stamp "$out/v2.json" --build "$N" --version "2.1" > /dev/null && grep -q "\"version\": \"2.1\"" "$out/v2.json"'
+printf 'settings:\n  base:\n    MARKETING_VERSION: "1.0"\n    VERBOSE_CHANNEL: ""\n' > "$out/store.yml"
+check "no channel (the App Store release): the version is 1.0" \
+  'cp "$out/before.json" "$out/v3.json" && python3 -I "$py" stamp "$out/v3.json" --build "$N" --project "$out/store.yml" > /dev/null && grep -q "\"version\": \"1.0\"," "$out/v3.json"'
+check "a project with no version: stamping still works, with no version" \
+  'cp "$out/before.json" "$out/v4.json" && : > "$out/none.yml" && python3 -I "$py" stamp "$out/v4.json" --build "$N" --project "$out/none.yml" > /dev/null 2>&1 && python3 -I "$py" check "$out/v4.json" > /dev/null && ! python3 -I -c "import json,sys; sys.exit(\"version\" not in json.load(open(sys.argv[1]))[\"notes\"][0])" "$out/v4.json"'
 
 check "stamping twice changes nothing" \
   'cp "$out/stamped.json" "$out/again.json" && python3 -I "$py" stamp "$out/again.json" --build "$N" > /dev/null && cmp -s "$out/stamped.json" "$out/again.json"'
@@ -57,6 +73,8 @@ check "a missing file: prints nothing and doesn't fail" \
   '[ -z "$(python3 -I "$py" notes "$out/missing.json" --build 1 2> /dev/null)" ]'
 printf '{"notes": [{"build": "next", "title": "A", "items": ["x."]}, {"build": "next", "title": "B", "items": ["y."]}, {"build": "3", "date": "2026-01-01", "title": "C", "items": ["z."]}, {"build": "4", "date": "2026-01-02", "title": "D", "items": ["w."]}]}\n' > "$out/bad.json"
 check "check: two next entries and builds going up fail" '! python3 -I "$py" check "$out/bad.json" 2> /dev/null'
+printf '{"notes": [{"build": "3", "date": "2026-01-01", "version": "", "title": "C", "items": ["z."]}]}\n' > "$out/badversion.json"
+check "check: an empty version fails" '! python3 -I "$py" check "$out/badversion.json" 2> /dev/null'
 
 if [ "$fails" -gt 0 ]; then echo "$fails release notes check(s) failed"; exit 1; fi
 echo "All release notes checks passed."

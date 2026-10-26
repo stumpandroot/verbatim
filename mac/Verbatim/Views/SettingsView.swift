@@ -234,13 +234,12 @@ struct SettingsSideItem: View {
 /// The foot of the Settings sidebar: the version, and What's new, which opens the release notes pane.
 struct SettingsVersionFooter: View {
     var open: () -> Void
-    @ObservedObject private var updater = Updater.shared
     @Environment(\.look) private var look
 
     var body: some View {
         Button(action: open) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Version \(updater.version) (\(updater.build))")
+                Text("Version \(AppVersion.label)")
                     .font(look == .native ? .system(size: 11) : Ink.mono(12)).foregroundStyle(Ink.mute)
                 Text("What's new").font(.system(size: look == .native ? 11 : 12.5, weight: .semibold))
                     .foregroundStyle(look == .native ? Ink.nativeAccent : Ink.accentText)
@@ -251,7 +250,7 @@ struct SettingsVersionFooter: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Version \(updater.version), build \(updater.build). What's new")
+        .accessibilityLabel("Version \(AppVersion.spoken). What's new")
         .accessibilityAddTraits(.isButton)
         .help("What each build of Verbose added")
         .uiTarget("settings-version")
