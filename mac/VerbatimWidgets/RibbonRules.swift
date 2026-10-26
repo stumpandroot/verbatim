@@ -304,7 +304,7 @@ enum Ribbon {
             case .voiceNote: return "Record a voice note"
             case .captions: return "Live captions"
             case .whatsPlaying: return "What's playing"
-            case .quickCapture: return "Quick capture to Thought pad"
+            case .quickCapture: return "New thought"
             }
         }
         /// The value on Settings' Action button row.
@@ -314,7 +314,7 @@ enum Ribbon {
             case .voiceNote: return "Voice note"
             case .captions: return "Captions"
             case .whatsPlaying: return "What's playing"
-            case .quickCapture: return "Quick capture"
+            case .quickCapture: return "New thought"
             }
         }
         /// The line under the title: whether it works in place or opens Verbose (or why it can't be chosen).
@@ -323,14 +323,15 @@ enum Ribbon {
             case .dictate: return "Starts or stops a take, in place."
             case .voiceNote, .captions: return "Opens Verbose."
             case .whatsPlaying: return "Opens the iOS broadcast sheet first."
-            case .quickCapture: return "Needs the Thought pad on iPhone (coming with sync)"
+            case .quickCapture: return "Starts a thought, in place when iOS allows it."
             }
         }
-        /// Whether it can be chosen on this iPhone. The Thought pad is a Mac panel; Quick capture needs a place to
-        /// land on the phone first.
-        var available: Bool { self != .quickCapture }
-        /// Only dictation runs without bringing Verbose forward (it reuses the session's microphone). A voice note
-        /// tries to start in place first on iOS 18 and later (`AudioRecordingIntent`), and opens Verbose when it can't.
+        /// Whether it can be chosen on this iPhone. Every choice can be, now that Thoughts has a page on the iPhone
+        /// (New thought keeps the stored value `quickCapture` from when it was the Mac's Quick capture).
+        var available: Bool { true }
+        /// Only dictation runs without bringing Verbose forward (it reuses the session's microphone). A voice note and
+        /// a thought try to start in place first on iOS 18 and later (`AudioRecordingIntent`), and open Verbose when
+        /// they can't.
         var needsForeground: Bool { self != .dictate }
     }
 

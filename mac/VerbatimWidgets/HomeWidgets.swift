@@ -13,9 +13,12 @@ import AppKit
 // 2. Recent recordings: medium (three) and large (five, with This week at the foot). Each row opens its transcript.
 // 3. This week: small and medium. Native draws a gradient card (the color is the widget's one option); Verbose style
 //    an outlined paper card with the serif number.
-// 4. Quick capture: small. iPhone records a voice note; on the Mac it's New thought, which starts a thought in the
-//    running app without bringing it forward (`NewThoughtIntent`).
-// 5. Today's thoughts (Mac): medium. Today's Thoughts page, its last two thoughts, and New thought.
+// 4. New thought (the Quick capture widget's kind): small. Starts a thought (`NewThoughtIntent`): on iPhone it records in
+//    place behind a Live Activity when iOS allows it; on the Mac it starts in the running app without bringing it
+//    forward.
+// 5. Today's thoughts: medium. Today's Thoughts page, its last two thoughts (marked `privacySensitive()`), and New
+//    thought. Tap a thought to open today's page.
+// 6. Thoughts on the Lock Screen (iPhone): circular, New thought; rectangular, today's count only, never the words.
 //
 // Widgets follow the look chosen in Verbose (DESIGN.md §13, item 8): iPhone reads `AppLook` from the App Group; the Mac reads
 // the look from the snapshot, since the Mac keeps it in the app's own defaults. Data comes from the snapshot the app
@@ -198,11 +201,10 @@ struct QuickCaptureWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
             QuickCaptureView(entry: entry)
         }
-        #if os(iOS)
-        .configurationDisplayName("Quick capture")
-        .description("One tap records a voice note.")
-        #else
         .configurationDisplayName("New thought")
+        #if os(iOS)
+        .description("Starts a thought at once, behind a Live Activity, without opening Verbose. It lands on today's Thoughts page.")
+        #else
         .description("Starts a thought at once, without leaving the app you're in. It lands on today's Thoughts page.")
         #endif
         .supportedFamilies([.systemSmall])
@@ -835,32 +837,17 @@ private struct QuickCaptureView: View {
 
     var body: some View {
         SkinReader(look: entry.look) { skin in
-            #if os(iOS)
-            Button(intent: RecordVoiceNoteIntent()) { content(skin) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Record a voice note")
-                .containerBackground(for: .widget) { background(skin) }
-            #else
             Button(intent: NewThoughtIntent()) { content(skin) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("New thought")
                 .containerBackground(for: .widget) { background(skin) }
-            #endif
         }
     }
 
-    #if os(iOS)
-    private let title = ("Voice", "note"), detail = "One tap to record"
-    #else
     private let title = ("New", "thought"), detail = "Starts recording at once"
-    #endif
 
     @ViewBuilder private func background(_ skin: Skin) -> some View {
-        #if os(iOS)
         if skin.native { NativeWidget.card } else { Ink.persimmonTint }
-        #else
-        if skin.native { NativeWidget.card } else { Ink.persimmonTint }
-        #endif
     }
 
     @ViewBuilder private func content(_ skin: Skin) -> some View {
@@ -883,18 +870,6 @@ private struct QuickCaptureView: View {
 
     @ViewBuilder private func mark(_ skin: Skin) -> some View {
         let disc: Color = skin.full ? (skin.native ? NativeWidget.tile : Ink.persimmon) : Color.primary.opacity(0.18)
-        #if os(iOS)
-        ZStack {
-            Circle().fill(disc)
-            if skin.native {
-                BarsMark(color: skin.full ? Ink.nativeAccent : .primary).padding(10).widgetAccentable()
-            } else {
-                BrandGlyph(art: .iconVoice, color: skin.full ? Ink.inkFixed : .primary, minLineWidth: 1.3).padding(8).widgetAccentable()
-            }
-        }
-        .frame(width: 36, height: 36)
-        .accessibilityHidden(true)
-        #else
         ZStack {
             Circle().fill(disc)
             BrandGlyph(art: .iconThought, color: skin.full ? (skin.native ? Ink.nativeAccent : Ink.inkFixed) : .primary, minLineWidth: 1.3)
@@ -902,7 +877,6 @@ private struct QuickCaptureView: View {
         }
         .frame(width: 36, height: 36)
         .accessibilityHidden(true)
-        #endif
     }
 }
 
@@ -929,6 +903,9 @@ struct NewThoughtIntent: AppIntent {
         return .result()
     }
 }
+#endif
+
+// MARK: - Thoughts
 
 struct TodayThoughtsWidget: Widget {
     static let kind = "co.stumpandroot.verbatim.widget.thoughts"
@@ -938,7 +915,7 @@ struct TodayThoughtsWidget: Widget {
             TodayThoughtsView(entry: entry)
         }
         .configurationDisplayName("Today's thoughts")
-        .description("Today's Thoughts page: the last two thoughts, and New thought.")
+        .description("Today's Thoughts page: the last two thoughts, and New thought. Tap a thought to open the page.")
         .supportedFamilies([.systemMedium])
     }
 }
@@ -1050,6 +1027,55 @@ private struct TodayThoughtsView: View {
         .background(Capsule().fill(skin.full ? (skin.native ? Ink.nativeAccent : Ink.persimmon) : Color.primary.opacity(0.12)))
         .widgetAccentable()
         .accessibilityLabel("New thought")
+    }
+}
+
+#if os(iOS)
+/// Thoughts on the Lock Screen: the circular widget starts a thought; the rectangular one shows how many thoughts
+/// today's page has, never the words, because anyone can read a Lock Screen. Both run `NewThoughtIntent`.
+struct ThoughtsLockWidget: Widget {
+    static let kind = "co.stumpandroot.verbatim.ios.widget.thoughtsLock"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: Self.kind, provider: ThoughtsProvider()) { entry in
+            ThoughtsLockView(entry: entry)
+        }
+        .configurationDisplayName("New thought")
+        .description("Starts a thought from the Lock Screen. The rectangular widget shows today's count, never your words.")
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular])
+    }
+}
+
+private struct ThoughtsLockView: View {
+    var entry: HomeEntry
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        let count = entry.snapshot?.thoughts(at: entry.date)?.count ?? 0
+        Button(intent: NewThoughtIntent()) {
+            if family == .accessoryCircular {
+                ZStack {
+                    AccessoryWidgetBackground()
+                    Image("thought").font(.system(size: 24, weight: .medium)).widgetAccentable()
+                }
+                .accessibilityLabel("New thought")
+            } else {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Image("thought").font(.system(size: 13, weight: .semibold))
+                        Text("Thoughts").font(.system(size: 14, weight: .semibold))
+                    }
+                    .widgetAccentable()
+                    Text(ThoughtRules.lockCount(count)).font(.system(size: 17, weight: .semibold)).monospacedDigit().lineLimit(1)
+                    Text("Tap to add one").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityHint("Starts a thought")
+            }
+        }
+        .buttonStyle(.plain)
+        .containerBackground(for: .widget) { Color.clear }
     }
 }
 #endif
