@@ -157,6 +157,11 @@ enum MacSettingsMap {
             Section("Updates", [Setting("general.autoUpdate"), Setting("general.beta"), Setting("general.version")]),
         ]),
         Pane(raw: "features", title: "Features", sections: [
+            Section("Thoughts", [
+                Setting("features.thoughtsHotkey"),
+                Setting("features.thoughtsBubble", keys: ["thoughts.showBubble"]),
+                Setting("features.thoughtsNewPage", keys: ["thoughts.newPageHour"]),
+            ]),
             Section("Widgets and Shortcuts", [Setting("features.widgets"), Setting("features.shortcuts")]),
             Section("Welcome tour", [
                 Setting("general.tour"),

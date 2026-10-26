@@ -159,7 +159,7 @@ enum SettingsIndex {
         .init("ribbon.liveWords", .floatingButton, "Show words as you speak", "A preview of your words in the Ribbon while you dictate, recognized on this Mac. What's pasted still comes from Verbose's own transcription.", keywords: "ribbon live words preview streaming"),
         .init("dictate.hotkey", .dictate, "Hotkey", "The key that starts dictation.", keywords: "shortcut key fn globe option command record mouse button side"),
         .init("dictate.mode", .dictate, "How it starts", "Hold the key while you talk and let go to paste. Press Esc to cancel.", keywords: "mode hold to talk press start stop either push toggle hands-free tap"),
-        .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation and the Thought pad.", keywords: "paste again thought pad hotkey"),
+        .init("dictate.shortcuts", .dictate, "Other shortcuts", "Paste last dictation, and New thought from any app.", keywords: "paste again thought thoughts hotkey"),
         .init("dictate.recall", .dictate, "Recent dictations", "Shows your last 10 dictations in any app, so you can copy one or paste it again. Press 1–0 to copy, or hold ⇧ to paste. While it's set, the shortcut does nothing else, such as Paste Style (⌥⌘V) in Pages and TextEdit.", keywords: "history recent clipboard copy paste again missed failed lost shortcut hotkey panel"),
         .init("dictate.alwaysCopy", .dictate, "Also copy each dictation to the clipboard", "Each dictation stays on the clipboard after it's pasted, instead of what you copied before.", keywords: "clipboard copy keep paste pasteboard"),
         .init("dictate.lowerAudio", .dictate, "Lower other audio while Verbose listens", "Other sound drops to a whisper so it doesn't reach the microphone. Applies to dictation, voice notes, and Live captions from your microphone.", keywords: "duck music spotify youtube volume quiet mute background sound"),
@@ -258,7 +258,7 @@ enum SettingsIndex {
               keywords: "cookies private age restricted members login signed in account browser safari chrome firefox brave edge youtube links dropbox google drive onedrive icloud"),
         .init("storage.keepFolder", .storage, "Keep folder", "Where kept video and audio from links go.", keywords: "keep download video folder"),
         .init("storage.keepVideo", .storage, "Keep the video of every link I transcribe", "Video is saved as MP4 (H.264, up to 1080p) with its sound; audio as M4A. Nothing is re-encoded.", keywords: "keep download youtube mp4"),
-        .init("storage.deleteAll", .storage, "Delete all data", "Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, the Thought pad, and downloaded models. Settings stay.", keywords: "erase reset privacy remove"),
+        .init("storage.deleteAll", .storage, "Delete all data", "Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, and downloaded models. Settings stay.", keywords: "erase reset privacy remove"),
 
         // About
         .init("about.version", .support, "Version", "What's New… shows what each build added.", keywords: "build number what's new release notes changes changelog"),
@@ -268,7 +268,10 @@ enum SettingsIndex {
         .init("about.acknowledgements", .support, "Acknowledgements", "Open-source software in Verbose and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
 
         // Features
-        .init("features.widgets", .features, "Widgets", "Record and Dictate, Recent recordings, This week, and Quick capture. Click the date in the menu bar, then Edit Widgets, and search for Verbose.", keywords: "widget desktop notification center this week recent recordings quick capture thought pad"),
+        .init("features.widgets", .features, "Widgets", "Record and Dictate, Recent recordings, This week, New thought, and Today's thoughts. Click the date in the menu bar, then Edit Widgets, and search for Verbose.", keywords: "widget desktop notification center this week recent recordings quick capture new thought thoughts"),
+        .init("features.thoughtsHotkey", .features, "New thought", "Starts a thought from any app; press it again to add it to today's page. It saves as audio first, so a thought is never lost.", keywords: "thoughts thought pad idea hotkey shortcut control option p"),
+        .init("features.thoughtsBubble", .features, "Show the bubble", "A small disc above every app. Click it to start a thought, click again to add it to today's page. Drag it anywhere.", keywords: "thoughts floating bubble button disc"),
+        .init("features.thoughtsNewPage", .features, "New page each day at", "When a new day's page starts. A thought belongs to the day it started.", keywords: "thoughts journal day boundary midnight morning page"),
         .init("features.shortcuts", .features, "Shortcuts", "Transcribe a file, Last dictation, Start recording, Get transcript text, and Copy for AI work in Shortcuts and Spotlight, and with Siri.", keywords: "shortcuts siri app intents automation spotlight"),
 
         // What's new

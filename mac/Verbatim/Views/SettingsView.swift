@@ -336,6 +336,66 @@ struct ElapsedText: View {
     var body: some View { Text(live.elapsed.timecode).font(.system(size: 13, design: .monospaced)) }
 }
 
+/// The menu bar's Thoughts group, at the top (mockup "Thoughts", section 04): New thought (⌃⌥P from any app), how many
+/// thoughts today's page has, Open today's page, and Show the bubble.
+struct ThoughtsMenuSection: View {
+    @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var capture = ThoughtCapture.shared
+    @AppStorage(Thoughts.bubbleKey) private var showBubble = true
+
+    var body: some View {
+        let count = app.store.todaysThoughts().count
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Thoughts").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 8).padding(.bottom, 2)
+                .accessibilityAddTraits(.isHeader)
+            row(capture.isRecording ? "Stop the thought" : "New thought", keys: Thoughts.hotkey, art: .iconThought) {
+                dismiss()
+                capture.toggle()
+            }
+            .uiTarget("menu-new-thought")
+            Text("Today: \(DayPages.count(count, "thought", "thoughts"))").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .uiTarget("menu-today-count")
+            row("Open today's page", keys: nil, art: nil) {
+                dismiss()
+                ThoughtPadController.shared.open()
+            }
+            .uiTarget("menu-open-page")
+            row("Show the bubble", keys: nil, art: nil, checked: showBubble) {
+                showBubble.toggle()
+                ThoughtBubble.shared.refresh()
+            }
+            .uiTarget("menu-show-bubble")
+        }
+        .padding(6)
+        .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+    }
+
+    private func row(_ title: String, keys: String?, art: BrandArt?, checked: Bool? = nil, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            if let checked {
+                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).opacity(checked ? 1 : 0).frame(width: 14)
+            } else if let art {
+                IconGlyph(art: art, size: 14, color: Ink.ink).frame(width: 14)
+            } else {
+                Color.clear.frame(width: 14, height: 1)
+            }
+            Text(title).font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 8)
+            if let keys { Text(keys).font(.system(size: 12)).foregroundStyle(Ink.mute) }
+        }
+        .foregroundStyle(Ink.ink)
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .hoverChip(radius: Radius.button)
+        .tapArea(action)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(checked == true ? "On" : "")
+    }
+}
+
 /// The menu bar panel: record from anywhere, jump back to the app.
 struct MenuBarPanel: View {
     @EnvironmentObject var app: AppState
@@ -349,6 +409,7 @@ struct MenuBarPanel: View {
                 Spacer()
                 HStack(spacing: 5) { Keycap(keys: "⌥⇧R", size: 10.5); Text("to record") }.font(.system(size: 11)).foregroundStyle(Ink.mute)
             }
+            ThoughtsMenuSection()
             if app.recorder.isRecording {
                 HStack(spacing: 10) {
                     RecordButton(size: 22)
