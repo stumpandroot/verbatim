@@ -45,7 +45,7 @@ enum LanguageDetection {
             // v3 when it's here (it can hear 25 languages); otherwise the model you picked.
             let passModel = LanguageRules.isMultilingual(model) || !(forceV3 || FluidEngine.isDownloaded("v3")) ? model : "v3"
             progress(.checkingLanguage)
-            let (words, confidence) = try await FluidEngine.shared.clipWords(samples: samples, model: passModel, language: nil, progress: progress)
+            let (words, confidence) = try await FluidEngine.shared.clipWords(samples: samples, model: passModel, language: nil, languageCheck: true, progress: progress)
             let text = words.map(\.text).joined(separator: " ")
             var guess = LanguageGuess.evaluate(hypotheses(text), words: words.count, englishOnlyPass: !LanguageRules.isMultilingual(passModel),
                                                confidence: confidence)

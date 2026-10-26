@@ -23,9 +23,19 @@ actor FluidEngine: TranscriptionEngine {
     /// instead of loading the model twice.
     private var loading: (model: String, task: Task<AsrManager, Error>)?
 
+    /// The model to transcribe with, loaded once: the main model when it's already `requested`, the spare (the
+    /// language check's) swapped in when that one is, or a load. Never loads a model that's already in memory.
     private func prepared(_ requested: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
         let model = Engines.fluidModel(requested)
         if let m = manager, loaded == model { return m }
+        if let m = swapInSpare(model) { return m }
+        if let l = spareLoading, l.model == model {
+            // The language check is loading it beside the main model: wait, then swap it in.
+            progress(.loading(Engines.displayName(engine: "fluid", model: model)))
+            _ = try? await l.task.value
+            if let m = manager, loaded == model { return m }
+            if let m = swapInSpare(model) { return m }
+        }
         if let l = loading, l.model == model {
             progress(.loading(Engines.displayName(engine: "fluid", model: model)))
             return try await l.task.value
@@ -42,11 +52,19 @@ actor FluidEngine: TranscriptionEngine {
         // megabytes (build 221's disk-writes report), so a load that replaces another model says so in the log.
         let replacing = loaded
         manager = nil
-        warmed = nil
+        if let r = replacing { warmed.remove(r) }
+        Log.note("Fluid load \(model)\(replacing.map { " (replacing \($0))" } ?? "")")
+        let m = try await makeManager(model, progress: progress)
+        manager = m
+        loaded = model
+        return m
+    }
+
+    /// Downloads the model when it isn't on this device yet, and has Core ML load it (`MLModel(contentsOf:)`).
+    private func makeManager(_ model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
         let name = Engines.displayName(engine: "fluid", model: model)
         let dir = Paths.models.appendingPathComponent("parakeet-\(model)", isDirectory: true)
         progress(.loading(name))
-        Log.note("Fluid load \(model)\(replacing.map { " (replacing \($0))" } ?? "")")
         // Settings › Privacy: a model that isn't on this device yet is a download, which Local Only refuses.
         let downloads = !AsrModels.modelsExist(at: dir, version: Self.version(model))
         var download: UUID?
@@ -57,10 +75,77 @@ actor FluidEngine: TranscriptionEngine {
         if downloads { NetworkGate.addBytes(download, ModelFiles.bytes(in: dir)) }
         let m = AsrManager(config: .default)
         try await m.loadModels(models)
-        manager = m
-        loaded = model
         return m
     }
+
+    // MARK: The language check's model
+
+    /// The language check's model when it isn't the main one: v3 checks the language of a recording that v2 then
+    /// transcribes (LanguageCheck.swift). With one model in memory, every such recording loaded both, one replacing
+    /// the other, and each load has Core ML write hundreds of megabytes (build 221's disk-writes report). So the
+    /// check's model stays beside the main one while it's needed: released after `spareIdleSeconds` without a check,
+    /// on a memory warning, or swapped in when a transcription asks for it (the check chose v3).
+    private var spare: (model: String, manager: AsrManager)?
+    private var spareLoading: (model: String, task: Task<AsrManager, Error>)?
+    private var spareRelease: Task<Void, Never>?
+    static let spareIdleSeconds: Double = 600
+
+    /// The model for a language check: the main model when it's `model`, the spare when that is, or a load beside
+    /// the main model (never in its place, so the transcription after the check finds its model still loaded).
+    private func preparedForCheck(_ model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
+        if let m = manager, loaded == model { return m }
+        if let s = spare, s.model == model { releaseSpareWhenIdle(); return s.manager }
+        if let l = loading, l.model == model { return try await l.task.value }
+        if let l = spareLoading, l.model == model { return try await l.task.value }
+        let task = Task { try await self.loadSpare(model, progress: progress) }
+        spareLoading = (model, task)
+        return try await task.value
+    }
+
+    private func loadSpare(_ model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
+        defer { if spareLoading?.model == model { spareLoading = nil } }
+        let replacing = spare?.model
+        spare = nil
+        if let r = replacing { warmed.remove(r) }
+        Log.note("Fluid load \(model) for the language check, beside \(loaded ?? "no other model")\(replacing.map { " (replacing \($0))" } ?? "")")
+        let m = try await makeManager(model, progress: progress)
+        if let main = manager, loaded == model { return main }
+        spare = (model, m)
+        releaseSpareWhenIdle()
+        return m
+    }
+
+    /// A transcription asking for the spare's model (the check routed the recording to v3): the spare becomes the
+    /// main model and the main one the spare, with no load.
+    private func swapInSpare(_ model: String) -> AsrManager? {
+        guard let s = spare, s.model == model else { return nil }
+        if let m = manager, let l = loaded { spare = (l, m); releaseSpareWhenIdle() } else { spare = nil; spareRelease?.cancel() }
+        manager = s.manager
+        loaded = model
+        Log.note("Fluid uses \(model) from the language check\(spare.map { ", keeping \($0.model) beside it" } ?? "")")
+        return s.manager
+    }
+
+    private func releaseSpareWhenIdle() {
+        spareRelease?.cancel()
+        spareRelease = Task {
+            try? await Task.sleep(nanoseconds: UInt64(Self.spareIdleSeconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self.dropSpare("after \(Int(Self.spareIdleSeconds / 60)) minutes unused")
+        }
+    }
+
+    private func dropSpare(_ why: String) {
+        guard let s = spare, spareLoading == nil else { return }
+        spare = nil
+        warmed.remove(s.model)
+        spareRelease?.cancel()
+        spareRelease = nil
+        Log.note("Fluid released the language check's \(s.model) \(why)")
+    }
+
+    /// The iPhone on a memory warning while a session or transcription keeps the main model: the spare goes.
+    func releaseSpareModel() { dropSpare("on a memory warning") }
 
     func transcribe(url: URL, model requested: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> EngineResult {
         try await transcribe(url: url, model: requested, language: nil, progress: progress)
@@ -106,11 +191,12 @@ actor FluidEngine: TranscriptionEngine {
         try await clipWords(samples: samples, model: requested, language: language, progress: progress).words
     }
 
-    /// `sectionWords` with the model's average token confidence (0.1…1), for the language check.
-    func clipWords(samples: [Float], model requested: String, language: String?,
+    /// `sectionWords` with the model's average token confidence (0.1…1), for the language check. `languageCheck`:
+    /// the model loads beside the main one instead of replacing it (`preparedForCheck`).
+    func clipWords(samples: [Float], model requested: String, language: String?, languageCheck: Bool = false,
                    progress: @escaping @Sendable (EngineProgress) -> Void = { _ in }) async throws -> (words: [SectionWord], confidence: Double) {
         let model = Engines.fluidModel(requested)
-        let m = try await prepared(model, progress: progress)
+        let m = languageCheck ? try await preparedForCheck(model, progress: progress) : try await prepared(model, progress: progress)
         if let p = prewarming, p.model == model { await p.task.value }
         var input = samples
         // FluidAudio rejects clips under 0.3 s: pad very short audio with trailing silence.
@@ -323,26 +409,27 @@ actor FluidEngine: TranscriptionEngine {
     /// iPhone tells the keyboard and the Dynamic Island "Getting ready" until it is.
     func isWarm(_ requested: String) -> Bool {
         let model = Engines.fluidModel(requested)
-        return warmed == model && loaded == model
+        return warmed.contains(model) && loaded == model
     }
 
-    /// Drops the loaded model (the iPhone on a memory warning, with no session or transcription running). Never
-    /// while a load or warm-up is under way; a transcription that already holds the model keeps it until it
-    /// finishes, and the next caller loads it again. Returns whether it released anything.
+    /// Drops the loaded models, the language check's too (the iPhone on a memory warning, with no session or
+    /// transcription running). Never while a load or warm-up is under way; a transcription that already holds the
+    /// model keeps it until it finishes, and the next caller loads it again. Returns whether it released anything.
     @discardableResult
     func releaseModel() -> Bool {
+        dropSpare("on a memory warning")
         guard loading == nil, prewarming == nil, manager != nil else { return false }
         Log.note("Fluid released \(loaded ?? "the model") on a memory warning")
         manager = nil
         loaded = nil
-        warmed = nil
+        warmed = []
         return true
     }
 
     // MARK: Prewarm
 
-    /// The model whose Core ML graphs have run one real inference since it was loaded.
-    private var warmed: String?
+    /// The models in memory whose Core ML graphs have run one real inference since they were loaded.
+    private var warmed: Set<String> = []
     private var prewarming: (model: String, task: Task<Void, Never>)?
 
     /// About 1 s of near-silence at 16 kHz (a faint tone, so feature normalization never sees all zeros).
@@ -357,7 +444,7 @@ actor FluidEngine: TranscriptionEngine {
         startDictationHelpers()
         // The iPhone keyboard session dictates too: load the speech detector for its silence trimming.
         if dictation { startVadLoad() }
-        if !(warmed == model && loaded == model) {
+        if !(warmed.contains(model) && loaded == model) {
             if let p = prewarming, p.model == model {
                 await p.task.value
             } else {
@@ -376,13 +463,13 @@ actor FluidEngine: TranscriptionEngine {
 
     private func runWarmInference(_ model: String) async {
         guard let m = try? await prepared(model, progress: { _ in }) else { return }
-        guard !(warmed == model && loaded == model) else { return }
+        guard !(warmed.contains(model) && loaded == model) else { return }
         let layers = await m.decoderLayerCount
         var state = TdtDecoderState.make(decoderLayers: layers)
         let t0 = Date()
         do {
             _ = try await m.transcribe(Self.warmupSamples, decoderState: &state)
-            if loaded == model { warmed = model }
+            if loaded == model { warmed.insert(model) }
             Log.note("Fluid prewarm \(model) \(String(format: "%.2f", Date().timeIntervalSince(t0))) s")
         } catch {
             Log.note("Fluid prewarm inference failed: \(error)")

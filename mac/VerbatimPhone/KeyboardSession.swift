@@ -566,6 +566,8 @@ final class KeyboardSession: ObservableObject {
     private func memoryWarning() {
         guard stage == .off, app?.runningID == nil else {
             Log.note("memory warning: the speech model stays (a session or a transcription is using it)")
+            // The language check's model kept beside it goes (FluidEngine.releaseSpareModel).
+            Task.detached(priority: .utility) { await FluidEngine.shared.releaseSpareModel() }
             return
         }
         foregroundWarm?.cancel()
