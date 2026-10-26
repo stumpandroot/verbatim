@@ -27,6 +27,8 @@ struct TranscriptScreen: View {
     @AppStorage(Transcript.mainSpeakerOnlyKey) private var mainSpeakerOnly = false
     /// Why Summarize can't run here (Apple Intelligence unavailable), shown when the action is chosen.
     @State private var summaryUnavailable: String? = nil
+    /// Transcribe again with Whisper Turbo's question is showing.
+    @State private var askTurbo = false
     /// Original tab: the engine's own words instead of the corrected lines.
     @State private var showEngine = false
     /// Original tab: one selectable text, for selecting across lines.
@@ -163,6 +165,14 @@ struct TranscriptScreen: View {
                                 else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
                             } label: { Label(SummaryAction.title(t), systemImage: "text.quote") }   // brand: system surface (menu)
                             .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
+                            // Whisper Turbo on the original audio, run by your Mac; and back to the words it replaced.
+                            Section {
+                                Button { askTurbo = true } label: { Label(TurboRerun.title + "…", systemImage: "arrow.counterclockwise") }
+                                    .disabled(TurboRerun.unavailableReason(t) != nil)
+                                if let other = TurboRerun.switchTitle(t) {
+                                    Button { app.switchTranscriptVersion(t.id) } label: { Label(other, systemImage: "arrow.uturn.backward") }
+                                }
+                            }
                         } label: { toolbarIcon(.refine, "toolbar-actions", "sparkles") }
                         .accessibilityLabel("Actions")
                         .disabled(t.status != .ready)
@@ -194,6 +204,14 @@ struct TranscriptScreen: View {
                 .alert("Apple Intelligence is off", isPresented: Binding(get: { summaryUnavailable != nil }, set: { if !$0 { summaryUnavailable = nil } })) {
                     Button("OK", role: .cancel) {}
                 } message: { Text(summaryUnavailable ?? "") }
+                .alert(app.macCanTranscribe ? TurboRerun.title + "?" : "This needs your Mac", isPresented: $askTurbo) {
+                    if app.macCanTranscribe {
+                        Button("Cancel", role: .cancel) {}
+                        Button("Send to Mac") { app.requestTurbo(t.id) }
+                    } else {
+                        Button("OK", role: .cancel) {}
+                    }
+                } message: { Text(app.macCanTranscribe ? TurboRerun.message(t, onMac: false, needsDownload: false) : TurboRerun.needsMac) }
                 .sheet(isPresented: $showNotes) { NotesSheet(id: id).presentationDetents([.medium, .large]) }
                 .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) { ShareSheet(items: shareItems ?? []) }
                 .alert("Add a note", isPresented: Binding(get: { noteFor != nil }, set: { if !$0 { noteFor = nil } })) {
@@ -310,6 +328,17 @@ struct TranscriptScreen: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
                 .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .padding(.top, 6)
+            } else if t.rerunRequest != nil, t.status == .ready {
+                // Transcribe again with Whisper Turbo, waiting for the Mac to pick it up.
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    LiveStage(t) { t in Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2) }
+                    Spacer(minLength: 4)
+                    if t.processingDevice == nil { Button("Cancel") { app.cancelTurboRequest(t.id) }.font(.system(size: 14)) }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(Ink.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 6)
             } else if t.status == .ready {
                 // A progress tick can change the label (StageClock), so it's read live.
@@ -534,6 +563,8 @@ struct PhoneLines: View {
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
         let folds = self.folds.count == segs.count ? self.folds : SponsorFold.places(segs, in: transcript)
+        // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
+        let chips = UnclearStyle.chips(transcript, lines: segs)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segs.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
@@ -541,6 +572,7 @@ struct PhoneLines: View {
                 let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segs[i - 1].speaker != s.speaker)
                 let playing = current.contains(s.id)
                 let fold = folds[i]
+                if let spans = chips[i] { unclearChips(spans) }
                 if let fold, fold.first {
                     SponsorFoldRow(span: fold.span, open: openSponsors.contains(fold.span.id), compact: false,
                                    onToggle: { if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) } },
@@ -604,6 +636,7 @@ struct PhoneLines: View {
                 }
                 .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
+            if let spans = chips[segs.count] { unclearChips(spans) }
         }
         .alert("Name this speaker", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("First and last name", text: $newName).textInputAutocapitalization(.words)
@@ -622,6 +655,14 @@ struct PhoneLines: View {
         if ids != playingIDs { playingIDs = ids }
     }
 
+    /// The chips before a line: tap one to play that spot.
+    private func unclearChips(_ spans: [UnclearSpan]) -> some View {
+        ForEach(spans, id: \.start) { sp in
+            UnclearChip(span: sp, onPlay: { if app.player.canPlay { app.player.play(from: sp.start) } })
+                .padding(.leading, 6).padding(.vertical, 6)
+        }
+    }
+
     /// Seeks to the line and plays, once the audio is open.
     private func play(_ s: Segment) {
         guard app.player.canPlay else { return }
@@ -630,10 +671,11 @@ struct PhoneLines: View {
 
     /// The line's text; while it plays with fresh word timings, the playing word is tinted too.
     @ViewBuilder private func lineText(_ s: Segment, playing: Bool) -> some View {
+        // Low-confidence words carry a quiet dotted underline (UnclearStyle), as a best guess.
         if playing, PlaybackSync.timingsFresh(s) {
-            PlayingWordText(segment: s, base: AttributedString(s.text), clock: clock, tint: Ink.accentText.opacity(0.18))
+            PlayingWordText(segment: s, base: UnclearStyle.marked(AttributedString(s.text), s), clock: clock, tint: Ink.accentText.opacity(0.18))
         } else {
-            Text(s.text)
+            Text(UnclearStyle.marked(AttributedString(s.text), s))
         }
     }
 }
@@ -715,6 +757,7 @@ struct PhoneDock: View {
                 }
                 Button("Back 5 seconds") { app.player.seek(to: max(0, clock.time - 5)) }
                 Button("Forward 5 seconds") { app.player.seek(to: min(total, clock.time + 5)) }
+                ReduceNoiseToggle(player: app.player)
                 Button {
                     let at = clock.time
                     let seg = transcript.segments.first { at >= $0.start && at < $0.end }
@@ -781,6 +824,7 @@ extension PhoneDock {
                 }
                 Button("Back 5 seconds") { app.player.seek(to: max(0, clock.time - 5)) }
                 Button("Forward 5 seconds") { app.player.seek(to: min(total, clock.time + 5)) }
+                ReduceNoiseToggle(player: app.player)
                 Button {
                     let at = clock.time
                     let seg = transcript.segments.first { at >= $0.start && at < $0.end }

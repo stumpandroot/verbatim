@@ -70,8 +70,8 @@ actor FluidEngine: TranscriptionEngine {
         progress(.transcribing(nil))
         var state = TdtDecoderState.make()
         let r = try await m.transcribe(url, decoderState: &state, language: Self.hint(language, model: model))
-        let words: [WordSpan] = buildWordTimings(from: r.tokenTimings ?? []).map {
-            WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: $0.startTime, end: $0.endTime)
+        let words: [WordSpan] = Self.scoredWords(r.tokenTimings ?? []).map {
+            WordSpan(text: $0.word.trimmingCharacters(in: .whitespaces), start: $0.start, end: $0.end, confidence: $0.confidence)
         }.filter { !$0.text.isEmpty }
         let segments: [Segment]
         if words.isEmpty {
@@ -114,11 +114,29 @@ actor FluidEngine: TranscriptionEngine {
         if input.count < 16_000 { input += [Float](repeating: 0, count: 16_000 - input.count) }
         var state = TdtDecoderState.make()
         let r = try await m.transcribe(input, decoderState: &state, language: Self.hint(language, model: model))
-        let words = buildWordTimings(from: r.tokenTimings ?? []).compactMap { w -> SectionWord? in
+        let words = Self.scoredWords(r.tokenTimings ?? []).compactMap { w -> SectionWord? in
             let text = w.word.trimmingCharacters(in: .whitespaces)
-            return text.isEmpty ? nil : SectionWord(text: text, start: w.startTime, end: w.endTime)
+            return text.isEmpty ? nil : SectionWord(text: text, start: w.start, end: w.end, p: w.confidence)
         }
         return (words, Double(r.confidence))
+    }
+
+    /// FluidAudio's words, each with the average confidence of the tokens inside it (nil when none line up), for
+    /// the reading view's low-confidence marks (UnclearRules).
+    nonisolated static func scoredWords(_ timings: [TokenTiming]) -> [(word: String, start: Double, end: Double, confidence: Double?)] {
+        let tokens = timings.filter { !$0.token.isEmpty && $0.token != "<blank>" && $0.token != "<pad>" }
+        let eps = 0.0005
+        var i = 0
+        return buildWordTimings(from: timings).map { w in
+            // A token is the word's when it lies inside the word's time; tokens are in time order.
+            while i < tokens.count, tokens[i].startTime < w.startTime - eps { i += 1 }
+            var sum = 0.0, n = 0, j = i
+            while j < tokens.count, tokens[j].startTime <= w.endTime + eps, tokens[j].endTime <= w.endTime + eps {
+                sum += Double(tokens[j].confidence); n += 1; j += 1
+            }
+            i = j
+            return (w.word, w.startTime, w.endTime, n > 0 ? sum / Double(n) : nil)
+        }
     }
 
     /// Transcribes 16 kHz mono samples already in memory, with nothing else: no file read, no speech detection,

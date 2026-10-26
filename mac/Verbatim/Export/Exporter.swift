@@ -107,6 +107,7 @@ enum Exporter {
         var doc = ExportDocument(title: t.title, details: details(t), summary: summary(t), paragraphs: paragraphs,
                                  moments: moments(t), footer: provenance(t), lineByLine: lineByLine)
         if o.source == .document, t.cleanedByModel { doc.aiNote = aiNoteText }
+        doc.unclear = (t.unclear ?? []).map(\.start)
         doc.aiResults = aiResults(t)
         if let info = t.linkInfo {
             let label = [info.channel, info.site].compactMap { $0 }.joined(separator: " · ").ifEmpty(info.url)

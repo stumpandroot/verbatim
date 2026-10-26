@@ -99,6 +99,7 @@ struct ExportSheet: View {
         let hasSummary = ts.contains { Exporter.summary($0) != nil }
         let hidden = ts.first.map { $0.hiddenSegmentIDs.count } ?? 0
         let sponsors = ts.reduce(0) { $0 + $1.sponsorSpans.count }
+        let unclear = ts.reduce(0) { $0 + ($1.unclear?.count ?? 0) }
         VStack(spacing: 0) {
             switch format {
             case .json:
@@ -138,6 +139,8 @@ struct ExportSheet: View {
                 row("Include sponsor reads", detail: sponsors > 0 ? "\(sponsors)" : nil, divider: true) { toggle($options.includeSponsors) }
                     .disabled(options.source == .document && ts.first?.document != nil)
                     .help(options.source == .document && ts.first?.document != nil ? "The edited document keeps its own text" : "Sponsor reads found in podcasts and videos")
+                row("Unclear markers", detail: unclear > 0 ? "\(unclear)" : nil, divider: true) { toggle($options.includeUnclear) }
+                    .help("Adds “[unclear 2:10]” where speech was heard but the words didn't come through")
                 row("One paragraph", divider: true) { toggle($options.singleParagraph) }
                 row("“Transcribed with Verbose” footer", divider: false) { toggle($options.provenance) }
             }

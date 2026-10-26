@@ -114,6 +114,8 @@ final class AppState: ObservableObject {
     var focusSegment: UUID? = nil
     /// iPhone links this Mac is fetching right now.
     var claiming: Set<UUID> = []
+    /// The transcript whose Transcribe again with Whisper Turbo question is showing (AppState+Turbo).
+    @Changed var turboAsk: UUID? = nil
     /// A private or signed-in video waiting for you to choose a browser's sign-in (Views/SignInSheet.swift).
     @Changed var signInRequest: LinkSignInRequest? = nil
 
@@ -170,7 +172,8 @@ final class AppState: ObservableObject {
         // Services, Spotlight, and Shortcuts (App/SystemHooks.swift).
         SystemHooks.attach(self)
         // Links added on the iPhone wait for a Mac: claimed once the library has loaded, and whenever more arrive.
-        store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t) }
+        // So do Whisper Turbo requests (Transcribe again on the iPhone, AppState+Turbo).
+        store.onRemoteChange = { [weak self] t in self?.claimIfPendingLink(t); self?.claimIfPendingRerun(t) }
         // The queue, unfinished imports, link claims, and stills start once the library has loaded (the transcripts
         // are decoded off the main thread, after the first frame).
         store.whenLoaded { [weak self] in self?.resumeAfterLoad() }
@@ -185,6 +188,7 @@ final class AppState: ObservableObject {
         // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
         if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
+        DispatchQueue.main.async { for t in self.store.live where t.rerunRequest != nil { self.claimIfPendingRerun(t) } }
         if !UITest.enabled { DispatchQueue.main.async { self.resumeLinkFetches() } }
         if !queue.isEmpty { Log.note("resuming queue: \(queue.count)"); DispatchQueue.main.async { self.pump() } }
         // Imports the app quit in the middle of start again (their placeholders are still "Importing").

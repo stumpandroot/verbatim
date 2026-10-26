@@ -6,6 +6,17 @@ struct WordSpan: Codable, Equatable {
     var text: String
     var start: Double
     var end: Double
+    /// How sure the engine was of this word (0…1), from engines that say: Whisper's word probability, Parakeet's
+    /// average token confidence. nil for Apple's engine and for words from builds before this was kept. Stored as
+    /// "p" with two decimals; the reading view marks words under `UnclearRules.lowConfidence`.
+    var confidence: Double? = nil
+
+    enum CodingKeys: String, CodingKey { case text, start, end, confidence = "p" }
+
+    init(text: String, start: Double, end: Double, confidence: Double? = nil) {
+        self.text = text; self.start = start; self.end = end
+        self.confidence = confidence.map { ($0 * 100).rounded() / 100 }
+    }
 }
 
 struct Segment: Codable, Identifiable, Equatable {
@@ -300,6 +311,59 @@ struct SponsorSpan: Codable, Identifiable, Equatable {
     }
 }
 
+/// A stretch where speech was heard but the words are missing or unsure (UnclearRules, the noise report's rules):
+/// the reading view shows a quiet "unclear 2:10" chip that plays it, and exports can list it. Every field decodes
+/// with a default, so a span a newer build wrote still reads.
+struct UnclearSpan: Codable, Equatable {
+    enum Reason: String, Codable {
+        /// Speech detection heard someone for 2 s or more, and the engine wrote nothing it was sure of.
+        case noWords
+        /// Three or more words in a row under the low-confidence line: shown as a best guess.
+        case lowConfidence
+    }
+    var start: Double
+    var end: Double
+    var reason: Reason = .noWords
+
+    init(start: Double, end: Double, reason: Reason = .noWords) { self.start = start; self.end = end; self.reason = reason }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case start, end, reason }
+        let c = try d.container(keyedBy: K.self)
+        start = try c.decodeIfPresent(Double.self, forKey: .start) ?? 0
+        end = try c.decodeIfPresent(Double.self, forKey: .end) ?? start
+        // A reason a newer build added reads as missing words (the chip shows either way).
+        let raw: String? = (try? c.decodeIfPresent(String.self, forKey: .reason)) ?? nil
+        reason = raw.flatMap(Reason.init(rawValue:)) ?? .noWords
+    }
+}
+
+/// The words a transcript had before Transcribe again with Whisper Turbo replaced them, so you can switch back
+/// (TranscriptVersions.swift). Switching swaps this with the current words; notes, moments, title, and tags stay.
+struct TranscriptVersion: Codable, Equatable {
+    var original: [Segment] = []
+    var segments: [Segment] = []
+    var speakers: [Speaker] = []
+    var corrections: [Correction] = []
+    var engine: String = ""
+    var model: String = ""
+    var language: String? = nil
+    var unclear: [UnclearSpan]? = nil
+    var savedAt = Date()
+}
+
+/// Transcribe again with another engine, asked for on a device that can't run it (the iPhone asks; a Mac runs
+/// Whisper Turbo). Synced with the transcript: the Mac that picks it up takes the job (`processingDevice`), and the
+/// request goes once the new words are in or the job stops.
+struct RerunRequest: Codable, Equatable {
+    var engine: String
+    var model: String
+    var requestedAt = Date()
+    /// The device that asked, and its name.
+    var device: String = ""
+    var deviceName: String = ""
+}
+
 struct Transcript: Codable, Identifiable, Equatable {
     enum Status: String, Codable, TolerantEnum {
         case processing, ready, failed
@@ -315,7 +379,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
-             speakerSuggestions
+             speakerSuggestions, unclear, previousVersion, rerunRequest
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -410,6 +474,13 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Sponsor reads (SponsorDetect, Sponsors.swift): nil until a podcast or video is checked, [] when it has none.
     /// Older builds keep the key as they found it and write it back.
     var sponsors: [SponsorSpan]? = nil
+    /// Stretches where speech was heard but the words are missing or unsure (UnclearRules). nil for transcripts made
+    /// before this was checked; [] when it was checked and found none. Older builds keep the key and write it back.
+    var unclear: [UnclearSpan]? = nil
+    /// The words before Transcribe again with Whisper Turbo, to switch back to (TranscriptVersions.swift).
+    var previousVersion: TranscriptVersion? = nil
+    /// Transcribe again asked for on the iPhone, waiting for a Mac (or running there).
+    var rerunRequest: RerunRequest? = nil
     /// The file format of the file this was read from (`currentSchema` for new transcripts).
     var schemaVersion = Transcript.currentSchema
     /// What a newer build wrote that this one doesn't understand, written back unchanged on save.
@@ -514,6 +585,10 @@ struct Transcript: Codable, Identifiable, Equatable {
         // A summary a newer build wrote in a shape this one can't read is dropped, never the whole file.
         summary = (try? c.decodeIfPresent(TranscriptSummary.self, forKey: .summary)) ?? nil
         summaryByModel = try c.decodeIfPresent(Bool.self, forKey: .summaryByModel) ?? false
+        // Read in shapes a newer build might change: what can't be read is dropped, never the whole file.
+        unclear = (try? c.decodeIfPresent([UnclearSpan].self, forKey: .unclear)) ?? nil
+        previousVersion = (try? c.decodeIfPresent(TranscriptVersion.self, forKey: .previousVersion)) ?? nil
+        rerunRequest = (try? c.decodeIfPresent(RerunRequest.self, forKey: .rerunRequest)) ?? nil
         schemaVersion = (try? c.decodeIfPresent(Int.self, forKey: .schemaVersion)) ?? 1
         unknown.keys = UnknownFields.collect(from: d, known: Self.knownKeys)
         self.unknown = unknown
@@ -570,6 +645,9 @@ struct Transcript: Codable, Identifiable, Equatable {
         if let cleaned = documentCleanedBy { try c.encode(unknown.raw(for: "documentCleanedBy", current: cleaned.rawValue), forKey: .documentCleanedBy) }
         try c.encode(documentMarkHistory, forKey: .documentMarkHistory)
         try c.encode(documentEdited, forKey: .documentEdited)
+        try c.encodeIfPresent(unclear, forKey: .unclear)
+        try c.encodeIfPresent(previousVersion, forKey: .previousVersion)
+        try c.encodeIfPresent(rerunRequest, forKey: .rerunRequest)
         try c.encode(max(schemaVersion, Self.currentSchema), forKey: .schemaVersion)
         try unknown.encodeKeys(to: e, known: Self.knownKeys)
     }
@@ -608,6 +686,7 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// Status text that knows about the other device: "Transcribing on Tim's Mac", "Waiting for your Mac".
     var stageText: String {
         if pendingLink { return "Waiting for your Mac to fetch the audio" }
+        if rerunRequest != nil, status == .ready, processingDevice == nil { return "Waiting for your Mac" }
         if pendingAppend != nil, status == .ready {
             if let d = processingDevice, d != Device.id { return "Adding the new recording on \(processingDeviceName ?? "your other device")" }
             return stage ?? "Adding the new recording"

@@ -483,6 +483,41 @@ enum InterruptionPolicy {
     static let resumeCheckDelay: TimeInterval = 1.2
 }
 
+#if os(iOS)
+/// The iPhone's recording session options, shared by voice notes, Thoughts, the Live Activity's in-place recording
+/// (Recorder), and the keyboard session (KeyboardSession). On iOS 26, AirPods record over their high-quality link
+/// (`bluetoothHighQualityRecording`) instead of the phone-call link (HFP), which gave the lawnmower test file 16 kHz
+/// mono; iOS falls back to HFP by itself where the AirPods or the route can't. The Mac never sets a session.
+enum RecordingRoute {
+    static func options(mixWithOthers: Bool = false) -> AVAudioSession.CategoryOptions {
+        var o: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth]
+        if mixWithOthers { o.insert(.mixWithOthers) }
+        if #available(iOS 26, *) { o.insert(.bluetoothHighQualityRecording) }
+        return o
+    }
+
+    /// True when the options ask for AirPods high-quality recording (iOS 26 and later), for the self-test.
+    static var asksForHighQuality: Bool {
+        if #available(iOS 26, *) { return options().contains(.bluetoothHighQualityRecording) }
+        return false
+    }
+
+    /// The last route a recording started on: "AirPods Pro (BluetoothHFP) 16000 Hz, 1 ch".
+    private(set) static var lastRoute: String? = nil
+
+    /// Logs the input a recording starts on and the rate it really delivers (`format`, the input node's), so the
+    /// diagnostic log shows whether AirPods came in at 16 kHz (HFP) or higher (high-quality recording).
+    static func noteStart(_ context: String, format: AVAudioFormat?) {
+        let s = AVAudioSession.sharedInstance()
+        let input = s.currentRoute.inputs.first
+        let rate = format.map { Int($0.sampleRate) } ?? Int(s.sampleRate)
+        let route = "\(input?.portName ?? "no input") (\(input?.portType.rawValue ?? "-")) \(rate) Hz, \(format.map { Int($0.channelCount) } ?? s.inputNumberOfChannels) ch"
+        lastRoute = route
+        Log.note("\(context): recording on \(route), session \(Int(s.sampleRate)) Hz, high-quality AirPods asked: \(asksForHighQuality)")
+    }
+}
+#endif
+
 @MainActor
 final class Recorder: ObservableObject {
     @Published private(set) var isRecording = false
@@ -640,7 +675,7 @@ final class Recorder: ObservableObject {
         #if os(iOS)
         // iPhone: a record session that keeps going with the screen locked (background audio mode).
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth])
+        try session.setCategory(.playAndRecord, mode: .spokenAudio, options: RecordingRoute.options())
         try session.setActive(true)
         #endif
         if keepWarm {
@@ -678,6 +713,7 @@ final class Recorder: ObservableObject {
         RecordingSegments.setActive(url, true)
         observeInterruptions()
         pinCurrentInput()
+        RecordingRoute.noteStart("recorder", format: inFormat)
         startedAt = ProcessInfo.processInfo.systemUptime
         isRecording = true
         isPaused = false
@@ -1798,7 +1834,7 @@ final class Recorder: ObservableObject {
         guard isRecording, writer != nil else { engine = nil; tapFormat = nil; return }
         let s = AVAudioSession.sharedInstance()
         do {
-            try s.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth])
+            try s.setCategory(.playAndRecord, mode: .spokenAudio, options: RecordingRoute.options())
             try s.setActive(true)
             Log.note("recorder: audio session set up again")
         } catch {

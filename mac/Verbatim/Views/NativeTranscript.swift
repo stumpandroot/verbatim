@@ -43,11 +43,13 @@ struct NativePlayerBar: View {
                 .accessibilityLabel("Playback position")
             Menu {
                 ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } }
+                Divider()
+                ReduceNoiseToggle(player: app.player)
             } label: {
                 Text("\(String(format: "%g", app.player.rate))×").font(.system(size: 12.5, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .help("Playback speed").accessibilityLabel("Playback speed")
+            .help("Playback speed, and Reduce background noise").accessibilityLabel("Playback speed and noise")
             Button(nav.follow ? "Following" : "Follow") { nav.follow.toggle() }
                 .buttonStyle(PremiumBorderedButtonStyle(height: 28, tinted: nav.follow))
                 .help(nav.follow ? "The text follows playback. Click to stop following." : "Keep the playing passage in view")

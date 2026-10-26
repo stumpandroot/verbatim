@@ -69,6 +69,7 @@
 
     { "id": "noise-01", "category": "noise", "text": "Please move the photo shoot to next Wednesday afternoon.", "gen": { "type": "white-noise", "snrDb": 10 } },
     { "id": "noise-02", "category": "noise", "text": "The Lapp Wagons proofs are ready for review in Lititz.", "terms": ["Lapp Wagons", "Lititz"], "gen": { "type": "babble", "snrDb": 8, "babbleText": "I was telling him about the weekend, and then we went out for lunch near the station and talked for a while." } },
-    { "id": "noise-03", "category": "noise", "text": "I'm speaking quietly so nobody else can hear me.", "gen": { "type": "quiet", "gainDb": -24 } }
+    { "id": "noise-03", "category": "noise", "text": "I'm speaking quietly so nobody else can hear me.", "gen": { "type": "quiet", "gainDb": -24 } },
+    { "id": "noise-04", "category": "noise", "text": "The Castwell kits leave Strasburg on Thursday, so tell Jordan before lunch.", "terms": ["Castwell", "Strasburg"], "gen": { "type": "engine", "snrDb": 5 } }
   ]
 }

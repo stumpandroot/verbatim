@@ -52,10 +52,11 @@ struct SegmentLine: View {
 
     /// The line's text; while it plays with fresh word timings, the playing word is tinted too.
     @ViewBuilder private var lineText: some View {
+        // Low-confidence words carry a quiet dotted underline (UnclearStyle), as a best guess.
         if current, PlaybackSync.timingsFresh(segment) {
-            PlayingWordText(segment: segment, base: highlighted(segment.text), clock: app.player.clock, tint: Ink.iris.opacity(0.22))
+            PlayingWordText(segment: segment, base: UnclearStyle.marked(highlighted(segment.text), segment), clock: app.player.clock, tint: Ink.iris.opacity(0.22))
         } else {
-            Text(highlighted(segment.text))
+            Text(UnclearStyle.marked(highlighted(segment.text), segment))
         }
     }
 
@@ -211,6 +212,7 @@ private struct CorrectionItems: View {
 /// The reading lines. Reads the playhead without observing it: the lines re-render only when the playing
 /// passage changes (`playingIDs`), not on every 20 Hz tick, so the rest of the screen stays still too.
 struct TranscriptLines: View {
+    @EnvironmentObject var app: AppState
     var clock: PlayerClock
     var isPlaying: Bool
     var transcript: Transcript
@@ -241,12 +243,15 @@ struct TranscriptLines: View {
         // Lazy: a long recording has hundreds of lines, each with menus and a popover. Build only what's on screen.
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
         let folds = self.folds.count == segments.count ? self.folds : SponsorFold.places(segments, in: transcript)
+        // "unclear 2:10" chips where speech was heard but no words came through (UnclearRules), between the lines.
+        let chips = UnclearStyle.chips(transcript, lines: segments)
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(segments.enumerated()), id: \.element.id) { i, s in
                 // After a folded read, name the speaker again: the line above on screen is someone else's.
                 let afterFold = i > 0 && folds[i - 1].map { !openSponsors.contains($0.span.id) } == true
                 let showSpeaker = transcript.speakers.count >= 2 && s.speaker != nil && (i == 0 || afterFold || segments[i - 1].speaker != s.speaker)
                 let fold = folds[i]
+                if let spans = chips[i] { unclearChips(spans) }
                 if let fold, fold.first {
                     SponsorFoldLine(transcript: transcript, span: fold.span, open: openSponsors.contains(fold.span.id)) {
                         if openSponsors.remove(fold.span.id) == nil { openSponsors.insert(fold.span.id) }
@@ -260,11 +265,20 @@ struct TranscriptLines: View {
                 .staggerIn(i < 10 ? i + 2 : -1)
                 .foldedAway(fold.map { !openSponsors.contains($0.span.id) } ?? false)
             }
+            if let spans = chips[segments.count] { unclearChips(spans) }
         }
         .onReceive(clock.$time) { now in syncPlaying(at: now) }
         .onChange(of: isPlaying) { _, _ in syncPlaying(at: clock.time) }
         // The lines' ids and times, not the whole lines (words included): only those decide what's playing.
         .onChange(of: segments.timingKey) { _, _ in syncPlaying(at: clock.time) }
+    }
+
+    /// The chips before a line, in the text column (past the timecodes).
+    private func unclearChips(_ spans: [UnclearSpan]) -> some View {
+        ForEach(spans, id: \.start) { sp in
+            UnclearChip(span: sp, onPlay: { app.player.play(from: sp.start) })
+                .padding(.leading, 84).padding(.vertical, 6)
+        }
     }
 
     @MainActor private func syncPlaying(at now: Double) {

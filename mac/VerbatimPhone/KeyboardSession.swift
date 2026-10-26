@@ -342,7 +342,8 @@ final class KeyboardSession: ObservableObject {
     private func startAudio() throws {
         let s = AVAudioSession.sharedInstance()
         // Mixes with other audio, so a session doesn't stop your music or podcast.
-        try s.setCategory(.playAndRecord, mode: .spokenAudio, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
+        // AirPods record over their high-quality link on iOS 26 (RecordingRoute), falling back to HFP.
+        try s.setCategory(.playAndRecord, mode: .spokenAudio, options: RecordingRoute.options(mixWithOthers: true))
         // No pinned input from an earlier recording: the system's current microphone (AirPods when they're in,
         // the iPhone's otherwise), and the capture follows it when that changes.
         try? s.setPreferredInput(nil)
@@ -351,6 +352,7 @@ final class KeyboardSession: ObservableObject {
             MainActor.assumeIsolated { self?.captureFailed(message) }
         }
         try capture.start()
+        RecordingRoute.noteStart("keyboard session", format: nil)
     }
 
     private func beginCapture() {

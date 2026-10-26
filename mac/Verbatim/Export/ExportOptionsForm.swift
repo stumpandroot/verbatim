@@ -48,6 +48,8 @@ struct ExportOptionRows: View {
             Toggle("Include hidden lines", isOn: $options.includeHidden)
             Toggle("Include sponsor reads", isOn: $options.includeSponsors)
             if showsText {
+                // "[unclear 2:10]" where speech was heard but the words didn't come through.
+                Toggle("Unclear markers", isOn: $options.includeUnclear)
                 Toggle("One paragraph", isOn: $options.singleParagraph)
                 Toggle("“Transcribed with Verbose” footer", isOn: $options.provenance)
             }

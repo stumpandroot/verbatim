@@ -13,6 +13,9 @@ struct JobOutcome {
     var language: String?
     /// Each speaker's voice embedding ("S1" → 256 values), for recognizing voices you've named (SpeakerVoices).
     var voices: [String: [Float]] = [:]
+    /// Where speech was heard but the words are missing or unsure (UnclearRules); nil when speech detection
+    /// couldn't run.
+    var unclear: [UnclearSpan]? = nil
 }
 
 /// How a job handles language and long recordings. The defaults run exactly as before (no language check, the
@@ -39,6 +42,7 @@ enum TranscriptionJob {
                     progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> JobOutcome {
         var result = try await words(url: url, engineId: engineId, model: model, options: options, progress: progress)
         Log.note("transcribe done segments=\(result.segments.count)")
+        let unclear = await checkUnclear(&result, url: url)
         var speakers: [Speaker] = []
         var voices: [String: [Float]] = [:]
         if wantSpeakers, result.segments.count > 1 {
@@ -60,7 +64,25 @@ enum TranscriptionJob {
         }
         let wave = needWave ? Waveform.envelope(of: url) : []
         return JobOutcome(original: original, fixed: fixed, speakers: speakers, corrections: corrections, wave: wave,
-                          engine: result.engine, model: result.model, language: result.language, voices: voices)
+                          engine: result.engine, model: result.model, language: result.language, voices: voices, unclear: unclear)
+    }
+
+    /// The noise report's rules on new words, with any engine: short lines over no speech go (Whisper already
+    /// dropped its own likely hallucinations), and the unclear spans are found. Speech detection that can't run
+    /// leaves the words as they are; low-confidence runs are still found from the words' confidence.
+    static func checkUnclear(_ result: inout EngineResult, url: URL) async -> [UnclearSpan]? {
+        var speech = result.speech
+        if speech == nil { speech = await SpeechMap.shared.probabilities(url: url) }
+        if result.engine != "whisper", let speech {
+            let cleaned = UnclearRules.clean(result.segments.map { ScoredSegment(segment: $0) }, speech: speech)
+            if !cleaned.dropped.isEmpty { Log.note("unclear: dropped \(cleaned.dropped.values.reduce(0, +)) short lines over no speech") }
+            result.segments = cleaned.kept
+        }
+        // A line without word timings was heard as a whole.
+        let heard = result.segments.flatMap { $0.words ?? [WordSpan(text: $0.text, start: $0.start, end: $0.end)] }
+        let spans = UnclearRules.unclearSpans(words: heard, speech: speech)
+        Log.note("unclear: \(spans.count) spans (\(spans.filter { $0.reason == .noWords }.count) with missing words), speech map \(speech == nil ? "off" : "on")")
+        return speech == nil && spans.isEmpty ? nil : spans
     }
 
     /// The words: picks the engine and model for the recording's language, then transcribes it whole or in sections.
@@ -112,7 +134,7 @@ enum TranscriptionJob {
         let name = engine == "apple" ? "Apple speech recognition" : Engines.displayName(engine: "fluid", model: model)
         let joiner = LanguageRules.joiner(for: language)
         func segments(_ w: [SectionWord]) -> [Segment] {
-            Engines.segments(fromWords: w.map { WordSpan(text: $0.text, start: $0.start, end: $0.end) }, separator: joiner)
+            Engines.segments(fromWords: w.map { WordSpan(text: $0.text, start: $0.start, end: $0.end, confidence: $0.p) }, separator: joiner)
         }
 
         // A short recording the check already heard whole, with the model the job uses: that's the transcript (unless

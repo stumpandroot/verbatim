@@ -120,6 +120,25 @@ def speak(text, voice, tmp, name):
     return read_wav(path)
 
 
+def engine_mix(samples, rate, snr_db, seed):
+    """A small engine running under the speech, made from numbers (never a recording): a 28 Hz firing hum with
+    harmonics that wanders a little in pitch and level, plus brown noise for the blade and wind, at `snr_db` below
+    the speech. Like a mower or a fan heard over a phone-call microphone."""
+    rng = random.Random(seed)
+    pad = [0.0] * int(rate * 0.5)
+    speech = pad + samples + pad
+    noise, brown, phase = [], 0.0, 0.0
+    for i in range(len(speech)):
+        t = i / rate
+        f0 = 28.0 * (1 + 0.03 * math.sin(2 * math.pi * 0.4 * t))
+        phase += 2 * math.pi * f0 / rate
+        hum = sum(math.sin(k * phase) / k for k in (1, 2, 3, 4, 6, 8))
+        brown = 0.995 * brown + rng.gauss(0.0, 0.08)
+        noise.append((0.6 * hum + brown) * (1 + 0.15 * math.sin(2 * math.pi * 1.7 * t)))
+    level = rms(samples) / (10 ** (snr_db / 20)) / max(rms(noise), 1e-9)
+    return [x + n * level for x, n in zip(speech, noise)]
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -167,6 +186,8 @@ def main():
                         if other:
                             gain = rms(samples) / (10 ** (float(gen.get("snrDb", 8)) / 20)) / max(rms(other), 1e-6)
                             samples = [x + other[i % len(other)] * gain for i, x in enumerate(samples)]
+                    elif kind == "engine":
+                        samples = engine_mix(samples, rate, float(gen.get("snrDb", 5)), zlib.crc32(cid.encode()))
                     elif kind == "quiet":
                         g = 10 ** (float(gen.get("gainDb", -24)) / 20)
                         samples = [x * g for x in samples]

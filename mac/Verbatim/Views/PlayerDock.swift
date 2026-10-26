@@ -50,13 +50,17 @@ struct PlayerDock: View {
             .frame(height: 30)
             skip(.iconForward5, 5, "Forward 5 seconds (→)")
 
-            Menu { ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } } } label: {
+            Menu {
+                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in Button("\(String(format: "%g", r))×") { app.player.setRate(Float(r)) } }
+                Divider()
+                ReduceNoiseToggle(player: app.player)
+            } label: {
                 Text("\(String(format: "%g", app.player.rate))×").font(Ink.mono(12)).foregroundStyle(Ink.paperFixed)
                     .padding(.horizontal, 8).frame(height: 30).contentShape(Rectangle())
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-            .help("Playback speed")
-            .accessibilityLabel("Playback speed")
+            .help("Playback speed, and Reduce background noise")
+            .accessibilityLabel("Playback speed and noise")
 
             Button {
                 let at = app.player.time

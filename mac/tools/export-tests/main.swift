@@ -269,6 +269,26 @@ do {
     eq("AI note off", ExportLayout.text(doc, n), "T\n\nCleaned words.")
 }
 
+// MARK: Unclear markers
+
+do {
+    var doc = ExportDocument(title: "Lawn", details: [], summary: nil,
+                             paragraphs: [ExportParagraph(speaker: nil, pieces: [ExportPiece(start: 0, text: "Mowing now."), ExportPiece(start: 140, text: "Anyway.")]),
+                                          ExportParagraph(speaker: nil, pieces: [ExportPiece(start: 200, text: "Done.")])],
+                             moments: [], footer: "")
+    doc.unclear = [130, 3725]
+    var o = ExportOptions(); o.header = false
+    eq("unclear markers are off by default", ExportLayout.text(doc, o), "Mowing now. Anyway.\n\nDone.")
+    o.includeUnclear = true
+    eq("unclear markers go before the words after them, and the rest at the end", ExportLayout.text(doc, o),
+       "Mowing now. [unclear 2:10] Anyway.\n\nDone. [unclear 1:02:05]")
+    o.timecodeOffset = 3600
+    eq("unclear markers take the start offset", ExportLayout.unclearMarker(130, offset: o.timecodeOffset), "[unclear 1:02:10]")
+    let d = UserDefaults(suiteName: "export-tests-\(UUID().uuidString)")!
+    var keep = ExportOptions(); keep.includeUnclear = true; keep.save(to: d)
+    check("unclear markers: the setting round trips", ExportOptions.load(d).includeUnclear)
+}
+
 // MARK: Copy for AI
 
 do {
