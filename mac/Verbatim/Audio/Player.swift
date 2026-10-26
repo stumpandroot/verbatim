@@ -121,9 +121,6 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         Log.note("player: reduce background noise \(on ? "on" : "off")\(on && clean == nil ? " (not available)" : "")")
     }
 
-    /// True while playback runs through the voice isolation (for the self-tests).
-    var isCleaning: Bool { clean != nil }
-
     /// For the self-tests: whether a voice-isolation playback opens for `url` on this device. Nothing plays.
     func cleanPlaybackOpens(_ url: URL) -> Bool {
         guard let c = CleanPlayback(url: url, rate: 1) else { return false }
@@ -200,6 +197,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if let c = clean {
             if c.isPlaying { c.pause(); isPlaying = false; timer?.invalidate(); return }
             c.play(from: time)
+            // The isolation couldn't start (the log says why): plain playback, from the same moment.
+            if !c.isPlaying { c.stop(); clean = nil; p.currentTime = min(time, p.duration) }
         }
         if clean == nil, p.isPlaying { p.pause(); isPlaying = false; timer?.invalidate() }
         else {

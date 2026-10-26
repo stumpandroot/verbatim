@@ -256,10 +256,4 @@ enum UnclearRules {
     }
 
     static func wordCount(_ text: String) -> Int { text.split(whereSeparator: { $0.isWhitespace }).count }
-
-    /// Suggest Transcribe again when unclear spans run past 2 per 10 minutes (the report's trigger).
-    static func suggestsAnotherPass(_ spans: [UnclearSpan], duration: Double) -> Bool {
-        guard duration > 0 else { return false }
-        return Double(spans.count) / (duration / 600) > 2
-    }
 }

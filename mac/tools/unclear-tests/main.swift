@@ -142,8 +142,6 @@ do {
     check("placements: a chip goes before the first line after it", placed.count == 2 && placed[0].before == 2, "\(placed.map(\.before))")
     check("placements: after the last line, at the end", placed.count == 2 && placed[1].before == Int.max)
     check("placements: low-confidence runs show as marked words, not chips", !placed.contains { $0.span.reason == .lowConfidence })
-    check("suggest: more than 2 unclear spans per 10 minutes", UnclearRules.suggestsAnotherPass(Array(repeating: UnclearSpan(start: 0, end: 2), count: 3), duration: 600))
-    check("suggest: 2 per 10 minutes isn't", !UnclearRules.suggestsAnotherPass(Array(repeating: UnclearSpan(start: 0, end: 2), count: 2), duration: 600))
 }
 
 // MARK: Stored form

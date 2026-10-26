@@ -203,7 +203,8 @@ final class TranscriptionCoordinator: ObservableObject {
         if runningID == id { stopRunning() }
         if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
         if checkWithV3 { checkWithV3IDs.insert(id) }
-        store.update(id) { $0.languageChoice = language }
+        // A Whisper Turbo request still waiting gives way: this run uses your engine, in the language you picked.
+        store.update(id) { $0.languageChoice = language; $0.rerunRequest = nil }
         if let fresh = store.transcript(id) { retry(fresh) }
     }
 

@@ -36,8 +36,8 @@ enum NoisyAudioChecks {
 
         if let start {
             start(id)
-            let started = store.transcript(id).map { $0.rerunRequest != nil || $0.status == .ready } ?? false
-            check("turbo: Transcribe again starts a job", started)
+            let started = store.transcript(id).map { $0.rerunRequest?.model == Transcript.turboModel && $0.status == .processing } ?? false
+            check("turbo: Transcribe again starts a Whisper Turbo job", started)
             // The audio is missing on purpose: the job stops before any model loads, and the words stay.
             for _ in 0..<50 {
                 if let x = store.transcript(id), x.status == .ready, x.rerunRequest == nil { break }

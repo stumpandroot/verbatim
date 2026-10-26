@@ -82,11 +82,8 @@ final class CleanPlayback {
         AudioUnitSetParameter(isolation.audioUnit, AudioUnitParameterID(kAUSoundIsolationParam_WetDryMixPercent),
                               kAudioUnitScope_Global, 0, ListeningCleanup.wetPercent, 0)
         pitch.rate = rate
+        // The engine starts only when playback does, so opening a transcript never interrupts other audio.
         engine.prepare()
-        do { try engine.start() } catch {
-            Log.note("listening cleanup: couldn't start (\(error.localizedDescription))")
-            return nil
-        }
     }
 
     var duration: Double { Double(length) / sampleRate }
@@ -116,7 +113,7 @@ final class CleanPlayback {
         let remaining = AVAudioFrameCount(clamping: max(0, length - from))
         guard remaining > 0 else { isPlaying = false; return }
         if !engine.isRunning {
-            do { try engine.start() } catch { Log.note("listening cleanup: couldn't restart (\(error.localizedDescription))"); return }
+            do { try engine.start() } catch { Log.note("listening cleanup: couldn't start (\(error.localizedDescription))"); return }
         }
         node.scheduleSegment(file, startingFrame: from, frameCount: remaining, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
@@ -134,6 +131,7 @@ final class CleanPlayback {
         pausedFrame = frame(currentTime)
         token += 1
         node.stop()
+        engine.pause()
         isPlaying = false
     }
 
