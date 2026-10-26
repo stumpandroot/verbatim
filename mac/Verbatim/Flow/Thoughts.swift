@@ -19,7 +19,12 @@ enum Thoughts {
     static let bubbleKey = "thoughts.showBubble"
     static var showBubble: Bool {
         get { UserDefaults.standard.object(forKey: bubbleKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: bubbleKey); Task { @MainActor in ThoughtBubble.shared.refresh() } }
+        set { UserDefaults.standard.set(newValue, forKey: bubbleKey); refreshBubble() }
+    }
+    /// The setter is nonisolated; the bubble is main-actor. On the main thread (every caller today) it refreshes at once.
+    private static func refreshBubble() {
+        if Thread.isMainThread { MainActor.assumeIsolated { ThoughtBubble.shared.refresh() } }
+        else { Task { @MainActor in ThoughtBubble.shared.refresh() } }
     }
     /// The hotkey, for menus, hints, and Settings. Fixed: ⌃⌥P starts and stops a thought from any app.
     static let hotkey = "⌃⌥P"
