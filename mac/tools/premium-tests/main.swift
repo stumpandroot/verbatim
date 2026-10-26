@@ -164,6 +164,14 @@ var long = NavHistory<Int>(); long.limit = 3
 for i in 0..<10 { long.visit(i) }
 check("history keeps a limit", long.back == [6, 7, 8])
 check("nothing to go back to", NavHistory<Int>().canGoBack == false && { var e = NavHistory<Int>(); return e.goBack() == nil }())
+var r = NavHistory<String>()
+r.replaceCurrent("library")
+check("replacing with nothing there starts the trail", r.current == "library" && !r.canGoBack)
+r.visit("t1"); _ = r.goBack(); r.replaceCurrent("library:A")
+check("a place changed in place keeps Forward", r.current == "library:A" && r.canGoForward && r.previous == nil)
+r.visit("home"); r.visit("library:B"); r.replaceCurrent("home")
+check("a replacement that meets Back's last entry collapses", r.back == ["library:A"] && r.current == "home", "\(r.back)")
+check("previous names where Back goes", r.previous == "library:A")
 
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
