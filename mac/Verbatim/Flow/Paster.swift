@@ -17,7 +17,7 @@ import UniformTypeIdentifiers
 /// 5. Once the target has read the text and gone quiet for 200 ms, restore the snapshot, but only while the
 ///    clipboard's change count is still ours. If you copied something in between, your copy wins.
 /// 6. No read within the app's limit (2.5 s, 5 s for remote desktops, Office, and Electron apps) means the
-///    paste failed: the caller decides where the text goes (Dictate sends it to the thought pad).
+///    paste failed: the caller decides where the text goes (Dictate keeps it in Dictations and offers it again).
 /// Pastes run one at a time, so back-to-back dictations can't restore over each other.
 @MainActor
 enum Paster {
@@ -48,7 +48,7 @@ enum Paster {
     enum OnFailure {
         /// The text stays on the clipboard so ⌘V works wherever you click next.
         case leaveOnClipboard
-        /// The old clipboard comes back; the caller keeps the text somewhere else (the thought pad).
+        /// The old clipboard comes back; the caller keeps the text somewhere else (Dictations).
         case restoreClipboard
     }
 

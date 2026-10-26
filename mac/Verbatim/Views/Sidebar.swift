@@ -38,6 +38,16 @@ struct Sidebar: View {
                     .accessibilityAction(named: "Hide from sidebar") { layout.setHidden(id, true) }
             }
 
+            // Library › By day: one page a day for Thoughts and Journal (Views/ByDayView.swift).
+            Text("By day").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
+                .padding(.leading, 12).padding(.top, 18).padding(.bottom, 4)
+            SideItem(label: "Thoughts", art: .iconThought, selected: app.screen == .byDay(.idea),
+                     badge: "\(app.store.dayPages(.idea, hour: Thoughts.newPageHour).count)") { app.go(.byDay(.idea)) }
+                .uiTarget("side-thoughts")
+            SideItem(label: "Journal", art: .iconNotes, selected: app.screen == .byDay(.journal),
+                     badge: "\(app.store.dayPages(.journal, hour: Thoughts.newPageHour).count)") { app.go(.byDay(.journal)) }
+                .uiTarget("side-journal")
+
             HStack {
                 Text("Projects").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
                 Spacer()

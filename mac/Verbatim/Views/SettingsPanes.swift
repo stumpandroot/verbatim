@@ -767,6 +767,7 @@ struct FeaturesSettingsPane: View {
 
     var body: some View {
         SettingsPane(tab: .features) {
+            ThoughtsSettingsGroup()
             SettingsGroup(title: "Widgets and Shortcuts") {
                 SettingsRow("features.widgets")
                 SettingsRow("features.shortcuts") {
@@ -779,6 +780,25 @@ struct FeaturesSettingsPane: View {
             SettingsGroup(title: "Welcome tour") {
                 SettingsRow("general.tour") { Button("Show Tour") { app.showOnboarding = true }.buttonStyle(.settingsPill) }
                 SettingsToggleRow("general.tourOnLaunch", isOn: Binding(get: { Onboarding.showOnLaunch }, set: { Onboarding.showOnLaunch = $0 }))
+            }
+        }
+    }
+}
+
+/// Features › Thoughts: the hotkey, the bubble, and when a new day's page starts (Flow/Thoughts.swift).
+struct ThoughtsSettingsGroup: View {
+    @AppStorage(Thoughts.bubbleKey) private var showBubble = true
+    @AppStorage(DayPages.newPageHourKey) private var hour = 0
+
+    var body: some View {
+        SettingsGroup(title: "Thoughts") {
+            SettingsRow("features.thoughtsHotkey") { KeyChip(text: Thoughts.hotkey) }
+            SettingsToggleRow("features.thoughtsBubble", isOn: Binding(get: { showBubble }, set: { showBubble = $0; ThoughtBubble.shared.refresh() }))
+            SettingsRow("features.thoughtsNewPage") {
+                Picker("New page each day at", selection: $hour) {
+                    ForEach(DayPages.hours, id: \.self) { h in Text(DayPages.hourLabel(h)).tag(h) }
+                }
+                .labelsHidden().pickerStyle(.menu).fixedSize()
             }
         }
     }

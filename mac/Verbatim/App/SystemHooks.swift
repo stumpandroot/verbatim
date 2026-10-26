@@ -41,7 +41,8 @@ enum SystemHooks {
         if app?.store.transcript(id) != nil { app?.go(.transcript(id)) }
     }
 
-    /// A desktop widget's link (WidgetLink): open a transcript, record a voice memo, dictate, or open the Thought pad.
+    /// A desktop widget's link (WidgetLink): open a transcript, record a voice memo, dictate, open today's Thoughts page,
+    /// or start a thought.
     /// Opening a link brings Verbose forward, so Dictate hides it again first: the words go to the app that was in front.
     static func openWidgetLink(_ url: URL) {
         guard let link = WidgetLink(url: url) else {
@@ -62,6 +63,9 @@ enum SystemHooks {
                 app.dictation.barClicked()
             case .thought:
                 ThoughtPadController.shared.open()
+            case .newThought:
+                NSApp.hide(nil)
+                ThoughtCapture.shared.start()
             }
         }
     }

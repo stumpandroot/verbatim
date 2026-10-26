@@ -2,8 +2,9 @@ import Foundation
 
 // What the Home Screen and desktop widgets show (VerbatimWidgets/HomeWidgets.swift), written by the app
 // (Verbatim/App/WidgetFeed.swift) to a small JSON file in the App Group container, and read by the widget extensions on
-// iPhone and Mac. Privacy: titles (cut to `maxTitle` characters), dates, lengths, a label, and counts only. No
-// transcript text, no audio, no speakers. Pure Foundation, so the Linux tests compile it (mac/tools/test-widgets.sh).
+// iPhone and Mac. Privacy: titles (cut to `maxTitle` characters), dates, lengths, a label, and counts. No transcript
+// text, no audio, no speakers, with one exception on the Mac: Today's thoughts shows the day's last two thoughts, each
+// cut to `maxTitle` characters (the widget marks them `privacySensitive()`). The iPhone never writes them. Pure Foundation, so the Linux tests compile it (mac/tools/test-widgets.sh).
 
 struct WidgetSnapshot: Codable, Equatable {
     /// One recording or dictation in Recent recordings.
@@ -21,6 +22,22 @@ struct WidgetSnapshot: Codable, Equatable {
         var source: Source
         /// "Podcast", "Meeting", "Voice note", "Dictation".
         var label: String
+    }
+
+    /// Today's Thoughts page for the Mac's Today's thoughts widget: when the page runs, how many thoughts it has, how
+    /// many are still transcribing, and the last two (oldest first).
+    struct TodayThoughts: Codable, Equatable {
+        struct Line: Codable, Equatable, Identifiable {
+            var id: UUID
+            var date: Date
+            /// Cut to `maxTitle` characters on one line; empty while it's transcribing.
+            var text: String
+        }
+        var start: Date
+        var end: Date
+        var count: Int
+        var transcribing: Int
+        var latest: [Line]
     }
 
     /// This calendar week's dictated words, one count per day from the week's first day.
@@ -47,6 +64,8 @@ struct WidgetSnapshot: Codable, Equatable {
     /// Every recording and dictation in the library (not in Recently deleted).
     var kept: Int
     var week: Week
+    /// Mac only; nil in files from older builds and on iPhone.
+    var today: TodayThoughts? = nil
 
     // MARK: Building
 
@@ -62,6 +81,21 @@ struct WidgetSnapshot: Codable, Equatable {
         }
         return WidgetSnapshot(look: look, recent: Array(recent), kept: max(0, kept),
                               week: week(entries: entries, now: now, calendar: calendar))
+    }
+
+    /// Today's page for the widget: the page's span, its count, how many are transcribing, and the last two thoughts.
+    static func todayThoughts(start: Date, end: Date, thoughts: [(id: UUID, date: Date, text: String, transcribing: Bool)]) -> TodayThoughts {
+        let inPage = thoughts.filter { $0.date >= start && $0.date < end }.sorted { $0.date < $1.date }
+        let latest = inPage.suffix(2).map { t in
+            TodayThoughts.Line(id: t.id, date: t.date, text: t.transcribing ? "" : (t.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : shortTitle(t.text)))
+        }
+        return TodayThoughts(start: start, end: end, count: inPage.count, transcribing: inPage.filter(\.transcribing).count, latest: Array(latest))
+    }
+
+    /// Today's thoughts as of `now`: the stored page while it lasts, nothing once the next page has started.
+    func thoughts(at now: Date) -> TodayThoughts? {
+        guard let t = today, now >= t.start, now < t.end else { return nil }
+        return t
     }
 
     /// The calendar week holding `now`: total words and seven daily counts (the same week as Home's This week card).
@@ -156,7 +190,10 @@ enum WidgetLink: Equatable {
     case transcript(UUID)
     case record
     case dictate
+    /// Today's Thoughts page.
     case thought
+    /// Starts a thought (the desktop widget's fallback when Verbose isn't running).
+    case newThought
 
     static let scheme = "verbatim"
 
@@ -166,6 +203,7 @@ enum WidgetLink: Equatable {
         case .record: return URL(string: "\(Self.scheme)://record?from=widget")!
         case .dictate: return URL(string: "\(Self.scheme)://dictate?from=widget")!
         case .thought: return URL(string: "\(Self.scheme)://thought?from=widget")!
+        case .newThought: return URL(string: "\(Self.scheme)://newthought?from=widget")!
         }
     }
 
@@ -180,6 +218,7 @@ enum WidgetLink: Equatable {
         case "record": self = .record
         case "dictate": self = .dictate
         case "thought": self = .thought
+        case "newthought": self = .newThought
         default: return nil
         }
     }

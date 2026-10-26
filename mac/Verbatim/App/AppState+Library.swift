@@ -167,7 +167,7 @@ extension AppState {
 
 extension AppState {
     /// Settings › Storage › Delete All Data: every transcript and dictation (Recently Deleted too) with its audio
-    /// and stills, projects, the Dictionary, snippets, Activity, the Thought pad, downloads, speech models, and the
+    /// and stills, projects, the Dictionary, snippets, Activity, Thoughts (they're recordings), downloads, speech models, and the
     /// "Before iCloud" backup. Uses the Store's own delete paths, so iCloud removes the files on every device.
     func deleteAllData() {
         // A recording in progress would be deleted while it's still being written.
@@ -181,7 +181,6 @@ extension AppState {
         FlowSettings.shared.snippets = []
         ActivityLog.shared.reset()
         SiteLog.shared.reset()
-        ThoughtPad.shared.clear()
         store.removeAllFiles()
         goHome()
         toast = Toast("Deleted everything")

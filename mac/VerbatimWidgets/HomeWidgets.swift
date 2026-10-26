@@ -1,6 +1,9 @@
 import SwiftUI
 import WidgetKit
 import AppIntents
+#if os(macOS)
+import AppKit
+#endif
 
 // The Home Screen and desktop widgets (approved mockup "Premium", section 04), shared by the iPhone widget extension
 // (VerbatimWidgets) and the Mac's (VerbatimMacWidgets):
@@ -10,7 +13,9 @@ import AppIntents
 // 2. Recent recordings: medium (three) and large (five, with This week at the foot). Each row opens its transcript.
 // 3. This week: small and medium. Native draws a gradient card (the color is the widget's one option); Verbose style
 //    an outlined paper card with the serif number.
-// 4. Quick capture: small. iPhone records a voice note; Mac opens the Thought pad.
+// 4. Quick capture: small. iPhone records a voice note; on the Mac it's New thought, which starts a thought in the
+//    running app without bringing it forward (`NewThoughtIntent`).
+// 5. Today's thoughts (Mac): medium. Today's Thoughts page, its last two thoughts, and New thought.
 //
 // Widgets follow the look chosen in Verbose (DESIGN.md §13, item 8): iPhone reads `AppLook` from the App Group; the Mac reads
 // the look from the snapshot, since the Mac keeps it in the app's own defaults. Data comes from the snapshot the app
@@ -193,11 +198,12 @@ struct QuickCaptureWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
             QuickCaptureView(entry: entry)
         }
-        .configurationDisplayName("Quick capture")
         #if os(iOS)
+        .configurationDisplayName("Quick capture")
         .description("One tap records a voice note.")
         #else
-        .description("Opens the Thought pad on this Mac.")
+        .configurationDisplayName("New thought")
+        .description("Starts a thought at once, without leaving the app you're in. It lands on today's Thoughts page.")
         #endif
         .supportedFamilies([.systemSmall])
     }
@@ -835,9 +841,9 @@ private struct QuickCaptureView: View {
                 .accessibilityLabel("Record a voice note")
                 .containerBackground(for: .widget) { background(skin) }
             #else
-            content(skin)
-                .widgetURL(WidgetLink.thought.url)
-                .accessibilityLabel("Open the Thought pad")
+            Button(intent: NewThoughtIntent()) { content(skin) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New thought")
                 .containerBackground(for: .widget) { background(skin) }
             #endif
         }
@@ -846,14 +852,14 @@ private struct QuickCaptureView: View {
     #if os(iOS)
     private let title = ("Voice", "note"), detail = "One tap to record"
     #else
-    private let title = ("Thought", "pad"), detail = "Opens on this Mac"
+    private let title = ("New", "thought"), detail = "Starts recording at once"
     #endif
 
     @ViewBuilder private func background(_ skin: Skin) -> some View {
         #if os(iOS)
         if skin.native { NativeWidget.card } else { Ink.persimmonTint }
         #else
-        if skin.native { NativeWidget.card } else { Ink.panelButter }
+        if skin.native { NativeWidget.card } else { Ink.persimmonTint }
         #endif
     }
 
@@ -872,14 +878,8 @@ private struct QuickCaptureView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// Ink on butter (Mac); the theme's ink on the persimmon tint (iPhone).
-    private func ink(_ skin: Skin) -> Color {
-        #if os(iOS)
-        return skin.full ? Ink.ink : .primary
-        #else
-        return skin.onPanel
-        #endif
-    }
+    /// The theme's ink on the persimmon tint.
+    private func ink(_ skin: Skin) -> Color { skin.full ? Ink.ink : .primary }
 
     @ViewBuilder private func mark(_ skin: Skin) -> some View {
         let disc: Color = skin.full ? (skin.native ? NativeWidget.tile : Ink.persimmon) : Color.primary.opacity(0.18)
@@ -895,17 +895,161 @@ private struct QuickCaptureView: View {
         .frame(width: 36, height: 36)
         .accessibilityHidden(true)
         #else
-        if skin.native {
-            ZStack {
-                Circle().fill(disc)
-                Image(systemName: "lightbulb").font(.system(size: 16, weight: .medium))   // brand: native
-                    .foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
-            }
-            .frame(width: 36, height: 36)
-            .accessibilityHidden(true)
-        } else {
-            BrandGlyph(art: .iconNotes, color: skin.onPanel, minLineWidth: 1.3).frame(width: 22, height: 22).accessibilityHidden(true)
+        ZStack {
+            Circle().fill(disc)
+            BrandGlyph(art: .iconThought, color: skin.full ? (skin.native ? Ink.nativeAccent : Ink.inkFixed) : .primary, minLineWidth: 1.3)
+                .padding(8).widgetAccentable()
         }
+        .frame(width: 36, height: 36)
+        .accessibilityHidden(true)
         #endif
     }
 }
+
+#if os(macOS)
+// MARK: - Thoughts (Mac)
+
+/// New thought from a desktop widget: asks the running app to start a thought, so the app you're in stays in front
+/// (Flow/Thoughts.swift listens). When Verbose isn't running, it opens with verbatim://newthought instead.
+struct NewThoughtIntent: AppIntent {
+    static var title: LocalizedStringResource = "New thought"
+    static var description = IntentDescription("Starts a thought in Verbose without bringing it forward.")
+    static var openAppWhenRun = false
+    static let appBundleID = "co.stumpandroot.verbatim"
+    static let request = Notification.Name("co.stumpandroot.verbatim.newThought")
+
+    func perform() async throws -> some IntentResult {
+        await MainActor.run {
+            if NSRunningApplication.runningApplications(withBundleIdentifier: Self.appBundleID).isEmpty {
+                _ = NSWorkspace.shared.open(WidgetLink.newThought.url)
+            } else {
+                DistributedNotificationCenter.default().postNotificationName(Self.request, object: nil, userInfo: nil, deliverImmediately: true)
+            }
+        }
+        return .result()
+    }
+}
+
+struct TodayThoughtsWidget: Widget {
+    static let kind = "co.stumpandroot.verbatim.widget.thoughts"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: Self.kind, provider: ThoughtsProvider()) { entry in
+            TodayThoughtsView(entry: entry)
+        }
+        .configurationDisplayName("Today's thoughts")
+        .description("Today's Thoughts page: the last two thoughts, and New thought.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+/// Now, and again when today's page ends (the app writes a fresh snapshot as thoughts come in).
+struct ThoughtsProvider: TimelineProvider {
+    func placeholder(in context: Context) -> HomeEntry { sample() }
+    func getSnapshot(in context: Context, completion: @escaping (HomeEntry) -> Void) {
+        let e = HomeData.entry()
+        completion(context.isPreview && (e.snapshot?.today?.count ?? 0) == 0 ? sample(look: e.look) : e)
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<HomeEntry>) -> Void) {
+        let first = HomeData.entry()
+        let end = first.snapshot?.thoughts(at: first.date)?.end
+            ?? Calendar.current.nextDate(after: first.date, matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
+            ?? first.date.addingTimeInterval(86_400)
+        var next = first
+        next.date = end
+        completion(Timeline(entries: [first, next], policy: .after(end.addingTimeInterval(60))))
+    }
+
+    /// The gallery's page: made-up, neutral thoughts.
+    private func sample(look: AppLook = .verbose) -> HomeEntry {
+        let now = Date()
+        let start = Calendar.current.startOfDay(for: now)
+        var snap = HomeData.sample(look: look.rawValue, now: now)
+        snap.today = WidgetSnapshot.todayThoughts(start: start, end: start.addingTimeInterval(86_400), thoughts: [
+            (UUID(), now.addingTimeInterval(-3_600), "Ask whether the onboarding video can drop to sixty seconds.", false),
+            (UUID(), now.addingTimeInterval(-1_200), "Day headers could use the mono date, like the website.", false),
+            (UUID(), now.addingTimeInterval(-60), "", true),
+        ])
+        return HomeEntry(date: now, snapshot: snap, look: look)
+    }
+}
+
+private struct TodayThoughtsView: View {
+    var entry: HomeEntry
+
+    var body: some View {
+        let today = entry.snapshot?.thoughts(at: entry.date)
+        SkinReader(look: entry.look) { skin in
+            VStack(alignment: .leading, spacing: 6) {
+                header(today, skin)
+                let lines = (today?.latest ?? []).filter { !$0.text.isEmpty }
+                if lines.isEmpty {
+                    Spacer(minLength: 0)
+                    Text("Nothing on today's page yet.").font(skin.native ? .system(size: 13) : Ink.serif(15)).foregroundStyle(.secondary)
+                } else {
+                    ForEach(lines) { line in
+                        Link(destination: WidgetLink.thought.url) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(line.date, format: .dateTime.hour().minute())
+                                    .font(skin.native ? .system(size: 12).monospacedDigit() : Ink.mono(11.5)).foregroundStyle(skin.native ? NativeWidget.secondary : Ink.mute)
+                                Text(line.text).font(.system(size: 13)).foregroundStyle(skin.native ? Color.primary : Ink.ink).lineLimit(1).privacySensitive()
+                            }
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                HStack {
+                    let n = today?.transcribing ?? 0
+                    Text(n == 0 ? "" : (n == 1 ? "One transcribing" : "\(n) transcribing")).font(.system(size: 11.5)).foregroundStyle(skin.native ? NativeWidget.secondary : Ink.mute)
+                    Spacer(minLength: 4)
+                    Button(intent: NewThoughtIntent()) { newThought(skin) }.buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .containerBackground(for: .widget) {
+                if skin.native { NativeWidget.card } else {
+                    ZStack {
+                        Ink.card
+                        ContainerRelativeShape().strokeBorder(Ink.ink, lineWidth: 2)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func header(_ today: WidgetSnapshot.TodayThoughts?, _ skin: Skin) -> some View {
+        let count = today?.count ?? 0
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if skin.native {
+                Text("Today's Thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
+                if count > 0 { Text("\(count)").font(.system(size: 12)).monospacedDigit().foregroundStyle(NativeWidget.secondary) }
+                Spacer(minLength: 4)
+                Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)
+            } else {
+                Text("Today's \(Text("thoughts").italic())").font(Ink.serif(16)).foregroundStyle(Ink.ink)
+                if count > 0 { Text("\(count)").font(Ink.mono(11.5)).foregroundStyle(Ink.mute) }
+                Spacer(minLength: 4)
+                Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    /// The persimmon pill: the record action, so it may carry the brand's one saturated fill.
+    private func newThought(_ skin: Skin) -> some View {
+        HStack(spacing: 6) {
+            ZStack {
+                Circle().fill(skin.full ? Ink.inkFixed : Color.primary.opacity(0.2))
+                BrandGlyph(art: .iconThought, color: skin.full ? Ink.persimmonFixed : .primary, minLineWidth: 1.1).padding(3)
+            }
+            .frame(width: 18, height: 18)
+            Text(skin.native ? "New Thought" : "New thought").font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(skin.full ? (skin.native ? Color.white : Ink.inkFixed) : .primary)
+        }
+        .padding(.leading, 5).padding(.trailing, 11).frame(height: 28)
+        .background(Capsule().fill(skin.full ? (skin.native ? Ink.nativeAccent : Ink.persimmon) : Color.primary.opacity(0.12)))
+        .widgetAccentable()
+        .accessibilityLabel("New thought")
+    }
+}
+#endif

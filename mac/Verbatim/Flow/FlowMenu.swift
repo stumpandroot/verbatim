@@ -16,7 +16,7 @@ final class FlowMenuController {
         var run: (FlowAction) -> Void
         var editActions: () -> Void
         var projects: [Project]
-        var thoughtPad: () -> Void
+        var newThought: () -> Void
     }
 
     private var panel: FlowMenuPanel?
@@ -131,7 +131,7 @@ struct FlowMenuView: View {
             rule
             item("Project", .iconProject, trailing: actions.projects.first { $0.id == settings.activeProject }?.name ?? "None", chevron: true, highlighted: sub == .project) { sub = sub == .project ? nil : .project }
                 .onHover { if $0 { sub = .project } }
-            item("Thought pad", .iconNotes, keys: "⌃⌥P") { actions.thoughtPad(); close() }
+            item("New thought", .iconThought, keys: "⌃⌥P") { actions.newThought(); close() }
                 .onHover { if $0 { sub = nil } }
             rule
             item("Microphone", .capture, chevron: true, highlighted: sub == .mic) { sub = sub == .mic ? nil : .mic }

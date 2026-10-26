@@ -304,11 +304,17 @@ struct NativeKindIcon: View {
     var size: CGFloat = 34
 
     var body: some View {
-        Image(systemName: Self.symbol(transcript))
-            .font(.system(size: max(12, size * 0.44), weight: .regular))
-            .foregroundStyle(Ink.nativeAccent)
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        Group {
+            if transcript.kind == .idea {
+                // Thoughts have no SF Symbol: the Thoughts icon, at the symbol's size.
+                ArtIcon(art: .iconThought, size: max(14, size * 0.5), lineWidth: 1.4)
+            } else {
+                Image(systemName: Self.symbol(transcript)).font(.system(size: max(12, size * 0.44), weight: .regular))
+            }
+        }
+        .foregroundStyle(Ink.nativeAccent)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 
     static func symbol(_ t: Transcript) -> String {

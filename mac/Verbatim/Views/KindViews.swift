@@ -15,7 +15,7 @@ extension RecordingKind {
     var art: BrandArt {
         switch self {
         case .journal: return .kindJournal
-        case .idea: return .kindIdea
+        case .idea: return .kindThought
         case .meeting: return .kindMeeting
         case .note: return .kindNote
         case .dictation: return .kindDictation
@@ -28,7 +28,7 @@ extension RecordingKind {
     var plural: String {
         switch self {
         case .journal: return "Journal"
-        case .idea: return "Ideas"
+        case .idea: return "Thoughts"
         case .meeting: return "Meetings"
         case .note: return "Notes"
         case .dictation: return "Dictations"
@@ -69,7 +69,8 @@ extension RecordingKind {
 
 // brand: native begin
 extension RecordingKind {
-    /// The kind's SF Symbol in the Native look, in place of its diagram.
+    /// The kind's SF Symbol in the Native look, in place of its diagram. Thoughts draw their own icon instead
+    /// (`BrandArt.iconThought`) where there's room for a view; this is the stand-in where only a symbol fits.
     var nativeSymbol: String {
         switch self {
         case .journal: return "book"
@@ -171,7 +172,12 @@ struct KindChip: View {
     @ViewBuilder private func nativeLabel(_ h: CGFloat) -> some View {
         if let kind {
             HStack(spacing: 6) {
-                Image(systemName: kind.nativeSymbol).font(.system(size: compact ? 12 : 14, weight: .semibold))
+                if kind == .idea {
+                    // Thoughts have no SF Symbol: the Thoughts icon, in the same tint.
+                    ArtIcon(art: .iconThought, size: compact ? 14 : 16, lineWidth: 1.5)
+                } else {
+                    Image(systemName: kind.nativeSymbol).font(.system(size: compact ? 12 : 14, weight: .semibold))
+                }
                 Text(kind.label).font(.system(size: compact ? 13 : 15, weight: .semibold))
                 Image(systemName: "chevron.down").font(.system(size: compact ? 9 : 10, weight: .bold))
             }

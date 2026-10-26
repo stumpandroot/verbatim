@@ -56,6 +56,8 @@ extension AppState: TranscriptionHost {
 
     func transcriptReady(_ id: UUID, corrections n: Int, queueEmpty: Bool) {
         FolderWatcher.shared.transcriptReady(id)   // auto-export, if it came from a watched folder
+        // A thought just fills in its words on its page: the bubble already said it was added.
+        if store.transcript(id)?.kind == .idea, store.transcript(id)?.sourceLabel == Thoughts.macSource { return }
         // In a batch, stay quiet until the last one; then one chime and one toast.
         if queueEmpty {
             Sounds.done()

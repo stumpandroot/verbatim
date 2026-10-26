@@ -111,6 +111,28 @@ extension Store {
         try? FileManager.default.removeItem(at: continuationMarker(for: recording))
     }
 
+    // MARK: Thoughts, across a crash
+
+    /// Beside a thought's recording: ".<stem>.thought". If the app dies mid-thought, recovery makes it a Thoughts
+    /// recording on the day it started instead of a plain recovered recording (Flow/Thoughts.swift).
+    static func thoughtMarker(for recording: URL) -> URL {
+        recording.deletingLastPathComponent().appendingPathComponent(".\(recording.deletingPathExtension().lastPathComponent).thought")
+    }
+
+    static func markThought(_ recording: URL) {
+        try? Data(ISO8601DateFormatter().string(from: Date()).utf8).write(to: thoughtMarker(for: recording), options: .atomic)
+    }
+
+    static func clearThoughtMark(_ recording: URL) {
+        try? FileManager.default.removeItem(at: thoughtMarker(for: recording))
+    }
+
+    /// When a recovered recording started as a thought, or nil when it wasn't one.
+    static func thoughtStart(for recording: URL) -> Date? {
+        guard let data = try? Data(contentsOf: thoughtMarker(for: recording)) else { return nil }
+        return ISO8601DateFormatter().date(from: String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) ?? Date.distantPast
+    }
+
     /// The transcript a recovered recording was continuing, when it can still take it right now.
     func continuationTarget(for recording: URL) -> UUID? {
         guard let data = try? Data(contentsOf: Self.continuationMarker(for: recording)),

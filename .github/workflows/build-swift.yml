@@ -508,6 +508,13 @@ jobs:
           # A stable name for the same DMG, so .../raw/ci-screens/Verbatim-latest.dmg survives the force-push below.
           # Identical bytes share one git blob, so this adds no size.
           cp "Verbatim-universal-${N}.dmg" Verbatim-latest.dmg
+          # GitHub refuses files over 100 MB in git (build 216's DMG was 100.05 MB). Over 95 MB, the DMGs stay out of
+          # ci-screens and a note points to the release, which is where the newest build lives anyway.
+          if [ "$(wc -c < Verbatim-latest.dmg)" -gt 95000000 ]; then
+            rm -f Verbatim-latest.dmg "Verbatim-universal-${N}.dmg"
+            echo "Build ${N}'s DMG is over GitHub's file size limit for git. Download it from https://github.com/stumpandroot/verbose-updates/releases/download/beta-latest/Verbose.dmg" > Verbatim-latest.txt
+            echo "::notice::DMG over 95 MB; not pushed to ci-screens (the release has it)"
+          fi
           ls -la
           # The token reaches git through a credential helper that reads it from the environment, never argv.
           export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0="" GIT_CONFIG_KEY_1=credential.helper

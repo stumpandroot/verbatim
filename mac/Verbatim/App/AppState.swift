@@ -15,6 +15,8 @@ enum Screen: Equatable {
     case dictionary
     case dictations
     case activity
+    /// Library › By day: Thoughts (`.idea`) or Journal, a month calendar and one page a day (Views/ByDayView.swift).
+    case byDay(RecordingKind)
 }
 
 /// Which way the next screen slides in. Sidebar order decides up/down; opening a transcript pushes.
@@ -149,6 +151,8 @@ final class AppState: ObservableObject {
         AudioDucker.shared.follow(.voiceNote, recorder.$isRecording.combineLatest(recorder.$isPaused, recorder.$isStarting).map { $0.0 && !$0.1 && !$0.2 })
         HangWatch.start()
         dictation.attach(self)
+        // Thoughts: ⌃⌥P, the bubble, and the pad's pieces moving in once (Flow/Thoughts.swift).
+        ThoughtCapture.shared.attach(self)
         mirrorSnippets()
         // Watched folders compare new files with the library, so they start once it has loaded.
         store.whenLoaded { [weak self] in if let self { FolderWatcher.shared.attach(self) } }
@@ -227,7 +231,7 @@ final class AppState: ObservableObject {
 
     // MARK: Navigation
 
-    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "moments": 3, "queue": 4, "dictations": 5, "activity": 6, "dictionary": 7, "trash": 8]
+    private static let order: [String: Int] = ["home": 0, "library": 1, "links": 2, "moments": 3, "queue": 4, "dictations": 5, "activity": 6, "dictionary": 7, "trash": 8, "byday-thoughts": 8, "byday-journal": 8]
 
     func go(_ next: Screen) {
         guard next != screen else { return }
@@ -267,7 +271,8 @@ final class AppState: ObservableObject {
     }
 
     private func key(_ s: Screen) -> String {
-        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript" }
+        switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript"
+        case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts" }
     }
 
     func applyAppearance() {

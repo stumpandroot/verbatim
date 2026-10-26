@@ -34,7 +34,10 @@ enum KindRule {
     /// A link or imported media always takes `fallback` (this rule's kind), so the model never makes a podcast a meeting.
     static func fromModel(_ raw: String?, origin: Origin, fallback: RecordingKind) -> RecordingKind {
         guard origin == .recording else { return fallback }
-        return raw.flatMap { RecordingKind(rawValue: $0.lowercased().trimmingCharacters(in: .whitespaces)) }
+        // The model names Thoughts "thought" (its stored value stays "idea", so synced files and older builds read it).
+        return raw.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+            .map { $0 == "thought" || $0 == "thoughts" ? RecordingKind.idea.rawValue : $0 }
+            .flatMap { RecordingKind(rawValue: $0) }
             .flatMap { RecordingKind.modelKinds.contains($0) ? $0 : nil } ?? fallback
     }
 

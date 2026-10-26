@@ -206,6 +206,12 @@ I = {
     'ActionButton': [s('M5.5 3H15V21H5.5Z'), s('M15 6.5H16.5V10.5H15'), s('M19 7L20.5 6'), s('M19 10L20.5 11'), fl(C(10.25, 17.5, 1))],
     # A sponsor read: a price tag on its string.
     'Sponsor': [s('M3.5 3.5H11.5L20.5 12.5L12.5 20.5L3.5 11.5Z'), s(C(8, 8, 1.6))],
+    # Thoughts (mockup "Thoughts", October 26, 2026): a bulb whose filament is a short sound wave; the base is an axis
+    # with crossbars, like Home's. The wave is drawn on its own (the last stroke) so a recording can move it with the
+    # mic level (ThoughtWave).
+    'Thought': [s('M9.5 18V16.3C9.5 15.4 8.9 14.7 8.1 14.1A6.3 6.3 0 1 1 15.9 14.1C15.1 14.7 14.5 15.4 14.5 16.3V18'),
+                s('M8.5 18H15.5'), s('M12 18V21.5'), s('M10.5 21.5H13.5'),
+                s('M8.4 9.5C9.3 9.5 9.5 7.8 10.4 7.8S12.6 11.2 13.6 11.2S14.7 9.5 15.6 9.5')],
 }
 
 
