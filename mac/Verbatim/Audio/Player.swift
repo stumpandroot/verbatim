@@ -42,8 +42,14 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     /// The audio being played or opening; published on `clock`, like `duration`.
     var loadedURL: URL? { clock.loadedURL }
     @Published private(set) var rate: Float = 1
+    /// Reduce background noise (ListeningCleanup.swift): what you hear only, never the transcript or the file.
+    /// Remembered on this device.
+    @Published private(set) var reduceNoise = ListeningCleanup.isOn
 
     private var player: AVAudioPlayer?
+    /// Playback through Apple's voice isolation while Reduce background noise is on; the AVAudioPlayer stays open
+    /// (paused) beside it for the length and for switching back.
+    private var clean: CleanPlayback?
     private var timer: Timer?
     /// A seek asked for while the file was still opening; applied once it opens.
     private var pendingStart: Double?
@@ -88,6 +94,60 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private func opened(_ p: AVAudioPlayer) {
         objectWillChange.send()
         player = p
+        if reduceNoise, let u = loadedURL { startClean(u, at: p.currentTime, playing: false) }
+    }
+
+    /// Turns Reduce background noise on or off, at the same moment and in the same state (playing or paused).
+    func setReduceNoise(_ on: Bool) {
+        guard on != reduceNoise else { return }
+        reduceNoise = on
+        ListeningCleanup.isOn = on
+        guard let p = player, let u = loadedURL else { return }
+        let at = time, playing = isPlaying
+        if on {
+            p.pause()
+            if !startClean(u, at: at, playing: playing) {
+                // No voice isolation here: the switch goes back off, and playback carries on as it was.
+                reduceNoise = false
+                ListeningCleanup.isOn = false
+                clock.flash(ListeningCleanup.unavailable, seconds: 3)
+                if playing { p.currentTime = at; p.play() }
+            }
+        } else if let c = clean {
+            c.stop(); clean = nil
+            p.currentTime = min(at, p.duration)
+            if playing { p.play() }
+        }
+        Log.note("player: reduce background noise \(on ? "on" : "off")\(on && clean == nil ? " (not available)" : "")")
+    }
+
+    /// True while playback runs through the voice isolation (for the self-tests).
+    var isCleaning: Bool { clean != nil }
+
+    /// For the self-tests: whether a voice-isolation playback opens for `url` on this device. Nothing plays.
+    func cleanPlaybackOpens(_ url: URL) -> Bool {
+        guard let c = CleanPlayback(url: url, rate: 1) else { return false }
+        c.stop()
+        return true
+    }
+
+    /// Opens the voice-isolation playback for `url` at `at`. False when the device can't (playback stays as it was).
+    @discardableResult
+    private func startClean(_ url: URL, at: Double, playing: Bool) -> Bool {
+        clean?.stop()
+        guard let c = CleanPlayback(url: url, rate: rate) else {
+            clean = nil
+            return false
+        }
+        c.onFinish = { [weak self] in
+            guard let self else { return }
+            self.isPlaying = false
+            self.timer?.invalidate()
+            self.time = 0
+        }
+        clean = c
+        if playing { c.play(from: at) } else { c.seek(to: at) }
+        return true
     }
 
     /// Opens the file off the main thread so a long recording doesn't hold up the screen that shows it. `autoplay`
@@ -129,18 +189,23 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         p?.enableRate = true
         p?.rate = rate
         p?.prepareToPlay()
+        setLoadedURL(url)
         if let p { opened(p) }
         setDuration(p?.duration ?? 0)
         time = 0
-        setLoadedURL(url)
     }
 
     func toggle() {
         guard let p = player else { return }
-        if p.isPlaying { p.pause(); isPlaying = false; timer?.invalidate() }
+        if let c = clean {
+            if c.isPlaying { c.pause(); isPlaying = false; timer?.invalidate(); return }
+            c.play(from: time)
+        }
+        if clean == nil, p.isPlaying { p.pause(); isPlaying = false; timer?.invalidate() }
         else {
-            p.play(); isPlaying = true
-            lastTick = p.currentTime
+            if clean == nil { p.play() }
+            isPlaying = true
+            lastTick = clean?.currentTime ?? p.currentTime
             // Scheduled on the main run loop (this is main-actor code), so the block is already on main: no Task per tick.
             timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
@@ -151,10 +216,10 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     /// Moves the playhead with playback, jumping past a sponsor read it just crossed into.
     private func tick() {
         guard let p = player else { time = 0; return }
-        let now = p.currentTime
+        let now = clean?.currentTime ?? p.currentTime
         if let to = SponsorSkip.target(from: lastTick, to: now, spans: skipSpans) {
-            p.currentTime = min(to, p.duration)
-            lastTick = p.currentTime; time = p.currentTime
+            if let c = clean { c.seek(to: min(to, c.duration)); lastTick = min(to, c.duration); time = lastTick }
+            else { p.currentTime = min(to, p.duration); lastTick = p.currentTime; time = p.currentTime }
             clock.flash("Skipped sponsor")
             return
         }
@@ -165,6 +230,7 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
     func seek(to t: TimeInterval) {
         guard let p = player else { if loadedURL != nil { pendingStart = max(0, t) }; return }
         p.currentTime = max(0, min(t, p.duration))
+        clean?.seek(to: p.currentTime)
         time = p.currentTime
         lastTick = time
     }
@@ -175,9 +241,10 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if player != nil, !isPlaying { toggle() }
     }
 
-    func setRate(_ r: Float) { rate = r; player?.rate = r }
+    func setRate(_ r: Float) { rate = r; player?.rate = r; clean?.rate = r }
 
     func stop() {
+        clean?.stop(); clean = nil
         player?.stop(); player = nil
         timer?.invalidate(); timer = nil
         if isPlaying { isPlaying = false }
@@ -186,6 +253,8 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
+            // The voice-isolation playback has its own end (`CleanPlayback.onFinish`).
+            guard self.clean == nil else { return }
             self.isPlaying = false
             self.timer?.invalidate()
             self.time = 0
