@@ -12,7 +12,11 @@
         "Mac and iPhone: Export can add “[unclear 2:10]” markers. They're off unless you turn on Unclear markers.",
         "Mac and iPhone: Reduce background noise in the player's speed menu turns down wind or a mower while you listen. It doesn't change the transcript or the recording.",
         "iPhone: AirPods record in higher quality on iOS 26, instead of over the phone-call link.",
-        "iPhone: tapping the New thought widget no longer closes Verbose. The thought records behind its Live Activity, or Verbose opens to the recorder."
+        "iPhone: tapping the New thought widget no longer closes Verbose. The thought records behind its Live Activity, or Verbose opens to the recorder.",
+        "iPhone: choose your tabs in Settings › Personalization and preferences › Tab bar. Home stays first and Settings last; pick up to three between them from Library, Thoughts, Journal, Moments, Dictations, and Projects, and drag to reorder. Edit Home has a Tab bar link too.",
+        "iPhone: the Thoughts tab opens today's page, and the Journal tab opens Journal by day. Each tab keeps its own place. Links to a tab you removed open inside Library or Home.",
+        "Mac and iPhone: Edit Home adds Today's thoughts (your latest thoughts with their times, and New thought) and Journal (your newest entry with a play button, and this week's days). Both start hidden.",
+        "Mac and iPhone: two new Home tiles. New thought records a thought without leaving Home, and Journal opens Journal by day. On the Mac, the floating Thoughts tile is now called Today's page."
       ]
     },
     {

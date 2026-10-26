@@ -353,6 +353,9 @@ enum PhoneUITest {
             }
             // Edit Home in the first look (Verbose style on a fresh simulator), from Home's button.
             await editHomeTour(app, look: AppLook.current, suffix: "")
+            // The tab bar (Settings › Tab bar) and Home's Today's thoughts and Journal, in the first look.
+            await tabBarTour(app, suffix: "")
+            await homeThoughtsTour(app, look: AppLook.current, suffix: "")
             // The Native look (DESIGN.md §13): the key screens again, named p…-native and d…-native. The look is
             // stored per device in the App Group; the one this simulator had is put back after.
             // It switches as people do, from Settings › Appearance (LookSwitch.swift): the card in the new look, the
@@ -450,6 +453,8 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 700_000_000)
             }
             await editHomeTour(app, look: .native, suffix: "-native")
+            await tabBarTour(app, suffix: "-native")
+            await homeThoughtsTour(app, look: .native, suffix: "-native")
             // Back to the look the simulator had, from Home this time: the tab on screen rebuilds behind the card.
             app.tab = .home
             try? await Task.sleep(nanoseconds: 800_000_000)
@@ -955,6 +960,166 @@ enum PhoneUITest {
             check("the floating record button stays while the Record section is hidden",
                   PremiumRecordButton.onScreen.contains(.home) && HomeProbe.sections[.record] == nil)
         }
+    }
+
+    // MARK: Tab bar
+
+    /// The tab titles the system tab bar shows, left to right (empty when UIKit's bar can't be found).
+    private static func tabBarTitles() -> [String] {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        guard let root = (windows.first(where: \.isKeyWindow) ?? windows.first)?.rootViewController else { return [] }
+        func find(_ vc: UIViewController) -> UITabBarController? {
+            if let t = vc as? UITabBarController { return t }
+            for c in vc.children { if let t = find(c) { return t } }
+            return nil
+        }
+        guard let tbc = find(root) else { return [] }
+        if #available(iOS 18.0, *), !tbc.tabs.isEmpty { return tbc.tabs.map(\.title) }
+        return tbc.tabBar.items?.compactMap(\.title) ?? []
+    }
+
+    /// Settings › Personalization and preferences › Tab bar (TabBarSettings.swift, PhoneTabBar.swift): the default on a
+    /// fresh install, Thoughts and Journal in place of Moments, each tab opening its own root, a Moments link and
+    /// today's page with the bar changed, reordering, removing the selected tab, Dictations and Projects as roots, and a
+    /// Library link with no Library tab. Screenshots of the picker and the new tabs in each look; the checks in the
+    /// first. The bar store starts from the default in UI test mode and never writes the simulator's bar.
+    private static func tabBarTour(_ app: PhoneState, suffix: String) async {
+        let checks = suffix.isEmpty
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") tab bar\(suffix): \(name)") }
+        func titles(_ want: [PhoneTab], _ name: String) {
+            let shown = tabBarTitles()
+            if shown.isEmpty { Log.note("UITEST note: the system tab bar's titles weren't readable; \(name) is checked by the model only") }
+            else { check("\(name) (\(shown.joined(separator: ", ")))", shown == want.map(\.title)) }
+        }
+        func settle() async { try? await Task.sleep(nanoseconds: 900_000_000) }
+        app.appearance = "light"
+        app.homePath = NavigationPath()
+        if checks {
+            if let fresh = UserDefaults(suiteName: "uitest.tabbar.\(UUID().uuidString)") {
+                check("a fresh install's bar is Home, Library, Moments, Settings",
+                      PhoneTabBarStore(defaults: fresh, persist: true).bar.tabs == [.home, .library, .moments, .settings])
+            }
+            check("the self-test starts from the default bar", app.tabBar == .default)
+            titles([.home, .library, .moments, .settings], "the default bar is unchanged")
+        }
+        app.tab = .settings
+        SettingsPage.open("tabBar")
+        await show("p09p-settings-tab-bar\(suffix)")
+        if checks { check("Settings › Personalization and preferences › Tab bar opens the picker", TabBarSettingsScreen.visible) }
+        var picks = app.tabBar.middle
+        picks = PhoneTabBar.toggle(.moments, in: picks)
+        picks = PhoneTabBar.toggle(.thoughts, in: picks)
+        picks = PhoneTabBar.toggle(.journal, in: picks)
+        app.setTabBar(picks)
+        await settle()
+        await show("p09q-settings-tab-bar-thoughts-journal\(suffix)")
+        if checks {
+            check("Thoughts and Journal in place of Moments: Home, Library, Thoughts, Journal, Settings",
+                  app.tabBar.tabs == [.home, .library, .thoughts, .journal, .settings])
+            check("the picker's preview shows the new bar", TabBarPreview.shown == app.tabBar.tabs)
+            check("Settings stays on screen while you change the bar", app.tab == .settings && TabBarSettingsScreen.visible)
+            titles([.home, .library, .thoughts, .journal, .settings], "the system tab bar follows")
+        }
+        SettingsPage.open("root")
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        app.tab = .thoughts
+        await show("p14a-tab-thoughts\(suffix)")
+        if checks {
+            check("the Thoughts tab opens today's Thoughts page", DayPageScreen.shown?.kind == .idea && DayPageScreen.shown?.day == app.todayPage && app.thoughtsPath.isEmpty)
+        }
+        app.tab = .journal
+        await show("p14b-tab-journal\(suffix)")
+        if checks { check("the Journal tab opens Journal By day", ByDayScreen.shown?.kind == .journal && app.journalPath.isEmpty) }
+        if checks {
+            app.tab = .library
+            await settle()
+            check("the Library tab still opens the Library", app.libraryPath.isEmpty && visibleStackDepth() == 1)
+            app.go(.moments)
+            await settle()
+            check("Moments without its tab opens inside Library", app.tab == .library && app.libraryPath.count == 1)
+            app.libraryPath = NavigationPath()
+            app.tab = .home
+            await settle()
+            app.openThoughtPage()
+            await settle()
+            check("today's page from a widget opens the Thoughts tab", app.tab == .thoughts && app.thoughtsPath.isEmpty && DayPageScreen.shown?.day == app.todayPage)
+            app.setTabBar(PhoneTabBar.move(app.tabBar.middle, fromOffsets: IndexSet(integer: 2), toOffset: 0))
+            await settle()
+            check("drag to reorder: Home, Journal, Library, Thoughts, Settings", app.tabBar.tabs == [.home, .journal, .library, .thoughts, .settings])
+            titles([.home, .journal, .library, .thoughts, .settings], "the system tab bar follows the new order")
+            app.tab = .journal
+            await settle()
+            app.setTabBar([.library, .thoughts])
+            await settle()
+            check("removing the selected tab (Journal) goes Home", app.tab == .home && !app.tabBar.contains(.journal))
+            app.setTabBar([.dictations, .projects])
+            app.tab = .dictations
+            await settle()
+            check("the Dictations tab opens the dictations list as its root", app.dictationsPath.isEmpty && visibleStackDepth() == 1)
+            app.tab = .projects
+            await settle()
+            check("the Projects tab opens Projects as its root", ProjectsScreen.visible && app.projectsPath.isEmpty)
+            app.go(.library)
+            await settle()
+            check("with no Library tab, a Library link opens inside Home", app.tab == .home && app.homePath.count == 1)
+            app.homePath = NavigationPath()
+        }
+        app.setTabBar(PhoneTabBar.defaultMiddle)
+        app.tab = .home
+        await settle()
+        if checks {
+            check("back to the default bar", app.tabBar == .default && app.tab == .home)
+            titles([.home, .library, .moments, .settings], "the default bar comes back")
+        }
+    }
+
+    /// Home's Today's thoughts and Journal (HomeSections.swift) and the New thought and Journal tiles: shown, they render
+    /// Large and Compact; the New thought tile adds a thought (simulated audio; no microphone in the simulator) that
+    /// lands on today's page and in the section's count; the Journal tile opens Journal By day. Then Home is reset.
+    private static func homeThoughtsTour(_ app: PhoneState, look: AppLook, suffix: String) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") home thoughts\(suffix): \(name)") }
+        let store = HomeLayoutStore.shared
+        let hl = look.homeLook
+        app.appearance = "light"
+        app.homePath = NavigationPath()
+        app.tab = .home
+        store.reset(hl)
+        check("Today's thoughts and Journal start hidden", !store.layout(hl).isVisible(.thoughts) && !store.layout(hl).isVisible(.journal))
+        store.update(hl) { l in
+            l.setVisible(.thoughts, true)
+            l.setVisible(.journal, true)
+            l.tiles = [.newThought, .journal, .dictate, .importMedia]
+        }
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-thoughts")
+        await show("p15a-home-thoughts-journal\(suffix)")
+        check("the shown sections render (Today's thoughts and Journal, Large)", HomeProbe.sections[.thoughts] == .large && HomeProbe.sections[.journal] == .large)
+        check("the New thought and Journal tiles reach Home", HomeProbe.tiles.contains(.newThought) && HomeProbe.tiles.contains(.journal))
+        let keep = HomeTileAction.startThought
+        HomeTileAction.startThought = { app in
+            let url = app.store.newRecordingURL()
+            writeToneFile(url, seconds: 2)
+            app.fileThought(url: url, duration: 2, envelope: Array(repeating: 0.4, count: 60), startedAt: Date())
+        }
+        let before = app.store.todaysThoughts().count
+        HomeTileAction.run(.newThought, app)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("the New thought tile adds a thought to today's page", app.store.todaysThoughts().count == before + 1)
+        check("Today's thoughts on Home counts it", HomeThoughtsSection.shownCount == before + 1)
+        HomeTileAction.startThought = keep
+        app.lastThought = nil
+        store.update(hl) { l in l.setSize(.thoughts, .compact); l.setSize(.journal, .compact) }
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        NotificationCenter.default.post(name: .verbatimHomeScroll, object: "home-thoughts")
+        await show("p15b-home-thoughts-journal-compact\(suffix)")
+        check("Compact reaches Home", HomeProbe.sections[.thoughts] == .compact && HomeProbe.sections[.journal] == .compact)
+        HomeTileAction.run(.journal, app)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("the Journal tile opens Journal By day", ByDayScreen.shown?.kind == .journal && app.tab == app.tabBar.host(for: .journal))
+        app.setPath(app.tab, NavigationPath())
+        app.tab = .home
+        store.reset(hl)
+        try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
     private static func lookCheck(_ name: String, _ ok: Bool) {

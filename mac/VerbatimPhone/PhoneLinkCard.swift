@@ -47,10 +47,13 @@ struct PhoneLinkCardLayer: View {
         .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: locate) }
         .onChange(of: app.libraryBadgeCount) { _, _ in locate() }
         .onChange(of: app.tab) { _, _ in DispatchQueue.main.async(execute: locate) }
+        .onReceive(app.tabBarStore.$bar) { _ in DispatchQueue.main.async(execute: locate) }
     }
 
+    /// The Library item, or Home's when Library isn't in the bar (a link lands there then).
     private func locate() {
-        let f = TabBarLocator.itemFrame(index: PhoneState.Tab.library.order, of: 4)
+        let bar = app.tabBar
+        let f = TabBarLocator.itemFrame(index: bar.position(.library) ?? 0, of: bar.tabs.count)
         if f != libraryItem { libraryItem = f }
     }
 }

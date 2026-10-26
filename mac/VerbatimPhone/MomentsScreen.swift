@@ -11,6 +11,9 @@ struct MomentsScreen: View {
     @State private var entrance = 0
     /// The chip, kept when a look switch rebuilds Moments (`LookKeep`).
     @State private var show: Show = LookKeep.momentsShow
+    /// Pushed inside another tab (Moments isn't in the bar): the navigation bar shows, with Back.
+    var pushed = false
+    @Environment(\.look) private var look
 
     enum Show: Hashable { case all, bookmarks, notes, stills }
 
@@ -76,7 +79,11 @@ struct MomentsScreen: View {
         .onChange(of: show) { _, v in LookKeep.momentsShow = v }
         .phonePage()
         .navigationTitle("Moments")
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if pushed && !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
+        }
+        .toolbar(pushed ? .visible : .hidden, for: .navigationBar)
     }
 }
 

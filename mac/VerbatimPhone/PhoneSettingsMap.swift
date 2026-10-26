@@ -45,6 +45,8 @@ enum PhoneSettingsMap {
             ]),
             // Customize Home: Edit Home's sections, sizes, and tiles (EditHome.swift).
             Row(id: "customizeHomeRow", page: "customizeHome", settings: [Setting("customizeHome")]),
+            // Tab bar: the up to three tabs between Home and Settings (TabBarSettings.swift, PhoneTabBar.swift).
+            Row(id: "tabBarRow", page: "tabBar", settings: [Setting("tabBar", keys: ["appearance.tabBar"])]),
             Row(id: "aboutMeRow", page: "aboutMe", settings: [Setting("aboutMe", keys: ["profile.aboutMe"])]),
             Row(id: "voice", settings: [Setting("voice")]),
             Row(id: "dictionaryRow", page: "dictionary", settings: [

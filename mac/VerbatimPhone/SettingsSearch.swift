@@ -12,7 +12,7 @@ enum SettingsSearchTarget: Equatable {
 /// `SettingsPage.open(_:)` takes; SettingsScreen maps each one to its navigation destination.
 enum SettingsSubpage: String, CaseIterable, Equatable {
     case aboutMe, dictionary, keyboard, snippets, actionButton, appearance, whatsNew
-    case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome, thoughts
+    case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome, thoughts, tabBar
 
     /// The page's title, as its navigation bar shows it.
     var title: String {
@@ -33,6 +33,7 @@ enum SettingsSubpage: String, CaseIterable, Equatable {
         case .shortcuts: return "Shortcuts and Siri"
         case .customizeHome: return "Customize Home"
         case .thoughts: return "Thoughts"
+        case .tabBar: return "Tab bar"
         }
     }
 }
@@ -77,6 +78,8 @@ enum SettingsSearchIndex {
               description: "Native: the Record card on Home", target: .page(.appearance)),
         .init(id: "customizeHome", section: personalization, label: "Customize Home", keywords: ["edit home", "home", "sections", "reorder", "tiles", "shortcut tiles", "compact", "large", "hide"],
               description: "Show, hide, reorder, and resize Home's sections", target: .page(.customizeHome)),
+        .init(id: "tabBar", section: personalization, label: "Tab bar", keywords: ["tabs", "tab bar", "bottom bar", "thoughts tab", "journal tab", "moments", "projects", "dictations", "reorder", "customize"],
+              description: "Choose up to three tabs between Home and Settings", target: .page(.tabBar)),
         .init(id: "aboutMe", section: personalization, label: "About me", keywords: ["profile", "context", "titles", "summaries", "bio"],
               description: "Context for titles and summaries", target: .page(.aboutMe)),
         .init(id: "voice", section: personalization, label: "Your voice", keywords: ["speaker", "recognize", "me", "voice print", "voice profile"],

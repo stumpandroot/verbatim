@@ -14,7 +14,7 @@ import UIKit
 
 extension Notification.Name {
     /// Moves the day's page on screen to the previous (`"previous"`) or next (`"next"`) page, as the arrows do (the
-    /// self-test).
+    /// self-test), or a Thoughts page back to today (`"today"`, when the Thoughts tab opens on today).
     static let verbatimDayPageMove = Notification.Name("verbatimDayPageMove")
 }
 
@@ -72,8 +72,10 @@ struct DayPageScreen: View {
         .onChange(of: items.map(\.id)) { _, _ in note(self.items) }
         .onChange(of: day) { _, _ in note(self.items) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimDayPageMove)) { n in
+            let what = n.object as? String
+            if what == "today" { if thoughts { move(today) }; return }
             let to = neighbors
-            move((n.object as? String) == "previous" ? to.previous : to.next)
+            move(what == "previous" ? to.previous : to.next)
         }
         .onDisappear {
             if Self.shown?.day == day { Self.shown = nil }
@@ -495,7 +497,7 @@ struct ByDayScreen: View {
         Self.shown = (kind, inMonth(pages).count)
     }
 
-    private func open(_ day: Date) { app.libraryPath.append(DayPageRoute(kind: kind, day: day)) }
+    private func open(_ day: Date) { app.pushHere(DayPageRoute(kind: kind, day: day)) }
 
     /// "Today, Mon, Oct 26" or "Sat, Oct 24".
     private func dayTitle(_ day: Date) -> (String, String) {

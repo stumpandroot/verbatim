@@ -5,7 +5,7 @@ import PhotosUI
 struct VerbatimPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
     /// PhoneState, held without observing it (as on the Mac, VerbatimApp.swift): a PhoneState publish used to
-    /// re-evaluate the scene, then PhoneRoot's TabView with all four stacks. PhoneRoot observes it and applies the
+    /// re-evaluate the scene, then PhoneRoot's TabView with every tab's stack. PhoneRoot observes it and applies the
     /// color scheme itself.
     @StateObject private var holder = PhoneHolder()
     private var app: PhoneState { holder.app }
@@ -31,14 +31,18 @@ struct VerbatimPhoneApp: App {
     }
 }
 
-/// Four tabs in the system tab bar (Liquid Glass on iOS 26). Paper underneath. The recorder covers the screen
-/// until you minimize it; then a bar above the tab bar carries the recording on every tab (MiniRecorder.swift).
+/// The tabs in the system tab bar (Liquid Glass on iOS 26): Home, up to three you pick (Library and Moments unless you
+/// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. The recorder
+/// covers the screen until you minimize it; then a bar above the tab bar carries the recording on every tab
+/// (MiniRecorder.swift).
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
     @State private var newProjectName = ""
     @State private var photoPicks: [PhotosPickerItem] = []
     @ObservedObject private var rename = RenameCenter.shared
+    /// The tabs in the bar (PhoneTabBar.swift); the TabView follows a change at once.
+    @ObservedObject private var tabBar = PhoneTabBarStore.shared
     /// The full-screen recorder zooms out of the bar and back into it.
     @Namespace private var recorderZoom
     @Environment(\.look) private var look
@@ -56,40 +60,17 @@ struct PhoneRoot: View {
         look.isNative ? Image(systemName: symbol) : Image(uiImage: art.templateImage(size: 26, key: key))   // brand: native
     }
 
-    /// Four tabs. Home, Library, and Moments each draw in their own look (`builtLook`).
+    /// Each tab's icon: its BrandArt glyph in Verbose style, its SF Symbol in Native (PhoneTabs.swift).
+    private func tabIcon(_ t: PhoneState.Tab) -> Image { tabIcon(t.art, "tab-\(t.rawValue)", t.symbol) }
+
+    /// The tabs in the bar, left to right, each drawn in its own look (`builtLook`) except Settings.
     private var tabs: some View {
         TabView(selection: $app.tab) {
-            // Home, Library, and Moments are rebuilt in a new look (like the Mac's `lookRebuild()`), so each screen
-            // and its navigation bar start fresh in it; the paths live in PhoneState, so they're kept. Changed in place,
-            // Home kept its Verbose layout under a half-made bar, and Library kept its inline title. Only the tab on
-            // screen rebuilds when the look changes; the others wait until they're shown (`builtLook`). Settings isn't
-            // rebuilt: the look changes from Settings › Appearance, which would pop.
-            NavigationStack(path: $app.homePath) {
-                HomeScreen()
-                    .navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
-                    .navigationDestination(for: DocumentRoute.self) { TranscriptScreen(id: $0.id, startMode: .document) }
+            ForEach(tabBar.bar.tabs, id: \.self) { t in
+                tabRoot(t)
+                    .tabItem { Label { Text(t.title) } icon: { tabIcon(t) } }
+                    .tag(t)
             }
-            .tabLook(builtLook(.home))
-            .miniRecorderInset(.home, zoom: recorderZoom)
-            .tabItem { Label { Text("Home") } icon: { tabIcon(.iconHome, "iconHome", "house") } }.tag(PhoneState.Tab.home)
-
-            NavigationStack(path: $app.libraryPath) {
-                LibraryScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
-            }
-            .tabLook(builtLook(.library))
-            .miniRecorderInset(.library, zoom: recorderZoom)
-            .tabItem { Label { Text("Library") } icon: { tabIcon(.iconLibrary, "iconLibrary", "books.vertical") } }.tag(PhoneState.Tab.library)
-
-            NavigationStack(path: $app.momentsPath) {
-                MomentsScreen().navigationDestination(for: UUID.self) { TranscriptScreen(id: $0) }
-            }
-            .tabLook(builtLook(.moments))
-            .miniRecorderInset(.moments, zoom: recorderZoom)
-            .tabItem { Label { Text("Moments") } icon: { tabIcon(.iconMoments, "iconMoments", "bookmark") } }.tag(PhoneState.Tab.moments)
-
-            NavigationStack { SettingsScreen() }
-                .miniRecorderInset(.settings, zoom: recorderZoom)
-                .tabItem { Label { Text("Settings") } icon: { tabIcon(.iconSettings, "iconSettings", "gearshape") } }.tag(PhoneState.Tab.settings)
         }
         // The tab you leave keeps the look it was drawn in; the one you open follows the current look.
         .onChange(of: app.tab) { old, new in
@@ -99,6 +80,38 @@ struct PhoneRoot: View {
         // Until the library has loaded at launch: the look's page and, after a moment, a small spinner.
         .overlay { loadingCover }
         .onAppear { LaunchClock.rootAppeared() }
+    }
+
+    /// A tab and its own navigation stack. Every tab but Settings is rebuilt in a new look (like the Mac's
+    /// `lookRebuild()`), so each screen and its navigation bar start fresh in it; the paths live in PhoneState, so
+    /// they're kept. Changed in place, Home kept its Verbose layout under a half-made bar, and Library kept its inline
+    /// title. Only the tab on screen rebuilds when the look changes; the others wait until they're shown
+    /// (`builtLook`). Settings isn't rebuilt: the look changes from Settings › Appearance, which would pop. Every stack
+    /// can push every screen (`phoneRoutes`), so a screen whose tab isn't in the bar opens inside Library or Home.
+    @ViewBuilder private func tabRoot(_ t: PhoneState.Tab) -> some View {
+        if t == .settings {
+            NavigationStack { SettingsScreen() }
+                .miniRecorderInset(.settings, zoom: recorderZoom)
+        } else {
+            NavigationStack(path: app.pathBinding(t)) { rootScreen(t).phoneRoutes() }
+                .tabLook(builtLook(t))
+                .miniRecorderInset(t, zoom: recorderZoom)
+        }
+    }
+
+    @ViewBuilder private func rootScreen(_ t: PhoneState.Tab) -> some View {
+        switch t {
+        case .home: HomeScreen()
+        case .library: LibraryScreen()
+        // Today's Thoughts page; its calendar button opens By day.
+        case .thoughts: DayPageScreen(kind: .idea, day: app.todayPage)
+        // Journal By day (Thoughts phase B).
+        case .journal: ByDayScreen(kind: .journal)
+        case .moments: MomentsScreen()
+        case .dictations: DictationsListScreen()
+        case .projects: ProjectsScreen()
+        case .settings: SettingsScreen()
+        }
     }
 
     @ViewBuilder private var loadingCover: some View {
@@ -219,8 +232,8 @@ final class PhoneHolder: ObservableObject {
     init() { app = PhoneState() }
 }
 
-/// Screen state a look switch would otherwise lose: Home, Library, and Moments start fresh in a new look (their paths
-/// live in PhoneState), and these come back with them. In memory only; nothing new is stored.
+/// Screen state a look switch would otherwise lose: every tab but Settings starts fresh in a new look (their paths live
+/// in PhoneState), and these come back with them. In memory only; nothing new is stored.
 enum LookKeep {
     static var librarySearch = ""
     static var libraryFilter: LibraryScreen.Filter = .all
