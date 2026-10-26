@@ -38,12 +38,15 @@ actor FluidEngine: TranscriptionEngine {
 
     private func load(_ model: String, progress: @escaping @Sendable (EngineProgress) -> Void) async throws -> AsrManager {
         if let m = manager, loaded == model { return m }
+        // Each load has Core ML prepare the model for this device's Neural Engine, which can write hundreds of
+        // megabytes (build 221's disk-writes report), so a load that replaces another model says so in the log.
+        let replacing = loaded
         manager = nil
         warmed = nil
         let name = Engines.displayName(engine: "fluid", model: model)
         let dir = Paths.models.appendingPathComponent("parakeet-\(model)", isDirectory: true)
         progress(.loading(name))
-        Log.note("Fluid load \(model)")
+        Log.note("Fluid load \(model)\(replacing.map { " (replacing \($0))" } ?? "")")
         // Settings › Privacy: a model that isn't on this device yet is a download, which Local Only refuses.
         let downloads = !AsrModels.modelsExist(at: dir, version: Self.version(model))
         var download: UUID?
