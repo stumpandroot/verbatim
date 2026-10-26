@@ -1,8 +1,8 @@
 import Foundation
 
 // What's new (Verbatim/Model/ReleaseNotes.swift, mac/ReleaseNotes/ReleaseNotes.json). Arguments: the bundled JSON,
-// then optionally a copy with a "next" entry, that copy after CI's stamping, and the build number it was stamped
-// with (test-release-notes.sh makes them).
+// then optionally a copy with a "next" entry, that copy after CI's stamping, the build number it was stamped with,
+// and the version it was stamped with (test-release-notes.sh makes them).
 
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool) {
@@ -56,6 +56,31 @@ check("rules: an empty title fails", bad([ReleaseNote(build: "5", date: "2026-10
 check("rules: a build that isn't a number fails", bad([ReleaseNote(build: "v5", date: "2026-10-01", title: "t", items: ["i."])]))
 check("rules: an empty list fails", bad([]))
 
+// MARK: Versions (mac/VERSIONING.md)
+
+check("version: 1.0 beta (217)", AppVersion.label(marketing: "1.0", channel: "beta", build: "217") == "1.0 beta (217)")
+check("version: no channel reads 1.0 (217)", AppVersion.label(marketing: "1.0", channel: "", build: "217") == "1.0 (217)")
+check("version: a blank channel counts as none", AppVersion.name(marketing: "1.2", channel: "  ") == "1.2")
+check("version: 1.0 and 1.2.3 are numeric", AppVersion.isNumeric("1.0") && AppVersion.isNumeric("1.2.3"))
+check("version: 1.0 beta, 1.0.0.1, and 1..0 aren't", !AppVersion.isNumeric("1.0 beta") && !AppVersion.isNumeric("1.0.0.1") && !AppVersion.isNumeric("1..0") && !AppVersion.isNumeric(""))
+check("version: an entry without one is 1.0 beta", b203.versionName == "1.0 beta" && ReleaseNotes.firstVersion == "1.0 beta")
+let v11a = ReleaseNote(build: "310", date: "2026-12-02", title: "t", items: ["i."], version: "1.1")
+let v11b = ReleaseNote(build: "305", date: "2026-12-01", title: "t", items: ["i."], version: "1.1")
+let v10 = ReleaseNote(build: "300", date: "2026-11-20", title: "t", items: ["i."], version: "1.0")
+let groups = ReleaseNotes.byVersion([next, v11a, v11b, v10, b203, b202])
+check("groups: in file order, newest first", groups.map(\.name) == ["1.0 beta", "1.1", "1.0"])
+check("groups: an unstamped next counts as 1.0 beta", groups.first?.notes.first == next)
+check("groups: each build once, under its version",
+      groups.flatMap(\.notes).count == 6 && groups[1].notes == [v11a, v11b] && groups[0].notes == [next, b203, b202])
+check("groups: headings", groups[1].heading == "Version 1.1" && groups[1].spokenHeading == "Version 1.1, 2 builds" && groups[2].spokenHeading == "Version 1.0, 1 build")
+check("groups: the bundled file groups every build", ReleaseNotes.byVersion(notes).flatMap(\.notes) == notes)
+check("rules: an empty version fails", bad([ReleaseNote(build: "5", date: "2026-10-01", title: "t", items: ["i."], version: " ")]))
+check("rules: a version passes", !bad([v11a, v10]))
+if let data = #"{"notes": [{"build": "9", "date": "2026-10-01", "version": "1.0 beta", "title": "t", "items": ["i."]}, {"build": "8", "date": "2026-10-01", "title": "t", "items": ["i."]}]}"#.data(using: .utf8),
+   let parsed = try? ReleaseNotes.parse(data) {
+    check("parse: version is read, and optional", parsed.first?.version == "1.0 beta" && parsed.last?.version == nil)
+} else { check("parse: version is read, and optional", false) }
+
 // MARK: Home's note
 
 let list = [b203, b202]
@@ -86,6 +111,9 @@ if args.count >= 5, let before = load(args[2]), let stamped = load(args[3]), let
     }()
     check("stamped: no \"next\" left", !stamped.contains(where: \.isNext))
     check("stamped: the top entry is build \(n), dated today (UTC)", stamped.first?.build == String(n) && stamped.first?.date == today)
+    if args.count >= 6 {
+        check("stamped: the top entry is in version \(args[5])", stamped.first?.version == args[5] && stamped.first?.versionName == args[5])
+    }
     check("stamped: the title and items are next's", before.first.map { $0.isNext && $0.title == stamped.first?.title && $0.items == stamped.first?.items } ?? false)
     check("stamped: the rest is unchanged", Array(stamped.dropFirst()) == Array(before.drop(while: \.isNext)))
     check("stamped: still follows the rules", ReleaseNotes.problems(stamped).isEmpty)

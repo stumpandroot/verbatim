@@ -520,10 +520,8 @@ struct SettingsScreen: View {
     }
 
     private var footer: some View {
-        let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let build = info?["CFBundleVersion"] as? String ?? "1"
-        return VStack(spacing: 6) {
+        // "Version 1.0 beta (217)": the marketing version, the channel, and the build (VERSIONING.md).
+        VStack(spacing: 6) {
             // The lockup (DESIGN.md §4) and the tagline in the serif. Native keeps only the version lines.
             if !look.isNative {
                 HStack(spacing: 8) {
@@ -536,7 +534,7 @@ struct SettingsScreen: View {
             // The version opens What's new.
             Button { open(.whatsNew) } label: {
                 VStack(spacing: 2) {
-                    Text("Version \(version) (\(build))")
+                    Text("Version \(AppVersion.label)")
                     Text("What's new").fontWeight(.semibold).foregroundStyle(.lookAccentText)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 4)
@@ -545,7 +543,7 @@ struct SettingsScreen: View {
             .buttonStyle(.plain)
             .padding(.vertical, -4)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Version \(version), build \(build). What's new")
+            .accessibilityLabel("Version \(AppVersion.spoken). What's new")
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Shows what's new in each build")
             .settingsSearchTarget("version", flash: searchFlash)

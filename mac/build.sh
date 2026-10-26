@@ -3,14 +3,19 @@
 # wraps it in a DMG, and notarizes it when the "verbatim-notary" notarytool profile exists.
 #
 # Needs: Xcode 16+, xcodegen (brew install xcodegen).
-# Env:   VERSION (default 1.0.0), BUILD (default 1), DMG_SUFFIX (e.g. -universal), NOTARY_PROFILE,
+# Env:   VERSION (default: project.yml's MARKETING_VERSION), VERBOSE_CHANNEL (default: project.yml's; set it empty
+#        for a release with no channel), BUILD (default 1), DMG_SUFFIX (e.g. -universal), NOTARY_PROFILE,
 #        PROVISION_PROFILE (path to a Developer ID provisioning profile with iCloud; turns on iCloud sync),
 #        SKIP_NOTARIZE=1 (build and sign only; run notarize.sh afterward)
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION:-}"
 VERSION="${VERSION%%-*}"   # 2.0.0-alpha.1 -> 2.0.0 for CFBundleShortVersionString
+# Versions (VERSIONING.md): project.yml's MARKETING_VERSION and VERBOSE_CHANNEL unless VERSION or VERBOSE_CHANNEL is set.
+VERSION_ARGS=()
+if [ -n "$VERSION" ]; then VERSION_ARGS+=(MARKETING_VERSION="$VERSION"); fi
+if [ -n "${VERBOSE_CHANNEL+set}" ]; then VERSION_ARGS+=(VERBOSE_CHANNEL="$VERBOSE_CHANNEL"); fi
 BUILD="${BUILD:-1}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-verbatim-notary}"
 DMG="dist/Verbatim${DMG_SUFFIX:-}.dmg"
@@ -69,7 +74,7 @@ fi
 xcodebuild -project Verbatim.xcodeproj -scheme Verbatim -configuration Release \
   -derivedDataPath build -destination 'generic/platform=macOS' \
   -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
-  MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
+  ${VERSION_ARGS[@]+"${VERSION_ARGS[@]}"} CURRENT_PROJECT_VERSION="$BUILD" \
   "${SIGN[@]}" build 2>&1 | tee build/xcodebuild.log | grep -E "error:|warning: unre|BUILD|Compiling|Linking" | tail -n 40
 
 APP="build/Build/Products/Release/Verbatim.app"

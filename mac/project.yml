@@ -43,6 +43,11 @@ configFiles:
 # and YOUTUBE_ON_DEVICE. The iPhone targets pick their conditions with $(VERBATIM_*_CONDITIONS_$(VERBATIM_APP_STORE)).
 settings:
   base:
+    # Versions (VERSIONING.md): one marketing version for every target, the apps and their extensions alike. It stays
+    # numeric for App Store Connect; the channel ("beta" until launch, empty for the App Store release) is its own
+    # setting, VerboseChannel in the apps' Info.plist, and the apps show "Version 1.0 beta (217)".
+    MARKETING_VERSION: "1.0"
+    VERBOSE_CHANNEL: beta
     VERBATIM_APP_STORE: "NO"
     VERBATIM_PHONE_CONDITIONS_NO: YOUTUBE_ON_DEVICE
     VERBATIM_PHONE_CONDITIONS_YES: APP_STORE
@@ -115,6 +120,7 @@ targets:
         LSHasLocalizedDisplayName: true
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        VerboseChannel: $(VERBOSE_CHANNEL)
         LSMinimumSystemVersion: "14.0"
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: "© 2026 Stump & Root Co."
@@ -249,7 +255,6 @@ targets:
         HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Vendor/harper $(SRCROOT)/Vendor/ffmpeg/include"
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim
         PRODUCT_NAME: Verbatim
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -314,7 +319,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.widgets
         PRODUCT_NAME: VerbatimMacWidgets
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VERBATIM_WIDGETS"
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -464,6 +468,7 @@ targets:
         CFBundleDisplayName: Verbose
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        VerboseChannel: $(VERBOSE_CHANNEL)
         UILaunchScreen: {}
         UIBackgroundModes: [audio]
         BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe]
@@ -508,7 +513,6 @@ targets:
         # to drop it from the binary too.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBATIM_PHONE_CONDITIONS_$(VERBATIM_APP_STORE))"
         PRODUCT_NAME: Verbatim
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -561,7 +565,6 @@ targets:
         PRODUCT_NAME: VerbatimKeyboard
         # APP_STORE in App Store builds: no host bundle ID, no opening Verbatim from the keyboard.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(VERBATIM_EXTENSION_CONDITIONS_$(VERBATIM_APP_STORE))"
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -609,7 +612,6 @@ targets:
         PRODUCT_NAME: VerbatimWidgets
         # RecordingActivity.swift leaves its app-only cleanup out of the extension.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VERBATIM_WIDGETS $(VERBATIM_EXTENSION_CONDITIONS_$(VERBATIM_APP_STORE))"
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -663,7 +665,6 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.share
         PRODUCT_NAME: VerbatimShare
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -704,7 +705,6 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.broadcast
         PRODUCT_NAME: VerbatimBroadcast
-        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal

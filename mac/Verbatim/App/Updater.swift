@@ -39,8 +39,9 @@ final class Updater: ObservableObject {
         let info = Bundle.main.infoDictionary ?? [:]
         version = info["CFBundleShortVersionString"] as? String ?? "?"
         build = info["CFBundleVersion"] as? String ?? "?"
-        // CI builds of main are versioned 0.0.0, so the owner's dev builds follow the beta channel by default.
-        UserDefaults.standard.register(defaults: [betaUpdatesKey: version == "0.0.0"])
+        // Beta builds (channel "beta", mac/VERSIONING.md; builds of main before versions were 0.0.0) follow the beta
+        // channel by default. A release with no channel doesn't.
+        UserDefaults.standard.register(defaults: [betaUpdatesKey: !AppVersion.channel.isEmpty || version == "0.0.0"])
         betaUpdates = UserDefaults.standard.bool(forKey: betaUpdatesKey)
         let delegate = UpdaterChannels()
         let c = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: delegate, userDriverDelegate: nil)

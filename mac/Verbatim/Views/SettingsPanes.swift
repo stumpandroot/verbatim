@@ -66,7 +66,7 @@ struct UpdateSettingsSection: View {
                       footer: updater.isRunning ? nil : "Automatic updates are off in this build.") {
             SettingsToggleRow("general.autoUpdate", isOn: $updater.automaticallyChecksForUpdates, disabled: !updater.isRunning)
             SettingsToggleRow("general.beta", isOn: $updater.betaUpdates, disabled: !updater.isRunning)
-            SettingsRow("general.version", detail: "Version \(updater.version) (\(updater.build)). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
+            SettingsRow("general.version", detail: "Version \(AppVersion.label). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
                 HStack(spacing: 8) {
                     Button("What's New…") { tab = .whatsNew }.buttonStyle(.settingsPill)
                     Button("Check Now") { updater.checkForUpdates() }
@@ -688,7 +688,7 @@ struct SupportSettingsPane: View {
             }
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Ink.tagline)")
             SettingsGroup {
-                SettingsRow("about.version", detail: "Verbose \(updater.version) (\(updater.build))") {
+                SettingsRow("about.version", detail: "Verbose \(AppVersion.label)") {
                     HStack(spacing: 12) {
                         // What each build added (WhatsNewPane.swift).
                         Button("What's New…") { tab = .whatsNew }.buttonStyle(.settingsPill)
