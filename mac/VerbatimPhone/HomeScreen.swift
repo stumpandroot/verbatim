@@ -687,9 +687,9 @@ struct RecordScreen: View {
                 .buttonStyle(SoftPress())
                 .accessibilityLabel("Minimize")
                 .accessibilityHint("Keeps recording. Use the bar above the tab bar to come back.")
-                Text(adding == nil ? "New recording" : "Continue recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
+                Text(adding != nil ? "Continue recording" : app.recordingThought ? ThoughtRules.activityTitle : "New recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
                 DottedRule().frame(height: 1)
-                Text(adding == nil ? "Voice note" : "Adds to \(HomeRecentStyle.length(adding!.duration))").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
+                Text(adding != nil ? "Adds to \(HomeRecentStyle.length(adding!.duration))" : app.recordingThought ? PhoneState.thoughtPageTitle(app.todayPage) : "Voice note").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
             }
             .padding(.top, 8)
             .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
@@ -760,7 +760,7 @@ struct RecordScreen: View {
                     confirmDiscard = true
                 }
                 .frame(maxWidth: .infinity)
-                RoundControl(label: saving ? "Saving…" : adding == nil ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
+                RoundControl(label: saving ? "Saving…" : (adding == nil && !app.recordingThought) ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
                     if saving { ProgressView().tint(Ink.readerFixed) }
                     else { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
                 } action: { app.stopRecording() }

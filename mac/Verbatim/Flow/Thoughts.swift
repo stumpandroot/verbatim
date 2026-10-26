@@ -36,53 +36,22 @@ enum Thoughts {
     static var newPageHour: Int { DayPages.storedHour() }
 
     /// A thought's words: what you edited or the cleaned text when there is one, else what was heard.
-    static func words(_ t: Transcript) -> String {
-        if let d = t.document?.trimmingCharacters(in: .whitespacesAndNewlines), !d.isEmpty { return d }
-        return t.segments.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    static func words(_ t: Transcript) -> String { ThoughtText.words(t) }
 
     /// "Mac" or "iPhone": where it was recorded, in the sans meta line under a thought.
-    static func origin(_ t: Transcript) -> String {
-        let s = (t.sourceLabel + " " + (t.processingDeviceName ?? "")).lowercased()
-        return s.contains("iphone") ? "iPhone" : "Mac"
-    }
+    static func origin(_ t: Transcript) -> String { ThoughtText.origin(t) }
 
     /// "9:40" in Verbose (mono, like a transcript's timecode), "9:40 AM" in Native.
-    static func time(_ date: Date, native: Bool) -> String {
-        if native { return Formats.style(date: .none, time: .short).string(from: date) }
-        let f = Formats.pattern(DateFormatter.dateFormat(fromTemplate: "jmm", options: 0, locale: .current)?
-            .replacingOccurrences(of: "a", with: "").trimmingCharacters(in: .whitespaces) ?? "h:mm")
-        return f.string(from: date)
-    }
+    static func time(_ date: Date, native: Bool) -> String { ThoughtText.time(date, native: native) }
 
     /// The page's words for Copy and Send, a blank line between thoughts.
-    static func joined(_ page: [Transcript]) -> String { DayPages.joined(page.map(words)) }
+    static func joined(_ page: [Transcript]) -> String { ThoughtText.joined(page) }
 
     /// "Thoughts" or "Journal" for a by-day kind.
     static func pageName(_ kind: RecordingKind) -> String { kind == .journal ? "Journal" : "Thoughts" }
 }
 
-extension Store {
-    /// Every live recording of `kind` (Thoughts or Journal), grouped into pages, newest page first. Kept until the
-    /// library changes.
-    func dayPages(_ kind: RecordingKind, hour: Int) -> [(day: Date, items: [Transcript])] {
-        memo("dayPages-\(kind.rawValue)-\(hour)") {
-            DayPages.group(live.filter { $0.kind == kind && !$0.isDictation }, date: \.createdAt, hour: hour)
-        }
-    }
-
-    /// One page's recordings, in the order they started.
-    func page(_ kind: RecordingKind, day: Date, hour: Int) -> [Transcript] {
-        let want = Calendar.current.startOfDay(for: day)
-        return dayPages(kind, hour: hour).first { $0.day == want }?.items ?? []
-    }
-
-    /// Today's thoughts.
-    func todaysThoughts(now: Date = Date()) -> [Transcript] {
-        let hour = Thoughts.newPageHour
-        return page(.idea, day: DayPages.today(now: now, hour: hour), hour: hour)
-    }
-}
+// The library's pages (`Store.dayPages`, `page`, `todaysThoughts`) are in Model/ThoughtPages.swift, shared with the iPhone.
 
 /// Recording a thought: from the bubble, ⌃⌥P, the menu bar, today's page, the Library, or a desktop widget. Its own
 /// recorder (a normal recording's, released on Stop), so a dictation or a voice memo is never touched. Nothing here

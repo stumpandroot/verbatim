@@ -122,6 +122,13 @@ enum PhoneSettingsMap {
             Row(id: "version", page: "whatsNew", settings: [Setting("whatsNew")]),
         ]),
         Group(title: features, rows: [
+            // Thoughts (ThoughtsSettings.swift): the ways in, their setup, and how a thought records.
+            Row(id: "thoughtsRow", page: "thoughts", settings: [
+                Setting("thoughtsWaysIn"),
+                Setting("thoughtsInPlace", keys: ["thoughts.inPlace"]),
+                Setting("thoughtsIslandWords", keys: ["thoughts.islandWords"]),
+                Setting("thoughtsNewPage", keys: ["thoughts.newPageHour"]),
+            ]),
             Row(id: "widgetsRow", page: "widgets", settings: [Setting("widgets")]),
             Row(id: "shortcutsRow", page: "shortcuts", settings: [Setting("shortcuts")]),
             Row(id: "tourRow", page: "tour", settings: [

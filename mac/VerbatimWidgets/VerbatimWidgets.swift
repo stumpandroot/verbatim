@@ -3,10 +3,10 @@ import WidgetKit
 import ActivityKit
 import AppIntents
 
-/// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities, the Lock Screen
-/// session widget, the Home Screen widgets (Record and Dictate, Recent recordings, This week, Quick capture;
-/// HomeWidgets.swift), and (iOS 18) the Control Center controls: the session switch, the Action button's control,
-/// Record voice note, and Dictate.
+/// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities (a thought's too), the
+/// Lock Screen session widget, the Home Screen widgets (Record and Dictate, Recent recordings, This week, New thought,
+/// Today's thoughts; HomeWidgets.swift), the Lock Screen's Thoughts widget, and (iOS 18) the Control Center controls:
+/// the session switch, the Action button's control, Record voice note, Dictate, and New thought.
 @main
 struct VerbatimWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -17,11 +17,14 @@ struct VerbatimWidgetBundle: WidgetBundle {
         RecentRecordingsWidget()
         WeekWidget()
         QuickCaptureWidget()
+        TodayThoughtsWidget()
+        ThoughtsLockWidget()
         if #available(iOS 18.0, *) {
             StartSessionControl()
             ActionButtonControl()
             RecordVoiceNoteControl()
             DictateControl()
+            NewThoughtControl()
         }
     }
 }

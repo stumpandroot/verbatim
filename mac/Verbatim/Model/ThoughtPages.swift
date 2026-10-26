@@ -1,0 +1,53 @@
+import Foundation
+
+// Thoughts and Journal pages from the library, shared by the Mac and the iPhone (DESIGN.md §14). A thought is a
+// recording of the Thoughts kind (raw value `idea`); a day's page is every one that started that day, in time order
+// (DayPages.swift). Nothing here is stored: pages come from the library each time it changes.
+
+/// The words a thought shows, and where it was recorded.
+enum ThoughtText {
+    /// A thought's words: what you edited or the cleaned text when there is one, else what was heard.
+    static func words(_ t: Transcript) -> String {
+        if let d = t.document?.trimmingCharacters(in: .whitespacesAndNewlines), !d.isEmpty { return d }
+        return t.segments.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// "Mac" or "iPhone": where it was recorded, in the sans meta line under a thought.
+    static func origin(_ t: Transcript) -> String {
+        let s = (t.sourceLabel + " " + (t.processingDeviceName ?? "")).lowercased()
+        return s.contains("iphone") ? "iPhone" : "Mac"
+    }
+
+    /// The page's words for Copy and Send, a blank line between thoughts.
+    static func joined(_ page: [Transcript]) -> String { DayPages.joined(page.map(words)) }
+
+    /// "9:40" in Verbose (mono, like a transcript's timecode), "9:40 AM" in Native.
+    static func time(_ date: Date, native: Bool) -> String {
+        if native { return Formats.style(date: .none, time: .short).string(from: date) }
+        let f = Formats.pattern(DateFormatter.dateFormat(fromTemplate: "jmm", options: 0, locale: .current)?
+            .replacingOccurrences(of: "a", with: "").trimmingCharacters(in: .whitespaces) ?? "h:mm")
+        return f.string(from: date)
+    }
+}
+
+extension Store {
+    /// Every live recording of `kind` (Thoughts or Journal), grouped into pages, newest page first. Kept until the
+    /// library changes.
+    func dayPages(_ kind: RecordingKind, hour: Int) -> [(day: Date, items: [Transcript])] {
+        memo("dayPages-\(kind.rawValue)-\(hour)") {
+            DayPages.group(live.filter { $0.kind == kind && !$0.isDictation }, date: \.createdAt, hour: hour)
+        }
+    }
+
+    /// One page's recordings, in the order they started.
+    func page(_ kind: RecordingKind, day: Date, hour: Int) -> [Transcript] {
+        let want = Calendar.current.startOfDay(for: day)
+        return dayPages(kind, hour: hour).first { $0.day == want }?.items ?? []
+    }
+
+    /// Today's thoughts, with the New page each day at setting.
+    func todaysThoughts(now: Date = Date()) -> [Transcript] {
+        let hour = DayPages.storedHour()
+        return page(.idea, day: DayPages.today(now: now, hour: hour), hour: hour)
+    }
+}

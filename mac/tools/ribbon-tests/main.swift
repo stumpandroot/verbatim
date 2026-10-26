@@ -145,17 +145,18 @@ check("once set, it stays", Ribbon.firstDictationDone(was: true, words: 0))
 check("the Action button dictates unless you choose otherwise", Ribbon.actionChoice(nil) == .dictate && Ribbon.actionChoice("nonsense") == .dictate)
 check("stored choices round-trip", Ribbon.ActionChoice.allCases.filter(\.available).allSatisfy { Ribbon.actionChoice($0.rawValue) == $0 })
 check("choice titles match the mockup", Ribbon.ActionChoice.allCases.map(\.title)
-      == ["Dictate", "Record a voice note", "Live captions", "What's playing", "Quick capture to Thought pad"])
+      == ["Dictate", "Record a voice note", "Live captions", "What's playing", "New thought"])
 check("only dictation runs without opening Verbose", Ribbon.ActionChoice.allCases.filter { !$0.needsForeground } == [.dictate])
 check("each row says whether it works in place", Ribbon.ActionChoice.dictate.detail == "Starts or stops a take, in place."
       && Ribbon.ActionChoice.voiceNote.detail == "Opens Verbose." && Ribbon.ActionChoice.captions.detail == "Opens Verbose."
       && Ribbon.ActionChoice.whatsPlaying.detail == "Opens the iOS broadcast sheet first.")
-check("Quick capture can't be chosen until the Thought pad is on iPhone", !Ribbon.ActionChoice.quickCapture.available
-      && Ribbon.ActionChoice.quickCapture.detail == "Needs the Thought pad on iPhone (coming with sync)")
-check("a stored Quick capture reads as Dictate", Ribbon.actionChoice("quickCapture") == .dictate)
+check("New thought can be chosen now that Thoughts is on iPhone", Ribbon.ActionChoice.quickCapture.available
+      && Ribbon.ActionChoice.quickCapture.detail == "Starts a thought, in place when iOS allows it.")
+check("New thought keeps Quick capture's stored value", Ribbon.actionChoice("quickCapture") == .quickCapture)
+check("every choice can be chosen", Ribbon.ActionChoice.allCases.allSatisfy(\.available))
 check("the old stored choices keep their meaning", Ribbon.actionChoice("dictate") == .dictate && Ribbon.actionChoice("voiceNote") == .voiceNote
       && Ribbon.actionChoice("captions") == .captions)
-check("Settings row values", Ribbon.ActionChoice.allCases.map(\.shortTitle) == ["Dictate", "Voice note", "Captions", "What's playing", "Quick capture"])
+check("Settings row values", Ribbon.ActionChoice.allCases.map(\.shortTitle) == ["Dictate", "Voice note", "Captions", "What's playing", "New thought"])
 check("the copy is timeless", Ribbon.ActionChoice.allCases.allSatisfy { c in
     ["currently", "soon", "latest", "today"].allSatisfy { !(c.title + " " + c.detail).lowercased().contains($0) } })
 

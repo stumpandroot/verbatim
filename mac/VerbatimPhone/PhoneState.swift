@@ -84,6 +84,14 @@ final class PhoneState: ObservableObject {
     /// Continue recording: the transcript the current recording will be added to.
     @Published var continuing: UUID? = nil
     private var pendingContinue: UUID? = nil
+    /// The recording running is a thought (PhoneThoughts.swift): it lands on today's Thoughts page when you stop.
+    @Published var recordingThought = false
+    /// When that thought started; it belongs to that day's page.
+    var thoughtStartedAt: Date? = nil
+    /// The next recording to start is a thought (New thought, before the notice or the microphone question).
+    var pendingThought = false
+    /// The last Stop was Discard (a thought's Live Activity then ends without "Added to Thoughts").
+    var lastStopDiscarded = false
     /// Stop or Discard was tapped and the recording is being saved: the record screen says "Saving…" until it's done.
     @Published var savingRecording = false
     /// Microphone access is off: an alert with Open Settings.
@@ -134,6 +142,8 @@ final class PhoneState: ObservableObject {
         watchInbox()
         // The recording's Live Activity and its paused-for-a-call notification (RecordingPresence.swift).
         RecordingPresence.shared.attach(self)
+        // New thought from a widget, control, the Action button, Back Tap, or Siri (NewThoughtIntent, PhoneThoughts.swift).
+        ThoughtSignal.attach(self)
         // The queue, unfinished imports, link fetches, the keyboard's numbers, the widgets, and the self-test start
         // once the library has loaded (the transcripts are decoded off the main thread, after the first frame).
         store.whenLoaded { [weak self] in self?.resumeAfterLoad() }
@@ -216,7 +226,7 @@ final class PhoneState: ObservableObject {
         askMicAndRecord()
     }
 
-    func dismissConsentNotice() { pendingContinue = nil; pendingCaptions = false }
+    func dismissConsentNotice() { pendingContinue = nil; pendingCaptions = false; pendingThought = false }
 
     /// The consent notice's OK: remembered, then recording starts as asked.
     func acknowledgeConsentNotice() {
@@ -228,7 +238,7 @@ final class PhoneState: ObservableObject {
     private func askMicAndRecord() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.startRecording() } else { self.pendingContinue = nil; self.showMicDenied = true }
+                if ok { self.startRecording() } else { self.pendingContinue = nil; self.pendingThought = false; self.showMicDenied = true }
             }
         }
     }
@@ -239,6 +249,8 @@ final class PhoneState: ObservableObject {
         guard !savingRecording else { say("Saving the last recording. Try again in a moment."); return }
         do {
             let url = store.newRecordingURL()
+            // A thought with Show words in the Dynamic Island keeps its live words going in the background.
+            recordingWords.keepInBackground = pendingThought && ThoughtRules.islandWords()
             recordingWords.prepare(recorder)   // before start, so live text hears the first word
             try recorder.start(to: url)
             recordingWords.begin()
@@ -247,12 +259,15 @@ final class PhoneState: ObservableObject {
             pendingContinue = nil
             // If Verbatim is closed mid-recording, recovery adds it to this transcript (RecordingSafety.swift).
             if let target = continuing { Store.markContinuation(url, to: target) }
+            // A thought: if Verbatim is closed mid-thought, recovery brings it back as a thought on the day it started.
+            beginThoughtIfAsked(url)
             showRecorder = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             warmModel()
             if let warning = Store.lowSpaceWarning() { say(warning) }
         } catch {
             recordingWords.end()
+            pendingThought = false
             say("Couldn't start recording: \(error.localizedDescription)")
         }
     }
@@ -317,12 +332,16 @@ final class PhoneState: ObservableObject {
     }
 
     private func finishRecording(discard: Bool) async {
+        lastStopDiscarded = discard
         recordingWords.end()   // the preview stops at once; the saved transcript comes from the full engine
         autoPauseReason = nil
         let moments = recordingMoments
         recordingMoments = []
         let target = continuing
         continuing = nil
+        let thoughtStart = recordingThought ? (thoughtStartedAt ?? Date()) : nil
+        recordingThought = false
+        thoughtStartedAt = nil
         savingRecording = true
         let stopped = await recorder.stopAndSave()
         savingRecording = false
@@ -330,11 +349,13 @@ final class PhoneState: ObservableObject {
         guard let r = stopped else { return }
         if r.joinFailed {
             // Every part stays in the recordings folder; launch recovery joins it into one recording (and the
-            // continuation marker sends it to the right transcript).
+            // continuation marker sends it to the right transcript, the thought marker to Thoughts).
             say(Store.joinFailedNotice)
             return
         }
         Store.clearContinuation(r.startedAs ?? r.url)
+        Store.clearThoughtMark(r.startedAs ?? r.url)
+        Store.clearThoughtMark(r.url)
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             say(Store.nothingRecordedNotice)
@@ -350,6 +371,11 @@ final class PhoneState: ObservableObject {
             guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); return }
             for n in Store.skippedNotes(r.skipped, offset: offset) + RecordingMoment.notes(moments, offset: offset) { store.addNote(n, to: target) }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
+            return
+        }
+        if let thoughtStart {
+            // A thought joins its day at once, with its time, and transcribes after ("Saved as audio. Transcribing…").
+            fileThought(url: r.url, duration: r.duration, envelope: r.envelope, startedAt: thoughtStart, skipped: r.skipped, moments: moments)
             return
         }
         guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); return }

@@ -12,7 +12,7 @@ enum SettingsSearchTarget: Equatable {
 /// `SettingsPage.open(_:)` takes; SettingsScreen maps each one to its navigation destination.
 enum SettingsSubpage: String, CaseIterable, Equatable {
     case aboutMe, dictionary, keyboard, snippets, actionButton, appearance, whatsNew
-    case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome
+    case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome, thoughts
 
     /// The page's title, as its navigation bar shows it.
     var title: String {
@@ -32,6 +32,7 @@ enum SettingsSubpage: String, CaseIterable, Equatable {
         case .widgets: return "Widgets and controls"
         case .shortcuts: return "Shortcuts and Siri"
         case .customizeHome: return "Customize Home"
+        case .thoughts: return "Thoughts"
         }
     }
 }
@@ -197,6 +198,14 @@ enum SettingsSearchIndex {
               description: "What each build added", target: .page(.whatsNew)),
 
         // Features
+        .init(id: "thoughtsWaysIn", section: features, label: "Thoughts", keywords: ["new thought", "idea", "ideas", "action button", "back tap", "siri", "control center", "lock screen", "widget", "dynamic island", "live activity"],
+              description: "Ways to start a thought from anywhere, and how to set up the Action button and Back Tap", target: .page(.thoughts)),
+        .init(id: "thoughtsInPlace", section: features, label: "Record without opening Verbose", keywords: ["thought", "live activity", "in place", "background", "widget"],
+              description: "New thought records behind a Live Activity", target: .page(.thoughts)),
+        .init(id: "thoughtsIslandWords", section: features, label: "Show words in the Dynamic Island", keywords: ["thought", "live words", "island", "privacy"],
+              description: "Your words while a thought records, never on the Lock Screen", target: .page(.thoughts)),
+        .init(id: "thoughtsNewPage", section: features, label: "New page each day at", keywords: ["thought", "day", "midnight", "page", "journal", "by day"],
+              description: "When today's Thoughts page starts", target: .page(.thoughts)),
         .init(id: "widgets", section: features, label: "Widgets and controls", keywords: ["widget", "home screen", "lock screen", "control center", "controls", "this week", "recent recordings", "quick capture"],
               description: "Which widgets and controls Verbose has, and how to add them", target: .page(.widgets)),
         .init(id: "shortcuts", section: features, label: "Shortcuts and Siri", keywords: ["shortcuts", "siri", "app intents", "automation", "voice command", "hey siri"],
@@ -264,6 +273,9 @@ enum SettingsSearchIndex {
             let b = DictateButton.read(KeyboardBridge.defaults)
             return b.size.title + " · " + b.position.title
         case "keyboardIslandWords": return onOff(KeyboardBridge.defaults?.bool(forKey: Ribbon.islandWordsKey) ?? false)
+        case "thoughtsInPlace": return onOff(ThoughtRules.inPlace())
+        case "thoughtsIslandWords": return onOff(ThoughtRules.islandWords())
+        case "thoughtsNewPage": return DayPages.hourLabel(DayPages.storedHour())
         case "quality": return app.preset.title
         case "cloudCleanup": return onOff(CloudCleanup.enabled)
         case "speakers": return onOff(app.identifySpeakers)

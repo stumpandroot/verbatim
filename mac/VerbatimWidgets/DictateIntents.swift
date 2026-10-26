@@ -191,11 +191,11 @@ struct CancelTakeIntent: LiveActivityIntent {
 
 /// What the Action button does when Verbose is its shortcut or control ("Verbose action", assigned once in iOS
 /// Settings › Action Button): the choice in Settings › Action button, Dictate unless you change it. Dictate works in
-/// place. A voice note tries to start in place on iOS 18 and later and otherwise opens Verbose; Live captions opens
-/// Verbose; What's playing opens Verbose and the system broadcast sheet.
+/// place. A voice note and New thought try to start in place on iOS 18 and later and otherwise open Verbose; Live
+/// captions opens Verbose; What's playing opens Verbose and the system broadcast sheet.
 struct ActionButtonIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Verbose action button"
-    static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate, record a voice note, open live captions, or transcribe what's playing.")
+    static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate, record a voice note, open live captions, transcribe what's playing, or start a thought.")
     static var openAppWhenRun: Bool = false
     /// As for Dictate: unlock first on a locked iPhone.
     static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
@@ -207,6 +207,18 @@ struct ActionButtonIntent: LiveActivityIntent {
         if #available(iOS 18.0, *), choice == .voiceNote {
             let started = await MainActor.run { ActionButtonSignal.startVoiceNoteInPlace() }
             if started { return .result() }
+        }
+        if choice == .quickCapture {
+            // New thought: the same as the New thought control (in place, a second press stops it, or Verbose).
+            switch await MainActor.run(body: { ThoughtSignal.decide() }) {
+            case .stop:
+                await MainActor.run { ThoughtSignal.stop() }
+                return .result()
+            case .inPlace:
+                if #available(iOS 18.0, *), await MainActor.run(body: { ThoughtSignal.startInPlace() }) { return .result() }
+            case .openVerbose:
+                break
+            }
         }
         if choice.needsForeground {
             try await continueInVerbose { ActionButtonSignal.fire(choice) }

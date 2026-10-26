@@ -2,8 +2,8 @@ import SwiftUI
 import UIKit
 
 /// Settings › Action button (the notch mockup's section 06): what the Action button does when "Verbose action" is
-/// its control (Dictate, Record a voice note, Live captions, What's playing, or Quick capture to Thought pad, which
-/// waits for the Thought pad on iPhone), each with whether it works in place or opens Verbose; where a take's words
+/// its control (Dictate, Record a voice note, Live captions, What's playing, or New thought), each with whether it
+/// works in place or opens Verbose; where a take's words
 /// go; how long an idle session stays on; and the three steps in iOS Settings › Action Button. One intent,
 /// `ActionButtonIntent`, follows the choice, so the button is assigned once. Google developer documentation style.
 struct ActionButtonScreen: View {
@@ -102,7 +102,7 @@ private struct IdleTimeoutRow: View {
 }
 
 /// One choice: its icon, its name, whether it works in place or opens Verbose, and a radio mark. The whole row is
-/// the button. A choice this iPhone can't do (Quick capture, which needs the Thought pad) is dimmed and says why.
+/// the button. A choice this iPhone can't do is dimmed and says why.
 private struct ActionChoiceRow: View {
     var choice: Ribbon.ActionChoice
     var selected: Bool
@@ -140,7 +140,7 @@ private struct ActionChoiceRow: View {
         case .voiceNote: return .iconVoice
         case .captions: return .iconCaptions
         case .whatsPlaying: return .iconLowerAudio
-        case .quickCapture: return .iconNotes
+        case .quickCapture: return .iconThought
         }
     }
 }

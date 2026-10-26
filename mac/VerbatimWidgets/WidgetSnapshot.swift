@@ -3,8 +3,9 @@ import Foundation
 // What the Home Screen and desktop widgets show (VerbatimWidgets/HomeWidgets.swift), written by the app
 // (Verbatim/App/WidgetFeed.swift) to a small JSON file in the App Group container, and read by the widget extensions on
 // iPhone and Mac. Privacy: titles (cut to `maxTitle` characters), dates, lengths, a label, and counts. No transcript
-// text, no audio, no speakers, with one exception on the Mac: Today's thoughts shows the day's last two thoughts, each
-// cut to `maxTitle` characters (the widget marks them `privacySensitive()`). The iPhone never writes them. Pure Foundation, so the Linux tests compile it (mac/tools/test-widgets.sh).
+// text, no audio, no speakers, with one exception: Today's thoughts shows the day's last two thoughts, each cut to
+// `maxTitle` characters (the widget marks them `privacySensitive()`, so a locked iPhone hides them; the Lock Screen's
+// Thoughts widget shows only the count). Pure Foundation, so the Linux tests compile it (mac/tools/test-widgets.sh).
 
 struct WidgetSnapshot: Codable, Equatable {
     /// One recording or dictation in Recent recordings.
@@ -24,7 +25,7 @@ struct WidgetSnapshot: Codable, Equatable {
         var label: String
     }
 
-    /// Today's Thoughts page for the Mac's Today's thoughts widget: when the page runs, how many thoughts it has, how
+    /// Today's Thoughts page for the Today's thoughts and Lock Screen Thoughts widgets: when the page runs, how many thoughts it has, how
     /// many are still transcribing, and the last two (oldest first).
     struct TodayThoughts: Codable, Equatable {
         struct Line: Codable, Equatable, Identifiable {
@@ -64,7 +65,7 @@ struct WidgetSnapshot: Codable, Equatable {
     /// Every recording and dictation in the library (not in Recently deleted).
     var kept: Int
     var week: Week
-    /// Mac only; nil in files from older builds and on iPhone.
+    /// Nil in files from older builds.
     var today: TodayThoughts? = nil
 
     // MARK: Building
@@ -184,8 +185,8 @@ struct WidgetSnapshot: Codable, Equatable {
     }
 }
 
-/// The verbatim:// links the widgets open. iPhone: a transcript (Recent recordings). Mac: also Record, Dictate, and
-/// the Thought pad, which the iPhone widgets do with App Intents instead.
+/// The verbatim:// links the widgets open. iPhone: a transcript (Recent recordings) and today's Thoughts page. Mac: also
+/// Record, Dictate, and New thought, which the iPhone widgets do with App Intents instead.
 enum WidgetLink: Equatable {
     case transcript(UUID)
     case record

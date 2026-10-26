@@ -1,10 +1,10 @@
 import SwiftUI
-import AppKit
 
 // brand: web style
 //
 // Thoughts' drawings (mockup "Thoughts", section 09): the Thoughts icon with a wave that follows the mic while a thought
-// records, and the empty-day illustration that plays once.
+// records, the empty-day illustration that plays once, and Ways in, the top of the iPhone's Settings › Thoughts.
+// Shared by the Mac and the iPhone (SwiftUI only).
 
 /// The Thoughts icon (`BrandArt.iconThought`) with its wave drawn on its own, so the wave can follow your voice.
 /// `level` is the mic level (0…1) while a thought records, nil at rest. It never moves on its own; with Limit
@@ -140,6 +140,103 @@ struct EmptyDayArt: View {
         UserDefaults.standard.set(stamp, forKey: key)
         return true
     }
+}
+
+// MARK: - Ways in
+
+/// "Ways in" (section 09): the Mac with the floating bubble, the iPhone with the Dynamic Island, a widget, the Action
+/// button, and Back Tap (two tap rings), each joined by a dashed line to one persimmon dot, one thought. Butter marks
+/// dictation (§1). Plays once each time the page it's on opens: each dashed line runs toward the dot in turn, then
+/// the dot appears. Still under Limit animation and Reduce Motion.
+struct WaysInArt: View {
+    /// Plays the drawing in; false shows it finished.
+    var play: Bool
+    @Environment(\.limitMotion) private var limitMotion
+    @State private var lines: [Bool] = Array(repeating: true, count: 5)
+    @State private var dot: CGFloat = 1
+
+    private static let box = CGSize(width: 640, height: 360)
+    /// Ink strokes: the Mac, the phone's Dynamic Island, the widget's line, and the Action button's edge.
+    private static let strokes: [(String, CGFloat)] = [
+        ("M118 52H236C239.3 52 242 54.7 242 58V128H112V58C112 54.7 114.7 52 118 52Z", 2),
+        ("M120 60H234V120H120Z", 1.6), ("M96 128H258L266 138H88Z", 2), ("M156 133H198", 1.6),
+        ("M474 48H492", 2), ("M112 272H146", 1.6),
+        ("M322 254V330", 2), ("M330 254V330", 2),
+        ("M330 276H334C335.1 276 336 276.9 336 278V296C336 297.1 335.1 298 334 298H330", 2),
+    ]
+    private static let butterFills = ["M330 276H334C335.1 276 336 276.9 336 278V296C336 297.1 335.1 298 334 298H330Z"]
+    /// The phone's front, the widget tile, and the phone's back: x, y, width, height, corner radius.
+    private static let tiles: [CGRect] = [CGRect(x: 452, y: 38, width: 62, height: 118), CGRect(x: 98, y: 226, width: 62, height: 62),
+                                          CGRect(x: 500, y: 208, width: 62, height: 118)]
+    private static let butterDots: [(CGFloat, CGFloat, CGFloat)] = [(226, 34, 7), (117, 245, 8), (538, 272, 4)]
+    /// Ink rings: the bubble, the camera lenses, and Back Tap's two rings (the outer one dashed).
+    private static let rings: [(CGFloat, CGFloat, CGFloat, CGFloat, Bool)] = [(226, 34, 7, 2, false), (514, 222, 5, 1.6, false),
+                                                                             (514, 236, 5, 1.6, false), (538, 272, 9, 1.6, false),
+                                                                             (538, 272, 15, 1.6, true)]
+    private static let dashes = ["M246 104C290 116 296 168 312 184", "M446 112C410 136 362 166 336 184",
+                                 "M166 252C214 240 270 214 312 196", "M326 246C318 232 320 214 322 202",
+                                 "M494 252C450 232 380 210 340 196"]
+
+    var body: some View {
+        GeometryReader { g in
+            let s = min(g.size.width / Self.box.width, g.size.height / Self.box.height)
+            let ox = (g.size.width - Self.box.width * s) / 2, oy = (g.size.height - Self.box.height * s) / 2
+            let t = CGAffineTransform(translationX: ox, y: oy).scaledBy(x: s, y: s)
+            let round = { (w: CGFloat) in Self.line(w, scale: s) }
+            ZStack {
+                ForEach(Self.butterFills.indices, id: \.self) { i in ArtPath(d: Self.butterFills[i], t: t).fill(Ink.butter) }
+                ForEach(Self.butterDots.indices, id: \.self) { i in
+                    let c = Self.butterDots[i]
+                    ArtShape(path: Path(ellipseIn: CGRect(x: c.0 - c.2, y: c.1 - c.2, width: 2 * c.2, height: 2 * c.2)), t: t).fill(Ink.butter)
+                }
+                ForEach(Self.strokes.indices, id: \.self) { i in
+                    ArtPath(d: Self.strokes[i].0, t: t).stroke(Ink.ink, style: round(Self.strokes[i].1))
+                }
+                ForEach(Self.tiles.indices, id: \.self) { i in
+                    ArtShape(path: Path(roundedRect: Self.tiles[i], cornerRadius: 12), t: t).stroke(Ink.ink, style: round(2))
+                }
+                ForEach(Self.rings.indices, id: \.self) { i in
+                    let c = Self.rings[i]
+                    ArtShape(path: Path(ellipseIn: CGRect(x: c.0 - c.2, y: c.1 - c.2, width: 2 * c.2, height: 2 * c.2)), t: t)
+                        .stroke(Ink.ink, style: Self.line(c.3, scale: s, dash: c.4 ? [3, 4] : []))
+                }
+                ForEach(Self.dashes.indices, id: \.self) { i in
+                    ArtPath(d: Self.dashes[i], t: t).trim(from: 0, to: lines[i] ? 1 : 0).stroke(Ink.ink, style: Self.line(1.6, scale: s, dash: [5, 6]))
+                        .opacity(lines[i] ? 1 : 0)
+                }
+                Circle().fill(Ink.persimmon)
+                    .frame(width: 20 * s, height: 20 * s)
+                    .scaleEffect(dot)
+                    .position(x: ox + 324 * s, y: oy + 191 * s)
+            }
+        }
+        .aspectRatio(Self.box.width / Self.box.height, contentMode: .fit)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("A Mac, an iPhone, a widget, the Action button, and the back of an iPhone, each joined to one thought")
+        .onAppear { if play && !limitMotion { run() } }
+    }
+
+    /// A round-ended line `w` units wide in the drawing, dashed in drawing units.
+    private static func line(_ w: CGFloat, scale s: CGFloat, dash: [CGFloat] = []) -> StrokeStyle {
+        StrokeStyle(lineWidth: max(0.8, w * s), lineCap: .round, lineJoin: .round, dash: dash.map { $0 * s })
+    }
+
+    private func run() {
+        lines = Array(repeating: false, count: 5); dot = 0
+        for i in 0..<5 {
+            withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.52).delay(Double(i) * 0.11)) { lines[i] = true }
+        }
+        let d = 5 * 0.11 + 0.26
+        withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.21).delay(d)) { dot = 1.2 }
+        withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.09).delay(d + 0.21)) { dot = 1 }
+    }
+}
+
+/// A ready-made path in the drawing's coordinates, placed in the view.
+private struct ArtShape: Shape {
+    var path: Path
+    var t: CGAffineTransform
+    func path(in r: CGRect) -> Path { path.applying(t) }
 }
 
 /// One path of the 600 × 400 drawing, placed in the view.

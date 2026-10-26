@@ -30,7 +30,7 @@ enum SessionStartSignal {
 }
 
 /// Hands Settings › Action button's choices that need Verbose in front (Record a voice note, Live captions, What's
-/// playing) to the app once it is, and tries a voice note in place first (iOS 18 and later).
+/// playing, New thought) to the app once it is, and tries a voice note in place first (iOS 18 and later).
 enum ActionButtonSignal {
     @MainActor private static var handler: ((Ribbon.ActionChoice) -> Void)?
     @MainActor private static var pending: Ribbon.ActionChoice?
@@ -83,6 +83,19 @@ struct VerbatimAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Start dictation session",
             systemImageName: "mic.fill"   // brand: system surface
+        )
+        // "New thought in Verbose": records in place, like the widgets, and works as soon as Verbose is installed.
+        // Back Tap runs it through a shortcut made from it (Settings › Features › Thoughts). App Shortcuts take only
+        // SF Symbol names, so this one can't use the exported Thoughts symbol.
+        AppShortcut(
+            intent: NewThoughtIntent(),
+            phrases: [
+                "New thought in \(.applicationName)",
+                "Start a thought in \(.applicationName)",
+                "Add a thought to \(.applicationName)",
+            ],
+            shortTitle: "New thought",
+            systemImageName: "lightbulb"   // brand: system surface
         )
     }
 }

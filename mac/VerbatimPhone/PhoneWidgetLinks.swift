@@ -2,11 +2,21 @@ import Foundation
 
 extension PhoneState {
     /// verbatim://transcript/<id>, from the Recent recordings widget (VerbatimWidgets/HomeWidgets.swift): opens that
-    /// transcript. True when it was a widget link. Record and Dictate run App Intents instead, so the iPhone gets no
-    /// other widget links.
+    /// transcript. verbatim://thought, from a thought in Today's thoughts: opens today's Thoughts page.
+    /// verbatim://newthought starts a thought. True when it was a widget link. Record, Dictate, and New thought run
+    /// App Intents instead.
     func handleWidgetLink(_ url: URL) -> Bool {
-        guard case .transcript(let id)? = WidgetLink(url: url) else { return false }
-        openFromWidget(id, tries: 20)
+        switch WidgetLink(url: url) {
+        case .transcript(let id)?:
+            openFromWidget(id, tries: 20)
+        case .thought?:
+            Log.note("widget: opened today's Thoughts page")
+            openThoughtPage()
+        case .newThought?:
+            requestThought()
+        default:
+            return false
+        }
         return true
     }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import UIKit
+import ActivityKit
 
 /// Screenshot tour for CI. With VERBATIM_UITEST=1 the app seeds sample transcripts, walks its screens, and
 /// writes each screen's name to Documents/show.txt; the CI job captures the simulator when the name changes.
@@ -172,6 +173,10 @@ enum PhoneUITest {
                 await show("\(prefix)04b-library-journal")
                 app.libraryFilterRequest = "idea"
                 await show("\(prefix)04c-library-ideas")
+                app.libraryFilterRequest = "all"
+                // Thoughts (ThoughtsScreens.swift): today's page, the day arrows, and By day for Thoughts and Journal.
+                await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
+                if prefix == "p" { await newThoughtChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
                 if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
                     app.addFromLibrary = project.id
@@ -313,6 +318,8 @@ enum PhoneUITest {
                 keepButton.write(KeyboardBridge.defaults)
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
+                // Settings › Features › Thoughts: Ways in, the setup steps, and how a thought records.
+                await thoughtsSettingsTour(prefix: prefix, suffix: "", checks: prefix == "p")
                 // Settings › Action button: the five choices, which ones open Verbose, and the setup steps.
                 SettingsPage.open("actionButton")
                 await show("\(prefix)09e-action-button")
@@ -374,6 +381,7 @@ enum PhoneUITest {
                 await show("\(prefix)04d-dictations-native")
                 app.libraryPath = NavigationPath()
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                await thoughtsTour(app, prefix: prefix, suffix: "-native", checks: prefix == "p")
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
@@ -398,6 +406,7 @@ enum PhoneUITest {
                 await show("\(prefix)09m-appearance-native")
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
+                await thoughtsSettingsTour(prefix: prefix, suffix: "-native", checks: prefix == "p")
                 // The keyboard preview follows the look, as the keyboard does.
                 let keepButton = DictateButton.read(KeyboardBridge.defaults)
                 DictateButton.standard.write(KeyboardBridge.defaults)
@@ -437,6 +446,129 @@ enum PhoneUITest {
         }
     }
 
+    // MARK: Thoughts
+
+    /// Today's Thoughts page (the seeded thoughts in the order they started), the day arrows, and By day for Thoughts
+    /// and Journal with their dots. Screenshots in each look; the checks in light.
+    private static func thoughtsTour(_ app: PhoneState, prefix: String, suffix: String, checks: Bool) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") thoughts\(suffix): \(name)") }
+        let hour = app.newPageHour
+        let today = app.todayPage
+        app.tab = .library
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        app.openThoughtPage()
+        await show("\(prefix)04f-thoughts-today\(suffix)")
+        if checks {
+            let shown = DayPageScreen.shown
+            check("today's page opens", shown?.kind == .idea && shown?.day == today)
+            let ids = shown?.ids ?? []
+            check("today's page is the day's Thoughts recordings", ids == app.store.page(.idea, day: today, hour: hour).map(\.id))
+            if seededThoughts.isEmpty {
+                Log.note("UITEST note: thoughts weren't seeded (an earlier run's library); the order check is skipped")
+            } else {
+                check("today's page shows the seeded thoughts in the order they started", ids.filter(seededThoughts.contains) == seededThoughts)
+            }
+            let times = ids.compactMap { app.store.transcript($0)?.createdAt }
+            check("every thought on the page is in time order", !times.isEmpty && times == times.sorted())
+            let earlier = ThoughtRules.neighbors(pages: app.store.dayPages(.idea, hour: hour).map(\.day), current: today, today: today).previous
+            NotificationCenter.default.post(name: .verbatimDayPageMove, object: "previous")
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            check("the back arrow goes to the last earlier day with thoughts", earlier != nil && DayPageScreen.shown?.day == earlier)
+            if suffix.isEmpty { await show("p04f2-thoughts-earlier-day") }
+            NotificationCenter.default.post(name: .verbatimDayPageMove, object: "next")
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            check("the next arrow comes back to today", DayPageScreen.shown?.day == today)
+        }
+        let cal = Calendar.current
+        func dots(_ kind: RecordingKind) -> Int {
+            app.store.dayPages(kind, hour: hour).filter { cal.isDate($0.day, equalTo: Date(), toGranularity: .month) }.count
+        }
+        app.libraryPath.append(ByDayRoute(kind: .idea))
+        await show("\(prefix)04g-by-day-thoughts\(suffix)")
+        if checks {
+            check("By day opens on Thoughts with a dot on each day this month that has one",
+                  ByDayScreen.shown?.kind == .idea && ByDayScreen.shown?.dots == dots(.idea) && dots(.idea) > 0)
+        }
+        var path = NavigationPath()
+        path.append(ByDayRoute(kind: .journal))
+        app.libraryPath = path
+        await show("\(prefix)04h-by-day-journal\(suffix)")
+        if checks {
+            check("By day shows Journal the same way", ByDayScreen.shown?.kind == .journal && ByDayScreen.shown?.dots == dots(.journal) && dots(.journal) > 0)
+        }
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 600_000_000)
+    }
+
+    /// New thought with simulated audio (no microphone in the simulator): the recording is filed as a thought, on
+    /// today's page at once, with its audio, and transcribes after. Then a thought's marker, which brings a thought
+    /// back as a thought if the app is closed mid-recording, and its Live Activity as far as the simulator allows.
+    private static func newThoughtChecks(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") thoughts: \(name)") }
+        let before = Set(app.store.todaysThoughts().map(\.id))
+        let url = app.store.newRecordingURL()
+        writeToneFile(url, seconds: 2)
+        let id = app.fileThought(url: url, duration: 2, envelope: Array(repeating: 0.4, count: 60), startedAt: Date())
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        let t = id.flatMap { app.store.transcript($0) }
+        check("New thought files a Thoughts recording with its audio", t?.kind == .idea && t?.kindIsAuto == false && t?.audioFileName != nil
+              && t?.sourceLabel == PhoneState.thoughtSource)
+        let after = app.store.todaysThoughts().map(\.id)
+        check("New thought lands on today's page at once", id.map { after.contains($0) && !before.contains($0) } ?? false && after.count == before.count + 1)
+        check("a new thought transcribes after it's saved", t.map { $0.status == .processing || $0.status == .ready } ?? false)
+        app.lastThought = nil
+
+        // The marker: asked for, a recording becomes a thought and is marked for launch recovery.
+        let marked = app.store.newRecordingURL()
+        app.pendingThought = true
+        app.beginThoughtIfAsked(marked)
+        check("a thought's recording is marked, so recovery brings it back as a thought", app.recordingThought && Store.thoughtStart(for: marked) != nil)
+        app.recordingThought = false; app.thoughtStartedAt = nil
+        Store.clearThoughtMark(marked)
+        app.beginThoughtIfAsked(marked)
+        check("a voice note isn't a thought", !app.recordingThought && Store.thoughtStart(for: marked) == nil)
+
+        // In place from outside the app: the decision, then the Live Activity.
+        check("New thought a second time stops the thought", ThoughtRules.start(recordingThought: true, inPlaceSetting: true, systemAllows: true, noticeSeen: true, micAllowed: true, micBusy: false) == .stop)
+        let words = Ribbon.islandWords(String(repeating: "Ask whether the onboarding video can drop to sixty seconds. ", count: 20))
+        let state = VerbatimRecordingAttributes.ContentState.thought(elapsed: 7, isPaused: false, pausedReason: nil, level: 0.6, words: words)
+        let size = (try? JSONEncoder().encode(state))?.count ?? .max
+        check("a thought's Live Activity state with words stays under 4 KB (\(size) bytes)", size < Ribbon.contentStateLimit)
+        let saved = VerbatimRecordingAttributes.ContentState.thought(elapsed: 7, isPaused: false, pausedReason: nil, level: 0.6, words: words, saved: true)
+        check("Added to Thoughts drops the words and keeps the time", saved.words == nil && saved.savedAt != nil && saved.status == ThoughtRules.savedTitle)
+        if ActivityAuthorizationInfo().areActivitiesEnabled {
+            var attributes = VerbatimRecordingAttributes(title: ThoughtRules.activityTitle)
+            attributes.thought = true
+            attributes.page = PhoneState.thoughtPageTitle(app.todayPage)
+            do {
+                let a = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                check("a thought's Live Activity starts", Activity<VerbatimRecordingAttributes>.activities.contains { $0.id == a.id && $0.attributes.isThought })
+                await a.end(ActivityContent(state: saved, staleDate: nil), dismissalPolicy: .immediate)
+            } catch {
+                Log.note("UITEST note: the simulator refused a thought's Live Activity (\(error)); not counted")
+            }
+        } else {
+            Log.note("UITEST note: Live Activities are off in this simulator; a thought's activity wasn't started")
+        }
+    }
+
+    /// Settings › Features › Thoughts, and its rows' values.
+    private static func thoughtsSettingsTour(prefix: String, suffix: String, checks: Bool) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") thoughts settings\(suffix): \(name)") }
+        SettingsPage.open("thoughts")
+        await show("\(prefix)09n-settings-thoughts\(suffix)")
+        if checks {
+            check("Settings › Features › Thoughts opens", ThoughtsSettingsScreen.visible)
+            check("Siri is ready with no setup", ThoughtsSettingsScreen.values["siri"] == ThoughtRules.siriStatus)
+            check("Widgets say how many are added", ThoughtsSettingsScreen.values["widgets"].map { $0.hasSuffix("added") || $0 == "Not added" } ?? false)
+            check("Control Center says whether the control is added", ["Added", "Not added", "Needs iOS 18"].contains(ThoughtsSettingsScreen.values["control"] ?? ""))
+            check("its settings are in Settings search", SettingsSearchIndex.search("new page each day").first?.entries.first?.id == "thoughtsNewPage")
+        }
+        SettingsPage.open("root")
+        try? await Task.sleep(nanoseconds: 800_000_000)
+    }
+
     /// The recording ribbon (RibbonRules.swift, KeyboardSession's take API): the owner's routing rule, the take
     /// state machine, the idle timeout, the Action button choice, the keyboard hand-off keys, and the session's
     /// actions called directly. No microphone in the simulator, so the take API is checked with no session: it must
@@ -470,7 +602,7 @@ enum PhoneUITest {
               && Ribbon.audio(.paused, .interruptionEnded(shouldResume: false), dictating: false).1 == .reactivate)
         check("the Action button dictates by default", Ribbon.actionChoice(nil) == .dictate)
         check("the Action button offers five choices", Ribbon.ActionChoice.allCases.count == 5)
-        check("Quick capture can't be chosen on iPhone", !Ribbon.ActionChoice.quickCapture.available && Ribbon.actionChoice("quickCapture") == .dictate)
+        check("New thought can be chosen on iPhone (Quick capture's stored value)", Ribbon.ActionChoice.quickCapture.available && Ribbon.actionChoice("quickCapture") == .quickCapture)
         check("only Dictate works in place", Ribbon.ActionChoice.allCases.filter { !$0.needsForeground } == [.dictate])
 
         // The keyboard session's Live Activity: the content state stays far under ActivityKit's 4 KB with the
@@ -1143,6 +1275,48 @@ enum PhoneUITest {
         store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: shoot.id), to: t.id)
         store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: spread.id, isBookmark: true), to: t.id)
         seedArchive(store)
+        seedThoughts(store)
+    }
+
+    /// Today's seeded thoughts, in the order they started (the page must show them so).
+    static var seededThoughts: [UUID] = []
+
+    /// Thoughts: five on today's page, spread over the last few hours so they're always today and in the past (one
+    /// from the Mac, one still transcribing on the Mac, one that failed to transcribe), and a few on earlier days.
+    /// Made-up words, text only.
+    private static func seedThoughts(_ store: Store) {
+        let now = Date()
+        let cal = Calendar.current
+        let hour = DayPages.storedHour()
+        let pageStart = DayPages.pageInterval(DayPages.today(now: now, hour: hour), hour: hour).start
+        let base = max(pageStart, now.addingTimeInterval(-4 * 3600))
+        let span = max(60, now.timeIntervalSince(base) - 120)
+        func thought(_ text: String, at date: Date, mac: Bool = false, status: Transcript.Status = .ready) -> Transcript {
+            var t = Transcript(title: String(text.prefix(36)), source: .voiceMemo, sourceLabel: mac ? "Thought · Mac" : PhoneState.thoughtSource,
+                               duration: Double(text.split(separator: " ").count) * 0.4, audioFileName: nil, model: "Parakeet TDT v3")
+            t.createdAt = date
+            t.kind = .idea; t.kindIsAuto = false
+            if status == .ready { t.segments = [Segment(start: 0, end: t.duration, text: text)]; t.original = t.segments }
+            t.status = status
+            if status == .processing { t.processingDevice = "mac-device"; t.processingDeviceName = "Tim's MacBook Pro" }
+            store.add(t)
+            return t
+        }
+        let today: [(String, Bool, Transcript.Status)] = [
+            ("Move the export button into the toolbar so it sits next to Share.", false, .ready),
+            ("Ask whether the onboarding video can drop to sixty seconds.", true, .ready),
+            ("Empty states need one sentence, not two.", false, .ready),
+            ("", false, .failed),
+            ("", true, .processing),
+        ]
+        // The page's order comes from the times (DayPages), checked against this order.
+        let made = today.enumerated().map { i, t in (i, thought(t.0, at: base.addingTimeInterval(span * Double(i + 1) / Double(today.count + 1)), mac: t.1, status: t.2)) }
+        seededThoughts = made.sorted { $0.1.createdAt < $1.1.createdAt }.map(\.1.id)
+        for (daysAgo, h, text) in [(2, 10, "Rename the share sheet action to Send a copy."), (2, 15, "Order a second stand for the review monitor."),
+                                   (3, 11, "Try the widget at the smallest size on a real phone."), (9, 9, "Book the car service for Friday morning.")] {
+            let day = cal.startOfDay(for: now.addingTimeInterval(-86_400 * Double(daysAgo)))
+            _ = thought(text, at: cal.date(byAdding: .hour, value: h, to: day) ?? day)
+        }
     }
 
     /// Journal entries on three days (one with background voices), an idea, and a note.

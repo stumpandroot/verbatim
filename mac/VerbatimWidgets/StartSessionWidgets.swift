@@ -85,6 +85,25 @@ struct DictateControl: ControlWidget {
     }
 }
 
+/// Control Center, the Action button, and the Lock Screen's bottom corners (iOS 18): New thought. Records in place behind
+/// its Live Activity when iOS allows, else opens Verbose to the recorder; pressed again while a thought records, it
+/// stops and saves it (`NewThoughtIntent`). Its glyph is the Thoughts icon, exported as a custom symbol.
+@available(iOS 18.0, *)
+struct NewThoughtControl: ControlWidget {
+    static let kind = ThoughtRules.controlKind
+
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: Self.kind) {
+            ControlWidgetButton(action: NewThoughtIntent()) {
+                Label("New thought", image: "thought")
+            }
+            .tint(Ink.persimmon)
+        }
+        .displayName("New thought")
+        .description("Starts a thought that lands on today's Thoughts page. Press it again to stop.")
+    }
+}
+
 // MARK: - Lock Screen widget
 
 /// A Lock Screen widget (circular, rectangular, or inline) that opens `verbatim://session?start=1&from=widget`.

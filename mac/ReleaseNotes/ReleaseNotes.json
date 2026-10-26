@@ -2,6 +2,21 @@
   "notes": [
     {
       "build": "next",
+      "title": "Thoughts on the iPhone",
+      "items": [
+        "iPhone: Thoughts. Tap New thought on today's page and say a thought. It lands on today's page with its time, like on the Mac.",
+        "iPhone: start a thought without opening Verbose from the New thought widget, the Lock Screen, Control Center, the Action button, or Siri (“New thought in Verbose”). The Dynamic Island shows your voice, your words, and Stop.",
+        "iPhone: every thought is saved as audio before it's transcribed, so none is lost. If transcription fails, tap Transcribe again.",
+        "iPhone: Library › By day shows Thoughts and Journal one page a day, with a calendar that marks the days you recorded. Use the arrows on a page to read earlier days, and tap a thought to edit it.",
+        "iPhone: the Quick capture widget is now New thought, and the new Today's thoughts widget shows today's last two thoughts. The Lock Screen widget shows only how many, never your words.",
+        "iPhone: Settings › Features › Thoughts shows each way in and how to set up the Action button and Back Tap.",
+        "iPhone: the Action button can start a thought. Choose New thought in Settings › Action button."
+      ]
+    },
+    {
+      "build": "220",
+      "date": "2026-10-26",
+      "version": "1.0 beta",
       "title": "Faster By day and look switching",
       "items": [
         "Mac: Library › By day opens faster in Native, and switching looks no longer redraws the closed Thoughts page."

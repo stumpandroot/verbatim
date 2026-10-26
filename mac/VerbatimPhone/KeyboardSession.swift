@@ -1622,8 +1622,8 @@ final class KeyboardSession: ObservableObject {
             app.playingSheetStartsPicker = true
             app.showPlayingSheet = true
         case .quickCapture:
-            // Never stored (`Ribbon.actionChoice` reads it as Dictate): the Thought pad is only on the Mac.
-            break
+            // New thought: the recorder opens on a thought (or a running one comes back).
+            app.requestThought()
         }
     }
 

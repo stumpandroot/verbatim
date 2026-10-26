@@ -17,6 +17,13 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
         var pausedReason: String?
         /// Stopped and saved: shown for a few seconds before the activity ends.
         var saved: Bool
+        /// A thought only (nil for a voice note): the microphone level, 0 to 1, about once a second, for the voice bars.
+        var level: Double? = nil
+        /// A thought only: the end of your words for the expanded Dynamic Island (`Ribbon.islandWords`), sent only with
+        /// Settings › Thoughts › Show words in the Dynamic Island on. The Lock Screen never reads it.
+        var words: String? = nil
+        /// A thought only: when it was saved, for "Added to Thoughts · 9:41".
+        var savedAt: Date? = nil
 
         /// The state for a recording `elapsed` seconds in, at `now`. A saved recording reads as stopped (paused,
         /// no reason); a reason only shows while paused.
@@ -27,19 +34,36 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
                                 pausedReason: paused && !saved ? pausedReason : nil, saved: saved)
         }
 
+        /// A thought's state: a voice note's, plus the level and (only while recording, and only when asked for) the
+        /// last words. Saved, it keeps neither and carries the time it was saved.
+        static func thought(elapsed: TimeInterval, isPaused: Bool, pausedReason: String?, level: Double, words: String?,
+                            saved: Bool = false, now: Date = Date()) -> ContentState {
+            var s = make(elapsed: elapsed, isPaused: isPaused, pausedReason: pausedReason, saved: saved, now: now)
+            s.level = saved || isPaused ? 0 : min(1, max(0, level.isFinite ? level : 0))
+            s.words = saved ? nil : words
+            s.savedAt = saved ? now : nil
+            return s
+        }
+
         /// The moment the timer stops at while paused or saved; nil while it runs.
         var pauseTime: Date? { isPaused ? startDate.addingTimeInterval(elapsed) : nil }
 
         /// The status line: "Recording", "Paused", a reason, or "Saved".
         var status: String {
-            if saved { return "Saved. Transcribing on this iPhone." }
+            if saved { return savedAt != nil ? ThoughtRules.savedTitle : "Saved. Transcribing on this iPhone." }
             if isPaused { return pausedReason ?? "Paused" }
             return "Recording"
         }
     }
 
-    /// "Voice note" or "Live captions".
+    /// "Voice note", "Live captions", or "New thought".
     var title: String
+    /// A thought (nil or false for a voice note): drawn on paper with your voice, and "Added to Thoughts" when saved.
+    var thought: Bool? = nil
+    /// A thought's page, "Thoughts · Mon, Oct 26", for "Into Thoughts · Mon, Oct 26".
+    var page: String? = nil
+
+    var isThought: Bool { thought == true }
 
     /// A few words for the Lock Screen from the recorder's full pause reason. Nil for no reason.
     static func shortReason(_ full: String?) -> String? {
