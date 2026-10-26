@@ -165,6 +165,8 @@ struct ThoughtBubbleView: View {
     private static let space = "thought-bubble-panel"
 
     var body: some View {
+        // In a screen change's or look switch's marks only if the bubble re-renders with it (it shouldn't).
+        let _ = LookSwitch.mark("bubble")
         ZStack {
             Color.clear
             disc

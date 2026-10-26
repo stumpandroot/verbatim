@@ -337,14 +337,17 @@ struct ElapsedText: View {
 
 /// The menu bar's Thoughts group, at the top (mockup "Thoughts", section 04): New thought (⌃⌥P from any app), how many
 /// thoughts today's page has, Open today's page, and Show the bubble.
+///
+/// It reads the library through Thoughts (`ThoughtCapture.app`), not AppState: as an environment object, AppState's every
+/// publish (each screen change in the main window) re-rendered the group wherever it was built.
 struct ThoughtsMenuSection: View {
-    @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var capture = ThoughtCapture.shared
     @AppStorage(Thoughts.bubbleKey) private var showBubble = true
 
     var body: some View {
-        let count = app.store.todaysThoughts().count
+        let _ = LookSwitch.mark("menu-thoughts")
+        let count = capture.app?.store.todaysThoughts().count ?? 0
         VStack(alignment: .leading, spacing: 2) {
             Text("Thoughts").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Ink.mute).padding(.horizontal, 8).padding(.bottom, 2)
                 .accessibilityAddTraits(.isHeader)
