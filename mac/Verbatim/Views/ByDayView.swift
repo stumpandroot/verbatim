@@ -15,7 +15,10 @@ struct ByDayView: View {
     @EnvironmentObject var app: AppState
     var kind: RecordingKind
     @State private var selected: Date?
-    @State private var month: Date = Date()
+    /// The month the calendar shows once you've moved it; until then, the shown day's month. (Build 219 set it in
+    /// `onAppear`, which rendered all of By day a second time right after it appeared: in Native, 220 to 790 ms
+    /// between the screen's appear and its first frame.)
+    @State private var shownMonth: Date?
     @Environment(\.look) private var look
 
     private var hour: Int { Thoughts.newPageHour }
@@ -27,6 +30,8 @@ struct ByDayView: View {
         let today = DayPages.today(hour: hour)
         let day = selected ?? (pages.first { $0.day == today }?.day ?? pages.first?.day ?? today)
         let items = pages.first { $0.day == day }?.items ?? []
+        let month = shownMonth ?? day
+        let _ = LookSwitch.mark("byday")
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 PageTitle(title: name, count: DayPages.count(pages.count, "day", "days"),
@@ -35,8 +40,8 @@ struct ByDayView: View {
                 }
                 HStack(alignment: .top, spacing: 24) {
                     VStack(alignment: .leading, spacing: 16) {
-                        DayCalendar(month: $month, selected: day, today: today, marked: Set(pages.map(\.day))) { d in selected = d }
-                        dayList(pages, selected: day)
+                        DayCalendar(month: Binding(get: { month }, set: { shownMonth = $0 }), selected: day, today: today, marked: Set(pages.map(\.day))) { d in selected = d }
+                        dayList(pages, selected: day, month: month)
                     }
                     .frame(width: 320)
                     DayPageCard(kind: kind, day: day, today: today, items: items)
@@ -45,9 +50,10 @@ struct ByDayView: View {
             }
             .padding(.horizontal, 32).padding(.top, 28).padding(.bottom, 40)
             .frame(maxWidth: 1180, alignment: .leading)
+            .navMarkWhenLaidOut("byday-laid-out")
         }
         .background(look == .native ? AnyView(PremiumInk.window) : AnyView(Ink.paper))
-        .onAppear { month = day }
+        .onAppear { LookSwitch.mark("byday-appear") }
         .onChange(of: kind) { _, _ in selected = nil }
         .uiTarget(isThoughts ? "byday-thoughts" : "byday-journal")
     }
@@ -77,7 +83,7 @@ struct ByDayView: View {
     }
 
     /// "This month · 16 days", then each day with entries in the shown month, newest first.
-    @ViewBuilder private func dayList(_ pages: [(day: Date, items: [Transcript])], selected: Date) -> some View {
+    @ViewBuilder private func dayList(_ pages: [(day: Date, items: [Transcript])], selected: Date, month: Date) -> some View {
         let cal = Calendar.current
         let inMonth = pages.filter { cal.isDate($0.day, equalTo: month, toGranularity: .month) }
         let thisMonth = cal.isDate(month, equalTo: Date(), toGranularity: .month)
