@@ -201,7 +201,9 @@ enum SiteCapture {
 @MainActor
 final class SiteLog: ObservableObject {
     static let shared = SiteLog()
-    @Published private(set) var hosts: [UUID: String] = [:]
+    @Published private(set) var hosts: [UUID: String] = [:] { didSet { generation &+= 1 } }
+    /// Bumped on every change to `hosts`, so the You page knows when to count its websites again (`YouSummary`).
+    private(set) var generation = 0
     private let file = Paths.local.appendingPathComponent(ProcessInfo.processInfo.environment["VERBATIM_UITEST"] == "1" ? "activity-sites-uitest.json" : "activity-sites.json")
 
     private init() {

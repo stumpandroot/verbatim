@@ -22,8 +22,8 @@ struct ActivityEvent: Codable, Identifiable, Equatable {
 final class ActivityLog: ObservableObject {
     static let shared = ActivityLog()
     @Published private(set) var events: [ActivityEvent] = [] { didSet { generation &+= 1 } }
-    /// Bumped on every change to `events`, so `week(now:)` knows when to count again.
-    private var generation = 0
+    /// Bumped on every change to `events`, so `week(now:)` (and the You page's range, `YouSummary`) knows when to count again.
+    private(set) var generation = 0
     private var weekMemo: (generation: Int, day: Int, week: HomeWeek)?
 
     /// This week's numbers for Home (This week), worked out once per change and per day instead of on every render.

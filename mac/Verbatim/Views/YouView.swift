@@ -83,10 +83,13 @@ struct YouView: View {
     @FocusState private var nameFocused: Bool
 
     var body: some View {
+        let _ = LookSwitch.mark("you")
         let cal = Calendar.current
         let range = YouRange.interval(span, containing: anchor, calendar: cal)
-        let events = log.events.filter { $0.date >= range.start && $0.date < range.end }
-        let stats = ActivityStats(events, since: nil)
+        // Once per range and per change to Activity or its websites (YouSummary), not on every render: You re-renders on
+        // every AppState publish (progress ticks, playback, navigation).
+        let summary = YouSummary.of(range, log: log, sites: sites)
+        let stats = summary.stats
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
@@ -98,16 +101,17 @@ struct YouView: View {
                 .padding(.top, 26)
                 RatioRow(weights: [1.6, 1], spacing: 16, stackBelow: 720) {
                     weekCard(range, stats, cal)
-                    whereCard(range, events, stats)
+                    whereCard(range, summary)
                 }
                 .padding(.top, 16)
                 footer.padding(.top, 18)
             }
+            .navMarkWhenLaidOut("you-laid-out")
             .frame(maxWidth: 1040, alignment: .leading)
             .padding(.horizontal, 40).padding(.vertical, 30)
             .frame(maxWidth: .infinity)
         }
-        .onAppear { log.seedIfNeeded(from: app.store.live); voice.refresh() }
+        .onAppear { LookSwitch.mark("you-appear"); log.seedIfNeeded(from: app.store.live); voice.refresh() }
         .sheet(isPresented: $editingAbout) { AboutMeSheet() }
         .confirmationDialog("Reset activity?", isPresented: $confirmReset) {
             Button("Reset activity", role: .destructive) { log.reset(); sites.reset() }
@@ -363,8 +367,8 @@ struct YouView: View {
 
     // MARK: Where you dictate
 
-    private func whereCard(_ range: DateInterval, _ events: [ActivityEvent], _ stats: ActivityStats) -> some View {
-        let apps = stats.byApp.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key < $1.key) }.prefix(6)
+    private func whereCard(_ range: DateInterval, _ summary: YouSummary.Value) -> some View {
+        let apps = summary.apps
         let top = max(1, apps.first?.value ?? 1)
         return YouPanel(spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -378,7 +382,7 @@ struct YouView: View {
             }
             VStack(spacing: 2) {
                 ForEach(Array(apps.enumerated()), id: \.element.key) { _, entry in
-                    appRow(entry.key, entry.value, share: Double(entry.value) / Double(top), hosts: Self.hosts(for: entry.key, events, sites.hosts))
+                    appRow(entry.key, entry.value, share: Double(entry.value) / Double(top), hosts: summary.hosts[entry.key] ?? [])
                 }
             }
             Spacer(minLength: 4)
@@ -505,6 +509,36 @@ struct YouView: View {
     static func whereLabel(_ r: DateInterval, _ span: YouRange.Span) -> String {
         if YouRange.isCurrent(r) { return span == .week ? "This week" : "This month" }
         return span == .week ? rangeLabel(r, span, .current) : Formats.pattern("MMMM").string(from: r.start)
+    }
+}
+
+// MARK: - Range numbers
+
+/// The You page's numbers for one range: its events, their stats, the six apps with the most words, and each one's
+/// websites. Worked out once per range and per change to Activity (`ActivityLog.generation`) or its websites
+/// (`SiteLog.generation`); the page used to filter the whole log and count every app's websites on every render.
+@MainActor
+enum YouSummary {
+    struct Value {
+        let events: [ActivityEvent]
+        let stats: ActivityStats
+        let apps: [(key: String, value: Int)]
+        let hosts: [String: [(String, Int)]]
+    }
+    private struct Key: Equatable { let log: Int, sites: Int, start: Date, end: Date }
+    private static var cache: (key: Key, value: Value)?
+
+    static func of(_ range: DateInterval, log: ActivityLog, sites: SiteLog) -> Value {
+        let key = Key(log: log.generation, sites: sites.generation, start: range.start, end: range.end)
+        if let c = cache, c.key == key { return c.value }
+        let events = log.events.filter { $0.date >= range.start && $0.date < range.end }
+        let stats = ActivityStats(events, since: nil)
+        let apps = Array(stats.byApp.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key < $1.key) }.prefix(6))
+        var hosts: [String: [(String, Int)]] = [:]
+        for a in apps { hosts[a.key] = YouView.hosts(for: a.key, events, sites.hosts) }
+        let value = Value(events: events, stats: stats, apps: apps, hosts: hosts)
+        cache = (key, value)
+        return value
     }
 }
 
