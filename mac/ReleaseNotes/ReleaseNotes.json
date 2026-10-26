@@ -2,6 +2,13 @@
   "notes": [
     {
       "build": "next",
+      "title": "Back where you were",
+      "items": []
+    },
+    {
+      "build": "221",
+      "date": "2026-10-26",
+      "version": "1.0 beta",
       "title": "Thoughts on the iPhone",
       "items": [
         "iPhone: Thoughts. Tap New thought on today's page and say a thought. It lands on today's page with its time, like on the Mac.",
