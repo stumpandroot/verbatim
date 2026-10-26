@@ -2,6 +2,15 @@
   "notes": [
     {
       "build": "next",
+      "title": "Faster By day and look switching",
+      "items": [
+        "Mac: Library › By day opens faster in Native, and switching looks no longer redraws the closed Thoughts page."
+      ]
+    },
+    {
+      "build": "219",
+      "date": "2026-10-26",
+      "version": "1.0 beta",
       "title": "Thoughts on the Mac",
       "items": [
         "Mac: switching between Home, Library, and You is instant, with no overlap.",
