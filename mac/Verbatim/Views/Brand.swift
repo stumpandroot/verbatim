@@ -209,6 +209,7 @@ extension BrandArt {
     static let iconDownload = BrandArt(box: iconGrid, strokes: [.path("M12 3.5V15"), .path("M8 11L12 15L16 11"), .path("M5 20.5H19")], strokeWidth: 1.5)
     static let iconActionButton = BrandArt(box: iconGrid, strokes: [.path("M5.5 3H15V21H5.5Z"), .path("M15 6.5H16.5V10.5H15"), .path("M19 7L20.5 6"), .path("M19 10L20.5 11")], fills: [.circle(10.25, 17.5, 1)], strokeWidth: 1.5)
     static let iconSponsor = BrandArt(box: iconGrid, strokes: [.path("M3.5 3.5H11.5L20.5 12.5L12.5 20.5L3.5 11.5Z"), .circle(8, 8, 1.6)], strokeWidth: 1.5)
+    static let iconThought = BrandArt(box: iconGrid, strokes: [.path("M9.5 18 V16.3 C9.5 15.4 8.9 14.7 8.1 14.1 C5.99 12.44 5.17 9.62 6.05 7.09 C6.93 4.55 9.32 2.85 12 2.85 C14.68 2.85 17.07 4.55 17.95 7.09 C18.83 9.62 18.01 12.44 15.9 14.1 C15.1 14.7 14.5 15.4 14.5 16.3 V18"), .path("M8.5 18H15.5"), .path("M12 18V21.5"), .path("M10.5 21.5H13.5"), .path("M8.4 9.5C9.3 9.5 9.5 7.8 10.4 7.8S12.6 11.2 13.6 11.2S14.7 9.5 15.6 9.5")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the
@@ -225,24 +226,15 @@ extension BrandArt {
         .path("M20 86 L80 86"),
         .path("M34 94 L66 94"),
     ], strokeWidth: 2.2)
-    static let kindIdea = BrandArt(box: glyphBox, strokes: [
-        .path("M80 50 L94 50"),
-        .path("M62 50 L70 50"),
-        .path("M71.92 71.92 L81.11 81.11"),
-        .path("M58.49 58.49 L64.14 64.14"),
-        .path("M50 80 L50 94"),
-        .path("M50 62 L50 70"),
-        .path("M28.08 71.92 L18.89 81.11"),
-        .path("M41.51 58.49 L35.86 64.14"),
-        .path("M20 50 L6 50"),
-        .path("M38 50 L30 50"),
-        .path("M28.08 28.08 L18.89 18.89"),
-        .path("M41.51 41.51 L35.86 35.86"),
-        .path("M50 20 L50 6"),
-        .path("M50 38 L50 30"),
-        .path("M71.92 28.08 L81.11 18.89"),
-        .path("M58.49 41.51 L64.14 35.86"),
-    ], fills: [.circle(50, 50, 3)], strokeWidth: 2.2)
+    // Thoughts (mockup "Thoughts", October 26, 2026; it replaced Idea's rays): the Thought icon's bulb, its filament a
+    // sound wave with a dot at each end, and Home's axis with crossbars for a base.
+    static let kindThought = BrandArt(box: glyphBox, strokes: [
+        .path("M38 74 V66 C38 62 35.6 59.2 32.4 56.6 C24.51 49.35 21.88 38 25.78 28.02 C29.67 18.04 39.29 11.46 50 11.46 C60.71 11.46 70.33 18.04 74.22 28.02 C78.12 38 75.49 49.35 67.6 56.6 C64.4 59.2 62 62 62 66 V74"),
+        .path("M30 37 C34 37 36 28 41 28 S54 46 59 46 S66 37 70 37"),
+        .path("M32 74 L68 74"),
+        .path("M50 74 L50 92"),
+        .path("M40 92 L60 92"),
+    ], fills: [.circle(30, 37, 3), .circle(70, 37, 3)], strokeWidth: 2.2)
     static let kindMeeting = BrandArt(box: glyphBox, strokes: [
         .path("M28 28 L72 72"),
         .path("M72 28 L28 72"),

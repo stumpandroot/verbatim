@@ -28,6 +28,8 @@ check("interview is never automatic", [KindRule.Origin.recording, audio, video].
 check("a recording takes the model's kind", KindRule.fromModel(" Journal ", origin: .recording, fallback: .note) == .journal)
 check("a recording ignores a kind the model may not give", KindRule.fromModel("podcast", origin: .recording, fallback: .note) == .note
       && KindRule.fromModel("dictation", origin: .recording, fallback: .meeting) == .meeting && KindRule.fromModel(nil, origin: .recording, fallback: .note) == .note)
+check("the model's \"thought\" is the Thoughts kind (stored as idea), and \"idea\" still reads", KindRule.fromModel("Thought", origin: .recording, fallback: .note) == .idea
+      && KindRule.fromModel("thoughts", origin: .recording, fallback: .note) == .idea && KindRule.fromModel("idea", origin: .recording, fallback: .note) == .idea)
 check("a link ignores the model's meeting", KindRule.fromModel("meeting", origin: video, fallback: .podcast) == .podcast)
 
 // Where a transcript came from.

@@ -729,7 +729,7 @@ extension HomeTile {
         case .whatsPlaying, .appAudio: return .iconVoice
         case .captions: return .iconCaptions
         case .pasteLink: return .iconLinks
-        case .thoughtPad: return .iconNotes
+        case .thoughtPad: return .iconThought
         case .search: return .search
         case .moments: return .iconMoments
         case .queue: return .iconQueue

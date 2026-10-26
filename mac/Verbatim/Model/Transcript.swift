@@ -42,7 +42,7 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
     var label: String {
         switch self {
         case .journal: return "Journal"
-        case .idea: return "Idea"
+        case .idea: return "Thoughts"
         case .meeting: return "Meeting"
         case .note: return "Note"
         case .dictation: return "Dictation"

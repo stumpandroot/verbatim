@@ -409,7 +409,7 @@ struct KindDot: View {
         switch transcript.kind {
         case .meeting: return .iconSpeakers
         case .journal, .note: return .iconNotes
-        case .idea: return .iconAI
+        case .idea: return .iconThought
         case .dictation: return .iconDictations
         case .podcast: return .iconSpeakers
         case .interview: return .iconQuote

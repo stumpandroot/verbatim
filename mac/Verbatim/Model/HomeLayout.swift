@@ -91,7 +91,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .appAudio: return "App audio"
         case .captions: return "Live captions"
         case .pasteLink: return "Paste a link"
-        case .thoughtPad: return "Thought pad"
+        case .thoughtPad: return "Thoughts"
         case .search: return "Search"
         case .moments: return "Moments"
         case .queue: return "Queue"
@@ -110,7 +110,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .appAudio: return "Another app's sound"
         case .captions: return "Words as they're said"
         case .pasteLink: return "Transcribe a video"
-        case .thoughtPad: return "Jot down a thought"
+        case .thoughtPad: return "Today's page"
         case .search: return "Find the line you need"
         case .moments: return "Lines you saved"
         case .queue: return "What's transcribing"
@@ -120,7 +120,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         }
     }
 
-    /// What's playing is the iPhone's (a broadcast of another app's sound); App audio and the Thought pad are the Mac's.
+    /// What's playing is the iPhone's (a broadcast of another app's sound); App audio and Thoughts' page are the Mac's.
     var platformOnly: HomePlatform? {
         switch self {
         case .whatsPlaying: return .phone
