@@ -2,8 +2,8 @@ import Foundation
 
 // Edit Home's layout model (Verbatim/Model/HomeLayout.swift): the defaults that match each look's Home before Edit
 // Home, the older settings carried over, decoding stored layouts (unknown sections and tiles ignored, missing ones
-// added where they belong), the editor's moves, the four tiles, and the Mac's pairing. Not part of any app target;
-// run mac/tools/test-home-layout.sh.
+// added where they belong), the editor's moves, the four tiles, the Mac's pairing, Today's thoughts and Journal, and the
+// iPhone's tab bar (Verbatim/Model/PhoneTabBar.swift). Not part of any app target; run mac/tools/test-home-layout.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
     if ok { passed += 1; print("PASS  \(name)") }
@@ -182,6 +182,96 @@ g.setSize(.queue, .large)
 g.moveShown(.queue, before: .recent)
 check("Queue never pairs", rowNames(HomeRows.rows(g.shown, wide: true)).contains(["queue"]) && rowNames(HomeRows.rows(g.shown, wide: true)).contains(["recent", "lastDictation"]))
 check("rows are identified by their first section", HomeRows.rows(mv.shown, wide: true).map(\.id) == [.record, .week, .recent])
+
+// MARK: Today's thoughts and Journal (October 26, 2026)
+
+check("Today's thoughts and Journal start hidden in every look on both apps", [pv, pn, mv, mn].allSatisfy { l in
+    !l.isVisible(.thoughts) && !l.isVisible(.journal) && l.item(.thoughts) != nil && l.item(.journal) != nil })
+check("they're offered on both apps, in both looks", [HomePlatform.phone, .mac].allSatisfy { p in HomeLook.allCases.allSatisfy { look in
+    HomeSection.thoughts.isAvailable(on: p, look: look) && HomeSection.journal.isAvailable(on: p, look: look) } })
+check("the shown sections didn't change on any default", names(pv.shown) == ["record", "tiles", "week", "recent"]
+      && names(mn.shown) == ["week", "stats", "tiles", "recent"])
+check("section names", HomeSection.thoughts.title == "Today's thoughts" && HomeSection.journal.title == "Journal")
+// A layout saved by the build before them, with every section it knew: they're added at the end, hidden.
+let before223 = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"large"},{"section":"week","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"moments","visible":true,"size":"large"},{"section":"lastDictation","visible":false,"size":"compact"},{"section":"projects","visible":false,"size":"compact"},{"section":"queue","visible":false,"size":"compact"}],"tiles":["dictate","import","whatsPlaying","captions"]}"#)
+let b = HomeLayout.decode(before223, .phone, .verbose)
+check("an older saved layout decodes without them", b != nil)
+check("its shown sections and order are kept", b.map { names($0.shown) } == ["record", "tiles", "week", "recent", "moments"], "\(b.map { names($0.shown) } ?? [])")
+check("Today's thoughts and Journal are added, hidden, after Queue", b.map { l in
+    let n = names(l.items)
+    guard let q = n.firstIndex(of: "queue"), let t = n.firstIndex(of: "thoughts"), let j = n.firstIndex(of: "journal") else { return false }
+    return t == q + 1 && j == t + 1 && !l.isVisible(.thoughts) && !l.isVisible(.journal)
+} == true, "\(b.map { names($0.items) } ?? [])")
+check("they take the defaults' size (Large)", b?.size(.thoughts) == .large && b?.size(.journal) == .large)
+check("its tiles are kept", b?.tiles == [.dictate, .importMedia, .whatsPlaying, .captions])
+let macOld = json(#"{"items":[{"section":"week","visible":true,"size":"large"},{"section":"stats","visible":true,"size":"large"}],"tiles":["thoughtPad","dictate","appAudio","captions"]}"#)
+let mo = HomeLayout.decode(macOld, .mac, .native)
+check("an older Mac layout keeps the Today's page tile and gets the new sections hidden", mo.map { $0.tiles.first == .thoughtPad && !$0.isVisible(.thoughts) && !$0.isVisible(.journal) } == true)
+var shown = pv
+shown.setVisible(.thoughts, true)
+shown.setVisible(.journal, true)
+shown.setSize(.thoughts, .compact)
+check("showing them puts them at the end of Home", names(shown.shown).suffix(2) == ["thoughts", "journal"])
+check("and the layout round-trips with them", shown.encoded().flatMap { HomeLayout.decode($0, .phone, .verbose) } == shown)
+var macShown = mv
+macShown.setVisible(.thoughts, true)
+macShown.setVisible(.journal, true)
+check("on the Mac, Large Today's thoughts and Journal share a band", rowNames(HomeRows.rows(macShown.shown, wide: true)).last == ["thoughts", "journal"],
+      "\(rowNames(HomeRows.rows(macShown.shown, wide: true)))")
+
+check("New thought and Journal tiles are on both apps", [HomePlatform.phone, .mac].allSatisfy { HomeTile.available(on: $0).contains(.newThought) && HomeTile.available(on: $0).contains(.journal) })
+check("tile names", HomeTile.newThought.title == "New thought" && HomeTile.journal.title == "Journal")
+check("the Mac's floating page tile reads Today's page, not a second Thoughts", HomeTile.thoughtPad.title == "Today's page" && HomeTile.thoughtPad.title != HomeTile.newThought.title)
+check("a stored layout picks the new tiles", HomeLayout.decode(json(#"{"tiles":["newThought","journal","dictate","import"]}"#), .phone, .native)?.tiles == [.newThought, .journal, .dictate, .importMedia])
+
+check("Large shows the latest four thoughts, in the order they started", HomeThoughts.latest([1, 2, 3, 4, 5, 6]) == [3, 4, 5, 6])
+check("fewer than four: all of them", HomeThoughts.latest([1, 2]) == [1, 2] && HomeThoughts.latest([Int]()) == [])
+check("the Compact count line", HomeThoughts.countLine(0) == "No thoughts yet today" && HomeThoughts.countLine(1) == "1 thought today" && HomeThoughts.countLine(6) == "6 thoughts today")
+
+var cal = Calendar(identifier: .gregorian)
+cal.timeZone = TimeZone(identifier: "America/New_York")!
+cal.firstWeekday = 1
+func day(_ y: Int, _ m: Int, _ d: Int) -> Date { cal.date(from: DateComponents(year: y, month: m, day: d))! }
+let week = HomeJournalWeek.days(entryDays: [day(2026, 10, 25), day(2026, 10, 26), day(2026, 10, 19)], today: day(2026, 10, 26), calendar: cal)
+check("Journal's week has seven days from the calendar's first weekday", week.count == 7 && week.first?.start == day(2026, 10, 25) && week.last?.start == day(2026, 10, 31))
+check("days with an entry are filled; last week's aren't counted", week.map(\.hasEntry) == [true, true, false, false, false, false, false])
+check("today is marked, and the days after it are future", week[1].isToday && week.filter(\.isToday).count == 1 && week[2...].allSatisfy(\.isFuture) && !week[0].isFuture)
+check("the week's count line", HomeJournalWeek.countLine(week) == "2 days this week" && HomeJournalWeek.countLine(Array(week.prefix(1))) == "1 day this week")
+cal.firstWeekday = 2
+let mondayWeek = HomeJournalWeek.days(entryDays: [], today: day(2026, 10, 25), calendar: cal)
+check("a Monday-first calendar starts the week on Monday", mondayWeek.first?.start == day(2026, 10, 19) && mondayWeek.last?.isToday == true)
+
+// MARK: The iPhone's tab bar (PhoneTabBar.swift)
+
+let fresh = PhoneTabBar.decode(nil)
+check("a fresh install's bar is Home, Library, Moments, Settings", fresh.tabs == [.home, .library, .moments, .settings], "\(fresh.tabs)")
+check("the default is the bar every build had", PhoneTabBar.default == fresh && PhoneTabBar.defaultMiddle == [.library, .moments])
+let tim = PhoneTabBar(middle: [.library, .thoughts, .journal])
+check("Thoughts and Journal in place of Moments: Home, Library, Thoughts, Journal, Settings", tim.tabs == [.home, .library, .thoughts, .journal, .settings])
+check("Home stays first and Settings last whatever is picked", PhoneTabBar(middle: [.home, .settings, .projects]).tabs == [.home, .projects, .settings])
+check("at most three between them", PhoneTabBar(middle: [.library, .thoughts, .journal, .moments]).middle == [.library, .thoughts, .journal])
+check("a tab listed twice counts once", PhoneTabBar(middle: [.journal, .journal, .library]).middle == [.journal, .library])
+check("an empty middle leaves Home and Settings", PhoneTabBar(middle: []).tabs == [.home, .settings])
+check("the stored form round-trips", PhoneTabBar.decode(tim.stored) == tim && tim.stored == ["library", "thoughts", "journal"])
+check("unknown tabs from a newer build are ignored", PhoneTabBar.decode(["hologram", "projects", "home", "dictations"]).middle == [.projects, .dictations])
+check("something that isn't a list is the default", PhoneTabBar.decode("library") == .default && PhoneTabBar.decode(42) == .default)
+check("a stored empty list stays empty (not the default)", PhoneTabBar.decode([String]()).middle.isEmpty)
+check("positions run left to right", tim.position(.home) == 0 && tim.position(.journal) == 3 && tim.position(.settings) == 4 && tim.position(.moments) == nil)
+var tp: [PhoneTab] = [.library, .moments]
+tp = PhoneTabBar.toggle(.moments, in: tp)
+tp = PhoneTabBar.toggle(.thoughts, in: tp)
+tp = PhoneTabBar.toggle(.journal, in: tp)
+check("check Thoughts and Journal after unchecking Moments", tp == [.library, .thoughts, .journal])
+check("a fourth can't be checked", PhoneTabBar.toggle(.projects, in: tp) == tp)
+check("Home and Settings can't be picked", PhoneTabBar.toggle(.home, in: [.library]) == [.library] && PhoneTabBar.toggle(.settings, in: []) == [])
+check("drag to reorder (List.onMove offsets)", PhoneTabBar.move(tp, fromOffsets: IndexSet(integer: 2), toOffset: 0) == [.journal, .library, .thoughts]
+      && PhoneTabBar.move(tp, fromOffsets: IndexSet(integer: 0), toOffset: 3) == [.thoughts, .journal, .library])
+check("a selected tab that's still there stays selected", tim.selection(keeping: .journal) == .journal && tim.selection(keeping: .settings) == .settings)
+check("removing the selected tab goes to Home", tim.selection(keeping: .moments) == .home)
+check("a screen whose tab is in the bar opens in its tab", tim.host(for: .thoughts) == .thoughts && fresh.host(for: .moments) == .moments)
+check("a Moments link without the Moments tab opens inside Library", tim.host(for: .moments) == .library)
+check("without Library either, inside Home", PhoneTabBar(middle: [.thoughts]).host(for: .moments) == .home && PhoneTabBar(middle: [.thoughts]).host(for: .library) == .home)
+check("the pickable tabs, in order", PhoneTab.pickable == [.library, .thoughts, .journal, .moments, .dictations, .projects])
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

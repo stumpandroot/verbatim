@@ -136,7 +136,7 @@ struct HomeView: View {
     static func headed(_ item: HomeLayout.Item) -> Bool {
         switch item.section {
         case .recent: return true
-        case .lastDictation, .projects, .moments, .queue: return item.size == .large
+        case .lastDictation, .projects, .moments, .queue, .thoughts, .journal: return item.size == .large
         default: return false
         }
     }
@@ -180,6 +180,8 @@ struct HomeView: View {
         case .projects: HomeProjectsMac(size: item.size)
         case .moments: HomeMomentsMac(size: item.size)
         case .queue: HomeQueueMac(size: item.size)
+        case .thoughts: HomeThoughtsMac(size: item.size)
+        case .journal: HomeJournalMac(size: item.size)
         case .stats: EmptyView()
         }
     }
@@ -393,6 +395,8 @@ struct HomeView: View {
         case .dictations: app.go(.dictations)
         case .dictionary: app.go(.dictionary)
         case .projects: app.projectFilter = nil; app.go(.library)
+        case .newThought: ThoughtCapture.shared.toggle()
+        case .journal: HomeDayPages.openJournal(app)
         case .whatsPlaying: break
         }
     }
@@ -414,13 +418,15 @@ struct HomeView: View {
         case .appAudio: return "Choose an app to record its sound, like a call or a video."
         case .captions: return "Shows captions in a floating panel, from your microphone or an app's sound."
         case .pasteLink: return "Paste a YouTube, Vimeo, or podcast link to transcribe."
-        case .thoughtPad: return "Opens today's Thoughts page, for thoughts you speak or type."
+        case .thoughtPad: return "Opens today's Thoughts page as the floating page, for thoughts you speak or type."
         case .search: return "Opens the Library with the search field ready."
         case .moments: return "Opens Moments."
         case .queue: return "Opens the Queue."
         case .dictations: return "Opens every dictation."
         case .dictionary: return "Opens your dictionary."
         case .projects: return "Opens the Library, with your projects in the sidebar."
+        case .newThought: return "Records a thought for today's page without leaving Home. Click again to stop."
+        case .journal: return "Opens Journal by day."
         case .whatsPlaying: return ""
         }
     }
@@ -472,6 +478,7 @@ struct HomeView: View {
             case .dictate: return dictateKey.1
             case .importMedia: return "⌘O"
             case .captions: return "⌥⌘C"
+            case .newThought: return Thoughts.hotkey
             default: return nil
             }
         }()

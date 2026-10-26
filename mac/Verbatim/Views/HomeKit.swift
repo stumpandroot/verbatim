@@ -741,6 +741,8 @@ extension HomeTile {
         case .queue: return .iconQueue
         case .dictionary: return .iconDictionary
         case .projects: return .iconProject
+        case .newThought: return .iconThought
+        case .journal: return .iconNotes
         }
     }
 
@@ -753,13 +755,15 @@ extension HomeTile {
         case .whatsPlaying, .appAudio: return "speaker.wave.2"
         case .captions: return "captions.bubble"
         case .pasteLink: return "link"
-        case .thoughtPad: return "lightbulb"
+        case .thoughtPad: return "doc.text"
         case .search: return "magnifyingglass"
         case .moments: return "bookmark"
         case .queue: return "list.bullet"
         case .dictations: return "text.bubble"
         case .dictionary: return "book"
         case .projects: return "folder"
+        case .newThought: return "lightbulb"
+        case .journal: return "book"
         }
     }
     // brand: native end

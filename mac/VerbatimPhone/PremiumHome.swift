@@ -41,6 +41,8 @@ struct PremiumHome: View {
         case .projects: HomeProjectsSection(size: item.size)
         case .moments: HomeMomentsSection(size: item.size)
         case .queue: HomeQueueSection(size: item.size)
+        case .thoughts: HomeThoughtsSection(size: item.size).id("home-thoughts")
+        case .journal: HomeJournalSection(size: item.size, now: now)
         case .stats: EmptyView()
         }
     }
@@ -209,7 +211,7 @@ struct PremiumHome: View {
     private func recent(_ size: HomeCardSize) -> some View {
         let items = Array(app.store.live.lazy.filter { !$0.isDictation }.prefix(3))
         return VStack(alignment: .leading, spacing: 0) {
-            PremiumSectionHeader(title: "Recent recordings", action: "Library") { app.tab = .library }
+            PremiumSectionHeader(title: "Recent recordings", action: "Library") { app.go(.library) }
             if items.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Record something new.").font(.body.weight(.semibold)).foregroundStyle(NativeInk.label)
