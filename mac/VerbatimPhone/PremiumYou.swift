@@ -128,6 +128,8 @@ struct PremiumMonthCalendar: View {
     @Binding var month: Date
     var dates: [Date]
     var now: Date
+    /// By day (ByDayScreen): a day with a dot opens its page. Nil on You, where the days only show.
+    var pick: ((Date) -> Void)? = nil
     private static let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
@@ -164,7 +166,17 @@ struct PremiumMonthCalendar: View {
         .premiumSoftCard(radius: 26)
     }
 
-    private func dayCell(_ d: Int, grid: PremiumRules.MonthGrid) -> some View {
+    @ViewBuilder private func dayCell(_ d: Int, grid: PremiumRules.MonthGrid) -> some View {
+        if let pick, grid.recorded.contains(d), let date = Calendar.current.date(byAdding: .day, value: d - 1, to: grid.start) {
+            Button { pick(date) } label: { dayLabel(d, grid: grid) }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens that day's page")
+        } else {
+            dayLabel(d, grid: grid)
+        }
+    }
+
+    private func dayLabel(_ d: Int, grid: PremiumRules.MonthGrid) -> some View {
         let today = grid.today == d
         let recorded = grid.recorded.contains(d)
         return VStack(spacing: 2) {

@@ -138,6 +138,16 @@ struct LibraryScreen: View {
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
+            // Thoughts and Journal, a page a day (ThoughtsScreens.swift).
+            if filter == .all, search.isEmpty, typeFilter == .all {
+                Section {
+                    NavigationLink(value: ByDayRoute(kind: .idea)) { ByDayCard(todayCount: app.store.todaysThoughts().count) }
+                        .buttonStyle(PhoneCardPress())
+                        .accessibilityIdentifier("library.byDay")
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
+            }
             if !passages.isEmpty {
                 Section {
                     PhoneDayHeader(text: "Passages")
@@ -188,6 +198,8 @@ struct LibraryScreen: View {
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .navigationDestination(for: DictationsRoute.self) { _ in DictationsListScreen() }
+        .navigationDestination(for: ByDayRoute.self) { r in ByDayScreen(kind: r.kind) }
+        .navigationDestination(for: DayPageRoute.self) { r in DayPageScreen(kind: r.kind, day: r.day).id(r) }
         .toolbar {
             // Verbose style: the serif title sits on the paper; the bar keeps only Apple's buttons. Native: the large title.
             if !look.isNative {
@@ -390,6 +402,7 @@ extension LibraryScreen {
                     chips(scoped).padding(.top, 12)
                     if filter == .all, search.isEmpty, typeFilter == .all {
                         collections.padding(.horizontal, 20).padding(.top, 16)
+                        byDayRow.padding(.horizontal, 20).padding(.top, 10)
                     }
                 }
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -466,6 +479,29 @@ extension LibraryScreen {
             .buttonStyle(PhoneCardPress())
             .accessibilityHint("Shows one project's transcripts, or makes a new project.")
         }
+    }
+
+    /// By Day: Thoughts and Journal, a page a day (ThoughtsScreens.swift).
+    private var byDayRow: some View {
+        let today = app.store.todaysThoughts().count
+        return NavigationLink(value: ByDayRoute(kind: .idea)) {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("By Day").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
+                    Text("Thoughts and Journal, a page a day").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
+                }
+                Spacer(minLength: 8)
+                if today > 0 { Text("Today \(today)").font(.system(size: 14)).monospacedDigit().foregroundStyle(NativeInk.secondary) }
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .premiumSoftCard(radius: 18)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityIdentifier("library.byDay")
+        .accessibilityHint("Opens Thoughts and Journal by day")
     }
 
     private func collection(_ title: String, symbol: String, count: Int) -> some View {
