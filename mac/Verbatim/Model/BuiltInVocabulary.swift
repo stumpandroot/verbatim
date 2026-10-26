@@ -10,7 +10,8 @@ struct BuiltInTerm: Codable, Identifiable, Hashable {
     /// Replaced only when written exactly so ("Linked In"), because another case is ordinary English.
     var exact: [String]? = nil
     /// Also ordinary English ("zoom", "slack", "notion"): replaced only next to a context word ("zoom call",
-    /// "on slack", "notion page") or when the engine already capitalized it in the middle of a sentence.
+    /// "on slack", "notion page") or when the engine already capitalized it in the middle of a sentence. A form
+    /// listed with a capital ("Kiev", "I phone") changes only next to a context word.
     var context: [String]? = nil
     /// Context words for this term, on top of the shared ones.
     var after: [String]? = nil
@@ -237,16 +238,17 @@ enum BuiltInVocabulary {
         return matches.map(\.range).filter { m in
             if ns.substring(with: m) == r.term { return false }
             if guarded.contains(where: { NSIntersectionRange($0, m).length > 0 }) { return false }
-            if r.kind == .context, !contextAllows(ns, m, extra: r.after) { return false }
+            if r.kind == .context, !contextAllows(ns, m, extra: r.after, capitalCounts: r.form.first?.isUppercase != true) { return false }
             return true
         }
     }
 
     /// A contextual form changes only when the engine capitalized it mid-sentence, or a context word sits right
-    /// before or after it.
-    static func contextAllows(_ ns: NSString, _ range: NSRange, extra: Set<String>) -> Bool {
+    /// before or after it. A form listed with a capital ("I phone", "Kiev", "Columbia") is a name or a capital
+    /// that's always written so, where a capital says nothing (`capitalCounts` false): only a context word counts.
+    static func contextAllows(_ ns: NSString, _ range: NSRange, extra: Set<String>, capitalCounts: Bool = true) -> Bool {
         let found = ns.substring(with: range)
-        if found.first?.isUppercase == true, !isSentenceStart(ns, at: range.location) { return true }
+        if capitalCounts, found.first?.isUppercase == true, !isSentenceStart(ns, at: range.location) { return true }
         if let w = wordBefore(ns.substring(to: range.location)), beforeWords.contains(w) { return true }
         if let w = wordAfter(ns.substring(from: NSMaxRange(range))), afterWords.contains(w) || extra.contains(w) { return true }
         return false

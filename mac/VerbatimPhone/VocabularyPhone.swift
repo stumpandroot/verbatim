@@ -167,7 +167,7 @@ struct PhoneBuiltInVocabularySection: View {
         } header: {
             Text("Built-in vocabulary")
         } footer: {
-            Text("Verbose spells words like ChatGPT, GitHub, and macOS right. Your Dictionary always wins, and words like \u{201C}zoom in\u{201D} stay as you said them.")
+            Text("Verbose spells words like ChatGPT, GitHub, and macOS right. Your Dictionary always wins, and words like \u{201C}zoom in\u{201D} stay as you said them. Dictation also fixes mix-ups like \u{201C}could of been.\u{201D}")
         }
     }
 }

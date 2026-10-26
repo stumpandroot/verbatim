@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "about": "Built-in modern vocabulary. heard: replaced in any case. exact: replaced only when written exactly so. context: replaced only next to a context word or capitalized mid-sentence. after: extra context words for this term. boost: false keeps a term out of recognition boosting.",
  "terms": [
   {
@@ -15,7 +15,13 @@
     "chat gtp",
     "chat-gpt",
     "chat g.p.t.",
-    "chad gpt"
+    "chad gpt",
+    "chatgbt",
+    "chatgtp",
+    "chatgdp",
+    "chat g b t",
+    "chat-gbt",
+    "chat gee pee tee"
    ]
   },
   {
@@ -94,7 +100,10 @@
    "category": "AI",
    "heard": [
     "claude",
-    "clod ai"
+    "clod ai",
+    "cluade",
+    "claud ai",
+    "cloude ai"
    ]
   },
   {
@@ -103,7 +112,9 @@
    "heard": [
     "anthropik",
     "an thropic",
-    "anthro pic"
+    "anthro pic",
+    "antropic",
+    "anthropik ai"
    ],
    "exact": [
     "Anthropik"
@@ -126,14 +137,14 @@
    "heard": [
     "openai",
     "open a i",
-    "open a.i."
+    "open a.i.",
+    "openia"
    ],
    "exact": [
     "Open AI",
     "OpenAi"
    ],
    "context": [
-    "open AI",
     "open ai"
    ],
    "after": [
@@ -151,7 +162,9 @@
     "whisper flow",
     "wisper flow",
     "whispr flow",
-    "wispr-flow"
+    "wispr-flow",
+    "wisprflow",
+    "whisperflow"
    ]
   },
   {
@@ -160,7 +173,9 @@
    "heard": [
     "claude code",
     "clawed code",
-    "claud code"
+    "claud code",
+    "cluade code",
+    "cloude code"
    ],
    "context": [
     "cloud code"
@@ -287,7 +302,9 @@
    "term": "Midjourney",
    "category": "AI",
    "heard": [
-    "midjourney"
+    "midjourney",
+    "midjurney",
+    "midjorney"
    ],
    "exact": [
     "Mid Journey",
@@ -1201,6 +1218,11 @@
   {
    "term": "Gemini",
    "category": "AI",
+   "heard": [
+    "gemeni",
+    "gemni",
+    "gemenai"
+   ],
    "context": [
     "gemini"
    ],
@@ -1239,6 +1261,11 @@
   {
    "term": "Perplexity",
    "category": "AI",
+   "heard": [
+    "perplexcity",
+    "perplexety",
+    "perplexitiy"
+   ],
    "context": [
     "perplexity"
    ],
@@ -1258,7 +1285,11 @@
    "heard": [
     "deepseek",
     "deep seek",
-    "deep-seek"
+    "deep-seek",
+    "deepseak",
+    "deepsek",
+    "dipsik",
+    "deep seak"
    ]
   },
   {
@@ -1386,16 +1417,15 @@
    ]
   },
   {
-   "term": "Nvidia",
+   "term": "NVIDIA",
    "category": "Brands",
    "heard": [
     "nvidia",
-    "envidia",
     "n vidia",
-    "en vidia"
-   ],
-   "exact": [
-    "NVidia"
+    "en vidia",
+    "nvidea",
+    "envidea",
+    "nvdia"
    ]
   },
   {
@@ -2271,9 +2301,31 @@
    "term": "TypeScript",
    "category": "Software",
    "heard": [
-    "typescript",
     "type script",
     "type-script"
+   ],
+   "context": [
+    "typescript"
+   ],
+   "after": [
+    "code",
+    "file",
+    "files",
+    "project",
+    "projects",
+    "types",
+    "type",
+    "compiler",
+    "config",
+    "interface",
+    "interfaces",
+    "error",
+    "errors",
+    "version",
+    "support",
+    "codebase",
+    "function",
+    "functions"
    ]
   },
   {
@@ -2709,7 +2761,7 @@
    "after": [
     "mixer",
     "mixers",
-    "stand mixer",
+    "stand",
     "attachment"
    ]
   },
@@ -2937,8 +2989,18 @@
   {
    "term": "Twitter",
    "category": "Platforms",
-   "heard": [
+   "context": [
     "twitter"
+   ],
+   "after": [
+    "post",
+    "posts",
+    "feed",
+    "followers",
+    "handle",
+    "bio",
+    "spaces",
+    "ads"
    ]
   },
   {
@@ -3051,16 +3113,6 @@
    "exact": [
     "Glass Door",
     "GlassDoor"
-   ],
-   "context": [
-    "glass door"
-   ],
-   "after": [
-    "review",
-    "reviews",
-    "rating",
-    "ratings",
-    "page"
    ]
   },
   {
@@ -4078,7 +4130,8 @@
    "heard": [
     "prores",
     "pro res",
-    "pro-res"
+    "pro-res",
+    "pro rez"
    ]
   },
   {
@@ -5062,7 +5115,8 @@
    "heard": [
     "grok ai",
     "grok 3",
-    "grok 4"
+    "grok 4",
+    "grock ai"
    ]
   },
   {
@@ -5298,8 +5352,18 @@
   {
    "term": "Oculus",
    "category": "Devices",
-   "heard": [
+   "context": [
     "oculus"
+   ],
+   "after": [
+    "quest",
+    "rift",
+    "headset",
+    "headsets",
+    "store",
+    "go",
+    "controller",
+    "controllers"
    ]
   },
   {
@@ -5342,7 +5406,13 @@
    "heard": [
     "shure sm7b",
     "sure sm7b",
-    "shure sm 7 b",
+    "shure sm 7 b"
+   ]
+  },
+  {
+   "term": "SM7B",
+   "category": "Devices",
+   "heard": [
     "sm7b",
     "sm 7 b"
    ]
@@ -5353,6 +5423,3166 @@
    "heard": [
     "zoom h6",
     "zoom h 6"
+   ]
+  },
+  {
+   "term": "Qwen",
+   "category": "AI",
+   "heard": [
+    "qwen",
+    "quen",
+    "kwen"
+   ]
+  },
+  {
+   "term": "Nano Banana",
+   "category": "AI",
+   "heard": [
+    "nano banana",
+    "nano-banana"
+   ]
+  },
+  {
+   "term": "Veo 3",
+   "category": "AI",
+   "heard": [
+    "veo 3",
+    "veo three",
+    "vio 3",
+    "vio three",
+    "veo3"
+   ]
+  },
+  {
+   "term": "Gemini CLI",
+   "category": "AI",
+   "heard": [
+    "gemini cli",
+    "gemini c l i",
+    "gemini c.l.i."
+   ]
+  },
+  {
+   "term": "Codex",
+   "category": "AI",
+   "context": [
+    "codex"
+   ],
+   "after": [
+    "openai",
+    "cli",
+    "chatgpt",
+    "agent",
+    "cloud",
+    "task",
+    "tasks",
+    "app",
+    "review"
+   ],
+   "boost": false
+  },
+  {
+   "term": "gpt-oss",
+   "category": "AI",
+   "heard": [
+    "gpt oss",
+    "gpt o s s",
+    "g p t o s s",
+    "g p t oss"
+   ]
+  },
+  {
+   "term": "o4-mini",
+   "category": "AI",
+   "heard": [
+    "o4 mini",
+    "o 4 mini",
+    "o four mini",
+    "o-4 mini"
+   ]
+  },
+  {
+   "term": "ChatGPT Atlas",
+   "category": "AI",
+   "heard": [
+    "chatgpt atlas",
+    "chat gpt atlas"
+   ]
+  },
+  {
+   "term": "Meta AI",
+   "category": "AI",
+   "heard": [
+    "meta a i",
+    "meta a.i."
+   ],
+   "context": [
+    "meta ai"
+   ],
+   "after": [
+    "app",
+    "assistant",
+    "glasses",
+    "chatbot",
+    "chat",
+    "model",
+    "models"
+   ]
+  },
+  {
+   "term": "Llama 4",
+   "category": "AI",
+   "heard": [
+    "llama 4"
+   ]
+  },
+  {
+   "term": "Suno",
+   "category": "AI",
+   "heard": [
+    "suno ai",
+    "suno a i"
+   ],
+   "context": [
+    "suno"
+   ],
+   "after": [
+    "song",
+    "songs",
+    "track",
+    "tracks",
+    "music",
+    "app",
+    "v4",
+    "v5",
+    "prompt"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Udio",
+   "category": "AI",
+   "heard": [
+    "udio",
+    "udio ai"
+   ]
+  },
+  {
+   "term": "HeyGen",
+   "category": "AI",
+   "heard": [
+    "heygen",
+    "hey-gen"
+   ],
+   "context": [
+    "hey gen"
+   ],
+   "after": [
+    "avatar",
+    "avatars",
+    "video",
+    "videos",
+    "ai",
+    "account",
+    "translation"
+   ]
+  },
+  {
+   "term": "Synthesia",
+   "category": "AI",
+   "heard": [
+    "synthesia"
+   ],
+   "context": [
+    "Synesthesia"
+   ],
+   "after": [
+    "avatar",
+    "avatars",
+    "ai",
+    "video",
+    "videos",
+    "account",
+    "studio"
+   ]
+  },
+  {
+   "term": "Luma AI",
+   "category": "AI",
+   "heard": [
+    "luma ai",
+    "luma a i"
+   ]
+  },
+  {
+   "term": "Pika",
+   "category": "AI",
+   "heard": [
+    "pika labs",
+    "pika ai"
+   ]
+  },
+  {
+   "term": "Higgsfield",
+   "category": "AI",
+   "heard": [
+    "higgsfield",
+    "higgs field ai"
+   ]
+  },
+  {
+   "term": "Freepik",
+   "category": "AI",
+   "heard": [
+    "freepik",
+    "freepick",
+    "free pik"
+   ],
+   "context": [
+    "free pick"
+   ],
+   "after": [
+    "account",
+    "images",
+    "ai",
+    "premium",
+    "stock",
+    "assets",
+    "license"
+   ]
+  },
+  {
+   "term": "OpenRouter",
+   "category": "AI",
+   "heard": [
+    "openrouter"
+   ],
+   "context": [
+    "open router"
+   ],
+   "after": [
+    "api",
+    "key",
+    "model",
+    "models",
+    "credits",
+    "account"
+   ]
+  },
+  {
+   "term": "LangGraph",
+   "category": "AI",
+   "heard": [
+    "langgraph",
+    "lang graph"
+   ]
+  },
+  {
+   "term": "LlamaIndex",
+   "category": "AI",
+   "heard": [
+    "llamaindex",
+    "llama index"
+   ]
+  },
+  {
+   "term": "CrewAI",
+   "category": "AI",
+   "heard": [
+    "crewai",
+    "crew a i"
+   ]
+  },
+  {
+   "term": "n8n",
+   "category": "AI",
+   "heard": [
+    "n 8 n",
+    "n eight n",
+    "n-8-n",
+    "n-eight-n",
+    "en eight en",
+    "n8 n"
+   ]
+  },
+  {
+   "term": "whisper.cpp",
+   "category": "AI",
+   "heard": [
+    "whisper cpp",
+    "whisper c p p",
+    "whisper dot cpp",
+    "whisper dot c p p"
+   ]
+  },
+  {
+   "term": "llama.cpp",
+   "category": "AI",
+   "heard": [
+    "llama cpp",
+    "llama c p p",
+    "llama dot cpp",
+    "llama dot c p p"
+   ]
+  },
+  {
+   "term": "MLX",
+   "category": "AI",
+   "heard": [
+    "m l x",
+    "m.l.x."
+   ]
+  },
+  {
+   "term": "Core ML",
+   "category": "AI",
+   "heard": [
+    "coreml",
+    "core ml",
+    "core m l"
+   ]
+  },
+  {
+   "term": "Vertex AI",
+   "category": "AI",
+   "heard": [
+    "vertex ai",
+    "vertex a i"
+   ]
+  },
+  {
+   "term": "Copilot+ PC",
+   "category": "AI",
+   "heard": [
+    "copilot plus pc",
+    "co-pilot plus pc",
+    "copilot+ pc"
+   ]
+  },
+  {
+   "term": "Alexa+",
+   "category": "AI",
+   "context": [
+    "Alexa plus"
+   ],
+   "after": [
+    "subscription",
+    "amazon",
+    "upgrade",
+    "assistant",
+    "early",
+    "access",
+    "prime"
+   ]
+  },
+  {
+   "term": "Genmoji",
+   "category": "Software",
+   "heard": [
+    "genmoji",
+    "gen moji",
+    "jen moji",
+    "gen-moji"
+   ]
+  },
+  {
+   "term": "SpeechAnalyzer",
+   "category": "Software",
+   "heard": [
+    "speechanalyzer"
+   ],
+   "context": [
+    "speech analyzer"
+   ],
+   "after": [
+    "api",
+    "framework",
+    "apple",
+    "module",
+    "class",
+    "swift",
+    "transcriber"
+   ]
+  },
+  {
+   "term": "SwiftData",
+   "category": "Software",
+   "heard": [
+    "swiftdata"
+   ],
+   "context": [
+    "swift data"
+   ],
+   "after": [
+    "model",
+    "models",
+    "query",
+    "container",
+    "schema",
+    "migration",
+    "framework",
+    "store",
+    "context"
+   ]
+  },
+  {
+   "term": "StoreKit",
+   "category": "Software",
+   "heard": [
+    "storekit"
+   ],
+   "context": [
+    "store kit"
+   ],
+   "after": [
+    "2",
+    "api",
+    "purchase",
+    "purchases",
+    "subscription",
+    "subscriptions",
+    "transaction",
+    "transactions",
+    "testing",
+    "configuration"
+   ]
+  },
+  {
+   "term": "WidgetKit",
+   "category": "Software",
+   "heard": [
+    "widgetkit"
+   ]
+  },
+  {
+   "term": "HealthKit",
+   "category": "Software",
+   "heard": [
+    "healthkit"
+   ],
+   "context": [
+    "health kit"
+   ],
+   "after": [
+    "data",
+    "api",
+    "permission",
+    "permissions",
+    "access",
+    "integration",
+    "sample",
+    "samples",
+    "entitlement",
+    "sync"
+   ]
+  },
+  {
+   "term": "CloudKit",
+   "category": "Software",
+   "heard": [
+    "cloudkit"
+   ],
+   "context": [
+    "cloud kit"
+   ],
+   "after": [
+    "sync",
+    "database",
+    "container",
+    "record",
+    "records",
+    "schema",
+    "dashboard",
+    "zone"
+   ]
+  },
+  {
+   "term": "ARKit",
+   "category": "Software",
+   "heard": [
+    "arkit",
+    "a r kit",
+    "ar kit"
+   ]
+  },
+  {
+   "term": "RealityKit",
+   "category": "Software",
+   "heard": [
+    "realitykit"
+   ]
+  },
+  {
+   "term": "RevenueCat",
+   "category": "Software",
+   "heard": [
+    "revenuecat",
+    "revenue cat"
+   ]
+  },
+  {
+   "term": "Android XR",
+   "category": "Software",
+   "heard": [
+    "android xr",
+    "android x r"
+   ]
+  },
+  {
+   "term": "Wear OS",
+   "category": "Software",
+   "heard": [
+    "wear os",
+    "wearos",
+    "wear o s"
+   ]
+  },
+  {
+   "term": "ChromeOS",
+   "category": "Software",
+   "heard": [
+    "chromeos",
+    "chrome os",
+    "chrome o s"
+   ]
+  },
+  {
+   "term": "Ko-fi",
+   "category": "Platforms",
+   "heard": [
+    "ko fi"
+   ],
+   "context": [
+    "Kofi"
+   ],
+   "after": [
+    "page",
+    "link",
+    "account",
+    "shop",
+    "membership",
+    "tip",
+    "tips",
+    "donation",
+    "donations",
+    "supporters"
+   ]
+  },
+  {
+   "term": "OnlyFans",
+   "category": "Platforms",
+   "heard": [
+    "onlyfans"
+   ],
+   "context": [
+    "only fans"
+   ],
+   "after": [
+    "account",
+    "page",
+    "creator",
+    "creators",
+    "subscription",
+    "link",
+    "model"
+   ]
+  },
+  {
+   "term": "Lemon8",
+   "category": "Platforms",
+   "heard": [
+    "lemon8"
+   ]
+  },
+  {
+   "term": "RedNote",
+   "category": "Platforms",
+   "heard": [
+    "rednote"
+   ]
+  },
+  {
+   "term": "Xiaohongshu",
+   "category": "Platforms",
+   "heard": [
+    "xiaohongshu",
+    "xiao hong shu",
+    "shao hong shu",
+    "shaohongshu"
+   ]
+  },
+  {
+   "term": "BeReal",
+   "category": "Platforms",
+   "heard": [
+    "bereal"
+   ]
+  },
+  {
+   "term": "Letterboxd",
+   "category": "Platforms",
+   "heard": [
+    "letterboxd"
+   ],
+   "context": [
+    "Letterboxed",
+    "letterbox"
+   ],
+   "after": [
+    "app",
+    "review",
+    "reviews",
+    "account",
+    "profile",
+    "list",
+    "lists",
+    "diary",
+    "rating",
+    "ratings",
+    "watchlist",
+    "log"
+   ]
+  },
+  {
+   "term": "Goodreads",
+   "category": "Platforms",
+   "heard": [
+    "goodreads"
+   ]
+  },
+  {
+   "term": "Duolingo",
+   "category": "Platforms",
+   "heard": [
+    "duolingo",
+    "duo lingo",
+    "dualingo",
+    "duo-lingo"
+   ]
+  },
+  {
+   "term": "Crunchyroll",
+   "category": "Platforms",
+   "heard": [
+    "crunchyroll"
+   ]
+  },
+  {
+   "term": "Disney+",
+   "category": "Platforms",
+   "heard": [
+    "disneyplus"
+   ],
+   "context": [
+    "Disney plus"
+   ],
+   "after": [
+    "show",
+    "shows",
+    "series",
+    "movie",
+    "movies",
+    "original",
+    "originals",
+    "streaming",
+    "bundle",
+    "password",
+    "price",
+    "membership"
+   ]
+  },
+  {
+   "term": "Paramount+",
+   "category": "Platforms",
+   "heard": [
+    "paramountplus"
+   ],
+   "context": [
+    "Paramount plus"
+   ],
+   "after": [
+    "show",
+    "shows",
+    "series",
+    "movie",
+    "movies",
+    "original",
+    "originals",
+    "streaming",
+    "bundle",
+    "password",
+    "price",
+    "membership"
+   ]
+  },
+  {
+   "term": "Hootsuite",
+   "category": "Platforms",
+   "heard": [
+    "hootsuite",
+    "hoot suite",
+    "hootsweet"
+   ]
+  },
+  {
+   "term": "Manychat",
+   "category": "Platforms",
+   "heard": [
+    "manychat"
+   ]
+  },
+  {
+   "term": "Flodesk",
+   "category": "Platforms",
+   "heard": [
+    "flodesk",
+    "flo desk"
+   ]
+  },
+  {
+   "term": "iPhone Air",
+   "category": "Devices",
+   "heard": [
+    "iphone air",
+    "i phone air"
+   ]
+  },
+  {
+   "term": "iPhone 16e",
+   "category": "Devices",
+   "heard": [
+    "iphone 16 e",
+    "iphone sixteen e",
+    "i phone 16 e"
+   ]
+  },
+  {
+   "term": "Nintendo Switch 2",
+   "category": "Devices",
+   "heard": [
+    "nintendo switch two"
+   ]
+  },
+  {
+   "term": "Insta360",
+   "category": "Devices",
+   "heard": [
+    "insta360",
+    "insta 360",
+    "insta three sixty",
+    "insta three-sixty"
+   ]
+  },
+  {
+   "term": "Osmo Pocket",
+   "category": "Devices",
+   "heard": [
+    "osmo pocket",
+    "ozmo pocket"
+   ]
+  },
+  {
+   "term": "Sony FX3",
+   "category": "Devices",
+   "heard": [
+    "sony fx3",
+    "sony f x 3",
+    "sony fx 3",
+    "sony f x three"
+   ]
+  },
+  {
+   "term": "WHOOP",
+   "category": "Devices",
+   "context": [
+    "whoop"
+   ],
+   "after": [
+    "band",
+    "strap",
+    "app",
+    "recovery",
+    "strain",
+    "membership",
+    "sleep",
+    "score",
+    "4.0",
+    "mg"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Cybertruck",
+   "category": "Devices",
+   "heard": [
+    "cybertruck",
+    "cyber truck",
+    "cyber-truck"
+   ]
+  },
+  {
+   "term": "POV",
+   "category": "Internet",
+   "heard": [
+    "pov",
+    "p o v",
+    "p.o.v."
+   ]
+  },
+  {
+   "term": "IYKYK",
+   "category": "Internet",
+   "heard": [
+    "iykyk",
+    "i y k y k"
+   ]
+  },
+  {
+   "term": "FOMO",
+   "category": "Internet",
+   "heard": [
+    "fomo"
+   ]
+  },
+  {
+   "term": "YOLO",
+   "category": "Internet",
+   "heard": [
+    "yolo"
+   ]
+  },
+  {
+   "term": "TL;DR",
+   "category": "Internet",
+   "heard": [
+    "tldr",
+    "tl dr",
+    "t l d r",
+    "t.l.d.r."
+   ]
+  },
+  {
+   "term": "ICYMI",
+   "category": "Internet",
+   "heard": [
+    "icymi",
+    "i c y m i"
+   ]
+  },
+  {
+   "term": "NGL",
+   "category": "Internet",
+   "heard": [
+    "ngl",
+    "n g l"
+   ]
+  },
+  {
+   "term": "TBH",
+   "category": "Internet",
+   "heard": [
+    "tbh",
+    "t b h"
+   ]
+  },
+  {
+   "term": "IMO",
+   "category": "Internet",
+   "heard": [
+    "imo",
+    "i m o"
+   ]
+  },
+  {
+   "term": "IMHO",
+   "category": "Internet",
+   "heard": [
+    "imho",
+    "i m h o"
+   ]
+  },
+  {
+   "term": "FWIW",
+   "category": "Internet",
+   "heard": [
+    "fwiw",
+    "f w i w"
+   ]
+  },
+  {
+   "term": "AFAIK",
+   "category": "Internet",
+   "heard": [
+    "afaik",
+    "a f a i k"
+   ]
+  },
+  {
+   "term": "IIRC",
+   "category": "Internet",
+   "heard": [
+    "iirc",
+    "i i r c"
+   ]
+  },
+  {
+   "term": "LMK",
+   "category": "Internet",
+   "heard": [
+    "lmk",
+    "l m k"
+   ]
+  },
+  {
+   "term": "BRB",
+   "category": "Internet",
+   "heard": [
+    "brb",
+    "b r b"
+   ]
+  },
+  {
+   "term": "ELI5",
+   "category": "Internet",
+   "heard": [
+    "eli5",
+    "e l i 5",
+    "e l i five"
+   ]
+  },
+  {
+   "term": "GRWM",
+   "category": "Internet",
+   "heard": [
+    "grwm",
+    "g r w m"
+   ]
+  },
+  {
+   "term": "FYP",
+   "category": "Internet",
+   "heard": [
+    "fyp",
+    "f y p"
+   ]
+  },
+  {
+   "term": "OOTD",
+   "category": "Internet",
+   "heard": [
+    "ootd",
+    "o o t d"
+   ]
+  },
+  {
+   "term": "ASMR",
+   "category": "Internet",
+   "heard": [
+    "asmr",
+    "a s m r"
+   ]
+  },
+  {
+   "term": "Gen Alpha",
+   "category": "Internet",
+   "heard": [
+    "gen alpha",
+    "jen alpha",
+    "gen-alpha"
+   ]
+  },
+  {
+   "term": "delulu",
+   "category": "Internet",
+   "heard": [
+    "de lulu",
+    "dululu",
+    "deloulou",
+    "de-lulu"
+   ]
+  },
+  {
+   "term": "skibidi",
+   "category": "Internet",
+   "heard": [
+    "skibbidi",
+    "skibiddy",
+    "skibbity",
+    "skibidy",
+    "skibbidy"
+   ]
+  },
+  {
+   "term": "vidIQ",
+   "category": "Creative tools",
+   "heard": [
+    "vidiq",
+    "vid iq",
+    "vid i q",
+    "vid i.q."
+   ]
+  },
+  {
+   "term": "TubeBuddy",
+   "category": "Creative tools",
+   "heard": [
+    "tubebuddy",
+    "tube buddy"
+   ]
+  },
+  {
+   "term": "OpusClip",
+   "category": "Creative tools",
+   "heard": [
+    "opusclip",
+    "opus clip"
+   ]
+  },
+  {
+   "term": "Submagic",
+   "category": "Creative tools",
+   "heard": [
+    "submagic"
+   ]
+  },
+  {
+   "term": "InShot",
+   "category": "Creative tools",
+   "heard": [
+    "inshot"
+   ]
+  },
+  {
+   "term": "Filmora",
+   "category": "Creative tools",
+   "heard": [
+    "filmora",
+    "film ora",
+    "filmorra"
+   ]
+  },
+  {
+   "term": "Camtasia",
+   "category": "Creative tools",
+   "heard": [
+    "camtasia",
+    "cam tasia",
+    "camtasha"
+   ]
+  },
+  {
+   "term": "ScreenFlow",
+   "category": "Creative tools",
+   "heard": [
+    "screenflow"
+   ]
+  },
+  {
+   "term": "CleanShot X",
+   "category": "Creative tools",
+   "heard": [
+    "cleanshot x"
+   ]
+  },
+  {
+   "term": "Streamlabs",
+   "category": "Creative tools",
+   "heard": [
+    "streamlabs",
+    "stream labs"
+   ]
+  },
+  {
+   "term": "Riverside.fm",
+   "category": "Creative tools",
+   "heard": [
+    "riverside dot fm",
+    "riverside f m"
+   ]
+  },
+  {
+   "term": "Buzzsprout",
+   "category": "Creative tools",
+   "heard": [
+    "buzzsprout",
+    "buzz sprout"
+   ]
+  },
+  {
+   "term": "Soundstripe",
+   "category": "Creative tools",
+   "heard": [
+    "soundstripe"
+   ]
+  },
+  {
+   "term": "Storyblocks",
+   "category": "Creative tools",
+   "heard": [
+    "storyblocks"
+   ]
+  },
+  {
+   "term": "Pixelmator",
+   "category": "Creative tools",
+   "heard": [
+    "pixelmator",
+    "pixel mator",
+    "pixel mater",
+    "pixelmater"
+   ]
+  },
+  {
+   "term": "Luminar Neo",
+   "category": "Creative tools",
+   "heard": [
+    "luminar neo",
+    "lumina neo"
+   ]
+  },
+  {
+   "term": "Penpot",
+   "category": "Creative tools",
+   "heard": [
+    "penpot"
+   ]
+  },
+  {
+   "term": "CoreWeave",
+   "category": "Brands",
+   "heard": [
+    "coreweave"
+   ]
+  },
+  {
+   "term": "Waymo",
+   "category": "Brands",
+   "heard": [
+    "waymo",
+    "waymoe",
+    "way-mo"
+   ]
+  },
+  {
+   "term": "Neuralink",
+   "category": "Brands",
+   "heard": [
+    "neuralink"
+   ]
+  },
+  {
+   "term": "MrBeast",
+   "category": "Brands",
+   "heard": [
+    "mrbeast",
+    "mr beast",
+    "mr. beast",
+    "mister beast"
+   ]
+  },
+  {
+   "term": "Temu",
+   "category": "Brands",
+   "heard": [
+    "temu",
+    "tee moo",
+    "tea moo"
+   ]
+  },
+  {
+   "term": "Labubu",
+   "category": "Brands",
+   "heard": [
+    "labubu",
+    "la boo boo",
+    "la-boo-boo",
+    "lah boo boo"
+   ]
+  },
+  {
+   "term": "Pop Mart",
+   "category": "Brands",
+   "heard": [
+    "popmart"
+   ]
+  },
+  {
+   "term": "Owala",
+   "category": "Brands",
+   "heard": [
+    "owala"
+   ]
+  },
+  {
+   "term": "Procter & Gamble",
+   "category": "Brands",
+   "heard": [
+    "proctor and gamble",
+    "proctor & gamble",
+    "procter and gamble"
+   ]
+  },
+  {
+   "term": "Volkswagen",
+   "category": "Brands",
+   "heard": [
+    "volkswagon",
+    "volks wagon",
+    "volkswagan"
+   ]
+  },
+  {
+   "term": "Häagen-Dazs",
+   "category": "Brands",
+   "heard": [
+    "haagen dazs",
+    "haagen-dazs",
+    "hagen dazs",
+    "hagen-dazs",
+    "hagen das",
+    "häagen dazs",
+    "haagen daz",
+    "hagen daz"
+   ]
+  },
+  {
+   "term": "Porsche",
+   "category": "Brands",
+   "heard": [
+    "porshe"
+   ]
+  },
+  {
+   "term": "Lamborghini",
+   "category": "Brands",
+   "heard": [
+    "lamborgini",
+    "lamborghinni",
+    "lambourghini"
+   ]
+  },
+  {
+   "term": "Hyundai",
+   "category": "Brands",
+   "heard": [
+    "hyundia",
+    "hundai",
+    "hyundae",
+    "hyunday"
+   ]
+  },
+  {
+   "term": "Huawei",
+   "category": "Brands",
+   "heard": [
+    "huawai",
+    "hauwei",
+    "huawey"
+   ]
+  },
+  {
+   "term": "Xiaomi",
+   "category": "Brands",
+   "heard": [
+    "shaomi",
+    "xaomi",
+    "shaomee"
+   ]
+  },
+  {
+   "term": "Palantir",
+   "category": "Brands",
+   "heard": [
+    "palanteer",
+    "palantear",
+    "pallantir",
+    "palentir"
+   ]
+  },
+  {
+   "term": "Goldman Sachs",
+   "category": "Brands",
+   "heard": [
+    "goldman sax",
+    "goldmann sachs"
+   ]
+  },
+  {
+   "term": "Berkshire Hathaway",
+   "category": "Brands",
+   "heard": [
+    "berkshire hathoway",
+    "berkshire hathway",
+    "berkshire hatheway"
+   ]
+  },
+  {
+   "term": "Deloitte",
+   "category": "Brands",
+   "heard": [
+    "deloite",
+    "deloit",
+    "delloitte"
+   ]
+  },
+  {
+   "term": "Ghirardelli",
+   "category": "Brands",
+   "heard": [
+    "ghiradelli",
+    "girardelli",
+    "ghirardeli",
+    "gharardelli"
+   ]
+  },
+  {
+   "term": "Lululemon",
+   "category": "Brands",
+   "heard": [
+    "lulu lemon",
+    "lululemmon"
+   ]
+  },
+  {
+   "term": "Klarna",
+   "category": "Finance",
+   "heard": [
+    "klarna",
+    "clarna",
+    "klarnah"
+   ]
+  },
+  {
+   "term": "Afterpay",
+   "category": "Finance",
+   "heard": [
+    "afterpay"
+   ],
+   "context": [
+    "after pay"
+   ],
+   "after": [
+    "checkout",
+    "payment",
+    "payments",
+    "account",
+    "installments",
+    "card"
+   ]
+  },
+  {
+   "term": "Robinhood",
+   "category": "Finance",
+   "heard": [
+    "robinhood"
+   ]
+  },
+  {
+   "term": "Coinbase",
+   "category": "Finance",
+   "heard": [
+    "coinbase",
+    "coin base"
+   ]
+  },
+  {
+   "term": "Revolut",
+   "category": "Finance",
+   "heard": [
+    "revolut"
+   ]
+  },
+  {
+   "term": "SoFi",
+   "category": "Finance",
+   "heard": [
+    "so fi",
+    "so-fi"
+   ]
+  },
+  {
+   "term": "Wealthfront",
+   "category": "Finance",
+   "heard": [
+    "wealthfront"
+   ]
+  },
+  {
+   "term": "Splitwise",
+   "category": "Finance",
+   "heard": [
+    "splitwise"
+   ]
+  },
+  {
+   "term": "Kalshi",
+   "category": "Finance",
+   "heard": [
+    "kalshi",
+    "kal shi",
+    "kalshee",
+    "calshi"
+   ]
+  },
+  {
+   "term": "Polymarket",
+   "category": "Finance",
+   "heard": [
+    "polymarket",
+    "poly market"
+   ]
+  },
+  {
+   "term": "USDC",
+   "category": "Finance",
+   "heard": [
+    "usdc",
+    "u s d c",
+    "usd c"
+   ]
+  },
+  {
+   "term": "CTR",
+   "category": "Business",
+   "heard": [
+    "c t r"
+   ]
+  },
+  {
+   "term": "CPM",
+   "category": "Business",
+   "heard": [
+    "cpm",
+    "c p m"
+   ]
+  },
+  {
+   "term": "MRR",
+   "category": "Business",
+   "heard": [
+    "mrr",
+    "m r r"
+   ]
+  },
+  {
+   "term": "OKR",
+   "category": "Business",
+   "heard": [
+    "okr",
+    "o k r"
+   ]
+  },
+  {
+   "term": "OKRs",
+   "category": "Business",
+   "heard": [
+    "okrs",
+    "o k r s",
+    "o k rs"
+   ]
+  },
+  {
+   "term": "ROAS",
+   "category": "Business",
+   "heard": [
+    "roas",
+    "r o a s"
+   ],
+   "boost": false
+  },
+  {
+   "term": "CPC",
+   "category": "Business",
+   "heard": [
+    "c p c"
+   ]
+  },
+  {
+   "term": "CAC",
+   "category": "Business",
+   "heard": [
+    "c a c"
+   ],
+   "boost": false
+  },
+  {
+   "term": "LTV",
+   "category": "Business",
+   "heard": [
+    "l t v"
+   ]
+  },
+  {
+   "term": "ARR",
+   "category": "Business",
+   "heard": [
+    "a r r"
+   ],
+   "boost": false
+  },
+  {
+   "term": "NPS",
+   "category": "Business",
+   "heard": [
+    "n p s"
+   ]
+  },
+  {
+   "term": "PPC",
+   "category": "Business",
+   "heard": [
+    "p p c"
+   ]
+  },
+  {
+   "term": "CRO",
+   "category": "Business",
+   "heard": [
+    "c r o"
+   ]
+  },
+  {
+   "term": "UTM",
+   "category": "Business",
+   "heard": [
+    "utm",
+    "u t m"
+   ]
+  },
+  {
+   "term": "ICP",
+   "category": "Business",
+   "heard": [
+    "i c p"
+   ]
+  },
+  {
+   "term": "MQL",
+   "category": "Business",
+   "heard": [
+    "m q l"
+   ]
+  },
+  {
+   "term": "GTM",
+   "category": "Business",
+   "heard": [
+    "g t m"
+   ]
+  },
+  {
+   "term": "SKU",
+   "category": "Business",
+   "heard": [
+    "s k u"
+   ],
+   "boost": false
+  },
+  {
+   "term": "ERP",
+   "category": "Business",
+   "heard": [
+    "e r p"
+   ]
+  },
+  {
+   "term": "SOW",
+   "category": "Business",
+   "heard": [
+    "s o w"
+   ],
+   "boost": false
+  },
+  {
+   "term": "RFP",
+   "category": "Business",
+   "heard": [
+    "r f p"
+   ]
+  },
+  {
+   "term": "MVP",
+   "category": "Business",
+   "heard": [
+    "m v p"
+   ]
+  },
+  {
+   "term": "YoY",
+   "category": "Business",
+   "heard": [
+    "yoy",
+    "y o y"
+   ]
+  },
+  {
+   "term": "QoQ",
+   "category": "Business",
+   "heard": [
+    "qoq",
+    "q o q"
+   ]
+  },
+  {
+   "term": "ARPU",
+   "category": "Business",
+   "heard": [
+    "arpu",
+    "a r p u"
+   ],
+   "boost": false
+  },
+  {
+   "term": "SERP",
+   "category": "Business",
+   "heard": [
+    "serp",
+    "s e r p"
+   ],
+   "boost": false
+  },
+  {
+   "term": "EBITDA",
+   "category": "Business",
+   "heard": [
+    "ebitda",
+    "e bit da",
+    "ebit da",
+    "e b i t d a"
+   ]
+  },
+  {
+   "term": "P&L",
+   "category": "Business",
+   "heard": [
+    "p and l",
+    "p & l"
+   ]
+  },
+  {
+   "term": "GA4",
+   "category": "Business",
+   "heard": [
+    "ga4",
+    "ga 4",
+    "g a 4",
+    "ga four"
+   ]
+  },
+  {
+   "term": "W-9",
+   "category": "Business",
+   "heard": [
+    "w9",
+    "w 9"
+   ]
+  },
+  {
+   "term": "Finsweet",
+   "category": "Business",
+   "heard": [
+    "finsweet"
+   ]
+  },
+  {
+   "term": "Relume",
+   "category": "Business",
+   "heard": [
+    "re lume",
+    "re-lume"
+   ]
+  },
+  {
+   "term": "Memberstack",
+   "category": "Business",
+   "heard": [
+    "memberstack"
+   ]
+  },
+  {
+   "term": "ClickFunnels",
+   "category": "Business",
+   "heard": [
+    "clickfunnels"
+   ]
+  },
+  {
+   "term": "Shopify POS",
+   "category": "Business",
+   "heard": [
+    "shopify pos",
+    "shopify p o s"
+   ]
+  },
+  {
+   "term": "Yotpo",
+   "category": "Business",
+   "heard": [
+    "yotpo",
+    "yot po"
+   ]
+  },
+  {
+   "term": "Gorgias",
+   "category": "Business",
+   "heard": [
+    "gorgias"
+   ]
+  },
+  {
+   "term": "PageFly",
+   "category": "Business",
+   "heard": [
+    "pagefly"
+   ]
+  },
+  {
+   "term": "GemPages",
+   "category": "Business",
+   "heard": [
+    "gempages"
+   ]
+  },
+  {
+   "term": "Omnisend",
+   "category": "Business",
+   "heard": [
+    "omnisend",
+    "omni send"
+   ]
+  },
+  {
+   "term": "Northbeam",
+   "category": "Business",
+   "heard": [
+    "northbeam"
+   ]
+  },
+  {
+   "term": "Triple Whale",
+   "category": "Business",
+   "heard": [
+    "triplewhale"
+   ]
+  },
+  {
+   "term": "ARRI",
+   "category": "Film and video",
+   "heard": [
+    "arri",
+    "a r r i"
+   ],
+   "context": [
+    "Ari"
+   ],
+   "after": [
+    "alexa",
+    "amira",
+    "camera",
+    "cameras",
+    "skypanel",
+    "lenses",
+    "signature"
+   ]
+  },
+  {
+   "term": "ARRI Alexa",
+   "category": "Film and video",
+   "heard": [
+    "arri alexa",
+    "arri alexia"
+   ]
+  },
+  {
+   "term": "RED V-RAPTOR",
+   "category": "Film and video",
+   "heard": [
+    "red v raptor",
+    "red v-raptor"
+   ]
+  },
+  {
+   "term": "H.264",
+   "category": "Film and video",
+   "heard": [
+    "h264",
+    "h 264",
+    "h dot 264",
+    "h two sixty four",
+    "h two six four"
+   ]
+  },
+  {
+   "term": "H.265",
+   "category": "Film and video",
+   "heard": [
+    "h265",
+    "h 265",
+    "h dot 265",
+    "h two sixty five",
+    "h two six five"
+   ]
+  },
+  {
+   "term": "HEVC",
+   "category": "Film and video",
+   "heard": [
+    "hevc",
+    "h e v c"
+   ]
+  },
+  {
+   "term": "AV1",
+   "category": "Film and video",
+   "heard": [
+    "av1",
+    "a v 1"
+   ]
+  },
+  {
+   "term": "XAVC",
+   "category": "Film and video",
+   "heard": [
+    "xavc",
+    "x a v c"
+   ]
+  },
+  {
+   "term": "Blackmagic RAW",
+   "category": "Film and video",
+   "heard": [
+    "blackmagic raw",
+    "black magic raw"
+   ]
+  },
+  {
+   "term": "BRAW",
+   "category": "Film and video",
+   "heard": [
+    "b raw",
+    "b-raw"
+   ],
+   "boost": false
+  },
+  {
+   "term": "DNxHR",
+   "category": "Film and video",
+   "heard": [
+    "dnxhr",
+    "dnx hr",
+    "d n x h r"
+   ]
+  },
+  {
+   "term": "DNxHD",
+   "category": "Film and video",
+   "heard": [
+    "dnxhd",
+    "dnx hd",
+    "d n x h d"
+   ]
+  },
+  {
+   "term": "S-Log3",
+   "category": "Film and video",
+   "heard": [
+    "s log 3",
+    "s-log 3",
+    "slog3",
+    "s log three"
+   ]
+  },
+  {
+   "term": "Rec. 709",
+   "category": "Film and video",
+   "heard": [
+    "rec 709",
+    "rec709",
+    "rec seven oh nine"
+   ]
+  },
+  {
+   "term": "Rec. 2020",
+   "category": "Film and video",
+   "heard": [
+    "rec2020"
+   ]
+  },
+  {
+   "term": "DCI-P3",
+   "category": "Film and video",
+   "heard": [
+    "dci p3",
+    "dci p 3",
+    "d c i p 3"
+   ]
+  },
+  {
+   "term": "Steadicam",
+   "category": "Film and video",
+   "heard": [
+    "steadycam",
+    "steddicam"
+   ]
+  },
+  {
+   "term": "Kino Flo",
+   "category": "Film and video",
+   "heard": [
+    "kino flow",
+    "keno flow",
+    "kinoflo"
+   ]
+  },
+  {
+   "term": "Aputure",
+   "category": "Film and video",
+   "heard": [
+    "aputure"
+   ]
+  },
+  {
+   "term": "Godox",
+   "category": "Film and video",
+   "heard": [
+    "godox"
+   ]
+  },
+  {
+   "term": "Sennheiser",
+   "category": "Film and video",
+   "heard": [
+    "senheiser",
+    "sennheizer",
+    "sen heiser",
+    "sennhiser"
+   ]
+  },
+  {
+   "term": "TASCAM",
+   "category": "Film and video",
+   "heard": [
+    "tascam"
+   ]
+  },
+  {
+   "term": "iZotope",
+   "category": "Film and video",
+   "heard": [
+    "izotope"
+   ]
+  },
+  {
+   "term": "Teradek",
+   "category": "Film and video",
+   "heard": [
+    "teradek",
+    "tera deck",
+    "teradeck"
+   ]
+  },
+  {
+   "term": "Atomos",
+   "category": "Film and video",
+   "heard": [
+    "atomos"
+   ]
+  },
+  {
+   "term": "SmallRig",
+   "category": "Film and video",
+   "heard": [
+    "smallrig"
+   ]
+  },
+  {
+   "term": "Sachtler",
+   "category": "Film and video",
+   "heard": [
+    "sachtler",
+    "sacktler"
+   ]
+  },
+  {
+   "term": "CFexpress",
+   "category": "Film and video",
+   "heard": [
+    "cfexpress",
+    "cf express",
+    "c f express"
+   ]
+  },
+  {
+   "term": "ND filter",
+   "category": "Film and video",
+   "heard": [
+    "nd filter",
+    "n d filter"
+   ]
+  },
+  {
+   "term": "ND filters",
+   "category": "Film and video",
+   "heard": [
+    "nd filters",
+    "n d filters"
+   ]
+  },
+  {
+   "term": "lavalier",
+   "category": "Film and video",
+   "heard": [
+    "lavalear",
+    "lavalair",
+    "lava lier"
+   ]
+  },
+  {
+   "term": "Fresnel",
+   "category": "Film and video",
+   "heard": [
+    "frenel",
+    "fresnell"
+   ]
+  },
+  {
+   "term": "FX3",
+   "category": "Film and video",
+   "heard": [
+    "fx3",
+    "fx 3",
+    "f x 3"
+   ]
+  },
+  {
+   "term": "FX6",
+   "category": "Film and video",
+   "heard": [
+    "fx6",
+    "fx 6",
+    "f x 6"
+   ]
+  },
+  {
+   "term": "FX30",
+   "category": "Film and video",
+   "heard": [
+    "fx30",
+    "fx 30",
+    "f x 30"
+   ]
+  },
+  {
+   "term": "Canon C70",
+   "category": "Film and video",
+   "heard": [
+    "canon c 70",
+    "canon c seventy"
+   ]
+  },
+  {
+   "term": "BMPCC",
+   "category": "Film and video",
+   "heard": [
+    "bmpcc",
+    "b m p c c"
+   ]
+  },
+  {
+   "term": "EDL",
+   "category": "Film and video",
+   "heard": [
+    "e d l"
+   ]
+  },
+  {
+   "term": "DIT",
+   "category": "Film and video",
+   "heard": [
+    "d i t"
+   ],
+   "boost": false
+  },
+  {
+   "term": "Boris FX",
+   "category": "Film and video",
+   "heard": [
+    "boris fx",
+    "boris f x"
+   ]
+  },
+  {
+   "term": "StudioBinder",
+   "category": "Film and video",
+   "heard": [
+    "studiobinder"
+   ]
+  },
+  {
+   "term": "LucidLink",
+   "category": "Film and video",
+   "heard": [
+    "lucidlink"
+   ]
+  },
+  {
+   "term": "WriterDuet",
+   "category": "Film and video",
+   "heard": [
+    "writerduet"
+   ]
+  },
+  {
+   "term": "SkyPanel",
+   "category": "Film and video",
+   "heard": [
+    "skypanel"
+   ]
+  },
+  {
+   "term": "HIPAA",
+   "category": "General",
+   "heard": [
+    "hippa",
+    "hipaa",
+    "h i p a a"
+   ]
+  },
+  {
+   "term": "COVID-19",
+   "category": "General",
+   "heard": [
+    "covid 19",
+    "covid nineteen",
+    "covid19"
+   ]
+  },
+  {
+   "term": "per se",
+   "category": "General",
+   "heard": [
+    "per say"
+   ]
+  },
+  {
+   "term": "bona fide",
+   "category": "General",
+   "heard": [
+    "bonafide"
+   ]
+  },
+  {
+   "term": "Albuquerque",
+   "category": "Places",
+   "heard": [
+    "albequerque",
+    "albuquerqe",
+    "albuqueque",
+    "albaquerque",
+    "albuquerky",
+    "al buquerque"
+   ]
+  },
+  {
+   "term": "Poughkeepsie",
+   "category": "Places",
+   "heard": [
+    "poughkeepsy",
+    "poughkepsie",
+    "pokipsie",
+    "pokipsy",
+    "poughkipsie",
+    "po kipsie"
+   ]
+  },
+  {
+   "term": "Schenectady",
+   "category": "Places",
+   "heard": [
+    "schenectedy",
+    "skenectady",
+    "schenactady",
+    "schenecktady",
+    "schenectity"
+   ]
+  },
+  {
+   "term": "Worcester",
+   "category": "Places",
+   "heard": [
+    "worchester",
+    "worcestor",
+    "worchestor"
+   ]
+  },
+  {
+   "term": "Worcestershire",
+   "category": "Places",
+   "heard": [
+    "worchestershire",
+    "woostershire",
+    "worcestshire",
+    "worstershire",
+    "worcester shire"
+   ]
+  },
+  {
+   "term": "Tucson",
+   "category": "Places",
+   "heard": [
+    "tuscon"
+   ]
+  },
+  {
+   "term": "Cincinnati",
+   "category": "Places",
+   "heard": [
+    "cincinatti",
+    "cincinnatti",
+    "cincinati",
+    "cinncinati",
+    "cinncinnati"
+   ]
+  },
+  {
+   "term": "Pittsburgh",
+   "category": "Places",
+   "heard": [
+    "pitsburgh",
+    "pittsburhg"
+   ],
+   "context": [
+    "Pittsburg"
+   ],
+   "after": [
+    "PA",
+    "Pennsylvania",
+    "Steelers",
+    "Penguins",
+    "Pirates",
+    "Pitt"
+   ]
+  },
+  {
+   "term": "Philadelphia",
+   "category": "Places",
+   "heard": [
+    "philidelphia",
+    "philedelphia",
+    "philadephia",
+    "philadelpia",
+    "phillidelphia"
+   ]
+  },
+  {
+   "term": "Massachusetts",
+   "category": "Places",
+   "heard": [
+    "massachusets",
+    "massachussetts",
+    "massachussets",
+    "massachusettes",
+    "masachusetts"
+   ]
+  },
+  {
+   "term": "Connecticut",
+   "category": "Places",
+   "heard": [
+    "conneticut",
+    "connecticutt",
+    "connetticut",
+    "conecticut"
+   ]
+  },
+  {
+   "term": "Mississippi",
+   "category": "Places",
+   "heard": [
+    "missisippi",
+    "mississipi",
+    "missisipi",
+    "mississppi"
+   ]
+  },
+  {
+   "term": "Tennessee",
+   "category": "Places",
+   "heard": [
+    "tennesee",
+    "tenessee",
+    "tennesse"
+   ]
+  },
+  {
+   "term": "Pennsylvania",
+   "category": "Places",
+   "heard": [
+    "pennsylvannia",
+    "pensylvania",
+    "pennsilvania",
+    "pennsylvaina"
+   ]
+  },
+  {
+   "term": "Phoenix",
+   "category": "Places",
+   "heard": [
+    "pheonix"
+   ]
+  },
+  {
+   "term": "Sacramento",
+   "category": "Places",
+   "heard": [
+    "sacremento",
+    "sacromento"
+   ]
+  },
+  {
+   "term": "Des Moines",
+   "category": "Places",
+   "heard": [
+    "des moine",
+    "demoine",
+    "demoines"
+   ]
+  },
+  {
+   "term": "Kissimmee",
+   "category": "Places",
+   "heard": [
+    "kissimee",
+    "kisimmee",
+    "kissimme"
+   ]
+  },
+  {
+   "term": "Coeur d'Alene",
+   "category": "Places",
+   "heard": [
+    "cour d'alene",
+    "coeur dalene",
+    "cour dalene",
+    "coeur d alene"
+   ]
+  },
+  {
+   "term": "Tallahassee",
+   "category": "Places",
+   "heard": [
+    "tallahasee",
+    "talahassee",
+    "tallahasse"
+   ]
+  },
+  {
+   "term": "Milwaukee",
+   "category": "Places",
+   "heard": [
+    "milwakee",
+    "milwalkee"
+   ]
+  },
+  {
+   "term": "Louisville",
+   "category": "Places",
+   "heard": [
+    "louieville",
+    "louisvile"
+   ]
+  },
+  {
+   "term": "Willamette",
+   "category": "Places",
+   "heard": [
+    "willamete",
+    "wilamette",
+    "willamett"
+   ]
+  },
+  {
+   "term": "Bothell",
+   "category": "Places",
+   "context": [
+    "Bath Cell",
+    "Bodwell"
+   ],
+   "after": [
+    "WA",
+    "Washington",
+    "Kenmore",
+    "Woodinville",
+    "Seattle"
+   ]
+  },
+  {
+   "term": "Chihuahua",
+   "category": "Places",
+   "heard": [
+    "chihuahau",
+    "chiuahua",
+    "chiwawa",
+    "chiwowa",
+    "chihuaha",
+    "chiwahwah"
+   ]
+  },
+  {
+   "term": "Caribbean",
+   "category": "Places",
+   "heard": [
+    "carribean",
+    "carribbean",
+    "caribean"
+   ]
+  },
+  {
+   "term": "Mediterranean",
+   "category": "Places",
+   "heard": [
+    "mediteranean",
+    "mediterranian",
+    "meditteranean",
+    "mediterrenean"
+   ]
+  },
+  {
+   "term": "Lancaster",
+   "category": "Places",
+   "heard": [
+    "lang caster",
+    "lancastor"
+   ]
+  },
+  {
+   "term": "Strasburg",
+   "category": "Places",
+   "context": [
+    "Strasbourg",
+    "Strassburg"
+   ],
+   "after": [
+    "PA",
+    "Pennsylvania",
+    "Virginia",
+    "VA",
+    "Ohio",
+    "Lancaster",
+    "Township",
+    "borough"
+   ]
+  },
+  {
+   "term": "Strasburg Rail Road",
+   "category": "Places",
+   "heard": [
+    "strasbourg railroad",
+    "strasbourg rail road",
+    "strasburg railroad"
+   ]
+  },
+  {
+   "term": "Bird-in-Hand",
+   "category": "Places",
+   "context": [
+    "bird in hand"
+   ],
+   "after": [
+    "PA",
+    "Pennsylvania",
+    "Lancaster",
+    "village",
+    "bakery"
+   ]
+  },
+  {
+   "term": "Lititz",
+   "category": "Places",
+   "heard": [
+    "lidditz",
+    "littitz",
+    "liditz",
+    "lititts",
+    "lidits"
+   ]
+  },
+  {
+   "term": "Ephrata",
+   "category": "Places",
+   "heard": [
+    "ephrada",
+    "efrada"
+   ]
+  },
+  {
+   "term": "Schuylkill",
+   "category": "Places",
+   "heard": [
+    "schuylkil",
+    "schuykill",
+    "schulykill",
+    "skookill",
+    "skoo kill"
+   ],
+   "context": [
+    "school kill"
+   ],
+   "after": [
+    "River",
+    "County",
+    "Expressway",
+    "Trail"
+   ]
+  },
+  {
+   "term": "Susquehanna",
+   "category": "Places",
+   "heard": [
+    "susquehana",
+    "susquahanna",
+    "susquehannah",
+    "susquehanah",
+    "sasquehanna"
+   ]
+  },
+  {
+   "term": "Wilkes-Barre",
+   "category": "Places",
+   "heard": [
+    "wilkes barry",
+    "wilkes-barry",
+    "wilkes berry",
+    "wilkesbarre",
+    "wilkes barre"
+   ]
+  },
+  {
+   "term": "Punxsutawney",
+   "category": "Places",
+   "heard": [
+    "punxatawney",
+    "punxsatawney",
+    "punksutawney",
+    "punxutawney",
+    "punxsutawny"
+   ]
+  },
+  {
+   "term": "Conshohocken",
+   "category": "Places",
+   "heard": [
+    "conshohoken",
+    "conshocken",
+    "conshahocken"
+   ]
+  },
+  {
+   "term": "Monongahela",
+   "category": "Places",
+   "heard": [
+    "monongahala",
+    "monongehela",
+    "monongahella"
+   ]
+  },
+  {
+   "term": "Reykjavík",
+   "category": "Places",
+   "heard": [
+    "reykjavic",
+    "rekyavik",
+    "reykavik",
+    "raykjavik",
+    "reykjavick",
+    "reikjavik",
+    "reykyavik"
+   ]
+  },
+  {
+   "term": "Kyiv",
+   "category": "Places",
+   "heard": [
+    "keev",
+    "kyev",
+    "kyiev"
+   ],
+   "context": [
+    "Kiev"
+   ],
+   "after": [
+    "Ukraine",
+    "Ukrainian",
+    "capital",
+    "mayor",
+    "oblast",
+    "region"
+   ]
+  },
+  {
+   "term": "Kharkiv",
+   "category": "Places",
+   "heard": [
+    "harkiv",
+    "karkiv"
+   ]
+  },
+  {
+   "term": "Lviv",
+   "category": "Places",
+   "heard": [
+    "leviv"
+   ]
+  },
+  {
+   "term": "Qatar",
+   "category": "Places",
+   "heard": [
+    "quatar",
+    "qatarr"
+   ],
+   "context": [
+    "Katar"
+   ],
+   "after": [
+    "Airways",
+    "Doha",
+    "Emir"
+   ]
+  },
+  {
+   "term": "Côte d'Ivoire",
+   "category": "Places",
+   "heard": [
+    "cote d'ivoire",
+    "cote divoire",
+    "côte divoire",
+    "cote d ivoire",
+    "coat d'ivoire",
+    "cote de ivoire",
+    "cote d'ivoir"
+   ]
+  },
+  {
+   "term": "Philippines",
+   "category": "Places",
+   "heard": [
+    "phillipines",
+    "philipines",
+    "phillippines",
+    "philippenes",
+    "phillipenes"
+   ]
+  },
+  {
+   "term": "Colombia",
+   "category": "Places",
+   "context": [
+    "Columbia"
+   ],
+   "after": [
+    "Bogotá",
+    "Bogota",
+    "Medellín",
+    "Medellin",
+    "Cali",
+    "Cartagena",
+    "Barranquilla"
+   ]
+  },
+  {
+   "term": "Morocco",
+   "category": "Places",
+   "heard": [
+    "morroco",
+    "morrocco"
+   ]
+  },
+  {
+   "term": "Herzegovina",
+   "category": "Places",
+   "heard": [
+    "hertzegovina",
+    "herzogovina",
+    "herzegovena"
+   ]
+  },
+  {
+   "term": "Liechtenstein",
+   "category": "Places",
+   "heard": [
+    "leichtenstein",
+    "liechenstein",
+    "lichtenstien",
+    "liechtenstien"
+   ],
+   "context": [
+    "Lichtenstein"
+   ],
+   "after": [
+    "Principality",
+    "Vaduz",
+    "Switzerland",
+    "Austria"
+   ]
+  },
+  {
+   "term": "Kyrgyzstan",
+   "category": "Places",
+   "heard": [
+    "kyrgystan",
+    "kyrgistan",
+    "krygyzstan",
+    "kyrgzstan",
+    "kirgistan"
+   ]
+  },
+  {
+   "term": "Kazakhstan",
+   "category": "Places",
+   "heard": [
+    "kazakstan",
+    "kazakhistan",
+    "kazachstan"
+   ]
+  },
+  {
+   "term": "Djibouti",
+   "category": "Places",
+   "heard": [
+    "jibuti",
+    "djibuti",
+    "djibooti",
+    "jibouti"
+   ]
+  },
+  {
+   "term": "Mauritius",
+   "category": "Places",
+   "heard": [
+    "mauritus",
+    "mauritious",
+    "maurititus"
+   ]
+  },
+  {
+   "term": "Tbilisi",
+   "category": "Places",
+   "heard": [
+    "tiblisi",
+    "tbilissi"
+   ]
+  },
+  {
+   "term": "Shenzhen",
+   "category": "Places",
+   "heard": [
+    "shenzen",
+    "shenjen"
+   ]
+  },
+  {
+   "term": "Guangzhou",
+   "category": "Places",
+   "heard": [
+    "guangzou",
+    "gwangzhou",
+    "guangjo"
+   ]
+  },
+  {
+   "term": "Chongqing",
+   "category": "Places",
+   "heard": [
+    "chongching",
+    "chongquing"
+   ]
+  },
+  {
+   "term": "Ljubljana",
+   "category": "Places",
+   "heard": [
+    "lubljana",
+    "ljubliana",
+    "lublijana",
+    "ljublijana"
+   ]
+  },
+  {
+   "term": "Ouagadougou",
+   "category": "Places",
+   "heard": [
+    "wagadugu",
+    "ouagadugu",
+    "wagadougou"
+   ]
+  },
+  {
+   "term": "Abu Dhabi",
+   "category": "Places",
+   "heard": [
+    "abu dabi",
+    "abu dahbi",
+    "abudhabi"
+   ]
+  },
+  {
+   "term": "Guadalajara",
+   "category": "Places",
+   "heard": [
+    "guadalahara",
+    "guadalajarra",
+    "wadalahara"
+   ]
+  },
+  {
+   "term": "Edinburgh",
+   "category": "Places",
+   "heard": [
+    "edinborough",
+    "edinburough",
+    "edinbrough"
+   ]
+  },
+  {
+   "term": "Venezuela",
+   "category": "Places",
+   "heard": [
+    "venezuala",
+    "venezula",
+    "venezeula"
+   ]
+  },
+  {
+   "term": "Nicaragua",
+   "category": "Places",
+   "heard": [
+    "nicaragura",
+    "nicuragua",
+    "nicarauga"
+   ]
+  },
+  {
+   "term": "Zuckerberg",
+   "category": "People",
+   "heard": [
+    "zuckerburg",
+    "zuckerburgh",
+    "zukerberg",
+    "zuckerbergh",
+    "suckerberg"
+   ]
+  },
+  {
+   "term": "Nadella",
+   "category": "People",
+   "heard": [
+    "nadela",
+    "nadalla",
+    "nadala"
+   ]
+  },
+  {
+   "term": "Sam Altman",
+   "category": "People",
+   "heard": [
+    "sam oltman",
+    "sam altmen",
+    "sam altmon"
+   ]
+  },
+  {
+   "term": "Jensen Huang",
+   "category": "People",
+   "heard": [
+    "jensen hwang",
+    "jenson huang",
+    "jensen hwong"
+   ]
+  },
+  {
+   "term": "Sundar Pichai",
+   "category": "People",
+   "heard": [
+    "sundar pichay",
+    "sundar pachai",
+    "sundar pitchai",
+    "sundar pichi"
+   ]
+  },
+  {
+   "term": "Dario Amodei",
+   "category": "People",
+   "heard": [
+    "dario amodai",
+    "dario amode",
+    "dario amaday",
+    "dario amodi"
+   ]
+  },
+  {
+   "term": "Demis Hassabis",
+   "category": "People",
+   "heard": [
+    "demis hasabis",
+    "dennis hassabis",
+    "demis hassibis",
+    "demis hasabbis"
+   ]
+  },
+  {
+   "term": "Ilya Sutskever",
+   "category": "People",
+   "heard": [
+    "ilya sutskiver",
+    "ilya sutzkever",
+    "ilya sutskeva",
+    "ilya sutskevar"
+   ]
+  },
+  {
+   "term": "Andrej Karpathy",
+   "category": "People",
+   "heard": [
+    "andre karpathy",
+    "andrej karpathi",
+    "andrei karpathy",
+    "karpathi"
+   ]
+  },
+  {
+   "term": "Yann LeCun",
+   "category": "People",
+   "heard": [
+    "yan lecun",
+    "yann le cun",
+    "jan lecun",
+    "yann lekun",
+    "yann lacoon"
+   ],
+   "exact": [
+    "Yann Lecun",
+    "LeCunn",
+    "Lecun"
+   ]
+  },
+  {
+   "term": "Fei-Fei Li",
+   "category": "People",
+   "heard": [
+    "fei fei li",
+    "feifei li",
+    "fei-fei lee",
+    "fei fei lee",
+    "faye faye li"
+   ]
+  },
+  {
+   "term": "Mira Murati",
+   "category": "People",
+   "heard": [
+    "meera murati",
+    "mira morati",
+    "mira murrati"
+   ]
+  },
+  {
+   "term": "Jeff Bezos",
+   "category": "People",
+   "heard": [
+    "jeff bayzos",
+    "jeff besos",
+    "jeff bezo"
+   ]
+  },
+  {
+   "term": "Andy Jassy",
+   "category": "People",
+   "heard": [
+    "andy jassey",
+    "andy jassie"
+   ]
+  },
+  {
+   "term": "Marc Benioff",
+   "category": "People",
+   "heard": [
+    "mark benioff",
+    "marc beniof",
+    "mark beniof",
+    "marc benyoff"
+   ]
+  },
+  {
+   "term": "Warren Buffett",
+   "category": "People",
+   "heard": [
+    "warren buffet",
+    "warren buffit"
+   ]
+  },
+  {
+   "term": "Jimmy Buffett",
+   "category": "People",
+   "heard": [
+    "jimmy buffet"
+   ]
+  },
+  {
+   "term": "Schwarzenegger",
+   "category": "People",
+   "heard": [
+    "schwartzenegger",
+    "schwarzeneger",
+    "schwarzenager",
+    "schwartzenager",
+    "schwarzenneger",
+    "schwarzeneggar"
+   ]
+  },
+  {
+   "term": "McConaughey",
+   "category": "People",
+   "heard": [
+    "mcconaughy",
+    "mcconaghey",
+    "mcconahey",
+    "mcconaughay",
+    "mcconnaughey",
+    "mcconnaughy",
+    "mcconahay"
+   ]
+  },
+  {
+   "term": "Gyllenhaal",
+   "category": "People",
+   "heard": [
+    "gyllenhall",
+    "gyllenhal",
+    "gylenhaal",
+    "jillenhall",
+    "jillenhaal",
+    "gyllenhaul"
+   ]
+  },
+  {
+   "term": "Scorsese",
+   "category": "People",
+   "heard": [
+    "scorcese",
+    "scorsesi",
+    "scorcesi",
+    "scorseze"
+   ]
+  },
+  {
+   "term": "Saoirse Ronan",
+   "category": "People",
+   "heard": [
+    "sersha ronan",
+    "seersha ronan",
+    "searsha ronan",
+    "saorise ronan",
+    "sorsha ronan"
+   ]
+  },
+  {
+   "term": "Timothée Chalamet",
+   "category": "People",
+   "heard": [
+    "timothee chalamet",
+    "timothy chalamet",
+    "timothy shalamay",
+    "timothée chalomet"
+   ]
+  },
+  {
+   "term": "Joaquin Phoenix",
+   "category": "People",
+   "heard": [
+    "joaquin pheonix",
+    "wakeen phoenix",
+    "whakeen phoenix",
+    "joachin phoenix"
+   ]
+  },
+  {
+   "term": "Chiwetel Ejiofor",
+   "category": "People",
+   "heard": [
+    "chiwetel ejifor",
+    "chewitel ejiofor",
+    "chiwetel ejiofer"
+   ]
+  },
+  {
+   "term": "Galifianakis",
+   "category": "People",
+   "heard": [
+    "galifinakis",
+    "galafianakis",
+    "galifianakas",
+    "galifinakus"
+   ]
+  },
+  {
+   "term": "Ralph Fiennes",
+   "category": "People",
+   "heard": [
+    "ralph fines",
+    "rafe fines",
+    "rafe fiennes",
+    "ralph finnes",
+    "ralph fiens"
+   ]
+  },
+  {
+   "term": "Denis Villeneuve",
+   "category": "People",
+   "heard": [
+    "dennis villeneuve",
+    "denis villenueve",
+    "denis villanueve",
+    "denis vilneuve",
+    "villenueve"
+   ]
+  },
+  {
+   "term": "Taika Waititi",
+   "category": "People",
+   "heard": [
+    "taika watiti",
+    "tyka waititi",
+    "taika wahtiti"
+   ]
+  },
+  {
+   "term": "Spielberg",
+   "category": "People",
+   "heard": [
+    "spielburg",
+    "speilberg",
+    "spielburgh"
+   ]
+  },
+  {
+   "term": "Tarantino",
+   "category": "People",
+   "heard": [
+    "tarrantino",
+    "tarentino",
+    "tarantinio"
+   ]
+  },
+  {
+   "term": "Shyamalan",
+   "category": "People",
+   "heard": [
+    "shamalan",
+    "shyamalon",
+    "shamalon",
+    "shymalan",
+    "shyamalam"
    ]
   }
  ]

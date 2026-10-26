@@ -199,7 +199,7 @@ struct BuiltInVocabularySection: View {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Spell modern words right").font(.system(size: 14)).foregroundStyle(Ink.ink)
-                        Text(on ? "\(active) of \(all.count) terms on, like ChatGPT, GitHub, and macOS. Your Dictionary always wins, and words like “zoom in” stay as you said them."
+                        Text(on ? "\(active) of \(all.count) terms on, like ChatGPT, GitHub, and macOS. Your Dictionary always wins, and words like “zoom in” stay as you said them. Dictation also fixes mix-ups like “could of been.”"
                                 : "Off. Verbose spells only your Dictionary's words its own way.")
                             .font(.system(size: 12.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
                     }
