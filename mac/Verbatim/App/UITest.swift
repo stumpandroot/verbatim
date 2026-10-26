@@ -40,7 +40,7 @@ enum UITest {
             // Launch timing for CI (never a pass or fail), with the big library (BigLibrarySeed) in it.
             LaunchClock.logTimings(app.store)
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            // The main window, never a floating panel (the dictation bar or thought pad can come first in the list).
+            // The main window, never a floating panel (the dictation bar or today's page can come first in the list).
             guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && !($0 is NSPanel) })
                     ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) else { Log.note("UITEST FAIL no window"); return }
             window.makeKeyAndOrderFront(nil)
@@ -50,6 +50,8 @@ enum UITest {
                 AppLook.current = .verbose
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
+            // The Thoughts bubble stays off the screenshots except its own (thoughtsSteps and thoughtShots turn it on).
+            Thoughts.showBubble = false
             // Screen changes with 1,000 transcripts while a file transcribes; then the big library goes again.
             await bigLibrarySteps(app: app)
 
@@ -104,6 +106,9 @@ enum UITest {
             await surfaceSteps(app: app)
             window.makeKeyAndOrderFront(nil)
             await meetingSteps(main: window)
+            // Thoughts: today's page, the bubble, the menu bar's group, By day, the rename, and the pad's move.
+            await thoughtsSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -474,8 +479,15 @@ enum UITest {
         app.libraryKind = .journal
         await show("05h-library-journal")
         app.libraryKind = .idea
-        await show("05i-library-ideas")
+        await show("05i-library-thoughts")
         app.libraryKind = nil
+        // Library › By day: Thoughts and Journal, with the calendar's dots and the day's page.
+        seedThoughts(app, withTranscribing: true)
+        app.go(.byDay(.idea))
+        await show("05n-by-day-thoughts")
+        app.go(.byDay(.journal))
+        await show("05o-by-day-journal")
+        app.go(.library)
         // Type and platform chips: Links, broken down by site.
         app.libraryFilter = LibraryFilter(source: .links)
         await show("05k-library-links-filter")
@@ -568,14 +580,7 @@ enum UITest {
         await show("07c-you")
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
-        let pad = ThoughtPad.shared
-        pad.clear(); pad.title = "Catalog shoot email"
-        pad.add("Shoot the wheels on white first, then the wagons out in the field by the shop.", seconds: 14)
-        pad.add("Ask Jonathan for the wheel spec sheet before Friday.", seconds: 6)
-        pad.add("The Lititz dealer wants a one-page sheet too. Same photos, trimmed copy.", seconds: 9, missed: true)
-        ThoughtPadController.shared.open()
-        await show("08b-thought-pad")
-        ThoughtPadController.shared.close()
+        await thoughtShots(suffix: "")
         app.dictation.bar?.ask(.init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way.",
                                      primary: "Remember in Lapp Wagons", secondary: "Not now", seconds: 8))
         await show("08c-remember")
@@ -708,6 +713,11 @@ enum UITest {
         NativeNav.shared.libraryTable = false
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
+        app.go(.byDay(.idea))
+        await show("05n-by-day-thoughts-native")
+        app.go(.byDay(.journal))
+        await show("05o-by-day-journal-native")
+        await thoughtShots(suffix: "-native")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
         await show("09-settings-general-native")
@@ -1876,3 +1886,203 @@ struct UITarget: ViewModifier {
     }
 }
 extension View { func uiTarget(_ id: String) -> some View { modifier(UITarget(id: id)) } }
+
+// MARK: - Thoughts
+
+extension UITest {
+    /// Thoughts seeded for the self-test and the tour: five on today's page (one from the iPhone), and a few on earlier
+    /// days so the calendar has dots. With `withTranscribing`, one more that's still transcribing. Returns today's, in
+    /// the order they started. Text only, so nothing is transcribed.
+    @discardableResult
+    static func seedThoughts(_ app: AppState, withTranscribing: Bool = false) -> [UUID] {
+        let hour = Thoughts.newPageHour
+        let base = DayPages.today(hour: hour)   // the page's day, at midnight
+        let cal = Calendar.current
+        func at(_ day: Date, _ h: Int, _ m: Int) -> Date { cal.date(byAdding: .minute, value: h * 60 + m, to: day) ?? day }
+        let lines: [(Int, Int, String, String)] = [
+            (9, 14, "Move the export button into the toolbar so it sits next to Share.", Thoughts.macSource),
+            (9, 40, "Pick up printer paper and AA batteries on the way home.", "Thought · iPhone"),
+            (10, 5, "Try the calendar dots in ink, not persimmon. Persimmon only means recording.", Thoughts.macSource),
+            (10, 21, "Ask whether the onboarding video can drop to sixty seconds.", "Thought · iPhone"),
+            (10, 42, "Day headers could use the mono date, like the website.", Thoughts.macSource),
+        ]
+        var ids: [UUID] = []
+        if let existing = app.store.transcripts.first(where: { $0.title == "Self-test thought 1" }), existing.deletedAt == nil {
+            ids = app.store.page(.idea, day: base, hour: hour).filter { $0.title.hasPrefix("Self-test thought ") }.map(\.id)
+        } else {
+            for (i, l) in lines.enumerated() {
+                let t = ThoughtPadMigration.textThought(l.2, at: at(base, l.0, l.1), source: l.3, title: "Self-test thought \(i + 1)")
+                app.store.add(t)
+                ids.append(t.id)
+            }
+            for (ago, text) in [(1, "Rename the share sheet action to Send a copy."), (2, "Order a second stand for the review monitor."), (4, "Empty states need one sentence, not two.")] {
+                app.store.add(ThoughtPadMigration.textThought(text, at: at(DayPages.day(base, moved: -ago), 15, 0), source: Thoughts.macSource))
+            }
+        }
+        if withTranscribing, !app.store.live.contains(where: { $0.title == "Self-test thought, transcribing" }) {
+            var t = Transcript(title: "Self-test thought, transcribing", source: .voiceMemo, sourceLabel: Thoughts.macSource, duration: 9, audioFileName: nil, model: "")
+            t.createdAt = at(base, 11, 3)
+            t.kind = .idea; t.kindIsAuto = false; t.status = .processing; t.stage = "Transcribing"
+            app.store.add(t)
+        }
+        return ids
+    }
+
+    /// Today's page and the bubble's recording and saved states, for CI's screenshots.
+    static func thoughtShots(suffix: String) async {
+        guard let app = appRef else { return }
+        seedThoughts(app, withTranscribing: true)
+        ThoughtPadController.shared.open()
+        await show("08b-thoughts-page\(suffix)")
+        ThoughtPadController.shared.close()
+        guard suffix.isEmpty else { return }
+        let capture = ThoughtCapture.shared
+        capture.simulate = true
+        Thoughts.showBubble = true
+        capture.start()
+        await show("08f-thought-bubble-recording")
+        capture.stop()
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        write(show: "08g-thought-bubble-saved")
+        Log.note("UITEST show 08g-thought-bubble-saved")
+        try? await Task.sleep(nanoseconds: 1_600_000_000)   // "Added to Thoughts" shows for two seconds
+        capture.simulate = false
+        Thoughts.showBubble = false
+    }
+
+    /// Thoughts, clicked: today's page in time order with times, its day arrows, the mic and the bubble starting and
+    /// stopping a thought into today's page (simulated audio), the menu bar's group, By day with the calendar's dots
+    /// for Thoughts and Journal, the rename in the Library's filters, and the Thought pad's one-time move. The page and
+    /// the bubble never become key, and neither can activate Verbose.
+    static func thoughtsSteps(app: AppState, window: NSWindow) async {
+        let capture = ThoughtCapture.shared
+        let hour = Thoughts.newPageHour
+        let today = DayPages.today(hour: hour)
+        seedArchive(app)
+        let seeded = seedThoughts(app)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        check("thoughts: Idea is called Thoughts in pickers and filters", RecordingKind.idea.label == "Thoughts" && RecordingKind.idea.plural == "Thoughts"
+              && RecordingKind.idea.rawValue == "idea" && RecordingKind.pickable.contains(.idea))
+        let page = app.store.page(.idea, day: today, hour: hour).filter { seeded.contains($0.id) }
+        check("thoughts: today's page lists the seeded thoughts in the order they started", page.map(\.id) == seeded && page.count == 5)
+        check("thoughts: each thought has its time", page.allSatisfy { !Thoughts.time($0.createdAt, native: false).isEmpty }
+              && Thoughts.time(page.first?.createdAt ?? Date(), native: false).contains("14"))
+        check("thoughts: Copy joins the day with blank lines", Thoughts.joined(page).components(separatedBy: "\n\n").count == 5)
+
+        // Today's page: open, not key, and its arrows.
+        let pad = ThoughtPadController.shared
+        pad.open()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        guard let panel = pad.panelWindow else { check("thoughts: today's page opens", false); return }
+        check("thoughts: today's page opens on today without becoming key or activating Verbose",
+              panel.isVisible && !panel.isKeyWindow && NSApp.keyWindow !== panel && panel.styleMask.contains(.nonactivatingPanel)
+              && pad.state.day == today && frames["page-title"] != nil)
+        await panelStep("thoughts: the arrow goes to the day before", panel, target: "page-prev", check: { pad.state.day == DayPages.day(today, moved: -1) })
+        await panelStep("thoughts: the arrow comes back to today", panel, target: "page-next", check: { pad.state.day == today })
+        await panelStep("thoughts: Next is off on today", panel, target: "page-next", check: { pad.state.day == today })
+
+        // The mic on the page starts and stops a thought (simulated audio) that lands on today's page.
+        capture.simulate = true
+        var before = app.store.page(.idea, day: today, hour: hour).count
+        await panelStep("thoughts: the page's mic starts a thought", panel, target: "page-mic", check: { capture.isRecording })
+        await panelStep("thoughts: the page's mic stops it, and it lands on today's page", panel, target: "page-mic",
+                        check: { !capture.isRecording && app.store.page(.idea, day: today, hour: hour).count == before + 1 })
+        let added = app.store.page(.idea, day: today, hour: hour).last
+        check("thoughts: a new thought is saved as audio before it's transcribed",
+              added.map { $0.audioFileName != nil && ($0.status == .processing || $0.status == .ready || $0.status == .failed) && $0.kind == .idea } == true)
+        check("thoughts: the page never became key", !panel.isKeyWindow)
+        pad.close()
+
+        // The bubble: a click starts a thought, another adds it to today's page; it never becomes key.
+        Thoughts.showBubble = true
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        if let bubble = ThoughtBubble.shared.panelWindow, bubble.isVisible {
+            before = app.store.page(.idea, day: today, hour: hour).count
+            await bubbleStep("thoughts: a click on the bubble starts a thought", bubble, check: { capture.isRecording })
+            await bubbleStep("thoughts: another click adds it to today's page", bubble,
+                             check: { !capture.isRecording && app.store.page(.idea, day: today, hour: hour).count == before + 1 })
+            check("thoughts: the bubble says it was added", { if case .saved = capture.phase { return true }; return false }())
+            check("thoughts: the bubble never becomes key or activates Verbose",
+                  !bubble.isKeyWindow && !bubble.canBecomeKey && bubble.styleMask.contains(.nonactivatingPanel) && bubble.level == .statusBar)
+        } else {
+            check("thoughts: the bubble is on screen", false)
+        }
+
+        // The menu bar's Thoughts group, in a window of its own.
+        let menu = NSPanel(contentRect: NSRect(x: 200, y: 200, width: 320, height: 200), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        menu.contentView = FirstClickHostingView(rootView: ThoughtsMenuSection().environmentObject(app).frame(width: 320).background(Ink.paper))
+        menu.orderFrontRegardless()
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("thoughts: the menu bar has New thought, Today's count, Open today's page, and Show the bubble",
+              ["menu-new-thought", "menu-today-count", "menu-open-page", "menu-show-bubble"].allSatisfy { frames[$0] != nil })
+        await panelStep("thoughts: the menu's Open today's page opens it", menu, target: "menu-open-page", check: { pad.isOpen })
+        pad.close()
+        await panelStep("thoughts: the menu's Show the bubble hides it", menu, target: "menu-show-bubble", check: { !Thoughts.showBubble && !ThoughtBubble.shared.isShowing })
+        await panelStep("thoughts: and shows it again", menu, target: "menu-show-bubble", check: { Thoughts.showBubble && ThoughtBubble.shared.isShowing })
+        menu.orderOut(nil)
+        capture.simulate = false
+        Thoughts.showBubble = false
+
+        // Library › By day.
+        window.makeKeyAndOrderFront(nil)
+        frames = frames.filter { !$0.key.hasPrefix("byday") }
+        await step("thoughts: the sidebar's Thoughts opens By day", window, target: "side-thoughts", check: { app.screen == .byDay(.idea) })
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        let day = Calendar.current.component(.day, from: today)
+        check("thoughts: By day shows the calendar with a dot on today, and the day's page",
+              frames["byday-calendar"] != nil && frames["byday-dot-\(day)"] != nil && frames["byday-page"] != nil && frames["byday-thoughts"] != nil)
+        frames = frames.filter { !$0.key.hasPrefix("byday") }
+        await step("thoughts: the sidebar's Journal opens its By day", window, target: "side-journal", check: { app.screen == .byDay(.journal) })
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        check("thoughts: Journal's calendar has a dot on today's entry", frames["byday-journal"] != nil && frames["byday-dot-\(day)"] != nil)
+        app.projectFilter = nil; app.libraryFilter = .all; app.libraryKind = .idea
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("thoughts: the Library's kind filter says Thoughts", frames["kind-idea"] != nil && RecordingKind.idea.plural == "Thoughts")
+        app.libraryKind = nil
+        app.go(.home)
+
+        // The Thought pad's pieces move into Thoughts once, on the day each was written.
+        let defaults = UserDefaults(suiteName: "uitest.thoughts.migration")!
+        defaults.removePersistentDomain(forName: "uitest.thoughts.migration")
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("thoughtpad-selftest.json")
+        let p1 = UUID(), p2 = UUID()
+        let yesterday = Date().addingTimeInterval(-86_400)
+        let json = "{\"title\":\"Catalog shoot email\",\"pieces\":[{\"id\":\"\(p1.uuidString)\",\"text\":\"Shoot the wheels on white first.\",\"seconds\":14,\"missed\":false,\"createdAt\":\(yesterday.timeIntervalSinceReferenceDate)},{\"id\":\"\(p2.uuidString)\",\"text\":\"Ask Jonathan for the spec sheet.\",\"seconds\":6,\"missed\":true,\"createdAt\":\(Date().timeIntervalSinceReferenceDate)}]}"
+        try? Data(json.utf8).write(to: file)
+        let moved = ThoughtPadMigration.run(app.store, from: file, defaults: defaults)
+        let m1 = app.store.transcript(p1), m2 = app.store.transcript(p2)
+        check("thoughts: the pad's pieces become text-only Thoughts on the day each was written", moved == 2 && m1?.kind == .idea && m1?.audioFileName == nil
+              && m1.map { abs($0.createdAt.timeIntervalSince(yesterday)) < 1 } == true && m2?.title == "Catalog shoot email" && Thoughts.words(m2!) == "Ask Jonathan for the spec sheet.")
+        try? Data(json.utf8).write(to: file)
+        check("thoughts: the pad moves once only", ThoughtPadMigration.run(app.store, from: file, defaults: defaults) == 0)
+        defaults.set(false, forKey: ThoughtPadMigration.doneKey)
+        check("thoughts: even run again, a piece is never added twice", ThoughtPadMigration.run(app.store, from: file, defaults: defaults) == 0)
+        for id in [p1, p2] { if let t = app.store.transcript(id) { app.store.delete(t) } }
+        try? FileManager.default.removeItem(at: file)
+        try? FileManager.default.removeItem(at: file.deletingLastPathComponent().appendingPathComponent(PadMigration.doneName(file.lastPathComponent)))
+        defaults.removePersistentDomain(forName: "uitest.thoughts.migration")
+    }
+
+    /// A click on a control in a floating panel (today's page, the menu's group), through the panel's own event path.
+    private static func panelStep(_ name: String, _ panel: NSWindow, target: String, check: () -> Bool) async {
+        click(target, in: panel)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        let ok = check()
+        if ok { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+    }
+
+    /// A click on the bubble: the pointer first, so the panel takes the click (it passes clicks through elsewhere).
+    private static func bubbleStep(_ name: String, _ panel: NSWindow, check: () -> Bool) async {
+        guard let f = frames["thought-bubble"], let content = panel.contentView else { fail += 1; Log.note("UITEST FAIL \(name): no bubble"); return }
+        ThoughtBubble.shared.updatePointer(at: panel.convertPoint(toScreen: CGPoint(x: f.midX, y: content.bounds.height - f.midY)))
+        let routed = !panel.ignoresMouseEvents
+        click("thought-bubble", in: panel)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        let ok = routed && check()
+        if ok { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)\(routed ? "" : " (the panel ignored the pointer)")")
+    }
+}
