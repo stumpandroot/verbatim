@@ -3,7 +3,7 @@ import Foundation
 // Thoughts and Journal by day (Verbatim/Model/DayPages.swift): which page a recording lands on, with the New page each
 // day at setting and thoughts after midnight, the page order and each page's order, the dated titles, Copy's joined
 // text, the month grid, the Thought pad's one-time move into Thoughts (PadMigration), and the iPhone's rules
-// (VerbatimWidgets/ThoughtRules.swift: starting in place, the day arrows, and the words on the system surfaces). Not
+// (VerbatimWidgets/ThoughtRules.swift: starting in place and its order, the day arrows, and the words on the system surfaces). Not
 // part of any app target; run mac/tools/test-thoughts.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
@@ -147,6 +147,25 @@ check("both switches are on unless turned off", ThoughtRules.inPlace(td) && Thou
 td.set(false, forKey: ThoughtRules.inPlaceKey); td.set(false, forKey: ThoughtRules.islandWordsKey)
 check("both switches remember off", !ThoughtRules.inPlace(td) && !ThoughtRules.islandWords(td))
 check("the settings' keys are Thoughts'", ThoughtRules.inPlaceKey == "thoughts.inPlace" && ThoughtRules.islandWordsKey == "thoughts.islandWords")
+
+// Recording in place from an audio recording intent (InPlaceRecording): the Live Activity always starts before the
+// microphone, the microphone is never touched without one, and a recording that fails takes its activity with it.
+func inPlace(activity: Bool, recording: Bool) -> (outcome: InPlaceRecording.Outcome, steps: [String]) {
+    var steps: [String] = []
+    let outcome = InPlaceRecording.start(
+        startActivity: { steps.append("activity"); return activity },
+        startRecording: { steps.append("microphone"); return recording },
+        endActivity: { steps.append("end activity") })
+    return (outcome, steps)
+}
+let bothStart = inPlace(activity: true, recording: true)
+check("in place: the Live Activity starts before the microphone", bothStart.outcome == .recording && bothStart.steps == ["activity", "microphone"])
+let noActivity = inPlace(activity: false, recording: true)
+check("in place: without a Live Activity the microphone is never touched, and Verbose opens",
+      noActivity.steps == ["activity"] && { if case .openVerbose = noActivity.outcome { return true }; return false }())
+let noRecording = inPlace(activity: true, recording: false)
+check("in place: a recording that doesn't start ends its Live Activity, and Verbose opens",
+      noRecording.steps == ["activity", "microphone", "end activity"] && { if case .openVerbose = noRecording.outcome { return true }; return false }())
 
 // The day arrows: the nearest pages with something on them; Next is off on today, and today is always reachable.
 let pagesWith = [midnight(2026, 10, 26), midnight(2026, 10, 24), midnight(2026, 10, 23), midnight(2026, 10, 19)]

@@ -4,7 +4,8 @@
       "build": "next",
       "title": "Back where you were",
       "items": [
-        "Mac: a Back button on every transcript returns you to the Library right where you were, with the same row, search, and filters. ⌘[ works too."
+        "Mac: a Back button on every transcript returns you to the Library right where you were, with the same row, search, and filters. ⌘[ works too.",
+        "iPhone: tapping the New thought widget no longer closes Verbose. The thought records behind its Live Activity, or Verbose opens to the recorder."
       ]
     },
     {
