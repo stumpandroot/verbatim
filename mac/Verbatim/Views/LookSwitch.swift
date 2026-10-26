@@ -42,8 +42,10 @@ final class LookSwitch: ObservableObject {
     private static var marks: [(name: String, ms: Int)] = []
     private static var marksStart = Date()
     private static var navigating = false
-    static func mark(_ name: String) {
-        guard rebuilding || navigating, !marks.contains(where: { $0.name == name }) else { return }
+    static func mark(_ name: @autoclosure () -> String) {
+        guard rebuilding || navigating else { return }
+        let name = name()
+        guard !marks.contains(where: { $0.name == name }) else { return }
         marks.append((name, Int((Date().timeIntervalSince(marksStart) * 1000).rounded())))
     }
     /// The same marks for a screen change, from the click to `endNavigationMarks` (the Mac self-test's settled time).

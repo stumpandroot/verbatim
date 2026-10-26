@@ -63,11 +63,16 @@ enum UITest {
             }
 
             await step("click row opens transcript", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
+            oneScreen("opening a transcript", app: app)
             await step("sidebar Home goes home", window, target: "side-home", check: { app.screen == .home })
+            oneScreen("sidebar Home", app: app)
             await step("sidebar Library opens library", window, target: "side-library", check: { app.screen == .library })
+            oneScreen("sidebar Library", app: app)
             await step("sidebar Dictionary opens dictionary", window, target: "side-dict", check: { app.screen == .dictionary })
+            oneScreen("sidebar Dictionary", app: app)
             await step("sidebar home again (one click)", window, target: "side-home", check: { app.screen == .home })
-            try? await Task.sleep(nanoseconds: 900_000_000)   // let the Home slide-in finish before clicking inside it
+            oneScreen("sidebar Home again", app: app)
+            try? await Task.sleep(nanoseconds: 900_000_000)   // let Home settle before clicking inside it
             await step("Dictate opens its panel", window, target: "mode-dictate", check: { app.captureMode == "dictate" })
             app.captureMode = "voice"                                   // close the panel before the next click
             Log.note("UITEST after dictate step captureMode=\(app.captureMode)")
@@ -86,7 +91,9 @@ enum UITest {
             try? await Task.sleep(nanoseconds: 400_000_000)
             // This week is one button: a click anywhere on it opens You.
             await step("This week opens You", window, target: "home-week", check: { app.screen == .activity })
+            oneScreen("This week opens You", app: app)
             await step("sidebar Home goes home from You", window, target: "side-home", check: { app.screen == .home })
+            oneScreen("sidebar Home from You", app: app)
             // A Recent dictations row copies its words wherever it's clicked.
             seedDictations(app)
             try? await Task.sleep(nanoseconds: 900_000_000)
@@ -1677,18 +1684,46 @@ enum UITest {
     /// `tour-native` were the switches, which `look-switch` already times), and Native's split view can make a screen
     /// appear twice (two identical lines).
     private static var lastTimedNav = 0
-    static func screenAppeared(_ key: String, nav: Int, since start: Date) {
+    static func screenAppeared(_ key: String, nav: Int, since start: Date, window: NSWindow?) {
         guard enabled, nav > 0, nav != lastTimedNav else { return }
         lastTimedNav = nav
         let screen = key.hasPrefix("t-") ? "transcript" : key
         let appeared = Date().timeIntervalSince(start) * 1000
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak window] in
             let settled = Date().timeIntervalSince(start) * 1000
             let marks = LookSwitch.endNavigationMarks()
             Log.note("UITEST TIMING \(screen) \(Int(appeared.rounded())) settled=\(Int(settled.rounded()))")
             if !marks.isEmpty { Log.note("UITEST nav marks \(screen) \(marks) settled+\(Int(settled.rounded()))") }
             timings.append((appeared, settled))
+            // The screens in the window on the turn of the main loop after the change (after the timing, so the walk
+            // isn't timed): exactly one, or an outgoing screen is still drawn over or under the new one.
+            let roots = screenRoots(in: window)
+            lastRoots = (nav, roots)
+            if roots.count != 1 { Log.note("UITEST note: \(roots.count) screens in the window after the change to \(screen): \(roots.joined(separator: ", "))") }
         }
+    }
+
+    /// The screens in the window just after the last timed navigation (its number and their keys).
+    private static var lastRoots: (nav: Int, keys: [String]) = (0, [])
+
+    /// Each screen root's marker (`screenRootMarker`, ContentView.swift) in the window's views, by screen key.
+    static func screenRoots(in window: NSWindow?) -> [String] {
+        guard let top = window?.contentView?.superview ?? window?.contentView else { return [] }
+        var keys: [String] = []
+        func walk(_ v: NSView) {
+            if let m = v as? ScreenRootMarkerView { keys.append(m.key) }
+            for s in v.subviews { walk(s) }
+        }
+        walk(top)
+        return keys
+    }
+
+    /// Passes when the last navigation left exactly one screen in the window, the one it went to.
+    private static func oneScreen(_ name: String, app: AppState) {
+        let (nav, keys) = lastRoots
+        let ok = nav == app.navCount && keys.count == 1
+        if !ok { Log.note("UITEST detail: one screen after \(name): nav \(nav) of \(app.navCount), screens \(keys)") }
+        check("one screen in the window after \(name)", ok)
     }
 
     /// Screen changes with the big library (BigLibrarySeed) while a file transcribes: a placeholder job's progress
