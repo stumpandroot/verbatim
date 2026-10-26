@@ -338,8 +338,10 @@ targets:
       - Verbatim/Model
       # What's new (Model/ReleaseNotes.swift): the release notes, shared with the Mac app (ReleaseNotes/README.md).
       - ReleaseNotes/ReleaseNotes.json
-      # The built-in modern vocabulary (Model/BuiltInVocabulary.swift), shared with the Mac.
+      # The built-in modern vocabulary (Model/BuiltInVocabulary.swift) and the everyday fixes (Flow/EverydayFixes.swift),
+      # shared with the Mac.
       - Verbatim/Resources/ModernVocabulary.json
+      - Verbatim/Resources/EverydayFixes.json
       - Verbatim/Transcription
       - Verbatim/Document/DocumentText.swift
       - Verbatim/Document/CleanupGuard.swift
@@ -402,6 +404,7 @@ targets:
       # Harper's grammar pass on dictation (in the app process, where keyboard cleanup runs; never in the
       # keyboard extension), and the opt-in cloud cleanup with your own key.
       - Verbatim/Flow/GrammarPass.swift
+      - Verbatim/Flow/EverydayFixes.swift
       - Verbatim/Flow/CloudCleanup.swift
       # Shared with the keyboard extension: the App Group channel, the voice bars, and the format chip's rules
       # and the App Store switch (KeyboardFormat.swift).

@@ -20,7 +20,8 @@ import FoundationModels
 ///   model for three words or fewer.
 /// - Harper's grammar pass (`GrammarPass`) runs last on the words, after the model or in its place: a/an, sentence
 ///   capitals, "i" → "I", its/it's. It can't change a word's meaning, and it never runs for very casual or verbatim
-///   styles.
+///   styles. Everyday mix-ups that are always wrong (`EverydayFixes`: "could of been", "me an you") are fixed
+///   right before it, under the same conditions.
 /// - Cloud cleanup (`CloudCleanup`, opt-in, your own key) takes the model's place when it's on: same instructions,
 ///   same guards, a time limit, and Apple's model then the rules when it fails.
 /// - The transcript is wrapped in delimiters and marked as words to clean, never instructions, so a dictated
@@ -253,10 +254,12 @@ enum FlowCleanup {
     }
     #endif
 
-    /// Harper's grammar pass, except where your style keeps words as spoken or allows lowercase.
+    /// Everyday mix-ups ("could of been", "sneak peak"), then Harper's grammar pass, except where your style keeps
+    /// words as spoken or allows lowercase. The mix-ups go first so a misheard "an" for "and" is fixed before
+    /// Harper's a/an rule sees it; Settings › Built-in vocabulary turns them off.
     private static func grammar(_ text: String, _ r: Request) -> String {
         guard r.grammar, r.style != .veryCasual, r.style != .verbatim, r.category != .code else { return text }
-        return GrammarPass.fix(text)
+        return GrammarPass.fix(EverydayFixes.apply(text))
     }
 
     /// What Clean and Polished produce without the model: the rule-based prepass, then the layout and snippets.

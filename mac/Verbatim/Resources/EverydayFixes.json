@@ -1,0 +1,1379 @@
+{
+ "version": 1,
+ "about": "Everyday mix-ups fixed in dictation before the grammar pass (Flow/EverydayFixes.swift). Each pattern is case-insensitive and multiline; the first group that matched (or the whole match) is replaced with `replace`, keeping a capital first letter. `examples` must become their fix and `keep` must stay; mac/tools/vocab_check.py checks both, and nothing may change a line of mac/tools/vocab-fixtures/negatives.txt.",
+ "fixes": [
+  {
+   "id": "modal-of",
+   "wrong": "could of / should of / must of",
+   "right": "could have / should have / must have",
+   "pattern": "\\b(?:could|should|would|must|might|may|couldn't|shouldn't|wouldn't|mustn't|mightn't) (of) (?=(?:been|had|done|gone|seen|known|made|got|gotten|taken|told|thought|said|come|went|left|tried|called|asked|heard|wanted|helped|stayed|used|given|brought|bought|found|missed|looked|waited|noticed|stopped|warned)\\b)",
+   "replace": "have",
+   "examples": [
+    [
+     "I could of been there.",
+     "I could have been there."
+    ],
+    [
+     "You should of told me.",
+     "You should have told me."
+    ],
+    [
+     "We must of missed it.",
+     "We must have missed it."
+    ],
+    [
+     "They might of gone home.",
+     "They might have gone home."
+    ],
+    [
+     "I wouldn't of known.",
+     "I wouldn't have known."
+    ]
+   ],
+   "keep": [
+    "You could of course ask.",
+    "I did what I could of what was left.",
+    "She ate what she could of the meal.",
+    "The must of the grapes ferments.",
+    "Of course we should."
+   ]
+  },
+  {
+   "id": "their-own",
+   "wrong": "there own / they're own",
+   "right": "their own",
+   "pattern": "\\b(there|they're|theyre) own\\b(?!-)",
+   "replace": "their",
+   "examples": [
+    [
+     "They did it there own way.",
+     "They did it their own way."
+    ],
+    [
+     "They're own team voted.",
+     "Their own team voted."
+    ]
+   ],
+   "keep": [
+    "Was there an own goal?",
+    "Is there own-brand cereal?",
+    "They own the building over there."
+   ]
+  },
+  {
+   "id": "their-is",
+   "wrong": "Their is (sentence start)",
+   "right": "There is",
+   "pattern": "(?:^|(?<=[.!?]\\s))(their) (?=(?:is|are|was|were|isn't|aren't|wasn't|weren't)\\b)",
+   "replace": "there",
+   "examples": [
+    [
+     "Their is a problem.",
+     "There is a problem."
+    ],
+    [
+     "Okay. Their are two options.",
+     "Okay. There are two options."
+    ]
+   ],
+   "keep": [
+    "Their idea is good.",
+    "I like their work. Theirs is better.",
+    "Their isolation was hard."
+   ]
+  },
+  {
+   "id": "is-their-a",
+   "wrong": "is their a",
+   "right": "is there a",
+   "pattern": "\\b(?:is|are|was|were|isn't|aren't) (their) (?=(?:a|an|any|anything|anyone|anybody)\\b(?![-']))",
+   "replace": "there",
+   "examples": [
+    [
+     "Is their a way to fix it?",
+     "Is there a way to fix it?"
+    ],
+    [
+     "Are their any questions?",
+     "Are there any questions?"
+    ]
+   ],
+   "keep": [
+    "This is their A-list.",
+    "That is their answer.",
+    "These are their anniversary photos."
+   ]
+  },
+  {
+   "id": "youre-own",
+   "wrong": "you're own",
+   "right": "your own",
+   "pattern": "\\b(you're|youre) own\\b(?!-)",
+   "replace": "your",
+   "examples": [
+    [
+     "Bring you're own lunch.",
+     "Bring your own lunch."
+    ]
+   ],
+   "keep": [
+    "You're owed money.",
+    "You're on your own."
+   ]
+  },
+  {
+   "id": "its-own",
+   "wrong": "it's own",
+   "right": "its own",
+   "pattern": "\\b(it's) own\\b(?!-)",
+   "replace": "its",
+   "examples": [
+    [
+     "The app has it's own settings.",
+     "The app has its own settings."
+    ]
+   ],
+   "keep": [
+    "It's owned by Apple.",
+    "It's on its own."
+   ]
+  },
+  {
+   "id": "me-too",
+   "wrong": "Me to. / Me two.",
+   "right": "Me too.",
+   "pattern": "(?:^|(?<=[.!?]\\s))me (to|two)(?=\\s*(?:[.!?]|$))",
+   "replace": "too",
+   "examples": [
+    [
+     "Me to.",
+     "Me too."
+    ],
+    [
+     "I love it. Me two!",
+     "I love it. Me too!"
+    ]
+   ],
+   "keep": [
+    "Give it to me to.",
+    "Send me to the store.",
+    "Me two times? No."
+   ]
+  },
+  {
+   "id": "too-many",
+   "wrong": "two many / two much.",
+   "right": "too many / too much.",
+   "pattern": "\\b(two) (?=many\\b(?!-)|much(?=\\s*(?:[.!?,;:]|$)))",
+   "replace": "too",
+   "examples": [
+    [
+     "That's two many emails.",
+     "That's too many emails."
+    ],
+    [
+     "It costs two much.",
+     "It costs too much."
+    ]
+   ],
+   "keep": [
+    "There are two much bigger rooms.",
+    "I bought two many-sided dice.",
+    "We need two more."
+   ]
+  },
+  {
+   "id": "than-ever",
+   "wrong": "better then ever",
+   "right": "better than ever",
+   "pattern": "\\b(?:more|less|better|worse|bigger|smaller|faster|slower|harder|easier|busier|higher|lower|greater|stronger|longer|shorter|closer|happier|louder|cheaper) (then) (?=ever(?:\\s*(?:[.!?,;:]|$)| before\\b))",
+   "replace": "than",
+   "examples": [
+    [
+     "We're busier then ever.",
+     "We're busier than ever."
+    ],
+    [
+     "It's faster then ever before.",
+     "It's faster than ever before."
+    ]
+   ],
+   "keep": [
+    "Life was simpler then and ever since it's been busy.",
+    "Do the harder one then come back.",
+    "Was it better then?"
+   ]
+  },
+  {
+   "id": "since-then",
+   "wrong": "since than / until than",
+   "right": "since then / until then",
+   "pattern": "\\b(?:since|until|till) (than)\\b",
+   "replace": "then",
+   "examples": [
+    [
+     "We haven't talked since than.",
+     "We haven't talked since then."
+    ],
+    [
+     "Wait until than.",
+     "Wait until then."
+    ]
+   ],
+   "keep": [
+    "It's longer than I thought.",
+    "I'd rather wait than rush."
+   ]
+  },
+  {
+   "id": "side-effect",
+   "wrong": "side affects",
+   "right": "side effects",
+   "pattern": "\\b(?:possible|potential|common|serious|severe|major|minor|known|unwanted|unexpected|rare|nasty) side (affect)(?=s?(?:\\s*(?:[.!?,;:]|$)| (?:of|from|like|include|including|such|are|were|can|may|might|will|could)\\b))",
+   "replace": "effect",
+   "examples": [
+    [
+     "Are there any serious side affects?",
+     "Are there any serious side effects?"
+    ],
+    [
+     "Common side affects include nausea.",
+     "Common side effects include nausea."
+    ]
+   ],
+   "keep": [
+    "Which side affects the other?",
+    "One side affects the balance.",
+    "The patient has a flat affect."
+   ]
+  },
+  {
+   "id": "take-effect",
+   "wrong": "take affect",
+   "right": "take effect",
+   "pattern": "\\b(?:take|takes|took|taken|taking|come into|came into|comes into|go into|goes into|went into|put into) (affect)\\b",
+   "replace": "effect",
+   "examples": [
+    [
+     "The rule takes affect Monday.",
+     "The rule takes effect Monday."
+    ],
+    [
+     "It came into affect in May.",
+     "It came into effect in May."
+    ]
+   ],
+   "keep": [
+    "Her flat affect worried me.",
+    "Does it affect you?"
+   ]
+  },
+  {
+   "id": "affect-person",
+   "wrong": "won't effect you",
+   "right": "won't affect you",
+   "pattern": "\\b(?:will|won't|would|wouldn't|could|couldn't|can|can't|doesn't|didn't|don't|might|may|really|negatively|directly|adversely) (effect) (?=(?:me|you|him|us|them)\\b)",
+   "replace": "affect",
+   "examples": [
+    [
+     "This won't effect you.",
+     "This won't affect you."
+    ],
+    [
+     "This could effect them.",
+     "This could affect them."
+    ]
+   ],
+   "keep": [
+    "The new law will effect change.",
+    "We want to effect her release."
+   ]
+  },
+  {
+   "id": "accept-offer",
+   "wrong": "except the offer",
+   "right": "accept the offer",
+   "pattern": "\\b(?:i|we|you|they|he|she|will|would|can|can't|cannot|won't|please|gladly|happily|don't|didn't|must|should|to) (except) (?=(?:the|your|my|his|her|their|our|this|that|an|a) (?:offer|invitation|apology|job|position|terms|award|challenge|deal|proposal|payment|nomination)\\b)",
+   "replace": "accept",
+   "examples": [
+    [
+     "I except the offer.",
+     "I accept the offer."
+    ],
+    [
+     "We'd like to except your invitation.",
+     "We'd like to accept your invitation."
+    ]
+   ],
+   "keep": [
+    "Everyone came except the new hire.",
+    "Everything except the offer letter is signed."
+   ]
+  },
+  {
+   "id": "principal",
+   "wrong": "vice principle",
+   "right": "vice principal",
+   "pattern": "\\b(?:assistant|vice|deputy|school) (principle)\\b(?! (?:of|that)\\b)",
+   "replace": "principal",
+   "examples": [
+    [
+     "She's the vice principle now.",
+     "She's the vice principal now."
+    ],
+    [
+     "Call the school principle.",
+     "Call the school principal."
+    ]
+   ],
+   "keep": [
+    "That's a school principle of fairness.",
+    "The principle is simple."
+   ]
+  },
+  {
+   "id": "principal-investigator",
+   "wrong": "principle investigator",
+   "right": "principal investigator",
+   "pattern": "\\b(principle) (?=investigators?\\b)",
+   "replace": "principal",
+   "examples": [
+    [
+     "Email the principle investigator.",
+     "Email the principal investigator."
+    ]
+   ],
+   "keep": [
+    "In principle, investigators agree."
+   ]
+  },
+  {
+   "id": "compliment",
+   "wrong": "backhanded complement",
+   "right": "backhanded compliment",
+   "pattern": "\\bbackhanded (complement)\\b|\\b(?:thanks|thank you) for the (complement)\\b(?! (?:of|to)\\b)",
+   "replace": "compliment",
+   "examples": [
+    [
+     "That was a backhanded complement.",
+     "That was a backhanded compliment."
+    ],
+    [
+     "Thanks for the complement!",
+     "Thanks for the compliment!"
+    ]
+   ],
+   "keep": [
+    "The wine is a nice complement to the meal.",
+    "Thanks for the complement of staff."
+   ]
+  },
+  {
+   "id": "whether-or-not",
+   "wrong": "weather or not",
+   "right": "whether or not",
+   "pattern": "(?<!\\bthe )(?<!\\bthis )(?<!\\bthat )(?<!\\bgood )(?<!\\bbad )(?<!\\bnice )(?<!\\bany )(?<!\\bcold )(?<!\\bhot )(?<!\\bwarm )(?<!\\bwet )(?<!\\bdry )(?<!\\bgreat )(?<!\\bperfect )(?<!\\bour )(?<!\\byour )(?<!\\btheir )(?<!\\bmy )\\b(weather) (?=or not\\b)",
+   "replace": "whether",
+   "examples": [
+    [
+     "I don't know weather or not to go.",
+     "I don't know whether or not to go."
+    ],
+    [
+     "Weather or not it works, we tried.",
+     "Whether or not it works, we tried."
+    ]
+   ],
+   "keep": [
+    "Should we check the weather or not?",
+    "Good weather or not, we're going."
+   ]
+  },
+  {
+   "id": "the-weather",
+   "wrong": "the whether",
+   "right": "the weather",
+   "pattern": "\\bthe (whether)\\b(?![- ]or\\b)",
+   "replace": "weather",
+   "examples": [
+    [
+     "How's the whether today?",
+     "How's the weather today?"
+    ]
+   ],
+   "keep": [
+    "It depends on the whether or not question."
+   ]
+  },
+  {
+   "id": "sneak-peek",
+   "wrong": "sneak peak",
+   "right": "sneak peek",
+   "pattern": "\\bsneak (peak)(?=s?\\b)",
+   "replace": "peek",
+   "examples": [
+    [
+     "Here's a sneak peak.",
+     "Here's a sneak peek."
+    ],
+    [
+     "More sneak peaks soon.",
+     "More sneak peeks soon."
+    ]
+   ],
+   "keep": [
+    "We hit a peak at noon.",
+    "The sneaker peaked in 2019."
+   ]
+  },
+  {
+   "id": "take-a-peek",
+   "wrong": "take a peak at",
+   "right": "take a peek at",
+   "pattern": "\\b(?:take|takes|took|taken|taking) a (?:quick |little |sneak )?(peak) (?=at\\b)",
+   "replace": "peek",
+   "examples": [
+    [
+     "Take a quick peak at this.",
+     "Take a quick peek at this."
+    ]
+   ],
+   "keep": [
+    "We'll take a peak in the Alps.",
+    "Prices took a peak last year."
+   ]
+  },
+  {
+   "id": "piqued",
+   "wrong": "peaked my interest",
+   "right": "piqued my interest",
+   "pattern": "\\b(peaked|peeked) (?=(?:my|your|his|her|our|their) (?:interest|curiosity)\\b(?! rates?\\b))",
+   "replace": "piqued",
+   "examples": [
+    [
+     "That peaked my interest.",
+     "That piqued my interest."
+    ]
+   ],
+   "keep": [
+    "Interest rates peaked in May.",
+    "Sales peaked their interest rates."
+   ]
+  },
+  {
+   "id": "lose-object",
+   "wrong": "loose my mind",
+   "right": "lose my mind",
+   "pattern": "(?<!\\blet )(?<!\\blets )(?<!\\bset )(?<!\\bcut )(?<!\\bbreak )(?<!\\bturn )\\b(loose) (?=(?:my|your|his|her|our|their) (?:mind|job|keys|phone|wallet|way|temper|patience|voice|balance|focus|place|nerve|cool)\\b)",
+   "replace": "lose",
+   "examples": [
+    [
+     "I'm going to loose my mind.",
+     "I'm going to lose my mind."
+    ],
+    [
+     "Don't loose your keys.",
+     "Don't lose your keys."
+    ]
+   ],
+   "keep": [
+    "Let loose your hair.",
+    "They set loose their dogs.",
+    "The screw came loose."
+   ]
+  },
+  {
+   "id": "lose-weight",
+   "wrong": "loose weight",
+   "right": "lose weight",
+   "pattern": "\\b(?:to|can|could|will|would|didn't|gonna) (loose) (?=weight\\b)",
+   "replace": "lose",
+   "examples": [
+    [
+     "I want to loose weight.",
+     "I want to lose weight."
+    ]
+   ],
+   "keep": [
+    "Wear loose weightlifting clothes.",
+    "The loose weight shifted."
+   ]
+  },
+  {
+   "id": "on-the-loose",
+   "wrong": "on the lose",
+   "right": "on the loose",
+   "pattern": "\\bon the (lose)(?=\\s*(?:[.!?,;:]|$)| (?:again|in|for|after|since|near|with|and|from)\\b)",
+   "replace": "loose",
+   "examples": [
+    [
+     "The dog is on the lose again.",
+     "The dog is on the loose again."
+    ]
+   ],
+   "keep": [
+    "Focus on the lose condition first.",
+    "Click on the lose screen."
+   ]
+  },
+  {
+   "id": "brake-parts",
+   "wrong": "break pads",
+   "right": "brake pads",
+   "pattern": "\\b(break) (?=(?:pads?|pedals?|fluid|calipers?|rotors?)\\b)",
+   "replace": "brake",
+   "examples": [
+    [
+     "I need new break pads.",
+     "I need new brake pads."
+    ]
+   ],
+   "keep": [
+    "Let's break for lunch.",
+    "Break lines at 80 characters."
+   ]
+  },
+  {
+   "id": "slam-brakes",
+   "wrong": "slam on the breaks",
+   "right": "slam on the brakes",
+   "pattern": "\\b(?:slam|slams|slammed|slamming) on the (breaks)\\b",
+   "replace": "brakes",
+   "examples": [
+    [
+     "He slammed on the breaks.",
+     "He slammed on the brakes."
+    ]
+   ],
+   "keep": [
+    "We had two breaks today."
+   ]
+  },
+  {
+   "id": "take-a-break",
+   "wrong": "take a brake",
+   "right": "take a break",
+   "pattern": "\\b(?:take|takes|took|taking) a (?:quick |short |little )?(brake)\\b(?! (?:off|pads?|lines?|drums?|shoes?)\\b)|\\b(?:lunch|coffee) (brake)\\b",
+   "replace": "break",
+   "examples": [
+    [
+     "Let's take a quick brake.",
+     "Let's take a quick break."
+    ],
+    [
+     "I'm on my lunch brake.",
+     "I'm on my lunch break."
+    ]
+   ],
+   "keep": [
+    "Take a brake pad out first.",
+    "Check the spring brake."
+   ]
+  },
+  {
+   "id": "intents-and-purposes",
+   "wrong": "for all intensive purposes",
+   "right": "for all intents and purposes",
+   "pattern": "\\b(for all intensive purposes)\\b",
+   "replace": "for all intents and purposes",
+   "examples": [
+    [
+     "For all intensive purposes, it's done.",
+     "For all intents and purposes, it's done."
+    ]
+   ],
+   "keep": [
+    "We used it for intensive purposes."
+   ]
+  },
+  {
+   "id": "one-and-the-same",
+   "wrong": "one in the same",
+   "right": "one and the same",
+   "pattern": "\\b(?:are|is|were|was|be|being|been) (one in the same)(?=\\s*(?:[.!?,;:]|$))",
+   "replace": "one and the same",
+   "examples": [
+    [
+     "They are one in the same.",
+     "They are one and the same."
+    ]
+   ],
+   "keep": [
+    "We have one in the same color.",
+    "It is one in the same size range."
+   ]
+  },
+  {
+   "id": "case-in-point",
+   "wrong": "case and point",
+   "right": "case in point",
+   "pattern": "\\b(?:a|perfect|classic|prime|another|good) (case and point)(?=\\s*(?:[.!?,;:]|$))|(?:^|(?<=[.!?]\\s))(case and point)(?=\\s*(?:[,:.]|$))",
+   "replace": "case in point",
+   "examples": [
+    [
+     "That's a perfect case and point.",
+     "That's a perfect case in point."
+    ],
+    [
+     "Case and point: this one.",
+     "Case in point: this one."
+    ]
+   ],
+   "keep": [
+    "Make a case and point out the flaws.",
+    "Pack the case and point it north."
+   ]
+  },
+  {
+   "id": "whet",
+   "wrong": "wet your appetite",
+   "right": "whet your appetite",
+   "pattern": "\\b(wet) (?=(?:your|my|his|her|our|their|the) appetites?\\b)",
+   "replace": "whet",
+   "examples": [
+    [
+     "This should wet your appetite.",
+     "This should whet your appetite."
+    ]
+   ],
+   "keep": [
+    "Don't get wet in the rain."
+   ]
+  },
+  {
+   "id": "bated-breath",
+   "wrong": "baited breath",
+   "right": "bated breath",
+   "pattern": "\\b(baited) (?=breath\\b)",
+   "replace": "bated",
+   "examples": [
+    [
+     "We waited with baited breath.",
+     "We waited with bated breath."
+    ]
+   ],
+   "keep": [
+    "He baited the hook."
+   ]
+  },
+  {
+   "id": "bear-with-me",
+   "wrong": "bare with me",
+   "right": "bear with me",
+   "pattern": "\\b(?:please|just|to|you|you'll|can|could|will|kindly) (bare) (?=with (?:me|us)\\b)",
+   "replace": "bear",
+   "examples": [
+    [
+     "Please bare with me.",
+     "Please bear with me."
+    ]
+   ],
+   "keep": [
+    "She stood bare with me watching.",
+    "The walls were bare with us gone."
+   ]
+  },
+  {
+   "id": "bear-in-mind",
+   "wrong": "bare in mind",
+   "right": "bear in mind",
+   "pattern": "\\b(bare) (?=in mind\\b)",
+   "replace": "bear",
+   "examples": [
+    [
+     "Bare in mind the deadline.",
+     "Bear in mind the deadline."
+    ]
+   ],
+   "keep": [
+    "The room was bare."
+   ]
+  },
+  {
+   "id": "bare-minimum",
+   "wrong": "bear minimum",
+   "right": "bare minimum",
+   "pattern": "\\b(bear) (?=minimum\\b)",
+   "replace": "bare",
+   "examples": [
+    [
+     "That's the bear minimum.",
+     "That's the bare minimum."
+    ]
+   ],
+   "keep": [
+    "The bear ate the fish."
+   ]
+  },
+  {
+   "id": "free-rein",
+   "wrong": "free reign",
+   "right": "free rein",
+   "pattern": "\\bfree (reign)\\b",
+   "replace": "rein",
+   "examples": [
+    [
+     "You have free reign here.",
+     "You have free rein here."
+    ]
+   ],
+   "keep": [
+    "The queen's reign was long."
+   ]
+  },
+  {
+   "id": "nip-in-the-bud",
+   "wrong": "nip it in the butt",
+   "right": "nip it in the bud",
+   "pattern": "\\bnip(?:s|ped|ping)? (?:it|this|that) in the (butt)\\b",
+   "replace": "bud",
+   "examples": [
+    [
+     "Let's nip it in the butt.",
+     "Let's nip it in the bud."
+    ]
+   ],
+   "keep": [
+    "He kicked it in the butt."
+   ]
+  },
+  {
+   "id": "one-fell-swoop",
+   "wrong": "one foul swoop",
+   "right": "one fell swoop",
+   "pattern": "\\bone (foul|fowl) (?=swoop\\b)",
+   "replace": "fell",
+   "examples": [
+    [
+     "It happened in one foul swoop.",
+     "It happened in one fell swoop."
+    ]
+   ],
+   "keep": [
+    "That was one foul call."
+   ]
+  },
+  {
+   "id": "statute",
+   "wrong": "statue of limitations",
+   "right": "statute of limitations",
+   "pattern": "\\b(statue) (?=of limitations?\\b)",
+   "replace": "statute",
+   "examples": [
+    [
+     "The statue of limitations ran out.",
+     "The statute of limitations ran out."
+    ]
+   ],
+   "keep": [
+    "The statue of Liberty is tall."
+   ]
+  },
+  {
+   "id": "wreak-havoc",
+   "wrong": "wreck havoc",
+   "right": "wreak havoc",
+   "pattern": "\\b(wreck)(?=(?:s|ed|ing)? havoc\\b)",
+   "replace": "wreak",
+   "examples": [
+    [
+     "Storms wreck havoc on roads.",
+     "Storms wreak havoc on roads."
+    ],
+    [
+     "It wrecked havoc.",
+     "It wreaked havoc."
+    ]
+   ],
+   "keep": [
+    "They wrecked the car."
+   ]
+  },
+  {
+   "id": "peace-of-mind",
+   "wrong": "piece of mind",
+   "right": "peace of mind",
+   "pattern": "\\b(piece) (?=of mind\\b)",
+   "replace": "peace",
+   "examples": [
+    [
+     "It gives me piece of mind.",
+     "It gives me peace of mind."
+    ]
+   ],
+   "keep": [
+    "I gave him a piece of my mind."
+   ]
+  },
+  {
+   "id": "make-do",
+   "wrong": "make due with",
+   "right": "make do with",
+   "pattern": "\\bmak(?:e|es|ing) (due) (?=with(?:out)?\\b)",
+   "replace": "do",
+   "examples": [
+    [
+     "We'll make due with what we have.",
+     "We'll make do with what we have."
+    ]
+   ],
+   "keep": [
+    "Make the payment due with the invoice."
+   ]
+  },
+  {
+   "id": "due-to-the-fact",
+   "wrong": "do to the fact that",
+   "right": "due to the fact that",
+   "pattern": "\\b(do) (?=to the fact that\\b)",
+   "replace": "due",
+   "examples": [
+    [
+     "It's late do to the fact that it rained.",
+     "It's late due to the fact that it rained."
+    ]
+   ],
+   "keep": [
+    "What did you do to the fact sheet?"
+   ]
+  },
+  {
+   "id": "role-model",
+   "wrong": "roll model",
+   "right": "role model",
+   "pattern": "\\b(roll) (?=models?\\b)",
+   "replace": "role",
+   "examples": [
+    [
+     "She's a great roll model.",
+     "She's a great role model."
+    ]
+   ],
+   "keep": [
+    "Roll the dough.",
+    "Our roll-model builds were slow."
+   ]
+  },
+  {
+   "id": "play-a-role",
+   "wrong": "play a roll in",
+   "right": "play a role in",
+   "pattern": "\\bplay(?:s|ed|ing)? a (?:big |key |major |huge |vital |important |small |minor |central )?(roll) (?=in\\b)",
+   "replace": "role",
+   "examples": [
+    [
+     "Luck played a big roll in it.",
+     "Luck played a big role in it."
+    ]
+   ],
+   "keep": [
+    "Play a roll of film.",
+    "We played a roll."
+   ]
+  },
+  {
+   "id": "allowed-to",
+   "wrong": "not aloud to",
+   "right": "not allowed to",
+   "pattern": "\\b(?:not|be|being|been|is|are|was|were|am|aren't|isn't|weren't|wasn't) (aloud) (?=to\\b)",
+   "replace": "allowed",
+   "examples": [
+    [
+     "We're not aloud to park here.",
+     "We're not allowed to park here."
+    ]
+   ],
+   "keep": [
+    "Read it aloud to me.",
+    "She was reading aloud to them."
+   ]
+  },
+  {
+   "id": "whos-going",
+   "wrong": "whose going to",
+   "right": "who's going to",
+   "pattern": "\\b(whose) (?=(?:going to|in charge)\\b)",
+   "replace": "who's",
+   "examples": [
+    [
+     "Whose going to drive?",
+     "Who's going to drive?"
+    ],
+    [
+     "Whose in charge here?",
+     "Who's in charge here?"
+    ]
+   ],
+   "keep": [
+    "Whose going-away party is it?",
+    "Whose coat is this?"
+   ]
+  },
+  {
+   "id": "has-led",
+   "wrong": "has lead to",
+   "right": "has led to",
+   "pattern": "\\b(?:has|have|had|having) (lead) (?=(?:to|the way)\\b)",
+   "replace": "led",
+   "examples": [
+    [
+     "This has lead to delays.",
+     "This has led to delays."
+    ],
+    [
+     "They have lead the way.",
+     "They have led the way."
+    ]
+   ],
+   "keep": [
+    "Lead the way.",
+    "They take the lead to win."
+   ]
+  },
+  {
+   "id": "every-day-adverb",
+   "wrong": "I walk everyday.",
+   "right": "I walk every day.",
+   "pattern": "(?<!\\bso )(?<!\\bvery )(?<!\\btoo )(?<!\\bquite )(?<!\\bpretty )(?<!\\bmore )(?<!\\bless )(?<!\\bmost )(?<!\\brather )(?<!\\bfairly )\\b(everyday)(?=\\s*(?:[.!?;:]|$))",
+   "replace": "every day",
+   "examples": [
+    [
+     "I walk everyday.",
+     "I walk every day."
+    ],
+    [
+     "We talk everyday!",
+     "We talk every day!"
+    ]
+   ],
+   "keep": [
+    "Everyday life is busy.",
+    "It's so everyday.",
+    "These are everyday tasks.",
+    "It's about everyday, practical things."
+   ]
+  },
+  {
+   "id": "everyday-adjective",
+   "wrong": "my every day routine",
+   "right": "my everyday routine",
+   "pattern": "\\b(?:an|my|your|our|their|his|her|the|these|those) (every day) (?=(?:life|use|routine|tasks?|items?|things?|carry|wear|language|objects?|situations?|problems?|basis)\\b)",
+   "replace": "everyday",
+   "examples": [
+    [
+     "It's my every day routine.",
+     "It's my everyday routine."
+    ]
+   ],
+   "keep": [
+    "Every day life gets harder.",
+    "I check the mail every day."
+   ]
+  },
+  {
+   "id": "a-part-of",
+   "wrong": "be apart of",
+   "right": "be a part of",
+   "pattern": "\\b(?:be|being|been|am|is|are|was|were|become|became|feel|felt|i'm|you're|we're|they're) (apart) (?=of\\b(?! (?:course|late)\\b))",
+   "replace": "a part",
+   "examples": [
+    [
+     "I want to be apart of it.",
+     "I want to be a part of it."
+    ]
+   ],
+   "keep": [
+    "We were apart of course.",
+    "We've been apart of late.",
+    "They live apart."
+   ]
+  },
+  {
+   "id": "maybe",
+   "wrong": "May be we should",
+   "right": "Maybe we should",
+   "pattern": "(?:^|(?<=[.!?]\\s))(may be) (?=(?:we|i|you|they|he|she|next|later|tomorrow|someday)\\b)",
+   "replace": "maybe",
+   "examples": [
+    [
+     "May be we should go.",
+     "Maybe we should go."
+    ],
+    [
+     "Sure. May be tomorrow.",
+     "Sure. Maybe tomorrow."
+    ]
+   ],
+   "keep": [
+    "May be subject to change.",
+    "It may be we who leave.",
+    "Prices may be higher."
+   ]
+  },
+  {
+   "id": "verb-setup",
+   "wrong": "need to setup",
+   "right": "need to set up",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (setup)\\b(?!-)",
+   "replace": "set up",
+   "examples": [
+    [
+     "I need to setup the new Mac.",
+     "I need to set up the new Mac."
+    ]
+   ],
+   "keep": [
+    "The setup is done.",
+    "Check the setup page.",
+    "Can setup fail here?"
+   ]
+  },
+  {
+   "id": "verb-login",
+   "wrong": "need to login",
+   "right": "need to log in",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (login)\\b(?!-)",
+   "replace": "log in",
+   "examples": [
+    [
+     "I need to login the new Mac.",
+     "I need to log in the new Mac."
+    ]
+   ],
+   "keep": [
+    "The login is done.",
+    "Check the login page.",
+    "Can login fail here?"
+   ]
+  },
+  {
+   "id": "verb-logout",
+   "wrong": "need to logout",
+   "right": "need to log out",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (logout)\\b(?!-)",
+   "replace": "log out",
+   "examples": [
+    [
+     "I need to logout the new Mac.",
+     "I need to log out the new Mac."
+    ]
+   ],
+   "keep": [
+    "The logout is done.",
+    "Check the logout page.",
+    "Can logout fail here?"
+   ]
+  },
+  {
+   "id": "verb-backup",
+   "wrong": "need to backup",
+   "right": "need to back up",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (backup)\\b(?!-)",
+   "replace": "back up",
+   "examples": [
+    [
+     "I need to backup the new Mac.",
+     "I need to back up the new Mac."
+    ]
+   ],
+   "keep": [
+    "The backup is done.",
+    "Check the backup page.",
+    "Can backup fail here?"
+   ]
+  },
+  {
+   "id": "verb-signup",
+   "wrong": "need to signup",
+   "right": "need to sign up",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (signup)\\b(?!-)",
+   "replace": "sign up",
+   "examples": [
+    [
+     "I need to signup the new Mac.",
+     "I need to sign up the new Mac."
+    ]
+   ],
+   "keep": [
+    "The signup is done.",
+    "Check the signup page.",
+    "Can signup fail here?"
+   ]
+  },
+  {
+   "id": "verb-checkout",
+   "wrong": "need to checkout",
+   "right": "need to check out",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (checkout)\\b(?!-)",
+   "replace": "check out",
+   "examples": [
+    [
+     "I need to checkout the new Mac.",
+     "I need to check out the new Mac."
+    ]
+   ],
+   "keep": [
+    "The checkout is done.",
+    "Check the checkout page.",
+    "Can checkout fail here?"
+   ]
+  },
+  {
+   "id": "verb-workout",
+   "wrong": "need to workout",
+   "right": "need to work out",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (workout)\\b(?!-)",
+   "replace": "work out",
+   "examples": [
+    [
+     "I need to workout the new Mac.",
+     "I need to work out the new Mac."
+    ]
+   ],
+   "keep": [
+    "The workout is done.",
+    "Check the workout page.",
+    "Can workout fail here?"
+   ]
+  },
+  {
+   "id": "verb-shutdown",
+   "wrong": "need to shutdown",
+   "right": "need to shut down",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (shutdown)\\b(?!-)",
+   "replace": "shut down",
+   "examples": [
+    [
+     "I need to shutdown the new Mac.",
+     "I need to shut down the new Mac."
+    ]
+   ],
+   "keep": [
+    "The shutdown is done.",
+    "Check the shutdown page.",
+    "Can shutdown fail here?"
+   ]
+  },
+  {
+   "id": "verb-lookup",
+   "wrong": "need to lookup",
+   "right": "need to look up",
+   "pattern": "\\b(?:need to|want to|have to|going to|gonna|wanna|how to|let's|please|i'll|we'll|you'll|i'd|we'd) (lookup)\\b(?!-)",
+   "replace": "look up",
+   "examples": [
+    [
+     "I need to lookup the new Mac.",
+     "I need to look up the new Mac."
+    ]
+   ],
+   "keep": [
+    "The lookup is done.",
+    "Check the lookup page.",
+    "Can lookup fail here?"
+   ]
+  },
+  {
+   "id": "and-not-an",
+   "wrong": "me an you",
+   "right": "me and you",
+   "pattern": "\\b(an) (?=(?:the|then|we|they|he|she|you|so|but|that's|it's|my|your|our|their|his|this|these|those)\\b(?![-']))",
+   "replace": "and",
+   "examples": [
+    [
+     "Me an you should talk.",
+     "Me and you should talk."
+    ],
+    [
+     "Grab the keys an then lock up.",
+     "Grab the keys and then lock up."
+    ]
+   ],
+   "keep": [
+    "It was an historic day.",
+    "That was an so-so result.",
+    "An apple a day."
+   ]
+  },
+  {
+   "id": "dont-know",
+   "wrong": "don't no why",
+   "right": "don't know why",
+   "pattern": "\\b(?:don't|didn't|doesn't|let me) (no) (?=(?:what|why|how|where|when|who|if|whether|about)\\b)",
+   "replace": "know",
+   "examples": [
+    [
+     "I don't no why.",
+     "I don't know why."
+    ],
+    [
+     "Let me no if it works.",
+     "Let me know if it works."
+    ]
+   ],
+   "keep": [
+    "I don't, no.",
+    "I no longer care.",
+    "There was no way."
+   ]
+  },
+  {
+   "id": "hear",
+   "wrong": "can you here me",
+   "right": "can you hear me",
+   "pattern": "\\b(?:can you|could you|did you|can't|couldn't|didn't) (here) (?=(?:that|about|me|you|him|her|us|them|what)\\b)",
+   "replace": "hear",
+   "examples": [
+    [
+     "Can you here me?",
+     "Can you hear me?"
+    ],
+    [
+     "I couldn't here what you said.",
+     "I couldn't hear what you said."
+    ]
+   ],
+   "keep": [
+    "You can't park here.",
+    "We here at Acme agree.",
+    "Come here."
+   ]
+  },
+  {
+   "id": "supposed-to",
+   "wrong": "I'm suppose to",
+   "right": "I'm supposed to",
+   "pattern": "\\b(?:am|is|are|was|were|isn't|aren't|wasn't|weren't|i'm|you're|we're|they're|he's|she's|it's|that's|what's) (suppose) (?=to\\b)",
+   "replace": "supposed",
+   "examples": [
+    [
+     "I'm suppose to call her.",
+     "I'm supposed to call her."
+    ],
+    [
+     "It was suppose to rain.",
+     "It was supposed to rain."
+    ]
+   ],
+   "keep": [
+    "I suppose to some degree.",
+    "Suppose to start, we call."
+   ]
+  },
+  {
+   "id": "used-to",
+   "wrong": "get use to",
+   "right": "get used to",
+   "pattern": "\\b(?:get|gets|got|getting|gotten|i'm|you're|we're|they're|am|are|was|were) (?:not )?(?:really |quite |so |totally )?(use) (?=to\\b)",
+   "replace": "used",
+   "examples": [
+    [
+     "You'll get use to it.",
+     "You'll get used to it."
+    ],
+    [
+     "I'm not use to this.",
+     "I'm not used to this."
+    ]
+   ],
+   "keep": [
+    "Is it of any use to you?",
+    "It was no use to anyone.",
+    "Put it to use today."
+   ]
+  },
+  {
+   "id": "in-the-past",
+   "wrong": "in the passed",
+   "right": "in the past",
+   "pattern": "\\bin the (passed)(?=\\s*(?:[.!?,;:]|$)| (?:few|couple|week|weeks|month|months|year|years|decade|decades|day|days|century)\\b)",
+   "replace": "past",
+   "examples": [
+    [
+     "That happened in the passed.",
+     "That happened in the past."
+    ],
+    [
+     "In the passed few years.",
+     "In the past few years."
+    ]
+   ],
+   "keep": [
+    "Check the length in the passed array.",
+    "Errors in the passed arguments."
+   ]
+  },
+  {
+   "id": "passed-away",
+   "wrong": "she past away",
+   "right": "she passed away",
+   "pattern": "\\b(?:has|have|had|who|he|she|they|sadly|peacefully) (past) (?=away\\b)",
+   "replace": "passed",
+   "examples": [
+    [
+     "She past away last year.",
+     "She passed away last year."
+    ]
+   ],
+   "keep": [
+    "We drove past away fans.",
+    "It's just past, away from the road."
+   ]
+  },
+  {
+   "id": "youre-welcome",
+   "wrong": "Your welcome.",
+   "right": "You're welcome.",
+   "pattern": "(?:^|(?<=[.!?]\\s))(your) (?=welcome(?=\\s*(?:[.!?,;:]|$)))",
+   "replace": "you're",
+   "examples": [
+    [
+     "Your welcome.",
+     "You're welcome."
+    ],
+    [
+     "Thanks! Your welcome, Tim.",
+     "Thanks! You're welcome, Tim."
+    ]
+   ],
+   "keep": [
+    "We loved your welcome.",
+    "Your welcome email went out.",
+    "Thanks for your welcome."
+   ]
+  },
+  {
+   "id": "for-sale",
+   "wrong": "is for sell",
+   "right": "is for sale",
+   "pattern": "\\b(?:is|are|was|were|be|up|not|it's|they're) for (sell)(?=\\s*(?:[.!?,;:]|$)| (?:by|at|now|here|online|on|in)\\b)",
+   "replace": "sale",
+   "examples": [
+    [
+     "The house is up for sell.",
+     "The house is up for sale."
+    ]
+   ],
+   "keep": [
+    "This button is for sell orders.",
+    "Is it for selling?"
+   ]
+  },
+  {
+   "id": "by-and-large",
+   "wrong": "by in large",
+   "right": "by and large",
+   "pattern": "\\bby (in) (?=large(?:\\s*[,.;:!?]|$| (?:the|we|it|they|i|you|this|that|most|people)\\b))",
+   "replace": "and",
+   "examples": [
+    [
+     "By in large, it worked.",
+     "By and large, it worked."
+    ]
+   ],
+   "keep": [
+    "They stood by in large numbers.",
+    "Stand by in large groups."
+   ]
+  }
+ ]
+}
