@@ -2,8 +2,9 @@ import Foundation
 
 // Thoughts and Journal by day (Verbatim/Model/DayPages.swift): which page a recording lands on, with the New page each
 // day at setting and thoughts after midnight, the page order and each page's order, the dated titles, Copy's joined
-// text, the month grid, and the Thought pad's one-time move into Thoughts (PadMigration). Not part of any app target;
-// run mac/tools/test-thoughts.sh.
+// text, the month grid, the Thought pad's one-time move into Thoughts (PadMigration), and the iPhone's rules
+// (VerbatimWidgets/ThoughtRules.swift: starting in place, the day arrows, and the words on the system surfaces). Not
+// part of any app target; run mac/tools/test-thoughts.sh.
 var passed = 0, failed = 0
 func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "") {
     if ok { passed += 1; print("PASS  \(name)") }
@@ -127,6 +128,64 @@ check("once only: a second run adds nothing", PadMigration.pending(pieces, exist
 let dup = pieces + pieces
 check("once only: a piece listed twice moves once", PadMigration.pending(dup, existing: []).map(\.id) == [a, c])
 check("the file is kept, renamed", PadMigration.doneName("thoughtpad.json") == "thoughtpad-migrated.json")
+
+// MARK: The iPhone (VerbatimWidgets/ThoughtRules.swift)
+
+// Starting a thought from outside the app: in place only when nothing needs asking and nothing holds the microphone.
+func start(recording: Bool = false, setting: Bool = true, system: Bool = true, notice: Bool = true, mic: Bool = true, busy: Bool = false) -> ThoughtRules.Start {
+    ThoughtRules.start(recordingThought: recording, inPlaceSetting: setting, systemAllows: system, noticeSeen: notice, micAllowed: mic, micBusy: busy)
+}
+check("in place when everything allows it", start() == .inPlace)
+check("a second press stops the thought that's recording", start(recording: true) == .stop && start(recording: true, setting: false) == .stop)
+check("Record without opening Verbose off opens Verbose", { if case .openVerbose = start(setting: false) { return true }; return false }())
+check("iOS 17 opens Verbose", { if case .openVerbose = start(system: false) { return true }; return false }())
+check("the recording notice not yet seen opens Verbose, which asks", { if case .openVerbose = start(notice: false) { return true }; return false }())
+check("the microphone not yet allowed opens Verbose, which asks", { if case .openVerbose = start(mic: false) { return true }; return false }())
+check("another recording holding the microphone opens Verbose, where it shows", { if case .openVerbose = start(busy: true) { return true }; return false }())
+let td = UserDefaults(suiteName: "thoughts-tests-\(UUID().uuidString)")!
+check("both switches are on unless turned off", ThoughtRules.inPlace(td) && ThoughtRules.islandWords(td))
+td.set(false, forKey: ThoughtRules.inPlaceKey); td.set(false, forKey: ThoughtRules.islandWordsKey)
+check("both switches remember off", !ThoughtRules.inPlace(td) && !ThoughtRules.islandWords(td))
+check("the settings' keys are Thoughts'", ThoughtRules.inPlaceKey == "thoughts.inPlace" && ThoughtRules.islandWordsKey == "thoughts.islandWords")
+
+// The day arrows: the nearest pages with something on them; Next is off on today, and today is always reachable.
+let pagesWith = [midnight(2026, 10, 26), midnight(2026, 10, 24), midnight(2026, 10, 23), midnight(2026, 10, 19)]
+let onToday = ThoughtRules.neighbors(pages: pagesWith, current: midnight(2026, 10, 26), today: midnight(2026, 10, 26), calendar: cal)
+check("today: back goes to the last day with thoughts, skipping an empty one", onToday.previous == midnight(2026, 10, 24))
+check("today: Next is off", onToday.next == nil)
+let onSat = ThoughtRules.neighbors(pages: pagesWith, current: midnight(2026, 10, 24), today: midnight(2026, 10, 26), calendar: cal)
+check("an earlier day: back and forward go to its neighbors", onSat.previous == midnight(2026, 10, 23) && onSat.next == midnight(2026, 10, 26))
+let onFirst = ThoughtRules.neighbors(pages: pagesWith, current: midnight(2026, 10, 19), today: midnight(2026, 10, 26), calendar: cal)
+check("the first day: back is off", onFirst.previous == nil && onFirst.next == midnight(2026, 10, 23))
+let emptyToday = ThoughtRules.neighbors(pages: [midnight(2026, 10, 20)], current: midnight(2026, 10, 20), today: midnight(2026, 10, 26), calendar: cal)
+check("forward reaches an empty today", emptyToday.next == midnight(2026, 10, 26))
+let noPages = ThoughtRules.neighbors(pages: [], current: midnight(2026, 10, 26), today: midnight(2026, 10, 26), calendar: cal)
+check("no thoughts at all: both arrows off", noPages.previous == nil && noPages.next == nil)
+check("arrows take any time of day", ThoughtRules.neighbors(pages: [at(2026, 10, 24, 15)], current: at(2026, 10, 26, 9), today: at(2026, 10, 26, 18), calendar: cal).previous == midnight(2026, 10, 24))
+
+// Words on the pages and system surfaces.
+check("the eyebrow says today and the count", ThoughtRules.eyebrow(dayLabel: "Mon Oct 26", isToday: true, count: 6) == "Today · 6 thoughts")
+check("the eyebrow on another day names it, one thought singular", ThoughtRules.eyebrow(dayLabel: "Sat Oct 24", isToday: false, count: 1) == "Sat Oct 24 · 1 thought")
+check("the Live Activity names the page", ThoughtRules.intoLine(DayPages.title("Thoughts", day: midnight(2026, 10, 26), calendar: cal, locale: en)) == "Into Thoughts · Mon, Oct 26")
+check("the Lock Screen widget shows a count, never words", ThoughtRules.lockCount(6) == "6 today" && ThoughtRules.lockCount(0) == "None yet today")
+check("a thought that's transcribing says its audio is saved", ThoughtRules.transcribing == "Saved as audio. Transcribing…")
+check("a failed thought keeps its audio and offers Transcribe again", ThoughtRules.failed.contains("audio is saved") && ThoughtRules.transcribeAgain == "Transcribe again")
+check("Added to Thoughts shows for two seconds", ThoughtRules.savedTitle == "Added to Thoughts" && ThoughtRules.savedSeconds == 2)
+check("ways in: widgets count", ThoughtRules.widgetStatus(0) == "Not added" && ThoughtRules.widgetStatus(2) == "2 added")
+check("ways in: the control", ThoughtRules.controlStatus(true) == "Added" && ThoughtRules.controlStatus(false) == "Not added" && ThoughtRules.controlStatus(nil) == "Needs iOS 18")
+check("ways in: what iOS can't tell offers setup, Siri is ready", ThoughtRules.undetectable == "Set up" && ThoughtRules.siriStatus == "Ready")
+check("Siri's phrase", ThoughtRules.siriPhrase == "New thought in Verbose")
+let allCopy = [ThoughtRules.transcribing, ThoughtRules.failed, ThoughtRules.emptyPage, ThoughtRules.emptyToday, ThoughtRules.activityTitle,
+               ThoughtRules.lockTitle, ThoughtRules.savedTitle]
+check("the copy is timeless and has no filler", allCopy.allSatisfy { c in ["currently", "soon", "latest", "just ", "simply", "easily"].allSatisfy { !c.lowercased().contains($0) } })
+
+// The widgets and control the Settings page counts are the ones the extension declares.
+let mac = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ".")
+let widgetSource = ((try? String(contentsOf: mac.appendingPathComponent("VerbatimWidgets/HomeWidgets.swift"), encoding: .utf8)) ?? "")
+    + ((try? String(contentsOf: mac.appendingPathComponent("VerbatimWidgets/StartSessionWidgets.swift"), encoding: .utf8)) ?? "")
+check("the widget sources were read", widgetSource.contains("TodayThoughtsWidget"))
+check("every thought widget kind is a real widget's", ThoughtRules.widgetKinds.allSatisfy { widgetSource.contains("\"\($0)\"") })
+check("the control's kind is the control's", widgetSource.contains("static let kind = ThoughtRules.controlKind"))
 
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
