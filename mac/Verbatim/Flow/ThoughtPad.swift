@@ -17,6 +17,11 @@ final class ThoughtPageState: ObservableObject {
     @Published var editing: UUID?
     /// Whether today's empty page plays its drawing this time it shows.
     @Published var playEmpty = false
+    /// The saved action Copy and Send run first (nil is As is); kept here so it lasts while the page is closed.
+    @Published var actionID: FlowAction.ID? = nil
+    /// Whether the page is open. Closed, the panel holds an empty view, so nothing in it observes anything (see
+    /// `ThoughtPadRoot`).
+    @Published var shown = false
 
     var today: Date { DayPages.today(hour: Thoughts.newPageHour) }
     var isToday: Bool { day >= today }
@@ -50,6 +55,7 @@ final class ThoughtPadController {
         let today = state.today
         let empty = ThoughtCapture.shared.app?.store.page(.idea, day: today, hour: Thoughts.newPageHour).isEmpty ?? true
         state.playEmpty = empty && EmptyDayArt.shouldPlay(day: today)
+        if !state.shown { state.shown = true }
         p.allowsKey = false
         p.orderFrontRegardless()
     }
@@ -57,6 +63,7 @@ final class ThoughtPadController {
     func close() {
         endEditing()
         panel?.orderOut(nil)
+        if state.shown { state.shown = false }
         // The ink outline on the newest thought lasts until you've opened the page and closed it again.
         ThoughtCapture.shared.lastAdded = nil
     }
@@ -105,10 +112,14 @@ final class ThoughtPadController {
         p.setFrameAutosaveName("VerbatimThoughtPad")
         guard let dictation else { return }
         // The page is never key while you read it, so its first click must count (it isn't spent making it key).
-        p.contentView = FirstClickHostingView(rootView: ThoughtPageView(controller: self, dictation: dictation, state: state)
-            .limitMotionRoot().lookRoot())
+        p.contentView = FirstClickHostingView(rootView: ThoughtPadRoot(controller: self, dictation: dictation, state: state))
+        // The title bar's close button closes the window without `close()`: the page empties the same way.
+        closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: p, queue: .main) { _ in
+            MainActor.assumeIsolated { ThoughtPadController.shared.state.shown = false }
+        }
         panel = p
     }
+    private var closeObserver: NSObjectProtocol?
 
     /// Pastes the page into the app you were using. The page steps aside first so the keystrokes reach that app.
     func send(_ text: String) {
@@ -141,6 +152,28 @@ final class ThoughtPadPanel: NSPanel {
 
 // MARK: - The page
 
+/// The panel's root: today's page while it's open, an empty view while it's closed. AppKit keeps a closed panel's
+/// views, and the page observes the look, Limit Motion, the library, Thoughts, dictation, and actions: closed, it
+/// re-rendered on every one of their changes, and at a look switch it built the whole page again in the new look
+/// (build 219: part of the 330 ms the Mac's look switches grew, once the self-test had opened the page). The page is
+/// built again, in the current look, when it opens.
+private struct ThoughtPadRoot: View {
+    let controller: ThoughtPadController
+    let dictation: DictationController
+    @ObservedObject var state: ThoughtPageState
+
+    var body: some View {
+        LookSwitch.mark(state.shown ? "pad" : "pad-closed")
+        return Group {
+            if state.shown {
+                ThoughtPageView(controller: controller, dictation: dictation, state: state).limitMotionRoot().lookRoot()
+            } else {
+                Color.clear
+            }
+        }
+    }
+}
+
 struct ThoughtPageView: View {
     let controller: ThoughtPadController
     @ObservedObject var dictation: DictationController
@@ -148,7 +181,6 @@ struct ThoughtPageView: View {
     @ObservedObject private var capture = ThoughtCapture.shared
     @ObservedObject private var flow = FlowSettings.shared
     @Environment(\.look) private var look
-    @State private var actionID: FlowAction.ID? = nil
     @State private var working = false
     @State private var frontApp = ""
 
@@ -159,7 +191,7 @@ struct ThoughtPageView: View {
         let items = page
         Group {
             if look == .native {
-                NativeThoughtPage(state: state, items: items, frontApp: frontApp, working: working, actionID: $actionID,
+                NativeThoughtPage(state: state, items: items, frontApp: frontApp, working: working, actionID: $state.actionID,
                                   copy: { copy(items) }, send: { send(items) })
             } else {
                 verbose(items)
@@ -222,7 +254,7 @@ struct ThoughtPageView: View {
     private func bottomBar(_ items: [Transcript]) -> some View {
         HStack(spacing: 8) {
             ThoughtMicDisc(size: 38).uiTarget("page-mic")
-            Picker("Action", selection: $actionID) {
+            Picker("Action", selection: $state.actionID) {
                 Text("As is").tag(FlowAction.ID?.none)
                 ForEach(flow.actions) { a in Text(a.name).tag(FlowAction.ID?.some(a.id)) }
             }
@@ -253,7 +285,7 @@ struct ThoughtPageView: View {
     private func result(_ items: [Transcript]) async -> String? {
         let text = Thoughts.joined(items)
         guard !text.isEmpty else { return nil }
-        guard let id = actionID, let action = flow.actions.first(where: { $0.id == id }) else { return text }
+        guard let id = state.actionID, let action = flow.actions.first(where: { $0.id == id }) else { return text }
         working = true
         defer { working = false }
         if let out = await FlowCleanup.apply(instruction: action.instruction, to: text, kind: action.kind) { return out }
