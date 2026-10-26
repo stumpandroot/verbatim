@@ -110,7 +110,7 @@ check("no length", WidgetSnapshot.lengthLabel(0) == "" && WidgetSnapshot.lengthL
 
 let id = UUID()
 check("transcript link round-trips", WidgetLink(url: WidgetLink.transcript(id).url) == .transcript(id))
-for l in [WidgetLink.record, .dictate, .thought] {
+for l in [WidgetLink.record, .dictate, .thought, .newThought] {
     check("\(l) round-trips", WidgetLink(url: l.url) == l)
 }
 check("the keyboard's session link isn't a widget link", WidgetLink(url: URL(string: "verbatim://session?start=1&from=widget")!) == nil)
@@ -118,6 +118,28 @@ check("another scheme isn't a widget link", WidgetLink(url: URL(string: "https:/
 check("a transcript link needs a real ID", WidgetLink(url: URL(string: "verbatim://transcript/../../etc")!) == nil)
 check("a transcript link needs exactly one ID", WidgetLink(url: URL(string: "verbatim://transcript/\(id.uuidString)/more")!) == nil)
 check("a transcript link without an ID", WidgetLink(url: URL(string: "verbatim://transcript")!) == nil)
+
+// Today's thoughts (the Mac's medium widget).
+let pageStart = day(2026, 10, 22, 0), pageEnd = day(2026, 10, 23, 0)
+let t1 = UUID(), t2 = UUID(), t3 = UUID(), t4 = UUID()
+let today = WidgetSnapshot.todayThoughts(start: pageStart, end: pageEnd, thoughts: [
+    (t3, day(2026, 10, 22, 10, 42), "Day headers could use the mono date, like the website.", false),
+    (t1, day(2026, 10, 22, 9, 14), "Move the export button into the toolbar.", false),
+    (t4, day(2026, 10, 22, 11, 3), "", true),
+    (t2, day(2026, 10, 21, 23, 0), "Yesterday's thought", false),
+])
+check("today's thoughts count only the page's", today.count == 3 && today.transcribing == 1)
+check("today's thoughts keep the last two, oldest first", today.latest.map(\.id) == [t3, t4])
+check("a transcribing thought has no words yet", today.latest.last?.text == "")
+let longPage = WidgetSnapshot.todayThoughts(start: pageStart, end: pageEnd, thoughts: [(t1, day(2026, 10, 22, 9), String(repeating: "word ", count: 40), false)])
+check("a long thought is cut to the title length", longPage.latest.first.map { $0.text.count <= WidgetSnapshot.maxTitle && $0.text.hasSuffix("…") } == true)
+var withToday = WidgetSnapshot.make(items: [], kept: 0, entries: [], look: "verbose", now: now, calendar: cal)
+withToday.today = today
+check("today's thoughts show while the page lasts", withToday.thoughts(at: day(2026, 10, 22, 15))?.count == 3)
+check("and not once the next page has started", withToday.thoughts(at: day(2026, 10, 23, 1)) == nil)
+check("a snapshot with today's thoughts round-trips", withToday.encoded().flatMap(WidgetSnapshot.decode) == withToday)
+let older = #"{"version":1,"look":"verbose","recent":[],"kept":0,"week":{"start":0,"end":604800,"words":0,"days":[0,0,0,0,0,0,0]}}"#
+check("a snapshot from an older build reads without today's thoughts", WidgetSnapshot.decode(Data(older.utf8)).map { $0.today == nil } == true)
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

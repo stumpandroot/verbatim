@@ -47,6 +47,7 @@ final class WidgetFeed {
         let all = store.transcripts
         #if os(macOS)
         let events = ActivityLog.shared.events.map { (date: $0.date, words: $0.words) }
+        let hour = Thoughts.newPageHour
         #endif
         Self.queue.async {
             let live = all.filter { $0.deletedAt == nil }
@@ -57,7 +58,14 @@ final class WidgetFeed {
             let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? .distantPast
             let entries = HomeCounts.entries(fromDictations: live.filter { $0.createdAt >= weekStart }).map { (date: $0.date, words: $0.words) }
             #endif
-            let snapshot = WidgetSnapshot.make(items: Array(recent), kept: live.count, entries: entries, look: lookRaw)
+            var snapshot = WidgetSnapshot.make(items: Array(recent), kept: live.count, entries: entries, look: lookRaw)
+            #if os(macOS)
+            // Today's thoughts (the Mac's medium widget): the page's last two thoughts and its counts.
+            let page = DayPages.pageInterval(DayPages.today(hour: hour), hour: hour)
+            let thoughts = live.filter { $0.kind == .idea && !$0.isDictation && page.contains($0.createdAt) }
+                .map { (id: $0.id, date: $0.createdAt, text: Thoughts.words($0), transcribing: $0.status == .processing) }
+            snapshot.today = WidgetSnapshot.todayThoughts(start: page.start, end: page.end, thoughts: thoughts)
+            #endif
             guard let data = snapshot.encoded(), WidgetSnapshotStore.write(data) else { return }
             WidgetCenter.shared.reloadAllTimelines()
         }
