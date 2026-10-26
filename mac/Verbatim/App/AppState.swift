@@ -240,8 +240,9 @@ final class AppState: ObservableObject {
             direction = b > a ? .up : .down
         }
         if UITest.enabled { Log.note("UITEST go \(key(next)) nav=\(nav.count + 1)") }
-        // No withAnimation here: the container animates on `navCount`, so a publish made just before this
-        // (a project filter, a search) can't trigger a flush that strands the screen change.
+        // No withAnimation here: the screen swaps in an unanimated transaction (ContentView's `detail`), so the old screen
+        // leaves at once, and a publish made just before this (a project filter, a search) can't trigger a flush that
+        // strands the screen change.
         navStartedAt = Date()
         if UITest.enabled { LookSwitch.beginNavigationMarks() }
         if let open = navInterval { Perf.signposter.endInterval("Navigate", open) }
@@ -298,5 +299,42 @@ final class AppState: ObservableObject {
         let all = filtered
         guard search.trimmingCharacters(in: .whitespaces).isEmpty else { return all }
         return store.memo("archive|\(projectFilter?.uuidString ?? "-")") { all.filter { !$0.isDictation } }
+    }
+
+    /// The Library's lists (LibraryView): `filtered` (`base`), what the type filter shows of it (`all`), `base` narrowed
+    /// to the kind chip (`byKind`), both together (`list`) and its IDs, and the chips' counts. Worked out once per library
+    /// change, search, project, type filter, and kind (Store+Memo.swift); the Library redid them, about ten passes over
+    /// the library, on every render.
+    struct LibraryLists {
+        var base: [Transcript]
+        var all: [Transcript]
+        var byKind: [Transcript]
+        var list: [Transcript]
+        var ids: [UUID]
+        /// Chips: All's count, each type with its count (All left out), the kinds' counts, and the platforms.
+        var total: Int
+        var sources: [(LibrarySource, Int)]
+        var kindCounts: [RecordingKind: Int]
+        var platforms: [(String, Int)]
+    }
+
+    func libraryLists(kind: RecordingKind?) -> LibraryLists {
+        let base = filtered
+        let q = search.trimmingCharacters(in: .whitespaces)
+        let searching = !q.isEmpty
+        let filter = libraryFilter
+        let key = "library-lists|\(projectFilter?.uuidString ?? "-")|\(q.lowercased())|\(libraryFilterRaw)|\(kind.map { "\($0)" } ?? "-")"
+        return store.memo(key) {
+            let all = filter.apply(base, searching: searching)
+            let byKind = kind.map { k in base.filter { $0.kind == k } } ?? base
+            let list = kind.map { k in all.filter { $0.kind == k } } ?? all
+            var kindCounts: [RecordingKind: Int] = [:]
+            for t in all { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
+            return LibraryLists(base: base, all: all, byKind: byKind, list: list, ids: list.map(\.id),
+                                total: LibraryFilter.all.apply(base, searching: searching).count,
+                                sources: filter.sourceCounts(byKind, searching: searching).filter { $0.0 != .all },
+                                kindCounts: kindCounts,
+                                platforms: filter.platformCounts(byKind, searching: searching))
+        }
     }
 }

@@ -27,14 +27,12 @@ struct LibraryView: View {
     private static let sideWidth: CGFloat = 300
 
     var body: some View {
-        // `filtered` searches every transcript's text; work it out once per render.
-        let base = app.filtered
-        let searching = !app.search.trimmingCharacters(in: .whitespaces).isEmpty
+        let _ = LookSwitch.mark("library-verbose")
+        // `filtered` narrowed by the type filter and kind, and the chips' counts: once per library change and filter
+        // (AppState.libraryLists). Dictations stay out unless you're searching or chose Dictations; they live in Dictations.
+        let lists = app.libraryLists(kind: kind)
         let typeFilter = app.libraryFilter
-        // Dictations stay out unless you're searching or chose Dictations; they live in Dictations.
-        let all = typeFilter.apply(base, searching: searching)
-        let byKind = kind.map { k in base.filter { $0.kind == k } } ?? base
-        let list = kind.map { k in all.filter { $0.kind == k } } ?? all
+        let list = lists.list
         let groups = app.store.grouped(list, sort: sort)
         let order = groups.flatMap { $0.items.map(\.id) }
         // Project names by ID, once per render (rows italicize after their project's name and name it outside it).
@@ -49,7 +47,7 @@ struct LibraryView: View {
                     if inner < 760 {
                         WebSearchField(text: $app.search, prompt: "Find the line you need").padding(.top, 14)
                     }
-                    chips(base: base, all: all, byKind: byKind, searching: searching).padding(.top, 18).staggerIn(1)
+                    chips(lists).padding(.top, 18).staggerIn(1)
                     HStack(alignment: .top, spacing: 20) {
                         VStack(alignment: .leading, spacing: 0) {
                             if let k = kind {
@@ -76,14 +74,15 @@ struct LibraryView: View {
                 .frame(width: inner, alignment: .leading)
                 .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, selecting ? 90 : 40)
                 .frame(maxWidth: .infinity)
+                .navMarkWhenLaidOut("library-laid-out")
             }
-            .animation(Motion.settle, value: list.map(\.id))
+            .animation(Motion.settle, value: lists.ids)
         }
         .overlay(alignment: .bottom) {
             if selecting { actionBar.padding(.bottom, 18).transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .identity)) }
         }
         .onChange(of: app.projectFilter) { _, _ in selection = [] }
-        .onAppear { KeptMedia.shared.refresh() }
+        .onAppear { LookSwitch.mark("library-appear"); KeptMedia.shared.refresh() }
     }
 
     // MARK: Header and chips
@@ -123,17 +122,16 @@ struct LibraryView: View {
     /// source's color dot, then each kind, and the sort menu at the end. All clears both filters; a chosen chip clicked
     /// again clears its own. Types and kinds with nothing in them stay out (unless chosen). Videos and Links add their
     /// platforms on a second, smaller row when there's more than one. ⌥⌘1–7 choose a type (All is 1).
-    private func chips(base: [Transcript], all: [Transcript], byKind: [Transcript], searching: Bool) -> some View {
+    private func chips(_ lists: AppState.LibraryLists) -> some View {
         let filter = app.libraryFilter
-        let total = LibraryFilter.all.apply(base, searching: searching).count
-        let sources = filter.sourceCounts(byKind, searching: searching).filter { $0.0 != .all }
-        var kindCounts: [RecordingKind: Int] = [:]
-        for t in all { if let k = t.kind { kindCounts[k, default: 0] += 1 } }
+        let total = lists.total
+        let sources = lists.sources
+        let kindCounts = lists.kindCounts
         let kinds: [(RecordingKind, Int)] = RecordingKind.pickable.compactMap { k in
             let n = kindCounts[k] ?? 0
             return n > 0 || kind == k ? (k, n) : nil
         }
-        let platforms = filter.platformCounts(byKind, searching: searching)
+        let platforms = lists.platforms
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 FlowRow(spacing: 8, lineSpacing: 8) {

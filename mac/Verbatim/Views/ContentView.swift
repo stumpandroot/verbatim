@@ -110,8 +110,9 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear {
                     LookSwitch.mark("screen-appear")
-                    app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) }
+                    app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt, window: app.mainWindow) }
                 }
+                .screenRootMarker(screenKey)
                 .id(screenKey)
         }
         .overlay(alignment: .bottomTrailing) {
@@ -122,6 +123,13 @@ struct ContentView: View {
         .overlay(alignment: .bottom) { ToastView() }
     }
 
+    /// Verbose style's screen. One screen is in the window at a time: a navigation swaps the screen in a transaction with
+    /// no animation, so the outgoing screen leaves the hierarchy in the same update the new one arrives. (Build 215 and
+    /// earlier faded the new screen in over the old on `navCount`: with an animated transaction, SwiftUI keeps a removed
+    /// view until the animation ends, even with an `.identity` removal, so both screens showed for 120 to 150 ms and the
+    /// outgoing one re-rendered with the navigation's publish.) Each screen draws its own paper, so it is opaque from its
+    /// first frame. Opening or leaving a transcript still slides it 12 pt (`ScreenEntrance`); sidebar moves are instant,
+    /// as switching tabs is a frequent action (motion rules: never animate those), and Limit Motion is instant for all.
     private var detail: some View {
         ZStack {
             Ink.paper
@@ -129,14 +137,25 @@ struct ContentView: View {
             // outward and the sidebar slides off the left edge.
             GeometryReader { g in
                 screenView.frame(width: g.size.width, height: g.size.height)
+                    .background(Ink.paper)
+                    .modifier(ScreenEntrance(x: entranceOffset))
                     // Each screen change is timed from the click to here: a "Navigate" signpost always, and a
                     // UITEST TIMING line in the self-test.
-                    .onAppear { app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt) } }
-                    .id(screenKey).transition(transition).zIndex(Double(app.navCount))
+                    .onAppear {
+                        LookSwitch.mark("screen-appear")
+                        app.screenAppeared(); if UITest.enabled { UITest.screenAppeared(screenKey, nav: app.navCount, since: app.navStartedAt, window: app.mainWindow) }
+                    }
+                    .screenRootMarker(screenKey)
+                    .id(screenKey)
+                    .transition(.identity)
+            }
+            // The navigation's own transaction never animates, whoever called `go`: no removal can linger.
+            .transaction(value: app.navCount) { t in
+                t.animation = nil
+                t.disablesAnimations = true
             }
         }
         .clipped()
-        .animation(navAnimation, value: app.navCount)
         .overlay(alignment: .bottom) { ToastView() }
     }
 
@@ -175,45 +194,66 @@ struct ContentView: View {
         }
     }
 
-    /// Screen changes are quick (motion rules: navigation never makes you wait). Sidebar moves are a 120 ms crossfade;
-    /// opening or leaving a transcript also moves 12 pt over 150 ms, so it still reads as going in and coming back.
-    private var navAnimation: Animation {
+    /// Opening a transcript slides it in 12 pt from the right, and leaving one slides the screen in from the left; sidebar
+    /// moves and Limit Motion don't move at all.
+    private var entranceOffset: CGFloat {
+        if limitMotion { return 0 }
         switch app.direction {
-        case .push, .pop: return limitMotion ? Self.navFade : .easeOut(duration: 0.15)
-        case .up, .down: return Self.navFade
-        }
-    }
-    private static let navFade = Animation.easeOut(duration: 0.12)
-
-    /// Fades in; a transcript also slides in from the right (push) or the left (pop). Sidebar moves only fade.
-    /// Both ends of every transition go through `ScreenSlide`, which turns hit-testing off while a screen is
-    /// entering or leaving. An outgoing screen can linger when springs are interrupted, and a lingering screen
-    /// that still takes clicks is exactly the "have to click twice" bug.
-    private var transition: AnyTransition {
-        // Removal is instant on purpose: an outgoing screen that animates can get stuck on top, fully drawn,
-        // until the next navigation (seen on macOS 26). The incoming screen still slides and fades in.
-        // Limit Motion: a crossfade, nothing moves.
-        if limitMotion { return .asymmetric(insertion: ScreenSlide.transition(), removal: .identity) }
-        switch app.direction {
-        case .push: return .asymmetric(insertion: ScreenSlide.transition(x: 12), removal: .identity)
-        case .pop: return .asymmetric(insertion: ScreenSlide.transition(x: -12), removal: .identity)
-        case .up, .down: return .asymmetric(insertion: ScreenSlide.transition(), removal: .identity)
+        case .push: return 12
+        case .pop: return -12
+        case .up, .down: return 0
         }
     }
 }
 
-/// A slide-and-fade whose off-screen state cannot be clicked.
-struct ScreenSlide: ViewModifier {
-    var active: Bool
-    var x: CGFloat = 0
-    var y: CGFloat = 0
+/// A transcript's short entrance: the screen starts `x` points over and settles in 150 ms, ease-out, opaque all the way
+/// (no fade). It runs from the screen's own `onAppear`, in a transaction of its own, so the navigation's transaction
+/// stays unanimated and the outgoing screen is gone at once. Until it appears the screen takes no clicks (what
+/// `ScreenSlide` did for a lingering screen; nothing lingers now). A look switch's rebuild doesn't slide.
+struct ScreenEntrance: ViewModifier {
+    /// Where the screen starts, taken once when the screen is made (a later change of direction or Limit Motion
+    /// doesn't move a screen that's already there).
+    @State private var x: CGFloat
+    init(x: CGFloat) { _x = State(initialValue: x) }
+
     func body(content: Content) -> some View {
         content
-            .offset(x: active ? x : 0, y: active ? y : 0)
-            .opacity(active ? 0 : 1)
-            .allowsHitTesting(!active)
+            .offset(x: x)
+            .allowsHitTesting(x == 0)
+            .onAppear {
+                guard x != 0 else { return }
+                if LookSwitch.rebuilding { x = 0; return }
+                withAnimation(.easeOut(duration: 0.15)) { x = 0 }
+            }
     }
-    static func transition(x: CGFloat = 0, y: CGFloat = 0) -> AnyTransition {
-        .modifier(active: ScreenSlide(active: true, x: x, y: y), identity: ScreenSlide(active: false, x: x, y: y))
+}
+
+/// Marks a screen's root for the self-test, which counts the screens in the window right after a navigation
+/// (`UITest.screenRoots`): a removed screen that lingers keeps its marker view in the window. Adds nothing outside the
+/// self-test.
+private struct ScreenRootMarker: NSViewRepresentable {
+    var key: String
+    func makeNSView(context: Context) -> ScreenRootMarkerView {
+        let v = ScreenRootMarkerView()
+        v.key = key
+        return v
+    }
+    func updateNSView(_ v: ScreenRootMarkerView, context: Context) { v.key = key }
+}
+
+final class ScreenRootMarkerView: NSView {
+    var key = ""
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+extension View {
+    @ViewBuilder func screenRootMarker(_ key: String) -> some View {
+        if UITest.enabled { background(ScreenRootMarker(key: key)) } else { self }
+    }
+
+    /// A navigation mark (`LookSwitch.mark`) once this view has been measured: a reader in its background is sized after
+    /// it. For the self-test's per-step marks; adds nothing outside the self-test.
+    @ViewBuilder func navMarkWhenLaidOut(_ name: String) -> some View {
+        if UITest.enabled { background(GeometryReader { _ in let _ = LookSwitch.mark(name); Color.clear }) } else { self }
     }
 }

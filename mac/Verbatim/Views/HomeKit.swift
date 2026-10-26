@@ -367,25 +367,31 @@ struct HomeMeter: View {
 
     var body: some View {
         Canvas { ctx, size in
-            let n = max(1, Int((size.width + gap) / (barWidth + gap)))
-            let step = n > 1 ? (size.width - barWidth) / CGFloat(n - 1) : 0
-            let h = size.height
-            for i in 0..<n {
-                var v = heights[i % heights.count]
-                if let levels, !levels.isEmpty {
-                    let l = levels[min(levels.count - 1, i * levels.count / n)]
-                    v = max(0.1, min(1, CGFloat(l) * 1.6))
-                } else if let breath {
-                    v *= CGFloat(Self.breathScale(t: breath, bar: i))
-                } else {
-                    v *= Self.stillScale
-                }
-                let bh = max(barWidth, v * h)
-                let rect = CGRect(x: CGFloat(i) * step, y: (h - bh) / 2, width: barWidth, height: bh)
-                ctx.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(color.opacity(0.8)))
-            }
+            Self.draw(ctx, size, barWidth: barWidth, gap: gap, heights: heights, color: color, levels: levels, breath: breath)
         }
         .accessibilityHidden(true)
+    }
+
+    /// The bars in `size`, from (0, 0): the meter's own Canvas, and the Mac Record panel's shared loop (HomeView).
+    static func draw(_ ctx: GraphicsContext, _ size: CGSize, barWidth: CGFloat, gap: CGFloat, heights: [CGFloat], color: Color,
+                     levels: [Float]?, breath: Double?) {
+        let n = max(1, Int((size.width + gap) / (barWidth + gap)))
+        let step = n > 1 ? (size.width - barWidth) / CGFloat(n - 1) : 0
+        let h = size.height
+        for i in 0..<n {
+            var v = heights[i % heights.count]
+            if let levels, !levels.isEmpty {
+                let l = levels[min(levels.count - 1, i * levels.count / n)]
+                v = max(0.1, min(1, CGFloat(l) * 1.6))
+            } else if let breath {
+                v *= CGFloat(breathScale(t: breath, bar: i))
+            } else {
+                v *= stillScale
+            }
+            let bh = max(barWidth, v * h)
+            let rect = CGRect(x: CGFloat(i) * step, y: (h - bh) / 2, width: barWidth, height: bh)
+            ctx.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(color.opacity(0.8)))
+        }
     }
 
     /// The breath (DESIGN.md §7): each bar is its resting height × (0.42 + 0.5 × breath), with

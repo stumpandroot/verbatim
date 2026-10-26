@@ -93,6 +93,7 @@ struct HomeView: View {
         // own width back, so Home either kept a too-wide layout or grew past the detail area.) The width is worked
         // out in the body, never stored: a stored width laid Home out twice on every visit (900 pt, then the real one).
         GeometryReader { geo in
+            let _ = LookSwitch.mark("home-grid")
             let width = Self.contentWidth(geo.size.width)
             let layout = layouts.layout(.verbose)
             let rows = HomeRows.rows(drawn(layout), wide: wide(width))
@@ -111,6 +112,7 @@ struct HomeView: View {
                     }
                     editHomeButton.padding(.top, 36)
                 }
+                .navMarkWhenLaidOut("home-laid-out")
                 .animation(Motion.settle, value: app.recorder.isRecording)
                 .animation(Motion.settle, value: app.capture.isCapturing)
                 .frame(width: width, alignment: .leading)
@@ -272,6 +274,7 @@ struct HomeView: View {
             monitor.stop()
             app.requestRecord()
         }) { hovering in
+            let _ = LookSwitch.mark("home-record")
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     HStack(spacing: 8) {
@@ -288,7 +291,8 @@ struct HomeView: View {
                     if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
                     else if app.capture.isCapturing { LiveHomeMeter(live: app.capture.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
                     else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
-                    else { BreathingHomeMeter(barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: onRecord) }
+                    // At rest the breathing bars are drawn by the panel's one loop (RecordPanelArt), in this space.
+                    else { Color.clear.anchorPreference(key: RecordMeterSlot.self, value: .bounds) { $0 } }
                 }
                 .frame(width: meterWidth, height: 44)
                 Spacer(minLength: 8)
@@ -308,9 +312,11 @@ struct HomeView: View {
             .foregroundStyle(onRecord)
             .padding(.horizontal, 20).padding(.vertical, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .colorPanel(Ink.panelRecord, radius: Radius.record) {
-                PanelArt(kind: .rings, running: !recording).frame(width: 250, height: 250).offset(x: 50, y: 10)
+            // The rings and the resting meter: one clock and one Canvas, over the panel's grain and under its text.
+            .backgroundPreferenceValue(RecordMeterSlot.self) { slot in
+                RecordPanelArt(meterSlot: slot, running: !recording, meterColor: onRecord)
             }
+            .colorPanel(Ink.panelRecord, radius: Radius.record)
             .inkEdge(outline: true, shadow: InkEdge.card(hover: hovering, pressed: recordDown, rest: CGSize(width: 6, height: 7)), radius: Radius.record)
         }
         .contextMenu { RecordMenu(onChange: { mics.refresh() }) }
@@ -646,6 +652,56 @@ struct HomeView: View {
 
 // MARK: - Pieces
 
+/// Where the Record panel's resting meter goes, for `RecordPanelArt`. Nil while the meter shows live levels.
+private struct RecordMeterSlot: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+}
+
+/// The Record panel's two moving drawings on one `LoopTimeline` and one Canvas (DESIGN.md §11.12: one moving drawing
+/// per screen): the rings, 250 pt from the top trailing corner pushed 50 pt past the right edge and 10 pt down (as the
+/// panel art they were), and the resting meter's breath in its slot. Each draws exactly as `PanelArt` and
+/// `BreathingHomeMeter` did on their own clocks; still with motion limited, in the screenshot tour, or while recording.
+private struct RecordPanelArt: View {
+    var meterSlot: Anchor<CGRect>?
+    var running: Bool
+    var meterColor: Color
+    @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
+
+    var body: some View {
+        let _ = LookSwitch.mark("home-record-art")
+        if look != .native {
+            GeometryReader { g in
+                let meter = meterSlot.map { g[$0] }
+                if limitMotion || !LoopingArt.enabled || !running {
+                    Canvas { ctx, size in Self.draw(ctx, size, meter: meter, t: nil, meterColor: meterColor) }
+                } else {
+                    LoopTimeline(running: true) { now in
+                        Canvas { ctx, size in Self.draw(ctx, size, meter: meter, t: now.timeIntervalSinceReferenceDate, meterColor: meterColor) }
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    static func draw(_ ctx: GraphicsContext, _ size: CGSize, meter: CGRect?, t: Double?, meterColor: Color) {
+        let box = CGRect(x: size.width - 250 + 50, y: 10, width: 250, height: 250)
+        var rings = ctx
+        rings.translateBy(x: box.minX, y: box.minY)
+        rings.clip(to: Path(CGRect(origin: .zero, size: box.size)))
+        PanelArtDrawing.draw(.rings, rings, box.size, t: t, color: Ink.inkFixed)
+        if let m = meter, m.width > 0, m.height > 0 {
+            var bars = ctx
+            bars.translateBy(x: m.minX, y: m.minY)
+            HomeMeter.draw(bars, m.size, barWidth: 7, gap: 7, heights: HomeMeter.macHeights, color: meterColor, levels: nil, breath: t)
+        }
+    }
+}
+
 /// A start tile: a color panel with grain (Live captions: card white with an ink outline), the bare icon top left,
 /// the keycap top right, and the serif name with a one-line detail at the foot. Tilts on hover and picks up the ink
 /// outline and hard shadow; the icon draws on again.
@@ -664,6 +720,7 @@ private struct WebTile<Icon: View>: View {
     @State private var down = false
 
     var body: some View {
+        let _ = LookSwitch.mark("home-tile")
         HomeCard(tilt: 3, radius: Radius.tile, shadow: false, onHover: { h in if h { replay += 1 } }, onPress: { down = $0 }, action: action) { hovering in
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 6) {
@@ -698,6 +755,7 @@ private struct WeekStrip: View {
     var large = false
 
     var body: some View {
+        let _ = LookSwitch.mark("home-week")
         if large { card } else { strip }
     }
 
@@ -799,6 +857,7 @@ private struct RecentRow: View {
     var fillers: Int
 
     var body: some View {
+        let _ = LookSwitch.mark("home-recent")
         let style = HomeRecentStyle(transcript)
         let moments = WebStatus.moments(transcript)
         HStack(spacing: 12) {
@@ -849,6 +908,7 @@ private struct LastDictationCard: View {
     @State private var down = false
 
     var body: some View {
+        let _ = LookSwitch.mark("home-dictation")
         let failed = transcript.status == .failed
         let text = HomeDictationText.pasted(transcript)
         let canCopy = !failed && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
