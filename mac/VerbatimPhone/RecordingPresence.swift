@@ -26,6 +26,10 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     private var lastElapsed: TimeInterval = 0
     /// Stop came from the Live Activity: it shows "Saved" before it goes.
     private var stoppingFromActivity = false
+    /// The running activity is a thought's (PhoneThoughts.swift): your voice and words about once a second, and
+    /// "Added to Thoughts" for two seconds when it's saved.
+    private var activityIsThought = false
+    private var thoughtTicker: Timer?
 
     func attach(_ app: PhoneState) {
         guard self.app == nil else { return }
@@ -71,6 +75,12 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         guard let app, app.recorder.isRecording else { return nil }
         lastElapsed = app.recorder.elapsed
         let reason = app.recorder.isPaused ? VerbatimRecordingAttributes.shortReason(app.autoPauseReason) : nil
+        if app.recordingThought {
+            // Words travel in the content state (4 KB at most), so only their end, and only when asked for.
+            let words = ThoughtRules.islandWords() ? Ribbon.islandWords(app.recordingWords.shown.text) : nil
+            return .thought(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason,
+                            level: Double(app.recorder.live.level), words: words)
+        }
         return .make(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason)
     }
 
@@ -83,10 +93,18 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             return false
         }
         endLeftovers()
+        let thought = app?.recordingThought ?? false
+        var attributes = VerbatimRecordingAttributes(title: thought ? ThoughtRules.activityTitle : "Voice note")
+        if thought, let app {
+            let day = DayPages.pageDay(for: app.thoughtStartedAt ?? Date(), hour: app.newPageHour)
+            attributes.thought = true
+            attributes.page = PhoneState.thoughtPageTitle(day)
+        }
         do {
-            activity = try Activity.request(attributes: VerbatimRecordingAttributes(title: "Voice note"),
-                                            content: ActivityContent(state: state, staleDate: nil), pushType: nil)
-            Log.note("recording presence: Live Activity started")
+            activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+            activityIsThought = thought
+            if thought { startThoughtTicker() }
+            Log.note("recording presence: Live Activity started\(thought ? " for a thought" : "")")
             return true
         } catch {
             Log.note("recording presence: Live Activity unavailable: \(error)")
@@ -99,20 +117,55 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
     /// False when iOS refused it (for example, because Verbose isn't in front).
     func startActivityNow() -> Bool { startActivity() }
 
-    private func update() {
+    private func update(quiet: Bool = false) {
         guard let a = activity, let state = currentState() else { return }
-        Log.note("recording presence: \(state.status) at \(Int(state.elapsed)) s")
+        if !quiet { Log.note("recording presence: \(state.status) at \(Int(state.elapsed)) s") }
         Task { await a.update(ActivityContent(state: state, staleDate: nil)) }
+    }
+
+    /// A thought's voice bars and words, about once a second (the time counts on its own).
+    private func startThoughtTicker() {
+        thoughtTicker?.invalidate()
+        thoughtTicker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in RecordingPresence.shared.update(quiet: true) }
+        }
     }
 
     private func endActivity(saved: Bool) {
         guard let a = activity else { return }
         activity = nil
+        thoughtTicker?.invalidate(); thoughtTicker = nil
+        if activityIsThought {
+            activityIsThought = false
+            endThoughtActivity(a, saved: !(app?.lastStopDiscarded ?? false))
+            return
+        }
         if saved {
             let state = VerbatimRecordingAttributes.ContentState.make(elapsed: lastElapsed, isPaused: true, pausedReason: nil, saved: true)
             Task { await a.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .after(Date().addingTimeInterval(4))) }
         } else {
             Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    /// A thought's activity: "Added to Thoughts" and the time for two seconds, as an alert when Verbose isn't in front
+    /// (the Dynamic Island expands to show it), then it ends. Discarded, it ends at once.
+    private func endThoughtActivity(_ a: Activity<VerbatimRecordingAttributes>, saved: Bool) {
+        guard saved else {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+            return
+        }
+        let now = Date()
+        let state = VerbatimRecordingAttributes.ContentState.thought(elapsed: lastElapsed, isPaused: false, pausedReason: nil,
+                                                                     level: 0, words: nil, saved: true, now: now)
+        let content = ActivityContent(state: state, staleDate: nil)
+        let inFront = UIApplication.shared.applicationState == .active
+        let time = Formats.style(date: .none, time: .short).string(from: now)
+        Task {
+            if !inFront {
+                await a.update(content, alertConfiguration: AlertConfiguration(title: "\(ThoughtRules.savedTitle)", body: "\(time)", sound: .default))
+            }
+            await a.end(content, dismissalPolicy: inFront ? .immediate : .after(now.addingTimeInterval(ThoughtRules.savedSeconds)))
         }
     }
 

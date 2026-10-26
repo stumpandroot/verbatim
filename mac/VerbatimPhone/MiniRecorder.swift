@@ -120,6 +120,8 @@ final class RecordingLiveText: ObservableObject {
     }
 
     var isActive: Bool { active }
+    /// A thought shown in the Dynamic Island: live words keep going in the background (the voice note's stop there).
+    var keepInBackground = false
 
     /// Before `recorder.start`: the capture feeds live text from its first buffer.
     func prepare(_ recorder: Recorder) {
@@ -136,7 +138,7 @@ final class RecordingLiveText: ObservableObject {
         ticker = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
-        if UIApplication.shared.applicationState == .background { recorder?.liveTap = nil; return }
+        if UIApplication.shared.applicationState == .background, !keepInBackground { recorder?.liveTap = nil; return }
         startWords()
     }
 
@@ -160,7 +162,7 @@ final class RecordingLiveText: ObservableObject {
 
     /// In the background: stop feeding and recognizing, and keep what's on screen.
     private func suspend() {
-        guard active, feeding else { return }
+        guard active, feeding, !keepInBackground else { return }
         earlier = LiveWords(settled: shown.text).tail(600).text
         feeding = false
         recorder?.liveTap = nil

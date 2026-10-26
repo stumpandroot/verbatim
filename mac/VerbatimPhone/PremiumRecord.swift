@@ -115,7 +115,7 @@ struct PremiumRecorder: View {
     }
 
     private var statusText: String {
-        let what = adding.map { "Adds to “\($0.title)”" } ?? "Voice note"
+        let what = adding.map { "Adds to “\($0.title)”" } ?? (app.recordingThought ? ThoughtRules.intoLine(PhoneState.thoughtPageTitle(app.todayPage)) : "Voice note")
         if saving { return "Saving…" }
         return "\(paused ? "Paused" : "Recording") · \(what)"
     }

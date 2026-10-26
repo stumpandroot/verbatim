@@ -390,6 +390,8 @@ targets:
       - Verbatim/Views/HomeKit.swift
       - Verbatim/Views/LinkAddedCard.swift
       - Verbatim/Views/KindViews.swift
+      # Thoughts' drawings: the icon with its moving wave, the empty day, and Ways in (shared with the Mac).
+      - Verbatim/Views/ThoughtViews.swift
       - Verbatim/Views/SpeakerSuggestionRows.swift
       - Verbatim/Views/SponsorViews.swift
       - Verbatim/Views/LibraryFilterBar.swift
@@ -433,6 +435,9 @@ targets:
       # Shared with the widget extension: Record from a widget or control (records in place when iOS allows), and the
       # Home Screen widgets' snapshot and links, which App/WidgetFeed.swift writes to the App Group.
       - VerbatimWidgets/RecordVoiceNoteIntent.swift
+      # Shared with the widget extension: New thought (widgets, the control, Siri, Shortcuts) and Thoughts' rules.
+      - VerbatimWidgets/NewThoughtIntent.swift
+      - VerbatimWidgets/ThoughtRules.swift
       - VerbatimWidgets/WidgetSnapshot.swift
       - Verbatim/App/WidgetFeed.swift
       # Shared with the share and broadcast extensions: the App Group inbox they fill and the app imports.
