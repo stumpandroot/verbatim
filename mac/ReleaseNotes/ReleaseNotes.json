@@ -11,7 +11,8 @@
         "Mac: Library › By day shows Thoughts and Journal one page a day, with a calendar that marks the days you recorded.",
         "Mac: the Quick capture widget is now New thought, which starts a thought without opening Verbose, and a new Today's thoughts widget shows today's page.",
         "Mac: a dictation that doesn't paste is kept in Dictations, and ⌃⌘V still pastes it again.",
-        "The Idea kind is now called Thoughts."
+        "The Idea kind is now called Thoughts.",
+        "Settings shows the version as 1.0 beta with the build number, and What's new groups builds by version."
       ]
     },
     {
@@ -20,8 +21,7 @@
       "title": "More words spelled right",
       "items": [
         "Verbose spells about 330 more words right without any setup: AI tools and apps, places, people, brands, film and video gear, and business terms, such as NVIDIA, Albuquerque, H.264, and EBITDA.",
-        "Dictation fixes everyday mix-ups that are always wrong, such as “could of been” and “sneak peak.” Turn them off with Built-in vocabulary in Settings.",
-        "Settings shows the version as 1.0 beta with the build number, and What's new groups builds by version."
+        "Dictation fixes everyday mix-ups that are always wrong, such as “could of been” and “sneak peak.” Turn them off with Built-in vocabulary in Settings."
       ]
     },
     {
