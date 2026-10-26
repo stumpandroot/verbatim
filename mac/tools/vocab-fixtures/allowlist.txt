@@ -1,0 +1,17 @@
+# Deliberate exceptions to the frequency check in vocab_check.py: `form | reason`, one per line.
+# Each form is a common English word that the built-in vocabulary still fixes. Keep this list short; prefer moving
+# a form to `context` (fixed only next to a context word) or dropping it.
+amd | version 1; an acronym that hunspell also lists in lowercase; the fix only adds capitals
+aws | version 1; acronym, capitals only
+css | version 1; acronym, capitals only
+cms | version 1; acronym, capitals only
+obs | version 1; acronym (OBS Studio), capitals only
+dms | version 1; acronym, capitals only
+dm | version 1; exact lowercase only, capitals only
+ai | version 1; exact lowercase only ("ai" the sloth is vanishingly rare in dictation)
+Airdrop | version 1; exact capitalized only, so a sentence-initial "Airdrop of supplies" is the one risk
+Airplay | version 1; exact capitalized only
+bitcoin | version 1; the network's name, capitals only
+docker | version 1; the dock-worker sense is rare in dictation; capitals only
+kickstarter | version 1; the brand far outweighs the generic noun in dictation; capitals only
+type-script | version 1; as above

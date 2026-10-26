@@ -1,0 +1,247 @@
+# Ordinary sentences no built-in vocabulary rule or everyday fix may change (vocab_check.py, corpus check).
+# One per line; # starts a comment. From the October 2026 research's negative tests (mac/Vocabulary/research/2026-10)
+# plus look-alikes, lists, and names added for patch 1. Add a line whenever a false positive turns up.
+
+# Everyday mix-ups that must stay (research negatives)
+you could of course ask
+I would have known
+wouldn't of course
+the must of grapes
+you must of course
+the might of Rome
+in May of 2026
+you may of course
+I suppose to some degree
+it is of use to you
+what I use to cut
+do not use to clean glass
+the bill passed
+we drove past away fans
+was there an own goal
+Thanks for your welcome.
+your welcome package
+you're owed
+it's owned by
+give it to me to read
+two many-sided dice
+it was busy then
+rather go back than stay
+to effect change
+effect her release
+everything except the offer
+a guiding principle
+the whether-or-not question
+interest peaked in May
+peaked the interest rate
+let loose her temper
+a loose weight belt
+break the rules
+spring brake
+we have one in the same color
+make the case and point out flaws
+wet your hair
+walls bare with them
+a piece of my mind
+we won't phase them out
+ready for selling
+a bread roll
+read aloud to the class
+whose going-away party
+they lead to
+it feels so everyday.
+everyday life
+Every day life gets harder
+everyone else
+far apart of
+there's maybe a dozen
+maybe a little
+May be subject to change
+the setup is done
+an apple
+an hour
+I no longer
+to no avail
+we here at Acme
+it's here
+had had
+that that
+1st
+11th
+22nd
+103rd
+5 dollars
+Their idea is good
+is their car here
+one side affects the other
+it will affect
+the patient's flat affect
+a nice complement to the dish
+the peak
+we hit a peak at noon
+his reign in England
+
+# Everyday mix-ups: more that must stay
+I could, of course, call them back.
+She did what she could of the work that was left.
+There are two much bigger problems to solve.
+We need two more chairs.
+Is there an own-brand version?
+They own the place over there.
+It was simpler then and ever since it has been busy.
+Which side affects the other more?
+Her affect was flat on exam.
+Everyone came except the new hire.
+The principle of the thing matters.
+Check the weather or not, it's your call.
+Good weather or not, we ride at noon.
+Prices peaked in March.
+Let loose your hair for the photo.
+The screw came loose in transit.
+Let's break for lunch.
+Break lines at eighty characters.
+We used it for intensive care purposes.
+Pack the case and point it north.
+He baited the hook.
+The cupboard was bare with nothing in it.
+The queen's reign lasted decades.
+That was one foul ball.
+The statue of a horse stands in the square.
+They wrecked the rental car.
+Give him a piece of my mind.
+Make the payment due with the next invoice.
+What did you do to the fact sheet?
+Roll the dough thin.
+Read it aloud to the kids.
+Whose coat is this?
+Whose turn is it?
+Lead the way, please.
+Everyday carry gear is popular.
+It's about everyday, practical things.
+I check the mail every day.
+They live apart now.
+We were apart of course.
+It may be we who leave first.
+Prices may be higher next year.
+The login page is broken.
+Check the backup drive tonight.
+Can backup software do this?
+Will checkout work offline?
+It was an historic day.
+That was an honest answer.
+I don't, no.
+There was no way out.
+You can't park here.
+Come here and look.
+Suppose to start with, we call them.
+It was no use to anyone.
+Put it to use today.
+Check the length in the passed array.
+The bill passed in the Senate.
+We loved your welcome.
+Your welcome email went out today.
+This button is for sell orders.
+They stood by in large numbers.
+Thanks for the complement of staff.
+
+# Lists and look-alikes for the vocabulary
+We compared Netflix, Disney plus Universal, and Max.
+We use Alexa plus Google Home in the kitchen.
+Paramount plus Peacock is a lot every month.
+I saw a red Komodo dragon at the zoo.
+Move the logo to pixel 10 on the grid.
+She walked through the open glass door.
+I met Kofi Annan once.
+Kofi brought the snacks.
+Ari was late to the shoot.
+I borrowed Ari's camera yesterday.
+We met at Columbia University.
+Every day I phone my mom.
+Then I pad the numbers a little.
+He ordered chicken Kiev for dinner.
+The Kiev Grenadiers marched at dawn.
+Roy Lichtenstein painted comics.
+We flew to Strasbourg for the market.
+We drove through Pittsburg, Kansas.
+A katar is a kind of dagger.
+C stands for carbon.
+Let's be real about the budget.
+Only fans allowed past this point.
+The film was letterboxed for TV.
+She has synesthesia and sees colors.
+A bird in hand is worth two in the bush.
+The Higgs field gives particles mass.
+Please open router settings first.
+It's a free pick in the draft.
+He wore a Robin Hood costume.
+The red note on the fridge is mine.
+The data bricks were stacked by hand.
+That isotope decays fast.
+Set the aperture to f/2.8.
+She looks gorgeous tonight.
+Stand the sky panel against the wall.
+We added meta fields to the form.
+That's a meta AI question.
+I need to zoom in on the chart.
+I have a notion of what to do.
+Cut him some slack.
+The article is linked in the description.
+I phone my mom every day.
+Hand me the store kit.
+Grab the first aid and health kit.
+Swift data entry matters here.
+We visited the core of the weave.
+Let's split wise and fair.
+I bought a new pocket knife.
+The birds twitter at dawn.
+Light came through the oculus of the dome.
+His wife read the typescript of his diary.
+The crew AI team met today.
+Hey Gen Z, listen up.
+That speech analyzer is old.
+The pen pot is on the desk.
+We took the story blocks out.
+Grab the screen flow chart.
+It was a clean shot.
+Lumina is a nice name.
+The studio binder is on the shelf.
+It's a lucid link between the ideas.
+The writer duet was lovely.
+She's the lead in a new show.
+A sound stripe runs along the film.
+I'll cast a vote on the wealth front.
+Pop music played at the mart.
+She'll go dox herself if she's not careful.
+The task cam was off.
+That's a steady cam shot.
+He's a slog 3 days a week.
+Write the c log entry now.
+Check the rec room at 7.
+Stand by the c stand.
+The task is going to take time.
+Take the black magic marker.
+Tell a fib.
+Pick the best of the two.
+It's a good read.
+He's the man in the middle.
+Is it raining at the lake?
+Turn left at the light.
+She bought a new dress for the party.
+We grilled burgers on Sunday.
+The meeting moved to Thursday.
+Send me the notes after lunch.
+We need eggs, milk, and bread.
+I think so, but I'm not sure.
+Our team wrapped the shoot early.
+The sunset over the field was gorgeous.
+Pick up the kids at three.
+The camera battery died halfway through.
+Let's grab coffee and talk it through.
+He played guitar in a band.
+The bridge was closed for repairs.
+Water the plants twice a week.
+Three things:
+1. The photos
+2. The copy
+3. The final cut
+- Book the venue
+- Call the caterer
