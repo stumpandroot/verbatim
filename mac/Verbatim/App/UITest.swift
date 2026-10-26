@@ -1886,12 +1886,20 @@ private struct UIWindowTarget: NSViewRepresentable {
     var id: String
     func makeNSView(context: Context) -> NSView {
         let v = Probe()
+        v.id = id
         UITest.windowFrames[id] = { [weak v] in v?.frameInWindow }
         return v
     }
     func updateNSView(_ v: NSView, context: Context) {}
 
     final class Probe: NSView {
+        var id = ""
+        /// The one in the window wins: a lazy list can make a row's view ahead of time and drop it, and its handle
+        /// (registered when made) then pointed at nothing.
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window != nil, !id.isEmpty { UITest.windowFrames[id] = { [weak self] in self?.frameInWindow } }
+        }
         var frameInWindow: CGRect? {
             guard let w = window, let content = w.contentView, !isHiddenOrHasHiddenAncestor else { return nil }
             let r = convert(bounds, to: nil)
@@ -2215,7 +2223,11 @@ extension UITest {
         check("\(tag): the Library comes back at the same scroll offset (\(Int(before)), now \(after.map { "\(Int($0))" } ?? "none"))",
               after.map { abs($0 - before) <= 4 } ?? false)
         let selected = ScreenPlaces.shared.selectedRow(nil) == row && (!native || NativeNav.shared.librarySelection == row)
-        let inView = rowFrame(row).map { $0.minY >= 0 && $0.maxY <= h } ?? false
+        let back = rowFrame(row)
+        let inView = back.map { $0.minY >= 0 && $0.maxY <= h } ?? false
+        if !(selected && inView) {
+            Log.note("UITEST detail: \(tag): remembered row \(ScreenPlaces.shared.selectedRow(nil) == row), Native selection \(NativeNav.shared.librarySelection == row), frame \(back.map { "\(Int($0.minY))-\(Int($0.maxY))" } ?? "none") of \(Int(h))")
+        }
         check("\(tag): the same row is selected and in view", selected && inView)
         check("\(tag): the same search and filter", app.search == "Backtrail" && app.libraryKind == .meeting && app.libraryFilter == .all && app.projectFilter == nil)
         if let r = ScreenPlaces.shared.lastRestore { Log.note("UITEST note: \(tag) restore key=\(r.key) offset=\(Int(r.offset)) before the first frame=\(r.early)") }
@@ -2227,7 +2239,7 @@ extension UITest {
         commandKey("[", in: window)
         try? await Task.sleep(nanoseconds: 900_000_000)
         check("\(tag): ⌘[ goes back to the Library", app.screen == .library)
-        check("\(tag): after going back, View › Forward is on", viewMenuItem("Forward")?.isEnabled == true)
+        check("\(tag): after going back, View › Forward is on (the trail can go forward: \(NavTrail.shared.canGoForward))", viewMenuItem("Forward")?.isEnabled == true)
         commandKey("]", in: window)
         try? await Task.sleep(nanoseconds: 900_000_000)
         check("\(tag): ⌘] goes forward to the transcript", app.screen == .transcript(row))

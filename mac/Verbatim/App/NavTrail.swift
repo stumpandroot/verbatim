@@ -138,18 +138,48 @@ final class NavTrail: ObservableObject {
     }
 }
 
+/// Whether Back and Forward can go, handed to the menu bar by the main window (`navTrailState`). Build 222's menu
+/// observed NavTrail directly and SwiftUI never refreshed it: Forward stayed off after going back, so ⌘] did nothing.
+/// Commands follow focused values reliably.
+struct NavTrailState: Equatable {
+    var back: Bool
+    var forward: Bool
+}
+
+private struct NavTrailStateKey: FocusedValueKey { typealias Value = NavTrailState }
+
+extension FocusedValues {
+    var navTrail: NavTrailState? {
+        get { self[NavTrailStateKey.self] }
+        set { self[NavTrailStateKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// The main window's Back and Forward state for View › Back and Forward. Observes only NavTrail's two flags.
+    func navTrailState() -> some View { modifier(NavTrailStateModifier()) }
+}
+
+private struct NavTrailStateModifier: ViewModifier {
+    @ObservedObject private var trail = NavTrail.shared
+    func body(content: Content) -> some View {
+        content.focusedSceneValue(\.navTrail, NavTrailState(back: trail.canGoBack, forward: trail.canGoForward))
+    }
+}
+
 /// View › Back and Forward (⌘[ and ⌘]), for the main window in both looks.
 struct NavBackCommands: View {
     let app: AppState
-    @ObservedObject private var trail = NavTrail.shared
+    @FocusedValue(\.navTrail) private var state
 
     var body: some View {
+        let trail = NavTrail.shared
         Button("Back") { if mainWindowFront { trail.goBack(app) } }
             .keyboardShortcut("[", modifiers: .command)
-            .disabled(!trail.canGoBack)
+            .disabled(state?.back != true)
         Button("Forward") { if mainWindowFront { trail.goForward(app) } }
             .keyboardShortcut("]", modifiers: .command)
-            .disabled(!trail.canGoForward)
+            .disabled(state?.forward != true)
     }
 
     /// Settings and other windows keep the keys to themselves.
@@ -279,6 +309,11 @@ struct ScrollPlace: NSViewRepresentable {
         /// Scrolling lays the content out again, which lands back here.
         private var applying = false
         private var frameObserver: NSObjectProtocol?
+        /// After a restore, the offset is held for a moment: a move away from it that isn't you scrolling (the screen's
+        /// later layout passes, or focus landing in a field up top, scrolled the Library back to the top in build 222)
+        /// is put back in the same pass, before it's drawn.
+        private var held: (y: CGFloat, until: Date, resets: Int)?
+        private var boundsObserver: NSObjectProtocol?
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
@@ -295,6 +330,7 @@ struct ScrollPlace: NSViewRepresentable {
                 // A restore that never landed keeps the offset it was given.
                 if pending == nil, let y = currentOffset { ScreenPlaces.shared.setOffset(key, y) }
                 stop()
+                endHold()
             }
             super.viewWillMove(toWindow: newWindow)
         }
@@ -359,6 +395,7 @@ struct ScrollPlace: NSViewRepresentable {
                 if maxY + 0.5 >= y {
                     ScreenPlaces.shared.restored(key, y, early: firstTurn)
                     stop()
+                    hold(y, s)
                     return
                 }
                 if maxOffset(s) <= maxY + 0.5 { return }
@@ -368,6 +405,48 @@ struct ScrollPlace: NSViewRepresentable {
         private func stop() {
             pending = nil
             if let o = frameObserver { NotificationCenter.default.removeObserver(o); frameObserver = nil }
+        }
+
+        private func hold(_ y: CGFloat, _ s: NSScrollView) {
+            endHold()
+            held = (y, Date().addingTimeInterval(1.2), 0)
+            let clip = s.contentView
+            clip.postsBoundsChangedNotifications = true
+            boundsObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: nil) { [weak self] _ in
+                MainActor.assumeIsolated { self?.keepHeld() }
+            }
+        }
+
+        private func endHold() {
+            held = nil
+            if let o = boundsObserver { NotificationCenter.default.removeObserver(o); boundsObserver = nil }
+        }
+
+        private func keepHeld() {
+            guard let h = held, !applying, let s = scrollView else { return }
+            if Date() > h.until || Self.youAreScrolling { endHold(); return }
+            let clip = s.contentView
+            let target = min(h.y, maxOffset(s))
+            guard abs(clip.bounds.origin.y - target) > 1 else { return }
+            if h.resets >= 6 { Log.note("scroll place \(key): gave up holding \(Int(h.y))"); endHold(); return }
+            Log.note("scroll place \(key): put back \(Int(target)) after a move to \(Int(clip.bounds.origin.y)) (event \(NSApp.currentEvent.map { "\($0.type.rawValue)" } ?? "none"), first responder \(window?.firstResponder.map { "\(type(of: $0))" } ?? "none"))")
+            held?.resets += 1
+            applying = true
+            clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: target))
+            s.reflectScrolledClipView(clip)
+            applying = false
+        }
+
+        /// A scroll you're making: the wheel or trackpad, a swipe or pinch, dragging the scroller, or a scrolling key.
+        private static var youAreScrolling: Bool {
+            guard let e = NSApp.currentEvent else { return false }
+            switch e.type {
+            case .scrollWheel, .swipe, .magnify, .smartMagnify, .leftMouseDragged: return true
+            case .keyDown:
+                // Arrows, Page Up and Down, Home, End, and Space; not ⌘[ or another shortcut that navigates.
+                return !e.modifierFlags.contains(.command) && [123, 124, 125, 126, 116, 121, 115, 119, 49].contains(e.keyCode)
+            default: return false
+            }
         }
 
         private func maxOffset(_ s: NSScrollView) -> CGFloat {

@@ -263,6 +263,9 @@ private struct NativeCenterItem: View {
         } else {
             let options = NativeLibraryScope.options(app)
             let binding = Binding<NativeLibraryScope.Scope>(get: { NativeLibraryScope.current(app) }, set: { s in
+                // Only a real change clears the selection: the picker can write back the scope it already shows as
+                // the toolbar swaps a transcript's tabs for it, which dropped the row Back came back to.
+                guard s != NativeLibraryScope.current(app) else { return }
                 nav.librarySelection = nil
                 NativeLibraryScope.choose(s, app: app)
             })
