@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Back on the Mac, tab bar, and Home sections",
+      "title": "Mac: Back, clearer noisy transcripts, and Thoughts and Journal on Home",
       "items": [
         "Mac: a Back button on every transcript returns you to the Library right where you were, with the same row, search, and filters. ⌘[ works too.",
         "Mac: the Library no longer jumps back to the top a moment after Back returns you to it.",
@@ -11,6 +11,16 @@
         "Mac and iPhone: where speech was too hard to hear, the transcript shows a quiet “unclear 2:10” chip. Click or tap it to play that spot. Words the engine wasn't sure of have a dotted underline.",
         "Mac and iPhone: Export can add “[unclear 2:10]” markers. They're off unless you turn on Unclear markers.",
         "Mac and iPhone: Reduce background noise in the player's speed menu turns down wind or a mower while you listen. It doesn't change the transcript or the recording.",
+        "Mac and iPhone: Edit Home adds Today's thoughts (your latest thoughts with their times, and New thought) and Journal (your newest entry with a play button, and this week's days). Both start hidden.",
+        "Mac and iPhone: two new Home tiles. New thought records a thought without leaving Home, and Journal opens Journal by day. On the Mac, the floating Thoughts tile is now called Today's page."
+      ]
+    },
+    {
+      "build": "224",
+      "date": "2026-10-26",
+      "version": "1.0 beta",
+      "title": "iPhone only: your own tab bar and Home sections",
+      "items": [
         "iPhone: the Action button set to Dictate no longer risks closing Verbose when it starts a session. The session's Live Activity shows first, or Verbose asks before it turns on the microphone.",
         "iPhone: choose your tabs in Settings › Personalization and preferences › Tab bar. Home stays first and Settings last; pick up to three between them from Library, Thoughts, Journal, Moments, Dictations, and Projects, and drag to reorder. Edit Home has a Tab bar link too.",
         "iPhone: the Thoughts tab opens today's page, and the Journal tab opens Journal by day. Each tab keeps its own place. Links to a tab you removed open inside Library or Home.",
