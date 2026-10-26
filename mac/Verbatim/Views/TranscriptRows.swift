@@ -61,6 +61,8 @@ struct HistoryRow: View {
     var transcript: Transcript
     /// nil = not selecting; true/false = selection mode with this row's state.
     var selected: Bool? = nil
+    /// The row you opened last, lit as selected when you come back to the Library (outside Select mode).
+    var current = false
     /// The project's name, when the row is shown outside it (the meta line names it; the title's italic follows it).
     var project: String? = nil
     /// The row's own project's name, for the title's italic (inside a project too). Passed in rather than looked up,
@@ -71,7 +73,7 @@ struct HistoryRow: View {
     var open: () -> Void
 
     var body: some View {
-        FlatRowButton(selected: selected == true, dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) { _ in
+        FlatRowButton(selected: selected == true || (selected == nil && current), dragPayload: { TranscriptDrag.payload(dragIDs?() ?? [transcript.id]) }, action: open) { _ in
             HStack(spacing: 14) {
                 if let sel = selected {
                     Image(systemName: sel ? "checkmark.circle.fill" : "circle").font(.system(size: 19)).foregroundStyle(sel ? Ink.ink : Ink.mute)

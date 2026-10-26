@@ -21,6 +21,14 @@ struct ByDayView: View {
     @State private var shownMonth: Date?
     @Environment(\.look) private var look
 
+    /// The day and month you left come back with the screen (ScreenPlaces, App/NavTrail.swift).
+    init(kind: RecordingKind) {
+        self.kind = kind
+        let place = ScreenPlaces.shared.day(kind)
+        _selected = State(initialValue: place.day)
+        _shownMonth = State(initialValue: place.month)
+    }
+
     private var hour: Int { Thoughts.newPageHour }
     private var isThoughts: Bool { kind != .journal }
     private var name: String { Thoughts.pageName(kind) }
@@ -50,11 +58,14 @@ struct ByDayView: View {
             }
             .padding(.horizontal, 32).padding(.top, 28).padding(.bottom, 40)
             .frame(maxWidth: 1180, alignment: .leading)
+            .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal", look: look))
             .navMarkWhenLaidOut("byday-laid-out")
         }
         .background(look == .native ? AnyView(PremiumInk.window) : AnyView(Ink.paper))
         .onAppear { LookSwitch.mark("byday-appear") }
         .onChange(of: kind) { _, _ in selected = nil }
+        .onChange(of: selected) { _, d in ScreenPlaces.shared.setDay(kind, day: d, month: shownMonth) }
+        .onChange(of: shownMonth) { _, m in ScreenPlaces.shared.setDay(kind, day: selected, month: m) }
         .uiTarget(isThoughts ? "byday-thoughts" : "byday-journal")
     }
 

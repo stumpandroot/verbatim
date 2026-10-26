@@ -350,6 +350,8 @@ struct TranscriptView: View {
                 title(t)
                 Text(nativeMeta(t)).font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1).padding(.top, 6)
             } else {
+            // Back, named for where you came from (App/NavTrail.swift); Native's is in the toolbar.
+            TranscriptBackPill().padding(.bottom, 16)
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
                     Eyebrow(text: eyebrow(t))

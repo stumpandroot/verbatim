@@ -72,7 +72,7 @@ struct ContentView: View {
             Button("Rename") { rename.commit(app.store) }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { app.handleDrop($0) }
-        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor() }
+        .onAppear { LaunchClock.rootAppeared(); UITest.run(app: app); app.installLinkPasteMonitor(); NavTrail.shared.installMonitor(app) }
         .onReceive(NotificationCenter.default.publisher(for: .verbatimOpenSettings)) { _ in openSettings() }
         .lookTint(look)   // switches and checkboxes in brand sage (Verbose style) or the persimmon accent (Native)
         .sheet(isPresented: $app.showOnboarding) { OnboardingView(startStep: UITest.onboardingStep).environmentObject(app).lookRoot() }

@@ -13,7 +13,7 @@ import AppKit
 // MARK: - State
 
 /// What the Native window's toolbar, inspector, and screens share: the transcript's tab and text size, the Library's
-/// selection, the inspector, and back and forward. One per app (the main window).
+/// selection, and the inspector. Back and Forward are both looks' (NavTrail, App/NavTrail.swift). One per app.
 @MainActor
 final class NativeNav: ObservableObject {
     static let shared = NativeNav()
@@ -35,12 +35,6 @@ final class NativeNav: ObservableObject {
     /// An action running on the open transcript (its sheet), and why Summarize can't run here.
     @Published var runningAction: FlowAction?
     @Published var summaryUnavailable: String?
-    /// Back and forward. Not published itself: only whether Back and Forward can go is, and only when that changes, so
-    /// a navigation doesn't re-render the toolbar a second time.
-    private var history = NavHistory<Screen>()
-    @Published private(set) var canGoBack = false
-    @Published private(set) var canGoForward = false
-
     /// Play on an item: open its transcript and start playing once the audio opens.
     private var autoplay: UUID?
     /// The last click on a list item, for double-click.
@@ -50,32 +44,6 @@ final class NativeNav: ObservableObject {
         let d = UserDefaults.standard
         inspector = d.object(forKey: Self.inspectorKey) as? Bool ?? true
         libraryTable = d.bool(forKey: Self.tableKey)
-    }
-
-    // Navigation
-
-    func visited(_ s: Screen) { history.visit(s); publishHistory() }
-
-    func goBack(_ app: AppState) {
-        dropDeleted(app)
-        if let s = history.goBack() { publishHistory(); app.go(s) }
-    }
-
-    func goForward(_ app: AppState) {
-        dropDeleted(app)
-        if let s = history.goForward() { publishHistory(); app.go(s) }
-    }
-
-    private func publishHistory() {
-        if canGoBack != history.canGoBack { canGoBack = history.canGoBack }
-        if canGoForward != history.canGoForward { canGoForward = history.canGoForward }
-    }
-
-    private func dropDeleted(_ app: AppState) {
-        history.removeAll { s in
-            if case .transcript(let id) = s { return app.store.transcript(id).map { $0.deletedAt != nil } ?? true }
-            return false
-        }
     }
 
     // The Library list
@@ -154,8 +122,6 @@ struct NativeWindow<Detail: View>: View {
                 }
         }
         .toolbar { NativeToolbar(nav: nav, screen: app.screen) }
-        .onChange(of: app.nav) { _, n in nav.visited(n.screen) }
-        .onAppear { nav.visited(app.screen) }
         .sheet(item: $nav.runningAction) { a in
             if let id = app.screen.transcriptID, let t = app.store.transcript(id) {
                 TranscriptActionSheet(action: a, transcript: t).environmentObject(app)
@@ -245,22 +211,24 @@ private struct NativeInspectorButton: View {
 private struct NativeLeadingItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
+    /// Back and Forward, shared with Verbose style's back pill and View › Back and Forward.
+    @ObservedObject private var trail = NavTrail.shared
     var screen: Screen
 
     var body: some View {
         if screen.transcriptID != nil {
             // Two plain buttons in one item (hosted as SwiftUI, so they keep their identity as the content changes).
             HStack(spacing: 0) {
-                Button { nav.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 32, height: 28).contentShape(Rectangle()) }
+                Button { trail.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 32, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
-                    .disabled(!nav.canGoBack)
-                    .help("Back")
+                    .disabled(!trail.canGoBack)
+                    .help("Back (⌘[)")
                     .accessibilityLabel("Back")
                     .uiWindowTarget("tb-back")
-                Button { nav.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 32, height: 28).contentShape(Rectangle()) }
+                Button { trail.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 32, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
-                    .disabled(!nav.canGoForward)
-                    .help("Forward")
+                    .disabled(!trail.canGoForward)
+                    .help("Forward (⌘])")
                     .accessibilityLabel("Forward")
             }
             .font(.system(size: 14, weight: .medium))

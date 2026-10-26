@@ -107,6 +107,8 @@ enum UITest {
             try? await Task.sleep(nanoseconds: 300_000_000)
             await step("row opens transcript again", window, target: "row-0", check: { if case .transcript = app.screen { return true } else { return false } })
             timingSummary("clicks")
+            // Back: the Library comes back where you left it, ⌘[ and the View menu, and Back to Home (App/NavTrail.swift).
+            await backSteps(app: app, window: window, native: false)
 
             await settingsSteps(main: window)
             await ribbonSteps(app: app)
@@ -447,6 +449,7 @@ enum UITest {
     private static func tour(app: AppState, window: NSWindow) async {
         appRef = app
         timings = []   // the tour's summaries leave out the Settings, Ribbon, and meeting steps' navigations
+        ScreenPlaces.shared.reset()   // every screen opens where it always did in the screenshots
         seedRich(app)
         seedArchive(app)
         seedDictations(app)
@@ -709,6 +712,7 @@ enum UITest {
         try? await Task.sleep(nanoseconds: 400_000_000)
         nativeChecks()
         await nativeClicks(app: app, window: window)
+        await backSteps(app: app, window: window, native: true)
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
         await editHomeSteps(app: app, window: window, look: .native, suffix: "-native")
@@ -2132,5 +2136,140 @@ extension UITest {
         let ok = routed && check()
         if ok { pass += 1 } else { fail += 1 }
         Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)\(routed ? "" : " (the panel ignored the pointer)")")
+    }
+}
+
+// MARK: - Back
+
+extension UITest {
+    /// Library rows carry self-test targets (`lib-row-<id>`) only while the Back steps run, so the other steps and
+    /// the big library's timings don't pay for a frame reader on every row.
+    static var rowTargets = false
+
+    /// Back and the places screens come back to (App/NavTrail.swift), in one look: scroll the Library down, open a row,
+    /// and Back returns to the Library with the same row selected and in view, the same scroll offset (within a few
+    /// points), and the same search and filter; ⌘[ and ⌘] with View › Back and Forward enabled as they should be; and
+    /// Back from a transcript opened from Home returns to Home where it was. Forty seeded transcripts make the Library
+    /// long enough to scroll; they and every remembered place are gone afterwards, so the tour's screens are unchanged.
+    static func backSteps(app: AppState, window: NSWindow, native: Bool) async {
+        let tag = native ? "back (native)" : "back"
+        let look: AppLook = native ? .native : .verbose
+        var ids: [UUID] = []
+        for i in 0..<40 {
+            var t = Transcript(title: String(format: "Backtrail %02d", i), source: .voiceMemo, sourceLabel: "Voice memo",
+                               duration: 60 + Double(i), audioFileName: nil, model: "Test")
+            t.kind = .meeting
+            t.kindIsAuto = false
+            t.createdAt = Date().addingTimeInterval(-3 * 86_400 - Double(i) * 4 * 3600)
+            t.segments = [Segment(start: 0, end: 4, text: "A seeded line for the Back steps.", speaker: "S1")]
+            t.original = t.segments
+            app.store.add(t)
+            ids.append(t.id)
+        }
+        rowTargets = true
+        defer {
+            rowTargets = false
+            for id in ids { if let t = app.store.transcript(id) { app.store.delete(t) } }
+            app.search = ""
+            app.libraryKind = nil
+            ScreenPlaces.shared.reset()
+        }
+        if native { NativeNav.shared.libraryTable = false }
+        app.projectFilter = nil; app.libraryFilter = .all; app.libraryKind = .meeting
+        app.go(.library)
+        app.search = "Backtrail"
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+
+        // 1. Scroll the Library down, select a row near the middle, and open it.
+        let key = ScreenPlaces.scrollKey(ScreenPlaces.libraryKey(nil), look: look)
+        ScreenPlaces.shared.scrollLive(key, by: 600)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let h = window.contentView?.bounds.height ?? 0
+        func rowFrame(_ id: UUID) -> CGRect? { native ? windowFrames["lib-row-\(id.uuidString)"]?() : frames["lib-row-\(id.uuidString)"] }
+        // The row nearest the window's lower middle, well inside the list.
+        var picked: (id: UUID, distance: CGFloat)?
+        for id in ids {
+            guard let f = rowFrame(id), f.minY > 120, f.maxY < h - 60 else { continue }
+            let d = abs(f.midY - h * 0.6)
+            if picked == nil || d < picked!.distance { picked = (id, d) }
+        }
+        guard let row = picked?.id, let scrolled = ScreenPlaces.shared.liveOffset(key), scrolled > 100 else {
+            Log.note("UITEST detail: \(tag): offset \(ScreenPlaces.shared.liveOffset(key).map { "\(Int($0))" } ?? "none"), rows on screen \(ids.filter { rowFrame($0) != nil }.count)")
+            check("\(tag): the Library scrolls down to a row to open", false)
+            return
+        }
+        let target = "lib-row-\(row.uuidString)"
+        if native {
+            await step("\(tag): clicking an item in the scrolled Library selects it", window, target: target, check: { NativeNav.shared.librarySelection == row })
+        }
+        let before = ScreenPlaces.shared.liveOffset(key) ?? scrolled
+        await step("\(tag): \(native ? "double-clicking" : "clicking") a row in the scrolled Library opens it", window, target: target,
+                   clicks: native ? 2 : 1, check: { app.screen == .transcript(row) })
+        oneScreen("opening a transcript from the scrolled Library\(native ? " (native)" : "")", app: app)
+
+        // 2. Back: the same row, offset, search, and filter.
+        await step("\(tag): \(native ? "the toolbar's Back" : "the transcript's back pill") returns to the Library", window,
+                   target: native ? "tb-back" : "transcript-back", check: { app.screen == .library })
+        oneScreen("Back to the Library\(native ? " (native)" : "")", app: app)
+        let after = ScreenPlaces.shared.liveOffset(key)
+        check("\(tag): the Library comes back at the same scroll offset (\(Int(before)), now \(after.map { "\(Int($0))" } ?? "none"))",
+              after.map { abs($0 - before) <= 4 } ?? false)
+        let selected = ScreenPlaces.shared.selectedRow(nil) == row && (!native || NativeNav.shared.librarySelection == row)
+        let inView = rowFrame(row).map { $0.minY >= 0 && $0.maxY <= h } ?? false
+        check("\(tag): the same row is selected and in view", selected && inView)
+        check("\(tag): the same search and filter", app.search == "Backtrail" && app.libraryKind == .meeting && app.libraryFilter == .all && app.projectFilter == nil)
+        if let r = ScreenPlaces.shared.lastRestore { Log.note("UITEST note: \(tag) restore key=\(r.key) offset=\(Int(r.offset)) before the first frame=\(r.early)") }
+
+        // 3. ⌘[ and ⌘], and View › Back and Forward.
+        app.go(.transcript(row))
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("\(tag): on a transcript, View › Back is on and Forward is off", viewMenuItem("Back")?.isEnabled == true && viewMenuItem("Forward")?.isEnabled == false)
+        commandKey("[", in: window)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("\(tag): ⌘[ goes back to the Library", app.screen == .library)
+        check("\(tag): after going back, View › Forward is on", viewMenuItem("Forward")?.isEnabled == true)
+        commandKey("]", in: window)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("\(tag): ⌘] goes forward to the transcript", app.screen == .transcript(row))
+
+        // 4. Back from a transcript opened from Home returns to Home, where it was.
+        app.search = ""
+        app.libraryKind = nil
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        let homeKey = ScreenPlaces.scrollKey("home", look: look)
+        ScreenPlaces.shared.scrollLive(homeKey, by: 80)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        await reveal("row-0", in: window)
+        let homeBefore = ScreenPlaces.shared.liveOffset(homeKey)
+        if native {
+            // A Home item's click lands on its play pill or menu as often as its title; open it as its title does.
+            if let t = app.archive.first { app.go(.transcript(t.id)) }
+            try? await Task.sleep(nanoseconds: 900_000_000)
+        } else {
+            await step("\(tag): a row on Home opens its transcript", window, target: "row-0", check: { app.screen.transcriptID != nil })
+        }
+        await step("\(tag): Back from a transcript opened from Home returns to Home", window,
+                   target: native ? "tb-back" : "transcript-back", check: { app.screen == .home })
+        oneScreen("Back to Home\(native ? " (native)" : "")", app: app)
+        let homeAfter = ScreenPlaces.shared.liveOffset(homeKey)
+        check("\(tag): Home comes back at the same scroll offset (\(homeBefore.map { "\(Int($0))" } ?? "none"), now \(homeAfter.map { "\(Int($0))" } ?? "none"))",
+              homeBefore != nil && homeAfter.map { abs($0 - homeBefore!) <= 4 } == true)
+    }
+
+    /// View › `title`, validated as the menu bar would before it opens.
+    private static func viewMenuItem(_ title: String) -> NSMenuItem? {
+        guard let menu = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == "View" })?.submenu else { return nil }
+        menu.update()
+        return menu.items.first { $0.title == title }
+    }
+
+    /// ⌘ and a key, through the main menu's key equivalents (as a key press reaches them).
+    private static func commandKey(_ key: String, in window: NSWindow) {
+        let code: UInt16 = key == "[" ? 33 : 30
+        guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                       windowNumber: window.windowNumber, context: nil, characters: key, charactersIgnoringModifiers: key,
+                                       isARepeat: false, keyCode: code) else { return }
+        if NSApp.mainMenu?.performKeyEquivalent(with: e) != true { Log.note("UITEST note: no menu item took ⌘\(key)") }
     }
 }

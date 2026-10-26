@@ -118,6 +118,8 @@ struct HomeView: View {
                 .frame(width: width, alignment: .leading)
                 .padding(.horizontal, Self.margin).padding(.top, 30).padding(.bottom, 40)
                 .frame(maxWidth: .infinity)
+                // Back and Forward bring Home back where you left it; the sidebar opens it at the top (App/NavTrail.swift).
+                .scrollPlace(ScreenPlaces.scrollKey("home", look: .verbose), restore: NavTrail.shared.movingThroughHistory)
             }
         }
     }

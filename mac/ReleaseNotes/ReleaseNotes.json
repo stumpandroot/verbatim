@@ -19,6 +19,7 @@
       "version": "1.0 beta",
       "title": "Faster By day and look switching",
       "items": [
+        "Mac: a Back button on every transcript returns you to the Library right where you were, with the same row, search, and filters. ⌘[ works too.",
         "Mac: Library › By day opens faster in Native, and switching looks no longer redraws the closed Thoughts page."
       ]
     },

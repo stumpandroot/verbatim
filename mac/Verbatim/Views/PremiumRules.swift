@@ -172,7 +172,8 @@ enum ScopeBarStyle {
     }
 }
 
-/// Back and forward through the screens you visited (the transcript's toolbar), like a browser's history.
+/// Back and forward through the screens you visited (both looks' Back and Forward, App/NavTrail.swift), like a
+/// browser's history: going somewhere new starts a new trail from here (Forward clears), and Back and Forward walk it.
 struct NavHistory<Element: Equatable> {
     private(set) var back: [Element] = []
     private(set) var forward: [Element] = []
@@ -189,6 +190,16 @@ struct NavHistory<Element: Equatable> {
         if let c = current { back.append(c); if back.count > limit { back.removeFirst(back.count - limit) } }
         forward.removeAll()
         current = e
+    }
+
+    /// Where Back goes, without going.
+    var previous: Element? { back.last }
+
+    /// The place you're on changed in place (the Library showing another project): the trail keeps its shape.
+    mutating func replaceCurrent(_ e: Element) {
+        guard current != nil else { current = e; return }
+        current = e
+        if back.last == e { back.removeLast() }
     }
 
     /// Steps back: returns where to go, and keeps the place you left for Forward.
