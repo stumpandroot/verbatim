@@ -15,6 +15,9 @@ name: Build Mac app (SwiftUI)
 # Release notes (mac/ReleaseNotes/README.md): each build, iPhone tour, and TestFlight archive first stamps the bundled
 # ReleaseNotes.json's "next" entry with the run number in its own checkout (never committed), and the updates job puts
 # that entry in the appcast and the GitHub release, so the Mac's update window lists what's new.
+# Versions (mac/VERSIONING.md): builds of main take project.yml's MARKETING_VERSION and VERBOSE_CHANNEL ("1.0 beta");
+# a mac-v* tag sets its own. Every successful build of main (push or by hand) is tagged v<version>-b<run>, such as
+# v1.0-b217, on the built commit (the `tag` job).
 #
 # Secrets: MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD, and
 # MACOS_PROVISION_PROFILE (a Developer ID provisioning profile with iCloud, base64). Without them the build
@@ -36,7 +39,8 @@ name: Build Mac app (SwiftUI)
 #     environment, so its protection rules (required reviewers, allowed branches) and secrets apply. GitHub creates
 #     the environment, unprotected, the first time a job uses it. Builds of other branches started by hand use no environment and
 #     sign only with repository secrets, if any are left.
-#   - The workflow token is read-only, except in the small jobs that push to ci-screens; they run no build tools.
+#   - The workflow token is read-only, except in the small jobs that push to ci-screens and the tag job; they run no
+#     build tools.
 #     Checkouts don't keep the token. UPDATES_TOKEN reaches only the updates job's publish step.
 #   - Every action is pinned to a full commit SHA (the tag is in the comment).
 
@@ -86,6 +90,8 @@ jobs:
       sparkle_length: ${{ steps.sparkle.outputs.length }}
       sparkle_short_version: ${{ steps.sparkle.outputs.short_version }}
       sparkle_bundle_version: ${{ steps.sparkle.outputs.bundle_version }}
+      # The marketing version built ("1.0"), for the tag job.
+      marketing_version: ${{ steps.version.outputs.marketing }}
       bench: ${{ steps.changes.outputs.bench }}
       fluidaudio: ${{ steps.fluidver.outputs.version }}
     env:
@@ -220,21 +226,44 @@ jobs:
             echo "PROVISION_PROFILE=$RUNNER_TEMP/verbatim.provisionprofile" >> "$GITHUB_ENV"
           fi
 
-      # Release notes (mac/ReleaseNotes/README.md): the bundled JSON's "next" entry becomes this build, dated today, in
-      # this checkout only (never committed), so the app's What's new names its own build number. No secrets.
+      # Versions (mac/VERSIONING.md): project.yml's marketing version and channel ("1.0" and "beta"). A mac-v* tag sets
+      # its own: mac-v1.1.0 is 1.1.0 with no channel, and mac-v1.1.0-b.1 is 1.1.0 beta. No secrets.
+      - name: Pick the version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/mac-v* ]]; then
+            V="${REF_NAME#mac-v}"; MARKETING="${V%%-*}"
+            if [[ "$V" == *-* ]]; then CHANNEL=beta; else CHANNEL=""; fi
+          else
+            OUT="$(python3 ReleaseNotes/release_notes.py version)"
+            MARKETING="$(sed -n 's/^marketing=//p' <<< "$OUT")"; CHANNEL="$(sed -n 's/^channel=//p' <<< "$OUT")"
+          fi
+          [[ "$MARKETING" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "::error::The marketing version must be numbers, such as 1.0, not \"$MARKETING\""; exit 1; }
+          NAME="${MARKETING}${CHANNEL:+ $CHANNEL}"
+          echo "Version ${NAME} (${GITHUB_RUN_NUMBER})"
+          { echo "marketing=$MARKETING"; echo "channel=$CHANNEL"; echo "name=$NAME"; } >> "$GITHUB_OUTPUT"
+
+      # Release notes (mac/ReleaseNotes/README.md): the bundled JSON's "next" entry becomes this build of this version,
+      # dated today, in this checkout only (never committed), so the app's What's new names its own build. No secrets.
       - name: Stamp the release notes with this build
-        run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER"
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: python3 ReleaseNotes/release_notes.py stamp ReleaseNotes/ReleaseNotes.json --build "$GITHUB_RUN_NUMBER" --version "$VERSION_NAME"
 
       # No secrets in this step; the keychain above signs. Notarization is the next step.
       - name: Build, sign, and package
         env:
-          VERSION: ${{ startsWith(github.ref, 'refs/tags/mac-v') && github.ref_name || '0.0.0' }}
+          VERSION: ${{ steps.version.outputs.marketing }}
+          VERBOSE_CHANNEL: ${{ steps.version.outputs.channel }}
           BUILD: ${{ github.run_number }}
           DMG_SUFFIX: -universal
           SKIP_NOTARIZE: "1"
         run: |
           set -o pipefail
-          if ! VERSION="${VERSION#mac-v}" bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+          if ! bash build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"; then
             tail -n 6 "$RUNNER_TEMP/build.log" | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
             cat "$RUNNER_TEMP/build.log" build/xcodebuild.log 2>/dev/null | grep -E "error(\[E[0-9]+\])?:" | grep -v "Compiling\|Downloaded\|thiserror" | sort -u | head -n 4 | cut -c1-400 | while IFS= read -r line; do echo "::error::${line}"; done
             exit 1
@@ -294,7 +323,11 @@ jobs:
           echo "signature=$SIG" >> "$GITHUB_OUTPUT"
           echo "length=$LEN" >> "$GITHUB_OUTPUT"
           PLIST=build/Build/Products/Release/Verbatim.app/Contents/Info.plist
-          echo "short_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" >> "$GITHUB_OUTPUT"
+          # The update window reads "Verbose 1.0 beta (217)": the channel goes in sparkle:shortVersionString, which is only
+          # shown. Sparkle compares sparkle:version, the build number (mac/VERSIONING.md).
+          SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          CHANNEL="$(/usr/libexec/PlistBuddy -c 'Print :VerboseChannel' "$PLIST" 2>/dev/null || true)"
+          echo "short_version=${SHORT}${CHANNEL:+ $CHANNEL}" >> "$GITHUB_OUTPUT"
           echo "bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" >> "$GITHUB_OUTPUT"
 
       # Removes every key and credential, whatever happened above, before the app runs.
@@ -588,6 +621,35 @@ jobs:
           SHORT: ${{ needs.build.outputs.sparkle_short_version }}
           BUNDLE: ${{ needs.build.outputs.sparkle_bundle_version }}
         run: bash mac/Updates/publish-update.sh dist/Verbatim-universal.dmg
+
+  # Tags every shipped build (mac/VERSIONING.md): after a build of main succeeds (a push or a run by hand; not the
+  # weekly bench run, which ships nothing), v<marketing version>-b<run number>, such as v1.0-b217, on the built commit.
+  # The run's iPhone tour and TestFlight upload share its number. A lightweight tag made through the API: no checkout,
+  # no build tools, and the only job whose token can write tags. Tags the token pushes start no workflow (this one
+  # starts only for mac-v* tags anyway). A re-run finds its tag already there and passes. Never fails the build.
+  tag:
+    name: Tag the build
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'schedule' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - name: Tag v<version>-b<run> on the built commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MARKETING: ${{ needs.build.outputs.marketing_version }}
+        run: |
+          set -euo pipefail
+          [[ "$MARKETING" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "::error::The build gave no marketing version (\"$MARKETING\")"; exit 1; }
+          TAG="v${MARKETING}-b${GITHUB_RUN_NUMBER}"
+          if SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" -q .object.sha 2>/dev/null)"; then
+            if [ "$SHA" = "$GITHUB_SHA" ]; then echo "$TAG is already on ${GITHUB_SHA::7}."; exit 0; fi
+            echo "::error::$TAG already points at ${SHA::7}, not ${GITHUB_SHA::7}"; exit 1
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$GITHUB_SHA" > /dev/null
+          echo "::notice::Tagged ${GITHUB_SHA::7} as $TAG"
 
   # Accuracy and latency bench (mac/Bench/README.md), on its own runner with no secrets, from this build's DMG.
   # A bench problem never blocks a build. bench-<run>.json and bench-<run>.md go to this build's ci-screens commit

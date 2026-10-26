@@ -49,8 +49,11 @@ publish() { # publish <ref> <run number> <short version>; RELEASE_NOTES (optiona
 feed() { git -C "$T/seed" pull -q origin main && cat "$T/seed/appcast.xml"; }
 R=https://github.com/stumpandroot/verbose-updates
 
-publish refs/heads/main 101 0.0.0
+publish refs/heads/main 101 "1.0 beta"
 F="$(feed)"
+# Versions (mac/VERSIONING.md): the update window reads "Verbose 1.0 beta (101)"; Sparkle compares the build number.
+check "main build: sparkle:shortVersionString is 1.0 beta, sparkle:version the build" \
+  'grep -q "<sparkle:shortVersionString>1.0 beta</sparkle:shortVersionString>" <<< "$F" && grep -q "<sparkle:version>101</sparkle:version>" <<< "$F"'
 check "main build: beta-101 and beta-latest are prereleases" \
   'grep -q "release create beta-101 .*--prerelease" "$T/state/gh.log" && grep -q "release create beta-latest .*--prerelease" "$T/state/gh.log"'
 check "main build: the asset is Verbose.dmg" 'grep -q "release create beta-101 [^ ]*/Verbose.dmg -R stumpandroot/verbose-updates" "$T/state/gh.log"'
@@ -72,7 +75,7 @@ printf 'beta-%s\n' 95 96 97 98 99 100 >> "$T/state/releases"
 : > "$T/state/gh.log"
 # A notes file with no entry for 102 and no "next": the one-line text stands in.
 printf '{"notes": [{"build": "90", "date": "2026-10-01", "title": "Old", "items": ["Old item."]}]}\n' > "$T/old-notes.json"
-RELEASE_NOTES="$T/old-notes.json" publish refs/heads/main 102 0.0.0
+RELEASE_NOTES="$T/old-notes.json" publish refs/heads/main 102 "1.0 beta"
 F="$(feed)"
 check "no notes for the build: the appcast falls back to the one-line text" 'grep -q "Beta build 102 of main." <<< "$(desc "$F")" && ! grep -q "Old item" <<< "$(desc "$F")"'
 check "no notes for the build: the release body falls back too" \
