@@ -92,11 +92,43 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             if !ActivityAuthorizationInfo().areActivitiesEnabled { Log.note("recording presence: Live Activities are off") }
             return false
         }
-        endLeftovers()
         let thought = app?.recordingThought ?? false
+        return request(thought: thought, startedAt: app?.thoughtStartedAt ?? Date(), state: state)
+    }
+
+    /// A recording's Live Activity, started before the microphone (`PhoneState.startRecording`, and first of all for
+    /// an in-place start, `InPlaceRecording`). A recording New thought, Record from a widget, or the Action button
+    /// starts belongs to their `AudioRecordingIntent`, and iOS 27 closes the app when the audio session turns on
+    /// during such an intent with no Live Activity showing; earlier versions stop the recording. False when iOS
+    /// refused it (Live Activities off, or Verbose not allowed to start one from the background) and in the self-test.
+    func startActivityBeforeRecording(thought: Bool) -> Bool {
+        guard activity == nil else { return true }
+        guard !PhoneUITest.enabled else { return false }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            Log.note("recording presence: Live Activities are off")
+            return false
+        }
+        let state: VerbatimRecordingAttributes.ContentState = thought
+            ? .thought(elapsed: 0, isPaused: false, pausedReason: nil, level: 0, words: nil)
+            : .make(elapsed: 0, isPaused: false, pausedReason: nil)
+        return request(thought: thought, startedAt: Date(), state: state)
+    }
+
+    /// The recording `startActivityBeforeRecording` was for didn't start: its Live Activity goes at once.
+    func cancelActivityBeforeRecording() {
+        guard let a = activity, app?.recorder.isRecording != true else { return }
+        activity = nil
+        activityIsThought = false
+        thoughtTicker?.invalidate(); thoughtTicker = nil
+        Log.note("recording presence: the recording didn't start; its Live Activity ended")
+        Task { await a.end(nil, dismissalPolicy: .immediate) }
+    }
+
+    private func request(thought: Bool, startedAt: Date, state: VerbatimRecordingAttributes.ContentState) -> Bool {
+        endLeftovers()
         var attributes = VerbatimRecordingAttributes(title: thought ? ThoughtRules.activityTitle : "Voice note")
         if thought, let app {
-            let day = DayPages.pageDay(for: app.thoughtStartedAt ?? Date(), hour: app.newPageHour)
+            let day = DayPages.pageDay(for: startedAt, hour: app.newPageHour)
             attributes.thought = true
             attributes.page = PhoneState.thoughtPageTitle(day)
         }
@@ -111,11 +143,6 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             return false
         }
     }
-
-    /// The Action button's in-place voice note (iOS 18, `AudioRecordingIntent`): the Live Activity must start with
-    /// the recording, or iOS stops the recording, so it starts now rather than on the next turn of the run loop.
-    /// False when iOS refused it (for example, because Verbose isn't in front).
-    func startActivityNow() -> Bool { startActivity() }
 
     private func update(quiet: Bool = false) {
         guard let a = activity, let state = currentState() else { return }

@@ -108,3 +108,27 @@ enum ThoughtRules {
     /// What you say to Siri.
     static let siriPhrase = "New thought in Verbose"
 }
+
+/// Starting a recording in place from an `AudioRecordingIntent`: New thought, Record from a widget, and the Action
+/// button's voice note (`PhoneState.startThoughtInPlace`, `startVoiceNoteInPlace`). On iOS 27, AppIntents stops the
+/// app with an assertion ("performed with an active audio session but without a Live Activity") when the audio
+/// session turns on during such an intent before its Live Activity shows. So the Live Activity always starts first. Without one, the microphone is never touched and
+/// Verbose opens to the recorder instead; a recording that then fails to start takes its Live Activity with it.
+/// Pure, so the Linux tests check the order (mac/tools/test-thoughts.sh).
+enum InPlaceRecording {
+    enum Outcome: Equatable {
+        /// Recording, behind its Live Activity.
+        case recording
+        /// Nothing is recording and no Live Activity is left: open Verbose to the recorder, for the reason given (logged).
+        case openVerbose(String)
+    }
+
+    static func start(startActivity: () -> Bool, startRecording: () -> Bool, endActivity: () -> Void) -> Outcome {
+        guard startActivity() else { return .openVerbose("its Live Activity didn't start") }
+        guard startRecording() else {
+            endActivity()
+            return .openVerbose("the recording didn't start")
+        }
+        return .recording
+    }
+}

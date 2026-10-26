@@ -9,8 +9,8 @@ import AppIntents
 ///
 /// A `LiveActivityIntent`, so iOS runs `perform` in the app's process. On iOS 18 and later the app also declares it an
 /// `AudioRecordingIntent`, so the thought records in place, behind its Live Activity, without opening Verbose
-/// (`PhoneState.startThoughtInPlace`). iOS stops such a recording unless a Live Activity starts with it, so when one
-/// can't start, when Record without opening Verbose is off, when something needs asking first, and on iOS 17, Verbose
+/// (`PhoneState.startThoughtInPlace`). Its Live Activity starts before the microphone (iOS 27 closes the app when an
+/// audio recording intent turns the microphone on with no Live Activity showing), so when one can't start, when Record without opening Verbose is off, when something needs asking first, and on iOS 17, Verbose
 /// opens straight to the recorder instead (`ThoughtRules.start`). Run while a thought records, it stops that thought.
 struct NewThoughtIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "New thought"
@@ -24,27 +24,37 @@ struct NewThoughtIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         #if !VERBATIM_WIDGETS
-        let start = await MainActor.run { ThoughtSignal.decide() }
-        switch start {
-        case .stop:
-            await MainActor.run { ThoughtSignal.stop() }
-            return .result()
-        case .inPlace:
-            if #available(iOS 18.0, *) {
-                let started = await MainActor.run { ThoughtSignal.startInPlace() }
-                Log.note("new thought: \(started ? "recording in place behind the Live Activity" : "the Live Activity didn't start; opening Verbose")")
-                if started { return .result() }
-            }
-        case .openVerbose(let why):
-            Log.note("new thought: opening Verbose to record (\(why))")
-        }
-        try await continueInVerbose { ThoughtSignal.fire() }
+        try await Self.run { then in try await continueInVerbose(then) }
         #endif
         return .result()
     }
 }
 
 #if !VERBATIM_WIDGETS
+extension NewThoughtIntent {
+    /// What `perform` does, with the way Verbose comes forward passed in, so the self-test runs it as a widget tap
+    /// does (`PhoneUITest.newThoughtIntentChecks`). Stops a recording thought, or starts one in place (its Live
+    /// Activity first, `InPlaceRecording`), or brings Verbose forward to the recorder. Nothing here can trap: on a cold
+    /// launch the request waits for the app (`ThoughtSignal`), and anything that can't start in place opens Verbose.
+    static func run(openVerbose: (@escaping @MainActor () -> Void) async throws -> Void) async throws {
+        let start = await MainActor.run { ThoughtSignal.decide() }
+        switch start {
+        case .stop:
+            await MainActor.run { ThoughtSignal.stop() }
+            return
+        case .inPlace:
+            if #available(iOS 18.0, *) {
+                let started = await MainActor.run { ThoughtSignal.startInPlace() }
+                Log.note("new thought: \(started ? "recording in place behind the Live Activity" : "opening Verbose to record")")
+                if started { return }
+            }
+        case .openVerbose(let why):
+            Log.note("new thought: opening Verbose to record (\(why))")
+        }
+        try await openVerbose { ThoughtSignal.fire() }
+    }
+}
+
 extension NewThoughtIntent: ForegroundContinuableIntent {
     @available(iOS 26.0, *)
     static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }

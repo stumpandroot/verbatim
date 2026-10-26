@@ -64,18 +64,22 @@ extension PhoneState {
     }
 
     /// New thought from a widget, control, the Action button, Back Tap, or Siri with Verbose in the background
-    /// (iOS 18 and later, `AudioRecordingIntent`): starts the thought and its Live Activity in place. True when both
-    /// started. False otherwise; the intent then opens Verbose, where the recorder shows the thought if it began.
+    /// (iOS 18 and later, `AudioRecordingIntent`): starts the thought's Live Activity, then the thought, in place
+    /// (`InPlaceRecording`: never the microphone first). True when both started. False otherwise, with nothing
+    /// recording; the intent then opens Verbose to the recorder.
     func startThoughtInPlace() -> Bool {
         guard case .inPlace = thoughtStartDecision() else { return false }
-        pendingThought = true
-        startRecording()
-        guard recorder.isRecording, recordingThought else { pendingThought = false; return false }
-        guard RecordingPresence.shared.startActivityNow() else {
-            Log.note("new thought: recording, but its Live Activity didn't start; opening Verbose")
-            return false
-        }
-        return true
+        let outcome = InPlaceRecording.start(
+            startActivity: { RecordingPresence.shared.startActivityBeforeRecording(thought: true) },
+            startRecording: {
+                pendingThought = true
+                startRecording()
+                if !recorder.isRecording { pendingThought = false }
+                return recorder.isRecording
+            },
+            endActivity: { RecordingPresence.shared.cancelActivityBeforeRecording() })
+        if case .openVerbose(let why) = outcome { Log.note("new thought: \(why); opening Verbose") }
+        return outcome == .recording
     }
 
     /// New thought a second time, or Stop: the thought joins today's page.
@@ -160,4 +164,13 @@ enum ThoughtSignal {
     static func fire() {
         if let app { app.requestThought() } else { pending = true }
     }
+
+    // MARK: Self-test (PhoneUITest.newThoughtIntentChecks)
+
+    /// A cold launch: as if New thought arrived before `PhoneState` attached.
+    static func detachForSelfTest() { app = nil; pending = false }
+    /// A request waiting for the app.
+    static var isPending: Bool { pending }
+    /// Attaches again without opening the recorder for the waiting request (the simulator has no microphone).
+    static func reattachForSelfTest(_ a: PhoneState) { pending = false; app = a }
 }

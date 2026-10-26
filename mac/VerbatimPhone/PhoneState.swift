@@ -247,6 +247,10 @@ final class PhoneState: ObservableObject {
         // The microphone can serve one of them: a voice memo ends the keyboard session.
         if session.isOn { session.end(reason: "The session ended for a voice memo. Tap to start a new one.") }
         guard !savingRecording else { say("Saving the last recording. Try again in a moment."); return }
+        // The Live Activity before the microphone, every time. A recording a widget, control, Siri, or the Action
+        // button started belongs to their audio recording intent even after it brings Verbose forward, and iOS 27
+        // closes the app when that intent's audio session turns on with no Live Activity showing (`InPlaceRecording`).
+        let activityFirst = RecordingPresence.shared.startActivityBeforeRecording(thought: pendingThought)
         do {
             let url = store.newRecordingURL()
             // A thought with Show words in the Dynamic Island keeps its live words going in the background.
@@ -268,23 +272,26 @@ final class PhoneState: ObservableObject {
         } catch {
             recordingWords.end()
             pendingThought = false
+            if activityFirst { RecordingPresence.shared.cancelActivityBeforeRecording() }
             say("Couldn't start recording: \(error.localizedDescription)")
         }
     }
 
-    /// The Action button's Record a voice note with Verbose in the background (iOS 18 and later, through
-    /// `AudioRecordingIntent`): starts the recording and its Live Activity in place, only when nothing needs asking
-    /// (the consent notice was seen and the microphone is allowed) and nothing else holds the microphone. True when
-    /// both started. False otherwise; the intent then opens Verbose, where the recorder shows the recording if it
-    /// began (and its Live Activity starts when Verbose comes forward).
+    /// The Action button's Record a voice note, or Record from a widget, with Verbose in the background (iOS 18 and
+    /// later, through `AudioRecordingIntent`): starts its Live Activity, then the recording, in place
+    /// (`InPlaceRecording`: never the microphone first), only when nothing needs asking (the consent notice was seen
+    /// and the microphone is allowed) and nothing else holds the microphone. True when both started. False
+    /// otherwise, with nothing recording; the intent then opens Verbose to the recorder.
     func startVoiceNoteInPlace() -> Bool {
         guard UserDefaults.standard.bool(forKey: Self.consentNoticeKey),
               AVAudioApplication.shared.recordPermission == .granted,
               !recordingActive, !savingRecording, !showCaptions else { return false }
-        startRecording()
-        guard recorder.isRecording else { return false }
-        guard RecordingPresence.shared.startActivityNow() else {
-            Log.note("action button: the voice note started, but its Live Activity didn't; opening Verbose")
+        let outcome = InPlaceRecording.start(
+            startActivity: { RecordingPresence.shared.startActivityBeforeRecording(thought: false) },
+            startRecording: { startRecording(); return recorder.isRecording },
+            endActivity: { RecordingPresence.shared.cancelActivityBeforeRecording() })
+        if case .openVerbose(let why) = outcome {
+            Log.note("action button: \(why); opening Verbose")
             return false
         }
         Log.note("action button: voice note started in place")
@@ -293,7 +300,15 @@ final class PhoneState: ObservableObject {
 
     /// Loads the speech model while you talk, so transcription starts the moment you stop. iOS clears it from
     /// memory when Verbatim is closed, so without this every recording would wait for it to load first.
+    ///
+    /// Not for a recording started in place from a widget, control, Siri, or the Action button with Verbose in the
+    /// background: loading the model there competes with the intent's start for the Neural Engine and the disk, and
+    /// the model loads when Verbose comes forward (`KeyboardSession.warmAhead`) or when transcription starts.
     func warmModel() {
+        guard UIApplication.shared.applicationState == .active else {
+            Log.note("speech model warm-up skipped: the recording started with Verbose in the background")
+            return
+        }
         let (engineId, model) = engineChoice
         guard engineId == "fluid" else { return }
         Task.detached(priority: .utility) { await FluidEngine.shared.warm(model: model) }

@@ -201,7 +201,7 @@ enum PhoneUITest {
                 app.libraryFilterRequest = "all"
                 // Thoughts (ThoughtsScreens.swift): today's page, the day arrows, and By day for Thoughts and Journal.
                 await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
-                if prefix == "p" { await newThoughtChecks(app) }
+                if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
                 if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
                     app.addFromLibrary = project.id
@@ -576,6 +576,44 @@ enum PhoneUITest {
         } else {
             Log.note("UITEST note: Live Activities are off in this simulator; a thought's activity wasn't started")
         }
+    }
+
+    /// The New thought widget's intent, run as a widget tap runs it (`NewThoughtIntent.run`, with Verbose's foreground
+    /// continuation stood in for). First a cold launch, before `PhoneState` attaches: the request waits and Verbose
+    /// opens. Then with the app running: a thought records in place behind its Live Activity, or, as in a simulator
+    /// with no microphone, Verbose opens with nothing recording and no Live Activity left. Either way, no trap.
+    private static func newThoughtIntentChecks(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") thoughts: \(name)") }
+        // A cold launch from the widget.
+        ThoughtSignal.detachForSelfTest()
+        var opened = false
+        do {
+            try await NewThoughtIntent.run { then in opened = true; await MainActor.run { then() } }
+            check("cold launch: New thought from the widget opens Verbose and waits for the app", opened && ThoughtSignal.isPending && !app.recorder.isRecording)
+        } catch {
+            check("cold launch: New thought from the widget doesn't throw (\(error))", false)
+        }
+        ThoughtSignal.reattachForSelfTest(app)
+
+        // The app running in the background, as when the widget is tapped.
+        opened = false
+        let activitiesBefore = Activity<VerbatimRecordingAttributes>.activities.count
+        do {
+            // The recorder isn't opened for real: the simulator has no microphone to ask for.
+            try await NewThoughtIntent.run { _ in opened = true }
+            let recording = app.recorder.isRecording && app.recordingThought
+            check("New thought from the widget records in place or opens Verbose", recording != opened)
+            if recording {
+                check("a thought recording in place has its Live Activity", Activity<VerbatimRecordingAttributes>.activities.contains { $0.attributes.isThought })
+                app.discardRecording()
+                try? await Task.sleep(nanoseconds: 800_000_000)
+            } else {
+                check("opening Verbose instead leaves no Live Activity behind", Activity<VerbatimRecordingAttributes>.activities.count <= activitiesBefore)
+            }
+        } catch {
+            check("New thought from the widget doesn't throw (\(error))", false)
+        }
+        app.pendingThought = false
     }
 
     /// Settings › Features › Thoughts, and its rows' values.
