@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Thoughts on the Mac",
+      "title": "Thoughts on the Mac and iPhone",
       "items": [
         "Mac: switching between Home, Library, and You is instant, with no overlap.",
         "Mac: Thoughts. Click the floating bubble or press ⌃⌥P in any app to say a thought, and click again to keep it. It lands on today's page with its time, and the app you're in stays in front.",
@@ -11,6 +11,13 @@
         "Mac: Library › By day shows Thoughts and Journal one page a day, with a calendar that marks the days you recorded.",
         "Mac: the Quick capture widget is now New thought, which starts a thought without opening Verbose, and a new Today's thoughts widget shows today's page.",
         "Mac: a dictation that doesn't paste is kept in Dictations, and ⌃⌘V still pastes it again.",
+        "iPhone: Thoughts. Tap New thought on today's page and say a thought. It lands on today's page with its time, like on the Mac.",
+        "iPhone: start a thought without opening Verbose from the New thought widget, the Lock Screen, Control Center, the Action button, or Siri (“New thought in Verbose”). The Dynamic Island shows your voice, your words, and Stop.",
+        "iPhone: every thought is saved as audio before it's transcribed, so none is lost. If transcription fails, tap Transcribe again.",
+        "iPhone: Library › By day shows Thoughts and Journal one page a day, with a calendar that marks the days you recorded. Use the arrows on a page to read earlier days, and tap a thought to edit it.",
+        "iPhone: the Quick capture widget is now New thought, and the new Today's thoughts widget shows today's last two thoughts. The Lock Screen widget shows only how many, never your words.",
+        "iPhone: Settings › Features › Thoughts shows each way in and how to set up the Action button and Back Tap.",
+        "iPhone: the Action button can start a thought. Choose New thought in Settings › Action button.",
         "The Idea kind is now called Thoughts.",
         "Settings shows the version as 1.0 beta with the build number, and What's new groups builds by version."
       ]
