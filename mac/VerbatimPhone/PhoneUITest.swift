@@ -72,6 +72,26 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 600_000_000)
     }
 
+    /// The iPhone's part: AirPods high-quality recording asked for on iOS 26, and Whisper Turbo with no Mac says so.
+    private static func noisyPhoneChecks(_ app: PhoneState) {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") noisy: \(name)") }
+        if #available(iOS 26, *) {
+            check("recording: AirPods high-quality recording is asked for", RecordingRoute.asksForHighQuality)
+        } else {
+            check("recording: before iOS 26, the session asks for HFP only", !RecordingRoute.asksForHighQuality)
+        }
+        check("recording: the session still allows Bluetooth (HFP fallback)", RecordingRoute.options().contains(.allowBluetooth))
+        Log.note("UITEST note: last recording route \(RecordingRoute.lastRoute ?? "none yet")")
+        if !app.macCanTranscribe {
+            var t = Transcript(title: "Self-test no Mac", source: .voiceMemo, sourceLabel: "Voice memo", duration: 5, audioFileName: "selftest-nomac.m4a", model: "")
+            t.segments = [Segment(start: 0, end: 5, text: "Hello.")]
+            app.store.add(t)
+            app.requestTurbo(t.id)
+            check("turbo: with no Mac, nothing waits (it says so instead)", app.store.transcript(t.id)?.rerunRequest == nil)
+            if let x = app.store.transcript(t.id) { app.store.delete(x) }
+        }
+    }
+
     private static func checksAndTour(_ app: PhoneState) {
         seed(app)
         keyboardChecks()
@@ -90,6 +110,11 @@ enum PhoneUITest {
         // Imports through the bundled FFmpeg (MKV) and files with several audio tracks (shared with the Mac).
         Task { @MainActor in
             await MediaImportSelfTest.run { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") import: \(name)") }
+            // Noisy recordings (shared with the Mac): Whisper Turbo's request, unclear chips, Reduce background noise.
+            await NoisyAudioChecks.run(store: app.store, player: app.player, start: nil, cancel: { app.cancel($0) }) { name, ok in
+                Log.note("UITEST \(ok ? "PASS" : "FAIL") noisy: \(name)")
+            }
+            noisyPhoneChecks(app)
         }
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)

@@ -57,7 +57,7 @@ Recordings of other people need their consent. Keep the folder out of iCloud if 
 
 ## The synthetic set
 
-`clips.json` defines 45 clips in 10 categories: short commands, emails, names and jargon from a fake Dictionary, numbers, dates, and money, negations, self-corrections, spoken punctuation, a long monologue (about a minute), silence (3 s of silence, and speech after 1 s of silence), and noise (white noise at 10 dB SNR, a second voice at 8 dB, and speech 24 dB quieter). `make-clips.sh` speaks them with macOS `say` (Samantha, plus Daniel or another English voice for some clips) at 16 kHz mono and mixes the silence and noise variants in Python with a fixed seed. No sox or ffmpeg is needed. The same macOS version gives the same audio, so changes in the numbers come from Verbatim, not the clips. A new macOS version or voice can shift them, and the report lists the voices used.
+`clips.json` defines 46 clips in 10 categories: short commands, emails, names and jargon from a fake Dictionary, numbers, dates, and money, negations, self-corrections, spoken punctuation, a long monologue (about a minute), silence (3 s of silence, and speech after 1 s of silence), and noise (white noise at 10 dB SNR, a second voice at 8 dB, speech 24 dB quieter, and a synthetic engine hum like a mower at 5 dB). `make-clips.sh` speaks them with macOS `say` (Samantha, plus Daniel or another English voice for some clips) at 16 kHz mono and mixes the silence and noise variants in Python with a fixed seed. No sox or ffmpeg is needed. The same macOS version gives the same audio, so changes in the numbers come from Verbatim, not the clips. A new macOS version or voice can shift them, and the report lists the voices used.
 
 Fields in `clips.json`:
 
@@ -68,7 +68,7 @@ Fields in `clips.json`:
 | `terms` | Dictionary words spoken in the clip, for name recall. |
 | `cleanupMustContain`, `cleanupMustNotContain` | Words checked in `light` and `medium` cleanup output, such as "wednesday" but not "tuesday". |
 | `voice` | `secondary` uses the second voice. |
-| `gen` | How to make the audio: `silence`, `lead-silence`, `white-noise` (`snrDb`), `babble` (`snrDb`, `babbleText`), or `quiet` (`gainDb`). |
+| `gen` | How to make the audio: `silence`, `lead-silence`, `white-noise` (`snrDb`), `babble` (`snrDb`, `babbleText`), `engine` (`snrDb`: a synthetic engine hum and brown noise, like a mower), or `quiet` (`gainDb`). |
 | `dictionary` (top level) | The Dictionary installed for every clip, including two distractor terms that are never spoken, so false insertions show up. |
 
 ## Metrics
