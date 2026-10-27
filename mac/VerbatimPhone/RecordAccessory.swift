@@ -64,6 +64,8 @@ struct NativeRecordButton: View {
     @EnvironmentObject var app: PhoneState
     var inline = false
     @ObservedObject private var auto = TemplateSettingsModel.shared
+    /// At accessibility text sizes the accessory drops its subtitle, so "Record" keeps its room.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         HStack(spacing: 4) {
@@ -74,7 +76,7 @@ struct NativeRecordButton: View {
                     NativeRecordDisc(size: inline ? 22 : 26)
                     VStack(alignment: .leading, spacing: 0) {
                         Text("Record").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.label)
-                        if !inline {
+                        if !inline, !typeSize.isAccessibilitySize {
                             Text("Voice note").font(.caption).foregroundStyle(NativeInk.secondary)
                         }
                     }
@@ -85,6 +87,7 @@ struct NativeRecordButton: View {
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
             } primaryAction: {
+                if RecordTray.shared.app == nil { RecordTray.shared.app = app }
                 RecordTray.shared.tap()
             }
             .menuStyle(.button)
@@ -161,6 +164,7 @@ struct NativeLiveAccessory: View {
     @EnvironmentObject var app: PhoneState
     @ObservedObject var live: LiveMeter
     var inline = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var paused: Bool { app.recorder.isPaused }
     private var saving: Bool { app.savingRecording }
@@ -176,7 +180,7 @@ struct NativeLiveAccessory: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("\(status) · \(RecorderPresentation.clock(live.elapsed))")
                             .font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(NativeInk.label)
-                        if !inline {
+                        if !inline, !typeSize.isAccessibilitySize {
                             Text(app.recordingChoice.name).font(.caption).foregroundStyle(NativeInk.secondary)
                         }
                     }
