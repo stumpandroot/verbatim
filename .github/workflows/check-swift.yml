@@ -234,6 +234,16 @@ jobs:
           # keyboard), an accepted guideline 4.4.1 risk (mac/APP_STORE.md). The loop above still covers the keyboard.
           echo "The App Store build compiles, with no undocumented interfaces beyond the keyboard's accepted openURL selector."
 
+      # The switch TestFlight falls back on (mac/APP_STORE.md, "Apple Watch"): VERBOSE_WATCH=NO generates a project whose
+      # iPhone app doesn't embed the watch app. Seconds, no build; the last step, since it replaces the project.
+      - name: The project without the Apple Watch app generates
+        if: matrix.target == 'iPhone'
+        run: |
+          VERBOSE_WATCH=NO bash tools/generate-project.sh
+          if grep -q "Embed Watch Content" Verbatim.xcodeproj/project.pbxproj; then echo "::error::VERBOSE_WATCH=NO still embeds the Apple Watch app"; exit 1; fi
+          xcodebuild -project Verbatim.xcodeproj -list > /dev/null
+          echo "Without the watch app, the iPhone app embeds nothing in a Watch folder; the project still lists every target."
+
   # The pure-logic tests (mac/tools/test-*.sh): no Xcode, so they run on Linux with Swift 6.1.2 from swift.org.
   logic:
     name: Logic tests (Linux)
