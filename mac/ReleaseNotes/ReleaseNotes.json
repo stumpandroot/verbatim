@@ -29,13 +29,6 @@
         "Mac and iPhone: a transcript without a kind shows a Kind menu, and Add a tag says Tag until you add one. While a link downloads, its card offers Cancel download and Keep downloading.",
         "Mac and iPhone: the 1:1 template has its own icon, and the Dictionary tile in the Native look no longer shares Journal's symbol. On iPhone, What's new lists what you can use on this iPhone first and folds Mac-only items under On your Mac.",
         "iPhone: screens, tabs, and rows appear at once, without rising or sliding in.",
-        "iPhone: a Haptics switch in Settings › Personalization and preferences turns off every tap Verbose plays, in the app, in the Verbose keyboard, and on your Apple Watch. Delete all data no longer buzzes.",
-        "iPhone: Record gives a gentle tap just before the microphone turns on, and Stop or Discard gives a softer tap the moment you tap it, instead of a buzz after saving. This works for voice notes, thoughts, Live captions, and keyboard sessions.",
-        "iPhone: Pause, Resume, and Mark tap while you record. Before, iOS silenced every tap while the microphone was on, so most recording taps never played.",
-        "iPhone: when a transcript is ready with Verbose open, you feel one success tap per recording, even when a template runs after it. When something goes wrong, such as the microphone not being allowed or a recording that can't be saved, you feel an error tap; an automatic pause or low storage gives a warning tap.",
-        "iPhone: every Copy, including transcripts, Ask, Actions, Export, Copy for AI, and Thoughts, gives the same light tick, as does a ribbon take that's copied or inserted.",
-        "iPhone: in the Verbose keyboard, starting a dictation and tapping Done give the same taps as Record and Stop in the app, and follow Verbose's Haptics switch. Typing keys tap only when you turn on Settings › Keyboard › Typing haptics. Keyboard taps need Allow Full Access.",
-        "Apple Watch: the taps for start, Mark, Stop, and a recording that can't start follow the Haptics switch on your iPhone. The start tap plays before the microphone turns on, so it isn't in the recording.",
         "iPhone: in Verbose style, Settings icons are neutral, Home's tiles take their color from what they do (Dictate butter, Import sage, What's playing petal) wherever you put them, and every button is a pill.",
         "iPhone: Recent recordings on Home lists your newest recordings first, by when you made them, as the Library does.",
         "iPhone: the Verbose style recorder puts Mark moment, Stop & transcribe, and Pause in the thumb row, as Premium Native does, shows your last two moments under the meter, and moves Discard under the row. Live words while you record start on a whole word.",
@@ -68,6 +61,21 @@
         "iPhone: in the Native look, Moments has a large title with the count under it and a segmented control for what to show, You shows your week, year, and stats as plain list sections, Today's page puts New thought in the toolbar, and the Tab bar preview shows Record above the tabs.",
         "iPhone and Mac: in the Native look, widgets are black, like Apple Music's, with white text and the red record disc as the only color, in light and dark mode.",
         "iPhone: with the Native look, the Verbose keyboard uses the system's blue for Tap to talk, the voice bars, and Done, with white text, like the system keyboard."
+      ]
+    },
+    {
+      "build": "232",
+      "date": "2026-10-27",
+      "version": "1.0 beta",
+      "title": "iPhone only: haptics",
+      "items": [
+        "iPhone: a Haptics switch in Settings › Personalization and preferences turns off every tap Verbose plays, in the app, in the Verbose keyboard, and on your Apple Watch. Delete all data no longer buzzes.",
+        "iPhone: Record gives a gentle tap just before the microphone turns on, and Stop or Discard gives a softer tap the moment you tap it, instead of a buzz after saving. This works for voice notes, thoughts, Live captions, and keyboard sessions.",
+        "iPhone: Pause, Resume, and Mark tap while you record. Before, iOS silenced every tap while the microphone was on, so most recording taps never played.",
+        "iPhone: when a transcript is ready with Verbose open, you feel one success tap per recording, even when a template runs after it. When something goes wrong, such as the microphone not being allowed or a recording that can't be saved, you feel an error tap; an automatic pause or low storage gives a warning tap.",
+        "iPhone: every Copy, including transcripts, Ask, Actions, Export, Copy for AI, and Thoughts, gives the same light tick, as does a ribbon take that's copied or inserted.",
+        "iPhone: in the Verbose keyboard, starting a dictation and tapping Done give the same taps as Record and Stop in the app, and follow Verbose's Haptics switch. Typing keys tap only when you turn on Settings › Keyboard › Typing haptics. Keyboard taps need Allow Full Access.",
+        "Apple Watch: the taps for start, Mark, Stop, and a recording that can't start follow the Haptics switch on your iPhone. The start tap plays before the microphone turns on, so it isn't in the recording."
       ]
     },
     {
