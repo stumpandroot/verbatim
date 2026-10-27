@@ -118,7 +118,7 @@ Google developer documentation style: second person, active voice, sentence case
 
 The on-device promise has one phrasing everywhere (Templates, Ask, You): "On this Mac with Apple Intelligence. Nothing leaves it." (or "Counted on this Mac. Nothing leaves it." where no model runs), then the clause specific to the place, in SF Pro 12.5 `dim`, never mono. A Copy that confirms says "✓ Copied" (§6.6).
 
-Every user-visible change adds a bullet to the `"next"` entry of `mac/ReleaseNotes/ReleaseNotes.json` in the same commit, in this style, present tense, with no exclamation points or em dashes. CI stamps that entry with the build's run number; after the build ships, a follow-up commit sets its build number (`mac/ReleaseNotes/README.md`). Both apps show the notes in What's new.
+Every user-visible change adds an item to the `"next"` entry of `mac/ReleaseNotes/ReleaseNotes.json` in the same commit: its platforms (`mac`, `iphone`, `watch`), one line of about 12 words (at most 90 characters), and, when it helps, a one-sentence detail (at most 200) that opens when the line is tapped or clicked. Write in this style, present tense, with no platform prefix, exclamation points, or em dashes. What's new lists each app's own platforms first and folds the rest under one "Also on" row. CI stamps that entry with the build's run number; after the build ships, a follow-up commit sets its build number (`mac/ReleaseNotes/README.md`). Both apps show the notes in What's new.
 
 ## 9. Website
 

@@ -695,6 +695,7 @@ enum UITest {
         await show("09l-settings-features")
         UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
         await show("09i-settings-whats-new")
+        await whatsNewOpened(suffix: "")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         app.go(.home)
@@ -807,6 +808,7 @@ enum UITest {
         await show("09d-settings-dictate-native")
         UserDefaults.standard.set(SettingsTab.whatsNew.rawValue, forKey: "settingsTab")
         await show("09i-settings-whats-new-native")
+        await whatsNewOpened(suffix: "-native")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         NSApp.windows.filter { $0 != window && $0.isVisible }.forEach { $0.close() }
         window.makeKeyAndOrderFront(nil)
@@ -1057,6 +1059,29 @@ enum UITest {
         Log.note("UITEST \(ok ? "PASS" : "FAIL") look switch to \(look.rawValue) shows the card, then the look (card \(shown ? "shown" : "missing"))")
         Log.note("UITEST TIMING look-switch \(Int(ms.rounded())) to=\(look.rawValue) screen=\(screen) rebuild=\(Int(LookSwitch.shared.lastRebuildMs.rounded()))")
         Log.note("UITEST look-switch marks to=\(look.rawValue) \(LookSwitch.shared.lastMarks)")
+    }
+
+    /// What's new with the Mac's items first: a line's detail opened, then the "Also on iPhone and Apple Watch" row
+    /// opened (WhatsNewPane.swift). Screens 09i2-settings-whats-new-detail<suffix> and 09i3-settings-whats-new-also<suffix>.
+    private static func whatsNewOpened(suffix: String) async {
+        WhatsNewSettingsPane.shownForTest = (false, false)
+        let top = ReleaseNotes.byVersion(ReleaseNotes.bundled).first?.notes ?? []
+        let hasDetail = top.contains { ReleaseNotes.summary($0.items, for: .mac).sections.contains { $0.items.contains { $0.detail != nil } } }
+        let hasAlso = top.contains { !ReleaseNotes.summary($0.items, for: .mac).also.isEmpty }
+        NotificationCenter.default.post(name: ReleaseNotes.showForTest, object: "detail")
+        await show("09i2-settings-whats-new-detail\(suffix)")
+        if hasDetail {
+            Log.note("UITEST \(WhatsNewSettingsPane.shownForTest.detail ? "PASS" : "FAIL") what's new: a line opens its detail\(suffix)")
+        }
+        NotificationCenter.default.post(name: ReleaseNotes.showForTest, object: "also")
+        await show("09i3-settings-whats-new-also\(suffix)")
+        if hasAlso {
+            Log.note("UITEST \(WhatsNewSettingsPane.shownForTest.also ? "PASS" : "FAIL") what's new: the iPhone and Apple Watch items open under Also on\(suffix)")
+        }
+        if let top = top.first {
+            let first = ReleaseNotes.summary(top.items, for: .mac).sections.first?.platform
+            Log.note("UITEST \(first == nil || first == .mac ? "PASS" : "FAIL") what's new: the Mac's items come first\(suffix)")
+        }
     }
 
     /// Home's note for the newest build in the notes, then Verbose › What's New… (the same action as clicking the
@@ -1473,7 +1498,7 @@ enum UITest {
         // The run starts in Verbose style (above), so this checks Verbose keeps its tokens; nativeChecks() checks Native.
         check("native look: Verbose style keeps its own tokens", !NativeSwap.on && NativeSwap.color(light: Ink.paperHex) == nil)
         // What's new: the bundled notes, their rules, when Home's note shows, and where it's found (ReleaseNotes.swift).
-        ReleaseNotes.selfTest { check($0, $1) }
+        ReleaseNotes.selfTest(app: .mac) { check($0, $1) }
         check("release notes: Settings search finds What's new", SettingsIndex.search("release notes").map(\.section).contains(.whatsNew))
 
         // Recent dictations: newest first, capped, one-line menu titles, number keys, and when the Ribbon keeps a missed paste

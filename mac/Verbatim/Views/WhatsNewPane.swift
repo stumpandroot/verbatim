@@ -6,16 +6,24 @@ import SwiftUI
 // About and General › Updates, and Home's note after an update). Every build's notes, newest first, from the bundled
 // ReleaseNotes.json (Model/ReleaseNotes.swift), grouped under version headers ("Version 1.0 beta"): the newest version
 // open, older ones closed until clicked. Verbose style: the pane's eyebrow and serif title, then a card per build with
-// a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and bullet items. Native: the bold title and a
-// grouped Form section per build, headed by the build.
+// a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and its items under serif platform labels. Native:
+// the bold title and a grouped Form section per build, headed by the build, with plain section labels. Either way the
+// Mac's items lead, the iPhone and Apple Watch ones fold under one "Also on iPhone and Apple Watch" row, and a line
+// with a detail opens it in place, without movement (`ReleaseNotes.summary`).
 
 struct WhatsNewSettingsPane: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     /// Versions clicked open or closed; the newest starts open and the rest closed.
     @State private var toggled: Set<String> = []
+    /// What the UI self-test's last `ReleaseNotes.showForTest` opened: a line's detail, and the "Also on" row.
+    static var shownForTest = (detail: false, also: false)
 
     var body: some View {
         let versions = ReleaseNotes.byVersion(notes)
+        let shown = versions.first?.notes ?? []
+        // The self-test opens the first line with a detail and the first "Also on" row in the newest version.
+        let detailTarget = shown.first { n in ReleaseNotes.summary(n.items, for: .mac).sections.contains { $0.items.contains { $0.detail != nil } } }?.id
+        let alsoTarget = shown.first { !ReleaseNotes.summary($0.items, for: .mac).also.isEmpty }?.id
         SettingsPane(tab: .whatsNew) {
             VStack(alignment: .leading, spacing: 22) {
                 if notes.isEmpty {
@@ -27,7 +35,7 @@ struct WhatsNewSettingsPane: View {
                         if toggled.contains(version.id) { toggled.remove(version.id) } else { toggled.insert(version.id) }
                     }
                     if open {
-                        ForEach(version.notes) { WhatsNewCard(note: $0) }
+                        ForEach(version.notes) { WhatsNewCard(note: $0, detailTarget: $0.id == detailTarget, alsoTarget: $0.id == alsoTarget) }
                     }
                 }
             }
@@ -75,49 +83,182 @@ struct WhatsNewVersionHeader: View {
 /// One build: Verbose style's card with the eyebrow inside, or Native's Form section with the build as its header.
 struct WhatsNewCard: View {
     var note: ReleaseNote
+    /// The UI self-test opens this card's first detail, or its "Also on" row (`ReleaseNotes.showForTest`).
+    var detailTarget = false
+    var alsoTarget = false
     @Environment(\.look) private var look
+    /// Lines whose detail is open, by index within their part ("mac", "also-iphone").
+    @State private var detailsOpen: Set<String> = []
+    @State private var alsoOpen = false
 
     var body: some View {
-        if look == .native {
-            SettingsGroup(title: note.heading) {
-                content.padding(.horizontal, 12).padding(.vertical, 10)
+        ScrollViewReader { proxy in
+            Group {
+                if look == .native {
+                    SettingsGroup(title: note.heading) {
+                        content.padding(.horizontal, 12).padding(.vertical, 10)
+                    }
+                    .accessibilityElement(children: .contain)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Eyebrow(text: note.heading)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(note.spokenHeading)
+                        content
+                    }
+                    .padding(.horizontal, 22).padding(.vertical, 18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .settingsCard()
+                }
             }
-            .accessibilityElement(children: .contain)
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Eyebrow(text: note.heading)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(note.spokenHeading)
-                content
+            .onReceive(NotificationCenter.default.publisher(for: ReleaseNotes.showForTest)) { n in
+                showForTest(n.object as? String, proxy: proxy)
             }
-            .padding(.horizontal, 22).padding(.vertical, 18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .settingsCard()
         }
     }
 
     private var content: some View {
         let native = look == .native
+        let sum = ReleaseNotes.summary(note.items, for: .mac)
         return VStack(alignment: .leading, spacing: native ? 6 : 8) {
             Text(note.title)
                 .font(native ? .system(size: 15, weight: .semibold) : Ink.serif(24))
                 .foregroundStyle(Ink.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            VStack(alignment: .leading, spacing: native ? 4 : 6) {
-                ForEach(Array(note.items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(Ink.mute).accessibilityHidden(true)
-                        Text(item).foregroundStyle(Ink.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .textSelection(.enabled)
+            ForEach(Array(sum.sections.enumerated()), id: \.element.id) { k, section in
+                platformLabel(section.title).padding(.top, k == 0 ? 0 : 6)
+                lines(section.items, part: section.id)
+            }
+            if !sum.also.isEmpty {
+                alsoRow(title: sum.alsoTitle, count: sum.alsoCount)
+                    .padding(.top, sum.sections.isEmpty ? 0 : 4)
+                    .id("\(note.id)|also")
+                if alsoOpen {
+                    ForEach(sum.also) { section in
+                        if sum.also.count > 1 { platformLabel(section.title) }
+                        lines(section.items, part: "also-" + section.id)
                     }
-                    .font(.system(size: native ? 13 : 14))
-                    .lineSpacing(native ? 1 : 3)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .transaction { $0.animation = nil }
+    }
+
+    /// A platform's label: the serif in Verbose style, a plain semibold label in Native. A header for VoiceOver.
+    private func platformLabel(_ title: String) -> some View {
+        let native = look == .native
+        return Text(title)
+            .font(native ? .system(size: 12, weight: .semibold) : Ink.serif(18))
+            .foregroundStyle(native ? Ink.mute : Ink.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// "Also on iPhone and Apple Watch" and how many items fold under it: click to show or hide them.
+    private func alsoRow(title: String, count: Int) -> some View {
+        let native = look == .native
+        return Button { alsoOpen.toggle() } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right").font(.system(size: native ? 9 : 10, weight: .semibold))
+                    .rotationEffect(.degrees(alsoOpen ? 90 : 0))
+                    .frame(width: 10)
+                Text(title).font(.system(size: native ? 12.5 : 13, weight: .semibold))
+                Text("\(count)").font(.system(size: native ? 12.5 : 13)).monospacedDigit()
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Ink.dim)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(count) item\(count == 1 ? "" : "s")")
+        .accessibilityValue(alsoOpen ? "Expanded" : "Collapsed")
+        .accessibilityHint(alsoOpen ? "Shows less" : "Shows more")
+        .accessibilityAddTraits(.isButton)
+        .help(alsoOpen ? "Hide these changes" : "Show the changes for your other devices")
+    }
+
+    private func lines(_ items: [ReleaseItem], part: String) -> some View {
+        let native = look == .native
+        return VStack(alignment: .leading, spacing: native ? 4 : 6) {
+            ForEach(Array(items.enumerated()), id: \.offset) { i, item in
+                line(item, key: "\(part)|\(i)")
+            }
+        }
+    }
+
+    /// One line: a bullet and the text. With a detail, the line is a button with a disclosure triangle that opens the
+    /// detail under it, without movement.
+    @ViewBuilder
+    private func line(_ item: ReleaseItem, key: String) -> some View {
+        let native = look == .native
+        if let detail = item.detail {
+            let open = detailsOpen.contains(key)
+            VStack(alignment: .leading, spacing: 3) {
+                Button {
+                    if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("•").foregroundStyle(Ink.mute).accessibilityHidden(true)
+                        Text(item.text).foregroundStyle(Ink.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: native ? 9 : 10, weight: .semibold))
+                            .foregroundStyle(Ink.mute)
+                            .rotationEffect(.degrees(open ? 90 : 0))
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 0)
+                    }
+                    .font(.system(size: native ? 13 : 14))
+                    .lineSpacing(native ? 1 : 3)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(item.text)
+                .accessibilityHint(open ? "Shows less" : "Shows more")
+                .accessibilityAddTraits(.isButton)
+                .help(open ? "Show less" : "Show more")
+                if open {
+                    Text(detail).font(.system(size: native ? 12 : 13)).foregroundStyle(Ink.dim)
+                        .lineSpacing(native ? 1 : 2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .padding(.leading, 16)
+                }
+            }
+            .id("\(note.id)|\(key)")
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•").foregroundStyle(Ink.mute).accessibilityHidden(true)
+                Text(item.text).foregroundStyle(Ink.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            .font(.system(size: native ? 13 : 14))
+            .lineSpacing(native ? 1 : 3)
+        }
+    }
+
+    /// The UI self-test's screenshots: "detail" opens this card's first line with a detail, "also" its "Also on" row,
+    /// when the pane chose this card for it, and scrolls to it.
+    private func showForTest(_ what: String?, proxy: ScrollViewProxy) {
+        let sum = ReleaseNotes.summary(note.items, for: .mac)
+        if what == "detail", detailTarget,
+           let section = sum.sections.first(where: { $0.items.contains { $0.detail != nil } }),
+           let i = section.items.firstIndex(where: { $0.detail != nil }) {
+            let key = "\(section.id)|\(i)"
+            detailsOpen.insert(key)
+            WhatsNewSettingsPane.shownForTest.detail = true
+            DispatchQueue.main.async { proxy.scrollTo("\(note.id)|\(key)", anchor: .center) }
+        } else if what == "also", alsoTarget, !sum.also.isEmpty {
+            alsoOpen = true
+            WhatsNewSettingsPane.shownForTest.also = true
+            DispatchQueue.main.async { proxy.scrollTo("\(note.id)|also", anchor: .top) }
+        }
     }
 }
 

@@ -8,12 +8,20 @@
   version [--project project.yml]
       The version a build of project.yml gets, as GitHub Actions outputs: marketing=1.0, channel=beta, and
       name=1.0 beta (../VERSIONING.md).
-  notes <json> --build N [--format html|markdown]
-      The entry for build N (or the "next" entry, in a checkout that wasn't stamped) as simple HTML for Sparkle's
-      update window or Markdown for the GitHub release. Prints nothing, and exits 0, when there's neither.
+  notes <json> --build N [--format html|markdown|testflight]
+      The entry for build N (or the "next" entry, in a checkout that wasn't stamped), sorted by platform: simple HTML
+      for Sparkle's update window (Mac first, then "Also on iPhone and Apple Watch"), Markdown for the GitHub release
+      (Mac, iPhone, and Apple Watch headings), or plain text for TestFlight's What to Test (iPhone, Apple Watch, then
+      "Also on Mac", within TestFlight's 4,000 characters). Prints nothing, and exits 0, when there's neither.
   check <json>
       Fails unless the file is well formed: titles and items present, numbered builds descending, at most one
-      "next", and it first.
+      "next", and it first; every item in "next" an object with valid platforms, a line of at most 90 characters, an
+      optional detail of at most 200, no "Mac:"-style prefix, and no em dash or exclamation point.
+
+Items are objects, {"platforms": ["iphone", "mac"], "text": "...", "detail": "..."}, or, in numbered entries only,
+strings from before platforms were recorded, whose "Mac:", "iPhone:", "Apple Watch:", or "Mac and iPhone:" style
+prefix gives their platforms (none: both apps). `summary` sorts a build's items for one app; every renderer, and the
+apps' own parser (Verbatim/Model/ReleaseNotes.swift, `ReleaseNotes.summary`), sorts them the same way.
 """
 import argparse
 import datetime
@@ -27,6 +35,92 @@ NEXT = "next"
 # Entries without a "version" belong to the first one: every build before versions were recorded was 1.0 beta.
 FIRST_VERSION = "1.0 beta"
 PROJECT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "project.yml")
+
+# Platforms, in the order the GitHub release lists them, and their names.
+PLATFORMS = ("mac", "iphone", "watch")
+NAMES = {"mac": "Mac", "iphone": "iPhone", "watch": "Apple Watch"}
+# Each app's own platforms, then the others it folds under "Also on ...". A change for both apps is in each app's own
+# section; in each list, an item goes under the first platform it names.
+APPS = {"iphone": (("iphone", "watch"), ("mac",)), "mac": (("mac",), ("iphone", "watch"))}
+TEXT_MAX, DETAIL_MAX = 90, 200
+# TestFlight's What to Test takes 4,000 characters.
+TESTFLIGHT_MAX = 4000
+# A string item's platform prefix: "Mac:", "iPhone:", "Apple Watch:", "Mac and iPhone:", "iPhone and Mac:", or a
+# platform and an area, such as "Mac Home:" (the area stays: "Home: ...").
+LEGACY = (("Mac and iPhone", ("iphone", "mac")), ("iPhone and Mac", ("iphone", "mac")), ("Apple Watch", ("watch",)),
+          ("iPhone", ("iphone",)), ("Mac", ("mac",)))
+LEGACY_RE = re.compile(r"^(Mac and iPhone|iPhone and Mac|Apple Watch|iPhone|Mac)(?: ([A-Za-z]+))?:\s+")
+
+
+def legacy_prefix(s):
+    """(platforms, text) for a string with a platform prefix, the prefix taken off; None without one."""
+    m = LEGACY_RE.match(s)
+    if not m:
+        return None
+    platforms = dict(LEGACY)[m.group(1)]
+    rest = s[m.end():]
+    area = m.group(2)
+    if area:
+        return list(platforms), area[0].upper() + area[1:] + ": " + rest
+    return list(platforms), capitalized(rest)
+
+
+def capitalized(s):
+    """The first letter in capitals, unless the first word already has one ("iPhone", "⌘K")."""
+    word = s.split(" ", 1)[0]
+    if not s or any(c.isupper() for c in word):
+        return s
+    return s[0].upper() + s[1:]
+
+
+def item_of(raw):
+    """An item as {"platforms", "text", "detail"}: an object as written (unknown platforms dropped; none counts as
+    both apps), or a string with its prefix read and taken off."""
+    if isinstance(raw, str):
+        found = legacy_prefix(raw.strip())
+        platforms, text = found if found else (["iphone", "mac"], raw.strip())
+        return {"platforms": platforms, "text": text, "detail": None}
+    raw = raw if isinstance(raw, dict) else {}
+    names = raw.get("platforms") if isinstance(raw.get("platforms"), list) else []
+    platforms = [p for p in names if isinstance(p, str) and p in PLATFORMS]
+    text = raw.get("text") if isinstance(raw.get("text"), str) else ""
+    detail = raw.get("detail") if isinstance(raw.get("detail"), str) and raw.get("detail").strip() else None
+    return {"platforms": platforms or ["iphone", "mac"], "text": text.strip(), "detail": detail.strip() if detail else None}
+
+
+def join_and(names):
+    """ "iPhone", "iPhone and Apple Watch", or "Mac, iPhone, and Apple Watch". """
+    if len(names) <= 2:
+        return " and ".join(names)
+    return ", ".join(names[:-1]) + ", and " + names[-1]
+
+
+def summary(raw_items, app):
+    """A build's items for one app ("iphone" or "mac"): (sections, also, also_title). `sections` are the app's own
+    platforms in order, each (platform, [items]); `also` the other platforms' items, folded under `also_title` ("Also
+    on Mac"). Each item appears once, under the first of the app's platforms it names, or else under the first other
+    platform it names; empty sections are left out. Verbatim/Model/ReleaseNotes.swift's `summary` matches it."""
+    own, other = APPS[app]
+    items = [item_of(r) for r in raw_items]
+    def first(item, order):
+        return next((p for p in order if p in item["platforms"]), None)
+    sections = [(p, [i for i in items if first(i, own) == p]) for p in own]
+    also = [(p, [i for i in items if first(i, own) is None and first(i, other) == p]) for p in other]
+    sections = [s for s in sections if s[1]]
+    also = [s for s in also if s[1]]
+    return sections, also, ("Also on " + join_and([NAMES[p] for p, _ in also])) if also else ""
+
+
+def by_platform(raw_items):
+    """Every platform with its items, in PLATFORMS order (the GitHub release): an item for two platforms is in both."""
+    items = [item_of(r) for r in raw_items]
+    out = [(p, [i for i in items if p in i["platforms"]]) for p in PLATFORMS]
+    return [s for s in out if s[1]]
+
+
+def line(item, detail=True):
+    """An item as one line: the text, then its detail when there is one and `detail` is on."""
+    return item["text"] + (" " + item["detail"] if detail and item["detail"] else "")
 
 
 def project_version(path):
@@ -96,10 +190,64 @@ def problems(data):
         if not isinstance(n.get("title"), str) or not n["title"].strip():
             out.append("%s has no title" % where)
         items = n.get("items")
-        if not isinstance(items, list) or not items or not all(isinstance(s, str) and s.strip() for s in items):
-            out.append("%s needs one or more items, each a non-empty string" % where)
+        if not isinstance(items, list) or not items:
+            out.append("%s needs one or more items" % where)
+        else:
+            for j, item in enumerate(items):
+                out.extend(item_problems(item, "%s, item %d" % (where, j + 1), build == NEXT))
     if nexts > 1:
         out.append("there are %d \"next\" entries; keep one" % nexts)
+    return out
+
+
+def item_problems(item, where, in_next):
+    """What's wrong with one item, as sentences. Strings are fine only in numbered entries (builds from before
+    platforms were recorded); objects follow the rules in README.md."""
+    if isinstance(item, str):
+        if in_next:
+            return ["%s is a string; write it as {\"platforms\": [...], \"text\": \"...\"} (README.md)" % where]
+        return [] if item.strip() else ["%s is empty" % where]
+    if not isinstance(item, dict):
+        return ["%s must be an object with platforms and text" % where]
+    out = []
+    extra = sorted(k for k in item if k not in ("platforms", "text", "detail"))
+    if extra:
+        out.append("%s has unknown keys: %s" % (where, ", ".join(extra)))
+    platforms = item.get("platforms")
+    if not isinstance(platforms, list) or not platforms:
+        out.append("%s needs platforms, a list of %s" % (where, ", ".join(PLATFORMS)))
+    else:
+        bad = [p for p in platforms if not (isinstance(p, str) and p in PLATFORMS)]
+        if bad:
+            out.append("%s: platforms must be %s, not %s" % (where, ", ".join(PLATFORMS), ", ".join(repr(b) for b in bad)))
+        if len(set(map(str, platforms))) != len(platforms):
+            out.append("%s names a platform twice" % where)
+    text = item.get("text")
+    if not isinstance(text, str) or not text.strip():
+        out.append("%s has no text" % where)
+    else:
+        out.extend(line_problems(text, where + "'s text", TEXT_MAX))
+        if LEGACY_RE.match(text.strip()):
+            out.append("%s starts with a platform (\"%s\"); platforms say that" % (where, text.split(":", 1)[0] + ":"))
+    if "detail" in item:
+        detail = item["detail"]
+        if not isinstance(detail, str) or not detail.strip():
+            out.append("%s: detail must be a sentence; leave it out when there's nothing to add" % where)
+        else:
+            out.extend(line_problems(detail, where + "'s detail", DETAIL_MAX))
+    return out
+
+
+def line_problems(s, where, limit):
+    out = []
+    if len(s) > limit:
+        out.append("%s is %d characters; keep it to %d" % (where, len(s), limit))
+    if "\u2014" in s:
+        out.append("%s has an em dash" % where)
+    if "!" in s:
+        out.append("%s has an exclamation point" % where)
+    if not (s.strip().endswith(".") or s.strip().endswith(".)")):
+        out.append("%s doesn't end with a period" % where)
     return out
 
 
@@ -138,16 +286,73 @@ def entry_for(data, build):
 
 def render(entry, fmt):
     title = entry.get("title", "").strip()
-    items = [s.strip() for s in entry.get("items", []) if isinstance(s, str) and s.strip()]
+    items = entry.get("items", []) if isinstance(entry.get("items"), list) else []
     if fmt == "markdown":
-        lines = (["**%s**" % title, ""] if title else []) + ["- %s" % s for s in items]
-        return "\n".join(lines)
-    parts = []
-    if title:
-        parts.append("<h3>%s</h3>" % html.escape(title, quote=False))
-    if items:
-        parts.append("<ul>%s</ul>" % "".join("<li>%s</li>" % html.escape(s, quote=False) for s in items))
+        return render_markdown(title, items)
+    if fmt == "testflight":
+        return render_testflight(title, items)
+    return render_html(title, items)
+
+
+def esc(s):
+    return html.escape(s, quote=False)
+
+
+def render_html(title, items):
+    """Sparkle's update window, which only the Mac app shows: the Mac's items (with details), then the rest under
+    "Also on iPhone and Apple Watch" (lines only)."""
+    sections, also, also_title = summary(items, "mac")
+    parts = ["<h3>%s</h3>" % esc(title)] if title else []
+    for p, its in sections:
+        parts.append("<h4>%s</h4><ul>%s</ul>" % (esc(NAMES[p]), "".join("<li>%s</li>" % esc(line(i)) for i in its)))
+    if also:
+        parts.append("<h4>%s</h4>" % esc(also_title))
+        for p, its in also:
+            if len(also) > 1:
+                parts.append("<p><b>%s</b></p>" % esc(NAMES[p]))
+            parts.append("<ul>%s</ul>" % "".join("<li>%s</li>" % esc(line(i, detail=False)) for i in its))
     return "".join(parts)
+
+
+def render_markdown(title, items):
+    """The GitHub release: a heading per platform (Mac, iPhone, Apple Watch); a change for two is under both."""
+    lines = (["**%s**" % title, ""] if title else [])
+    for p, its in by_platform(items):
+        lines += ["### %s" % NAMES[p], ""] + ["- %s" % line(i) for i in its] + [""]
+    return "\n".join(lines).rstrip("\n")
+
+
+def render_testflight(title, items, limit=TESTFLIGHT_MAX):
+    """TestFlight's What to Test, plain text: iPhone, Apple Watch, then "Also on Mac". Over `limit` characters, the
+    details go first, then the Mac's items from the end, with "And more." in their place."""
+    sections, also, also_title = summary(items, "iphone")
+    others = [(p, i) for p, its in also for i in its]
+
+    def build(detail, keep):
+        out = [title, ""] if title else []
+        for p, its in sections:
+            out += [NAMES[p]] + ["- " + line(i, detail) for i in its] + [""]
+        if others:
+            out.append(also_title)
+            last = None
+            for p, i in others[:keep]:
+                if len(also) > 1 and p != last:
+                    out.append(NAMES[p] + ":")
+                    last = p
+                out.append("- " + line(i, detail))
+            if keep < len(others):
+                out.append("- And more.")
+        return "\n".join(out).rstrip("\n")
+
+    text = build(True, len(others))
+    if len(text) <= limit:
+        return text
+    for keep in range(len(others), -1, -1):
+        text = build(False, keep)
+        if len(text) <= limit:
+            return text
+    # Even the iPhone's lines alone are too long: cut at the last whole line that fits.
+    return text[:limit].rsplit("\n", 1)[0]
 
 
 def main(argv=None):
@@ -161,10 +366,10 @@ def main(argv=None):
     s.add_argument("--project", default=PROJECT, help="project.yml to read the version from (default: ../project.yml)")
     v = sub.add_parser("version", help="print the version project.yml builds, as GitHub Actions outputs")
     v.add_argument("--project", default=PROJECT)
-    n = sub.add_parser("notes", help="print a build's entry as HTML or Markdown")
+    n = sub.add_parser("notes", help="print a build's entry as HTML, Markdown, or TestFlight's plain text")
     n.add_argument("json")
     n.add_argument("--build", required=True, type=int)
-    n.add_argument("--format", choices=("html", "markdown"), default="html")
+    n.add_argument("--format", choices=("html", "markdown", "testflight"), default="html")
     c = sub.add_parser("check", help="validate the file")
     c.add_argument("json")
     a = p.parse_args(argv)

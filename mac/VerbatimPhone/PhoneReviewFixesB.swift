@@ -80,9 +80,10 @@ extension PhoneUITest {
 
         // P-49: What's new leads with what this iPhone can use.
         if let next = ReleaseNotes.bundled.first {
-            let parts = ReleaseNotes.split(next.items, phone: true)
-            check("What's new on iPhone opens with an item for this iPhone", parts.here.first.map { !$0.hasPrefix("Mac:") } ?? (parts.other.count == next.items.count))
-            check("What's new keeps every item", parts.here.count + parts.other.count == next.items.count)
+            let sum = ReleaseNotes.summary(next.items, for: .phone)
+            check("What's new on iPhone opens with an item for this iPhone or Apple Watch",
+                  sum.sections.first.map { ReleaseApp.phone.own.contains($0.platform) } ?? (sum.alsoCount == next.items.count))
+            check("What's new keeps every item", sum.sections.reduce(0) { $0 + $1.items.count } + sum.alsoCount == next.items.count)
         }
 
         // P-50: Native Dictionary and Journal tiles differ.

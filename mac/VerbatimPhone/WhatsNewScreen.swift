@@ -3,22 +3,32 @@ import SwiftUI
 /// What's new (the version at the foot of Settings, search, and Home's note): every build's
 /// notes, newest first, from the bundled ReleaseNotes.json (Verbatim/Model/ReleaseNotes.swift), grouped under version
 /// headers ("Version 1.0 beta"): the newest version open, older ones closed until tapped. Verbose style: the compact
-/// serif title, then one card per build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and
-/// bullet items. Native: the large title and an inset grouped section per build, the build as its header.
+/// serif title, then one card per build with a mono eyebrow ("Build 203 · Oct 25"), its title in the serif, and its
+/// items under serif platform labels. Native: the large title and an inset grouped section per build, the build as
+/// its header and system footnote labels over each platform. Either way the items for this iPhone lead (iPhone, then
+/// Apple Watch), the Mac's fold under one "Also on Mac" row, and a line with a detail opens it in place, without
+/// movement (`ReleaseNotes.summary`).
 struct WhatsNewScreen: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     /// Versions tapped open or closed; the newest starts open and the rest closed.
     @State private var toggled: Set<String> = []
-    /// Builds whose "On your Mac" items are open.
-    @State private var macOpened: Set<String> = []
+    /// Builds whose "Also on Mac" items are open.
+    @State private var alsoOpened: Set<String> = []
+    /// Lines whose detail is open, by `lineKey`.
+    @State private var detailsOpen: Set<String> = []
+    @ScaledMetric(relativeTo: .body) private var itemSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .headline) private var labelSize: CGFloat = 17
     @Environment(\.look) private var look
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
     /// How many What's new screens are on screen, for the UI tour's checks. A count rather than a flag, so a screen
     /// that appears before the one it replaces has gone can't leave it stuck.
     static var onScreen = 0
     static var visible: Bool { onScreen > 0 }
+    /// What the UI tour's last `ReleaseNotes.showForTest` opened: a line's detail, and the "Also on" row.
+    static var shownForTest = (detail: false, also: false)
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if !look.isNative {
@@ -44,6 +54,10 @@ struct WhatsNewScreen: View {
                 }
             }
             .padding(.horizontal, look.isNative ? 16 : 20).padding(.bottom, 32)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ReleaseNotes.showForTest)) { n in
+            showForTest(n.object as? String, proxy: proxy)
+        }
         }
         .phonePage()
         .navigationTitle("What's new")
@@ -121,46 +135,144 @@ struct WhatsNewScreen: View {
         }
     }
 
-    /// The items for this iPhone first ("iPhone:", "Mac and iPhone:", then the rest), and the Mac-only ones folded
-    /// under "On your Mac", closed until tapped.
+    /// The items for this iPhone first (iPhone, then Apple Watch, each under its label), and the Mac's folded under
+    /// "Also on Mac", closed until tapped. Nothing here animates: a detail or the fold opens in place.
     private func items(_ note: ReleaseNote, size: CGFloat) -> some View {
-        let parts = ReleaseNotes.split(note.items, phone: true)
-        let macOpen = macOpened.contains(note.id)
+        let sum = ReleaseNotes.summary(note.items, for: .phone)
+        let alsoOpen = alsoOpened.contains(note.id)
         return VStack(alignment: .leading, spacing: 6) {
-            bullets(parts.here, size: size)
-            if !parts.other.isEmpty {
-                Button {
-                    if macOpen { macOpened.remove(note.id) } else { macOpened.insert(note.id) }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
-                            .rotationEffect(.degrees(macOpen ? 90 : 0))
-                        Text("On your Mac").font(.system(size: size - 1, weight: .semibold))
-                        Text("\(parts.other.count)").font(.system(size: size - 1)).monospacedDigit()
-                        Spacer(minLength: 0)
+            ForEach(Array(sum.sections.enumerated()), id: \.element.id) { k, section in
+                platformLabel(section.title).padding(.top, k == 0 ? 2 : 8)
+                lines(section.items, note: note, part: section.id)
+            }
+            if !sum.also.isEmpty {
+                alsoRow(note, title: sum.alsoTitle, count: sum.alsoCount, open: alsoOpen)
+                    .padding(.top, sum.sections.isEmpty ? 0 : 4)
+                    .id(Self.alsoKey(note))
+                if alsoOpen {
+                    ForEach(sum.also) { section in
+                        if sum.also.count > 1 { platformLabel(section.title) }
+                        lines(section.items, note: note, part: "also-" + section.id)
                     }
-                    .foregroundStyle(.lookDim)
-                    .frame(minHeight: 36)
+                }
+            }
+        }
+        .transaction { $0.animation = nil }
+    }
+
+    /// A platform's label: the serif in Verbose style, a system footnote header in Native. A header for VoiceOver.
+    private func platformLabel(_ title: String) -> some View {
+        Group {
+            if look.isNative {
+                Text(title).font(.footnote.weight(.semibold)).foregroundStyle(.lookMute)
+            } else {
+                Text(title).lookSerif(labelSize).foregroundStyle(.lookInk)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// "Also on Mac" and how many items fold under it: tap to show or hide them.
+    private func alsoRow(_ note: ReleaseNote, title: String, count: Int, open: Bool) -> some View {
+        Button {
+            if open { alsoOpened.remove(note.id) } else { alsoOpened.insert(note.id) }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                Text(title).font(.system(size: itemSize - 1, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(count)").font(.system(size: itemSize - 1)).monospacedDigit()
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.lookDim)
+            .frame(minHeight: 36)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(count) item\(count == 1 ? "" : "s")")
+        .accessibilityValue(open ? "Expanded" : "Collapsed")
+        .accessibilityHint(open ? "Shows less" : "Shows more")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func lines(_ items: [ReleaseItem], note: ReleaseNote, part: String) -> some View {
+        ForEach(Array(items.enumerated()), id: \.offset) { i, item in
+            line(item, key: Self.lineKey(note, part: part, index: i))
+        }
+    }
+
+    /// One line: a bullet and the text. With a detail, the line is a button with a disclosure chevron that opens the
+    /// detail under it, without movement.
+    @ViewBuilder
+    private func line(_ item: ReleaseItem, key: String) -> some View {
+        if let detail = item.detail {
+            let open = detailsOpen.contains(key)
+            VStack(alignment: .leading, spacing: 4) {
+                Button {
+                    if open { detailsOpen.remove(key) } else { detailsOpen.insert(key) }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
+                        Text(item.text).foregroundStyle(.lookInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: max(11, itemSize - 4), weight: .semibold))
+                            .foregroundStyle(look.isNative ? NativeInk.accent : Ink.mute)
+                            .rotationEffect(.degrees(open ? 90 : 0))
+                            .accessibilityHidden(true)
+                    }
+                    .font(.system(size: itemSize))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("On your Mac, \(parts.other.count) item\(parts.other.count == 1 ? "" : "s")")
-                .accessibilityValue(macOpen ? "Expanded" : "Collapsed")
+                .accessibilityLabel(item.text)
+                .accessibilityHint(open ? "Shows less" : "Shows more")
                 .accessibilityAddTraits(.isButton)
-                if macOpen { bullets(parts.other, size: size) }
+                if open {
+                    Text(detail).font(.system(size: itemSize - 1)).foregroundStyle(.lookDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 16)
+                }
             }
+            .id(key)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
+                Text(item.text).foregroundStyle(.lookInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.system(size: itemSize))
         }
     }
 
-    private func bullets(_ items: [String], size: CGFloat) -> some View {
-        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
-                Text(item).foregroundStyle(.lookInk)
-                    .fixedSize(horizontal: false, vertical: true)
+    static func lineKey(_ note: ReleaseNote, part: String, index: Int) -> String { "\(note.id)|\(part)|\(index)" }
+    static func alsoKey(_ note: ReleaseNote) -> String { "\(note.id)|also" }
+
+    /// The UI tour's screenshots: "detail" opens the first line with a detail in the newest version's builds, "also"
+    /// the first "Also on Mac" row, and either scrolls to it.
+    private func showForTest(_ what: String?, proxy: ScrollViewProxy) {
+        let shown = ReleaseNotes.byVersion(notes).first?.notes ?? []
+        if what == "detail" {
+            for note in shown {
+                let sum = ReleaseNotes.summary(note.items, for: .phone)
+                if let section = sum.sections.first(where: { $0.items.contains { $0.detail != nil } }),
+                   let i = section.items.firstIndex(where: { $0.detail != nil }) {
+                    let key = Self.lineKey(note, part: section.id, index: i)
+                    detailsOpen.insert(key)
+                    Self.shownForTest.detail = true
+                    DispatchQueue.main.async { proxy.scrollTo(key, anchor: .center) }
+                    return
+                }
             }
-            .font(.system(size: size))
+        } else if what == "also", let note = shown.first(where: { !ReleaseNotes.summary($0.items, for: .phone).also.isEmpty }) {
+            alsoOpened.insert(note.id)
+            Self.shownForTest.also = true
+            DispatchQueue.main.async { proxy.scrollTo(Self.alsoKey(note), anchor: .top) }
         }
     }
 }
