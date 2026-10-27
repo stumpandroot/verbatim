@@ -3,134 +3,91 @@ import AppKit
 
 // brand: native file
 //
-// A recording in Premium Native's lists (Home's Recent recordings and the Library), in the Voicenotes item style: the
-// date line, a bold title on up to two lines, two lines of what was said (or the kind and state when there's no text
-// yet), and a footer with the play pill and its length, the status, and ⋯. No box: items sit on the window with a
-// hairline between them. Click selects (the Library), double-click or Return opens, the play pill opens the
-// transcript and plays, and the row drags onto a project. The footer's buttons sit above the row's hit layer, never
-// inside it (macOS 26 click safety).
+// A recording as a row in Native's lists (the Library's List view and Home's Recent recordings), the way Mail lists
+// its inbox and Voice Memos its recordings (mockup "Verbose Native Redesign", sections 1 and 2): the title with the
+// time on the right, the kind, length, and people on the second line, and up to two lines of what was said. No box,
+// no buttons, no color: rows sit in a grouped section with inset separators. In the Library a click selects (the
+// system's gray selection), and a double-click, Return, or the inspector's Open Transcript opens; on Home a click
+// opens. Right-click has the row's menu (Play, Copy text, Add to project, Delete), and a row drags onto a project.
 
-struct PremiumRecordingItem: View {
+struct NativeRecordingRow: View {
+    enum Style { case library, home }
+
     @EnvironmentObject var app: AppState
     var transcript: Transcript
+    var style: Style = .library
     var selected = false
     /// A click on the row. Nil opens the transcript (Home).
     var onSelect: (() -> Void)? = nil
     var divider = true
+    /// Library rows under day headers show the time; listed flat (by length or title), the date too.
+    var showsDay = false
     @State private var hover = false
 
     var body: some View {
         let t = transcript
-        VStack(alignment: .leading, spacing: 0) {
-            Text(PremiumDateLine.line(t.createdAt)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
-            HStack(spacing: 5) {
-                if t.pinned { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
-                Text(t.title).font(.system(size: 15.5, weight: .semibold)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if t.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
+                Text(t.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(style == .library ? (showsDay ? NativeDateCell.text(t.createdAt) : Formats.style(date: .none, time: .short).string(from: t.createdAt))
+                     : HomeRecentStyle.length(t.duration))
+                    .font(.system(size: 12).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                    .opacity(style == .home && WebStatus.isTextOnly(t) ? 0 : 1)
             }
-            .padding(.top, 3)
-            secondLine.font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2).lineSpacing(1)
+            if style == .library { meta.font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1) }
+            preview.font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
-            // Room for the footer, which floats above the hit layer.
-            Color.clear.frame(height: 30).padding(.top, 9)
+            if style == .home { meta.font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1) }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, selected ? 14 : 0)
+        .padding(.horizontal, 14).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(selected ? PremiumInk.accentSoft : (hover ? PremiumInk.fill.opacity(0.6) : Color.clear))
-                .padding(.horizontal, selected || hover ? 0 : -10)
-        }
+        .background(selected ? NativeInk.selection : (hover ? Color.primary.opacity(0.035) : Color.clear))
         .overlay(alignment: .bottom) {
-            if divider && !selected { Rectangle().fill(PremiumInk.separator).frame(height: 0.5) }
+            if divider && !selected { NativeRowSeparator(leading: 14) }
         }
         .allowsHitTesting(false)
         .overlay { hitLayer }
-        .overlay(alignment: .bottomLeading) { footer.padding(.horizontal, selected ? 14 : 0).padding(.bottom, 12) }
         .contextMenu { RowMenu(transcript: t) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityHint(onSelect == nil ? "Opens the transcript." : "Selects it. Double-click to open.")
         .accessibilityAction { open() }
+        .accessibilityAction(named: "Play") { play() }
     }
 
-    /// What was said, or the kind and state when there's no text yet.
-    /// With the live progress (StageClock): only this line re-renders on a tick.
-    private var secondLine: some View {
-        LiveStage(transcript) { transcript in
-            let preview = PremiumPreview.text(transcript)
-            if !preview.isEmpty {
-                Text(preview)
-            } else {
-                // No day: the date line above already says it ("Today · 2:17 AM").
-                let parts = HomeRecentStyle.metaParts(transcript, style: HomeRecentStyle(transcript), compact: false, day: false)
-                parts.enumerated().reduce(Text(verbatim: "")) { out, p in
-                    let piece = p.element.failed ? Text(p.element.text).foregroundStyle(NativeInk.danger) : Text(p.element.text)
-                    return Text("\(out)\(p.offset > 0 ? " · " : "")\(piece)")
+    /// Library: "Meeting · 38:12 · Anika, Marcus". Home: "Meeting · Today, 9:00 AM". A transcription in progress or one
+    /// that needs a retry says so here.
+    private var meta: some View {
+        LiveStage(transcript) { t in
+            let state: Text? = {
+                switch t.status {
+                case .processing: return Text(t.stageText)
+                case .failed: return Text("Needs retry").foregroundStyle(NativeInk.danger)
+                case .ready: return nil
                 }
-            }
+            }()
+            let base = style == .library
+                ? NativeRowMeta.library(kind: NativeLibraryView.kind(t), length: WebStatus.isTextOnly(t) ? nil : NativeLibraryView.length(t.duration),
+                                        people: NativeLibraryView.people(t, projects: app.store.projectsByID))
+                : NativeRowMeta.home(kind: NativeLibraryView.kind(t), when: NativeDateCell.text(t.createdAt))
+            if let state { Text("\(base) · \(state)") } else { Text(base) }
         }
+    }
+
+    /// What was said, filler left out; nothing yet while it transcribes.
+    @ViewBuilder private var preview: some View {
+        let text = PremiumPreview.text(transcript)
+        if !text.isEmpty { Text(text) }
     }
 
     private var hitLayer: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-        return shape.fill(Color.white.opacity(0.001))
-            .contentShape(shape)
+        Rectangle().fill(Color.white.opacity(0.001))
+            .contentShape(Rectangle())
             .onHover { hover = $0 }
             .onTapGesture { tapped() }
             .onDrag { NSItemProvider(object: TranscriptDrag.payload([transcript.id]) as NSString) }
-    }
-
-    private var footer: some View {
-        HStack(spacing: 10) {
-            if transcript.audioFileName != nil && transcript.status == .ready {
-                Button { NativeNav.shared.play(transcript, app: app) } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "play.fill").font(.system(size: 10.5, weight: .bold))
-                        Text(HomeRecentStyle.length(transcript.duration)).font(.system(size: 13.5, weight: .semibold)).monospacedDigit()
-                    }
-                    .padding(.leading, 11).padding(.trailing, 13).frame(height: 30)
-                    .background {
-                        Capsule().fill(PremiumInk.card)
-                            .shadow(color: PremiumInk.shadow.opacity(0.6), radius: 4, y: 2)
-                            .overlay(Capsule().strokeBorder(PremiumInk.separator, lineWidth: 0.5))
-                    }
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .help("Open and play")
-                .accessibilityLabel("Play, \(HomeRecentStyle.length(transcript.duration))")
-            }
-            status
-            Spacer(minLength: 8)
-            Menu { RowMenu(transcript: transcript) } label: {
-                Image(systemName: "ellipsis").font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary)
-                    .frame(width: 28, height: 28).contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .accessibilityLabel("More for \(transcript.title)")
-        }
-    }
-
-    @ViewBuilder private var status: some View {
-        switch transcript.status {
-        case .processing:
-            LiveStage(transcript) { transcript in
-                HStack(spacing: 5) { ProgressView().controlSize(.mini); Text(transcript.stageText).lineLimit(1) }
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-        case .failed:
-            Label("Needs retry", systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(NativeInk.danger).lineLimit(1)
-        case .ready:
-            if transcript.document != nil {
-                Text("Cleaned").font(.system(size: 12)).foregroundStyle(PremiumInk.accentText)
-            } else if WebStatus.isTextOnly(transcript) {
-                Text("Text").font(.system(size: 12)).foregroundStyle(.secondary)
-            } else {
-                Text("Original").font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-        }
     }
 
     private func tapped() {
@@ -139,6 +96,11 @@ struct PremiumRecordingItem: View {
     }
 
     private func open() { app.go(.transcript(transcript.id)) }
+
+    private func play() {
+        guard transcript.audioFileName != nil, transcript.status == .ready else { open(); return }
+        NativeNav.shared.play(transcript, app: app)
+    }
 }
 
 /// The first lines of what was said, filler left out, remembered per transcript until its words change (lists ask on
@@ -159,12 +121,12 @@ enum PremiumPreview {
     }
 }
 
-/// Day headers for the Library's list: "Today", "Yesterday", then the date.
+/// Day headers for the Library's list: "Today", "Yesterday", then the date, as a grouped section's header.
 struct PremiumDayHeader: View {
     var title: String
     var body: some View {
-        Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.secondary)
-            .padding(.top, 14).padding(.bottom, 2)
+        Text(title).font(.system(size: 13, weight: .semibold))
+            .padding(.top, 16).padding(.bottom, 6).padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
     }

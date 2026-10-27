@@ -16,7 +16,7 @@ enum NativeRole: Equatable {
     case secondaryLabel
     /// Decorative text (`tertiaryLabelColor`).
     case tertiaryLabel
-    /// Tinted text: the Native accent (`Ink.nativeAccent`).
+    /// Tinted text: the system accent color (`controlAccentColor`), never persimmon.
     case accentText
     /// A selected or hovered row (`unemphasizedSelectedContentBackgroundColor`).
     case selection
@@ -65,23 +65,24 @@ enum NativeSymbols {
         }
     }
 
-    /// A Settings pane, by `SettingsTab` raw value.
+    /// A Settings pane, by `SettingsTab` raw value: the white glyph on its colored square (`NativeSettingsSquare`), so
+    /// filled variants where SF Symbols has one, as System Settings uses.
     static func settings(_ raw: String) -> String {
         switch raw {
         case "general": return "circle.lefthalf.filled"
         case "transcription": return "waveform"
-        case "dictate": return "keyboard"
-        case "floatingButton": return "smallcircle.filled.circle"
+        case "dictate": return "keyboard.fill"
+        case "floatingButton": return "rectangle.stack.fill"
         case "actions": return "wand.and.stars"
-        case "meetings": return "captions.bubble"
-        case "watched": return "folder"
-        case "storage": return "icloud"
-        case "privacy": return "lock"
-        case "account": return "person.crop.circle"
-        case "about": return "bubble.left"
-        case "features": return "square.grid.2x2"
+        case "meetings": return "captions.bubble.fill"
+        case "watched": return "folder.fill"
+        case "storage": return "icloud.fill"
+        case "privacy": return "hand.raised.fill"
+        case "account": return "person.crop.circle.fill"
+        case "about": return "text.bubble.fill"
+        case "features": return "square.grid.2x2.fill"
         case "whatsNew": return "sparkles"
-        default: return "gearshape"
+        default: return "gearshape.fill"
         }
     }
 

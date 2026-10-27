@@ -169,6 +169,15 @@ struct KindChip: View {
     }
 
     // brand: native begin
+    /// The Native capsule's tint: the system accent color on the Mac (DESIGN.md §13.2); the Native accent on iPhone.
+    private static var nativeTint: Color {
+        #if os(macOS)
+        return Color.accentColor
+        #else
+        return Ink.nativeAccent
+        #endif
+    }
+
     /// Native: a tinted menu capsule with the kind's symbol, or a gray "Kind" capsule when there's none.
     @ViewBuilder private func nativeLabel(_ h: CGFloat) -> some View {
         if let kind {
@@ -182,10 +191,10 @@ struct KindChip: View {
                 Text(kind.label).font(.system(size: compact ? 13 : 15, weight: .semibold))
                 Image(systemName: "chevron.down").font(.system(size: compact ? 9 : 10, weight: .bold))
             }
-            .foregroundStyle(Ink.nativeAccent)
+            .foregroundStyle(Self.nativeTint)
             .padding(.horizontal, compact ? 10 : 12)
             .frame(minHeight: h)
-            .background(Ink.nativeAccent.opacity(0.14), in: Capsule())
+            .background(Self.nativeTint.opacity(0.14), in: Capsule())
             .contentShape(Capsule())
         } else {
             HStack(spacing: 5) {
