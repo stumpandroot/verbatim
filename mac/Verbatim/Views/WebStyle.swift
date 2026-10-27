@@ -670,6 +670,100 @@ struct PillButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Text links and the segmented capsule
+
+/// The glyph a text link carries: an arrow after the words when it goes somewhere ("Today's page →"), a plus before
+/// them when it adds something in place ("+ Add a section").
+enum TextLinkGlyph { case arrow, plus }
+
+/// A text link (DESIGN.md §11): ink semibold 13 with a drawn arrow or plus, one line, never truncated. Persimmon
+/// text means Record, so links are never `accentText`. Native: plain accent text in title case.
+struct TextLink: View {
+    var title: String
+    var glyph: TextLinkGlyph = .arrow
+    var hint: String = ""
+    var action: () -> Void
+    @Environment(\.look) private var look
+
+    var body: some View {
+        Group {
+            if look == .native {
+                Text(NativeText.titleCase(title)).font(.system(size: 13)).foregroundStyle(Ink.nativeAccent)
+            } else {
+                HStack(spacing: 4) {
+                    if glyph == .plus { ArtIcon(art: .webPlus, size: 13, lineWidth: 1.5) }
+                    Text(title)
+                    if glyph == .arrow { ArtIcon(art: .webArrow, size: 13, lineWidth: 1.5) }
+                }
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+            }
+        }
+        .lineLimit(1).fixedSize()
+        .contentShape(Rectangle())
+        .tapArea(action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// One view switch for every screen (DESIGN.md §11.15): a soft wash capsule track with the chosen option as an ink
+/// pill and paper text (the transcript's modes, You's Week | Month, Templates' Library | Run automatically, By day,
+/// Export's formats). Each option takes clicks through a direct gesture and reads as a selected button to VoiceOver.
+/// Native: the system segmented control.
+struct SegmentedCapsule<T: Hashable>: View {
+    var label: String
+    var options: [T]
+    @Binding var selection: T
+    var title: (T) -> String
+    var small = false
+    /// A self-test target per option.
+    var target: ((T) -> String)? = nil
+    @Namespace private var ns
+    @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
+
+    var body: some View {
+        if look == .native {
+            Picker(label, selection: $selection) {
+                ForEach(options, id: \.self) { o in Text(NativeText.titleCase(title(o))).tag(o) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.self) { o in
+                let on = o == selection
+                Text(title(o))
+                    .font(.system(size: small ? 12 : 13.5, weight: .semibold))
+                    .foregroundStyle(on ? Ink.paper : Ink.ink)
+                    .lineLimit(1).fixedSize()
+                    .padding(.horizontal, small ? 12 : 16)
+                    .frame(height: small ? 24 : 30)
+                    .background {
+                        if on { Capsule().fill(Ink.ink).matchedGeometryEffect(id: "on", in: ns) }
+                    }
+                    .contentShape(Capsule())
+                    .tapArea { if selection != o { withAnimation(limitMotion ? nil : Motion.snap) { selection = o } } }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(title(o))
+                    .accessibilityAddTraits(on ? [.isButton, .isSelected] : [.isButton])
+                    .uiTarget(target?(o) ?? "segmented-\(title(o))")
+            }
+        }
+        .padding(small ? 3 : 4)
+        .background(Ink.chip, in: Capsule())
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+}
+
 // MARK: - Filter chips
 
 /// A filter chip (DESIGN.md §11): a soft rounded rectangle with the 4 pt button radius, a wash fill, and no border;
