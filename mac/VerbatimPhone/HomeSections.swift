@@ -3,7 +3,7 @@ import SwiftUI
 // Home's sections that both looks share on iPhone (Edit Home, mockup "premium", section 03): Last dictation, Projects,
 // Moments, and Queue, each Compact (one slim row or strip) or Large (the full card); the shortcut tiles' actions; and
 // the Edit Home button at the end of Home. Record, the tiles, This week, and Recent recordings are drawn by each
-// look's Home (HomeScreen.swift, PremiumHome.swift). Every view reads `\.look` and draws the look's clothes; the
+// look's Home (HomeScreen.swift, NativeHome.swift). Every view reads `\.look` and draws the look's clothes; the
 // Native branches are stock Apple and marked for the brand check.
 
 // MARK: - Spacing
@@ -26,9 +26,10 @@ enum HomeSpacing {
         return 12
     }
 
-    /// The sections Home draws: the layout's shown ones, without Queue while nothing is transcribing.
-    static func drawn(_ layout: HomeLayout, working: Bool) -> [HomeLayout.Item] {
-        layout.shown.filter { $0.section != .queue || working }
+    /// The sections Home draws: the layout's shown ones, without Queue while nothing is transcribing. Native draws no
+    /// Record section: Record is in the tab bar's accessory there (RecordAccessory.swift).
+    static func drawn(_ layout: HomeLayout, working: Bool, native: Bool = false) -> [HomeLayout.Item] {
+        layout.shown.filter { ($0.section != .queue || working) && !(native && $0.section == .record) }
     }
 }
 

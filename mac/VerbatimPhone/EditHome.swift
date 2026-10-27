@@ -27,6 +27,8 @@ struct EditHomeView: View {
 
     var body: some View {
         let layout = store.layout(hl)
+        // Native's Record lives in the tab bar's accessory, so Edit Home doesn't offer a Record section there.
+        let hidden = layout.hidden.filter { !(look.isNative && $0.section == .record) }
         List {
             Section {
                 intro
@@ -45,18 +47,16 @@ struct EditHomeView: View {
                 if look.isNative { Text("On Home") }
             }
             .listSectionSeparator(.hidden)
-            if !layout.hidden.isEmpty {
+            if !hidden.isEmpty {
                 Section {
                     if !look.isNative { PhoneListHeading(text: "Hidden") }
-                    ForEach(Array(layout.hidden.enumerated()), id: \.element.section) { i, item in
-                        row(item, layout: layout, first: i == 0, last: i == layout.hidden.count - 1)
+                    ForEach(Array(hidden.enumerated()), id: \.element.section) { i, item in
+                        row(item, layout: layout, first: i == 0, last: i == hidden.count - 1)
                     }
                 } header: {
                     if look.isNative { Text("Hidden") }
                 } footer: {
-                    if look.isNative, !layout.isVisible(.record) {
-                        Text("The record button beside the tab bar always starts a voice note.")
-                    }
+                    if look.isNative { Text("Record is in the tab bar on every tab.") }
                 }
                 .listSectionSeparator(.hidden)
             }
@@ -88,7 +88,12 @@ struct EditHomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .verbatimEditTabBar)) { note in
             editingTabBar = (note.object as? Bool) ?? true
         }
-        .onAppear { Self.visible = true }
+        .onAppear {
+            Self.visible = true
+            // The Record card retired from Native's Home (Record is in the tab bar's accessory): a layout that still
+            // shows it hides it, so Edit Home and Home agree.
+            if look.isNative, layout.isVisible(.record) { store.update(hl) { $0.setVisible(.record, false) } }
+        }
         .onDisappear { Self.visible = false }
     }
 

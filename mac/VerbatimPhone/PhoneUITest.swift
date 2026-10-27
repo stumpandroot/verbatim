@@ -1231,7 +1231,7 @@ enum PhoneUITest {
         var missing: [String] = []
         for e in SettingsSearchIndex.all where e.target == .row && !SettingsRowRegistry.isOnScreen(e.id) { missing.append(e.id) }
         // Rows that show only in one look or with a setting on.
-        var conditional: Set<String> = native ? [] : ["homeRecordCard"]
+        var conditional: Set<String> = []
         if !CloudCleanup.enabled { conditional.insert("cloudProvider") }
         let rowsChecked: Set<SettingsSubpage> = [.appearance, .speakers, .moreTranscription, .cloudCleanup, .tour, .widgets, .shortcuts]
         var pages: [SettingsSubpage] = []
@@ -1389,14 +1389,14 @@ enum PhoneUITest {
         check("a hidden section leaves Home (This week)", !after.isVisible(.week) && onScreen[.week] == nil)
         check("two sections swap places", order.count >= 2 && after.shown.prefix(2).map(\.section) == [order[1], order[0]])
         check("Home draws only the shown sections (\(onScreen.keys.map(\.rawValue).sorted().joined(separator: ", ")))",
-              Set(onScreen.keys) == Set(HomeSpacing.drawn(after, working: working()).map(\.section)))
+              Set(onScreen.keys) == Set(HomeSpacing.drawn(after, working: working(), native: look.isNative).map(\.section)))
         check("a size change reaches Home (tiles \(tileSize.rawValue))", onScreen[.tiles] == tileSize)
         check("a new tile reaches Home (Search for \(dropped.title))", HomeProbe.tiles.contains(.search) && !HomeProbe.tiles.contains(dropped))
         check("the other look keeps its own layout", store.layout(other) == HomeLayout.defaults(.phone, other))
         store.reset(hl)
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         check("Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.phone, hl)
-              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout(hl), working: working()).map(\.section)))
+              && Set(HomeProbe.sections.keys) == Set(HomeSpacing.drawn(store.layout(hl), working: working(), native: look.isNative).map(\.section)))
         // The same screen from Settings › Personalization › Customize Home (SettingsPages.swift).
         app.tab = .settings
         SettingsPage.open("customizeHome")
@@ -1725,7 +1725,7 @@ enum PhoneUITest {
               HomeScreen.tileFill(.dictate, in: edited) == PhoneInk.butter && HomeScreen.tileFill(.importMedia, in: edited) == PhoneInk.sage)
         check("Live captions keeps the outline (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
         // P-15: Recent recordings, newest first by date, no dictations.
-        let recent = PremiumHome.recentRecordings(app.store)
+        let recent = HomeScreen.recentRecordings(app.store)
         check("Recent recordings run newest first (P-15)", zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt }
               && !recent.contains(where: \.isDictation))
         // P-16: no "?" for a missing name.

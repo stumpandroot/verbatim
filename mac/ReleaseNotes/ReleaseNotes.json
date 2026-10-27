@@ -46,7 +46,8 @@
         "Mac: buttons, switches, links, and selections look the same across Verbose style: pills in sheets, toasts, onboarding, and Recently Deleted; one view switch for Templates, By day, Export, and You; ink text links; a leading plus on create buttons; and the outlined card for a selected row. Premium Native's warm glow fades out without a hard edge, and the on-device note reads the same in Templates, Ask, and You.",
         "iPhone: the Native look follows Apple's own apps more closely. Buttons, links, tabs, switches you turn on, and selection use the system accent (blue), red appears only for recording, and screens use the system's backgrounds, with no gradient cards, glows, or custom shadows.",
         "iPhone: in the Native look, Record sits in the tab bar's bottom accessory on every tab. Tap it to record a voice note, or touch and hold it to record a meeting, an interview, a journal entry, a talk, or a thought, or to dictate, open Live captions, or import. While you record, it shows the time with Pause and Stop, and a tap brings the recorder back.",
-        "iPhone: in the Native look, the recorder is a sheet like Voice Memos', with a large clock, a waveform under a red playhead, your words as they're heard, and Mark moment, Stop, and Pause. Swipe it down and the recording keeps going in the tab bar."
+        "iPhone: in the Native look, the recorder is a sheet like Voice Memos', with a large clock, a waveform under a red playhead, your words as they're heard, and Mark moment, Stop, and Pause. Swipe it down and the recording keeps going in the tab bar.",
+        "iPhone: in the Native look, Home is a list like Apple's own apps, with the date under the large title. Quick actions are rows with blue symbols, This week is one cell with the words, recordings, time saved, and the seven days, and recent recordings show what was said. The Record card setting is gone, because Record is always in the tab bar."
       ]
     },
     {

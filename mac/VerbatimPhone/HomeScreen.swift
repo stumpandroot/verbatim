@@ -84,6 +84,19 @@ struct HomeScreen: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
+    /// Recordings, imports, and links made this calendar week (dictations count on their own).
+    static func recordingsThisWeek(_ items: [Transcript], now: Date, calendar: Calendar = .current) -> Int {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return 0 }
+        return items.filter { !$0.isDictation && week.contains($0.createdAt) }.count
+    }
+
+    /// Recordings (not dictations), newest first by when they were made, as the Library sorts them. The store keeps
+    /// the order things were added, so a synced or imported older recording would otherwise show as recent (review
+    /// P-15). Worked out once per library change.
+    static func recentRecordings(_ store: Store) -> [Transcript] {
+        store.memo("phone.home.recent") { store.live.filter { !$0.isDictation }.sorted { $0.createdAt > $1.createdAt } }
+    }
+
     /// Whether anything is transcribing (Queue shows only then). One pass, without copying the library.
     static func working(_ store: Store) -> Bool {
         store.transcripts.contains { $0.deletedAt == nil && $0.status == .processing }
@@ -105,13 +118,12 @@ struct HomeScreen: View {
         }
     }
 
-    /// Native uses the navigation bar's large title and the account button; Record is in the tab bar's accessory.
+    /// Native: an inset grouped list under the large title, the date as the navigation subtitle, and the account
+    /// button; Record is in the tab bar's accessory (NativeHome.swift).
     private var nativeScreen: some View {
-        scroller {
-            nativeBody
-                .padding(.horizontal, 20).padding(.bottom, 24)
-        }
+        nativeBody
         .navigationTitle("Home")
+        .nativeSubtitle(HomeGreeting.dateLine(now))
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { nativeAccountButton }
@@ -383,7 +395,7 @@ struct HomeScreen: View {
     private var weekLarge: some View {
         let week = app.store.dictationWeek(now: now)
         let saved = Self.savedLabel(week.secondsSaved(typingWPM: flow.typingWPM))
-        let recordings = app.store.memo("recordings-this-week|\(Store.dayKey(now))") { PremiumHome.recordingsThisWeek(app.store.live, now: now) }
+        let recordings = app.store.memo("recordings-this-week|\(Store.dayKey(now))") { Self.recordingsThisWeek(app.store.live, now: now) }
         return Button { Self.openProfile(app) } label: {
             VStack(alignment: .leading, spacing: 10) {
                 PhoneEyebrow(text: "This week")
@@ -436,7 +448,7 @@ struct HomeScreen: View {
     /// Large: the two newest recordings as flat rows (a Clean up pill where there are filler words). Compact: the
     /// three newest as one-line rows with their length.
     private func recent(_ size: HomeCardSize) -> some View {
-        let items = Array(PremiumHome.recentRecordings(app.store).prefix(size == .large ? 2 : 3))
+        let items = Array(Self.recentRecordings(app.store).prefix(size == .large ? 2 : 3))
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 (Text("Recent ") + Text("recordings").italic())
@@ -532,10 +544,10 @@ struct HomeScreen: View {
 // MARK: - Native look
 // brand: native begin
 
-/// Home in Premium Native (PremiumHome.swift), with the account button: your initials on a gray disc.
+/// Home in Native (NativeHome.swift), with the account button: your initials on a gray disc.
 extension HomeScreen {
     var nativeBody: some View {
-        PremiumHome(now: now, layout: layouts.layout(.native), onEdit: { editingHome = true })
+        NativeHome(now: now, layout: layouts.layout(.native), onEdit: { editingHome = true })
     }
 
     /// Opens the You page. Your initials on a gray disc, or a person glyph with no name; never a "?", which reads as

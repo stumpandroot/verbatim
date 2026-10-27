@@ -76,8 +76,6 @@ enum SettingsSearchIndex {
               description: "The look: Verbose style or Native", target: .page(.appearance)),
         .init(id: "appearance", section: personalization, label: "Light or dark", keywords: ["appearance", "dark mode", "light mode", "theme", "night", "color"],
               description: "Match the system, light, or dark", target: .page(.appearance)),
-        .init(id: "homeRecordCard", section: personalization, label: "Show the Record card", keywords: ["record card", "home", "record button", "native"],
-              description: "Native: the Record card on Home", target: .page(.appearance)),
         .init(id: "customizeHome", section: personalization, label: "Customize Home", keywords: ["edit home", "home", "sections", "reorder", "tiles", "shortcut tiles", "compact", "large", "hide"],
               description: "Show, hide, reorder, and resize Home's sections", target: .page(.customizeHome)),
         .init(id: "tabBar", section: personalization, label: "Tab bar", keywords: ["tabs", "tab bar", "bottom bar", "thoughts tab", "journal tab", "moments", "projects", "dictations", "reorder", "customize"],
