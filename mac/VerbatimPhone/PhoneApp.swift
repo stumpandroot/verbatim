@@ -133,7 +133,8 @@ struct PhoneRoot: View {
         .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); AskRecipeCenter.shared.runDue() } }
+        // The Action button's control is named for the choice in Settings › Action button (ActionButtonScreen.swift).
+        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }

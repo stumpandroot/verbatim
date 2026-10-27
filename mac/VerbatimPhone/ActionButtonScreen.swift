@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import WidgetKit
 
 /// Settings › Action button (the notch mockup's section 06, and "Library features", section 3b): what the Action
 /// button does when "Verbose action" is its control (Dictate, Record a voice note, Record or mark, Live captions,
@@ -69,6 +70,19 @@ struct ActionButtonScreen: View {
         .phonePage()
         .navigationTitle("Action button")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: choiceRaw) { _, _ in ActionChoiceMirror.sync() }
+    }
+}
+
+/// Copies Settings › Action button's choice into the App Group and reloads the Action button's control, so the control
+/// is named for what it does ("Record or mark", `Ribbon.actionControl`). Runs when the choice changes and each time
+/// Verbose comes to the front.
+enum ActionChoiceMirror {
+    @MainActor static func sync() {
+        let raw = Ribbon.actionChoice(UserDefaults.standard.string(forKey: Ribbon.actionChoiceKey)).rawValue
+        guard let group = KeyboardBridge.defaults, group.string(forKey: Ribbon.actionChoiceKey) != raw else { return }
+        group.set(raw, forKey: Ribbon.actionChoiceKey)
+        if #available(iOS 18.0, *) { ControlCenter.shared.reloadControls(ofKind: Ribbon.actionControlKind) }
     }
 }
 
