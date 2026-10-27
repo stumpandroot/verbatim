@@ -59,9 +59,11 @@ struct LibraryView: View {
                                 if k == .idea || k == .journal {
                                     PillButton(title: "Read by day", kind: .line, size: .mini, trailing: .arrow,
                                                hint: "Opens \(k.plural) as one page a day.") { app.go(.byDay(k)) }
+                                        // The target is the pill itself, not the full-width row it's aligned in, so
+                                        // a click on the target's center lands on the pill.
+                                        .uiTarget("library-read-by-day")
                                         .frame(maxWidth: 760, alignment: .trailing)
                                         .padding(.top, 10)
-                                        .uiTarget("library-read-by-day")
                                 }
                             }
                             if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
