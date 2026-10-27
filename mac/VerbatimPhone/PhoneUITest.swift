@@ -626,15 +626,20 @@ enum PhoneUITest {
         await show("\(prefix)04n-ask\(suffix)")
         if checks {
             check("Library › Ask shows the answer with its three citations", center.result?.answer?.citations.count == 3)
-            center.responder = { _ in "Alex asked for a shorter headline [1]. Invented [7]." }
+            // The made-up number is past the most passages Ask ever gives the model (`AskRanker.limit`). Ask about … asks
+            // All, and in the tour's library All can give seven passages or more, so the [7] it used to cite could be real.
+            let invented = AskRanker.limit + 1
+            center.responder = { _ in "Alex asked for a shorter headline [1]. Invented [\(invented)]." }
             var path = NavigationPath()
             path.append(AskRoute(query: "What did Alex want changed on the homepage?"))
             app.libraryPath = NavigationPath()
             try? await Task.sleep(nanoseconds: 400_000_000)
             app.libraryPath = path
             for _ in 0..<24 where !(center.phase == .done && AskScreen.shown != nil) { try? await Task.sleep(nanoseconds: 250_000_000) }
-            check("Ask about … asks at once and keeps only valid citations", center.result?.state == .answered && center.result?.answer?.citations.count == 1
-                  && center.result?.answer?.plainText.contains("Invented") == false)
+            let asked = center.result
+            check("Ask about … asks at once and keeps only valid citations", asked?.state == .answered && asked?.answer?.citations.count == 1
+                  && asked?.answer?.plainText.contains("Invented") == false)
+            if let a = asked { Log.note("UITEST ask: Ask about … gave \(a.state) from \(a.passageCount) passages, \(a.answer?.citations.count ?? 0) citation(s)") }
             check("the footer says it answered on this iPhone", center.result?.footer(native: true).hasSuffix("answered on this iPhone.") == true)
             center.ask("What is the wifi password at the cabin?", scope: .all)
             for _ in 0..<24 where center.phase != .done { try? await Task.sleep(nanoseconds: 250_000_000) }
