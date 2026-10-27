@@ -1,0 +1,97 @@
+import SwiftUI
+
+// Self-test checks for the build 228 review fixes on iPhone, group B (Library, Dictations, Add from Library, Thoughts,
+// Templates, the transcript, Moments, Settings and You, the session screens, and Ask). Pure checks run with the
+// others at the start of the tour (`reviewFixesPhoneB`); the Journal tab's check runs in the tab bar tour, where the
+// Journal tab is on screen (`reviewFixesPhoneBJournalTab`).
+extension PhoneUITest {
+    @MainActor
+    static func reviewFixesPhoneB(_ app: PhoneState) {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") review fixes B: \(name)") }
+
+        // P-25, P-26: one row of four tiles in place of the stacked cards.
+        let tiles = LibraryWaysIn.tiles(dictations: 3, todayThoughts: 0, templates: 13, recipes: 0)
+        check("Library's ways in are one row: Dictations, By day, Templates, Ask", tiles.map(\.name) == ["Dictations", "By day", "Templates", "Ask"])
+        check("By day and Ask show no count at zero", tiles[1].count == nil && tiles[3].count == nil && tiles[0].count == 3)
+
+        // P-27: the type chips stay put.
+        check("type chips keep a fixed order and keep the chosen type",
+              LibraryScreen.fixedSources(library: [.videos, .voiceMemos], selected: .links) == [.voiceMemos, .videos, .links])
+        check("type chips never list All twice", !LibraryScreen.fixedSources(library: [.all, .voiceMemos], selected: .all).contains(.all))
+
+        // P-28: no empty or generic row titles.
+        var thought = Transcript(title: "", source: .voiceMemo, sourceLabel: PhoneState.thoughtSource, duration: 4, audioFileName: nil, model: "")
+        thought.kind = .idea
+        let thoughtTitle = PhoneRowTitle.title(thought)
+        check("an untitled thought's row says Thought and its time (\(thoughtTitle))", thoughtTitle.hasPrefix("Thought · ") && thoughtTitle.count > 10)
+        thought.title = "Thought"
+        check("a thought titled Thought gets its time too", PhoneRowTitle.title(thought).hasPrefix("Thought · "))
+        check("Premium's item, with the time on its date line, says Thought alone", PhoneRowTitle.title(thought, withTime: false) == "Thought")
+        let memo = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 4, audioFileName: nil, model: "")
+        check("a placeholder voice memo title reads Voice note and its time", PhoneRowTitle.title(memo).hasPrefix("Voice note · "))
+        let named = Transcript(title: "Catalog shoot plan", source: .voiceMemo, sourceLabel: "Voice memo", duration: 4, audioFileName: nil, model: "")
+        check("a real title stays as it is", PhoneRowTitle.title(named) == "Catalog shoot plan")
+
+        // P-29: Dictations' rows.
+        check("a dictation with no cleanup level and pasted words has no status line", PhoneDictationRow.statusLine(level: nil, notPasted: false) == nil)
+        check("the status line shows the level, and not pasted", PhoneDictationRow.statusLine(level: "Clean", notPasted: true) == "Clean · not pasted"
+              && PhoneDictationRow.statusLine(level: nil, notPasted: true) == "not pasted")
+        check("an app's square is its initial", PhoneDictationRow.initial("Messages") == "M" && PhoneDictationRow.initial(" ") == "K")
+
+        // P-31: Verbose thought times keep morning and afternoon apart.
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = .current
+        let now = Date()
+        let ten = cal.date(bySettingHour: 10, minute: 0, second: 0, of: now) ?? now
+        let three = cal.date(bySettingHour: 15, minute: 0, second: 0, of: now) ?? now
+        let us = Locale(identifier: "en_US"), uk = Locale(identifier: "en_GB")
+        check("12-hour English: 10:00a and 3:00p (\(ThoughtText.compactTime(ten, locale: us, calendar: cal)), \(ThoughtText.compactTime(three, locale: us, calendar: cal)))",
+              ThoughtText.compactTime(ten, locale: us, calendar: cal) == "10:00a" && ThoughtText.compactTime(three, locale: us, calendar: cal) == "3:00p")
+        check("24-hour English stays 15:00", ThoughtText.compactTime(three, locale: uk, calendar: cal) == "15:00")
+
+        // P-33: 1:1 has its own glyph.
+        let meeting = TemplateLibrary.scenarios.first { $0.glyph == TemplateGlyph.meeting }
+        let oneOnOne = TemplateLibrary.scenarios.first { $0.glyph == TemplateGlyph.oneOnOne }
+        check("Meeting notes and 1:1 have different icons", meeting != nil && oneOnOne != nil
+              && String(describing: meeting.map(\.art)) != String(describing: oneOnOne.map(\.art)))
+
+        // P-35: one meta line under the transcript's title.
+        var kinded = Transcript(title: "Call", source: .voiceMemo, sourceLabel: "Voice memo", duration: 40, audioFileName: nil, model: "")
+        kinded.kind = .meeting
+        check("a meeting's meta line names what it is once", TranscriptScreen.metaParts(kinded) == ["Voice note"])
+        var link = Transcript(title: "Walkthrough", source: .link, sourceLabel: "youtube.com", duration: 400, audioFileName: nil, model: "")
+        link.sourceURL = "https://www.youtube.com/watch?v=x"
+        check("a link without a kind doesn't repeat its site under the eyebrow", TranscriptScreen.metaParts(link).isEmpty)
+
+        // P-37: Clean up's chip.
+        check("Clean up reads Clean up while off, and its level once set",
+              PhoneDocument.cleanUpLabel(.none) == "Clean up" && PhoneDocument.cleanUpLabel(.light) == "Clean up · Light")
+
+        // P-42: the link card's buttons say what they do.
+        check("while downloading: Cancel download and Keep in background",
+              LinkAddedCard.cancelTitle(.downloading) == "Cancel download" && LinkAddedCard.doneTitle(.downloading) == "Keep in background")
+        check("once queued: Cancel and Done", LinkAddedCard.cancelTitle(.queued) == "Cancel" && LinkAddedCard.doneTitle(.queued) == "Done")
+
+        // P-44: the Action button page's lede.
+        check("the Action button lede has no Settings path in it", !ActionButtonScreen.lede.contains("›") && ActionButtonScreen.lede.hasPrefix("Choose what happens"))
+
+        // P-46: search calls Appearance by its name.
+        let look = SettingsSearchIndex.all.first { $0.id == "look" }
+        check("search names the look's page Appearance and still finds \"look\"", look?.label == "Appearance" && look?.keywords.contains("look") == true)
+
+        // P-49: What's new leads with what this iPhone can use.
+        if let next = ReleaseNotes.bundled.first {
+            let parts = ReleaseNotes.split(next.items, phone: true)
+            check("What's new on iPhone opens with an item for this iPhone", parts.here.first.map { !$0.hasPrefix("Mac:") } ?? (parts.other.count == next.items.count))
+            check("What's new keeps every item", parts.here.count + parts.other.count == next.items.count)
+        }
+
+        // P-50: Native Dictionary and Journal tiles differ.
+        check("Native Dictionary and Journal tiles have different symbols", HomeTile.dictionary.symbol != HomeTile.journal.symbol)
+    }
+
+    /// P-32: the Journal tab's root has no Thoughts and Journal switch.
+    @MainActor
+    static func reviewFixesPhoneBJournalTab() {
+        Log.note("UITEST \(ByDayScreen.switchShown == false ? "PASS" : "FAIL") review fixes B: the Journal tab has no Thoughts switch")
+    }
+}

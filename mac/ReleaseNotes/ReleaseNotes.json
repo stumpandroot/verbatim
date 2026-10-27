@@ -12,7 +12,13 @@
         "Mac and iPhone: recipes are questions you ask again. Run one now, or schedule it weekly on that device; its answers stay in Ask › Recipes with their citations. Recipes sync between your Mac and iPhone, and schedules stay on each device. Start from three suggestions, such as Weekly digest of my thoughts.",
         "Mac and iPhone: a scheduled recipe runs while Verbose is open, or the next time it opens after its time, once even if you missed several weeks. On iPhone, it can also run when iOS gives Verbose background time. You get a notification with the first line of the answer.",
         "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device.",
-        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers."
+        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers.",
+        "iPhone: the Library opens with one row of tiles for Dictations, By day, Templates, and Ask, so your recordings start higher up. The type chips stay in place when you pick a kind, and kinds, Pinned, In progress, and projects have a row of their own.",
+        "iPhone: a thought that's still transcribing shows Thought and its time instead of a blank title, and thought times in Verbose style show morning or afternoon, such as 10:00a and 3:00p. The Journal tab no longer switches itself to Thoughts.",
+        "iPhone: a transcript hides the tab bar while you read, and the player's play button and progress are sage. The header has one meta line; tap the data path chip for the source, engine, and time. The Cleaned tab's Clean up chip stays on one line.",
+        "iPhone: Dictations, Add from Library, Moments, You, Settings › Keyboard, About me, Your voice, and the Action button page use the same chips, rows, titles, and colors as the rest of the app. The keyboard session screens make going back to your app the main step.",
+        "Mac and iPhone: a transcript without a kind shows a Kind menu, and Add a tag says Tag until you add one. While a link downloads, its card offers Cancel download and Keep in background.",
+        "Mac and iPhone: the 1:1 template has its own icon, and the Dictionary tile in the Native look no longer shares Journal's symbol. On iPhone, What's new lists what you can use on this iPhone first and folds Mac-only items under On your Mac."
       ]
     },
     {
