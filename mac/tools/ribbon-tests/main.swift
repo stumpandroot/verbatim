@@ -145,7 +145,7 @@ check("once set, it stays", Ribbon.firstDictationDone(was: true, words: 0))
 check("the Action button dictates unless you choose otherwise", Ribbon.actionChoice(nil) == .dictate && Ribbon.actionChoice("nonsense") == .dictate)
 check("stored choices round-trip", Ribbon.ActionChoice.allCases.filter(\.available).allSatisfy { Ribbon.actionChoice($0.rawValue) == $0 })
 check("choice titles match the mockup", Ribbon.ActionChoice.allCases.map(\.title)
-      == ["Dictate", "Record a voice note", "Live captions", "What's playing", "New thought"])
+      == ["Dictate", "Record a voice note", "Record or mark", "Live captions", "What's playing", "New thought"])
 check("only dictation runs without opening Verbose", Ribbon.ActionChoice.allCases.filter { !$0.needsForeground } == [.dictate])
 check("each row says whether it works in place", Ribbon.ActionChoice.dictate.detail == "Starts or stops a take, in place."
       && Ribbon.ActionChoice.voiceNote.detail == "Opens Verbose." && Ribbon.ActionChoice.captions.detail == "Opens Verbose."
@@ -156,7 +156,9 @@ check("New thought keeps Quick capture's stored value", Ribbon.actionChoice("qui
 check("every choice can be chosen", Ribbon.ActionChoice.allCases.allSatisfy(\.available))
 check("the old stored choices keep their meaning", Ribbon.actionChoice("dictate") == .dictate && Ribbon.actionChoice("voiceNote") == .voiceNote
       && Ribbon.actionChoice("captions") == .captions)
-check("Settings row values", Ribbon.ActionChoice.allCases.map(\.shortTitle) == ["Dictate", "Voice note", "Captions", "What's playing", "New thought"])
+check("Settings row values", Ribbon.ActionChoice.allCases.map(\.shortTitle) == ["Dictate", "Voice note", "Record or mark", "Captions", "What's playing", "New thought"])
+check("Record or mark says what each press does", Ribbon.ActionChoice.recordOrMark.detail == "Starts a voice note. While it records, each press marks a moment."
+      && Ribbon.actionChoice("recordOrMark") == .recordOrMark && Ribbon.ActionChoice.recordOrMark.needsForeground)
 check("the copy is timeless", Ribbon.ActionChoice.allCases.allSatisfy { c in
     ["currently", "soon", "latest", "today"].allSatisfy { !(c.title + " " + c.detail).lowercased().contains($0) } })
 

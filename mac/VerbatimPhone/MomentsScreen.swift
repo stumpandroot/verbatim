@@ -117,8 +117,12 @@ struct PhoneMomentCard: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    IconGlyph(art: bookmark ? .iconPin : (note.aiAction != nil ? .iconAI : .iconNotes), size: 16, color: on)
+                    IconGlyph(art: note.isMark ? .iconMarked : bookmark ? .iconPin : (note.aiAction != nil ? .iconAI : .iconNotes), size: 16, color: on)
                     Text((note.at ?? 0).timecode).lookMono(12).foregroundStyle(on)
+                    // Marked while recording: where from ("Lock Screen", "Mac, ⌃⌥B").
+                    if let from = Marks.shortSource(note) {
+                        Text(from).font(.system(size: 13)).foregroundStyle(on).opacity(0.78).lineLimit(1)
+                    }
                     Spacer(minLength: 6)
                     ArtIcon(art: .iconPlay, size: 12, lineWidth: 1.4)
                         .foregroundStyle(on)
@@ -127,7 +131,7 @@ struct PhoneMomentCard: View {
                         .accessibilityHidden(true)
                 }
                 if bookmark {
-                    Text("“\(note.text)”").lookSerif(quoteSize).italic().foregroundStyle(on)
+                    Text("“\(Marks.words(note, in: transcript.segments))”").lookSerif(quoteSize).italic().foregroundStyle(on)
                         .lineSpacing(2).lineLimit(6).multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
@@ -147,7 +151,7 @@ struct PhoneMomentCard: View {
         .overlay { if !bookmark, !look.isNative { shape.strokeBorder(Ink.ink, lineWidth: 1.5) } }
         .contentShape(shape)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(bookmark ? "Bookmark" : "Note") at \((note.at ?? 0).timecode): \(note.text). \(transcript.title)")
+        .accessibilityLabel("\(bookmark ? "Bookmark" : "Note") at \((note.at ?? 0).timecode)\(Marks.shortSource(note).map { ", marked from \($0)" } ?? ""): \(Marks.words(note, in: transcript.segments)). \(transcript.title)")
         .accessibilityHint("Opens the transcript at this moment.")
     }
 }

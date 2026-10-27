@@ -105,6 +105,7 @@ enum PhoneUITest {
         homeActionChecks(app)
         recorderChecks(app)
         premiumChecks(app)
+        markChecks(app)
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
         // Imports through the bundled FFmpeg (MKV) and files with several audio tracks (shared with the Mac).
@@ -142,6 +143,12 @@ enum PhoneUITest {
                 app.recordingWords.seedForScreenshots()
                 app.openRecorder()
                 await show("\(prefix)02d-record-live-text")
+                // Mark a moment (mockup "Library features", section 3): two marked, then "Marked 4:12 · 3 moments".
+                app.recordingMoments = [RecordingMoment(at: 42, source: MarkSource.lockScreen.rawValue),
+                                        RecordingMoment(at: 118, source: MarkSource.island.rawValue)]
+                app.markMoment(source: .phoneApp)
+                await show("\(prefix)02f-record-marked")
+                app.recordingMoments = []
                 app.minimizeRecorder()
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 app.tab = .library
@@ -346,9 +353,12 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 800_000_000)
                 // Settings › Features › Thoughts: Ways in, the setup steps, and how a thought records.
                 await thoughtsSettingsTour(prefix: prefix, suffix: "", checks: prefix == "p")
-                // Settings › Action button: the five choices, which ones open Verbose, and the setup steps.
+                // Settings › Action button: the six choices (Record or mark among them), which ones open Verbose, and
+                // the Set up the Action button card.
+                UserDefaults.standard.set(Ribbon.ActionChoice.recordOrMark.rawValue, forKey: Ribbon.actionChoiceKey)
                 SettingsPage.open("actionButton")
                 await show("\(prefix)09e-action-button")
+                UserDefaults.standard.removeObject(forKey: Ribbon.actionChoiceKey)
                 SettingsPage.open("root")
                 try? await Task.sleep(nanoseconds: 800_000_000)
             }
@@ -388,7 +398,7 @@ enum PhoneUITest {
                 // microphone in the simulator), then the Saved sheet for a seeded recording (nothing is changed).
                 app.previewRecording = true
                 app.recorder.live.setElapsed(134)
-                app.recordingMoments = [RecordingMoment(at: 42), RecordingMoment(at: 118)]
+                app.recordingMoments = [RecordingMoment(at: 42, source: MarkSource.phoneApp.rawValue), RecordingMoment(at: 118, source: MarkSource.lockScreen.rawValue)]
                 app.openRecorder()
                 await show("\(prefix)02-record-native")
                 if prefix == "p" { lookCheck("the record flow opens Premium's full-screen recorder", PremiumRecorder.visible) }
@@ -759,7 +769,7 @@ enum PhoneUITest {
         check("a call pauses and resumes the session", Ribbon.audio(.running, .interruptionBegan, dictating: false).1 == .pause(saveTake: false)
               && Ribbon.audio(.paused, .interruptionEnded(shouldResume: false), dictating: false).1 == .reactivate)
         check("the Action button dictates by default", Ribbon.actionChoice(nil) == .dictate)
-        check("the Action button offers five choices", Ribbon.ActionChoice.allCases.count == 5)
+        check("the Action button offers six choices, Record or mark among them", Ribbon.ActionChoice.allCases.count == 6 && Ribbon.ActionChoice.allCases.contains(.recordOrMark))
         check("New thought can be chosen on iPhone (Quick capture's stored value)", Ribbon.ActionChoice.quickCapture.available && Ribbon.actionChoice("quickCapture") == .quickCapture)
         check("only Dictate works in place", Ribbon.ActionChoice.allCases.filter { !$0.needsForeground } == [.dictate])
 
@@ -1328,7 +1338,7 @@ enum PhoneUITest {
     }
 
     /// Premium Native's record flow and Home (PremiumRecord.swift, PremiumHome.swift): Mark moment saves a moment at
-    /// the elapsed time, moments become bookmarks (named or "Moment", offset when added to a transcript), the Record
+    /// the elapsed time, moments become bookmarks (named, or the line's words once transcribed; offset when added to a transcript), the Record
     /// card is off by default, and the gradients meet contrast (the full set runs on Linux, test-premium-phone.sh).
     static func premiumChecks(_ app: PhoneState) {
         var pass = 0, fail = 0
@@ -1346,8 +1356,9 @@ enum PhoneUITest {
         app.markMoment()
         check("Mark moment does nothing without a recording", app.recordingMoments.count == 1)
         app.recordingMoments = []
-        let notes = RecordingMoment.notes([RecordingMoment(at: 42), RecordingMoment(at: 118, name: "  The price  ")], offset: 600)
-        check("moments become bookmarks, unnamed ones called Moment", notes.map(\.text) == ["Moment", "The price"] && notes.allSatisfy(\.isBookmark))
+        let notes = RecordingMoment.notes([RecordingMoment(at: 42, source: MarkSource.phoneApp.rawValue), RecordingMoment(at: 118, name: "  The price  ", source: MarkSource.phoneApp.rawValue)], offset: 600)
+        check("moments become bookmarks; unnamed ones take their line's words once transcribed", notes.map(\.text) == ["", "The price"] && notes.allSatisfy(\.isBookmark)
+              && notes.allSatisfy { $0.markSource == MarkSource.phoneApp.rawValue })
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
         check("the Record card is off by default in Native", !HomeLayout.defaults(.phone, .native).isVisible(.record))
         check("settings search finds the Record card", SettingsSearchIndex.search("record card").flatMap(\.entries).contains { $0.id == "homeRecordCard" })
@@ -1356,6 +1367,50 @@ enum PhoneUITest {
         check("black on the dark accent keeps 7:1", PremiumRules.contrast(Ink.nativeAccentDarkHex, PremiumInk.onAccentDarkHex) >= 7)
         check("recorder clock", PremiumRules.recorderClock(134) == "02:14")
         Log.note("UITEST premium checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// Mark a moment (Model/Marks.swift, mockup "Library features", section 3): the shared rules, marks from each place
+    /// on the iPhone with their source and the 3-second dedupe, the confirmation, the Live Activity's state, and the
+    /// seeded transcript's mark on its line.
+    static func markChecks(_ app: PhoneState) {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") marks: \(name)")
+        }
+        MarkChecks.run(check)
+        app.recordingMoments = []
+        check("nothing recording, nothing marked", !app.markMoment(source: .island) && app.recordingMoments.isEmpty)
+        app.previewRecording = true
+        app.recorder.live.setElapsed(252)
+        check("the Island's Mark marks the elapsed time", app.markMoment(source: .island) && app.recordingMoments.last?.at == 252
+              && app.recordingMoments.last?.source == MarkSource.island.rawValue)
+        app.recorder.live.setElapsed(253.5)
+        _ = app.markMoment(source: .lockScreen)
+        check("a second mark within 3 seconds confirms the first", app.recordingMoments.count == 1 && app.lastMark?.at == 252 && app.lastMark?.count == 1)
+        app.recorder.live.setElapsed(300)
+        _ = app.markMoment(source: .actionButton)
+        check("the Action button's mark is its own moment", app.recordingMoments.count == 2 && app.recordingMoments.last?.source == "actionButton")
+        check("the confirmation reads Marked 5:00 · 2 moments", app.lastMark.map(Marks.confirmation) == "Marked 5:00 · 2 moments")
+        let state = VerbatimRecordingAttributes.ContentState.make(elapsed: 300, isPaused: false, pausedReason: nil)
+            .marked(count: 2, lastAt: 300, just: true)
+        check("the Live Activity counts the moments and says Marked 5:00", state.markCount == 2 && state.markedClock == "5:00" && state.marksLabel == "2 moments")
+        check("after two seconds the Island goes back to the time", state.marked(count: 2, lastAt: 300, just: false).markedClock == nil)
+        check("Record or mark is a choice for the Action button", Ribbon.ActionChoice.allCases.contains(.recordOrMark)
+              && Ribbon.ActionChoice.recordOrMark.title == "Record or mark")
+        check("Set up the Action button has the mockup's three steps", ActionButtonScreen.steps.count == 3 && ActionButtonScreen.steps[2].hasPrefix("Search for Verbose"))
+        app.previewRecording = false
+        app.recordingMoments = []
+        app.recorder.live.reset()
+        if let t = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }), let m = t.notes.first(where: \.isMark) {
+            let line = t.segments.first { $0.id == m.segmentId }
+            check("the seeded Lock Screen mark sits on its line, with the line's words", line?.text.hasPrefix("Fine. One hero") == true
+                  && m.at == line?.start && m.text == "Fine. One hero per product, three details, and a spec table.")
+            check("its chip reads Moment 0:24 · from the Lock Screen", Marks.chip(m) == "Moment 0:24 · from the Lock Screen")
+        } else {
+            check("the seeded transcript has a marked moment", false)
+        }
+        Log.note("UITEST marks checks: \(pass) passed, \(fail) failed")
     }
 
     /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).
@@ -1597,6 +1652,10 @@ enum PhoneUITest {
         let shoot = t.segments.first { $0.text.hasPrefix("Then we shoot") }!, spread = t.segments.first { $0.text.hasPrefix("And the folding") }!
         store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: shoot.id), to: t.id)
         store.addNote(Note(text: "Folding wagon spread", at: 31, segmentId: spread.id, isBookmark: true), to: t.id)
+        // A moment marked from the Lock Screen while it recorded, snapped to its line as a finished transcription does.
+        var mark = Note(text: "", at: 26, isBookmark: true)
+        mark.markSource = MarkSource.lockScreen.rawValue
+        store.update(t.id) { $0.notes = Marks.snap($0.notes + [mark], to: $0.segments) }
         seedArchive(store)
         seedThoughts(store)
     }

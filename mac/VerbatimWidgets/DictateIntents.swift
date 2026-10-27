@@ -193,11 +193,12 @@ struct CancelTakeIntent: LiveActivityIntent {
 
 /// What the Action button does when Verbose is its shortcut or control ("Verbose action", assigned once in iOS
 /// Settings › Action Button): the choice in Settings › Action button, Dictate unless you change it. Dictate works in
-/// place. A voice note and New thought try to start in place on iOS 18 and later and otherwise open Verbose; Live
+/// place. A voice note and New thought try to start in place on iOS 18 and later and otherwise open Verbose; Record or
+/// mark marks a moment in place while something records, and otherwise starts a voice note the same way; Live
 /// captions opens Verbose; What's playing opens Verbose and the system broadcast sheet.
 struct ActionButtonIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Verbose action button"
-    static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate, record a voice note, open live captions, transcribe what's playing, or start a thought.")
+    static var description = IntentDescription("Does what you chose in Verbose › Settings › Action button: dictate, record a voice note, record or mark a moment, open live captions, transcribe what's playing, or start a thought.")
     static var openAppWhenRun: Bool = false
     /// As for Dictate: unlock first on a locked iPhone.
     static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
@@ -220,7 +221,10 @@ extension ActionButtonIntent {
     /// press does (`PhoneUITest.actionButtonDictateChecks`). Dictate with no session opens Verbose to start one, marked
     /// as an audio recording intent's start: its Live Activity before the microphone, or Verbose asks first.
     static func run(choice: Ribbon.ActionChoice, openVerbose: (@escaping @MainActor () -> Void) async throws -> Void) async throws {
-        if #available(iOS 18.0, *), choice == .voiceNote {
+        // Record or mark (mockup "Library features", section 3b): while something records, a press marks a moment, in
+        // place; otherwise it starts a voice note, as Record a voice note does.
+        if choice == .recordOrMark, await MainActor.run(body: { RecordingControl.mark(MarkSource.actionButton.rawValue) }) { return }
+        if #available(iOS 18.0, *), choice == .voiceNote || choice == .recordOrMark {
             let started = await MainActor.run { ActionButtonSignal.startVoiceNoteInPlace() }
             if started { return }
         }

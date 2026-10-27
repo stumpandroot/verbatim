@@ -3,9 +3,13 @@ import WidgetKit
 import ActivityKit
 import AppIntents
 
-/// The recording's Live Activity. Lock Screen: the bars mark, "Voice note" in the serif, a mono timer that runs
-/// on its own, the state, and Pause or Resume and Stop. Dynamic Island compact: a persimmon dot (a pause glyph
-/// while paused) and the timer. Tapping anywhere else opens the recorder (verbatim://record).
+/// The recording's Live Activity (mockup "Library features", section 3a). Lock Screen, on paper: the bars mark,
+/// "Recording · Voice note", a mono timer that runs on its own, your voice, "Marked 4:12 · 3 moments so far" once
+/// you've marked one, and Mark, Pause or Resume, and Stop (the one persimmon fill). Dynamic Island compact: a persimmon
+/// dot (a pause glyph while paused) and the timer, or "Marked 4:12" and the count for two seconds after a mark;
+/// expanded: "Recording", the time, "Voice note", how many moments are marked, and Mark, Pause, and Stop. Mark runs
+/// `MarkMomentIntent` in Verbose's process without opening it. Tapping anywhere else opens the recorder
+/// (verbatim://record).
 ///
 /// A thought (mockup "Thoughts", section 06) draws its own: compact, persimmon voice bars and the time in mono;
 /// expanded, "New thought", the time, your last words (older ones dimmed; only with Show words in the Dynamic Island
@@ -21,8 +25,8 @@ struct RecordingLiveActivity: Widget {
                     RecordingLockScreen(title: context.attributes.title, state: context.state)
                 }
             }
-            .activityBackgroundTint(context.attributes.isThought ? Ink.paperFixed : Color(hex: Ink.inkHex))
-            .activitySystemActionForegroundColor(context.attributes.isThought ? Ink.inkFixed : Color(hex: Ink.paperHex))
+            .activityBackgroundTint(Ink.paperFixed)
+            .activitySystemActionForegroundColor(Ink.inkFixed)
             .widgetURL(recordLink)
         } dynamicIsland: { context in
             let thought = context.attributes.isThought
@@ -42,17 +46,23 @@ struct RecordingLiveActivity: Widget {
                             .accessibilityElement(children: .combine)
                         }
                     } else {
-                        HStack(spacing: 8) {
-                            RecordingDot(state: s).frame(width: 12, height: 12)
-                            Text(context.attributes.title).font(Ink.serif(17)).foregroundStyle(.white).lineLimit(1)
+                        HStack(spacing: 7) {
+                            if s.saved || s.isPaused {
+                                RecordingDot(state: s).frame(width: 12, height: 12)
+                            } else {
+                                ThoughtVoiceBars(level: s.level ?? 0.5, color: Ink.persimmon, count: 5).frame(width: 22, height: 18)
+                            }
+                            Text(s.saved ? "Saved" : s.isPaused ? "Paused" : "Recording").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                                .lineLimit(1).fixedSize()
                         }
                         .padding(.leading, 4)
+                        .accessibilityElement(children: .combine)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if !(thought && s.saved) {
                         RecordingTimer(state: s)
-                            .font(Ink.mono(thought ? 14 : 17, weight: .medium)).foregroundStyle(.white)
+                            .font(Ink.mono(14, weight: .medium)).foregroundStyle(.white)
                             .frame(maxWidth: 90, alignment: .trailing)
                             .padding(.trailing, 4)
                     }
@@ -71,16 +81,27 @@ struct RecordingLiveActivity: Widget {
                             .padding(.horizontal, 4)
                         }
                     } else {
-                        HStack(spacing: 10) {
-                            Text(s.status).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).lineLimit(2)
-                            Spacer(minLength: 8)
-                            if !s.saved { RecordingButtons(state: s) }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(context.attributes.title).font(Ink.serif(18)).foregroundStyle(Ink.onBlack).lineLimit(1)
+                            Text(islandLine(s)).font(.system(size: 13)).foregroundStyle(Ink.onBlackDim).lineLimit(2)
+                            if !s.saved {
+                                HStack(spacing: 8) {
+                                    MarkButton(onDark: true, source: "island")
+                                    PauseButton(state: s, onDark: true)
+                                    Spacer(minLength: 6)
+                                    StopButton(wide: false)
+                                }
+                                .padding(.top, 12)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 4)
                     }
                 }
             } compactLeading: {
-                if thought {
+                if let clock = s.markedClock {
+                    MarkedCompact(clock: clock)
+                } else if thought {
                     if s.saved {
                         Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.persimmon)
                             .accessibilityLabel(ThoughtRules.savedTitle)
@@ -91,7 +112,10 @@ struct RecordingLiveActivity: Widget {
                     RecordingDot(state: s).frame(width: 10, height: 10)
                 }
             } compactTrailing: {
-                if thought, s.saved, let at = s.savedAt {
+                if s.markedClock != nil {
+                    Text(s.marksLabel).font(Ink.mono(12, weight: .medium)).foregroundStyle(Ink.onBlackDim)
+                        .lineLimit(1).fixedSize()
+                } else if thought, s.saved, let at = s.savedAt {
                     Text(at, format: .dateTime.hour().minute()).font(Ink.mono(12, weight: .medium)).foregroundStyle(.white)
                         .lineLimit(1).frame(width: 52, alignment: .trailing)
                 } else {
@@ -102,7 +126,10 @@ struct RecordingLiveActivity: Widget {
                         .frame(width: thought ? 40 : 52, alignment: .trailing)
                 }
             } minimal: {
-                if thought {
+                if s.markedClock != nil {
+                    Image("marked").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.butterFixed)
+                        .accessibilityLabel("Marked")
+                } else if thought {
                     Image("thought").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.persimmon)
                         .accessibilityLabel(s.saved ? ThoughtRules.savedTitle : ThoughtRules.activityTitle)
                 } else {
@@ -117,32 +144,133 @@ struct RecordingLiveActivity: Widget {
 
 private let recordLink = URL(string: "verbatim://record")!
 
+/// The expanded Island's line under the title: the pause reason, how many moments are marked, or "Saved as you go".
+private func islandLine(_ s: VerbatimRecordingAttributes.ContentState) -> String {
+    if s.saved || s.isPaused { return s.status }
+    return s.markCount > 0 ? "\(s.marksLabel) marked" : "Saved as you go"
+}
+
+/// A voice note on the Lock Screen, on paper (mockup "Library features", section 3a): the bars mark, "Recording ·
+/// Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"), and Mark,
+/// Pause, and Stop. Saved: a check and "Saved. Transcribing on this iPhone."
 private struct RecordingLockScreen: View {
     var title: String
     var state: VerbatimRecordingAttributes.ContentState
-    private let paper = Color(hex: Ink.paperHex)
+    private let ink = Ink.inkFixed
 
     var body: some View {
-        HStack(spacing: 12) {
-            BarsMark(color: Ink.persimmon).frame(width: 28, height: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    RecordingDot(state: state).frame(width: 8, height: 8)
-                    Text(title).font(Ink.serif(17)).foregroundStyle(paper).lineLimit(1)
-                }
-                RecordingTimer(state: state)
-                    .font(Ink.mono(26, weight: .medium)).foregroundStyle(paper)
-                Text(state.status).font(.system(size: 13)).foregroundStyle(paper.opacity(0.75)).lineLimit(2)
-            }
-            Spacer(minLength: 8)
+        VStack(alignment: .leading, spacing: 8) {
             if state.saved {
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 28)).foregroundStyle(Ink.persimmon)
-                    .accessibilityLabel("Saved")
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(ink).accessibilityHidden(true)
+                    Text(state.status).font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                }
+                .accessibilityElement(children: .combine)
             } else {
-                RecordingButtons(state: state)
+                HStack(spacing: 8) {
+                    BarsMark(color: Ink.persimmonFixed).frame(width: 18, height: 18)
+                    Text(state.isPaused ? (state.pausedReason ?? "Paused") : "Recording · \(title)")
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                    Spacer(minLength: 8)
+                    RecordingTimer(state: state).font(Ink.mono(15, weight: .medium)).foregroundStyle(ink)
+                        .frame(width: 70, alignment: .trailing)
+                }
+                ThoughtVoiceBars(level: state.level ?? 0.5, color: Ink.persimmonFixed, count: 34).frame(height: 22)
+                if state.markCount > 0, let at = state.markedAt {
+                    HStack(spacing: 6) {
+                        Image("marked").font(.system(size: 13, weight: .medium)).accessibilityHidden(true)
+                        Text("Marked").font(.system(size: 13, weight: .semibold))
+                        Text(VerbatimRecordingAttributes.clock(at)).font(Ink.mono(13, weight: .medium))
+                        Text("· \(state.marksLabel) so far").font(.system(size: 13)).foregroundStyle(ink.opacity(0.8))
+                    }
+                    .foregroundStyle(ink)
+                    .lineLimit(1).minimumScaleFactor(0.85)
+                    .accessibilityElement(children: .combine)
+                } else {
+                    Text("Saved as you go").font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                }
+                HStack(spacing: 8) {
+                    MarkButton(onDark: false, source: "lockScreen")
+                    PauseButton(state: state, onDark: false)
+                    StopButton(wide: true)
+                }
             }
         }
-        .padding(16)
+        .padding(14)
+    }
+}
+
+/// Mark: an outlined pill with the Mark symbol (exported from BrandArt's iconMark). Runs in Verbose's process.
+private struct MarkButton: View {
+    var onDark: Bool
+    var source: String
+    var body: some View {
+        Button(intent: MarkMomentIntent(source: source)) {
+            HStack(spacing: 7) {
+                Image("mark").font(.system(size: 15, weight: .medium))
+                Text("Mark").font(.system(size: 15, weight: .semibold)).lineLimit(1)
+            }
+            .foregroundStyle(onDark ? Ink.onBlack : Ink.inkFixed)
+            .padding(.horizontal, 15).frame(height: onDark ? 38 : 40)
+            .overlay(Capsule().strokeBorder(onDark ? Ink.onBlackHair : Ink.inkFixed, lineWidth: 1.5))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Mark a moment")
+        .accessibilityHint("Saves this point in the recording as a moment")
+    }
+}
+
+/// Pause or Resume: an outlined circle.
+private struct PauseButton: View {
+    var state: VerbatimRecordingAttributes.ContentState
+    var onDark: Bool
+    var body: some View {
+        Button(intent: ToggleRecordingPauseIntent()) {
+            Image(systemName: state.isPaused ? "play.fill" : "pause.fill").font(.system(size: 13, weight: .semibold))   // brand: system surface
+                .foregroundStyle(onDark ? Ink.onBlack : Ink.inkFixed)
+                .frame(width: onDark ? 38 : 40, height: onDark ? 38 : 40)
+                .overlay(Circle().strokeBorder(onDark ? Ink.onBlackHair : Ink.inkFixed, lineWidth: 1.5))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(state.isPaused ? "Resume" : "Pause")
+    }
+}
+
+/// Stop: the one persimmon fill, with an ink square and "Stop" in ink.
+private struct StopButton: View {
+    var wide: Bool
+    var body: some View {
+        Button(intent: StopRecordingIntent()) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Ink.inkFixed).frame(width: 10, height: 10)
+                Text("Stop").font(.system(size: 15, weight: .bold)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+            }
+            .padding(.horizontal, wide ? 0 : 18)
+            .frame(maxWidth: wide ? .infinity : nil)
+            .frame(height: wide ? 40 : 38)
+            .background(Ink.persimmonFixed, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Stop")
+        .accessibilityHint("Saves the recording and transcribes it")
+    }
+}
+
+/// The compact Island for two seconds after a mark: the Marked symbol in butter, "Marked", and the time.
+private struct MarkedCompact: View {
+    var clock: String
+    var body: some View {
+        HStack(spacing: 5) {
+            Image("marked").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.butterFixed)
+            Text("Marked").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.onBlack)
+            Text(clock).font(Ink.mono(13, weight: .medium)).foregroundStyle(Ink.onBlack)
+        }
+        .lineLimit(1).fixedSize()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Marked \(clock)")
     }
 }
 
@@ -167,29 +295,6 @@ private struct RecordingTimer: View {
         Text(timerInterval: state.startDate...state.startDate.addingTimeInterval(60 * 60 * 24), pauseTime: state.pauseTime, countsDown: false, showsHours: true)
             .monospacedDigit()
             .lineLimit(1)
-    }
-}
-
-private struct RecordingButtons: View {
-    var state: VerbatimRecordingAttributes.ContentState
-    var body: some View {
-        HStack(spacing: 8) {
-            Button(intent: ToggleRecordingPauseIntent()) {
-                Image(systemName: state.isPaused ? "play.fill" : "pause.fill").font(.system(size: 15, weight: .semibold))   // brand: system surface
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.bordered)
-            .tint(Color(hex: Ink.paperHex))
-            .accessibilityLabel(state.isPaused ? "Resume" : "Pause")
-            Button(intent: StopRecordingIntent()) {
-                Image(systemName: "stop.fill").font(.system(size: 15, weight: .semibold))   // brand: system surface
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Ink.persimmon)
-            .accessibilityLabel("Stop")
-            .accessibilityHint("Saves the recording and transcribes it")
-        }
     }
 }
 

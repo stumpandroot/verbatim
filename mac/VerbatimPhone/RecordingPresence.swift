@@ -75,14 +75,24 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         guard let app, app.recorder.isRecording else { return nil }
         lastElapsed = app.recorder.elapsed
         let reason = app.recorder.isPaused ? VerbatimRecordingAttributes.shortReason(app.autoPauseReason) : nil
+        // Moments marked so far, and "Marked 4:12" for two seconds after each (Model/Marks.swift).
+        let marks = app.recordingMoments
         if app.recordingThought {
             // Words travel in the content state (4 KB at most), so only their end, and only when asked for.
             let words = ThoughtRules.islandWords() ? Ribbon.islandWords(app.recordingWords.shown.text) : nil
-            return .thought(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason,
-                            level: Double(app.recorder.live.level), words: words)
+            return VerbatimRecordingAttributes.ContentState.thought(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason,
+                                                                    level: Double(app.recorder.live.level), words: words)
+                .marked(count: marks.count, lastAt: app.lastMark?.at ?? marks.last?.at, just: app.lastMark != nil)
         }
-        return .make(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason)
+        // A voice note's Lock Screen draws your voice too (mockup "Library features", section 3a): the level, every
+        // two seconds.
+        var state = VerbatimRecordingAttributes.ContentState.make(elapsed: lastElapsed, isPaused: app.recorder.isPaused, pausedReason: reason)
+        state.level = app.recorder.isPaused ? 0 : min(1, max(0, Double(app.recorder.live.level)))
+        return state.marked(count: marks.count, lastAt: app.lastMark?.at ?? marks.last?.at, just: app.lastMark != nil)
     }
+
+    /// A mark was made, or its "Marked 4:12" ran out: the Island and the Lock Screen catch up at once.
+    func marked() { update(quiet: true) }
 
     /// Starts the recording's Live Activity. True when one is running afterward.
     @discardableResult
@@ -135,7 +145,7 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         do {
             activity = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
             activityIsThought = thought
-            if thought { startThoughtTicker() }
+            startTicker(every: thought ? 1 : 2)
             Log.note("recording presence: Live Activity started\(thought ? " for a thought" : "")")
             return true
         } catch {
@@ -150,10 +160,11 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
         Task { await a.update(ActivityContent(state: state, staleDate: nil)) }
     }
 
-    /// A thought's voice bars and words, about once a second (the time counts on its own).
-    private func startThoughtTicker() {
+    /// A thought's voice bars and words about once a second, and a voice note's voice bars every two seconds (the time
+    /// counts on its own).
+    private func startTicker(every seconds: TimeInterval) {
         thoughtTicker?.invalidate()
-        thoughtTicker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+        thoughtTicker = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { _ in
             Task { @MainActor in RecordingPresence.shared.update(quiet: true) }
         }
     }
@@ -218,6 +229,8 @@ final class RecordingPresence: NSObject, UNUserNotificationCenterDelegate {
             lastElapsed = app.recorder.elapsed
             stoppingFromActivity = true
             app.stopRecording()
+        case .mark(let source):
+            return app.markMoment(source: MarkSource(rawValue: source) ?? .island)
         }
         return true
     }

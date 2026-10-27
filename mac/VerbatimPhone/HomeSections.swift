@@ -408,7 +408,7 @@ struct HomeMomentsSection: View {
             HStack(spacing: 12) {
                 if !look.isNative { IconGlyph(art: .iconMoments, size: 20, color: Ink.ink) }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(latest.map { $0.n.isBookmark ? "“\($0.n.text)”" : $0.n.text } ?? "Bookmark a moment while a transcript plays.")
+                    Text(latest.map { $0.n.isBookmark ? "“\(Marks.words($0.n, in: $0.t.segments))”" : $0.n.text } ?? "Bookmark a moment while a transcript plays.")
                         .lookSerif(look.isNative ? 16 : 18, weight: look.isNative ? .semibold : .regular)
                         .italic(!look.isNative && latest?.n.isBookmark == true)
                         .foregroundStyle(.lookInk).lineLimit(1)

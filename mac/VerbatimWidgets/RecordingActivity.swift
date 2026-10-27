@@ -17,13 +17,20 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
         var pausedReason: String?
         /// Stopped and saved: shown for a few seconds before the activity ends.
         var saved: Bool
-        /// A thought only (nil for a voice note): the microphone level, 0 to 1, about once a second, for the voice bars.
+        /// The microphone level, 0 to 1, for the voice bars: about once a second for a thought, every two seconds for a
+        /// voice note (its Lock Screen draws your voice too). nil from builds before voice notes sent it.
         var level: Double? = nil
         /// A thought only: the end of your words for the expanded Dynamic Island (`Ribbon.islandWords`), sent only with
         /// Settings › Thoughts › Show words in the Dynamic Island on. The Lock Screen never reads it.
         var words: String? = nil
         /// A thought only: when it was saved, for "Added to Thoughts · 9:41".
         var savedAt: Date? = nil
+        /// Moments marked so far (Mark, in the expanded Island and on the Lock Screen; Model/Marks.swift). nil for none.
+        var marks: Int? = nil
+        /// Seconds into the recording of the last mark, for "Marked 4:12".
+        var markedAt: TimeInterval? = nil
+        /// True for the two seconds after a mark: the compact Island says "Marked 4:12 · 3 moments".
+        var justMarked: Bool? = nil
 
         /// The state for a recording `elapsed` seconds in, at `now`. A saved recording reads as stopped (paused,
         /// no reason); a reason only shows while paused.
@@ -45,6 +52,24 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
             return s
         }
 
+        /// The same state with the recording's marks.
+        func marked(count: Int, lastAt: TimeInterval?, just: Bool) -> ContentState {
+            var s = self
+            s.marks = count > 0 ? count : nil
+            s.markedAt = count > 0 ? lastAt : nil
+            s.justMarked = count > 0 && just ? true : nil
+            return s
+        }
+
+        var markCount: Int { marks ?? 0 }
+        /// "Marked 4:12" while a mark is being confirmed; nil otherwise.
+        var markedClock: String? {
+            guard justMarked == true, let at = markedAt else { return nil }
+            return VerbatimRecordingAttributes.clock(at)
+        }
+        /// "3 moments", "1 moment".
+        var marksLabel: String { markCount == 1 ? "1 moment" : "\(markCount) moments" }
+
         /// The moment the timer stops at while paused or saved; nil while it runs.
         var pauseTime: Date? { isPaused ? startDate.addingTimeInterval(elapsed) : nil }
 
@@ -64,6 +89,13 @@ struct VerbatimRecordingAttributes: ActivityAttributes {
     var page: String? = nil
 
     var isThought: Bool { thought == true }
+
+    /// "4:12" or "1:02:14" (the same as `Marks.clock`, which the widget extension doesn't compile).
+    static func clock(_ seconds: TimeInterval) -> String {
+        let s = max(0, Int(seconds.isFinite ? seconds.rounded(.down) : 0))
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
+    }
 
     /// A few words for the Lock Screen from the recorder's full pause reason. Nil for no reason.
     static func shortReason(_ full: String?) -> String? {
@@ -107,10 +139,35 @@ struct StopRecordingIntent: LiveActivityIntent {
     }
 }
 
+/// Mark from the expanded Dynamic Island or the Lock Screen: saves the recording's current time as a moment, without
+/// opening Verbose or unlocking (mockup "Library features", section 3a). `source` says which ("island" or "lockScreen",
+/// `MarkSource`), for "Moment 4:12 · from the Lock Screen" in the transcript.
+struct MarkMomentIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Mark a moment"
+    static var description = IntentDescription("Marks a moment in the Verbose recording at the current time.")
+    static var isDiscoverable: Bool = false
+
+    @Parameter(title: "Where", default: "island")
+    var source: String
+
+    init() {}
+    init(source: String) { self.source = source }
+
+    func perform() async throws -> some IntentResult {
+        let from = source
+        await MainActor.run { RecordingControl.fire(.mark(from)) }
+        return .result()
+    }
+}
+
 enum RecordingControl {
-    enum Command { case togglePause, stop }
+    enum Command { case togglePause, stop, mark(String) }
     /// Set by the app (RecordingPresence); nil in the widget extension. Returns false when no recording runs.
     @MainActor static var handler: ((Command) -> Bool)?
+
+    /// Marks a moment in the running recording (the Action button's Record or mark). False when nothing records, and
+    /// nothing else happens then.
+    @MainActor static func mark(_ source: String) -> Bool { handler?(.mark(source)) ?? false }
 
     @MainActor static func fire(_ command: Command) {
         if let handler, handler(command) { return }

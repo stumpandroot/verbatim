@@ -1,21 +1,22 @@
 import SwiftUI
 import UIKit
 
-/// Settings › Action button (the notch mockup's section 06): what the Action button does when "Verbose action" is
-/// its control (Dictate, Record a voice note, Live captions, What's playing, or New thought), each with whether it
-/// works in place or opens Verbose; where a take's words
-/// go; how long an idle session stays on; and the three steps in iOS Settings › Action Button. One intent,
-/// `ActionButtonIntent`, follows the choice, so the button is assigned once. Google developer documentation style.
+/// Settings › Action button (the notch mockup's section 06, and "Library features", section 3b): what the Action
+/// button does when "Verbose action" is its control (Dictate, Record a voice note, Record or mark, Live captions,
+/// What's playing, or New thought), each with whether it works in place or opens Verbose; where a take's words go; how
+/// long an idle session stays on; and the Set up the Action button card with the three steps in iOS Settings › Action
+/// Button and Open Settings. One intent, `ActionButtonIntent`, follows the choice, so the button is assigned once.
+/// Google developer documentation style.
 struct ActionButtonScreen: View {
     @EnvironmentObject var app: PhoneState
     @AppStorage(Ribbon.actionChoiceKey) private var choiceRaw = Ribbon.ActionChoice.dictate.rawValue
 
     private var choice: Ribbon.ActionChoice { Ribbon.actionChoice(choiceRaw) }
 
-    private let steps = [
-        "Open the Settings app, and then tap Action Button.",
-        "Swipe to Controls, tap Choose a Control, and then choose Verbose action.",
-        "Press the Action button to try it.",
+    static let steps = [
+        "Open the Settings app, then tap Action Button.",
+        "Swipe to Controls, then tap Choose a Control.",
+        "Search for Verbose, then choose Verbose action.",
     ]
 
     var body: some View {
@@ -27,6 +28,9 @@ struct ActionButtonScreen: View {
                     .font(.system(size: 15)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
 
+                PhoneEyebrow(text: "Press the Action button to")
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.top, 10).padding(.leading, 4)
                 VStack(spacing: 0) {
                     ForEach(Array(Ribbon.ActionChoice.allCases.enumerated()), id: \.element) { i, c in
                         if i > 0 { SettingsDivider() }
@@ -34,7 +38,10 @@ struct ActionButtonScreen: View {
                     }
                 }
                 .cardSurface(radius: Radius.row)
-                .padding(.top, 6)
+                .padding(.top, 2)
+
+                ActionButtonSetupCard { app.openAppSettings() }
+                    .padding(.top, 10)
 
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
@@ -56,27 +63,64 @@ struct ActionButtonScreen: View {
                     .font(.system(size: 13)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
-
-                Text("Set up the Action button").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
-                    .accessibilityAddTraits(.isHeader).padding(.top, 16)
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("\(i + 1).").lookMono(15, weight: .medium).foregroundStyle(.lookMute)
-                            Text(step).font(.system(size: 16)).foregroundStyle(.lookInk)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-                .padding(16)
-                .cardSurface(radius: Radius.row)
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
         }
         .phonePage()
         .navigationTitle("Action button")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Set up the Action button (mockup "Library features", section 3b): the Action button icon, "Set up the *Action
+/// button*" in the serif, the three steps with numbers in rings, and Open Settings. Verbose style: an ink-outlined
+/// reader card. Premium Native: a grouped card with a bold title and the accent's button.
+struct ActionButtonSetupCard: View {
+    var openSettings: () -> Void
+    @Environment(\.look) private var look
+
+    var body: some View {
+        let native = look.isNative
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                IconGlyph(art: .iconActionButton, size: 17, color: native ? NativeInk.accent : Ink.ink)
+                    .frame(width: 30, height: 30)
+                    .background(native ? NativeInk.fill : Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .accessibilityHidden(true)
+                Group {
+                    if native {
+                        Text("Set up the Action button").font(.system(size: 17, weight: .semibold))
+                    } else {
+                        Text("Set up the \(Text("Action button").italic())").lookSerif(21)
+                    }
+                }
+                .foregroundStyle(.lookInk)
+                .accessibilityAddTraits(.isHeader)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(ActionButtonScreen.steps.enumerated()), id: \.offset) { i, step in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text("\(i + 1)").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(.lookInk)
+                            .frame(width: 22, height: 22)
+                            .overlay(Circle().strokeBorder(native ? NativeInk.secondary : Ink.ink, lineWidth: 1.2))
+                        Text(step).font(.system(size: 16)).foregroundStyle(.lookInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Step \(i + 1): \(step)")
+                }
+            }
+            Button("Open Settings", action: openSettings).buttonStyle(.phonePrimary)
+                .accessibilityHint("Opens the Settings app.")
+                .padding(.top, 2)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(radius: Radius.row)
+        .overlay {
+            if !native { RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5) }
+        }
     }
 }
 
@@ -138,6 +182,7 @@ private struct ActionChoiceRow: View {
         switch choice {
         case .dictate: return .iconDictations
         case .voiceNote: return .iconVoice
+        case .recordOrMark: return .iconMark
         case .captions: return .iconCaptions
         case .whatsPlaying: return .iconLowerAudio
         case .quickCapture: return .iconThought

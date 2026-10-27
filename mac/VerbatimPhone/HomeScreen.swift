@@ -676,6 +676,13 @@ struct RecordScreen: View {
         }
     }
 
+    /// Beside Mark: "Marked 4:12 · 3 moments" for two seconds, then how many are marked.
+    private var markLine: String {
+        if let c = app.lastMark { return Marks.confirmation(c) }
+        let n = app.recordingMoments.count
+        return n > 0 ? "\(Marks.count(n)) marked" : "Keep this moment as a bookmark"
+    }
+
     private var verbose: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
@@ -728,6 +735,23 @@ struct RecordScreen: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(.lookHairline))
             .padding(.top, 20)
             .riseIn("meter", index: 2, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
+
+            // Mark a moment (Model/Marks.swift): a bookmark at this time, on the line being said once transcribed.
+            HStack(spacing: 12) {
+                Button { app.markMoment() } label: {
+                    HStack(spacing: 7) {
+                        IconGlyph(art: .iconMark, size: 17, color: Ink.ink)
+                        Text("Mark")
+                    }
+                }
+                .buttonStyle(.phoneSecondary)
+                .disabled(saving)
+                .accessibilityLabel("Mark a moment")
+                .accessibilityHint("Saves this point in the recording as a moment.")
+                Text(markLine).font(.system(size: 13)).foregroundStyle(app.lastMark != nil ? Ink.butterText : Ink.mute)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 14)
 
             if paused, let reason = app.autoPauseReason {
                 // Paused by an interruption (a call, a microphone change): say so, and offer Resume right here.

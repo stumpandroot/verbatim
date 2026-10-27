@@ -1670,6 +1670,9 @@ final class KeyboardSession: ObservableObject {
             if stage == .on { toggleTake(source: .intent) } else { startFromOutside(.shortcut, take: true, recordingIntent: true) }
         case .voiceNote:
             app.requestRecord()
+        case .recordOrMark:
+            // While something records, a press marks a moment; otherwise it starts a voice note.
+            if !app.markMoment(source: .actionButton) { app.requestRecord() }
         case .captions:
             app.requestCaptions()
         case .whatsPlaying:

@@ -296,12 +296,13 @@ enum Ribbon {
     /// Settings › Action button: what Verbose does when the Action button runs "Verbose action" (one control or
     /// shortcut, assigned once in iOS Settings › Action Button; `ActionButtonIntent` follows the stored choice).
     enum ActionChoice: String, CaseIterable, Identifiable {
-        case dictate, voiceNote, captions, whatsPlaying, quickCapture
+        case dictate, voiceNote, recordOrMark, captions, whatsPlaying, quickCapture
         var id: String { rawValue }
         var title: String {
             switch self {
             case .dictate: return "Dictate"
             case .voiceNote: return "Record a voice note"
+            case .recordOrMark: return "Record or mark"
             case .captions: return "Live captions"
             case .whatsPlaying: return "What's playing"
             case .quickCapture: return "New thought"
@@ -312,6 +313,7 @@ enum Ribbon {
             switch self {
             case .dictate: return "Dictate"
             case .voiceNote: return "Voice note"
+            case .recordOrMark: return "Record or mark"
             case .captions: return "Captions"
             case .whatsPlaying: return "What's playing"
             case .quickCapture: return "New thought"
@@ -322,6 +324,7 @@ enum Ribbon {
             switch self {
             case .dictate: return "Starts or stops a take, in place."
             case .voiceNote, .captions: return "Opens Verbose."
+            case .recordOrMark: return "Starts a voice note. While it records, each press marks a moment."
             case .whatsPlaying: return "Opens the iOS broadcast sheet first."
             case .quickCapture: return "Starts a thought, in place when iOS allows it."
             }
@@ -331,7 +334,8 @@ enum Ribbon {
         var available: Bool { true }
         /// Only dictation runs without bringing Verbose forward (it reuses the session's microphone). A voice note and
         /// a thought try to start in place first on iOS 18 and later (`AudioRecordingIntent`), and open Verbose when
-        /// they can't.
+        /// they can't. Record or mark marks in place while something records, and otherwise starts a voice note as
+        /// Record a voice note does.
         var needsForeground: Bool { self != .dictate }
     }
 

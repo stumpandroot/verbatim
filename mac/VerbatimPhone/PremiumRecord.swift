@@ -7,20 +7,10 @@ import UIKit
 // and Pause. Stop saves the recording and opens the Saved sheet: the transcription's progress, a kind picker,
 // Project, Open transcript, and Record another. Verbose style keeps its own recorder (RecordScreen in HomeScreen.swift).
 
-/// A moment marked while recording: when, and the name you gave it (empty until you name it).
-struct RecordingMoment: Identifiable, Equatable {
-    var id = UUID()
-    var at: Double
-    var name = ""
-
-    /// Bookmarks for the saved recording ("Moment" when unnamed), `offset` seconds in when it's added to another.
-    static func notes(_ moments: [RecordingMoment], offset: Double = 0) -> [Note] {
-        moments.map { m in
-            let name = m.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            return Note(text: name.isEmpty ? "Moment" : name, at: offset + m.at, isBookmark: true)
-        }
-    }
-}
+/// A moment marked while recording: when, where from, and the name you gave it (empty until you name it). The same
+/// mark as the Dynamic Island's, the Lock Screen's, and the Action button's (Model/Marks.swift); saved as bookmarks
+/// with the recording (`RecordingMark.notes`), each on the line being said once the words are in.
+typealias RecordingMoment = RecordingMark
 
 /// What the Saved sheet shows for a recording that just stopped.
 struct SavedRecording: Identifiable, Equatable {
@@ -66,7 +56,6 @@ struct PremiumRecorder: View {
             controls.padding(.bottom, 24).padding(.top, 8)
         }
         .background { PremiumPageBackground(recorder: true) }
-        .sensoryFeedback(.selection, trigger: app.recordingMoments.count)
         .onAppear { Self.visible = true }
         .onDisappear { Self.visible = false }
         .alert("Name this moment", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {

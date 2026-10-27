@@ -103,8 +103,11 @@ final class PhoneState: ObservableObject {
     var focusSegment: UUID? = nil
     /// Premium's play pill: the transcript that starts playing once it opens and its audio is ready.
     var autoplay: UUID? = nil
-    /// Moments marked on the Premium recorder (Mark moment), saved as bookmarks with the recording.
+    /// Moments marked while recording (Model/Marks.swift): from the recorder's Mark, the Dynamic Island, the Lock
+    /// Screen, or the Action button. Written beside the recording as they're made, saved as bookmarks when you stop.
     @Published var recordingMoments: [RecordingMoment] = []
+    /// "Marked 4:12 · 3 moments" for two seconds after a mark (the recorder, the Island, the Lock Screen).
+    @Published private(set) var lastMark: MarkConfirmation? = nil
     /// Premium's Saved sheet after Stop: the transcript that was just saved (PremiumRecord.swift).
     @Published var savedRecording: SavedRecording? = nil
 
@@ -354,6 +357,7 @@ final class PhoneState: ObservableObject {
         autoPauseReason = nil
         let moments = recordingMoments
         recordingMoments = []
+        lastMark = nil
         let target = continuing
         continuing = nil
         let kind = recordKind
@@ -375,6 +379,8 @@ final class PhoneState: ObservableObject {
         Store.clearContinuation(r.startedAs ?? r.url)
         Store.clearThoughtMark(r.startedAs ?? r.url)
         Store.clearThoughtMark(r.url)
+        Marks.clear(r.startedAs ?? r.url)
+        Marks.clear(r.url)
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             say(Store.nothingRecordedNotice)
@@ -411,11 +417,29 @@ final class PhoneState: ObservableObject {
         }
     }
 
-    /// Premium's Mark moment: a bookmark at the recording's current time, saved with it when you stop.
-    func markMoment() {
-        guard recorder.isRecording || previewRecording else { return }
-        recordingMoments.append(RecordingMoment(at: recorder.elapsed))
+    /// Mark a moment (Model/Marks.swift): a bookmark at the recording's current time, saved with it when you stop. From
+    /// the recorder's Mark, the Dynamic Island and the Lock Screen (`MarkMomentIntent`), or the Action button's Record
+    /// or mark. A second mark within 3 seconds confirms the first instead of adding one. Each mark is written beside the
+    /// recording at once, so a recording Verbose didn't get to stop keeps its moments. A light tap and "Marked 4:12"
+    /// for two seconds confirm it. False when nothing is recording.
+    @discardableResult
+    func markMoment(source: MarkSource = .phoneApp) -> Bool {
+        guard recorder.isRecording || previewRecording else { return false }
+        let mark = RecordingMoment(at: recorder.elapsed, source: source.rawValue)
+        let (marks, confirmed) = Marks.adding(mark, to: recordingMoments)
+        recordingMoments = marks
+        if let url = recorder.recordingURL { Marks.save(marks, for: url) }
+        let c = MarkConfirmation(at: confirmed.at, count: marks.count)
+        lastMark = c
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Log.note("marks: marked \(Marks.clock(confirmed.at)) from \(source.rawValue) (\(marks.count) in this recording)")
+        RecordingPresence.shared.marked()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Marks.confirmSeconds) { [weak self] in
+            guard let self, self.lastMark?.id == c.id else { return }
+            self.lastMark = nil
+            RecordingPresence.shared.marked()
+        }
+        return true
     }
 
     /// Recordings recovered after launch: transcribed now (or added to the transcript they continued).

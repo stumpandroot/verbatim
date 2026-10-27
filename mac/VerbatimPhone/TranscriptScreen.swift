@@ -578,6 +578,8 @@ struct PhoneLines: View {
     var body: some View {
         let _ = playingIDs
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
+        // Moments marked while recording, by line, for their chips (the first on a line).
+        let marked = Dictionary(transcript.notes.filter(\.isMark).compactMap { n in n.segmentId.map { ($0, n) } }, uniquingKeysWith: { a, _ in a })
         let segs = segments
         let current = Self.playing(segs, at: clock.time, isPlaying: app.player.isPlaying)
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
@@ -630,6 +632,9 @@ struct PhoneLines: View {
                         // Tap a line to play from it (Select text, above, is for selecting).
                         .onTapGesture { play(s) }
                         .accessibilityAction(named: "Play from here") { play(s) }
+                    if let mark = marked[s.id] {
+                        PhoneMarkChip(note: mark) { if let at = mark.at { app.player.play(from: at) } else { play(s) } }
+                    }
                 }
                 .padding(.vertical, 6).padding(.horizontal, 6)
                 .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
@@ -988,6 +993,39 @@ struct PhoneLinkCard: View {
     }
 }
 
+/// A marked line's chip (mockup "Library features", section 3c): the Marked icon, "Moment 4:12", and where it came from
+/// ("· from the Lock Screen"), on butter in ink. Premium Native: the accent's symbol on a neutral capsule. Tap to play.
+struct PhoneMarkChip: View {
+    @Environment(\.look) private var look
+    var note: Note
+    var play: () -> Void
+    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = 13
+
+    var body: some View {
+        let native = look.isNative
+        Button(action: play) {
+            HStack(spacing: 6) {
+                if native {
+                    Image(systemName: "bookmark.fill").font(.system(size: size - 1, weight: .semibold)).foregroundStyle(NativeInk.accent)   // brand: native
+                } else {
+                    IconGlyph(art: .iconMarked, size: size + 1, color: Ink.inkFixed)
+                }
+                Text("Moment").font(.system(size: size, weight: .semibold))
+                Text(Marks.clock(note.at ?? 0)).font(native ? .system(size: size, weight: .medium).monospacedDigit() : Ink.mono(max(12, size - 0.5)))
+                if let from = Marks.chipSource(note) { Text("· \(from)").font(.system(size: size)).opacity(0.78) }
+            }
+            .foregroundStyle(native ? NativeInk.label : Ink.inkFixed)
+            .lineLimit(1).minimumScaleFactor(0.85)
+            .padding(.horizontal, 10).frame(minHeight: 28)
+            .background(native ? NativeInk.label.opacity(0.07) : Ink.panelButter, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Marks.chip(note) ?? "Moment")
+        .accessibilityHint("Plays from this moment.")
+    }
+}
+
 /// Notes and bookmarks for one transcript, newest first, with an add field.
 struct NotesSheet: View {
     @EnvironmentObject var app: PhoneState
@@ -1011,8 +1049,10 @@ struct NotesSheet: View {
                     ForEach(app.store.transcript(id)?.notes ?? []) { n in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 5) {
-                                if n.isBookmark { ArtIcon(art: .bookmark, size: 13) }
+                                if n.isBookmark { ArtIcon(art: n.isMark ? .iconMarked : .bookmark, size: 13) }
                                 if let at = n.at { Text(at.timecode).lookMono(12) }
+                                // Marked while recording: where from.
+                                if let from = Marks.shortSource(n) { Text("· \(from)").font(.system(size: 13)) }
                             }
                             .foregroundStyle(n.isBookmark ? Ink.butterText : Ink.dim)
                             if let f = n.frameFile { StillImage(file: f).frame(height: 120).clipShape(RoundedRectangle(cornerRadius: Radius.button)) }
@@ -1021,7 +1061,7 @@ struct NotesSheet: View {
                                 Label("\(action) · Made by Apple Intelligence", art: .iconAI, size: 14)
                                     .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.lookDim)
                             }
-                            Text(n.text).font(.system(size: 15)).foregroundStyle(.lookInk)
+                            Text(Marks.words(n, in: app.store.transcript(id)?.segments ?? [])).font(.system(size: 15)).foregroundStyle(.lookInk)
                         }
                         .listRowBackground(n.isBookmark ? Ink.butterTint : Ink.card)
                         .onTapGesture { if let at = n.at { app.player.seek(to: at) } }
