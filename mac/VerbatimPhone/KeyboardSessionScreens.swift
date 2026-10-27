@@ -407,6 +407,7 @@ struct KeyboardSetupScreen: View {
 /// The session's state, End session, and the idle timeout.
 private struct SessionCard: View {
     @ObservedObject var session: KeyboardSession
+    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -447,7 +448,7 @@ private struct SessionCard: View {
                     }
                 }
                 .labelsHidden()
-                .tint(.lookAccentText)
+                .tint(look.isNative ? NativeInk.accent : Ink.accentText)
             }
             Text("A call or Siri pauses the session; it picks up when the call ends. While a session is on, the orange microphone dot shows at the top of the screen.")
                 .font(.system(size: 13)).foregroundStyle(.lookMute)
