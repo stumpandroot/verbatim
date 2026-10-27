@@ -67,7 +67,15 @@
         "iPhone: in the Native look, the keyboard session's screens, search highlights, and the playing line use system colors instead of persimmon.",
         "iPhone: in the Native look, Moments has a large title with the count under it and a segmented control for what to show, You shows your week, year, and stats as plain list sections, Today's page puts New thought in the toolbar, and the Tab bar preview shows Record above the tabs.",
         "iPhone and Mac: in the Native look, widgets are black, like Apple Music's, with white text and the red record disc as the only color, in light and dark mode.",
-        "iPhone: with the Native look, the Verbose keyboard uses the system's blue for Tap to talk, the voice bars, and Done, with white text, like the system keyboard."
+        "iPhone: with the Native look, the Verbose keyboard uses the system's blue for Tap to talk, the voice bars, and Done, with white text, like the system keyboard.",
+        "Mac and iPhone: Record as has two new ways to record, after Thought. Audio only keeps the sound and makes no transcript, for a melody you hum, a guitar part, or a room you want to remember. Brain dump records you talking through your day, and Plan my day sorts it into a plan when it finishes.",
+        "Mac and iPhone: Audio only records with the system's voice processing off, so music keeps its dynamics. It has its own screen with a player, a title you type, the moments you marked, and notes. In the Library, its row shows the waveform with a play button, so you can listen without opening it.",
+        "Mac and iPhone: to get words from an Audio only recording later, choose Transcribe on its screen or in its Library menu. It becomes a voice note, and its title, notes, moments, and audio stay. Touch and hold Transcribe on iPhone, or open its menu on the Mac, to transcribe it as a meeting, a brain dump, or another kind.",
+        "Mac and iPhone: Plan my day is a new template with Top three, Today, Tomorrow, This week, Someday, and Ideas. It uses only the days you said, counted from when you recorded, and each task links to the moment you said it. Brain dump runs it automatically from the start; you can turn that off in Run automatically.",
+        "Mac and iPhone: Send to Reminders adds a plan's tasks to the Reminders list you pick. A task gets a due date only when you said a day, and ideas go in only if you check them. Tasks you've sent are marked, so sending again adds only what's new.",
+        "Mac and iPhone: Organize today's thoughts makes the same plan from all of a day's thoughts, and each task links back to the thought it came from. On the Mac, it's Organize on today's page.",
+        "Mac: File › New Brain Dump opens a note for today. Hold your dictation keys and talk, or type, then choose Make a plan. Dictations into the note stay in the note and aren't listed in Dictations. The menu bar's Thoughts group and an optional Home tile open it too.",
+        "Mac and iPhone: you can change any recording's kind to Brain dump or Audio only later, and back. Changing a kind never deletes the transcript, notes, or results. Changing one to Brain dump offers to run Plan my day."
       ]
     },
     {

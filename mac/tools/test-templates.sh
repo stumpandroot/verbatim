@@ -11,7 +11,7 @@ out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 swiftc -O -o "$out/templates-tests" \
   "$m/Transcript.swift" "$m/LibraryFile.swift" "$m/TolerantCoding.swift" "$m/FlowInfo.swift" "$m/CleanedLayer.swift" "$m/Multitrack.swift" \
-  "$m/Formats.swift" "$m/CorrectionEdits.swift" "$m/SyncMerge.swift" "$m/TranscriptActionSpecs.swift" "$m/Templates.swift" "$m/TemplateChecks.swift" "$m/AudioOnly.swift" "$m/DayPlan.swift" \
+  "$m/Formats.swift" "$m/CorrectionEdits.swift" "$m/SyncMerge.swift" "$m/TranscriptActionSpecs.swift" "$m/Templates.swift" "$m/TemplateChecks.swift" "$m/AudioOnly.swift" "$m/DayPlan.swift" "$m/PlanChecks.swift" \
   "$here/../Verbatim/Transcription/MultitrackMath.swift" \
   "$here/transcript-tests/Stubs.swift" "$here/templates-tests/main.swift"
 "$out/templates-tests"

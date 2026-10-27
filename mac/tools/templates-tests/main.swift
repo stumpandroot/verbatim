@@ -482,6 +482,7 @@ check("day keys", DayPlanRecord.dayKey(recorded, calendar: greg) == "2026-10-27"
 
 // The checks both self-tests run (TemplateChecks.swift), here too.
 TemplateChecks.run { check("self-test: " + $0, $1) }
+PlanChecks.run { check("self-test: " + $0, $1) }
 
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

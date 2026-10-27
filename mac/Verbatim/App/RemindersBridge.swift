@@ -227,3 +227,42 @@ final class SendToReminders: ObservableObject {
         }
     }
 }
+
+/// Send to Reminders with the stand-in (`MockReminders`), for both self-tests: never touches your Reminders.
+enum RemindersChecks {
+    @MainActor static func run(_ check: (String, Bool) -> Void) async {
+        let saved = RemindersBridge.service
+        let savedList = RemindersBridge.lastList()
+        defer {
+            RemindersBridge.service = saved
+            if let savedList { RemindersBridge.rememberList(savedList) } else { UserDefaults.standard.removeObject(forKey: RemindersBridge.lastListKey) }
+        }
+        UserDefaults.standard.removeObject(forKey: RemindersBridge.lastListKey)
+        let mock = MockReminders()
+        mock.access = .notAsked
+        RemindersBridge.service = mock
+        let recorded = Calendar.current.date(bySettingHour: 7, minute: 42, second: 0, of: Date()) ?? Date()
+        let plan = DayPlan.parse(PlanChecks.samplePlan)
+        let model = SendToReminders(plan: plan, sent: [:], recordedAt: recorded, source: "Brain dump", anchorLabel: { $0.anchor.map(DayPlan.clock) })
+        check("reminders: every task checked, ideas unchecked", model.checkedCount == 9 && model.addTitle == "Add 9 to Reminders")
+        guard let first = await model.send() else { check("reminders: the first send asks for access, then adds", false); return }
+        let notes = mock.added.map(\.draft.notes)
+        check("reminders: the first send asks for access, then adds nine to Reminders' default list", mock.access == .granted && mock.added.count == 9
+              && mock.added.allSatisfy { $0.list == "home" } && first.message == "Added 9 reminders to Home")
+        check("reminders: due dates only where a day was said, with no time", mock.added.filter { $0.draft.due != nil }.count == 7
+              && mock.added.allSatisfy { $0.draft.due?.hour == nil })
+        check("reminders: each says where it came from", notes.first?.hasPrefix("From Verbose \u{00B7} Brain dump, ") == true && notes.first?.hasSuffix(", 0:04") == true)
+        check("reminders: the list picked is remembered on this device", RemindersBridge.lastList() == "home")
+        let again = SendToReminders(plan: plan, sent: first.added, recordedAt: recorded, source: "Brain dump", anchorLabel: { _ in nil })
+        check("reminders: never twice; nothing is checked once all are sent", again.checkedCount == 0 && DayPlan.allSent(plan, sent: first.added))
+        again.toggle(plan.ideas[0])
+        let idea = await again.send()
+        check("reminders: a checked idea goes in with no date, and the message counts what was there",
+              idea?.added.count == 1 && mock.added.last?.draft.due == nil && idea?.message == "Added 1. 9 were already in Reminders.")
+        check("reminders: the next sheet starts on the last list", RemindersBridge.startingList(mock.lists(), last: RemindersBridge.lastList(), defaultID: "studio")?.id == "home")
+        mock.access = .notAsked; mock.grantOnRequest = false
+        let denied = SendToReminders(plan: plan, sent: [:], recordedAt: recorded, source: "Brain dump", anchorLabel: { _ in nil })
+        let none = await denied.send()
+        check("reminders: without access, nothing is added and the sheet says how to turn it on", none == nil && denied.problem == RemindersBridge.deniedText)
+    }
+}

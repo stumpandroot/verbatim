@@ -474,6 +474,7 @@ struct MacRemindersSend: View {
 enum ThoughtsPlanWindow {
     private static var window: NSWindow?
     static var isOpen: Bool { window?.isVisible == true }
+    static func close() { window?.orderOut(nil) }
 
     static func open(day: Date, app: AppState) {
         let root = ScrollView { MacPlanPanel(source: .thoughts, day: day).padding(18) }
