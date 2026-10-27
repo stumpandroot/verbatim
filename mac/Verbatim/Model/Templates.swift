@@ -538,9 +538,9 @@ enum TemplateCopy {
 // MARK: - Record a kind
 
 extension RecordingKind {
-    /// The kinds you can pick when you start recording, from a long press (iPhone) or a right-click (Mac). Thoughts
-    /// have their own flow; podcasts and videos are imports.
-    static let recordChoices: [RecordingKind] = [.meeting, .interview, .journal, .talk, .note]
+    /// The kinds you can pick when you start recording, between Voice note and Thought in `RecordChoice.all`. Note left
+    /// the list (a plain Record covers it); podcasts and videos are imports.
+    static let recordChoices: [RecordingKind] = [.meeting, .interview, .journal, .talk]
 
     /// "Record a meeting", "Record an interview", "Record a journal entry".
     var recordTitle: String {
@@ -549,6 +549,189 @@ extension RecordingKind {
         case .interview: return "Record an interview"
         default: return "Record \(AutoRunRules.article(self)) \(label.lowercased())"
         }
+    }
+}
+
+/// One way to start recording (approved mockup "Record as", October 26, 2026), in this order everywhere: the iPhone's
+/// Record as tray, the Mac's right-click menu on Record, File › Record As, and VoiceOver's actions on Record. Voice
+/// note is the plain Record (Verbose picks the kind); the four kinds are yours from the start; Thought starts the New
+/// thought flow (Stop & add, today's page), never an ordinary recording of the Thoughts kind.
+enum RecordChoice: Hashable, Identifiable {
+    case voiceNote
+    case kind(RecordingKind)
+    case thought
+
+    static let all: [RecordChoice] = [.voiceNote] + RecordingKind.recordChoices.map { .kind($0) } + [.thought]
+
+    var id: String {
+        switch self {
+        case .voiceNote: return "voiceNote"
+        case .kind(let k): return k.rawValue
+        case .thought: return "thought"
+        }
+    }
+
+    /// The row's name: "Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought".
+    var name: String {
+        switch self {
+        case .voiceNote: return "Voice note"
+        case .kind(.journal): return "Journal entry"
+        case .kind(let k): return k.label
+        case .thought: return "Thought"
+        }
+    }
+
+    /// The name in the serif with its last word in italic ("Voice" + "note"); one-word names have no italic part.
+    var serifParts: (String, String?) {
+        let n = name
+        guard let space = n.lastIndex(of: " ") else { return (n, nil) }
+        return (String(n[..<space]) + " ", String(n[n.index(after: space)...]))
+    }
+
+    /// The Mac's right-click menu: "Record", "Record a meeting", …, "New thought" (the ⌃⌥P action's name).
+    var menuTitle: String {
+        switch self {
+        case .voiceNote: return "Record"
+        case .kind(let k): return k.recordTitle
+        case .thought: return "New thought"
+        }
+    }
+
+    /// File › Record As, in the menu bar's title case: "Voice Note", "Meeting…" (the consent sheet comes first), and so on.
+    var commandTitle: String {
+        switch self {
+        case .voiceNote: return "Voice Note"
+        case .kind(.meeting): return "Meeting…"
+        case .kind(.journal): return "Journal Entry"
+        case .kind(let k): return k.label
+        case .thought: return "Thought"
+        }
+    }
+
+    /// VoiceOver's named action on Record: "Record a voice note", "Record a meeting", …, "New thought".
+    var actionName: String {
+        switch self {
+        case .voiceNote: return "Record a voice note"
+        case .kind(let k): return k.recordTitle
+        case .thought: return "New thought"
+        }
+    }
+
+    /// The kind the recording is filed as from the start: none for Voice note (AutoLabel picks), Thoughts for Thought.
+    var kind: RecordingKind? {
+        switch self {
+        case .voiceNote: return nil
+        case .kind(let k): return k
+        case .thought: return .idea
+        }
+    }
+
+    /// The custom symbol exported from the kind's BrandArt glyph (mac/tools/gen_symbol.py), for menus the system draws.
+    var symbolName: String {
+        switch self {
+        case .voiceNote: return "rec.voice"
+        case .kind(.meeting): return "rec.meeting"
+        case .kind(.interview): return "rec.interview"
+        case .kind(.journal): return "rec.journal"
+        case .kind(.talk): return "rec.talk"
+        case .kind: return "rec.voice"
+        case .thought: return "thought"
+        }
+    }
+
+    /// The SF Symbol in the Native look.
+    var nativeSymbol: String {
+        switch self {
+        case .voiceNote: return "mic"
+        case .kind(.meeting): return "person.2"
+        case .kind(.interview): return "quote.bubble"
+        case .kind(.journal): return "book"
+        case .kind(.talk): return "person.wave.2"
+        case .kind: return "mic"
+        case .thought: return "lightbulb"
+        }
+    }
+
+    /// The template Run automatically runs for this choice when the recording finishes, if one is assigned and still
+    /// exists. Voice note's kind isn't known yet; a thought never runs one from here (Thoughts are short).
+    func template(settings: AutoRunSettings, templates: [TranscriptTemplate]) -> TranscriptTemplate? {
+        guard case .kind(let k) = self, let id = settings.template(for: k) else { return nil }
+        return templates.first { $0.id == id }
+    }
+
+    /// What a kind does with Run automatically off for it. Only what the app really does: the Library files it under
+    /// its kind, Journal entries fill Journal by day, and Main speaker only never folds a voice away in a meeting,
+    /// interview, or talk (`Transcript.hasBackgroundVoices`).
+    var fallbackHint: String {
+        switch self {
+        case .voiceNote: return "Plain Record. Verbose picks the kind."
+        case .kind(.meeting): return "Filed under Meetings, every voice kept"
+        case .kind(.interview): return "Filed under Interviews, every voice kept"
+        case .kind(.journal): return "Filed under Journal by day"
+        case .kind(.talk): return "Filed under Talks, every voice kept"
+        case .kind(let k): return "Filed as \(AutoRunRules.article(k)) \(k.label)"
+        case .thought: return "Adds to today\u{2019}s page"
+        }
+    }
+
+    /// The line under the row: "Runs Meeting notes when it finishes" when Run automatically has a template for the
+    /// kind, otherwise what the kind does.
+    func hint(settings: AutoRunSettings, templates: [TranscriptTemplate]) -> String {
+        if let t = template(settings: settings, templates: templates) { return "Runs \(t.name) when it finishes" }
+        return fallbackHint
+    }
+
+    /// The line under the recorder's timer: the template that will run, or what happens without one.
+    func recorderLine(settings: AutoRunSettings, templates: [TranscriptTemplate]) -> String {
+        if case .voiceNote = self { return "Verbose picks the kind after it listens" }
+        return hint(settings: settings, templates: templates)
+    }
+}
+
+/// The Record as tray's gesture (iPhone), pure so the Linux tests and the self-test check it: touch and hold 0.4 s to
+/// open; moving more than 10 pt first cancels (the scroll view takes it); lifting sooner is a plain Record. With the
+/// tray open, sliding more than 10 pt and lifting on a row starts it; lifting without sliding keeps the tray open for a
+/// tap. A swipe down past a third of the tray's height, or a fast flick, closes it.
+enum RecordTrayRules {
+    static let hold: Double = 0.4
+    static let cancelDistance: Double = 10
+    static let slideDistance: Double = 10
+    /// A flick: the drag's predicted end lands this far past where it was let go.
+    static let flickDistance: Double = 180
+    /// The tray never grows past this share of the screen; its rows scroll instead.
+    static let maxHeightShare: Double = 0.8
+
+    enum Lift: Equatable {
+        /// Lifted before the hold: the plain Record.
+        case plainRecord
+        /// Lifted on a row after sliding: start that choice.
+        case start(RecordChoice)
+        /// Lifted without sliding, or between rows: the tray stays open for a tap.
+        case keepOpen
+    }
+
+    /// What lifting the finger does.
+    static func lift(opened: Bool, slid: Bool, over row: RecordChoice?) -> Lift {
+        guard opened else { return .plainRecord }
+        guard slid, let row else { return .keepOpen }
+        return .start(row)
+    }
+
+    /// The finger has moved far enough from where the tray opened to count as sliding.
+    static func slid(dx: Double, dy: Double) -> Bool { (dx * dx + dy * dy).squareRoot() > slideDistance }
+
+    /// The row under the finger: the first whose frame (minY, maxY, in the same space as `y`) holds it, inside the
+    /// list's visible band when the rows scroll.
+    static func row(atY y: Double, x: Double, rows: [(RecordChoice, minX: Double, minY: Double, maxX: Double, maxY: Double)],
+                    visibleMinY: Double = -.infinity, visibleMaxY: Double = .infinity) -> RecordChoice? {
+        guard y >= visibleMinY, y <= visibleMaxY else { return nil }
+        return rows.first { x >= $0.minX && x <= $0.maxX && y >= $0.minY && y < $0.maxY }?.0
+    }
+
+    /// A swipe down closes the tray past a third of its height, or on a flick; a shorter drag springs back.
+    static func dismisses(translation: Double, predicted: Double, height: Double) -> Bool {
+        guard translation > 0 else { return false }
+        return translation > height / 3 || predicted - translation > flickDistance
     }
 }
 

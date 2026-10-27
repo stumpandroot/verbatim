@@ -164,8 +164,62 @@ guessed.applySuggestedKind(.meeting)
 check("AutoLabel's first guess stays", guessed.kind == .note)
 check("the auto-run picks the template by the picked kind", decide(picked) == .run(meeting.id, .meeting)
       && { var x = rec(nil); x.pickKindAtStart(.journal); return decide(x, pending: true) == .run(reflection.id, .journal) }())
-check("Record a kind offers five kinds, no Thoughts, podcasts, or videos", RecordingKind.recordChoices == [.meeting, .interview, .journal, .talk, .note])
-check("record menu titles", RecordingKind.recordChoices.map(\.recordTitle) == ["Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "Record a note"])
+check("Record a kind offers four kinds, no Note, podcasts, or videos", RecordingKind.recordChoices == [.meeting, .interview, .journal, .talk])
+check("record kind titles", RecordingKind.recordChoices.map(\.recordTitle) == ["Record a meeting", "Record an interview", "Record a journal entry", "Record a talk"])
+
+// MARK: Record as (the iPhone's tray, the Mac's menus)
+
+check("six choices in one order: Voice note, the four kinds, Thought", RecordChoice.all == [.voiceNote, .kind(.meeting), .kind(.interview), .kind(.journal), .kind(.talk), .thought])
+check("row names", RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought"])
+check("serif names put the last word in italic", RecordChoice.voiceNote.serifParts == ("Voice ", "note") && RecordChoice.kind(.talk).serifParts == ("Talk", nil)
+      && RecordChoice.kind(.journal).serifParts == ("Journal ", "entry"))
+check("Mac right-click titles", RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
+check("File › Record As titles", RecordChoice.all.map(\.commandTitle) == ["Voice Note", "Meeting…", "Interview", "Journal Entry", "Talk", "Thought"])
+check("VoiceOver actions", RecordChoice.all.map(\.actionName) == ["Record a voice note", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
+check("each choice has its own custom symbol", Set(RecordChoice.all.map(\.symbolName)).count == 6
+      && RecordChoice.all.map(\.symbolName) == ["rec.voice", "rec.meeting", "rec.interview", "rec.journal", "rec.talk", "thought"])
+check("Voice note leaves the kind to AutoLabel; Thought files as Thoughts", RecordChoice.voiceNote.kind == nil && RecordChoice.thought.kind == .idea
+      && RecordChoice.kind(.meeting).kind == .meeting)
+var trayAuto = AutoRunSettings()
+trayAuto.set(meeting.id, for: .meeting)
+trayAuto.set(reflection.id, for: .journal)
+trayAuto.set(meeting.id, for: .idea)
+let trayLib = TemplateLibrary.all(yours: [])
+check("hint: a template assigned to the kind", RecordChoice.kind(.meeting).hint(settings: trayAuto, templates: trayLib) == "Runs Meeting notes when it finishes"
+      && RecordChoice.kind(.journal).hint(settings: trayAuto, templates: trayLib) == "Runs \(reflection.name) when it finishes")
+check("hint: Run automatically off says what the kind really does", RecordChoice.kind(.interview).hint(settings: trayAuto, templates: trayLib) == "Filed under Interviews, every voice kept"
+      && RecordChoice.kind(.talk).hint(settings: trayAuto, templates: trayLib) == "Filed under Talks, every voice kept"
+      && RecordChoice.kind(.meeting).hint(settings: AutoRunSettings(), templates: trayLib) == "Filed under Meetings, every voice kept"
+      && RecordChoice.kind(.journal).hint(settings: AutoRunSettings(), templates: trayLib) == "Filed under Journal by day")
+check("hint: a deleted template counts as off", RecordChoice.kind(.meeting).hint(settings: trayAuto, templates: []) == "Filed under Meetings, every voice kept")
+check("hint: Voice note and Thought never name a template", RecordChoice.voiceNote.hint(settings: trayAuto, templates: trayLib) == "Plain Record. Verbose picks the kind."
+      && RecordChoice.thought.hint(settings: trayAuto, templates: trayLib) == "Adds to today\u{2019}s page")
+check("the recorder's line", RecordChoice.voiceNote.recorderLine(settings: trayAuto, templates: trayLib) == "Verbose picks the kind after it listens"
+      && RecordChoice.kind(.meeting).recorderLine(settings: trayAuto, templates: trayLib) == "Runs Meeting notes when it finishes")
+check("the kinds' fallbacks match what the app does: every voice stays in a meeting, interview, or talk",
+      [RecordingKind.meeting, .interview, .talk].allSatisfy { k in
+          var t = rec(k); t.source = .voiceMemo
+          t.segments = [Segment(start: 0, end: 50, text: "a", speaker: "S1"), Segment(start: 50, end: 55, text: "b", speaker: "S2")]
+          return !t.hasBackgroundVoices
+      })
+
+typealias TR = RecordTrayRules
+check("tray: lifting before the hold is a plain Record", TR.lift(opened: false, slid: false, over: nil) == .plainRecord
+      && TR.lift(opened: false, slid: true, over: .kind(.meeting)) == .plainRecord)
+check("tray: slide to a row and lift starts it", TR.lift(opened: true, slid: true, over: .kind(.meeting)) == .start(.kind(.meeting))
+      && TR.lift(opened: true, slid: true, over: .thought) == .start(.thought))
+check("tray: lift without sliding keeps it open for a tap", TR.lift(opened: true, slid: false, over: .kind(.meeting)) == .keepOpen
+      && TR.lift(opened: true, slid: true, over: nil) == .keepOpen)
+check("tray: sliding means more than 10 pt", !TR.slid(dx: 6, dy: 8) && TR.slid(dx: 0, dy: 10.5))
+let trayRows: [(RecordChoice, minX: Double, minY: Double, maxX: Double, maxY: Double)] =
+    RecordChoice.all.enumerated().map { i, c in (c, minX: 10, minY: 400 + Double(i) * 60, maxX: 380, maxY: 460 + Double(i) * 60) }
+check("tray: the row under the finger", TR.row(atY: 470, x: 100, rows: trayRows) == .kind(.meeting) && TR.row(atY: 399, x: 100, rows: trayRows) == nil
+      && TR.row(atY: 470, x: 5, rows: trayRows) == nil && TR.row(atY: 735, x: 100, rows: trayRows) == .thought)
+check("tray: rows scrolled out of view don't count", TR.row(atY: 470, x: 100, rows: trayRows, visibleMinY: 500, visibleMaxY: 700) == nil)
+check("tray: a swipe past a third of the height closes it", TR.dismisses(translation: 140, predicted: 150, height: 400)
+      && !TR.dismisses(translation: 120, predicted: 140, height: 400))
+check("tray: a fast flick closes it; dragging up never does", TR.dismisses(translation: 40, predicted: 300, height: 400)
+      && !TR.dismisses(translation: -40, predicted: 300, height: 400))
 
 // MARK: Results and the kind-change offer
 

@@ -72,6 +72,14 @@ enum TemplateChecks {
         check("the result says why it ran", ran.templateResults.flatMap { $0.first.flatMap(AutoRunRules.reason) } == "Ran automatically because this is a Meeting")
         check("the result's sections are the template's", TemplateResultText.blocks(sampleMeetingNotes).compactMap { if case .heading(let h) = $0 { return h } else { return nil } }
               == meeting.sections.map(\.name))
-        check("record menu: five kinds, no Thoughts", RecordingKind.recordChoices.map(\.recordTitle) == ["Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "Record a note"])
+        check("record as: six choices, Voice note first and Thought last, no Note",
+              RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought"])
+        check("record menu titles", RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
+        var hints = AutoRunSettings()
+        hints.set(meeting.id, for: .meeting)
+        check("record as: a kind with a template says it runs", RecordChoice.kind(.meeting).hint(settings: hints, templates: lib) == "Runs Meeting notes when it finishes")
+        check("record as: a kind with Run automatically off says what it does", RecordChoice.kind(.interview).hint(settings: hints, templates: lib) == "Filed under Interviews, every voice kept")
+        check("record as: Voice note and Thought keep their lines", RecordChoice.voiceNote.hint(settings: hints, templates: lib) == "Plain Record. Verbose picks the kind."
+              && RecordChoice.thought.hint(settings: hints, templates: lib) == "Adds to today\u{2019}s page")
     }
 }
