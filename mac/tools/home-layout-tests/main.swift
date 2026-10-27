@@ -273,5 +273,15 @@ check("a Moments link without the Moments tab opens inside Library", tim.host(fo
 check("without Library either, inside Home", PhoneTabBar(middle: [.thoughts]).host(for: .moments) == .home && PhoneTabBar(middle: [.thoughts]).host(for: .library) == .home)
 check("the pickable tabs, in order", PhoneTab.pickable == [.library, .thoughts, .journal, .moments, .dictations, .projects])
 
+// Home tiles wear their capture mode's hue, never their slot's (build 228 review, P-14).
+check("tile hues: Dictate butter, Import and Paste a link sage, What's playing and App audio petal",
+      HomeTile.dictate.hue == .butter && HomeTile.importMedia.hue == .sage && HomeTile.pasteLink.hue == .sage
+      && HomeTile.whatsPlaying.hue == .petal && HomeTile.appAudio.hue == .petal)
+check("Live captions, New thought, Journal, and the tools have no hue",
+      [HomeTile.captions, .newThought, .journal, .search, .moments, .queue, .dictations, .dictionary, .projects, .thoughtPad].allSatisfy { $0.hue == nil })
+check("after an edit, New thought and Journal stay neutral wherever they sit",
+      HomeTile.hues([.newThought, .journal, .dictate, .importMedia]) == [nil, nil, .butter, .sage])
+check("at most three tiles are colored", HomeTile.hues([.dictate, .importMedia, .pasteLink, .whatsPlaying]) == [.butter, .sage, .sage, nil])
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
