@@ -54,7 +54,8 @@
         "Mac: in the Native look, Record is a toolbar button. Click it to record a voice note, or click its arrow for Dictate, Live captions, Import, and the six ways to record. The floating record button is gone, so it never covers a row.",
         "Mac: in the Native look, the Library opens as a table with Name, Kind, People or source, Date, and Length. Click a column's heading to sort by it. Switch to List in the toolbar to see what was said in each recording.",
         "Mac: in the Native look, a transcript reads in a centered column with Original and Cleaned in the toolbar, and the player is a glass bar with the waveform as its scrubber. Review Changes, Mark This Moment, and Text Size are in the toolbar's More menu.",
-        "Mac: in the Native look, Home shows your quick actions, This week, and your recent recordings as grouped sections, and the Settings window shows each pane with a colored icon, like System Settings."
+        "Mac: in the Native look, Home shows your quick actions, This week, and your recent recordings as grouped sections, and the Settings window shows each pane with a colored icon, like System Settings.",
+        "iPhone: a quick tap on Record starts a voice note again. Touch and hold still opens Record as."
       ]
     },
     {

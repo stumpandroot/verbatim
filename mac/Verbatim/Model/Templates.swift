@@ -719,6 +719,10 @@ enum RecordTrayRules {
         return .start(row)
     }
 
+    /// A lift from Record without moving is a tap (the plain Record) only when the press never reached the hold and
+    /// no tray is up. Taps and the hold are recognized side by side, so a lift after the hold reaches here too.
+    static func isTap(held: Bool, trayOpen: Bool) -> Bool { !held && !trayOpen }
+
     /// The finger has moved far enough from where the tray opened to count as sliding.
     static func slid(dx: Double, dy: Double) -> Bool { (dx * dx + dy * dy).squareRoot() > slideDistance }
 

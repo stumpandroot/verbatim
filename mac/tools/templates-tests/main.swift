@@ -206,6 +206,9 @@ check("the kinds' fallbacks match what the app does: every voice stays in a meet
 typealias TR = RecordTrayRules
 check("tray: lifting before the hold is a plain Record", TR.lift(opened: false, slid: false, over: nil) == .plainRecord
       && TR.lift(opened: false, slid: true, over: .kind(.meeting)) == .plainRecord)
+check("tray: a quick tap is the plain Record", TR.isTap(held: false, trayOpen: false))
+check("tray: a lift after the hold, or with the tray up, is not a tap",
+      !TR.isTap(held: true, trayOpen: false) && !TR.isTap(held: true, trayOpen: true) && !TR.isTap(held: false, trayOpen: true))
 check("tray: slide to a row and lift starts it", TR.lift(opened: true, slid: true, over: .kind(.meeting)) == .start(.kind(.meeting))
       && TR.lift(opened: true, slid: true, over: .thought) == .start(.thought))
 check("tray: lift without sliding keeps it open for a tap", TR.lift(opened: true, slid: false, over: .kind(.meeting)) == .keepOpen

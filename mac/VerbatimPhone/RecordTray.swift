@@ -47,6 +47,8 @@ final class RecordTray: ObservableObject {
     private var origin: CGPoint? = nil
     /// This press brought a running recording back instead of opening the tray (once per press).
     private var reopened = false
+    /// This press reached the hold (the tray opened, or a running recording came back), so its lift is not a tap.
+    private(set) var heldThisPress = false
 
     /// Each row's frame and the list's visible band, in global coordinates (reported by the layer, never published).
     var rowFrames: [RecordChoice: CGRect] = [:]
@@ -61,7 +63,13 @@ final class RecordTray: ObservableObject {
     private let impact = UIImpactFeedbackGenerator(style: .light)
     private let selection = UISelectionFeedbackGenerator()
 
-    /// On touch down: the haptics are ready by the time the hold completes.
+    /// On touch down: a new press, with the haptics ready by the time the hold completes.
+    func pressBegan() {
+        heldThisPress = false
+        prepare()
+    }
+
+    /// The haptics are ready by the time the hold completes.
     func prepare() {
         Haptics.prepare(impact)
         Haptics.prepare(selection)
@@ -70,6 +78,7 @@ final class RecordTray: ObservableObject {
     /// The hold completed: open the tray, with the finger still down. While a recording runs, Record brings it back
     /// instead (as a tap does), so there's never a tray of kinds that can't start.
     func open(_ source: Source, from frame: CGRect = .zero) {
+        heldThisPress = true
         if let app, app.recordingActive || app.savingRecording {
             if !reopened { reopened = true; app.requestRecord() }
             return
@@ -124,6 +133,15 @@ final class RecordTray: ObservableObject {
         var t = Transaction()
         t.disablesAnimations = true
         withTransaction(t) { highlighted = nil }
+    }
+
+    /// The finger lifted from Record without moving. It's a tap (run `action`) unless this press reached the hold or
+    /// the tray is up; a lift after the hold leaves the tray open for a tap on a row.
+    func tapLifted(_ action: () -> Void) {
+        let held = heldThisPress
+        heldThisPress = false
+        guard RecordTrayRules.isTap(held: held, trayOpen: isOpen || fingerDown) else { return }
+        action()
     }
 
     /// A tap on Record (lifted before the hold): the plain Record.
@@ -256,12 +274,15 @@ private struct RecordTrayPress: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { remember($0) }
-            .gesture(press)
+            // A plain tap gesture, beside the hold rather than behind it: an exclusive tap only ran when the hold
+            // failed, and on iPhone a quick tap often never got there, so Record did nothing.
+            .onTapGesture { RecordTray.shared.tapLifted(tap) }
+            .simultaneousGesture(press)
             .onChange(of: phase) { old, new in
                 onPhase(new)
                 let tray = RecordTray.shared
                 switch new {
-                case .pressing: tray.prepare()
+                case .pressing: tray.pressBegan()
                 case .held: if !tray.fingerDown { tray.open(source, from: box.frame) }
                 case .idle:
                     // After the drag's own end (same event), so a lift on a row isn't taken for a lift in place.
@@ -295,7 +316,6 @@ private struct RecordTrayPress: ViewModifier {
                 guard case .second(true, let drag) = value else { return }
                 RecordTray.shared.lift(at: drag?.location)
             }
-            .exclusively(before: TapGesture().onEnded { tap() })
     }
 }
 

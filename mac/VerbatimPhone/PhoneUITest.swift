@@ -537,6 +537,9 @@ enum PhoneUITest {
         try? await Task.sleep(nanoseconds: 500_000_000)
         tray.fingerLifted()
         check("lifting without sliding keeps the tray open for a tap", tray.isOpen && tray.highlighted == nil)
+        picked = []
+        tray.tapLifted { tray.tap() }
+        check("the lift after the hold doesn't also start a voice note", picked.isEmpty && tray.isOpen)
         if !native { await show("p01w-record-tray-tap") }
         picked = []
         tray.choose(.kind(.talk))
@@ -545,7 +548,8 @@ enum PhoneUITest {
 
         // A quick tap on Record (lifted before the hold): the plain voice note.
         picked = []
-        tray.tap()
+        tray.pressBegan()
+        tray.tapLifted { tray.tap() }
         check("a quick tap starts a plain voice note", picked == [.voiceNote])
 
         // Premium Native's floating button: the same rows above the button, and Dictate, Live captions, and Import.
