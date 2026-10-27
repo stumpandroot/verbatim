@@ -327,7 +327,8 @@ enum SettingsIndex {
             var from = s.startIndex
             while from < s.endIndex, let r = s.range(of: t, options: [.caseInsensitive, .diacriticInsensitive], range: from..<s.endIndex) {
                 if let ar = Range(r, in: a) {
-                    a[ar][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Ink.persimmonTint
+                    // Native: the accent's soft wash (persimmon stays out of Native's chrome, DESIGN.md §13.2).
+                    a[ar][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = NativeSwap.on ? NativeInk.accentSoft : Ink.persimmonTint
                     a[ar][AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = Ink.ink
                 }
                 from = r.upperBound
@@ -391,14 +392,12 @@ struct SettingsPaneHeader: View {
     @Environment(\.look) private var look
     var body: some View {
         if look == .native {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.system(size: 20, weight: .bold)).foregroundStyle(.primary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .accessibilityAddTraits(.isHeader)
-                if let blurb {
-                    Text(blurb).font(.system(size: 12)).foregroundStyle(.secondary)
-                        .frame(maxWidth: 600, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                }
+            // Native: the title is in the window's toolbar (NativeSettings.swift), as System Settings shows it; the
+            // pane keeps its one-line description.
+            if let blurb {
+                Text(blurb).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .frame(maxWidth: 600, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("\(title). \(blurb)")
             }
         } else {
             verbose
@@ -531,7 +530,7 @@ struct SettingsAnchor: ViewModifier {
     @ObservedObject private var model = SettingsModel.shared
     func body(content: Content) -> some View {
         content
-            .background(Ink.persimmonTint.opacity(model.flashID == id ? 1 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .background((NativeSwap.on ? NativeInk.accentSoft : Ink.persimmonTint).opacity(model.flashID == id ? 1 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .animation(.easeOut(duration: 0.6), value: model.flashID == id)
             .id(id)
             .onAppear { model.anchorAppeared(id) }
@@ -643,7 +642,7 @@ struct SettingsToggleStyle: ToggleStyle {
             configuration.label.font(.system(size: NativeSwap.on ? 13 : 13.5)).foregroundStyle(Ink.ink)
             Spacer(minLength: 12)
             Toggle("", isOn: configuration.$isOn).toggleStyle(.switch).labelsHidden()
-                .tint(NativeSwap.on ? Ink.nativeAccent : Ink.switchOn)
+                .tint(NativeSwap.on ? nil : Ink.switchOn)
         }
     }
 }
