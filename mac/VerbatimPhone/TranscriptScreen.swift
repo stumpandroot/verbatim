@@ -1042,7 +1042,9 @@ struct PhoneMarkChip: View {
                 }
                 Text("Moment").font(.system(size: size, weight: .semibold))
                 Text(Marks.clock(note.at ?? 0)).font(native ? .system(size: size, weight: .medium).monospacedDigit() : Ink.mono(max(12, size - 0.5)))
-                if let from = Marks.chipSource(note) { Text("· \(from)").font(.system(size: size)).opacity(0.78) }
+                // The short form, as the Moments screen says it ("Lock Screen", "Mac · ⌃⌥B"; DESIGN.md §18.3); VoiceOver
+                // hears the sentence (Marks.chip).
+                if let from = Marks.shortSource(note) { Text("· \(from)").font(.system(size: size)).opacity(0.78) }
             }
             .foregroundStyle(native ? NativeInk.label : Ink.inkFixed)
             .lineLimit(1).minimumScaleFactor(0.85)
