@@ -30,7 +30,9 @@ struct ExportSheet: View {
             Rectangle().fill(Ink.ink.opacity(0.10)).frame(width: 1)
             previewPane(ts)
         }
-        .frame(width: 980, height: 660)
+        // Never taller than the window it hangs from, less 80 pt, so Cancel and Export stay on screen; the options
+        // scroll instead (review M-28).
+        .frame(width: 980, height: ExportSheet.height(window: app.mainWindow?.contentLayoutRect.height))
         .background(Ink.paper)
         .tint(Ink.switchOn)
         .onAppear { offsetText = Timecode.offsetText(options.timecodeOffset); refresh() }
@@ -63,17 +65,29 @@ struct ExportSheet: View {
             }
             Spacer(minLength: 0)
             HStack(spacing: 8) {
-                Button("Cancel") { dismiss() }.buttonStyle(SheetButtonStyle()).keyboardShortcut(.cancelAction)
-                Button("Copy") { copy(ts) }.buttonStyle(SheetButtonStyle()).disabled(ts.isEmpty)
+                Spacer(minLength: 0)
+                Button("Cancel") { dismiss() }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).keyboardShortcut(.cancelAction)
+                Button("Copy") { copy(ts) }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).disabled(ts.isEmpty)
                     .keyboardShortcut("c", modifiers: [.command, .shift])
-                Button(batch ? "Export \(ts.count)…" : "Export…") { export(ts) }.buttonStyle(SheetButtonStyle(primary: true))
+                Button(ExportSheet.exportTitle(count: ts.count, batch: batch)) { export(ts) }.buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
                     .keyboardShortcut(.defaultAction).disabled(ts.isEmpty || offsetInvalid)
             }
         }
         .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 18)
     }
 
-    /// "STUDIO WALKTHROUGH · 42 MIN", or "3 TRANSCRIPTS · 2 H 10 MIN".
+    /// The sheet's height: 660 pt, or the window's content height less 80 when that's less (never under 420).
+    static func height(window: CGFloat?) -> CGFloat {
+        guard let window, window > 0 else { return 660 }
+        return max(420, min(660, window - 80))
+    }
+
+    /// "Export…", or "Export 3 files…" for a batch: the whole label always fits its pill.
+    static func exportTitle(count: Int, batch: Bool) -> String {
+        batch ? "Export \(count) \(count == 1 ? "file" : "files")…" : "Export…"
+    }
+
+    /// "Studio walkthrough · 42 min", or "3 transcripts · 2 h 10 min".
     private func tag(_ ts: [Transcript]) -> String {
         if batch {
             let total = ts.map(\.duration).reduce(0, +)
@@ -222,7 +236,8 @@ struct ExportSheet: View {
 
     private func previewPane(_ ts: [Transcript]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Overline(text: previewTitle(ts), color: Ink.mute)
+            // The file's name as it will be saved, never uppercased (names are case-sensitive).
+            Text(previewTitle(ts)).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1).truncationMode(.middle)
             if ts.isEmpty {
                 Text("Nothing to export yet. Transcripts still in progress are left out.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 Spacer()

@@ -292,14 +292,15 @@ struct DocumentEditor: NSViewRepresentable {
                 if ns.character(at: k) == 10, ns.character(at: k - 1) == 10 { attr.addAttribute(.font, value: small, range: NSRange(location: k, length: 1)) }
                 k += 1
             }
-            // Speaker labels at paragraph starts: only real speaker names (any "Word:" isn't a label), in mono.
+            // Speaker labels at paragraph starts: only real speaker names (any "Word:" isn't a label), in SF Pro
+            // semibold ink. Mono is for shortcuts, timecodes, and indexes, never names (DESIGN.md §2; review M-25).
             var loc = 0
             let speakers = parent.speakers
-            let labelFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+            let labelFont = NSFont.systemFont(ofSize: 14, weight: .semibold)
             for p in text.components(separatedBy: "\n\n") {
                 if !speakers.isEmpty, let name = DocumentText.split(p, speakers: speakers).speaker {
                     let len = (name as NSString).length + 1
-                    attr.addAttributes([.font: labelFont, .foregroundColor: NSColor(Ink.dim)], range: NSRange(location: loc, length: min((p as NSString).length, len)))
+                    attr.addAttributes([.font: labelFont, .foregroundColor: NSColor(Ink.ink)], range: NSRange(location: loc, length: min((p as NSString).length, len)))
                 }
                 loc += (p as NSString).length + 2
             }
