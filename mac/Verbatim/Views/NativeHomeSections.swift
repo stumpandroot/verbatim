@@ -340,7 +340,7 @@ struct NativeHomeQueue: View {
     var body: some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                if size == .large { NativeHomeHeading(title: "Queue", link: "Open Queue") { app.go(.queue) } }
+                if size == .large { NativeHomeHeading(title: "Queue", link: "Open queue") { app.go(.queue) } }
                 Button { app.go(.queue) } label: {
                     VStack(spacing: 0) {
                         ForEach(Array(items.prefix(size == .large ? 3 : 1).enumerated()), id: \.element.id) { i, t in
@@ -383,7 +383,7 @@ struct NativeHomeThoughts: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if size == .large { NativeHomeHeading(title: "Today's Thoughts", link: "Today's Page") { HomeDayPages.openToday(app) } }
+            if size == .large { NativeHomeHeading(title: "Today's thoughts", link: "Today's page") { HomeDayPages.openToday(app) } }
             HStack(alignment: size == .large ? .bottom : .center, spacing: 12) {
                 Button { HomeDayPages.openToday(app) } label: { size == .large ? AnyView(list) : AnyView(row) }
                     .buttonStyle(PremiumCardPress(radius: 18))
@@ -459,7 +459,7 @@ struct NativeHomeJournal: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if size == .large { NativeHomeHeading(title: "Journal", link: "By Day") { HomeDayPages.openJournal(app) } }
+            if size == .large { NativeHomeHeading(title: "Journal", link: "By day") { HomeDayPages.openJournal(app) } }
             // The play pill sits beside the card's button, not inside it (macOS 26 click safety).
             ZStack(alignment: .bottomTrailing) {
                 Button { HomeDayPages.openJournal(app) } label: { size == .large ? AnyView(card) : AnyView(row) }

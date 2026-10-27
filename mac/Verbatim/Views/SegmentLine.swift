@@ -164,11 +164,10 @@ struct SegmentLine: View {
     }
 
     /// The speaker pill's fill (the website's transcript): the source fills in turn, Record, petal, sage, butter, by
-    /// the speaker's place in the list. Always with fixed ink text, so the name carries the meaning.
+    /// the order speakers first talk (review M-30). Always with fixed ink text, so the name carries the meaning.
     private func speakerColor(_ id: String) -> Color {
-        let fills = [Ink.panelRecord, Ink.panelPetal, Ink.panelSage, Ink.panelButter]
-        let i = transcript.speakers.firstIndex { $0.id == id } ?? 0
-        return fills[i % fills.count]
+        let i = SpeakerRotation.firstAppearance(id, in: transcript.segments) ?? transcript.speakers.firstIndex { $0.id == id } ?? 0
+        return SpeakerRotation.fills[i % SpeakerRotation.fills.count]
     }
     private func commit() {
         guard let from = fixing else { return }
@@ -196,7 +195,9 @@ struct MarkChip: View {
             }
             Text("Moment").font(.system(size: 12.5, weight: .semibold))
             Text(Marks.clock(note.at ?? 0)).font(native ? .system(size: 12.5, weight: .medium).monospacedDigit() : Ink.mono(12))
-            if let from = Marks.chipSource(note) { Text("· \(from)").font(.system(size: 12.5)).opacity(0.78) }
+            // The short form, as the Moments screen says it ("Lock Screen", "Mac · ⌃⌥B"); VoiceOver hears the
+            // sentence (review M-56).
+            if let from = Marks.shortSource(note) { Text("· \(from)").font(.system(size: 12.5)).opacity(0.78) }
         }
         .foregroundStyle(native ? Ink.ink : Ink.inkFixed)
         .lineLimit(1)
@@ -327,5 +328,24 @@ struct TranscriptLines: View {
     @MainActor private func syncPlaying(at now: Double) {
         let ids = Self.playing(segments, at: now, isPlaying: isPlaying)
         if ids != playingIDs { playingIDs = ids }
+    }
+}
+
+/// Speaker pills' fixed rotation (DESIGN.md §1): record, petal, sage, butter, by the order speakers first talk. The
+/// multitrack sheet colors its tracks in the same order, so a speaker keeps one color from the sheet to the transcript.
+enum SpeakerRotation {
+    static let fills: [Color] = [Ink.panelRecord, Ink.panelPetal, Ink.panelSage, Ink.panelButter]
+    static let tints: [Color] = [Ink.persimmonTint, Ink.petalTint, Ink.sageTint, Ink.butterTint]
+
+    /// The speaker's place in the order of first appearance in `segments`, or nil when they never talk. Stops at
+    /// their first line, so speakers who talk early are found at once.
+    static func firstAppearance(_ id: String, in segments: [Segment]) -> Int? {
+        var seen: [String] = []
+        for s in segments {
+            guard let sp = s.speaker else { continue }
+            if sp == id { return seen.count }
+            if !seen.contains(sp) { seen.append(sp) }
+        }
+        return nil
     }
 }

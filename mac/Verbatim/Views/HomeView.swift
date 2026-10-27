@@ -186,15 +186,19 @@ struct HomeView: View {
         }
     }
 
-    /// The last thing on Home: Edit Home, which outlines the sections and opens the inspector.
+    /// The last thing on Home: Edit Home, which outlines the sections and opens the inspector. While the inspector is
+    /// open its Done is the one way to stop editing, so this pill steps aside (keeping its place, so Home doesn't move).
     var editHomeButton: some View {
         HStack {
             Spacer(minLength: 0)
-            PillButton(title: edit.editing ? "Done Editing" : "Edit Home", kind: .line, size: .regular,
+            PillButton(title: "Edit Home", kind: .line, size: .regular,
                        hint: "Show, hide, reorder, and resize Home's sections, and choose its four tiles.") {
-                edit.editing.toggle()
+                edit.editing = true
             }
             .uiTarget("home-edit")
+            .opacity(edit.editing ? 0 : 1)
+            .allowsHitTesting(!edit.editing)
+            .accessibilityHidden(edit.editing)
             Spacer(minLength: 0)
         }
     }
@@ -902,7 +906,7 @@ private struct RecentRow: View {
 }
 
 /// Home's last dictation: one white card with an ink outline on the butter panel. The app and time and the word count
-/// in mono, the words (two lines at most), what cleanup did as plain status, and a Copy pill. A click anywhere on
+/// in mono, the words on one run (three lines at most), what cleanup did as plain status, and a Copy pill. A click anywhere on
 /// the card copies; the pill turns into "✓ Copied" for 1.6 s. VoiceOver hears "Copied".
 private struct LastDictationCard: View {
     var transcript: Transcript
@@ -932,7 +936,7 @@ private struct LastDictationCard: View {
         HStack(spacing: 14) {
             AppIconView(bundleID: transcript.flow?.bundleID).frame(width: 18, height: 18)
             Text("Last dictation").font(Ink.serif(22)).foregroundStyle(Ink.inkFixed).lineLimit(1)
-            Text(HomeDictationText.body(transcript)).font(.system(size: 14)).foregroundStyle(Ink.inkFixed).lineLimit(1)
+            Text(HomeDictationText.preview(transcript)).font(.system(size: 14)).foregroundStyle(Ink.inkFixed).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")) · \(head)").font(Ink.mono(12)).foregroundStyle(Ink.inkFixed).lineLimit(1)
             if canCopy { copyPill }
@@ -953,9 +957,9 @@ private struct LastDictationCard: View {
                 Spacer(minLength: 8)
                 Text(HomeCounts.countLabel(HomeCounts.words(transcript), "word", "words")).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1)
             }
-            Text(HomeDictationText.body(transcript)).font(.system(size: 15.5)).lineSpacing(4)
+            Text(HomeDictationText.preview(transcript)).font(.system(size: 15.5)).lineSpacing(4)
                 .foregroundStyle(failed ? Ink.danger : Ink.ink)
-                .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 if let status = WebStatus.dictationCleanup(transcript) { StatusText(text: status, check: true) }

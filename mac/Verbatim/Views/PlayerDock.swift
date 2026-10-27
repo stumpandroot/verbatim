@@ -6,19 +6,22 @@ import AppKit
 // MARK: - Player dock
 
 /// The player at the bottom of the transcript (the website's dock): a dark capsule in fixed ink with a hard offset
-/// shadow; the Record-colored play button, back and forward 5 s, the time in mono, the waveform (played part in
-/// butter, bookmarks as butter marks; click or drag to seek), the speed, and Bookmark as a paper pill.
+/// shadow; the sage play button (sage means playback; persimmon stays on Record, review M-24), back and forward 5 s,
+/// the time in mono, the waveform (played part in sage, bookmarks as butter marks; click or drag to seek), the speed,
+/// and Bookmark as a paper pill.
 struct PlayerDock: View {
     @EnvironmentObject var app: AppState
     var transcript: Transcript
     @ObservedObject var clock: PlayerClock
+    /// Playback's color: the sage panel fill, with the ink glyph on it (6.8:1).
+    static let playFill = Ink.panelSage
 
     var body: some View {
         let total = max(app.player.duration, transcript.duration)
         HStack(spacing: 12) {
             Button { app.player.toggle() } label: {
                 ZStack {
-                    Circle().fill(Ink.panelRecord)
+                    Circle().fill(PlayerDock.playFill)
                     ArtIcon(art: app.player.isPlaying ? .iconPause : .iconPlay, size: 16, lineWidth: 2).foregroundStyle(Ink.inkFixed)
                         .offset(x: app.player.isPlaying ? 0 : 1.5)
                 }
@@ -44,7 +47,7 @@ struct PlayerDock: View {
 
             WaveTrack(values: transcript.waveform, progress: total > 0 ? app.player.time / total : 0,
                       marks: transcript.notes.filter(\.isBookmark).compactMap { $0.at }.map { $0 / max(total, 1) },
-                      track: Ink.paperFixed.opacity(0.35), played: Ink.panelButter, mark: Ink.panelButter, head: Ink.paperFixed) { p in
+                      track: Ink.paperFixed.opacity(0.35), played: PlayerDock.playFill, mark: Ink.panelButter, head: Ink.paperFixed) { p in
                 app.player.seek(to: p * total)
             }
             .frame(height: 30)

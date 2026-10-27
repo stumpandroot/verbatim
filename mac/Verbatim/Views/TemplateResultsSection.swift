@@ -15,6 +15,9 @@ struct TemplateResultsSection: View {
     var transcript: Transcript
     /// In the reading column (Show the result first), where there's room for a wider card.
     var inline = false
+    /// The "Run a template" pill when there's no result. Verbose style's transcript has it in its tool row, so its
+    /// sections leave it out (review M-26); Native's inspector keeps it.
+    var runRow = true
     @ObservedObject private var center = TemplateCenter.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var editing: TemplateResult? = nil
@@ -44,7 +47,7 @@ struct TemplateResultsSection: View {
                 Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.danger).fixedSize(horizontal: false, vertical: true)
             }
             ForEach(results) { r in card(r, templates) }
-            if results.isEmpty, busy == nil, transcript.status == .ready, transcript.autoRunWaitingText == nil {
+            if runRow, results.isEmpty, busy == nil, transcript.status == .ready, transcript.autoRunWaitingText == nil {
                 runMenu(title: "Run a template", replacing: nil, templates: templates)
                     .uiTarget("transcript-run-template")
             }
@@ -150,21 +153,7 @@ struct TemplateResultsSection: View {
 
     /// A menu of every template, for a transcript with no result yet.
     private func runMenu(title: String, replacing: UUID?, templates: [TranscriptTemplate]) -> some View {
-        Menu {
-            ForEach(TemplateOrigin.allCases) { o in
-                let items = templates.filter { $0.origin == o }
-                if !items.isEmpty {
-                    Section(o.title) {
-                        ForEach(items) { t in Button(t.name) { center.run(t.id, on: transcript.id, store: app.store, replacing: replacing) } }
-                    }
-                }
-            }
-        } label: {
-            PillLabel(title: title, kind: .line, size: .mini, icon: .iconAI, trailing: .chevron)
-        }
-        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-        .help("Make notes, a plan, or a draft from this transcript with a template")
-        .accessibilityLabel(title)
+        RunTemplateMenu(transcript: transcript, title: title, replacing: replacing, templates: templates)
     }
 
     private func statusRow(_ text: String, spinner: Bool) -> some View {
@@ -230,5 +219,34 @@ struct TemplateResultsSection: View {
         .padding(22)
         .frame(width: 600, height: 520)
         .background(Ink.paper)
+    }
+}
+
+/// A line mini pill menu of every template, by where it came from: runs the chosen one on the transcript (replacing
+/// a result when `replacing` is set). In the result card's menu, the side column, and Verbose style's tool row.
+struct RunTemplateMenu: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var title = "Run a template"
+    var replacing: UUID? = nil
+    var templates: [TranscriptTemplate]
+    @ObservedObject private var center = TemplateCenter.shared
+
+    var body: some View {
+        Menu {
+            ForEach(TemplateOrigin.allCases) { o in
+                let items = templates.filter { $0.origin == o }
+                if !items.isEmpty {
+                    Section(o.title) {
+                        ForEach(items) { t in Button(t.name) { center.run(t.id, on: transcript.id, store: app.store, replacing: replacing) } }
+                    }
+                }
+            }
+        } label: {
+            PillLabel(title: title, kind: .line, size: .mini, icon: .iconAI, trailing: .chevron)
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Make notes, a plan, or a draft from this transcript with a template")
+        .accessibilityLabel(title)
     }
 }

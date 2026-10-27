@@ -180,16 +180,17 @@ struct NativeInspector: View {
 // MARK: - The toolbar
 
 /// Every screen's toolbar items, declared once at the window. Items keep their identities as screens change, so
-/// AppKit reuses them: the leading item (the Library's title, a transcript's back and forward), the center (the
-/// Library's scope, a transcript's tabs), the actions, and the inspector button. Search is the window's own field.
+/// AppKit reuses them: the leading item (Back, Forward, and Import on every screen, then the Library's title), the
+/// center (the Library's scope, a transcript's tabs), the screen's own actions, and the inspector button. Search is
+/// the window's own field. The leading set never changes, so a screen change doesn't reshuffle the bar (review M-10).
 struct NativeToolbar: ToolbarContent {
     let nav: NativeNav
     var screen: Screen
 
     var body: some ToolbarContent {
         let _ = LookSwitch.mark("toolbar")
+        ToolbarItem(id: "native.leading", placement: .navigation) { NativeLeadingItem(nav: nav, screen: screen) }
         if screen.hasNativeInspector {
-            ToolbarItem(id: "native.leading", placement: .navigation) { NativeLeadingItem(nav: nav, screen: screen) }
             ToolbarItem(id: "native.center", placement: .principal) { NativeCenterItem(nav: nav, screen: screen) }
         }
         ToolbarItem(id: "native.actions", placement: .primaryAction) { NativeActionsItem(nav: nav, screen: screen) }
@@ -207,7 +208,7 @@ private struct NativeInspectorButton: View {
     }
 }
 
-/// The Library's title and count, or a transcript's Back and Forward.
+/// Back, Forward, and Import on every screen, then the Library's title and count on the Library.
 private struct NativeLeadingItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
@@ -216,8 +217,8 @@ private struct NativeLeadingItem: View {
     var screen: Screen
 
     var body: some View {
-        if screen.transcriptID != nil {
-            // Two plain buttons in one item (hosted as SwiftUI, so they keep their identity as the content changes).
+        HStack(spacing: 6) {
+            // Two plain buttons (hosted as SwiftUI, so they keep their identity as the content changes).
             HStack(spacing: 0) {
                 Button { trail.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 32, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
@@ -232,16 +233,19 @@ private struct NativeLeadingItem: View {
                     .accessibilityLabel("Forward")
             }
             .font(.system(size: 14, weight: .medium))
-        } else {
-            let count = NativeLibraryScope.list(app).count
-            VStack(alignment: .leading, spacing: 0) {
-                Text(NativeLibraryScope.title(app)).font(.system(size: 15, weight: .bold)).lineLimit(1)
-                Text(count == 1 ? "1 transcript" : "\(count.formatted()) transcripts").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            Button { app.chooseFiles() } label: { Label("Import", systemImage: "square.and.arrow.down").labelStyle(.titleAndIcon) }
+                .help("Import audio or video files (⌘O)")
+            if screen == .library {
+                let count = NativeLibraryScope.list(app).count
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(NativeLibraryScope.title(app)).font(.system(size: 15, weight: .bold)).lineLimit(1)
+                    Text(count == 1 ? "1 transcript" : "\(count.formatted()) transcripts").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .padding(.horizontal, 4)
+                .fixedSize()
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
             }
-            .padding(.horizontal, 4)
-            .fixedSize()
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
         }
     }
 }
@@ -288,8 +292,8 @@ private struct ScopePickerStyle: ViewModifier {
     }
 }
 
-/// The screen's actions: Import and You on Home; Sort and More in the Library; Bookmark, Actions, Share, and Text Size
-/// on a transcript; Import elsewhere.
+/// The screen's own actions, in one slot: You (labeled) on Home; Sort and More in the Library; Bookmark, Actions,
+/// Share, and Text Size on a transcript. Import lives in the leading set on every screen.
 private struct NativeActionsItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
@@ -303,19 +307,11 @@ private struct NativeActionsItem: View {
         case .library:
             libraryActions
         case .home:
-            HStack(spacing: 8) {
-                importButton
-                Button { app.go(.activity) } label: { Label("You", systemImage: "person.crop.circle") }
-                    .help("You: your week, cleanup, and where you dictate")
-            }
+            Button { app.go(.activity) } label: { Label("You", systemImage: "person.crop.circle").labelStyle(.titleAndIcon) }
+                .help("You: your week, cleanup, and where you dictate")
         default:
-            importButton
+            EmptyView()
         }
-    }
-
-    private var importButton: some View {
-        Button { app.chooseFiles() } label: { Label("Import", systemImage: "square.and.arrow.down").labelStyle(.titleAndIcon) }
-            .help("Import audio or video files (⌘O)")
     }
 
     @ViewBuilder private var libraryActions: some View {

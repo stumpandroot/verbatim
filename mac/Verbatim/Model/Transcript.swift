@@ -266,7 +266,7 @@ struct Note: Codable, Identifiable, Equatable {
     /// text so a source a newer build adds (the Apple Watch) still reads. nil for moments made any other way. Older
     /// files decode without it.
     var markSource: String? = nil
-    /// The Mac's mark hotkey as it was when you pressed it ("⌃⌥B"), for "Mac, ⌃⌥B". nil for every other source.
+    /// The Mac's mark hotkey as it was when you pressed it ("⌃⌥B"), for "Mac · ⌃⌥B". nil for every other source.
     var markKeys: String? = nil
 
     var byModel: Bool { aiAction != nil }

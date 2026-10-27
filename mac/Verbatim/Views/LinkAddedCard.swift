@@ -4,8 +4,9 @@ import SwiftUI
 //
 // Pasting a link shows a centered card over a light scrim: the thumbnail as soon as it's known, the title (a
 // shimmering placeholder until then), and the download as it happens. When the audio is in the queue, or when you
-// choose Keep in background (Done once it's queued), the card folds in place into a small sage video tile, which then flies to the Queue item (Mac
-// sidebar) or the Library tab (iPhone) and the count there goes up. Downloading keeps going either way.
+// choose Keep downloading (Done once it's queued), the card folds in place into a small sage video tile, which then
+// flies to the Queue item (Mac sidebar) or the Library tab (iPhone) and the count there goes up. Downloading keeps
+// going either way.
 //
 // Motion (from the prototype): enter spring(0.38, bounce 0.22) from scale 0.94, y +14, opacity 0; fold
 // spring(0.42, 0.18); hold 0.14 s; fly spring(0.48, 0.08) to scale 0.3, opacity 0.35. Cancel fades down (y +12,
@@ -233,19 +234,23 @@ struct LinkAddedCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Pills that say what happens to the download (review M-19): a line pill stops it, the dark pill closes the
+            // card and keeps it going.
             HStack(spacing: 8) {
                 Button(action: onCancel) { label(Self.cancelTitle(imp.phase)) }
-                    .buttonStyle(LinkCardButtonStyle(fill: Ink.ink.opacity(0.08), text: Ink.ink))
+                    .buttonStyle(LinkCardButtonStyle(dark: false))
                 if failed {
                     Button(action: onRetry) { label("Retry") }
-                        .buttonStyle(LinkCardButtonStyle(fill: Ink.interactive, text: Ink.onInteractive))
+                        .buttonStyle(LinkCardButtonStyle(dark: true))
                         .keyboardShortcut(.defaultAction)
                 } else {
-                    // Escape is Done, not Cancel: closing the card never throws a download away.
+                    // Escape is Keep downloading (Done once queued), not Cancel: closing the card never throws a
+                    // download away.
                     Button(action: onDone) { label(Self.doneTitle(imp.phase)) }
-                        .buttonStyle(LinkCardButtonStyle(fill: Ink.interactive, text: Ink.onInteractive))
+                        .buttonStyle(LinkCardButtonStyle(dark: true))
                         .keyboardShortcut(.cancelAction)
                         .help("Close this card (Esc). The download keeps going and the link joins the queue.")
+                        .accessibilityHint("Closes this card. The download keeps going and the link joins the queue.")
                 }
             }
         }
@@ -257,10 +262,10 @@ struct LinkAddedCard: View {
 
     private var failed: Bool { if case .failed = imp.phase { return true }; return false }
 
-    /// While the audio is still coming: "Cancel download" and "Keep in background", so neither reads as stop or hide
-    /// by guesswork. Once it's queued or sent: "Cancel" and "Done".
+    /// While the audio is still coming: "Cancel download" and "Keep downloading", so neither reads as stop or hide by
+    /// guesswork (review P-42, M-19). Once it's queued or sent, or it failed: "Cancel" and "Done".
     static func cancelTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Cancel download" : "Cancel" }
-    static func doneTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Keep in background" : "Done" }
+    static func doneTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Keep downloading" : "Done" }
     private static func downloading(_ phase: LinkImport.Phase) -> Bool {
         switch phase {
         case .resolving, .downloading: return true
@@ -269,9 +274,10 @@ struct LinkAddedCard: View {
     }
 
     private func label(_ s: String) -> some View {
-        Text(s).font(.system(size: 14, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
+        Text(s).font(.system(size: 13.5, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: metrics.buttonHeight)
-            .contentShape(Rectangle())
+            .contentShape(Capsule())
     }
 
     // MARK: Thumbnail
@@ -346,15 +352,16 @@ struct LinkAddedCard: View {
 
     private var status: some View {
         HStack(spacing: 10) {
+            // Plain sentence-case status, never an uppercase tracked label; the percent in mono.
             Text(phaseText)
-                .font(.system(size: 12.5, weight: .medium)).lineLimit(1)
-                .foregroundStyle(failed ? Ink.danger : Ink.mute)
+                .font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                .foregroundStyle(failed ? Ink.danger : Ink.dim)
                 .fixedSize()
             if !failed {
                 ProgressRail(value: fraction)
                 Text(percentText)
-                    .font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
-                    .frame(minWidth: 34, alignment: .trailing)
+                    .font(Ink.mono(12)).monospacedDigit().foregroundStyle(Ink.dim)
+                    .frame(minWidth: 38, alignment: .trailing)
             } else {
                 Spacer(minLength: 0)
             }
@@ -383,17 +390,16 @@ struct LinkAddedCard: View {
     private var percentText: String { "\(Int((fraction * 100).rounded()))%" }
 }
 
-/// The card's two buttons, pills like every Verbose button (DESIGN.md §11.5): the ink-text one is the line pill
-/// (a 1.5 pt ink outline), the other the dark pill in its fill.
+/// The card's two buttons as pills on the Mac and the iPhone, like every Verbose button (DESIGN.md §11.5): a line pill
+/// (1.5 pt ink outline) and a dark pill (ink fill, paper text).
 struct LinkCardButtonStyle: ButtonStyle {
-    var fill: Color
-    var text: Color
+    var dark: Bool
     func makeBody(configuration: Configuration) -> some View {
-        let line = text == Ink.ink
-        return configuration.label
-            .foregroundStyle(text)
-            .background(line ? Color.clear : fill, in: Capsule())
-            .overlay { if line { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) } }
+        configuration.label
+            .foregroundStyle(dark ? Ink.paper : Ink.ink)
+            .background {
+                if dark { Capsule().fill(Ink.ink) } else { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) }
+            }
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.8 : 1)
             .animation(Motion.press, value: configuration.isPressed)

@@ -8,9 +8,10 @@ struct MultitrackSheet: View {
     @ObservedObject var draft: MultitrackDraft
     @State private var dropping = false
 
-    /// Chip and waveform colors per track, from the kind palette.
-    static let tints: [Color] = [Ink.persimmonTint, Ink.sageTint, Ink.butterTint, Ink.petalTint]
-    static let marks: [Color] = [Ink.persimmon, Ink.sage, Ink.butter, Ink.petal]
+    /// Chip and waveform colors per track, in the transcript's speaker rotation (record, petal, sage, butter), so a
+    /// speaker keeps one color from this sheet to the transcript (review M-30).
+    static let tints: [Color] = SpeakerRotation.tints
+    static let marks: [Color] = SpeakerRotation.fills
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

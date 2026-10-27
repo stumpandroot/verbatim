@@ -458,14 +458,18 @@ struct KindHeroCard: View {
     }
 }
 
-/// Journal entries grouped by day, newest first: "TODAY" / "SAT 17 OCT" headings with dotted leaders.
+/// Journal entries grouped by day, newest first: "Today · Sat Oct 17" headings, in the same date order as every other
+/// day header (`DayHeader`; review M-15).
 enum JournalDays {
     struct Day: Identifiable { var id: Date; var label: String; var date: String; var entries: [Transcript] }
+
+    /// The Library's, Dictations', and By day's date order.
+    static let dateFormat = "EEE MMM d"
 
     static func group(_ items: [Transcript], now: Date = Date()) -> [Day] {
         let cal = Calendar.current
         let byDay = Dictionary(grouping: items) { cal.startOfDay(for: $0.createdAt) }
-        let fmt = Formats.pattern("EEE d MMM")
+        let fmt = Formats.pattern(JournalDays.dateFormat)
         let weekday = Formats.pattern("EEEE")
         return byDay.keys.sorted(by: >).map { day in
             let label: String

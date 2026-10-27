@@ -36,7 +36,7 @@ struct NotesPanel: View {
                     }
                 }
                 // Templates' results, unless Show the result first put them above the text (TemplateResultsSection).
-                if !TemplateResultsSection.showsFirst(transcript) { TemplateResultsSection(transcript: transcript) }
+                if !TemplateResultsSection.showsFirst(transcript) { TemplateResultsSection(transcript: transcript, runRow: false) }
                 TranscriptSummaryCard(transcript: transcript)
                 moments
                 actions

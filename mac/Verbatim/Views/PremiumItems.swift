@@ -63,7 +63,8 @@ struct PremiumRecordingItem: View {
             if !preview.isEmpty {
                 Text(preview)
             } else {
-                let parts = HomeRecentStyle.metaParts(transcript, style: HomeRecentStyle(transcript), compact: false)
+                // No day: the date line above already says it ("Today · 2:17 AM").
+                let parts = HomeRecentStyle.metaParts(transcript, style: HomeRecentStyle(transcript), compact: false, day: false)
                 parts.enumerated().reduce(Text(verbatim: "")) { out, p in
                     let piece = p.element.failed ? Text(p.element.text).foregroundStyle(NativeInk.danger) : Text(p.element.text)
                     return Text("\(out)\(p.offset > 0 ? " · " : "")\(piece)")
@@ -124,6 +125,8 @@ struct PremiumRecordingItem: View {
         case .ready:
             if transcript.document != nil {
                 Text("Cleaned").font(.system(size: 12)).foregroundStyle(PremiumInk.accentText)
+            } else if WebStatus.isTextOnly(transcript) {
+                Text("Text").font(.system(size: 12)).foregroundStyle(.secondary)
             } else {
                 Text("Original").font(.system(size: 12)).foregroundStyle(.secondary)
             }

@@ -67,5 +67,8 @@ struct ToolLabel: View {
         .background(on ? Ink.iris.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .contentShape(Rectangle())
         .hoverChip()
+        // Icon-only in a narrow window: the name still reaches VoiceOver.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
     }
 }

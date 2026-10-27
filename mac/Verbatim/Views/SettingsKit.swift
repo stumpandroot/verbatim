@@ -75,7 +75,7 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
         case .recording: return "Which model transcribes your recordings, who's talking, and what Verbose does to a transcript when it's ready."
         case .dictate: return "Hold or press your hotkey in any app and Verbose types what you say."
         case .floatingButton: return "What you see while Verbose listens, cleans up, and pastes: the Ribbon, the notch, or the floating button."
-        case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac."
+        case .actions: return "Instructions you save once and run on any text: a selection in any app, a dictation, or a whole transcript. Everything runs on this Mac. To turn a whole recording into notes, use Templates."
         case .meetings: return "Record a call as two tracks, your microphone and the meeting app, on this Mac, and live captions for whatever your Mac is playing or hearing. Verbose can notice a call and ask; it never records on its own."
         case .watched: return "Drop audio or video into a watched folder and Verbose transcribes it, then exports the results where you choose, with the text, speaker names, and timecodes set here."
         case .storage: return "Where your library, models, and kept video live, how links sign in, and whether they sync with your iPhone."

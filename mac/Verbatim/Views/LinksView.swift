@@ -93,6 +93,8 @@ struct LinkRow: View {
                         .lineLimit(2).lineSpacing(1)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(metaLine(info)).font(Ink.mono(12)).foregroundStyle(Ink.mute).lineLimit(1).padding(.top, 5)
+                        .layoutPriority(1)
+                        .help(metaLine(info))
                     status.padding(.top, 8)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -119,9 +121,9 @@ struct LinkRow: View {
         WebText.split(transcript.title, after: transcript.projectId.flatMap { app.store.projectsByID[$0]?.name })
     }
 
-    /// "Lapp Wagons · YouTube · Oct 12, 2026 · 06:52".
+    /// "Lapp Wagons · YouTube · Oct 12 · 06:52": the year only when it isn't this year, so the line fits (review M-18).
     private func metaLine(_ info: LinkInfo) -> String {
-        [info.channel, info.site, info.uploadDisplay, transcript.duration > 0 ? WebFormat.clock(transcript.duration) : nil]
+        [info.channel, info.site, LinkUploadDate.short(info.uploadDate), transcript.duration > 0 ? WebFormat.clock(transcript.duration) : nil]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
@@ -281,5 +283,22 @@ struct Thumbnail: View {
             }
         .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.hairline))
+    }
+}
+
+/// A link's upload day for a row: "Sep 12" this year, "Sep 12, 2025" before. `yyyyMMdd` in, as yt-dlp writes it.
+enum LinkUploadDate {
+    static func short(_ raw: String?, now: Date = Date(), calendar: Calendar = .current) -> String? {
+        guard let raw, raw.count == 8, let date = Formats.pattern("yyyyMMdd").date(from: raw) else { return nil }
+        return (calendar.isDate(date, equalTo: now, toGranularity: .year) ? sameYear : otherYear).string(from: date)
+    }
+    /// Made once (a formatter per row per render is slow).
+    private static let sameYear = template("MMM d")
+    private static let otherYear = template("MMM d yyyy")
+    private static func template(_ t: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = .autoupdatingCurrent
+        f.setLocalizedDateFormatFromTemplate(t)
+        return f
     }
 }

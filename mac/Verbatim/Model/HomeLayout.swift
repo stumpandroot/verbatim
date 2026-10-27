@@ -39,7 +39,7 @@ enum HomeSection: String, CaseIterable, Sendable {
     var title: String {
         switch self {
         case .record: return "Record"
-        case .tiles: return "Shortcut tiles"
+        case .tiles: return "Tiles"
         case .week: return "This week"
         case .stats: return "Stats"
         case .recent: return "Recent recordings"

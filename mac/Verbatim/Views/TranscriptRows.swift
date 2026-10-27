@@ -89,7 +89,10 @@ struct HistoryRow: View {
                 .layoutPriority(1)
                 Spacer(minLength: 10)
                 status
-                Text(WebFormat.clock(transcript.duration)).font(Ink.mono(12)).foregroundStyle(Ink.dim).lineLimit(1).fixedSize()
+                // A text-only thought (no audio) has no length to show (review M-13).
+                if !WebStatus.isTextOnly(transcript) {
+                    Text(WebFormat.clock(transcript.duration)).font(Ink.mono(12)).foregroundStyle(Ink.dim).lineLimit(1).fixedSize()
+                }
                 if selected == nil { Color.clear.frame(width: 26, height: 26) }   // room for the ⋯ menu
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
@@ -120,6 +123,8 @@ struct HistoryRow: View {
         case .ready:
             if transcript.document != nil {
                 StatusText(text: "Cleaned", tone: .accent, mono: true)
+            } else if WebStatus.isTextOnly(transcript) {
+                StatusText(text: "Text", tone: .dim, mono: true)
             } else {
                 StatusText(text: "Original", tone: .dim, mono: true)
             }

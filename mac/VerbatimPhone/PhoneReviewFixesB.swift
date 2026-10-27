@@ -67,8 +67,8 @@ extension PhoneUITest {
               PhoneDocument.cleanUpLabel(.none) == "Clean up" && PhoneDocument.cleanUpLabel(.light) == "Clean up · Light")
 
         // P-42: the link card's buttons say what they do.
-        check("while downloading: Cancel download and Keep in background",
-              LinkAddedCard.cancelTitle(.downloading) == "Cancel download" && LinkAddedCard.doneTitle(.downloading) == "Keep in background")
+        check("while downloading: Cancel download and Keep downloading",
+              LinkAddedCard.cancelTitle(.downloading) == "Cancel download" && LinkAddedCard.doneTitle(.downloading) == "Keep downloading")
         check("once queued: Cancel and Done", LinkAddedCard.cancelTitle(.queued) == "Cancel" && LinkAddedCard.doneTitle(.queued) == "Done")
 
         // P-44: the Action button page's lede.

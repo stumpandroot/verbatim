@@ -207,7 +207,7 @@ struct PremiumTranscriptInspector: View {
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(Marks.words(n, in: transcript.segments)).font(.system(size: 13)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
-                        // Marked while recording: where from ("Lock Screen", "Mac, ⌃⌥B").
+                        // Marked while recording: where from ("Lock Screen", "Mac · ⌃⌥B").
                         if let from = Marks.shortSource(n) {
                             Label(from, systemImage: "bookmark.fill").font(.system(size: 11.5)).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
                         }

@@ -19,7 +19,7 @@ struct MomentsView: View {
         var id: UUID { note.id }
     }
 
-    private static let kinds = ["All", "Bookmarks", "Notes", "With stills"]
+    private static let kinds = MomentFilter.kinds
 
     private var all: [Moment] {
         let filtered = app.filtered
@@ -32,12 +32,7 @@ struct MomentsView: View {
     private func shown(_ all: [Moment]) -> [Moment] {
         let q = app.search.trimmingCharacters(in: .whitespaces).lowercased()
         return all.filter { m in
-            switch kind {
-            case "Bookmarks": if !m.note.isBookmark { return false }
-            case "Notes": if m.note.isBookmark { return false }
-            case "With stills": if m.note.frameFile == nil { return false }
-            default: break
-            }
+            guard MomentFilter.matches(kind, m.note) else { return false }
             return q.isEmpty || m.note.text.lowercased().contains(q) || m.transcript.title.lowercased().contains(q)
         }
     }
@@ -50,12 +45,16 @@ struct MomentsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 PageTitle(title: "Moments", count: "\(shown.count.formatted()) saved",
-                          lede: "Notes and bookmarks with a time, from every transcript. Click one to land on that passage. Press B while a transcript plays to save one.")
+                          lede: "Notes, bookmarks, and moments you mark while recording. Press B while a transcript plays, or \(MarkHotkeyStore.current().title) while you record. Click one to land on that passage.")
                     .staggerIn(0)
                 if !all.isEmpty {
                     FlowRow(spacing: 8, lineSpacing: 8) {
+                        // Every chip has its count (review M-55); an empty one hides unless it's the one chosen.
                         ForEach(Self.kinds, id: \.self) { k in
-                            FilterChip(title: k, count: k == "All" ? all.count : nil, selected: kind == k) { kind = k }
+                            let n = all.filter { MomentFilter.matches(k, $0.note) }.count
+                            if n > 0 || k == "All" || kind == k {
+                                FilterChip(title: k, count: n, selected: kind == k) { kind = k }
+                            }
                         }
                     }
                     .padding(.top, 18).staggerIn(1)
@@ -234,7 +233,7 @@ struct MomentCard: View {
         HStack(spacing: 8) {
             ArtIcon(art: note.isMark ? .iconMarked : note.isBookmark ? .iconPin : .iconNotes, size: 16, lineWidth: 1.3)
             Text(at.timecode).font(Ink.mono(12)).monospacedDigit()
-            // Marked while recording: where from ("Lock Screen", "Mac, ⌃⌥B").
+            // Marked while recording: where from ("Lock Screen", "Mac · ⌃⌥B").
             if let from = Marks.shortSource(note) {
                 Text(from).font(.system(size: 12.5)).opacity(0.78).lineLimit(1)
             }
@@ -298,5 +297,20 @@ private struct ButterPanel: ViewModifier {
     var on: Bool
     func body(content: Content) -> some View {
         if on { content.colorPanel(Ink.panelButter, radius: Radius.record) } else { content }
+    }
+}
+
+/// The Moments screen's filters: All, Bookmarks, Marked (moments marked while recording, `Note.isMark`), Notes, and
+/// With stills. A mark is a bookmark too, so it counts under both.
+enum MomentFilter {
+    static let kinds = ["All", "Bookmarks", "Marked", "Notes", "With stills"]
+    static func matches(_ kind: String, _ n: Note) -> Bool {
+        switch kind {
+        case "Bookmarks": return n.isBookmark
+        case "Marked": return n.isMark
+        case "Notes": return !n.isBookmark
+        case "With stills": return n.frameFile != nil
+        default: return true
+        }
     }
 }

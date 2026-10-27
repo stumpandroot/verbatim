@@ -179,7 +179,8 @@ struct HomeRecentStyle {
     struct MetaPart: Equatable { var text: String; var failed = false }
 
     /// "Voice note · 7:50 · Today". `compact` leaves out "Voice note" (iPhone).
-    static func metaParts(_ t: Transcript, style: HomeRecentStyle, compact: Bool, now: Date = Date(), calendar: Calendar = .current) -> [MetaPart] {
+    /// `day: false` leaves the day out, for items whose date line already says it (Premium Native's items; review M-09).
+    static func metaParts(_ t: Transcript, style: HomeRecentStyle, compact: Bool, day showDay: Bool = true, now: Date = Date(), calendar: Calendar = .current) -> [MetaPart] {
         var parts: [MetaPart] = []
         if !(compact && style.source == "Voice note") { parts.append(MetaPart(text: style.source)) }
         switch t.status {
@@ -187,7 +188,7 @@ struct HomeRecentStyle {
         case .failed: parts.append(MetaPart(text: "Didn't finish", failed: true))
         case .ready: if t.duration > 0 { parts.append(MetaPart(text: length(t.duration))) }
         }
-        parts.append(MetaPart(text: day(t.createdAt, now: now, calendar: calendar)))
+        if showDay { parts.append(MetaPart(text: day(t.createdAt, now: now, calendar: calendar))) }
         return parts
     }
 
@@ -223,6 +224,12 @@ enum HomeDictationText {
         if t.status == .failed { return t.error ?? "Transcription failed" }
         let text = pasted(t).trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? "(only filler words)" : text
+    }
+    /// `body` for a preview: runs of line breaks and spaces become one space, so a greeting's blank line ("Hi
+    /// Jonathan,\n\nI think…") doesn't end the preview after one line. Copy still takes the words as pasted.
+    static func preview(_ t: Transcript) -> String { oneLine(body(t)) }
+    static func oneLine(_ s: String) -> String {
+        s.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).joined(separator: " ")
     }
 }
 

@@ -120,11 +120,11 @@ struct TranscriptView: View {
                                     .staggerIn(1).padding(.bottom, 12)
                                 // Show the result first: a template's automatic result opens above the text.
                                 if view != .review, TemplateResultsSection.showsFirst(t) {
-                                    TemplateResultsSection(transcript: t, inline: true).padding(.bottom, 14)
+                                    TemplateResultsSection(transcript: t, inline: true, runRow: false).padding(.bottom, 14)
                                 }
                                 // The side column is closed: the Summary card sits above the text instead.
                                 if !notesOpen, view != .review {
-                                    if !TemplateResultsSection.showsFirst(t) { TemplateResultsSection(transcript: t, inline: true).padding(.bottom, 14) }
+                                    if !TemplateResultsSection.showsFirst(t) { TemplateResultsSection(transcript: t, inline: true, runRow: false).padding(.bottom, 14) }
                                     TranscriptSummaryCard(transcript: t).padding(.bottom, 14)
                                 }
                                 content(t)
@@ -186,6 +186,8 @@ struct TranscriptView: View {
                         PlayerDock(transcript: t, clock: app.player.clock)
                             .padding(.leading, 40).padding(.trailing, sideInline ? 22 : 40).padding(.bottom, 24)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            // Lines fade into the paper under the dock instead of showing around it (review M-29).
+                            .background(alignment: .bottom) { BottomFade(color: Ink.paper, height: Self.dockFade) }
                             .staggerIn(3)
                     }
                 }
@@ -257,6 +259,11 @@ struct TranscriptView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header(t)
+                    // A result lives in the inspector; with it closed, a neutral row says it's there (review M-27).
+                    if !nav.inspector, view != .review, !TemplateResultsSection.showsFirst(t), let r = t.shownTemplateResults.first {
+                        NativeResultReadyRow(name: r.name, count: t.shownTemplateResults.count) { nav.inspector = true }
+                            .padding(.bottom, 12)
+                    }
                     if view == .original, t.status == .ready { versionControl(t).padding(.bottom, 12) }
                     // Show the result first: a template's automatic result opens above the text (else the inspector).
                     if view != .review, TemplateResultsSection.showsFirst(t) {
@@ -291,6 +298,8 @@ struct TranscriptView: View {
             if t.audioFileName != nil, t.status == .ready, view != .document {
                 NativePlayerBar(transcript: t, clock: app.player.clock, nav: nav)
                     .padding(.horizontal, 40).padding(.bottom, 22)
+                    // The bottom edge effect: lines and times fade into the window under the opaque bar (review M-29).
+                    .background(alignment: .bottom) { BottomFade(color: PremiumInk.window, height: Self.dockFade) }
             }
         }
         .background {
@@ -312,7 +321,7 @@ struct TranscriptView: View {
 
     /// "Podcast · Thursday, October 22 · 1:04:12 · 2 speakers · English".
     private func nativeMeta(_ t: Transcript) -> String {
-        var parts = [t.kind?.label ?? (t.sourceLabel.isEmpty ? "Recording" : t.sourceLabel)]
+        var parts = [t.kind?.label ?? Self.sourceName(t)]
         parts.append(Formats.pattern("EEEE, MMMM d").string(from: t.createdAt))
         parts.append(NativeLibraryView.length(t.duration))
         if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
@@ -330,11 +339,21 @@ struct TranscriptView: View {
 
     /// "◇ Meeting · Thu Oct 22 · 15:39": the kind (or the source), the day, and the length.
     private func eyebrow(_ t: Transcript) -> String {
-        var parts = [t.kind?.label ?? (t.sourceLabel.isEmpty ? "Recording" : t.sourceLabel)]
+        var parts = [t.kind?.label ?? Self.sourceName(t)]
         parts.append(Formats.pattern("EEE MMM d").string(from: t.createdAt))
         parts.append(WebFormat.clock(t.duration))
         if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
         return parts.joined(separator: " · ")
+    }
+
+    /// How tall the fade under the player is: the dock or bar, its 22 to 24 pt margin, and 16 more.
+    static let dockFade: CGFloat = 104
+
+    /// What the recording is when it has no kind: "Voice note" for a voice note (its stored label says "Voice memo"
+    /// in older libraries; review M-14), else the stored label.
+    static func sourceName(_ t: Transcript) -> String {
+        if t.source == .voiceMemo { return "Voice note" }
+        return t.sourceLabel.isEmpty ? "Recording" : t.sourceLabel
     }
 
     private func projectName(_ t: Transcript) -> String? {
@@ -436,13 +455,20 @@ struct TranscriptView: View {
                 .accessibilityAction(named: "Rename") { beginRename(t) }
         } else {
             let lines = Self.twoLine(t.title, project: projectName(t))
-            VStack(alignment: .leading, spacing: 0) {
-                Text(lines.0).font(Ink.serif(44))
-                if let second = lines.1 { Text(second).font(Ink.serif(44).italic()) }
+            // A title that fits on one line takes PageTitle's serif 34, so the first words of the transcript sit
+            // higher (review M-26); a longer one keeps the two-line serif 44 with its italic second line.
+            ViewThatFits(in: .horizontal) {
+                WebText.serif(lines.0, italic: lines.1, size: 34)
+                    .tracking(-0.5).lineLimit(1).fixedSize()
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(lines.0).font(Ink.serif(44))
+                    if let second = lines.1 { Text(second).font(Ink.serif(44).italic()) }
+                }
+                .tracking(-1)
+                .lineLimit(2).minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .tracking(-1).foregroundStyle(Ink.ink)
-            .lineLimit(2).minimumScaleFactor(0.7)
-            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(Ink.ink)
             .contentShape(Rectangle())
             .onTapGesture { beginRename(t) }
             .help("Click to rename")
@@ -544,11 +570,17 @@ struct TranscriptView: View {
         }
     }
 
-    /// Copy, Export, Notes, and text size, beside the modes they act on.
+    /// Run a template, Copy, Export, Continue, Actions, Notes, and text size, beside the modes they act on. Every icon
+    /// has a help tag and a spoken name (ToolLabel), labeled or not (review M-26).
     private func tools(_ t: Transcript, notesOpen: Bool, compact: Bool) -> some View {
         HStack(spacing: 2) {
+            if t.status == .ready {
+                RunTemplateMenu(transcript: t, title: compact ? "Template" : "Run a template", templates: app.store.allTemplates)
+                    .padding(.trailing, 6)
+                    .uiTarget("transcript-run-template")
+            }
             ExportMenu(transcript: t, compact: compact, version: copyVersion)
-            Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Continue", art: .capture, compact: compact) }
+            Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Record more", art: .capture, compact: compact) }
                 .buttonStyle(.plain)
                 .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
                 .help("Record more and add it to the end of this transcript")
@@ -781,5 +813,43 @@ struct TranscriptActionSheet: View {
                     transcript: onOriginal ? t : nil, aiLabel: TranscriptActions.madeByLabel) { text in
             app.store.addNote(Note(text: text, aiAction: action.name), to: t.id)
         }
+    }
+}
+
+/// A fade from clear to the page's color at the bottom edge, under a floating player, so lines scrolling past it fade
+/// out instead of peeking around it. Never takes clicks.
+struct BottomFade: View {
+    var color: Color
+    var height: CGFloat
+    var body: some View {
+        LinearGradient(stops: [.init(color: color.opacity(0), location: 0), .init(color: color, location: 0.55)],
+                       startPoint: .top, endPoint: .bottom)
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Native: "Meeting notes ready · Show" under the header while the inspector, where the result lives, is closed. A
+/// neutral row (templates are neutral, DESIGN.md §17.2) whose Show opens the inspector.
+struct NativeResultReadyRow: View {
+    var name: String
+    var count: Int
+    var show: () -> Void
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "doc.text")   // brand: native
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Text(count > 1 ? "\(name) and \(count - 1) more ready" : "\(name) ready")
+                .font(.system(size: 13)).foregroundStyle(.primary).lineLimit(1)
+            Spacer(minLength: 8)
+            Button("Show", action: show).buttonStyle(.bordered).controlSize(.small)
+                .help("Open the inspector to read the result")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(NativeInk.box, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityAction(named: "Show") { show() }
     }
 }
