@@ -209,6 +209,7 @@ enum PhoneUITest {
                 // Thoughts (ThoughtsScreens.swift): today's page, the day arrows, and By day for Thoughts and Journal.
                 await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 await templatesTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
+                await askTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app); await actionButtonDictateChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
                 if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
@@ -422,6 +423,7 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 await thoughtsTour(app, prefix: prefix, suffix: "-native", checks: prefix == "p")
                 await templatesTour(app, prefix: prefix, suffix: "-native", checks: false)
+                await askTour(app, prefix: prefix, suffix: "-native", checks: false)
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
@@ -601,6 +603,75 @@ enum PhoneUITest {
         }
         app.libraryPath = NavigationPath()
         TemplateSettingsModel.shared.settings = saved
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Library › Ask with the mockup's answer, a real question answered by a stand-in for Apple's model (it never runs
+    /// here), nothing relevant, and Recipes: the three suggestions, then the recipes with a digest. The mockup's
+    /// recordings and the recipes are taken out afterward.
+    private static func askTour(_ app: PhoneState, prefix: String, suffix: String, checks: Bool) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") ask\(suffix): \(name)") }
+        let center = AskCenter.shared, recipes = AskRecipeCenter.shared
+        let project = app.store.projects.first { $0.name == "Website refresh" }?.id ?? app.store.addProject("Website refresh").id
+        var seeded: [UUID] = []
+        for t in AskChecks.samples(project: project) where !app.store.live.contains(where: { $0.title == t.title && $0.projectId == project }) {
+            app.store.add(t); seeded.append(t.id)
+        }
+        let before = Set(app.store.recipes.map(\.id))
+        app.tab = .library
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        center.show(AskChecks.sampleResult(app.store.live, scope: AskScope(range: .thisWeek), device: "iPhone"))
+        app.libraryPath.append(AskRoute())
+        await show("\(prefix)04n-ask\(suffix)")
+        if checks {
+            check("Library › Ask shows the answer with its three citations", center.result?.answer?.citations.count == 3)
+            center.responder = { _ in "Alex asked for a shorter headline [1]. Invented [7]." }
+            var path = NavigationPath()
+            path.append(AskRoute(query: "What did Alex want changed on the homepage?"))
+            app.libraryPath = NavigationPath()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            app.libraryPath = path
+            for _ in 0..<24 where !(center.phase == .done && AskScreen.shown != nil) { try? await Task.sleep(nanoseconds: 250_000_000) }
+            check("Ask about … asks at once and keeps only valid citations", center.result?.state == .answered && center.result?.answer?.citations.count == 1
+                  && center.result?.answer?.plainText.contains("Invented") == false)
+            check("the footer says it answered on this iPhone", center.result?.footer(native: true).hasSuffix("answered on this iPhone.") == true)
+            center.ask("What is the wifi password at the cabin?", scope: .all)
+            for _ in 0..<24 where center.phase != .done { try? await Task.sleep(nanoseconds: 250_000_000) }
+            check("nothing relevant says so instead of answering", center.result?.state == .nothingFound)
+            center.responder = nil
+        }
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        if app.store.recipes.isEmpty {
+            var path = NavigationPath(); path.append(AskRoute()); path.append(RecipesRoute())
+            app.libraryPath = path
+            await show("\(prefix)04o-recipes-empty\(suffix)")
+            if checks { check("Recipes starts empty, with three suggestions", RecipesScreen.shown == 0) }
+        }
+        let added = RecipeSuggestions.all(projects: [(project, "Website refresh")]).compactMap { s in
+            recipes.add(s.question, scope: s.scope, schedule: s.schedule.map { RecipeSchedule(weekday: $0.weekday, hour: $0.hour, minute: $0.minute) })
+        }
+        if let r = added.dropFirst().first, let result = AskChecks.sampleDigest(app.store.live, question: r.question, scope: r.scope, device: "iPhone") {
+            recipes.keep(AskDigest(recipeId: r.id, ranAt: Date(), scheduled: true, result: result))
+        }
+        var path = NavigationPath(); path.append(AskRoute()); path.append(RecipesRoute())
+        app.libraryPath = path
+        await show("\(prefix)04p-recipes\(suffix)")
+        if checks {
+            check("a suggestion saves a recipe with its weekly time on this iPhone", added.first.flatMap { recipes.schedule($0.id) }?.shortLabel == "Fridays, 4:00 PM")
+            check("a scheduled recipe isn't owed before its time", recipes.device.due(app.store.recipes, now: Date()).isEmpty)
+        }
+        if let r = added.dropFirst().first {
+            path.append(RecipeRoute(id: r.id))
+            app.libraryPath = path
+            await show("\(prefix)04q-recipe-digest\(suffix)")
+        }
+        app.libraryPath = NavigationPath()
+        for r in app.store.recipes where !before.contains(r.id) { recipes.delete(r.id) }
+        center.clear()
+        for id in seeded { if let t = app.store.transcript(id) { app.store.delete(t) } }
+        if seeded.count == 3 { app.store.projects.removeAll { $0.id == project } }
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
@@ -1429,6 +1500,11 @@ enum PhoneUITest {
         TemplateChecks.run { name, ok in
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") templates: \(name)")
+        }
+        // Ask your library and recipes (shared with the Mac's self-test and mac/tools/test-ask.sh).
+        AskChecks.run { name, ok in
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") ask: \(name)")
         }
         Log.note("UITEST library checks: \(pass) passed, \(fail) failed")
     }

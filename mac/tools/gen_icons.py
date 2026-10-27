@@ -231,6 +231,9 @@ I = {
     # with a plus to mark, and with a check once marked.
     'Mark': [s('M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z'), s('M12 7.5V12.5'), s('M9.5 10H14.5')],
     'Marked': [s('M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z'), s('M9.3 10L11.3 12L14.8 8.5')],
+    # Ask your library (mockup "Library features", section 2, October 26, 2026), same grammar: a speech bubble holding a
+    # short sound wave, the Thoughts filament's wave laid flat.
+    'Ask': [s('M4 5H20V16H11.5L7 20V16H4Z'), s('M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6')],
 }
 
 

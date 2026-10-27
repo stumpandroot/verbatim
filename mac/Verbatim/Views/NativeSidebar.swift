@@ -15,7 +15,7 @@ struct NativeSidebar: View {
     @State private var customizing = false
     @Environment(\.limitMotion) private var limitMotion
 
-    enum Item: Hashable { case main(SidebarItemID), byDay(RecordingKind), templates, project(UUID), trash }
+    enum Item: Hashable { case main(SidebarItemID), byDay(RecordingKind), templates, ask, project(UUID), trash }
 
     var body: some View {
         LookSwitch.mark("sidebar")
@@ -46,11 +46,14 @@ struct NativeSidebar: View {
                     .badge(app.store.dayPages(.journal, hour: Thoughts.newPageHour).count)
                     .tag(Item.byDay(.journal)).uiTarget("side-journal")
             }
-            // Make: Templates now; Ask joins it later.
+            // Make: Templates, and Ask (questions about your library, and recipes).
             Section("Make") {
                 Label { Text("Templates") } icon: { Image(systemName: "doc.text").foregroundStyle(Ink.nativeAccent) }
                     .badge(app.store.allTemplates.count)
                     .tag(Item.templates).uiTarget("side-templates")
+                Label { Text("Ask") } icon: { Image(systemName: "questionmark.bubble").foregroundStyle(Ink.nativeAccent) }
+                    .badge(app.store.recipes.count)
+                    .tag(Item.ask).uiTarget("side-ask")
             }
             Section("Projects") {
                 ForEach(app.store.projects) { p in
@@ -131,6 +134,7 @@ struct NativeSidebar: View {
         case .trash: return .trash
         case .byDay(let k): return .byDay(k)
         case .templates: return .templates
+        case .ask: return .ask
         case .transcript: return nil
         }
     }
@@ -156,6 +160,8 @@ struct NativeSidebar: View {
             app.go(.byDay(k))
         case .templates:
             app.go(.templates)
+        case .ask:
+            app.go(.ask)
         case .project(let p):
             app.projectFilter = p
             app.go(.library)
