@@ -124,6 +124,9 @@ enum UITest {
             // Ask: the sidebar's Ask, a suggested recipe, the ⌘K panel's switch, an answer, a citation, and no answer.
             await askSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // The build 228 review's Mac fixes (Thoughts, Settings and You, surfaces, the kit).
+            await reviewFixesMacB(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -335,8 +338,11 @@ enum UITest {
         for (surface, prefix) in [(DictationSurface.notch, "08f-notch"), (DictationSurface.button, "08g-floating")] {
             d.set(surface.rawValue, forKey: DictationSurface.key)
             bar.refresh()
+            // The notch is hidden at rest on a display without one (CI's), so there's nothing to point at: no shot.
+            let notchless = surface == .notch && (NSScreen.main?.safeAreaInsets.top ?? 0) <= 0
             bar.holdHover = true
-            await show("\(prefix)-idle-hover")
+            if notchless { Log.note("UITEST note: no notch on this display, so no \(prefix)-idle-hover shot") }
+            else { await show("\(prefix)-idle-hover") }
             bar.holdHover = false
             bar.model.handsFree = true
             bar.setPhase(.listening)
@@ -607,8 +613,8 @@ enum UITest {
         app.dictation.previewPill(seconds: 4)
         await show("08-dictate-pill")
         await thoughtShots(suffix: "")
-        app.dictation.bar?.ask(.init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way.",
-                                     primary: "Remember in Lapp Wagons", secondary: "Not now", seconds: 8))
+        app.dictation.bar?.ask(.init(title: "Remember “Lititz”?", body: "You changed ", quote: "lit it's → Lititz", after: ". Next time it's spelled your way in Lapp Wagons.",
+                                     primary: "Remember", secondary: "Not now", seconds: 8))
         await show("08c-remember")
         app.dictation.bar?.setPhase(.idle)
         // Recent dictations (⌥⌘V) with the seeded dictations, then the Ribbon holding one that didn't paste.
@@ -993,6 +999,13 @@ enum UITest {
         write(show: name)
         Log.note("UITEST show \(name) captureMode=\(appRef?.captureMode ?? "?") screen=\(String(describing: appRef?.screen))")
         try? await Task.sleep(nanoseconds: 2_500_000_000)   // CI captures in this window
+    }
+
+    /// Waits (up to 2 s) until a self-test target has been drawn, so a shot never names a state that isn't up yet.
+    static func waitForTarget(_ id: String, seconds: Double = 2) async {
+        let end = Date().addingTimeInterval(seconds)
+        while frames[id] == nil, Date() < end { try? await Task.sleep(nanoseconds: 100_000_000) }
+        try? await Task.sleep(nanoseconds: 150_000_000)
     }
 
     private static func write(show name: String) {
@@ -1412,7 +1425,7 @@ enum UITest {
                   && Recall.keyAction(keyCode: 18, modifiers: [.option], queryEmpty: true) == nil)
             check("recent dictations: arrows, Return, and Esc", Recall.keyAction(keyCode: 125, modifiers: [], queryEmpty: false) == .move(1)
                   && Recall.keyAction(keyCode: 126, modifiers: [], queryEmpty: true) == .move(-1)
-                  && Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: false) == .copySelected
+                  && Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: false) == .pasteSelected
                   && Recall.keyAction(keyCode: 36, modifiers: [.shift], queryEmpty: false) == .pasteSelected
                   && Recall.keyAction(keyCode: 53, modifiers: [], queryEmpty: false) == .close
                   && Recall.keyAction(keyCode: 0, modifiers: [], queryEmpty: true) == nil)
@@ -2079,22 +2092,32 @@ extension UITest {
         Thoughts.showBubble = true
         capture.start()
         await show("08f-thought-bubble-recording")
-        // The bubble's Mark (mockup "Library features", section 3b): "Marked 4:12 · 1 moment" for two seconds.
+        // The bubble's Mark (mockup "Library features", section 3b): "Marked 4:12 · 1 moment" for two seconds. CI
+        // captures about 1 to 1.6 s after a shot is named, so each state is on screen (its target drawn) before it's
+        // named and stays through the capture: Mark again at the same time (it confirms the first, so still one
+        // moment) to keep "Marked" up, and leave "Added to Thoughts" alone for its two seconds.
         MarkCenter.shared.simulated = (.thought, 252)
+        frames["thought-bubble-marked"] = nil
         ThoughtBubble.shared.markClicked()
         let markedOK = MarkCenter.shared.count(.thought) == 1 && MarkCenter.shared.confirmation?.at == 252
         if markedOK { pass += 1 } else { fail += 1 }
         Log.note("UITEST \(markedOK ? "PASS" : "FAIL") marks: the bubble's Mark marks the thought")
+        await waitForTarget("thought-bubble-marked")
         write(show: "08h-thought-bubble-marked")
         Log.note("UITEST show 08h-thought-bubble-marked")
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        for _ in 0..<3 {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            _ = MarkCenter.shared.mark(.macBubble)
+        }
+        check("review: the bubble still shows one moment while Marked stays up for the capture", MarkCenter.shared.count(.thought) == 1)
         _ = MarkCenter.shared.take(.thought)
         MarkCenter.shared.simulated = nil
+        frames["thought-bubble-saved"] = nil
         capture.stop()
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        await waitForTarget("thought-bubble-saved")
         write(show: "08g-thought-bubble-saved")
         Log.note("UITEST show 08g-thought-bubble-saved")
-        try? await Task.sleep(nanoseconds: 1_600_000_000)   // "Added to Thoughts" shows for two seconds
+        try? await Task.sleep(nanoseconds: 2_200_000_000)   // "Added to Thoughts" shows for two seconds; CI captures in them
         capture.simulate = false
         Thoughts.showBubble = false
     }
@@ -2689,5 +2712,90 @@ extension UITest {
                                        windowNumber: window.windowNumber, context: nil, characters: key, charactersIgnoringModifiers: key,
                                        isARepeat: false, keyCode: code) else { return }
         if NSApp.mainMenu?.performKeyEquivalent(with: e) != true { Log.note("UITEST note: no menu item took ⌘\(key)") }
+    }
+}
+
+// MARK: - Build 228 review fixes (Mac B)
+
+extension UITest {
+    /// The build 228 review's Mac fixes for Thoughts, Settings and You, the dictation surfaces, and the global kit:
+    /// the rules they rest on, then the screens they changed, measured in the window.
+    static func reviewFixesMacB(app: AppState, window: NSWindow) async {
+        // Rules.
+        var stray = Transcript(title: "Thought", source: .voiceMemo, sourceLabel: Thoughts.macSource, duration: 1.0, audioFileName: "x.m4a", model: "")
+        stray.kind = .idea; stray.status = .ready
+        var long = stray; long.duration = 1.5
+        var spoken = stray; spoken.segments = [Segment(start: 0, end: 1, text: "Call Sam.")]
+        check("review: a thought with nothing heard under 1.4 s is a stray press; a longer or spoken one isn't",
+              ThoughtText.isStrayPress(stray) && !ThoughtText.isStrayPress(long) && !ThoughtText.isStrayPress(spoken))
+        check("review: a day list names its day by the first thought with words",
+              ThoughtText.firstWithWords([stray, spoken])?.segments.first?.text == "Call Sam.")
+        check("review: sidebar badges count items and hide at zero", SideBadge.count(0) == nil && SideBadge.count(3) == "3")
+        check("review: the first Settings pane is Personalization in the sidebar, its full name on the page",
+              SettingsTab.personalization.sidebarTitle == "Personalization" && SettingsTab.personalization.title == "Personalization and preferences")
+        check("review: Show the time in the header describes the time, not live captions",
+              SettingsIndex.entry("captions.soon")?.detail.contains("running") == true)
+        check("review: live captions say what they're listening to before the first words",
+              LiveCaptionsView.waitingLine(.both(id: "us.zoom.xos", name: "Zoom"), open: true) == "Listening to Zoom and your mic. Words appear here as they're said."
+              && LiveCaptionsView.waitingLine(.mic, open: true).hasPrefix("Listening to your mic."))
+        check("review: Return pastes the selected recent dictation, as its pill says",
+              Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: true) == .pasteSelected)
+        check("review: Premium Native's glow is never cut off by its frame",
+              [600, 900, 1400, 2400].allSatisfy { PremiumGlow.height(width: CGFloat($0)) >= PremiumGlow.radius(width: CGFloat($0)) })
+        check("review: the on-device promise has one phrasing", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
+        check("review: saved actions draw brand glyphs", FlowAction.builtIn.allSatisfy { a in
+            a.symbol == "sparkles" || a.symbol == "wand.and.stars" || a.art.strokes.count > 1 })
+
+        let content = window.contentView?.bounds.size ?? .zero
+        func inside(_ id: String) -> Bool {
+            guard let f = frames[id] else { return false }
+            return f.minX >= -1 && f.maxX <= content.width + 1
+        }
+
+        // The sidebar's lockup stays put across Recently Deleted and a transcript (M-58).
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let homeTop = frames["side-home"]?.minY
+        app.go(.trash)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        if let t = app.store.live.first { app.go(.transcript(t.id)); try? await Task.sleep(nanoseconds: 900_000_000) }
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let homeTopAfter = frames["side-home"]?.minY
+        check("review: the sidebar's items stay where they were after Recently Deleted and a transcript (\(homeTop.map { "\(Int($0))" } ?? "none") → \(homeTopAfter.map { "\(Int($0))" } ?? "none"))",
+              homeTop != nil && homeTopAfter.map { abs($0 - homeTop!) <= 1 } == true)
+
+        // By day: Open as pad on one line in the eyebrow row, inside the page; the switch and New thought; empties fold.
+        let hour = Thoughts.newPageHour
+        let empty = ThoughtPadMigration.textThought("", at: DayPages.today(hour: hour).addingTimeInterval(16 * 3600), source: Thoughts.macSource,
+                                                    title: "Self-test empty thought")
+        app.store.add(empty)
+        frames = frames.filter { !$0.key.hasPrefix("byday") }
+        app.go(.byDay(.idea))
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        if let pad = frames["byday-open-pad"], let page = frames["byday-page"] {
+            check("review: By day's Open as pad is one line inside the page (\(Int(pad.width)) × \(Int(pad.height)))",
+                  pad.height < 26 && pad.width > 60 && pad.minX >= page.minX && pad.maxX <= page.maxX + 1)
+        } else {
+            check("review: By day shows Open as pad and the page", false)
+        }
+        check("review: By day has the view switch and New thought as a line pill",
+              frames["byday-switch-day"] != nil && frames["byday-switch-all"] != nil && frames["byday-new-thought"] != nil)
+        check("review: empty thoughts fold into one row with Delete", frames["byday-empty-row"] != nil && frames["byday-empty-delete"] != nil)
+        check("review: By day's page stays inside the window", inside("byday-page"))
+        app.store.delete(app.store.transcript(empty.id) ?? empty)
+
+        // You: Cleanup's switch stays inside its card, and Your voice inside the window (M-49).
+        frames = frames.filter { !$0.key.hasPrefix("you-") }
+        app.go(.activity)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        if let sw = frames["you-cleanup-switch"], let card = frames["you-cleanup"] {
+            check("review: You's Cleanup switch fits its card", sw.minX >= card.minX - 1 && sw.maxX <= card.maxX + 1)
+        } else {
+            check("review: You shows Cleanup and its switch", false)
+        }
+        check("review: You's Your voice card stays inside the window", inside("you-voice"))
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
     }
 }
