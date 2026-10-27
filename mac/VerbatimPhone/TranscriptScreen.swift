@@ -182,7 +182,7 @@ struct TranscriptScreen: View {
                         }
                     } else {
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil {
+                        if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil, !t.isAudioOnly {
                             Button { app.player.stop(); app.continueRecording(t.id) } label: { toolbarIcon(.capture, "toolbar-continue", "mic.badge.plus") }
                                 .accessibilityLabel("Continue recording")
                         }
@@ -643,7 +643,7 @@ extension TranscriptScreen {
                         if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
                     }
                     Divider()
-                    if t.audioFileName != nil, t.pendingAppend == nil {
+                    if t.audioFileName != nil, t.pendingAppend == nil, !t.isAudioOnly {
                         Button { app.player.stop(); app.continueRecording(t.id) } label: { Label("Continue recording", systemImage: "mic.badge.plus") }
                     }
                     Button { askTurbo = true } label: { Label(TurboRerun.title + "…", systemImage: "arrow.counterclockwise") }

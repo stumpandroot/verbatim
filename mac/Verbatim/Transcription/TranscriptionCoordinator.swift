@@ -230,7 +230,8 @@ final class TranscriptionCoordinator: ObservableObject {
     /// Whether a transcript can take a continued recording right now.
     func canContinue(_ id: UUID) -> Bool {
         guard let t = store.transcript(id), t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil else { return false }
-        return true
+        // Audio only has no transcript to add to (Continue transcribes the new part); Transcribe it first.
+        return !t.isAudioOnly
     }
 
     /// Transcribes a finished transcript again, in `language` (nil: Verbatim checks the language). Its words,
@@ -543,7 +544,10 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 if waitForDownload || keepsVersion { _ = await Cloud.ensureDownloaded(url) }
                 if keepsVersion, !FileManager.default.fileExists(atPath: url.path) { throw missing }
-                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
+                // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
+                let work = try TranscriptionInput.prepare(url)
+                defer { TranscriptionInput.finish(work, original: url) }
+                let out = try await TranscriptionJob.run(url: work, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let original = out.original, fixed = out.fixed, speakers = out.speakers, corrections = out.corrections, wave = out.wave
                 await MainActor.run {
@@ -651,7 +655,10 @@ final class TranscriptionCoordinator: ObservableObject {
                 // A recording just handed to iCloud is moved into the audio folder in the background first.
                 await self.store.waitForAdoption(of: url)
                 if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
-                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false,
+                // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
+                let work = try TranscriptionInput.prepare(url)
+                defer { TranscriptionInput.finish(work, original: url) }
+                let out = try await TranscriptionJob.run(url: work, engineId: engineId, model: model, wantSpeakers: false,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let findSpeakers = wantSpeakers && out.fixed.count > 1
                 let proceed = await MainActor.run { () -> Bool in
@@ -672,7 +679,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 guard proceed, findSpeakers else { return }
                 guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id, token: token) }; return }
-                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: url, progress: { _ in })
+                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: work, progress: { _ in })
                 await MainActor.run {
                     guard self.runToken == token else { return }
                     defer { self.finished(id, token: token) }

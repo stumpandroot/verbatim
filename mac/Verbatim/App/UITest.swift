@@ -2418,6 +2418,9 @@ extension UITest {
             ThoughtsPlanWindow.close()
             app.store.plans.removeAll { $0.source == .thoughts && $0.day == DayPlanRecord.dayKey(page) }
         }
+        // Audio only's file: at least 44.1 kHz in 24-bit, repaired and joined whole, and Transcribe later on a real one.
+        SoundFormatChecks.run { check("brain dump: " + $0, $1) }
+        if let id = await SoundFormatChecks.transcribeLater(store: app.store, coordinator: app.coordinator, check: { check("brain dump: " + $0, $1) }) { made.append(id) }
         app.delete(made)
         TemplateSettingsModel.shared.settings = saved
         app.go(.home)

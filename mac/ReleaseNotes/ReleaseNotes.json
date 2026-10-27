@@ -75,7 +75,8 @@
         "Mac and iPhone: Send to Reminders adds a plan's tasks to the Reminders list you pick. A task gets a due date only when you said a day, and ideas go in only if you check them. Tasks you've sent are marked, so sending again adds only what's new.",
         "Mac and iPhone: Organize today's thoughts makes the same plan from all of a day's thoughts, and each task links back to the thought it came from. On the Mac, it's Organize on today's page.",
         "Mac: File › New Brain Dump opens a note for today. Hold your dictation keys and talk, or type, then choose Make a plan. Dictations into the note stay in the note and aren't listed in Dictations. The menu bar's Thoughts group and an optional Home tile open it too.",
-        "Mac and iPhone: you can change any recording's kind to Brain dump or Audio only later, and back. Changing a kind never deletes the transcript, notes, or results. Changing one to Brain dump offers to run Plan my day."
+        "Mac and iPhone: you can change any recording's kind to Brain dump or Audio only later, and back. Changing a kind never deletes the transcript, notes, or results. Changing one to Brain dump offers to run Plan my day.",
+        "Mac and iPhone: Audio only records at your microphone's own rate, 48 or 44.1 kHz, in 24-bit, so a guitar or a voice keeps its high end. Voice notes and other kinds still record at 16 kHz. Transcribe later and sharing work with the new files."
       ]
     },
     {

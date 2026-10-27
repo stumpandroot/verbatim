@@ -45,8 +45,10 @@ extension AppState {
         Log.note("startRecording")
         guard !recorder.isRecording else { return }
         let url = store.newRecordingURL()
-        // Audio only keeps the sound: no live words (the Mac's input unit never processes voice).
+        // Audio only keeps the sound: no live words (the Mac's input unit never processes voice), and the file keeps
+        // the mic's own rate in 24-bit (SoundFormat) instead of 16 kHz.
         let soundOnly = recordKind == .audio && pendingContinue == nil
+        recorder.soundOnly = soundOnly
         if !soundOnly { recordingWords.begin(recorder) }   // before the mic opens, so live words hear the first word
         // Audio only or a Brain dump: if Verbose quits mid-recording, recovery files it as that kind.
         if pendingContinue == nil { Store.markKind(url, recordKind) }
@@ -97,6 +99,7 @@ extension AppState {
         recordKind = nil
         if recorder.isRecording, !wasStarting { savingRecording = true }
         let stopped = await recorder.stopAndSave()
+        recorder.soundOnly = false
         savingRecording = false
         guard let r = stopped else {
             if wasStarting { pendingContinue = nil }

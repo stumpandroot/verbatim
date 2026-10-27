@@ -923,6 +923,11 @@ enum PhoneUITest {
             app.libraryPath = NavigationPath()
         }
         app.store.plans.removeAll { $0.source == .thoughts && $0.day == DayPlanRecord.dayKey(app.todayPage) }
+        if checks {
+            // Audio only's file: at least 44.1 kHz in 24-bit, repaired and joined whole, and Transcribe later on a real one.
+            SoundFormatChecks.run { name, ok in check(name, ok) }
+            if let id = await SoundFormatChecks.transcribeLater(store: app.store, coordinator: app.coordinator, check: { name, ok in check(name, ok) }) { made.append(id) }
+        }
         app.delete(made)
         TemplateSettingsModel.shared.settings = savedSettings
         try? await Task.sleep(nanoseconds: 500_000_000)
