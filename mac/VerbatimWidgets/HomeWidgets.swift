@@ -550,7 +550,10 @@ private struct RecordDictateView: View {
     #endif
 }
 
-/// Verbose style's Record panel: Ready, the signal rings, "Record a thought" in the serif, and the ink disc.
+/// Verbose style's Record panel: "Voice note" (what Record makes, as on the medium widget's tile and Home's recorder),
+/// the signal rings, "Record" in the serif, and the ink disc. Not "Record a thought": a thought is its own kind with
+/// its own widget (New thought), and this button records a voice note. The label is SF Pro semibold 14 in full ink, the
+/// smallest ink text that reads on persimmon (DESIGN.md §1.5).
 private struct VerboseRecordPanel: View {
     var skin: Skin
     var body: some View {
@@ -559,13 +562,10 @@ private struct VerboseRecordPanel: View {
                 .frame(width: 92, height: 92)
                 .offset(x: 26, y: -30)
             VStack(alignment: .leading, spacing: 0) {
-                Text("Ready").font(.system(size: 14, weight: .semibold)).foregroundStyle(skin.onPanel)
+                Text("Voice note").font(.system(size: 14, weight: .semibold)).foregroundStyle(skin.onPanel).lineLimit(1)
                 Spacer(minLength: 0)
                 HStack(alignment: .bottom, spacing: 4) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Record").font(Ink.serif(26)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
-                        Text("a thought").font(Ink.serif(13)).italic().foregroundStyle(skin.onPanel.opacity(0.85))
-                    }
+                    Text("Record").font(Ink.serif(26)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                     RecordDisc(look: .verbose, size: 40)
                 }

@@ -189,7 +189,14 @@ for (i, line) in keyboard.components(separatedBy: "\n").enumerated() where !matc
     small.append("KeyboardView.swift:\(i + 1)")
 }
 check("widgets and the keyboard never set mono under 12 pt", small.isEmpty, small.joined(separator: ", "))
-check("no faded ink on the Record panel", !home.contains("skin.onPanel.opacity(0.75)"))
+check("no faded ink on the Record panel", !home.contains("skin.onPanel.opacity(0.75)") && !home.contains("skin.onPanel.opacity(0.85)"))
+if let panel = home.range(of: "private struct VerboseRecordPanel") {
+    let body = String(home[panel.lowerBound...].prefix(1600))
+    check("the small Record widget says what it records (a voice note), not a thought",
+          body.contains("Text(\"Voice note\")") && !body.contains("Text(\"a thought\")"))
+} else {
+    check("the small Record widget's Verbose panel exists", false)
+}
 check("the keyboard's filled Native button uses onAccent, never white", keyboard.contains("style == .filled ? PremiumInk.onAccent : Ink.nativeAccent")
       && !keyboard.contains("native ? Color.white"))
 if let done = keyboard.range(of: "private struct DictateDone") {

@@ -16,7 +16,7 @@
         "iPhone: in dark mode, the Lock Screen's recording and dictation session sit on Verbose's dark green instead of bright paper. When a call pauses a thought, the Lock Screen and the Dynamic Island offer Resume beside Stop.",
         "iPhone: a recording longer than an hour shows its full time in the Dynamic Island and on the Lock Screen, and every Live Activity button is a pill. VoiceOver and Voice Control use the words the buttons show, such as Done and Dictate.",
         "iPhone: Verbose's Control Center controls use Verbose's own icons, and the Action button's control is named for what you chose in Settings › Action button, such as Record or mark.",
-        "iPhone: widget names are clearer (Record and dictate, Today's thoughts, and Thoughts for the Lock Screen), and small labels on widgets and in the keyboard are larger and in full ink.",
+        "iPhone: widget names are clearer (Record and dictate, Today's thoughts, and Thoughts for the Lock Screen), and small labels on widgets and in the keyboard are larger and in full ink. The small Record widget says Voice note, which is what it records.",
         "iPhone: in the Native look in dark mode, the keyboard's Start, Tap to talk, and Done are black on the persimmon so they're readable, and VoiceOver reads the keyboard's checkmark as Done."
       ]
     },
