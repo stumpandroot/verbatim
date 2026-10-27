@@ -53,7 +53,8 @@
         "iPhone: in the Native look, a transcript's player is a glass bar at the bottom with the waveform as its scrubber, the time left, the speed, and Follow.",
         "iPhone: in the Native look, Settings shows each row's symbol in white on a colored square, like Apple's Settings app, and switches are green.",
         "iPhone: in the Native look, the keyboard session's screens, search highlights, and the playing line use system colors instead of persimmon.",
-        "iPhone: in the Native look, Moments has a large title with the count under it and a segmented control for what to show, You shows your week, year, and stats as plain list sections, Today's page puts New thought in the toolbar, and the Tab bar preview shows Record above the tabs."
+        "iPhone: in the Native look, Moments has a large title with the count under it and a segmented control for what to show, You shows your week, year, and stats as plain list sections, Today's page puts New thought in the toolbar, and the Tab bar preview shows Record above the tabs.",
+        "iPhone and Mac: in the Native look, widgets are black, like Apple Music's, with white text and the red record disc as the only color, in light and dark mode."
       ]
     },
     {

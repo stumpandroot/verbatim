@@ -10,4 +10,4 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 swiftc -O -o "$out/native-phone-tests" "$here/../VerbatimPhone/NativeRules.swift" "$here/native-phone-tests/main.swift"
-"$out/native-phone-tests" "$here/../VerbatimPhone"
+"$out/native-phone-tests" "$here/../VerbatimPhone" "$here/../VerbatimWidgets/HomeWidgets.swift"
