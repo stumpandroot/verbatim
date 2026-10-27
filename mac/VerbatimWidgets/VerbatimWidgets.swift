@@ -4,7 +4,7 @@ import ActivityKit
 import AppIntents
 
 /// The VerbatimWidgets extension: the keyboard session's and the recording's Live Activities (a thought's too), the
-/// Lock Screen session widget, the Home Screen widgets (Record and Dictate, Recent recordings, This week, New thought,
+/// Lock Screen session widget, the Home Screen widgets (Record and dictate, Recent recordings, This week, New thought,
 /// Today's thoughts; HomeWidgets.swift), the Lock Screen's Thoughts widget, and (iOS 18) the Control Center controls:
 /// the session switch, the Action button's control, Record voice note, Dictate, and New thought.
 @main
@@ -35,16 +35,16 @@ struct VerbatimWidgetBundle: WidgetBundle {
 /// persimmon dot (the session's microphone is on). Minimal: three voice bars while listening. Expanded while
 /// listening: the voice bars, Listening, and the time; the live words line (only with Show words in the Dynamic
 /// Island on); "Into Messages"; and Cancel and Done. Otherwise the state, and End session and Dictate. Lock Screen:
-/// the same states on paper, with "Into Messages · take 3 of this session" while listening and never any words.
+/// the same states on paper (the dark paper in dark, `ActivitySkin`), with "Into Messages · take 3 of this session"
+/// while listening and never any words. Buttons are capsules, and each one's accessibility label starts with the
+/// word it shows, so Voice Control's "Tap Done" finds it.
 /// While a take listens before the speech model is ready: "Getting ready" in place of Listening. During a call:
 /// Paused for a call. After a session ends by itself: Session ended with Restart (`RestartSessionIntent`) for 15
 /// minutes; tapping anywhere else opens Verbose's confirmation, as before.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimSessionAttributes.self) { context in
-            RibbonLockScreen(state: context.state)
-                .activityBackgroundTint(Ink.paperFixed)
-                .activitySystemActionForegroundColor(Ink.inkFixed)
+            ActivityLockSurface { skin in RibbonLockScreen(state: context.state, skin: skin) }
                 .widgetURL(context.state.shown == .ended ? restartLink : nil)
         } dynamicIsland: { context in
             let s = context.state
@@ -85,9 +85,9 @@ struct SessionLiveActivity: Widget {
                                 TargetLabel(target: s.target)
                                 Spacer(minLength: 6)
                                 RibbonButton(title: "Cancel", primary: false, onDark: true, compact: true, intent: CancelTakeIntent())
-                                    .accessibilityLabel("Cancel dictation").accessibilityHint("Stops listening and throws the take away")
+                                    .accessibilityLabel("Cancel dictation").accessibilityHint(Ribbon.cancelHint)
                                 RibbonButton(title: "Done", primary: true, onDark: true, compact: true, intent: FinishTakeIntent())
-                                    .accessibilityHint("Stops listening and puts your words in")
+                                    .accessibilityHint(Ribbon.doneHint)
                             }
                         }
                         .padding(.horizontal, 4)
@@ -169,13 +169,14 @@ private struct CompactTrailing: View {
 
 private struct RibbonLockScreen: View {
     var state: VerbatimSessionAttributes.ContentState
-    private let ink = Ink.inkFixed
+    var skin: ActivitySkin
+    private var ink: Color { skin.ink }
 
     var body: some View {
         // Never reads `state.liveWords`: anyone can read a Lock Screen.
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                PhaseGlyph(phase: state.shown, onDark: false).frame(width: 18, height: 18)
+                PhaseGlyph(phase: state.shown, onDark: skin.dark).frame(width: 18, height: 18)
                 Text(Ribbon.headline(state.shown, words: state.words, gettingReady: state.warming))
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
                 Spacer(minLength: 8)
@@ -184,13 +185,13 @@ private struct RibbonLockScreen: View {
             if state.shown == .listening {
                 LevelBars(level: state.level, color: Ink.persimmonFixed, count: 34).frame(height: 22)
                 Text(state.warming ? Ribbon.gettingReadyLine : Ribbon.lockLine(target: state.target, take: state.takes))
-                    .font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.85)
+                    .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1).minimumScaleFactor(0.85)
             } else {
                 Text(Ribbon.detail(state.shown, takes: state.takes, message: state.message))
-                    .font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(2)
+                    .font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            RibbonButtons(phase: state.shown, onDark: false)
+            RibbonButtons(phase: state.shown, onDark: skin.dark)
         }
         .padding(14)
     }
@@ -199,7 +200,7 @@ private struct RibbonLockScreen: View {
         if state.shown == .listening, let start = state.takeStartedAt {
             TakeTimer(start: start).font(Ink.mono(15, weight: .medium)).foregroundStyle(ink).frame(width: 60, alignment: .trailing)
         } else if state.shown == .ready, let started = state.sessionStartedAt {
-            Text(started, style: .relative).font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.muteOnPaper)
+            Text(started, style: .relative).font(.system(size: 13)).monospacedDigit().foregroundStyle(skin.mute)
                 .multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
         }
     }
@@ -310,9 +311,9 @@ private struct RibbonButtons: View {
         case .listening:
             HStack(spacing: 8) {
                 RibbonButton(title: "Cancel", primary: false, onDark: onDark, intent: CancelTakeIntent())
-                    .accessibilityLabel("Cancel dictation").accessibilityHint("Stops listening without keeping it")
+                    .accessibilityLabel("Cancel dictation").accessibilityHint(Ribbon.cancelHint)
                 RibbonButton(title: "Done", primary: true, onDark: onDark, intent: FinishTakeIntent())
-                    .accessibilityLabel("Stop and copy").accessibilityHint("Stops listening and delivers your words")
+                    .accessibilityHint(Ribbon.doneHint)
             }
         case .transcribing:
             HStack(spacing: 8) {
@@ -333,14 +334,15 @@ private struct RibbonButtons: View {
                 RibbonButton(title: "End session", primary: false, onDark: onDark, intent: EndVerbatimSessionIntent())
                     .accessibilityHint("Turns off the microphone")
                 RibbonButton(title: "Dictate", primary: true, onDark: onDark, intent: DictateIntent())
-                    .accessibilityLabel("Start dictation")
+                    .accessibilityHint("Starts listening for a take")
             }
         }
     }
 }
 
-/// A full-width pill (or one sized to its word, `compact`). Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a
-/// quiet wash. Opaque fills only; no text on blur.
+/// A full-width capsule (or one sized to its word, `compact`), like the recording's Mark, Pause, and Stop (DESIGN.md
+/// §5.3). Primary: persimmon with ink text (semibold 14, which passes on persimmon). Secondary: a quiet wash. Opaque
+/// fills only; no text on blur. With no label of its own, VoiceOver and Voice Control use the title.
 private struct RibbonButton<I: AppIntent>: View {
     var title: String
     var primary: Bool
@@ -360,7 +362,8 @@ private struct RibbonButton<I: AppIntent>: View {
                 .padding(.horizontal, compact ? 12 : 0)
                 .padding(.vertical, 8)
                 .background(primary ? Ink.persimmonFixed : (onDark ? Color.white.opacity(0.12) : Ink.inkFixed.opacity(0.08)),
-                            in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                            in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }

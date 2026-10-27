@@ -83,6 +83,9 @@ enum Ink {
     static let inkFixed = Color(hex: inkHex)
     static let readerFixed = Color(hex: readerHex)
     static let paperFixed = Color(hex: paperHex)
+    /// Dark mode's paper, fixed: the Lock Screen's Live Activities in dark (DESIGN.md §13.7), with `onBlack` text.
+    static let darkPaperHex: UInt32 = 0x18241F
+    static let darkPaperFixed = Color(hex: darkPaperHex)
     static let persimmonFixed = Color(hex: persimmonHex)
     /// Fixed text colors for surfaces that keep one look in both modes (the dictation bar's paper and ink tabs, the
     /// keyboard's lock screen): deep persimmon and mute on paper; light persimmon and light mute on ink.
