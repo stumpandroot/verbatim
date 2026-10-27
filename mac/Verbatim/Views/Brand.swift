@@ -218,6 +218,7 @@ extension BrandArt {
     static let iconMark = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M12 7.5V12.5"), .path("M9.5 10H14.5")], strokeWidth: 1.5)
     static let iconMarked = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M9.3 10L11.3 12L14.8 8.5")], strokeWidth: 1.5)
     static let iconAsk = BrandArt(box: iconGrid, strokes: [.path("M4 5H20V16H11.5L7 20V16H4Z"), .path("M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6")], strokeWidth: 1.5)
+    static let iconOneOnOne = BrandArt(box: iconGrid, strokes: [.circle(7.5, 8.5, 2.75), .circle(16.5, 8.5, 2.75), .path("M3 18C3 15 5 13.3 7.5 13.3S12 15 12 18"), .path("M12 18C12 15 14 13.3 16.5 13.3S21 15 21 18"), .path("M2.5 19.5H21.5")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the

@@ -234,6 +234,10 @@ I = {
     # Ask your library (mockup "Library features", section 2, October 26, 2026), same grammar: a speech bubble holding a
     # short sound wave, the Thoughts filament's wave laid flat.
     'Ask': [s('M4 5H20V16H11.5L7 20V16H4Z'), s('M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6')],
+    # The 1:1 template (build 228 review, October 27, 2026), About me's grammar doubled: two people side by side on one
+    # line, so it never reads as Meeting notes' Speakers.
+    'OneOnOne': [s(C(7.5, 8.5, 2.75)), s(C(16.5, 8.5, 2.75)), s('M3 18C3 15 5 13.3 7.5 13.3S12 15 12 18'),
+                 s('M12 18C12 15 14 13.3 16.5 13.3S21 15 21 18'), s('M2.5 19.5H21.5')],
 }
 
 
