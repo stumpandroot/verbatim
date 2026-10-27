@@ -15,7 +15,7 @@ import IOKit.pwr_mgt
 /// two-track transcript. Nothing leaves the Mac and nothing here uses the network.
 ///
 /// It never starts on its own: `MeetingCoordinator` starts it after you click Record in the consent sheet (from the
-/// call prompt, File › Record Meeting…, or the Record panel's menu on Home). While it runs, the menu bar item
+/// call prompt, File › Record As › Meeting…, or the Record panel's menu on Home). While it runs, the menu bar item
 /// (Views/MeetingStatus.swift) shows the time, both tracks' levels, Pause, and Stop and save. Optional developer
 /// override of the system track's target (a bundle ID, or "system"):
 ///     defaults write co.stumpandroot.verbatim meetings.target -string us.zoom.xos

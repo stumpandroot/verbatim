@@ -5,15 +5,12 @@ import AVFoundation
 
 // MARK: - Capture bar menus (right-click a segment)
 
-/// Record's right-click menu: pick the microphone, start recording, or open Settings.
+/// Record's right-click menu: the six ways to record, the microphone, and Settings.
 struct RecordMenu: View {
     @EnvironmentObject var app: AppState
     var onChange: () -> Void = {}
     var body: some View {
         let selected = AudioDevices.selectedUID
-        Button { app.requestRecord() } label: { Label("Record", systemImage: "record.circle") }   // brand: system surface (context menu)
-        Button { MeetingCoordinator.shared.recordFromMenu() } label: { Label("Record a meeting", systemImage: "person.2") }   // brand: system surface (context menu)
-            .disabled(MeetingSession.shared.isActive)
         RecordKindMenuItems()
         Divider()
         Section("Microphone") {
@@ -32,14 +29,24 @@ struct RecordMenu: View {
     }
 }
 
-/// Record with a kind you pick (Record an interview, a journal entry, a talk, or a note): the new transcript is that
-/// kind as yours, so AutoLabel never replaces it, and Run automatically runs that kind's template (Templates.swift).
-/// Record a meeting is the meeting capture beside it, which files its transcript as a Meeting.
+/// The six ways to record, in the iPhone tray's order (mockup "Record as", October 26, 2026; `RecordChoice.all`):
+/// Record (a voice note; Verbose picks the kind), Record a meeting (the meeting capture, which files its transcript as a
+/// Meeting), an interview, a journal entry, or a talk (yours from the start, so AutoLabel leaves the kind and Run
+/// automatically runs its template), and New thought (as ⌃⌥P). Each item carries Verbose's glyph for it as a custom
+/// symbol (`mac/tools/gen_symbol.py`), so the menu draws it in its own text color: neutral, and white when highlighted.
+/// `activate` brings Verbose forward first (the menu bar's panel); a thought never does.
 struct RecordKindMenuItems: View {
     @EnvironmentObject var app: AppState
+    var titles: KeyPath<RecordChoice, String> = \.menuTitle
+    var activate = false
+    @ObservedObject private var meeting = MeetingSession.shared
     var body: some View {
-        ForEach(RecordingKind.recordChoices.filter { $0 != .meeting }) { k in
-            Button(k.recordTitle) { app.requestRecord(kind: k) }
+        ForEach(RecordChoice.all) { c in
+            Button {
+                if activate, c != .thought { NSApp.activate(ignoringOtherApps: true) }
+                app.startRecordChoice(c)
+            } label: { Label(c[keyPath: titles], image: c.symbolName) }
+            .disabled(c == .kind(.meeting) && meeting.isActive)
         }
     }
 }

@@ -19,6 +19,19 @@ extension AppState {
         }
     }
 
+    /// One of Record as's six choices (Model/Templates.swift, `RecordChoice`), from the right-click menu on Record, File ›
+    /// Record As, or the menu bar: Voice note is the plain Record, Meeting is the meeting capture (the consent sheet,
+    /// then a two-track recording filed as a Meeting), the other kinds record as yours, and Thought starts a thought as
+    /// ⌃⌥P does (the bubble shows it; Verbose isn't brought forward for it).
+    func startRecordChoice(_ choice: RecordChoice) {
+        switch choice {
+        case .voiceNote: requestRecord()
+        case .kind(.meeting): MeetingCoordinator.shared.recordFromMenu()
+        case .kind(let k): requestRecord(kind: k)
+        case .thought: ThoughtCapture.shared.start()
+        }
+    }
+
     func allowMic() {
         showMicSheet = false
         AVCaptureDevice.requestAccess(for: .audio) { ok in

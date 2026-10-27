@@ -435,11 +435,8 @@ struct MenuBarPanel: View {
                         .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).pressable()
-                .contextMenu {
-                    ForEach(RecordingKind.recordChoices.filter { $0 != .meeting }) { k in
-                        Button(k.recordTitle) { NSApp.activate(ignoringOtherApps: true); app.requestRecord(kind: k) }
-                    }
-                }
+                // Right-click: the six ways to record, as on Home's Record (CaptureBar.swift).
+                .contextMenu { RecordKindMenuItems(activate: true) }
                 Button { NSApp.activate(ignoringOtherApps: true); app.pickApp() } label: {
                     HStack(spacing: 10) {
                         ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris).frame(width: 26)

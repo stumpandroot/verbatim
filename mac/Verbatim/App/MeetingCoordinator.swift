@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 
 /// Meeting capture's front door. It notices calls (`MeetingDetector`: another app started using the microphone)
-/// and asks with a banner; it never records on its own. Every start, from the banner, File › Record Meeting…, or
+/// and asks with a banner; it never records on its own. Every start, from the banner, File › Record As › Meeting…, or
 /// the Record panel's menu on Home, goes through the consent sheet (first time for each app and every start
 /// after; "Don't ask again" only after five recordings with that app). While recording, it shows the menu bar item
 /// and the notes for a silent meeting app or a Mac that slept. The decisions themselves (which app, when to ask,
@@ -167,7 +167,7 @@ final class MeetingCoordinator: ObservableObject {
 
     // MARK: Starting
 
-    /// File › Record Meeting… and the Record panel's menu: the frontmost (or first running) meeting app, else all
+    /// File › Record As › Meeting… and the Record panel's menu: the frontmost (or first running) meeting app, else all
     /// system audio; then the consent sheet.
     func recordFromMenu() {
         guard !MeetingSession.shared.isActive else { return }

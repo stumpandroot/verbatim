@@ -12,7 +12,8 @@
         "Mac and iPhone: recipes are questions you ask again. Run one now, or schedule it weekly on that device; its answers stay in Ask › Recipes with their citations. Recipes sync between your Mac and iPhone, and schedules stay on each device. Start from three suggestions, such as Weekly digest of my thoughts.",
         "Mac and iPhone: a scheduled recipe runs while Verbose is open, or the next time it opens after its time, once even if you missed several weeks. On iPhone, it can also run when iOS gives Verbose background time. You get a notification with the first line of the answer.",
         "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device.",
-        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers."
+        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers.",
+        "Mac: right-click Record, or choose File › Record As, for the same six choices, each with its Verbose icon: Record, Record a meeting, Record an interview, Record a journal entry, Record a talk, and New thought. File › Record As › Meeting… starts a meeting recording, in place of the separate Record Meeting… item."
       ]
     },
     {
