@@ -1,42 +1,39 @@
 import SwiftUI
 
-/// Recently Deleted: kept for 30 days, then removed with their audio.
+// brand: web style
+//
+// Recently deleted in the website style (mac/DESIGN.md §11; review M-17): the compact title with a mono count, a line
+// pill to restore everything and a danger-outlined Empty, flat rows with the kind dot, a line mini pill to restore one,
+// and "Delete now" in the danger color. The empty screen is the one horizontal card.
+
+/// Recently deleted: kept for 30 days, then removed with their audio.
 struct TrashView: View {
     @EnvironmentObject var app: AppState
     var body: some View {
         let items = app.store.trash
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Recently Deleted").font(Ink.serif(30, weight: .regular)).foregroundStyle(Ink.ink)
-                    Spacer()
+                PageTitle(title: "Recently", italic: "deleted", count: items.isEmpty ? nil : HomeCounts.countLabel(items.count, "transcript", "transcripts"),
+                          lede: "Transcripts stay here for 30 days, then they and their audio are deleted for good.") {
                     if !items.isEmpty {
-                        Button("Restore all") { app.restore(items.map(\.id)) }.buttonStyle(.bordered)
-                        Button("Empty", role: .destructive) { confirmEmpty(items) }.buttonStyle(.bordered).tint(Ink.danger)
-                    }
-                }
-                Text("Transcripts stay here for 30 days, then they and their audio are deleted for good.")
-                    .font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.top, 4).padding(.bottom, 18)
-                if items.isEmpty {
-                    Text("Nothing here.").font(.system(size: 14)).foregroundStyle(Ink.mute)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                            HStack(spacing: 14) {
-                                Image(systemName: t.source.symbol).foregroundStyle(Ink.mute).frame(width: 30)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(t.title).font(.system(size: 14.5, weight: .medium)).foregroundStyle(Ink.ink).lineLimit(1)
-                                    Text(daysLeft(t)).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
-                                }
-                                Spacer()
-                                Button("Restore") { app.restore([t.id]) }.buttonStyle(.bordered).controlSize(.small)
-                                Button("Delete now", role: .destructive) { app.purge([t.id]) }.buttonStyle(.plain).foregroundStyle(Ink.danger).font(.system(size: 12.5))
+                        HStack(spacing: 8) {
+                            PillButton(title: "Restore all", kind: .line, size: .mini, hint: "Puts every transcript back in your library.") {
+                                app.restore(items.map(\.id))
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                            if i < items.count - 1 { Divider().opacity(0.5) }
+                            DangerPill(title: "Empty", hint: "Deletes every transcript here and its audio for good.") { confirmEmpty(items) }
                         }
                     }
-                    .background(NoteCardBackground(hover: false))
+                }
+                .padding(.bottom, 22)
+                if items.isEmpty {
+                    EmptyStateCard(art: .iconDeleted, title: "Nothing here",
+                                   message: "Transcripts you delete wait here for 30 days, so you can restore them.")
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(items) { t in
+                            TrashRow(transcript: t, detail: daysLeft(t), restore: { app.restore([t.id]) }, purge: { app.purge([t.id]) })
+                        }
+                    }
                 }
             }
             .frame(maxWidth: 860, alignment: .leading)
@@ -63,5 +60,77 @@ struct TrashView: View {
         a.addButton(withTitle: "Delete"); a.addButton(withTitle: "Cancel")
         a.buttons.first?.hasDestructiveAction = true
         if a.runModal() == .alertFirstButtonReturn { app.purge(items.map(\.id)) }
+    }
+}
+
+/// A deleted transcript as a flat row: the kind dot, the title in the serif, when it was deleted and the days left,
+/// then Restore (a line mini pill) and Delete now (danger text). No click on the row itself; the controls take clicks
+/// through direct gestures (macOS 26 click safety).
+private struct TrashRow: View {
+    var transcript: Transcript
+    var detail: String
+    var restore: () -> Void
+    var purge: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            KindDot(transcript: transcript, size: 34)
+            VStack(alignment: .leading, spacing: 3) {
+                WebText.serif(transcript.title, italic: nil, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
+                Text(detail).font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+            }
+            .layoutPriority(1)
+            Spacer(minLength: 10)
+            PillButton(title: "Restore", kind: .line, size: .mini, hint: "Puts it back in your library.", action: restore)
+            Text("Delete now").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger)
+                .padding(.horizontal, 6).frame(height: 28)
+                .contentShape(Rectangle())
+                .tapArea(purge)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Delete now")
+                .accessibilityHint("Deletes it and its audio for good.")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { purge() }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .flatRow(highlighted: hover)
+        .onHover { hover = $0 }
+    }
+}
+
+/// A line pill in the danger color, for an action that deletes for good (never persimmon). Native: a bordered button
+/// tinted with the system red.
+private struct DangerPill: View {
+    var title: String
+    var hint: String
+    var action: () -> Void
+    @State private var hover = false
+    @Environment(\.look) private var look
+
+    var body: some View {
+        if look == .native {
+            Button(title, role: .destructive, action: action)
+                .buttonStyle(.bordered).controlSize(.small).tint(NativeInk.danger)
+                .help(hint)
+        } else {
+            Text(title).font(.system(size: PillSize.mini.font, weight: .semibold)).foregroundStyle(Ink.danger)
+                .padding(.horizontal, PillSize.mini.padding).frame(height: PillSize.mini.height)
+                .background {
+                    ZStack {
+                        Capsule().fill(Ink.danger.opacity(hover ? 0.08 : 0))
+                        Capsule().strokeBorder(Ink.danger, lineWidth: 1.5)
+                    }
+                }
+                .fixedSize()
+                .contentShape(Capsule())
+                .onHover { hover = $0 }
+                .tapArea(action)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityHint(hint)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { action() }
+        }
     }
 }

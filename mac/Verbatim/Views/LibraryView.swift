@@ -54,6 +54,15 @@ struct LibraryView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             if let k = kind {
                                 KindHeroCard(kind: k, meta: heroMeta(k, list), compact: true).frame(maxWidth: 760).padding(.top, 16)
+                                // Thoughts and Journal also read by day: one link there, so it's one feature with two
+                                // views, not two places (review M-21). By day's All thoughts comes back to this list.
+                                if k == .idea || k == .journal {
+                                    PillButton(title: "Read by day", kind: .line, size: .mini, trailing: .arrow,
+                                               hint: "Opens \(k.plural) as one page a day.") { app.go(.byDay(k)) }
+                                        .frame(maxWidth: 760, alignment: .trailing)
+                                        .padding(.top, 10)
+                                        .uiTarget("library-read-by-day")
+                                }
                             }
                             if app.search.trimmingCharacters(in: .whitespaces).count >= 2 {
                                 PassageResults(query: app.search, list: list).padding(.top, 14)

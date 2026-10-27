@@ -147,9 +147,11 @@ struct NativeLibraryView: View {
             TableColumn("Status") { r in
                 if let t = r.transcript { status(t) }
             }
-            .width(min: 70, ideal: 90, max: 140)
+            // Room for "Transcribing" beside its spinner (review M-22).
+            .width(min: Self.statusMinWidth, ideal: 116, max: 150)
             TableColumn("Length") { r in
-                if let t = r.transcript {
+                // A text-only thought has no length (review M-13).
+                if let t = r.transcript, !WebStatus.isTextOnly(t) {
                     Text(Self.length(t.duration)).monospacedDigit().foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
@@ -161,6 +163,8 @@ struct NativeLibraryView: View {
             }
         }
         .alternatingRowBackgrounds()
+        // Room under the last row for the floating record button, so it never covers a length (review M-07).
+        .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.recordButtonRoom).allowsHitTesting(false) }
         .contextMenu(forSelectionType: String.self) { ids in
             menu(for: ids)
         } primaryAction: { ids in
@@ -200,15 +204,22 @@ struct NativeLibraryView: View {
         case .processing:
             LiveStage(t) { t in
                 HStack(spacing: 4) { ProgressView().controlSize(.mini); Text(t.stageText).foregroundStyle(.secondary).lineLimit(1) }
+                    .help(t.stageText)
             }
         case .failed:
             Label("Needs Retry", systemImage: "exclamationmark.triangle").foregroundStyle(NativeInk.danger).lineLimit(1)
         case .ready:
-            if t.document != nil { Text("Cleaned").foregroundStyle(Ink.nativeAccent) } else { Text("Original").foregroundStyle(.secondary) }
+            if t.document != nil { Text("Cleaned").foregroundStyle(Ink.nativeAccent) }
+            else if WebStatus.isTextOnly(t) { Text("Text").foregroundStyle(.secondary) }
+            else { Text("Original").foregroundStyle(.secondary) }
         }
     }
 
     // MARK: Cells
+
+    static let statusMinWidth: CGFloat = 104
+    /// The floating record button's height and margin (PremiumLook.swift), kept clear under the table's last row.
+    static let recordButtonRoom: CGFloat = 88
 
     /// "Meeting", "Voice note", "Link".
     static func kind(_ t: Transcript) -> String {

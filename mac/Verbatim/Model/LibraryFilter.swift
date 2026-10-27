@@ -61,7 +61,7 @@ enum LibrarySource: String, CaseIterable, Identifiable, Codable {
     var label: String {
         switch self {
         case .all: return "All"
-        case .voiceMemos: return "Voice memos"
+        case .voiceMemos: return "Voice notes"
         case .videos: return "Videos"
         case .audioFiles: return "Audio files"
         case .links: return "Links"
@@ -157,12 +157,12 @@ struct LibraryFilter: Equatable, Hashable {
         }.map { ($0.key, $0.value) }
     }
 
-    /// "Meeting · YouTube", "Voice memo", "MP4 file", "Dictation": what a row says it is.
+    /// "Meeting · YouTube", "Voice note", "MP4 file", "Dictation": what a row says it is.
     static func describe(_ t: Transcript) -> String {
         let what: String
         if t.isDictation { return "Dictation" }
         else if LibrarySource.isLink(t) { what = Platform.of(t).map { $0 == Platform.otherWeb ? (t.linkInfo?.site ?? "Link") : $0 } ?? "Link" }
-        else if t.source == .voiceMemo { what = "Voice memo" }
+        else if t.source == .voiceMemo { what = "Voice note" }
         else { what = t.sourceLabel.isEmpty ? "File" : t.sourceLabel }
         return t.kind.map { "\($0.label) · \(what)" } ?? what
     }

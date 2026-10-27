@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Library's instant filters, shared by the Library (Mac and iPhone) and the Add from Library sheet: a row of type
-/// chips (All, Voice memos, Videos, …) with counts, and for Videos and Links a second row of platforms. Types with no
+/// chips (All, Voice notes, Videos, …) with counts, and for Videos and Links a second row of platforms. Types with no
 /// transcripts are hidden. Selected chips are ink with paper text; nothing sits on glass.
 struct LibraryFilterBar: View {
     @Binding var filter: LibraryFilter

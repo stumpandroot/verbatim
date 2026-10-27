@@ -44,7 +44,7 @@ enum LibraryFilterChecks {
               && LibraryFilter(raw: LibraryFilter(source: .links, platform: Platform.x).raw).platform == Platform.x
               && LibraryFilter(raw: "voiceMemos|YouTube").platform == nil && LibraryFilter(raw: "nonsense") == .all)
         check("rows say what they are", LibraryFilter.describe(tiktok) == "TikTok" && LibraryFilter.describe(dict) == "Dictation"
-              && LibraryFilter.describe(memo) == "Voice memo" && LibraryFilter.describe(mov) == "MOV file")
+              && LibraryFilter.describe(memo) == "Voice note" && LibraryFilter.describe(mov) == "MOV file")
 
         // Add from Library: deleted and already-included transcripts are left out; another project's transcripts move.
         let project = UUID(), other = UUID()

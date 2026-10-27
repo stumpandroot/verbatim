@@ -375,7 +375,8 @@ private struct FlatRowHit: ViewModifier {
 }
 
 /// A row's round kind marker (34–38 pt): the source's fill (voice notes Record, files sage, app audio petal,
-/// dictations butter, links an ink ring on card) with an ink icon for what it is.
+/// dictations butter, links an ink ring on card) with an ink icon for what it is. Thoughts stay neutral whatever
+/// their source (DESIGN.md §14.1; review M-12): the neutral chip wash with the ink bulb.
 struct KindDot: View {
     var transcript: Transcript
     var size: CGFloat = 34
@@ -387,14 +388,18 @@ struct KindDot: View {
 
     @ViewBuilder private var dot: some View {
         let link = LibrarySource.isLink(transcript)
+        let neutral = KindDot.isNeutral(transcript)
         ZStack {
-            Circle().fill(link ? Ink.card : fill)
+            Circle().fill(link ? Ink.card : neutral ? Ink.neutralChip : fill)
             if link { Circle().inset(by: 0.75).stroke(Ink.ink, lineWidth: 1.5) }
-            IconGlyph(art: art, size: size * 0.53, color: link ? Ink.ink : Ink.inkFixed)
+            IconGlyph(art: art, size: size * 0.53, color: link || neutral ? Ink.ink : Ink.inkFixed)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
+
+    /// Kinds that never borrow a capture hue: Thoughts (`idea`).
+    static func isNeutral(_ t: Transcript) -> Bool { t.kind == .idea && !LibrarySource.isLink(t) }
 
     private var fill: Color {
         if transcript.isDictation { return Ink.panelButter }
@@ -503,6 +508,12 @@ enum WebStatus {
     }
     private struct FillerKey: Hashable { var id: UUID; var segments: Int; var chars: Int; var cleaned: Bool; var ready: Bool; var dictation: Bool }
     private static var fillerCache: [FillerKey: Int] = [:]
+
+    /// A transcript with words and no audio (a Thought pad piece that became a text-only thought): its status reads
+    /// "Text" and it shows no length or play control (review M-13).
+    static func isTextOnly(_ t: Transcript) -> Bool {
+        t.status == .ready && t.audioFileName == nil && t.duration < 0.5 && !t.isDictation && !LibrarySource.isLink(t)
+    }
 
     /// Moments (notes pinned to a time) in a transcript.
     static func moments(_ t: Transcript) -> Int { t.notes.filter { $0.at != nil }.count }
@@ -682,11 +693,13 @@ struct FilterChipLabel: View {
     var selected: Bool
     var small = false
     var hover = false
+    /// A kind or tag chip: in Native a chosen one is a neutral capsule with a check instead of the accent.
+    var neutral = false
     @Environment(\.look) private var look
 
     var body: some View {
         if look == .native {
-            NativeChipFace(title: title, count: count, selected: selected, small: small, hover: hover)
+            NativeChipFace(title: title, count: count, selected: selected, small: small, hover: hover, neutral: neutral)
         } else {
             verbose
         }
@@ -723,12 +736,13 @@ struct FilterChip: View {
     var ring = false
     var selected: Bool
     var small = false
+    var neutral = false
     var action: () -> Void
     @State private var hover = false
 
     var body: some View {
         Button(action: action) {
-            FilterChipLabel(title: title, count: count, dot: dot, ring: ring, selected: selected, small: small, hover: hover)
+            FilterChipLabel(title: title, count: count, dot: dot, ring: ring, selected: selected, small: small, hover: hover, neutral: neutral)
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
@@ -1073,7 +1087,14 @@ struct AppIconView: View {
 
     var body: some View {
         AppIcon(key: bundleID.flatMap { $0.isEmpty ? nil : .bundleID($0) }) {
+            // An app that can't be found gets a neutral app glyph, never an empty square (review M-23).
             RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip)
+                .overlay {
+                    GeometryReader { g in
+                        IconGlyph(art: .iconGrid, size: g.size.width * 0.7, color: Ink.dim)
+                            .frame(width: g.size.width, height: g.size.height)
+                    }
+                }
         }
         .accessibilityHidden(true)
     }

@@ -23,7 +23,7 @@ extension Transcript {
             if let p = originalMedia { return URL(fileURLWithPath: p).lastPathComponent }
             return sourceLabel.isEmpty ? "File" : sourceLabel
         case .dictation: return flow.map { "Dictation into \($0.app)" } ?? "Dictation"
-        case .voiceMemo: return "Voice memo"
+        case .voiceMemo: return "Voice note"
         case .app: return sourceLabel.isEmpty ? "App audio" : sourceLabel
         }
     }

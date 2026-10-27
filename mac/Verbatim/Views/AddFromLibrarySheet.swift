@@ -12,6 +12,8 @@ struct AddFromLibrarySheet: View {
     @State private var query = ""
     @State private var filter = LibraryFilter.saved(LibraryFilter.addSheetKey)
     @State private var selection: Set<UUID> = []
+    /// The Library's kind chips (Journal, Thoughts, Meetings, …), on top of the type chips (review M-20).
+    @State private var kind: RecordingKind? = nil
     @State private var confirmMove = false
 
     private var projectName: String { app.store.projects.first { $0.id == project }?.name ?? "Project" }
@@ -19,13 +21,14 @@ struct AddFromLibrarySheet: View {
     var body: some View {
         let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
         let candidates = ProjectAdd.candidates(app.store.transcripts, project: project, query: query) { app.store.searchText($0) }
-        let shown = filter.apply(candidates, searching: searching)
+        let typed = filter.apply(candidates, searching: searching)
+        let shown = kind.map { k in typed.filter { $0.kind == k } } ?? typed
         let chosen = candidates.filter { selection.contains($0.id) }
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Add to \(projectName)").font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1)
                 Spacer(minLength: 12)
-                Overline(text: selection.isEmpty ? "From your library" : "\(selection.count) selected", color: Ink.mute)
+                Eyebrow(text: selection.isEmpty ? "From your library" : "\(selection.count) selected")
             }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Ink.mute)
@@ -38,17 +41,18 @@ struct AddFromLibrarySheet: View {
             .padding(.horizontal, 12).frame(height: 36)
             .cardSurface(radius: Radius.button)
             LibraryFilterBar(filter: $filter, items: candidates, searching: searching, wraps: true) { filter.save(LibraryFilter.addSheetKey) }
+            kindChips(typed)
             list(shown)
             HStack(spacing: 8) {
                 let ids = Set(shown.map(\.id))
                 Button(!ids.isEmpty && ids.isSubset(of: selection) ? "Deselect all" : "Select all") {
                     if ids.isSubset(of: selection) { selection.subtract(ids) } else { selection.formUnion(ids) }
                 }
-                .buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.iris).disabled(shown.isEmpty)
+                .buttonStyle(.plain).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).disabled(shown.isEmpty)
                 Spacer()
-                Button("Cancel") { dismiss() }.buttonStyle(SheetButtonStyle()).frame(width: 110).keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).keyboardShortcut(.cancelAction)
                 Button(chosen.isEmpty ? "Add to \(projectName)" : "Add \(chosen.count) to \(projectName)") { add(chosen) }
-                    .buttonStyle(SheetButtonStyle(primary: true)).frame(minWidth: 180).fixedSize()
+                    .buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
                     .keyboardShortcut(.defaultAction).disabled(chosen.isEmpty)
                     .uiTarget("add-from-library-add")
             }
@@ -91,13 +95,7 @@ struct AddFromLibrarySheet: View {
                     .font(.system(size: 17)).foregroundStyle(on ? Ink.ink : Ink.mute).frame(width: 22)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(t.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1)
-                    HStack(spacing: 6) {
-                        Text(LibraryFilter.describe(t))
-                        Text("·")
-                        Text(Formats.style(date: .medium, time: .none).string(from: t.createdAt))
-                        if t.duration > 0 { Text("·"); Text(t.duration.timecode) }
-                    }
-                    .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
+                    Text(Self.meta(t)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name {
@@ -113,6 +111,30 @@ struct AddFromLibrarySheet: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(t.title), \(LibraryFilter.describe(t))")
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// The Library's kinds that have something here, as chips; a second click clears one.
+    @ViewBuilder private func kindChips(_ items: [Transcript]) -> some View {
+        let counts = Dictionary(grouping: items.compactMap(\.kind), by: { $0 }).mapValues(\.count)
+        let kinds = RecordingKind.pickable.filter { (counts[$0] ?? 0) > 0 || kind == $0 }
+        if !kinds.isEmpty {
+            FlowRow(spacing: 8, lineSpacing: 8) {
+                ForEach(kinds, id: \.self) { k in
+                    FilterChip(title: k.plural, count: counts[k] ?? 0, selected: kind == k) { kind = kind == k ? nil : k }
+                }
+            }
+            .accessibilityElement(children: .contain).accessibilityLabel("Kind")
+        }
+    }
+
+    /// The Library row's order: "Voice note · Thoughts · Oct 27 · 2:04", the year only when it isn't this year.
+    static func meta(_ t: Transcript, now: Date = Date()) -> String {
+        let style = HomeRecentStyle(t)
+        var parts = [LibrarySource.isLink(t) && !t.sourceLabel.isEmpty ? t.sourceLabel : style.source]
+        if let k = t.kind, k != .dictation { parts.append(k.label) }
+        parts.append(HomeRecentStyle.day(t.createdAt, now: now))
+        if t.duration > 0 { parts.append(HomeRecentStyle.length(t.duration)) }
+        return parts.joined(separator: " · ")
     }
 
     private func add(_ chosen: [Transcript]) {

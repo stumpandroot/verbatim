@@ -176,9 +176,12 @@ struct DictationRow: View {
                         Text(transcript.error ?? "Transcription failed").font(.system(size: 15)).foregroundStyle(Ink.danger)
                     } else if let instruction = info?.instruction {
                         Text("“\(instruction)”").font(Ink.serif(15).italic()).foregroundStyle(Ink.dim)
-                        Text(pasted).font(.system(size: 15)).foregroundStyle(Ink.ink).lineSpacing(4).lineLimit(lit ? 12 : 3)
+                        Text(lit ? pasted : HomeDictationText.oneLine(pasted)).font(.system(size: 15)).foregroundStyle(Ink.ink).lineSpacing(4).lineLimit(lit ? 12 : 3)
                     } else {
-                        Text(showRaw ? raw : (pasted.isEmpty ? "(only filler words)" : pasted))
+                        // At rest the words run on one line of text (a greeting's blank line doesn't take a row);
+                        // under the pointer the row opens with the line breaks as pasted.
+                        let words = showRaw ? raw : (pasted.isEmpty ? "(only filler words)" : pasted)
+                        Text(lit ? words : HomeDictationText.oneLine(words))
                             .font(.system(size: 15)).foregroundStyle(showRaw ? Ink.dim : Ink.ink)
                             .lineSpacing(4).lineLimit(lit ? 12 : 3)
                     }
@@ -207,7 +210,8 @@ struct DictationRow: View {
         }
     }
 
-    /// "▢ Mail · Clean · cleaned", "▢ Slack · Edited by voice", "▢ Messages · Literal · not pasted".
+    /// "▢ Mail · Cleaned", "▢ Slack · Edited by voice", "▢ Messages · Literal · not pasted". The cleanup level is
+    /// in the help when the status already says Cleaned (review M-23).
     private var metaLine: some View {
         HStack(spacing: 7) {
             if let info {
@@ -224,13 +228,13 @@ struct DictationRow: View {
             if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
         }
         .font(.system(size: 12.5)).foregroundStyle(Ink.mute).lineLimit(1)
+        .help(info.map { "Cleanup: \(CleanupLevel.title(stored: $0.level))" } ?? "")
     }
 
     private var metaParts: [String] {
         guard let info else { return [transcript.sourceLabel] }
-        var parts = [info.app, info.instruction == nil ? CleanupLevel.title(stored: info.level) : "Edited by voice"]
-        if info.pasted != info.raw, info.instruction == nil { parts.append("cleaned") }
-        return parts
+        return DictationMeta.parts(app: info.app, level: CleanupLevel.title(stored: info.level), byVoice: info.instruction != nil,
+                                   cleaned: info.pasted != info.raw)
     }
 
     /// The working spinner, the Copy pill, and the More menu.
@@ -335,5 +339,14 @@ private struct MoreDots: View {
         .onHover { hover = $0 }
         .animation(Motion.touch, value: hover)
         .accessibilityHidden(true)
+    }
+}
+
+/// A dictation's meta line words: the app, then "Cleaned" when cleanup changed the words, else the cleanup level, or
+/// "Edited by voice". Never the level and "cleaned" together ("Mail · Clean · cleaned" said it twice; review M-23).
+enum DictationMeta {
+    static func parts(app: String, level: String, byVoice: Bool, cleaned: Bool) -> [String] {
+        if byVoice { return [app, "Edited by voice"] }
+        return [app, cleaned ? "Cleaned" : level]
     }
 }
