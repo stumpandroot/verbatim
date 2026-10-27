@@ -2313,10 +2313,37 @@ extension UITest {
                   && center.result?.found.isEmpty == false)
         }
         nav.close(); nav.scope = .all; nav.query = ""; center.clear()
+        await askDeleteChecks(app: app, recordings: seeded.1, device: "Mac") { check("ask: " + $0, $1) }
         for r in app.store.recipes where !before.contains(r.id) { AskRecipeCenter.shared.delete(r.id) }
         unseedAsk(app, seeded)
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Deleting: a recording moved to Recently Deleted leaves the index and the digests that cited it at once, and
+    /// Delete all data's Ask step (`AskData.eraseAll`) removes the index folder, recent questions, recipes, and digests.
+    static func askDeleteChecks(app: AppState, recordings: [UUID], device: String, _ check: (String, Bool) -> Void) async {
+        guard let gone = recordings.first else { return }
+        await AskIndex.shared.sync(app.store.live.filter { recordings.contains($0.id) }, canWork: { true })
+        let had = await AskIndex.shared.entry(gone) != nil
+        let recipe = AskRecipeCenter.shared.add("Delete check", scope: .all)
+        if let recipe, let sample = AskChecks.sampleResult(app.store.live.filter { recordings.contains($0.id) }, device: device) {
+            AskRecipeCenter.shared.keep(AskDigest(recipeId: recipe.id, ranAt: Date(), scheduled: false, result: sample))
+        }
+        app.delete([gone])
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let left = await AskIndex.shared.entry(gone)
+        check("a recording moved to Recently Deleted leaves the index at once", had && left == nil
+              && !FileManager.default.fileExists(atPath: AskStorage.indexFile(gone, in: Paths.local).path))
+        let digest = recipe.flatMap { AskRecipeCenter.shared.latest($0.id) }
+        check("digests drop the deleted recording's citations", digest?.result.answer?.citations.contains { $0.transcriptId == gone } == false
+              && digest?.result.answer?.citations.isEmpty == false)
+        await AskData.eraseAll()
+        let fm = FileManager.default
+        check("Delete all data removes the Ask Index folder, recent questions, recipes, and digests",
+              !fm.fileExists(atPath: AskStorage.indexFolder(in: Paths.local).path) && !fm.fileExists(atPath: AskStorage.historyFile(in: Paths.local).path)
+              && AskCenter.shared.history.isEmpty && app.store.recipes.isEmpty && AskRecipeCenter.shared.digests.isEmpty)
+        app.toast = nil
     }
 
     /// Ask for the screenshot tour: the ⌘K panel with the mockup's answer, Make › Ask, and Recipes with a digest.

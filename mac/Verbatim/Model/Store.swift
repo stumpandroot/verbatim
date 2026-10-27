@@ -681,6 +681,9 @@ final class Store: Observable {
     private var lateLists: [String: Bool] = [:]
     /// Reads of synced lists and the profile that launch left for later: coordinated with no deadline, one at a time.
     nonisolated private static let lateQueue = DispatchQueue(label: "co.stumpandroot.verbatim.late-reads", qos: .utility)
+    /// Called when transcripts are deleted or moved to Recently Deleted on this device (Ask drops them from its index
+    /// and answers at once).
+    var onTranscriptsRemoved: (([UUID]) -> Void)?
     /// Called after a transcript arrives or changes from the other device (Mac: claim pending links).
     var onRemoteChange: ((Transcript) -> Void)?
     /// Recordings recovered after launch (queued to transcribe, or added to the transcript they continued): the
@@ -945,7 +948,7 @@ final class Store: Observable {
         memo("trash") { transcripts.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) } }
     }
 
-    func moveToTrash(_ id: UUID) { update(id) { $0.deletedAt = Date(); $0.pinned = false } }
+    func moveToTrash(_ id: UUID) { update(id) { $0.deletedAt = Date(); $0.pinned = false }; onTranscriptsRemoved?([id]) }
     func restore(_ id: UUID) { update(id) { $0.deletedAt = nil } }
 
     /// Recently Deleted keeps things for `trashDays` (30) days.
@@ -1303,6 +1306,7 @@ final class Store: Observable {
     /// Permanent: removes the transcript, its audio, and its thumbnail.
     func delete(_ t: Transcript) {
         transcripts.removeAll { $0.id == t.id }
+        onTranscriptsRemoved?([t.id])
         searchCache[t.id] = nil
         StageClock.shared.take(t.id)
         var files = [TranscriptFiles.url(t.id)]

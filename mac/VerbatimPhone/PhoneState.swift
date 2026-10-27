@@ -967,6 +967,8 @@ final class PhoneState: ObservableObject {
         store.projects = []
         store.dictionary = []
         store.snippets = []
+        // Ask's index, recent questions, recipes, and digests (Transcription/AskEngine.swift).
+        Task { await AskData.eraseAll() }
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
         // Also files with no transcript in memory, speech models, and local-only copies (Store.removeAllFiles).
         store.removeAllFiles()

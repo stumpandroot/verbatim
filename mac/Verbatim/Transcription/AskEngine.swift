@@ -41,7 +41,7 @@ actor AskIndex {
     /// Indexing on (self-tests turn the vectors off; the passages are always built).
     var embed = true
 
-    static var folder: URL { Paths.local.appendingPathComponent("Ask Index", isDirectory: true) }
+    static var folder: URL { AskStorage.indexFolder(in: Paths.local) }
 
     func setEmbedding(_ on: Bool) { embed = on }
 
@@ -88,10 +88,17 @@ actor AskIndex {
         if done > 0 { Log.note("ask: indexed \(done) recording(s); \(entries.count) in the index") }
     }
 
-    /// Everything in the index goes (Settings › Privacy's Delete all, or a self-test).
+    /// Everything in the index goes (Delete all data).
     func clear() {
         entries = [:]
+        loaded = true   // nothing to read back
         try? FileManager.default.removeItem(at: Self.folder)
+    }
+
+    /// Recordings deleted or moved to Recently Deleted leave the index at once, from memory and disk.
+    func remove(_ ids: [UUID]) {
+        for id in ids { entries[id] = nil }
+        AskStorage.removeIndex(for: ids, in: Paths.local)
     }
 
     // MARK: Asking
@@ -152,7 +159,7 @@ actor AskIndex {
         return data[start..<(start + e.dimension)].map { Float(Int8(bitPattern: $0)) / 127 }
     }
 
-    private func file(_ id: UUID) -> URL { Self.folder.appendingPathComponent(id.uuidString + ".plist") }
+    private func file(_ id: UUID) -> URL { AskStorage.indexFile(id, in: Paths.local) }
 
     private func loadIfNeeded() {
         guard !loaded else { return }
@@ -216,6 +223,8 @@ final class AskCenter: ObservableObject {
         self.store = store
         self.isBusy = isBusy
         history = AskHistoryFile.load()
+        // A recording deleted or moved to Recently Deleted leaves the index, the answers, and the digests at once.
+        store.onTranscriptsRemoved = { ids in AskCenter.shared.removed(ids) }
         guard automatic else { return }
         store.anyChange
             .debounce(for: .seconds(8), scheduler: DispatchQueue.main)
@@ -265,6 +274,26 @@ final class AskCenter: ObservableObject {
     }
 
     func forget() { history = []; AskHistoryFile.save([]) }
+
+    /// Recordings deleted or trashed: their passages leave the index, and answers here and in digests drop their
+    /// citations.
+    func removed(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        let set = Set(ids)
+        Task.detached(priority: .utility) { await AskIndex.shared.remove(ids) }
+        if let r = result { result = AskCleanup.pruned(r, removing: set) }
+        let pruned = history.map { AskCleanup.pruned($0, removing: set) }
+        if pruned != history { history = pruned; AskHistoryFile.save(history) }
+        AskRecipeCenter.shared.removed(set)
+    }
+
+    /// Delete all data: the index, recent questions, and the current answer.
+    func eraseAll() async {
+        runID += 1; work?.cancel(); indexing?.cancel()
+        result = nil; phase = .idle; history = []
+        await AskIndex.shared.clear()
+        AskStorage.removeAll(in: Paths.local)
+    }
 
     /// Finds the passages, then answers from them. Used by the screens and by recipes.
     static func answer(_ question: String, scope: AskScope, store: Store, now: Date = Date(),
@@ -364,7 +393,7 @@ final class AskCenter: ObservableObject {
 
 /// Recent questions, on this device only (Paths.local, never synced).
 enum AskHistoryFile {
-    static var url: URL { Paths.local.appendingPathComponent("ask-history.json") }
+    static var url: URL { AskStorage.historyFile(in: Paths.local) }
     static func load() -> [AskResult] {
         guard let d = try? Data(contentsOf: url) else { return [] }
         return (try? Store.dec.decode([AskResult].self, from: d)) ?? []
@@ -394,7 +423,7 @@ final class AskRecipeCenter: ObservableObject {
     private weak var store: Store?
     private var timer: Timer? = nil
 
-    static var digestsURL: URL { Paths.local.appendingPathComponent("ask-digests.json") }
+    static var digestsURL: URL { AskStorage.digestsFile(in: Paths.local) }
 
     var isAttached: Bool { store != nil }
 
@@ -438,6 +467,23 @@ final class AskRecipeCenter: ObservableObject {
     }
 
     func schedule(_ id: UUID) -> RecipeSchedule? { device.schedules[id] }
+
+    /// Recordings deleted or trashed: digests drop their citations.
+    func removed(_ ids: Set<UUID>) {
+        let pruned = AskCleanup.pruned(digests, removing: ids)
+        guard pruned != digests else { return }
+        digests = pruned
+        saveDigests()
+    }
+
+    /// Delete all data: every recipe, its schedule, and its digests on this device.
+    func eraseAll() {
+        store?.recipes = []
+        digests = []
+        running = []
+        setDevice(RecipeDeviceState())
+        try? FileManager.default.removeItem(at: Self.digestsURL)
+    }
 
     /// Sets or clears a recipe's weekly time on this device. A time already past this week waits for next week.
     func setSchedule(_ s: RecipeSchedule?, for id: UUID) {
@@ -519,5 +565,15 @@ final class AskRecipeCenter: ObservableObject {
             c.userInfo = ["askDigest": d.id.uuidString]
             center.add(UNNotificationRequest(identifier: "ask-\(d.id.uuidString)", content: c, trigger: nil))
         }
+    }
+}
+
+/// Settings' Delete all data, on both apps: Ask's index, recent questions, recipes, schedules, and digests.
+@MainActor
+enum AskData {
+    static func eraseAll() async {
+        AskRecipeCenter.shared.eraseAll()
+        await AskCenter.shared.eraseAll()
+        Log.note("ask: deleted the index, questions, recipes, and digests")
     }
 }

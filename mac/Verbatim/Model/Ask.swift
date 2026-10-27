@@ -758,3 +758,80 @@ struct AskResult: Codable, Equatable, Identifiable {
         return found.map { "\($0.title), \(AskFormat.time($0.start)): \($0.text)" }.joined(separator: "\n\n")
     }
 }
+
+// MARK: - Deleting
+
+/// Where Ask keeps its data on this device, under a base folder (Application Support's Verbatim folder in the apps):
+/// the index, one file per recording; recent questions; and recipes' digests. None of it syncs.
+enum AskStorage {
+    static func indexFolder(in base: URL) -> URL { base.appendingPathComponent("Ask Index", isDirectory: true) }
+    static func indexFile(_ id: UUID, in base: URL) -> URL { indexFolder(in: base).appendingPathComponent(id.uuidString + ".plist") }
+    static func historyFile(in base: URL) -> URL { base.appendingPathComponent("ask-history.json") }
+    static func digestsFile(in base: URL) -> URL { base.appendingPathComponent("ask-digests.json") }
+
+    /// A deleted or trashed recording's passages leave the index at once.
+    static func removeIndex(for ids: [UUID], in base: URL) {
+        for id in ids { try? FileManager.default.removeItem(at: indexFile(id, in: base)) }
+    }
+
+    /// Delete all data: the index, recent questions, and digests.
+    static func removeAll(in base: URL) {
+        for u in [indexFolder(in: base), historyFile(in: base), digestsFile(in: base)] { try? FileManager.default.removeItem(at: u) }
+    }
+}
+
+enum AskCleanup {
+    /// A result without the recordings in `ids`: their citations and passages go, a sentence left with no citation goes,
+    /// and the rest are renumbered. An answer with nothing left becomes no answer; the counts follow what's left.
+    static func pruned(_ r: AskResult, removing ids: Set<UUID>) -> AskResult {
+        guard !ids.isEmpty, r.found.contains(where: { ids.contains($0.transcriptId) })
+                || (r.answer?.citations.contains { ids.contains($0.transcriptId) } ?? false) else { return r }
+        var out = r
+        let keptFound = r.found.filter { !ids.contains($0.transcriptId) }
+        out.found = keptFound.enumerated().map { i, s in var x = s; x.number = i + 1; return x }
+        if r.state == .answered || r.state == .searchOnly {
+            out.passageCount = max(0, r.passageCount - (r.found.count - keptFound.count))
+            out.recordingCount = Set(keptFound.map(\.transcriptId)).count
+        }
+        if let a = r.answer {
+            var map: [Int: Int] = [:]   // old number → new number
+            var citations: [AskSource] = []
+            for c in a.citations where !ids.contains(c.transcriptId) {
+                var x = c; x.number = citations.count + 1; map[c.number] = x.number; citations.append(x)
+            }
+            func fix(_ s: [AskSentence]) -> [AskSentence] {
+                s.compactMap { x in
+                    let n = x.cites.compactMap { map[$0] }
+                    return n.isEmpty ? nil : AskSentence(text: x.text, cites: n)
+                }
+            }
+            var blocks: [AskBlock] = []
+            for b in a.blocks {
+                switch b {
+                case .heading: blocks.append(b)
+                case .paragraph(let s): let f = fix(s); if !f.isEmpty { blocks.append(.paragraph(f)) }
+                case .bullet(let s): let f = fix(s); if !f.isEmpty { blocks.append(.bullet(f)) }
+                }
+            }
+            // Headings with nothing under them go.
+            var kept: [AskBlock] = []
+            for (i, b) in blocks.enumerated() {
+                if case .heading = b {
+                    guard i + 1 < blocks.count, { if case .heading = blocks[i + 1] { return false } else { return true } }() else { continue }
+                }
+                kept.append(b)
+            }
+            if kept.contains(where: { if case .heading = $0 { return false } else { return true } }) {
+                out.answer = AskAnswer(blocks: kept, citations: citations)
+            } else {
+                out.answer = nil
+                if out.state == .answered { out.state = out.found.isEmpty ? .nothingFound : .noAnswer }
+            }
+        }
+        return out
+    }
+
+    static func pruned(_ digests: [AskDigest], removing ids: Set<UUID>) -> [AskDigest] {
+        digests.map { d in var x = d; x.result = pruned(d.result, removing: ids); return x }
+    }
+}

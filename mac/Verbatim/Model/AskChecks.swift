@@ -151,6 +151,14 @@ enum AskChecks {
         check("recipes: a recipe round-trips for sync", (try? enc.encode([r])).flatMap { try? dec.decode([AskRecipe].self, from: $0) } == [r])
         check("samples: the screenshots' answer cites three passages", sampleResult(lib, device: "Mac")?.answer?.citations.count == 3)
         check("samples: the screenshots' digest has a heading and three items", sampleDigest(lib, question: "Q", scope: .all, device: "Mac")?.answer?.blocks.count == 4)
+        if let sample = sampleResult(lib, device: "Mac") {
+            let call = lib[0].id
+            let pruned = AskCleanup.pruned(sample, removing: [call])
+            check("delete: a deleted recording's citations leave an answer, and the rest are renumbered",
+                  pruned.answer?.citations.map(\.number) == [1] && pruned.answer?.citations.allSatisfy { $0.transcriptId != call } == true)
+            let digest = AskDigest(recipeId: UUID(), ranAt: now, scheduled: true, result: sample)
+            check("delete: digests drop a deleted recording's citations", AskCleanup.pruned([digest], removing: [call]).first?.result.answer?.citations.contains { $0.transcriptId == call } == false)
+        }
         check("recipes: three suggestions, none seeded", RecipeSuggestions.all(projects: [(project, "Website refresh")]).map(\.question)
               == ["Weekly digest of my thoughts", "Action items from this week\u{2019}s meetings", "What did I say about Website refresh"])
     }

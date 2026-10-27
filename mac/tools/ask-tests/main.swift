@@ -216,5 +216,45 @@ let digests = (0..<12).map { i in AskDigest(recipeId: i < 10 ? digestRecipe.id :
 let kept = AskDigest.trimmed(digests)
 check("digests: newest first, at most eight per recipe", kept.first?.ranAt == now.addingTimeInterval(11) && kept.filter { $0.recipeId == digestRecipe.id }.count == 8 && kept.count == 10)
 
+// MARK: Deleting
+
+let base = FileManager.default.temporaryDirectory.appendingPathComponent("ask-tests-\(UUID().uuidString)", isDirectory: true)
+try? FileManager.default.createDirectory(at: AskStorage.indexFolder(in: base), withIntermediateDirectories: true)
+let keepID = UUID(), goneID = UUID()
+for id in [keepID, goneID] { try? Data("x".utf8).write(to: AskStorage.indexFile(id, in: base)) }
+try? Data("[]".utf8).write(to: AskStorage.historyFile(in: base))
+try? Data("[]".utf8).write(to: AskStorage.digestsFile(in: base))
+AskStorage.removeIndex(for: [goneID], in: base)
+let fm = FileManager.default
+check("delete: a deleted recording's passages leave the index at once, the others stay",
+      !fm.fileExists(atPath: AskStorage.indexFile(goneID, in: base).path) && fm.fileExists(atPath: AskStorage.indexFile(keepID, in: base).path))
+check("delete: the index lives in Ask Index, one file per recording", AskStorage.indexFile(keepID, in: base).deletingLastPathComponent().lastPathComponent == "Ask Index"
+      && AskStorage.indexFile(keepID, in: base).lastPathComponent == keepID.uuidString + ".plist")
+AskStorage.removeAll(in: base)
+check("delete all: the index folder, recent questions, and digests go", !fm.fileExists(atPath: AskStorage.indexFolder(in: base).path)
+      && !fm.fileExists(atPath: AskStorage.historyFile(in: base).path) && !fm.fileExists(atPath: AskStorage.digestsFile(in: base).path))
+AskStorage.removeAll(in: base)
+check("delete all: running it again with nothing there is fine", !fm.fileExists(atPath: AskStorage.indexFolder(in: base).path))
+try? fm.removeItem(at: base)
+
+var cited = res
+cited.state = .answered
+cited.found = sample!.citations
+cited.passageCount = 3; cited.recordingCount = Set(sample!.citations.map(\.transcriptId)).count
+let callID = lib[0].id, reviewID = lib[1].id
+let noCall = AskCleanup.pruned(cited, removing: [callID])
+check("delete: citations of a deleted recording go, and the rest are renumbered", noCall.answer?.citations.map(\.number) == [1]
+      && noCall.answer?.citations.allSatisfy { $0.transcriptId == reviewID } == true, "\(String(describing: noCall.answer?.citations.map(\.title)))")
+check("delete: sentences that cited only it go", noCall.answer?.blocks.count == 1 && noCall.answer?.plainText.hasPrefix("In Monday's design review") == true,
+      noCall.answer?.plainText ?? "nil")
+check("delete: the counts follow what's left", noCall.passageCount == 1 && noCall.recordingCount == 1 && noCall.found.map(\.number) == [1])
+let emptied = AskCleanup.pruned(cited, removing: [callID, reviewID])
+check("delete: an answer with nothing left becomes nothing found", emptied.answer == nil && emptied.state == .nothingFound && emptied.found.isEmpty)
+check("delete: an unrelated recording changes nothing", AskCleanup.pruned(cited, removing: [UUID()]) == cited)
+let digestsBefore = [AskDigest(recipeId: actions.id, ranAt: now, scheduled: true, result: cited)]
+let digestsAfter = AskCleanup.pruned(digestsBefore, removing: [callID])
+check("delete: digests that cite a deleted recording drop those citations", digestsAfter.first?.result.answer?.citations.contains { $0.transcriptId == callID } == false
+      && digestsAfter.first?.result.answer?.citations.isEmpty == false)
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

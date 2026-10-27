@@ -668,6 +668,29 @@ enum PhoneUITest {
             await show("\(prefix)04q-recipe-digest\(suffix)")
         }
         app.libraryPath = NavigationPath()
+        if checks {
+            // Deleting: a trashed recording leaves the index and digests at once; Delete all data clears Ask.
+            let ids = app.store.live.filter { $0.projectId == project }.sorted { $0.createdAt < $1.createdAt }.map(\.id)
+            if let gone = app.store.live.first(where: { $0.title == AskChecks.clientTitle && $0.projectId == project })?.id {
+                await AskIndex.shared.sync(app.store.live.filter { ids.contains($0.id) }, canWork: { true })
+                let had = await AskIndex.shared.entry(gone) != nil
+                if let r = added.dropFirst().first {
+                    app.delete([gone])
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                    let left = await AskIndex.shared.entry(gone)
+                    check("a recording moved to Recently Deleted leaves the index at once", had && left == nil
+                          && !FileManager.default.fileExists(atPath: AskStorage.indexFile(gone, in: Paths.local).path))
+                    check("digests drop the deleted recording's citations", recipes.latest(r.id)?.result.answer?.citations.contains { $0.transcriptId == gone } == false
+                          && recipes.latest(r.id)?.result.answer?.citations.isEmpty == false)
+                }
+                await AskData.eraseAll()
+                let fm = FileManager.default
+                check("Delete all data removes the Ask Index folder, recent questions, recipes, and digests",
+                      !fm.fileExists(atPath: AskStorage.indexFolder(in: Paths.local).path) && !fm.fileExists(atPath: AskStorage.historyFile(in: Paths.local).path)
+                      && center.history.isEmpty && app.store.recipes.isEmpty && recipes.digests.isEmpty)
+                if !seeded.contains(gone) { seeded.append(gone) }
+            }
+        }
         for r in app.store.recipes where !before.contains(r.id) { recipes.delete(r.id) }
         center.clear()
         for id in seeded { if let t = app.store.transcript(id) { app.store.delete(t) } }

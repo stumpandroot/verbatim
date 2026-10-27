@@ -189,6 +189,8 @@ extension AppState {
         ActivityLog.shared.reset()
         SiteLog.shared.reset()
         store.removeAllFiles()
+        // Ask's index, recent questions, recipes, and digests (Transcription/AskEngine.swift).
+        Task { await AskData.eraseAll() }
         goHome()
         toast = Toast("Deleted everything")
         Log.note("delete all data")
