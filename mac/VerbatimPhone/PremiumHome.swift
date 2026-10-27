@@ -142,6 +142,8 @@ struct PremiumHome: View {
         .accessibilityLabel("Record")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
         .accessibilityIdentifier("home.record.native")
+        // Touch and hold: Record a meeting, an interview, a journal entry, a talk, or a note (Templates.swift).
+        .contextMenu { PhoneRecordKindItems() }
     }
 
     // MARK: Tiles

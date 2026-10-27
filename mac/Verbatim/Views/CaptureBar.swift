@@ -14,6 +14,7 @@ struct RecordMenu: View {
         Button { app.requestRecord() } label: { Label("Record", systemImage: "record.circle") }   // brand: system surface (context menu)
         Button { MeetingCoordinator.shared.recordFromMenu() } label: { Label("Record a meeting", systemImage: "person.2") }   // brand: system surface (context menu)
             .disabled(MeetingSession.shared.isActive)
+        RecordKindMenuItems()
         Divider()
         Section("Microphone") {
             Button { AudioDevices.selectedUID = nil; onChange() } label: {
@@ -28,6 +29,18 @@ struct RecordMenu: View {
         }
         Divider()
         SettingsLink { Label("Recording settings…", systemImage: "gearshape") }   // brand: system surface (context menu)
+    }
+}
+
+/// Record with a kind you pick (Record an interview, a journal entry, a talk, or a note): the new transcript is that
+/// kind as yours, so AutoLabel never replaces it, and Run automatically runs that kind's template (Templates.swift).
+/// Record a meeting is the meeting capture beside it, which files its transcript as a Meeting.
+struct RecordKindMenuItems: View {
+    @EnvironmentObject var app: AppState
+    var body: some View {
+        ForEach(RecordingKind.recordChoices.filter { $0 != .meeting }) { k in
+            Button(k.recordTitle) { app.requestRecord(kind: k) }
+        }
     }
 }
 

@@ -127,6 +127,8 @@ struct NativeHomeRecord: View {
         }
         .buttonStyle(PremiumCardPress(radius: 22))
         .disabled(recording)
+        // Right-click: the microphone, and Record a meeting, an interview, and so on (CaptureBar.swift).
+        .contextMenu { RecordMenu(onChange: {}) }
         .accessibilityLabel(recording ? "Recording" : "Record")
         .accessibilityValue(status)
         .accessibilityHint("Starts a voice note. Shortcut: Option Shift R.")

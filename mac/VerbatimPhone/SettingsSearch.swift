@@ -13,6 +13,7 @@ enum SettingsSearchTarget: Equatable {
 enum SettingsSubpage: String, CaseIterable, Equatable {
     case aboutMe, dictionary, keyboard, snippets, actionButton, appearance, whatsNew
     case speakers, moreTranscription, cloudCleanup, privacy, tour, widgets, shortcuts, customizeHome, thoughts, tabBar
+    case templates
 
     /// The page's title, as its navigation bar shows it.
     var title: String {
@@ -34,6 +35,7 @@ enum SettingsSubpage: String, CaseIterable, Equatable {
         case .customizeHome: return "Customize Home"
         case .thoughts: return "Thoughts"
         case .tabBar: return "Tab bar"
+        case .templates: return "Templates"
         }
     }
 }
@@ -209,6 +211,14 @@ enum SettingsSearchIndex {
               description: "Your words while a thought records, never on the Lock Screen", target: .page(.thoughts)),
         .init(id: "thoughtsNewPage", section: features, label: "New page each day at", keywords: ["thought", "day", "midnight", "page", "journal", "by day"],
               description: "When today's Thoughts page starts", target: .page(.thoughts)),
+        .init(id: "templatesAuto", section: features, label: "Run templates automatically", keywords: ["templates", "meeting notes", "auto", "automatic", "kind", "apple intelligence", "notes", "summary"],
+              description: "A template for each kind of recording, run when it finishes", target: .page(.templates)),
+        .init(id: "templatesSkipShort", section: features, label: "Skip short recordings", keywords: ["templates", "short", "two minutes"],
+              description: "Templates don't run automatically on recordings under 2 minutes", target: .page(.templates)),
+        .init(id: "templatesShowFirst", section: features, label: "Show the result first", keywords: ["templates", "open", "result", "tab"],
+              description: "Transcripts open on a template's automatic result", target: .page(.templates)),
+        .init(id: "templatesNotify", section: features, label: "Notify me when it's done", keywords: ["templates", "notification", "long recordings"],
+              description: "A notification when a template finishes on a recording over 20 minutes", target: .page(.templates)),
         .init(id: "widgets", section: features, label: "Widgets and controls", keywords: ["widget", "home screen", "lock screen", "control center", "controls", "this week", "recent recordings", "quick capture"],
               description: "Which widgets and controls Verbose has, and how to add them", target: .page(.widgets)),
         .init(id: "shortcuts", section: features, label: "Shortcuts and Siri", keywords: ["shortcuts", "siri", "app intents", "automation", "voice command", "hey siri"],

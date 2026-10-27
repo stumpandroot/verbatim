@@ -291,6 +291,12 @@ struct PremiumRecordButton: View {
 
     var body: some View {
         Menu {
+            // Record as a kind you pick: AutoLabel leaves it, and Run automatically uses it (Templates.swift).
+            Section {
+                ForEach(RecordingKind.recordChoices) { k in
+                    Button { app.requestRecord(kind: k) } label: { Label(k.recordTitle, systemImage: k.nativeSymbol) }
+                }
+            }
             Button { dictate() } label: { Label("Dictate", systemImage: "text.bubble") }
             Button { app.requestCaptions() } label: { Label("Live captions", systemImage: "captions.bubble") }
             Menu {
@@ -310,7 +316,8 @@ struct PremiumRecordButton: View {
             app.requestRecord()
         }
         .accessibilityLabel("Record")
-        .accessibilityHint("Starts a voice note. Touch and hold for Dictate, Live captions, and Import.")
+        .accessibilityHint("Starts a voice note. Touch and hold to record a meeting or another kind, or for Dictate, Live captions, and Import.")
+        .accessibilityAction(named: "Record a meeting") { app.requestRecord(kind: .meeting) }
         .accessibilityIdentifier("premium.record")
         .accessibilityAction(named: "Dictate") { dictate() }
         .accessibilityAction(named: "Live captions") { app.requestCaptions() }

@@ -131,6 +131,13 @@ enum PhoneSettingsMap {
                 Setting("thoughtsIslandWords", keys: ["thoughts.islandWords"]),
                 Setting("thoughtsNewPage", keys: ["thoughts.newPageHour"]),
             ]),
+            // Templates › Run automatically (TemplatesScreens.swift): kept on this iPhone; the results sync.
+            Row(id: "templatesRow", page: "templates", settings: [
+                Setting("templatesAuto", keys: ["templates.auto"]),
+                Setting("templatesSkipShort", keys: ["templates.skipShort"]),
+                Setting("templatesShowFirst", keys: ["templates.showFirst"]),
+                Setting("templatesNotify", keys: ["templates.notify"]),
+            ]),
             Row(id: "widgetsRow", page: "widgets", settings: [Setting("widgets")]),
             Row(id: "shortcutsRow", page: "shortcuts", settings: [Setting("shortcuts")]),
             Row(id: "tourRow", page: "tour", settings: [

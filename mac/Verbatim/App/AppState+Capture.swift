@@ -5,8 +5,10 @@ import AVFoundation
 extension AppState {
     // MARK: Recording (microphone)
 
-    func requestRecord(appendTo target: UUID? = nil) {
+    func requestRecord(appendTo target: UUID? = nil, kind: RecordingKind? = nil) {
         pendingContinue = target
+        // A plain Record leaves the kind to AutoLabel; a picked one (Record a meeting) is yours.
+        if !recorder.isRecording { recordKind = target == nil ? kind : nil }
         goHome()
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: startRecording()
@@ -72,6 +74,8 @@ extension AppState {
         let wasStarting = recorder.isStarting
         let target = continuing
         continuing = nil
+        let kind = recordKind
+        recordKind = nil
         if recorder.isRecording, !wasStarting { savingRecording = true }
         let stopped = await recorder.stopAndSave()
         savingRecording = false
@@ -100,6 +104,7 @@ extension AppState {
                            duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
         t.notes = Store.skippedNotes(r.skipped)
+        t.pickKindAtStart(kind)
         enqueue(t)
     }
 

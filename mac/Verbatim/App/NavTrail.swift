@@ -111,6 +111,7 @@ final class NavTrail: ObservableObject {
         case .dictations: return "Dictations"
         case .activity: return "You"
         case .byDay(let k): return Thoughts.pageName(k)
+        case .templates: return "Templates"
         case .transcript(let id): return app.store.transcript(id)?.title ?? "Back"
         }
     }

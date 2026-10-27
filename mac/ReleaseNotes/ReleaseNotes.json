@@ -12,7 +12,13 @@
         "Mac and iPhone: Export can add “[unclear 2:10]” markers. They're off unless you turn on Unclear markers.",
         "Mac and iPhone: Reduce background noise in the player's speed menu turns down wind or a mower while you listen. It doesn't change the transcript or the recording.",
         "Mac and iPhone: Edit Home adds Today's thoughts (your latest thoughts with their times, and New thought) and Journal (your newest entry with a play button, and this week's days). Both start hidden.",
-        "Mac and iPhone: two new Home tiles. New thought records a thought without leaving Home, and Journal opens Journal by day. On the Mac, the floating Thoughts tile is now called Today's page."
+        "Mac and iPhone: two new Home tiles. New thought records a thought without leaving Home, and Journal opens Journal by day. On the Mac, the floating Thoughts tile is now called Today's page.",
+        "Mac and iPhone: templates turn a transcript into notes, a plan, or a draft. Pick one of the five built-in actions, one of eight scenarios such as Meeting notes, 1:1, Interview, and Daily reflection, or your own. On the Mac, open Templates under Make in the sidebar. On iPhone, open Library › Templates.",
+        "Mac and iPhone: make your own template from a name, plain instructions, and the sections you want back, each a paragraph, bullets, a checklist, or quotes with times. Try it on a recording before you save it. Your templates sync between your Mac and iPhone.",
+        "Mac and iPhone: Run automatically gives each kind of recording one template, so every Meeting can get Meeting notes when it finishes. It runs after the transcript and summary, once per recording, and skips recordings under 2 minutes unless you turn that off. Each device keeps its own choices, and every kind starts Off.",
+        "Mac and iPhone: a template's result stays in the transcript with why it ran, Run again, and Edit. On iPhone, it's a tab beside Original and Cleaned. Templates use only what the transcript says and run on your device with Apple Intelligence.",
+        "Mac and iPhone: start a recording as a kind. Touch and hold Record on iPhone and choose Record a meeting, an interview, a journal entry, a talk, or a note; on the Mac, right-click Record. Verbose keeps the kind you pick, and Run automatically uses it. On the Mac, Shortcuts' Start recording takes a kind too.",
+        "Mac and iPhone: when you change a recording's kind after its template ran, the result asks, for example, “Now a Journal. Run Daily reflection?” Nothing runs until you choose Run, and the old result stays until then."
       ]
     },
     {

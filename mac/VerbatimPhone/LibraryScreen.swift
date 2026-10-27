@@ -150,6 +150,12 @@ struct LibraryScreen: View {
                         .accessibilityIdentifier("library.byDay")
                         .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    // Templates: the library and Run automatically (TemplatesScreens.swift).
+                    NavigationLink(value: TemplatesRoute()) { TemplatesCard(count: app.store.allTemplates.count) }
+                        .buttonStyle(PhoneCardPress())
+                        .accessibilityIdentifier("library.templates")
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
             if !passages.isEmpty {
@@ -417,6 +423,7 @@ extension LibraryScreen {
                     if filter == .all, search.isEmpty, typeFilter == .all {
                         collections.padding(.horizontal, 20).padding(.top, 16)
                         byDayRow.padding(.horizontal, 20).padding(.top, 10)
+                        templatesRow.padding(.horizontal, 20).padding(.top, 10)
                     }
                 }
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -516,6 +523,29 @@ extension LibraryScreen {
         .buttonStyle(PhoneCardPress())
         .accessibilityIdentifier("library.byDay")
         .accessibilityHint("Opens Thoughts and Journal by day")
+    }
+
+    /// Templates: the library and Run automatically (TemplatesScreens.swift).
+    private var templatesRow: some View {
+        let auto = TemplateSettingsModel.shared.settings.assignedCount
+        return NavigationLink(value: TemplatesRoute()) {
+            HStack(spacing: 12) {
+                Image(systemName: "doc.text").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Templates").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
+                    Text("Notes, plans, and drafts from a transcript").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
+                }
+                Spacer(minLength: 8)
+                if auto > 0 { Text("\(auto) auto").font(.system(size: 14)).monospacedDigit().foregroundStyle(NativeInk.secondary) }
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .premiumSoftCard(radius: 18)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityIdentifier("library.templates")
+        .accessibilityHint("Opens your templates and Run automatically")
     }
 
     private func collection(_ title: String, symbol: String, count: Int) -> some View {

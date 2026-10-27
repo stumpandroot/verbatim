@@ -206,6 +206,7 @@ struct SettingsScreen: View {
         case .customizeHome: CustomizeHomeDestination()
         case .thoughts: ThoughtsSettingsScreen()
         case .tabBar: TabBarSettingsScreen()
+        case .templates: TemplatesAutoScreen()
         }
     }
 
@@ -526,6 +527,9 @@ struct SettingsScreen: View {
         pageRow("thoughtsRow", .thoughts, icon: "lightbulb", tint: Ink.butterTint, art: .iconThought, title: "Thoughts",
                 value: Self.thoughtsValue(app.store.todaysThoughts().count))
         SettingsDivider()
+        pageRow("templatesRow", .templates, icon: "doc.text", tint: Ink.sageTint, art: .iconSummaries, title: "Templates",
+                value: Self.templatesValue(TemplateSettingsModel.shared.settings.assignedCount))
+        SettingsDivider()
         pageRow("widgetsRow", .widgets, icon: "square.grid.2x2", tint: Ink.persimmonTint, art: .iconHome, title: "Widgets and controls")
         SettingsDivider()
         pageRow("shortcutsRow", .shortcuts, icon: "bolt.circle", tint: Ink.sageTint, art: .iconAI, title: "Shortcuts and Siri")
@@ -535,6 +539,9 @@ struct SettingsScreen: View {
 
     /// Thoughts' row: today's count ("3 today"), or nothing yet.
     static func thoughtsValue(_ n: Int) -> String? { n > 0 ? "\(n) today" : nil }
+
+    /// Templates' row: how many kinds run one automatically ("2 automatic"), or Off.
+    static func templatesValue(_ n: Int) -> String { n > 0 ? "\(n) automatic" : "Off" }
 
     private var footer: some View {
         // "Version 1.0 beta (217)": the marketing version, the channel, and the build (VERSIONING.md).

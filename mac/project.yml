@@ -401,6 +401,8 @@ targets:
       - Verbatim/Views/NoisyAudioChecks.swift
       - Verbatim/Views/LibraryFilterBar.swift
       - Verbatim/Views/SummaryBlock.swift
+      # Templates' icons and a result's sections, shared with the Mac (Model/Templates.swift).
+      - Verbatim/Views/TemplateViews.swift
       - Verbatim/Views/VoiceEnrollment.swift
       - Verbatim/Flow/CleanupPrepass.swift
       # Spoken corrections ("scratch that", "at 2, actually 3"), shared with the keyboard, and their self-tests.

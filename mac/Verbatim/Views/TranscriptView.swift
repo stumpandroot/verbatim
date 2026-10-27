@@ -118,8 +118,13 @@ struct TranscriptView: View {
                                     .opacity(barPinned ? 0 : 1).allowsHitTesting(!barPinned)
                                     .background(GeometryReader { b in Color.clear.preference(key: BarOffsetKey.self, value: b.frame(in: .named("tscroll")).minY) })
                                     .staggerIn(1).padding(.bottom, 12)
+                                // Show the result first: a template's automatic result opens above the text.
+                                if view != .review, TemplateResultsSection.showsFirst(t) {
+                                    TemplateResultsSection(transcript: t, inline: true).padding(.bottom, 14)
+                                }
                                 // The side column is closed: the Summary card sits above the text instead.
                                 if !notesOpen, view != .review {
+                                    if !TemplateResultsSection.showsFirst(t) { TemplateResultsSection(transcript: t, inline: true).padding(.bottom, 14) }
                                     TranscriptSummaryCard(transcript: t).padding(.bottom, 14)
                                 }
                                 content(t)
@@ -253,6 +258,10 @@ struct TranscriptView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     header(t)
                     if view == .original, t.status == .ready { versionControl(t).padding(.bottom, 12) }
+                    // Show the result first: a template's automatic result opens above the text (else the inspector).
+                    if view != .review, TemplateResultsSection.showsFirst(t) {
+                        TemplateResultsSection(transcript: t, inline: true).padding(.bottom, 14)
+                    }
                     content(t)
                 }
                 .frame(maxWidth: 720, alignment: .leading)

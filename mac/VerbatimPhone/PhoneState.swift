@@ -82,6 +82,9 @@ final class PhoneState: ObservableObject {
     /// Continue recording: the transcript the current recording will be added to.
     @Published var continuing: UUID? = nil
     private var pendingContinue: UUID? = nil
+    /// The kind picked with a long press on Record (Record a meeting, an interview, …): the new transcript takes it as
+    /// yours, so AutoLabel never replaces it and Run automatically uses it (Templates.swift).
+    private(set) var recordKind: RecordingKind? = nil
     /// The recording running is a thought (PhoneThoughts.swift): it lands on today's Thoughts page when you stop.
     @Published var recordingThought = false
     /// When that thought started; it belongs to that day's page.
@@ -164,6 +167,10 @@ final class PhoneState: ObservableObject {
         // Resume only this iPhone's own jobs; the Mac's show as "Transcribing on Mac".
         coordinator.resume(includeUnowned: false)
         if !queue.isEmpty { DispatchQueue.main.async { self.pump() } }
+        // Templates: a banner when Run automatically finishes, and runs iOS stopped before they finished.
+        TemplateCenter.shared.automatic = !PhoneUITest.enabled
+        TemplateCenter.shared.announce = { [weak self] msg in self?.say(msg) }
+        TemplateCenter.shared.resumeWaiting(store: store)
         // Picked files the app quit in the middle of importing start again (their placeholders are still "Importing").
         let resumable = store.takeResumableImports().compactMap { pair -> (UUID, ImportSource)? in
             let (id, url) = pair
@@ -211,10 +218,12 @@ final class PhoneState: ObservableObject {
 
     // MARK: Recording
 
-    func requestRecord(appendTo target: UUID? = nil) {
+    func requestRecord(appendTo target: UUID? = nil, kind: RecordingKind? = nil) {
         // A recording is running behind the bar: Record brings it back instead of starting another.
         if RecorderPresentation.recordTap(recording: recorder.isRecording || previewRecording, saving: savingRecording) == .reopen { openRecorder(); return }
         pendingContinue = target
+        // A plain Record leaves the kind to AutoLabel; a picked one (Record a meeting) is yours.
+        recordKind = target == nil ? kind : nil
         if !UserDefaults.standard.bool(forKey: Self.consentNoticeKey) { showConsentNotice = true; return }
         askMicAndRecord()
     }
@@ -347,6 +356,8 @@ final class PhoneState: ObservableObject {
         recordingMoments = []
         let target = continuing
         continuing = nil
+        let kind = recordKind
+        recordKind = nil
         let thoughtStart = recordingThought ? (thoughtStartedAt ?? Date()) : nil
         recordingThought = false
         thoughtStartedAt = nil
@@ -390,6 +401,7 @@ final class PhoneState: ObservableObject {
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
         t.notes = Store.skippedNotes(r.skipped) + RecordingMoment.notes(moments)
+        t.pickKindAtStart(kind)
         enqueue(t)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         // Premium Native: the Saved sheet, once the recorder's cover has gone.

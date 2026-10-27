@@ -163,6 +163,9 @@ extension View {
             .navigationDestination(for: DayPageRoute.self) { r in DayPageScreen(kind: r.kind, day: r.day).id(r) }
             .navigationDestination(for: MomentsRoute.self) { _ in MomentsScreen(pushed: true) }
             .navigationDestination(for: LibraryRoute.self) { r in LibraryScreen(route: r) }
+            .navigationDestination(for: TemplatesRoute.self) { _ in TemplatesScreen() }
+            .navigationDestination(for: TemplateDetailRoute.self) { r in TemplateDetailScreen(id: r.id) }
+            .navigationDestination(for: TemplatesAutoRoute.self) { _ in TemplatesAutoScreen() }
     }
 }
 
