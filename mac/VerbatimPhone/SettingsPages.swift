@@ -239,16 +239,16 @@ struct WelcomeTourScreen: View {
 /// and how to add each (VerbatimWidgets).
 struct WidgetsInfoScreen: View {
     private static let widgets: [(String, String)] = [
-        ("Record and Dictate", "Start a voice note or a dictation session with one tap."),
+        ("Record and dictate", "Start a voice note or a dictation session with one tap."),
         ("Recent recordings", "Your latest recordings and dictations. Open one to read its transcript."),
         ("This week", "Words you dictated this week, day by day."),
         ("New thought", "Starts a thought at once, behind a Live Activity. It lands on today's Thoughts page."),
         ("Today's thoughts", "The last two thoughts on today's page, and New thought."),
-        ("New thought on the Lock Screen", "Starts a thought. The rectangular one shows today's count, never your words."),
+        ("Thoughts", "On the Lock Screen: starts a thought. The rectangular one shows today's count, never your words."),
     ]
     private static let controls: [(String, String)] = [
         ("Verbose session", "Turns the microphone on for dictation in any app, or off."),
-        ("Verbose action", "Dictates a take, or does what you chose in Settings › Action button."),
+        ("Verbose action", "Does what you chose in Settings › Action button, and takes that choice's name."),
         ("Record voice note", "Starts a voice note, in place when iOS allows it."),
         ("Dictate", "Starts a dictation session, so you can dictate in any app."),
         ("New thought", "Starts a thought, in place when iOS allows it. Press it again to stop."),

@@ -4,6 +4,10 @@ import AppIntents
 
 // MARK: - Control Center
 
+// Every control's glyph is one of ours, exported as a custom symbol (Assets' symbol sets, `mac/tools/gen_symbol.py`), so
+// Control Center shows one family: the bars mark (the session), `record` (BrandArt's capture), `dictate` (the
+// Dictations icon), `thought`, `mark`, and `captions`.
+
 /// Control Center (and the Lock Screen's control slots and the Action button, iOS 18): "Verbose · Session on". A
 /// switch that shows whether a session holds the microphone. Turning it on with no session opens Verbose for a
 /// moment and starts one; turning it off ends the session without opening Verbose (`SetSessionIntent`). Keeps the
@@ -15,7 +19,7 @@ struct StartSessionControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind, provider: SessionControlValue()) { isOn in
             ControlWidgetToggle("Verbose", isOn: isOn, action: SetSessionIntent()) { on in
-                Label(on ? "Session on" : "Session off", systemImage: on ? "waveform" : "mic.fill")   // brand: system surface
+                Label(on ? "Session on" : "Session off", image: "bars")
             }
             .tint(Ink.persimmon)
         }
@@ -33,19 +37,29 @@ struct SessionControlValue: ControlValueProvider {
 }
 
 /// The Action button's control (iOS 18): does what you chose in Verbose › Settings › Action button. Dictate a
-/// take unless you change it.
+/// take unless you change it. It's named for that choice ("Record or mark", with its symbol), which the app mirrors
+/// into the App Group (`ActionChoiceMirror`); the gallery, and a control the app hasn't named yet, say Verbose action.
 @available(iOS 18.0, *)
 struct ActionButtonControl: ControlWidget {
-    static let kind = "co.stumpandroot.verbatim.ios.control.action"
+    static let kind = Ribbon.actionControlKind
 
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: Self.kind) {
+        StaticControlConfiguration(kind: Self.kind, provider: ActionChoiceValue()) { raw in
             ControlWidgetButton(action: ActionButtonIntent()) {
-                Label("Verbose action", systemImage: "waveform")   // brand: system surface
+                Label(Ribbon.actionControl(raw).title, image: Ribbon.actionControl(raw).symbol)
             }
         }
-        .displayName("Verbose action")
-        .description("Dictates a take, or does what you chose in Verbose › Settings › Action button.")
+        .displayName("Verbose action")   // Ribbon.actionControlName; Settings › Action button's steps name it
+        .description("Does what you chose in Verbose › Settings › Action button: dictate, record a voice note, record or mark, live captions, what's playing, or a new thought.")
+    }
+}
+
+/// The Action button choice the app mirrored into the App Group; empty until it has.
+@available(iOS 18.0, *)
+struct ActionChoiceValue: ControlValueProvider {
+    var previewValue: String { "" }
+    func currentValue() async throws -> String {
+        KeyboardBridge.defaults?.string(forKey: Ribbon.actionChoiceKey) ?? ""
     }
 }
 
@@ -58,7 +72,7 @@ struct RecordVoiceNoteControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
             ControlWidgetButton(action: RecordVoiceNoteIntent()) {
-                Label("Record", systemImage: "record.circle")   // brand: system surface
+                Label("Record", image: "record")
             }
             .tint(Ink.persimmon)
         }
@@ -76,7 +90,7 @@ struct DictateControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
             ControlWidgetButton(action: StartKeyboardSessionIntent()) {
-                Label("Dictate", systemImage: "mic")   // brand: system surface
+                Label("Dictate", image: "dictate")
             }
             .tint(Ink.persimmon)
         }
@@ -145,7 +159,7 @@ private struct StartSessionAccessoryView: View {
             }
             .accessibilityLabel("Start a Verbose dictation session")
         case .accessoryInline:
-            Label("Start dictating", systemImage: "mic.fill")   // brand: system surface
+            Label("Start dictating", image: "dictate")
         default:
             HStack(spacing: 8) {
                 BarsMark(color: .white).frame(width: 26, height: 26)

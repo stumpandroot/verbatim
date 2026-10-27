@@ -44,7 +44,12 @@
         "Mac and iPhone: recipes are questions you ask again. Run one now, or schedule it weekly on that device; its answers stay in Ask › Recipes with their citations. Recipes sync between your Mac and iPhone, and schedules stay on each device. Start from three suggestions, such as Weekly digest of my thoughts.",
         "Mac and iPhone: a scheduled recipe runs while Verbose is open, or the next time it opens after its time, once even if you missed several weeks. On iPhone, it can also run when iOS gives Verbose background time. You get a notification with the first line of the answer.",
         "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device.",
-        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers."
+        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers.",
+        "iPhone: in dark mode, the Lock Screen's recording and dictation session sit on Verbose's dark green instead of bright paper. When a call pauses a thought, the Lock Screen and the Dynamic Island offer Resume beside Stop.",
+        "iPhone: a recording longer than an hour shows its full time in the Dynamic Island and on the Lock Screen, and every Live Activity button is a pill. VoiceOver and Voice Control use the words the buttons show, such as Done and Dictate.",
+        "iPhone: Verbose's Control Center controls use Verbose's own icons, and the Action button's control is named for what you chose in Settings › Action button, such as Record or mark.",
+        "iPhone: widget names are clearer (Record and dictate, Today's thoughts, and Thoughts for the Lock Screen), and small labels on widgets and in the keyboard are larger and in full ink. The small Record widget says Voice note, which is what it records.",
+        "iPhone: in the Native look in dark mode, the keyboard's Start, Tap to talk, and Done are black on the persimmon so they're readable, and VoiceOver reads the keyboard's checkmark as Done."
       ]
     },
     {

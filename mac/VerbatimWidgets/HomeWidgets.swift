@@ -8,7 +8,7 @@ import AppKit
 // The Home Screen and desktop widgets (approved mockup "Premium", section 04), shared by the iPhone widget extension
 // (VerbatimWidgets) and the Mac's (VerbatimMacWidgets):
 //
-// 1. Record and Dictate. iPhone: small (Record), medium (both), Lock Screen circular (Record) and rectangular (both),
+// 1. Record and dictate. iPhone: small (Record), medium (both), Lock Screen circular (Record) and rectangular (both),
 //    and StandBy (small). Mac: small and medium.
 // 2. Recent recordings: medium (three) and large (five, with This week at the foot). Each row opens its transcript.
 // 3. This week: small and medium. Native draws a gradient card (the color is the widget's one option); Verbose style
@@ -19,6 +19,9 @@ import AppKit
 // 5. Today's thoughts: medium. Today's Thoughts page, its last two thoughts (marked `privacySensitive()`), and New
 //    thought. Tap a thought to open today's page.
 // 6. Thoughts on the Lock Screen (iPhone): circular, New thought; rectangular, today's count only, never the words.
+//
+// Gallery names are sentence case and unique. Mono labels are 12 pt or larger at full strength, and a label on the
+// persimmon panel is SF Pro semibold 14 in full ink (DESIGN.md §1.5, §2).
 //
 // Widgets follow the look chosen in Verbose (DESIGN.md §13, item 8): iPhone reads `AppLook` from the App Group; the Mac reads
 // the look from the snapshot, since the Mac keeps it in the app's own defaults. Data comes from the snapshot the app
@@ -157,7 +160,7 @@ struct RecordDictateWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
             RecordDictateView(entry: entry)
         }
-        .configurationDisplayName("Record and Dictate")
+        .configurationDisplayName("Record and dictate")
         #if os(iOS)
         .description("Start a voice note or a dictation session with one tap.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular])
@@ -404,7 +407,7 @@ private struct DayLetters: View {
     }
 }
 
-// MARK: - Record and Dictate
+// MARK: - Record and dictate
 
 private struct RecordDictateView: View {
     var entry: HomeEntry
@@ -476,7 +479,8 @@ private struct RecordDictateView: View {
             let fill = skin.full ? (record ? Ink.panelRecord : Ink.panelButter) : Color.primary.opacity(0.1)
             VStack(alignment: .leading, spacing: 0) {
                 if record {
-                    Text("Voice note").font(Ink.mono(11)).foregroundStyle(skin.onPanel.opacity(0.75))
+                    // On persimmon, ink text is semibold 14 or larger (4.45:1, DESIGN.md §1.5).
+                    Text("Voice note").font(.system(size: 14, weight: .semibold)).foregroundStyle(skin.onPanel).lineLimit(1)
                 } else {
                     DictateMark(skin: skin, size: 18)
                 }
@@ -486,9 +490,9 @@ private struct RecordDictateView: View {
                         Text(record ? "Record" : "Dictate").font(Ink.serif(23)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
                         if !record {
                             #if os(iOS)
-                            Text("Into any app").font(.system(size: 11)).foregroundStyle(skin.onPanel.opacity(0.75)).lineLimit(1)
+                            Text("Into any app").font(.system(size: 12)).foregroundStyle(skin.onPanel).lineLimit(1)
                             #else
-                            Text("Into the app in front").font(.system(size: 11)).foregroundStyle(skin.onPanel.opacity(0.75)).lineLimit(1)
+                            Text("Into the app in front").font(.system(size: 12)).foregroundStyle(skin.onPanel).lineLimit(1)
                             #endif
                         }
                     }
@@ -546,7 +550,10 @@ private struct RecordDictateView: View {
     #endif
 }
 
-/// Verbose style's Record panel: Ready, the signal rings, "Record a thought" in the serif, and the ink disc.
+/// Verbose style's Record panel: "Voice note" (what Record makes, as on the medium widget's tile and Home's recorder),
+/// the signal rings, "Record" in the serif, and the ink disc. Not "Record a thought": a thought is its own kind with
+/// its own widget (New thought), and this button records a voice note. The label is SF Pro semibold 14 in full ink, the
+/// smallest ink text that reads on persimmon (DESIGN.md §1.5).
 private struct VerboseRecordPanel: View {
     var skin: Skin
     var body: some View {
@@ -555,13 +562,10 @@ private struct VerboseRecordPanel: View {
                 .frame(width: 92, height: 92)
                 .offset(x: 26, y: -30)
             VStack(alignment: .leading, spacing: 0) {
-                Text("Ready").font(Ink.mono(11)).foregroundStyle(skin.onPanel.opacity(0.75))
+                Text("Voice note").font(.system(size: 14, weight: .semibold)).foregroundStyle(skin.onPanel).lineLimit(1)
                 Spacer(minLength: 0)
                 HStack(alignment: .bottom, spacing: 4) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Record").font(Ink.serif(26)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
-                        Text("a thought").font(Ink.serif(13)).italic().foregroundStyle(skin.onPanel.opacity(0.85))
-                    }
+                    Text("Record").font(Ink.serif(26)).foregroundStyle(skin.onPanel).lineLimit(1).minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                     RecordDisc(look: .verbose, size: 40)
                 }
@@ -618,7 +622,7 @@ private struct RecentView: View {
             } else {
                 Text("Recent \(Text("recordings").italic())").font(Ink.serif(16)).foregroundStyle(Ink.ink)
                 Spacer(minLength: 4)
-                if kept > 0 { Text("\(kept.formatted()) kept").font(Ink.mono(11)).foregroundStyle(Ink.mute) }
+                if kept > 0 { Text("\(kept.formatted()) kept").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
             }
         }
         .lineLimit(1)
@@ -644,7 +648,7 @@ private struct RecentView: View {
                     Text("\(item.label) · \(day)").font(.system(size: 11)).foregroundStyle(Ink.mute).lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                if !length.isEmpty { Text(length).font(Ink.mono(11.5)).foregroundStyle(Ink.ink) }
+                if !length.isEmpty { Text(length).font(Ink.mono(12)).foregroundStyle(Ink.ink) }
             }
             .padding(.vertical, 4)
         }
@@ -680,7 +684,7 @@ private struct RecentView: View {
                 Rectangle().fill(Ink.hairline).frame(height: 1)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                    Text("This week").font(Ink.mono(11)).foregroundStyle(Ink.ink)
+                    Text("This week").font(Ink.mono(12)).foregroundStyle(Ink.ink)
                     Text("\(week.words.formatted()) \(Text(week.words == 1 ? "word" : "words").italic())").font(Ink.serif(17)).foregroundStyle(Ink.ink)
                     Spacer(minLength: 4)
                     WeekBars(week: week, today: WidgetSnapshot.todayIndex(in: week, now: entry.date), bar: Ink.ink,
@@ -764,11 +768,12 @@ private struct WeekView: View {
             Spacer(minLength: 2)
             Text(week.words, format: .number).font(.system(size: 34, weight: .bold, design: .rounded))
                 .lineLimit(1).minimumScaleFactor(0.5)
-            Text(week.words == 1 ? "word" : "words").font(.system(size: 12, weight: .semibold)).opacity(0.85)
+            Text(week.words == 1 ? "word" : "words").font(.system(size: 12, weight: .semibold))
         }
         let chart = VStack(spacing: 3) {
             WeekBars(week: week, today: today, bar: ink.opacity(0.55), todayColor: ink)
-            DayLetters(count: week.days.count, color: ink.opacity(0.75))
+            // Text on a gradient is solid white, never faded (DESIGN.md §13.3.2).
+            DayLetters(count: week.days.count, color: ink)
         }
         Group {
             if family == .systemMedium {
@@ -795,7 +800,7 @@ private struct WeekView: View {
         let lead = VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 5) {
                 Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 8, height: 8)
-                Text("This week").font(Ink.mono(11))
+                Text("This week").font(Ink.mono(12))
             }
             Spacer(minLength: 4)
             Text(week.words, format: .number).font(Ink.serif(30)).lineLimit(1).minimumScaleFactor(0.5)
@@ -859,7 +864,7 @@ private struct QuickCaptureView: View {
                 Text(detail).font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)
             } else {
                 Text("\(title.0) \(Text(title.1).italic())").font(Ink.serif(22)).foregroundStyle(ink(skin)).lineLimit(1)
-                Text(detail).font(.system(size: 11)).foregroundStyle(ink(skin).opacity(0.75))
+                Text(detail).font(.system(size: 12)).foregroundStyle(ink(skin))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -968,7 +973,7 @@ private struct TodayThoughtsView: View {
                         Link(destination: WidgetLink.thought.url) {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(line.date, format: .dateTime.hour().minute())
-                                    .font(skin.native ? .system(size: 12).monospacedDigit() : Ink.mono(11.5)).foregroundStyle(skin.native ? NativeWidget.secondary : Ink.mute)
+                                    .font(skin.native ? .system(size: 12).monospacedDigit() : Ink.mono(12)).foregroundStyle(skin.native ? NativeWidget.secondary : Ink.mute)
                                 Text(line.text).font(.system(size: 13)).foregroundStyle(skin.native ? Color.primary : Ink.ink).lineLimit(1).privacySensitive()
                             }
                         }
@@ -998,15 +1003,15 @@ private struct TodayThoughtsView: View {
         let count = today?.count ?? 0
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             if skin.native {
-                Text("Today's Thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
+                Text("Today's thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
                 if count > 0 { Text("\(count)").font(.system(size: 12)).monospacedDigit().foregroundStyle(NativeWidget.secondary) }
                 Spacer(minLength: 4)
                 Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)
             } else {
                 Text("Today's \(Text("thoughts").italic())").font(Ink.serif(16)).foregroundStyle(Ink.ink)
-                if count > 0 { Text("\(count)").font(Ink.mono(11.5)).foregroundStyle(Ink.mute) }
+                if count > 0 { Text("\(count)").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
                 Spacer(minLength: 4)
-                Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(Ink.mono(11.5)).foregroundStyle(Ink.mute)
+                Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(Ink.mono(12)).foregroundStyle(Ink.mute)
             }
         }
         .lineLimit(1)
@@ -1021,7 +1026,7 @@ private struct TodayThoughtsView: View {
             }
             .frame(width: 18, height: 18)
             Text(skin.native ? "New Thought" : "New thought").font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(skin.full ? (skin.native ? Color.white : Ink.inkFixed) : .primary)
+                .foregroundStyle(skin.full ? (skin.native ? PremiumInk.onAccent : Ink.inkFixed) : .primary)
         }
         .padding(.leading, 5).padding(.trailing, 11).frame(height: 28)
         .background(Capsule().fill(skin.full ? (skin.native ? Ink.nativeAccent : Ink.persimmon) : Color.primary.opacity(0.12)))
@@ -1040,7 +1045,8 @@ struct ThoughtsLockWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: ThoughtsProvider()) { entry in
             ThoughtsLockView(entry: entry)
         }
-        .configurationDisplayName("New thought")
+        // Not "New thought": the Home Screen's small widget has that name (QuickCaptureWidget).
+        .configurationDisplayName("Thoughts")
         .description("Starts a thought from the Lock Screen. The rectangular widget shows today's count, never your words.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular])
     }

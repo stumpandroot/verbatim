@@ -13,20 +13,22 @@ import AppIntents
 ///
 /// A thought (mockup "Thoughts", section 06) draws its own: compact, persimmon voice bars and the time in mono;
 /// expanded, "New thought", the time, your last words (older ones dimmed; only with Show words in the Dynamic Island
-/// on), "Into Thoughts · Mon, Oct 26", and Stop; saved, "Added to Thoughts" and the time for two seconds. Its Lock
-/// Screen is on paper with the time, your voice, and Stop, and never shows your words.
+/// on), "Into Thoughts · Mon, Oct 26", and Stop (with Resume while an interruption has it paused); saved, "Added to
+/// Thoughts" and the time for two seconds. Its Lock Screen has the time, your voice, and Stop (and Resume while
+/// paused), and never shows your words.
+///
+/// The Lock Screen is paper in light and the dark paper in dark (`ActivitySkin`). Every button is a capsule, and the
+/// timers' frames hold "0:00:00", so a recording past an hour never clips (`Ribbon.timerWidth`).
 struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: VerbatimRecordingAttributes.self) { context in
-            Group {
+            ActivityLockSurface { skin in
                 if context.attributes.isThought {
-                    ThoughtLockScreen(page: context.attributes.page, state: context.state)
+                    ThoughtLockScreen(page: context.attributes.page, state: context.state, skin: skin)
                 } else {
-                    RecordingLockScreen(title: context.attributes.title, state: context.state)
+                    RecordingLockScreen(title: context.attributes.title, state: context.state, skin: skin)
                 }
             }
-            .activityBackgroundTint(Ink.paperFixed)
-            .activitySystemActionForegroundColor(Ink.inkFixed)
             .widgetURL(recordLink)
         } dynamicIsland: { context in
             let thought = context.attributes.isThought
@@ -75,7 +77,8 @@ struct RecordingLiveActivity: Widget {
                                 HStack(spacing: 8) {
                                     ThoughtIntoLabel(page: context.attributes.page)
                                     Spacer(minLength: 6)
-                                    ThoughtStopButton(onDark: true, compact: true)
+                                    if s.isPaused { PauseButton(state: s, tone: .island) }
+                                    StopButton(wide: false, hint: thoughtStopHint)
                                 }
                             }
                             .padding(.horizontal, 4)
@@ -86,8 +89,8 @@ struct RecordingLiveActivity: Widget {
                             Text(islandLine(s)).font(.system(size: 13)).foregroundStyle(Ink.onBlackDim).lineLimit(2)
                             if !s.saved {
                                 HStack(spacing: 8) {
-                                    MarkButton(onDark: true, source: "island")
-                                    PauseButton(state: s, onDark: true)
+                                    MarkButton(tone: .island, source: "island")
+                                    PauseButton(state: s, tone: .island)
                                     Spacer(minLength: 6)
                                     StopButton(wide: false)
                                 }
@@ -119,11 +122,12 @@ struct RecordingLiveActivity: Widget {
                     Text(at, format: .dateTime.hour().minute()).font(Ink.mono(12, weight: .medium)).foregroundStyle(.white)
                         .lineLimit(1).frame(width: 52, alignment: .trailing)
                 } else {
+                    let size: CGFloat = thought ? 12 : 13
                     RecordingTimer(state: s)
-                        .font(Ink.mono(thought ? 12 : 13, weight: .medium))
+                        .font(Ink.mono(size, weight: .medium))
                         .foregroundStyle(thought ? Color.white : (s.isPaused ? Color.white.opacity(0.7) : Ink.persimmon))
                         .multilineTextAlignment(.trailing)
-                        .frame(width: thought ? 40 : 52, alignment: .trailing)
+                        .frame(width: RecordingTimer.width(size), alignment: .trailing)
                 }
             } minimal: {
                 if s.markedClock != nil {
@@ -150,13 +154,14 @@ private func islandLine(_ s: VerbatimRecordingAttributes.ContentState) -> String
     return s.markCount > 0 ? "\(s.marksLabel) marked" : "Saved as you go"
 }
 
-/// A voice note on the Lock Screen, on paper (mockup "Library features", section 3a): the bars mark, "Recording ·
-/// Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"), and Mark,
-/// Pause, and Stop. Saved: a check and "Saved. Transcribing on this iPhone."
+/// A voice note on the Lock Screen (mockup "Library features", section 3a), on paper or the dark paper: the bars mark,
+/// "Recording · Voice note" and the time, your voice, the last mark and the count ("Marked 4:12 · 3 moments so far"),
+/// and Mark, Pause, and Stop. Saved: a check and "Saved. Transcribing on this iPhone."
 private struct RecordingLockScreen: View {
     var title: String
     var state: VerbatimRecordingAttributes.ContentState
-    private let ink = Ink.inkFixed
+    var skin: ActivitySkin
+    private var ink: Color { skin.ink }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -173,7 +178,7 @@ private struct RecordingLockScreen: View {
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Ink.mono(15, weight: .medium)).foregroundStyle(ink)
-                        .frame(width: 70, alignment: .trailing)
+                        .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
                 ThoughtVoiceBars(level: state.level ?? 0.5, color: Ink.persimmonFixed, count: 34).frame(height: 22)
                 if state.markCount > 0, let at = state.markedAt {
@@ -181,17 +186,17 @@ private struct RecordingLockScreen: View {
                         Image("marked").font(.system(size: 13, weight: .medium)).accessibilityHidden(true)
                         Text("Marked").font(.system(size: 13, weight: .semibold))
                         Text(VerbatimRecordingAttributes.clock(at)).font(Ink.mono(13, weight: .medium))
-                        Text("· \(state.marksLabel) so far").font(.system(size: 13)).foregroundStyle(ink.opacity(0.8))
+                        Text("· \(state.marksLabel) so far").font(.system(size: 13)).foregroundStyle(skin.dim)
                     }
                     .foregroundStyle(ink)
                     .lineLimit(1).minimumScaleFactor(0.85)
                     .accessibilityElement(children: .combine)
                 } else {
-                    Text("Saved as you go").font(.system(size: 13)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                    Text("Saved as you go").font(.system(size: 13)).foregroundStyle(skin.dim).lineLimit(1)
                 }
                 HStack(spacing: 8) {
-                    MarkButton(onDark: false, source: "lockScreen")
-                    PauseButton(state: state, onDark: false)
+                    MarkButton(tone: .lock(skin), source: "lockScreen")
+                    PauseButton(state: state, tone: .lock(skin))
                     StopButton(wide: true)
                 }
             }
@@ -202,7 +207,7 @@ private struct RecordingLockScreen: View {
 
 /// Mark: an outlined pill with the Mark symbol (exported from BrandArt's iconMark). Runs in Verbose's process.
 private struct MarkButton: View {
-    var onDark: Bool
+    var tone: ActivityButtonTone
     var source: String
     var body: some View {
         Button(intent: MarkMomentIntent(source: source)) {
@@ -210,9 +215,9 @@ private struct MarkButton: View {
                 Image("mark").font(.system(size: 15, weight: .medium))
                 Text("Mark").font(.system(size: 15, weight: .semibold)).lineLimit(1)
             }
-            .foregroundStyle(onDark ? Ink.onBlack : Ink.inkFixed)
-            .padding(.horizontal, 15).frame(height: onDark ? 38 : 40)
-            .overlay(Capsule().strokeBorder(onDark ? Ink.onBlackHair : Ink.inkFixed, lineWidth: 1.5))
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, 15).frame(height: tone.height)
+            .overlay(Capsule().strokeBorder(tone.outline, lineWidth: 1.5))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -224,13 +229,13 @@ private struct MarkButton: View {
 /// Pause or Resume: an outlined circle.
 private struct PauseButton: View {
     var state: VerbatimRecordingAttributes.ContentState
-    var onDark: Bool
+    var tone: ActivityButtonTone
     var body: some View {
         Button(intent: ToggleRecordingPauseIntent()) {
             Image(systemName: state.isPaused ? "play.fill" : "pause.fill").font(.system(size: 13, weight: .semibold))   // brand: system surface
-                .foregroundStyle(onDark ? Ink.onBlack : Ink.inkFixed)
-                .frame(width: onDark ? 38 : 40, height: onDark ? 38 : 40)
-                .overlay(Circle().strokeBorder(onDark ? Ink.onBlackHair : Ink.inkFixed, lineWidth: 1.5))
+                .foregroundStyle(tone.foreground)
+                .frame(width: tone.height, height: tone.height)
+                .overlay(Circle().strokeBorder(tone.outline, lineWidth: 1.5))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -238,9 +243,10 @@ private struct PauseButton: View {
     }
 }
 
-/// Stop: the one persimmon fill, with an ink square and "Stop" in ink.
+/// Stop: the one persimmon fill, with an ink square and "Stop" in ink, in a capsule (a voice note's and a thought's).
 private struct StopButton: View {
     var wide: Bool
+    var hint = "Saves the recording and transcribes it"
     var body: some View {
         Button(intent: StopRecordingIntent()) {
             HStack(spacing: 8) {
@@ -255,9 +261,12 @@ private struct StopButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Stop")
-        .accessibilityHint("Saves the recording and transcribes it")
+        .accessibilityHint(hint)
     }
 }
+
+/// A thought's Stop adds it to today's page.
+private let thoughtStopHint = "Adds the thought to today's page"
 
 /// The compact Island for two seconds after a mark: the Marked symbol in butter, "Marked", and the time.
 private struct MarkedCompact: View {
@@ -288,9 +297,11 @@ private struct RecordingDot: View {
     }
 }
 
-/// Counts up on its own while recording; holds still at the recorded length while paused.
+/// Counts up on its own while recording; holds still at the recorded length while paused. Hours show past an hour
+/// ("1:02:03"), so every frame around it is `width(_:)` wide for its font size.
 private struct RecordingTimer: View {
     var state: VerbatimRecordingAttributes.ContentState
+    static func width(_ size: CGFloat) -> CGFloat { CGFloat(Ribbon.timerWidth(size: Double(size), showsHours: true)) }
     var body: some View {
         Text(timerInterval: state.startDate...state.startDate.addingTimeInterval(60 * 60 * 24), pauseTime: state.pauseTime, countsDown: false, showsHours: true)
             .monospacedDigit()
@@ -300,17 +311,19 @@ private struct RecordingTimer: View {
 
 // MARK: - A thought
 
-/// A thought on the Lock Screen, on paper: the bars mark, "Recording a thought", the time, your voice, where it goes,
-/// and Stop. Never reads `state.words`: anyone can read a Lock Screen. Saved: a check and "Added to Thoughts · 9:41".
+/// A thought on the Lock Screen, on paper or the dark paper: the bars mark, "Recording a thought" (or why it paused),
+/// the time, your voice, where it goes, and Stop, with Resume beside it while paused. Never reads `state.words`:
+/// anyone can read a Lock Screen. Saved: a check and "Added to Thoughts · 9:41".
 private struct ThoughtLockScreen: View {
     var page: String?
     var state: VerbatimRecordingAttributes.ContentState
-    private let ink = Ink.inkFixed
+    var skin: ActivitySkin
+    private var ink: Color { skin.ink }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if state.saved {
-                ThoughtSavedLine(state: state, onPaper: true)
+                ThoughtSavedLine(state: state, skin: skin)
             } else {
                 HStack(spacing: 8) {
                     BarsMark(color: Ink.persimmonFixed).frame(width: 18, height: 18)
@@ -318,31 +331,35 @@ private struct ThoughtLockScreen: View {
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
                     Spacer(minLength: 8)
                     RecordingTimer(state: state).font(Ink.mono(15, weight: .medium)).foregroundStyle(ink)
-                        .frame(width: 60, alignment: .trailing)
+                        .frame(width: RecordingTimer.width(15), alignment: .trailing)
                 }
                 ThoughtVoiceBars(level: state.level ?? 0, color: Ink.persimmonFixed, count: 34).frame(height: 22)
-                Text(ThoughtRules.intoLine(page ?? "Thoughts")).font(.system(size: 13)).foregroundStyle(ink.opacity(0.8))
+                Text(ThoughtRules.intoLine(page ?? "Thoughts")).font(.system(size: 13)).foregroundStyle(skin.dim)
                     .lineLimit(1).minimumScaleFactor(0.85)
-                ThoughtStopButton(onDark: false, compact: false)
+                HStack(spacing: 8) {
+                    // An interruption (a call, another app's audio) paused it: Resume, as the voice note offers.
+                    if state.isPaused { PauseButton(state: state, tone: .lock(skin)) }
+                    StopButton(wide: true, hint: thoughtStopHint)
+                }
             }
         }
         .padding(14)
     }
 }
 
-/// "Added to Thoughts" and the time it was saved, with a check.
+/// "Added to Thoughts" and the time it was saved, with a check: in the Island (no skin) or on the Lock Screen.
 private struct ThoughtSavedLine: View {
     var state: VerbatimRecordingAttributes.ContentState
-    var onPaper = false
+    var skin: ActivitySkin? = nil
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(onPaper ? Ink.inkFixed : Ink.persimmon)
+            Image(systemName: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(skin?.ink ?? Ink.persimmon)
                 .accessibilityHidden(true)
-            Text(ThoughtRules.savedTitle).font(.system(size: 15, weight: .semibold)).foregroundStyle(onPaper ? Ink.inkFixed : .white)
+            Text(ThoughtRules.savedTitle).font(.system(size: 15, weight: .semibold)).foregroundStyle(skin?.ink ?? .white)
                 .lineLimit(1).fixedSize()
             if let at = state.savedAt {
                 Text(at, format: .dateTime.hour().minute()).font(Ink.mono(14, weight: .medium))
-                    .foregroundStyle(onPaper ? Ink.muteOnPaper : Color.white.opacity(0.7)).lineLimit(1)
+                    .foregroundStyle(skin?.mute ?? Color.white.opacity(0.7)).lineLimit(1)
             }
         }
         .accessibilityElement(children: .combine)
@@ -372,28 +389,6 @@ private struct ThoughtIntoLabel: View {
             Text(ThoughtRules.intoLine(page ?? "Thoughts")).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
-    }
-}
-
-/// Stop: saves the thought to today's page (`StopRecordingIntent`). Persimmon with ink text; opaque, no blur.
-private struct ThoughtStopButton: View {
-    var onDark: Bool
-    var compact: Bool
-    var body: some View {
-        Button(intent: StopRecordingIntent()) {
-            HStack(spacing: 6) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Ink.inkFixed).frame(width: 9, height: 9)
-                Text("Stop").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.inkFixed).lineLimit(1)
-            }
-            .frame(maxWidth: compact ? nil : .infinity)
-            .frame(minWidth: compact ? 72 : nil)
-            .padding(.horizontal, compact ? 12 : 0)
-            .padding(.vertical, 8)
-            .background(Ink.persimmonFixed, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Stop")
-        .accessibilityHint("Adds the thought to today's page")
     }
 }
 

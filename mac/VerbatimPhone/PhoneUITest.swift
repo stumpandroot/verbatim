@@ -107,6 +107,7 @@ enum PhoneUITest {
         premiumChecks(app)
         markChecks(app)
         reviewFixesPhoneB(app)        // Build 228 review fixes, group B (PhoneReviewFixesB.swift).
+        reviewFixesWidgets()   // Build 228 review, W-01 to W-10: Live Activities, controls, widgets, and the keyboard.
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
         // Imports through the bundled FFmpeg (MKV) and files with several audio tracks (shared with the Mac).
@@ -1695,6 +1696,35 @@ enum PhoneUITest {
             check("the seeded transcript has a marked moment", false)
         }
         Log.note("UITEST marks checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// The build 228 review's system-surface fixes (W-01 to W-10) that the app can check: the timers' widths, the Action
+    /// button control's name and its mirror in the App Group, and the Lock Screen's and the Native accent's contrast.
+    /// mac/tools/test-live-activity.sh checks the widget sources on Linux.
+    static func reviewFixesWidgets() {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") review widgets: \(name)")
+        }
+        check("a 13 pt timer's frame holds 1:02:03", Ribbon.timerWidth(size: 13, showsHours: true) >= 13 * 0.6 * 7)
+        check("the compact Island's timer stays under 60 pt", Ribbon.timerWidth(size: 13, showsHours: true) <= 60)
+        check("the Action control says Verbose action until the app names it", Ribbon.actionControl(nil).title == Ribbon.actionControlName)
+        check("the Action control is named for each choice", Ribbon.ActionChoice.allCases.allSatisfy { Ribbon.actionControl($0.rawValue).title == $0.title })
+        check("Set up the Action button names the control as the gallery does", ActionButtonScreen.steps[2].contains(Ribbon.actionControlName))
+        let key = Ribbon.actionChoiceKey
+        let saved = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set(Ribbon.ActionChoice.recordOrMark.rawValue, forKey: key)
+        ActionChoiceMirror.sync()
+        check("the choice is mirrored into the App Group for the control", KeyboardBridge.defaults?.string(forKey: key) == Ribbon.ActionChoice.recordOrMark.rawValue)
+        if let saved { UserDefaults.standard.set(saved, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
+        ActionChoiceMirror.sync()
+        check("the mirror follows the choice back", KeyboardBridge.defaults?.string(forKey: key) == Ribbon.actionChoice(saved).rawValue)
+        check("Lock Screen in dark: paper text on the dark paper keeps 7:1", PremiumRules.contrast(Ink.paperHex, Ink.darkPaperHex) >= 7)
+        check("Lock Screen in light: ink on paper keeps 7:1", PremiumRules.contrast(Ink.inkHex, Ink.paperHex) >= 7)
+        check("the keyboard's and widgets' text on the dark accent is black, 7:1", PremiumRules.contrast(Ink.nativeAccentDarkHex, PremiumInk.onAccentDarkHex) >= 7
+              && PremiumRules.contrast(Ink.nativeAccentDarkHex, 0xFFFFFF) < 3)
+        Log.note("UITEST review widgets checks: \(pass) passed, \(fail) failed")
     }
 
     /// The Library's type and platform filters and Add from Library (shared with the Mac's self-test).

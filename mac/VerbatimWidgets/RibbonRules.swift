@@ -444,3 +444,45 @@ enum Ribbon {
     /// The flag after a dictation finished: set by the first one that produced words, and never cleared.
     static func firstDictationDone(was: Bool, words: Int) -> Bool { was || words > 0 }
 }
+
+// MARK: - Live Activity buttons, timers, and the Action button's control
+
+extension Ribbon {
+    /// The take's buttons' hints, the same in the Dynamic Island and on the Lock Screen. Their accessibility labels
+    /// start with the word they show ("Done", "Cancel dictation", "Dictate"), so Voice Control's "Tap Done" finds them
+    /// (WCAG 2.5.3, Label in Name).
+    static let doneHint = "Stops listening and puts your words in"
+    static let cancelHint = "Stops listening without keeping the take"
+
+    /// SF Mono's advance is about 0.6 em (1233 of 2048 units); a little more covers rounding.
+    static let monoAdvance = 0.61
+
+    /// The width a running timer needs in SF Mono at `size` points. A recording's timer shows hours past 60 minutes
+    /// ("1:02:03", seven characters), so its frames hold "0:00:00" and a meeting past an hour never clips in the
+    /// compact Dynamic Island or on the Lock Screen; without hours it holds "00:00".
+    static func timerWidth(size: Double, showsHours: Bool) -> Double {
+        (size * monoAdvance * Double(showsHours ? 7 : 5)).rounded(.up) + 1
+    }
+
+    /// The Action button's control (iOS 18). The app mirrors Settings › Action button's choice into the App Group
+    /// under `actionChoiceKey` and reloads the control, so it's named for what it does.
+    static let actionControlKind = "co.stumpandroot.verbatim.ios.control.action"
+    /// The control's name in the controls gallery, and its label until the app has mirrored a choice.
+    static let actionControlName = "Verbose action"
+
+    /// The control's label and custom symbol (Assets' symbol sets, `mac/tools/gen_symbol.py`) for the mirrored
+    /// choice: "Dictate", "Record a voice note", "Record or mark", "Live captions", "What's playing", or "New thought".
+    /// Nil or empty (the app hasn't written one yet): the generic name and the bars mark.
+    static func actionControl(_ raw: String?) -> (title: String, symbol: String) {
+        guard let raw, !raw.isEmpty else { return (actionControlName, "bars") }
+        let choice = actionChoice(raw)
+        switch choice {
+        case .dictate: return (choice.title, "dictate")
+        case .voiceNote: return (choice.title, "record")
+        case .recordOrMark: return (choice.title, "mark")
+        case .captions: return (choice.title, "captions")
+        case .whatsPlaying: return (choice.title, "bars")
+        case .quickCapture: return (choice.title, "thought")
+        }
+    }
+}

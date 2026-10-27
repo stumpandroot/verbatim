@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Exports icons from gen_icons.py as custom SF Symbols for the iPhone's system surfaces: the Thoughts icon ('Thought',
-the Live Activity and Dynamic Island, the Control Center control, and the Lock Screen widgets, DESIGN.md §14), and Mark
-and Marked ('Mark', 'Marked': the recording's Live Activity and Dynamic Island, mockup "Library features", section 3).
+the Live Activity and Dynamic Island, the Control Center control, and the Lock Screen widgets, DESIGN.md §14), Mark
+and Marked ('Mark', 'Marked': the recording's Live Activity and Dynamic Island, mockup "Library features", section 3),
+and the Control Center controls' glyphs (DESIGN.md §3): Dictations ('dictate'), Captions ('captions'), BrandArt's
+capture ('record', redrawn here on the 24 grid), and the bars mark ('bars', filled, from BrandArt.markBars).
 For the Mac's menus (the right-click menu on Record and File › Record As, mockup "Record as", October 26, 2026), the
 six ways to record: Voice note ('Mic' as rec.voice), Meeting ('Speakers'), Interview ('Quote'), Journal entry ('Notes'),
 Talk ('Voice'), and Thought ('Thought'), so the menu draws Verbose's glyphs in its own text color.
@@ -13,7 +15,7 @@ scales it for other sizes and weights, keeping the brand's fine line.
     pip install skia-pathops      (once; fontTools is needed too)
     python3 mac/tools/gen_symbol.py --write
 
-writes thought.symbolset, mark.symbolset, and marked.symbolset into VerbatimPhone/Assets.xcassets and
+writes thought, mark, marked, dictate, captions, record, and bars symbol sets into VerbatimPhone/Assets.xcassets and
 VerbatimWidgets/Assets.xcassets, and the Record as symbols (and thought) into Verbatim/Resources/Assets.xcassets.
 Without --write it prints the Thoughts symbol's SVG.
 """
@@ -32,7 +34,28 @@ sys.path.insert(0, HERE)
 import gen_icons  # noqa: E402
 
 # Each exported icon: its name in gen_icons.py, the symbol's name, and what the SVG's comment calls it.
-SYMBOLS = [('Thought', 'thought', 'the Thoughts icon'), ('Mark', 'mark', 'the Mark icon'), ('Marked', 'marked', 'the Marked icon')]
+SYMBOLS = [('Thought', 'thought', 'the Thoughts icon'), ('Mark', 'mark', 'the Mark icon'), ('Marked', 'marked', 'the Marked icon'),
+           ('Dictations', 'dictate', 'the Dictations icon'), ('Captions', 'captions', 'the Captions icon'),
+           ('Capture', 'record', "BrandArt's capture icon"), ('Bars', 'bars', 'the bars mark')]
+
+
+def _bars(x, y):
+    """BrandArt.markBars (a 76 x 80 box on the 120 grid) at 17 grid units tall, about the other icons' height."""
+    k = 17 / 80
+    return '%s %s' % (('%.3f' % ((x - 22) * k)).rstrip('0').rstrip('.'), ('%.3f' % ((y - 18) * k)).rstrip('0').rstrip('.'))
+
+
+# Shapes that aren't in gen_icons.I, on the 24 grid: ('s', path) is stroked like the icons, ('f', path) is filled.
+EXTRA = {
+    # BrandArt.capture (the 112 box at 8, 8, stroke 4.5) moved to the 24 grid: the mic capsule, its cradle, and stand.
+    'Capture': [('s', 'M9 5.79C9 1.79 15 1.79 15 5.79V10.71C15 14.71 9 14.71 9 10.71Z'),
+                ('s', 'M6.43 10.93C6.43 15.43 8.79 18 12 18S17.57 15.43 17.57 10.93'),
+                ('s', 'M12 18V21.43'), ('s', 'M8.36 21.43H15.64')],
+    'Bars': [('f', 'M%sL%sL%sL%sZ' % (_bars(22, 18), _bars(98, 18), _bars(98, 32), _bars(22, 32))),
+             ('f', 'M%sL%sL%sL%sZ' % (_bars(22, 43), _bars(80, 43), _bars(80, 57), _bars(22, 57))),
+             ('f', 'M%sL%sL%sL%sL%sZ' % (_bars(22, 68), _bars(98, 68), _bars(98, 82), _bars(44, 82), _bars(22, 98)))],
+}
+
 # The Mac's Record menus, in RecordChoice.all's order (Model/Templates.swift).
 MAC_SYMBOLS = [('Mic', 'rec.voice', 'the Voice note icon'), ('Speakers', 'rec.meeting', 'the Meeting icon'),
                ('Quote', 'rec.interview', 'the Interview icon'), ('Notes', 'rec.journal', 'the Journal entry icon'),
@@ -149,8 +172,18 @@ def circle_path(cx, cy, r):
 
 
 def outline(icon='Thought'):
-    """The icon's strokes, outlined, and its filled dots, joined into one shape on the 24 grid."""
+    """The icon's strokes, outlined, and its filled dots or fills, joined into one shape on the 24 grid."""
     shapes = []
+    if icon in EXTRA:
+        for kind, data in EXTRA[icon]:
+            shape = path_from(gen_icons.de_arc(data))
+            if kind == 's':
+                shape.stroke(STROKE, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
+                shape.convertConicsToQuads()
+            shapes.append(shape)
+        joined = pathops.Path()
+        pathops.union(shapes, joined.getPen(), fix_winding=True)
+        return joined
     for kind, el, dash in gen_icons.I[icon]:
         k, data = el
         assert not dash, 'an exported icon has no dashed lines'
