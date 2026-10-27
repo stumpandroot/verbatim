@@ -172,6 +172,18 @@ struct LiveCaptionsView: View {
         .accessibilityLabel("Live captions")
     }
 
+    /// "Listening to Zoom and your mic. Words appear here as they're said." Before captions start: how to start them.
+    static func waitingLine(_ source: LiveCaptions.Source, open: Bool) -> String {
+        guard open else { return "Not listening. Pick a source to start live captions." }
+        let what: String
+        switch source {
+        case .mic: what = "your mic"
+        case .app(_, let name): what = name
+        case .both(_, let name): what = "\(name) and your mic"
+        }
+        return "Listening to \(what). Words appear here as they're said."
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             IconGlyph(art: .iconCaptions, size: 16, color: Ink.mute)
@@ -193,9 +205,12 @@ struct LiveCaptionsView: View {
         ZStack(alignment: .bottomLeading) {
             CaptionsDragArea()
             if feed.history.isEmpty && feed.current.isEmpty {
-                Text(controller.status ?? (controller.isOpen ? "Listening…" : ""))
+                // Never a blank panel: what it's listening to and where the words will go, or why it isn't listening.
+                Text(controller.status ?? Self.waitingLine(controller.source, open: controller.isOpen))
                     .font(Ink.serif(size.mac * 0.77)).foregroundStyle(Ink.mute)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .uiTarget("captions-waiting")
             } else {
                 CaptionLinesView(feed: feed, size: size.mac,
                                  older: [(size.mac * 0.77, Ink.mute), (size.mac * 0.7, Ink.mute.opacity(0.7))],

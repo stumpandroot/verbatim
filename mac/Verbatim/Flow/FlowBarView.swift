@@ -544,17 +544,20 @@ struct PromptCard: View {
     }
 }
 
-/// The prompt's answer buttons: ink-filled for the main answer, a raised tint for the other.
+/// The prompt's answer buttons, as pills (DESIGN.md §11.5): ink-filled for the main answer, a 1.5 pt line for the other.
 private struct PromptButtonLabel: View {
     var title: String
     var filled: Bool
     var pressed: Bool
     var body: some View {
         Text(title)
-            .font(.system(size: 13, weight: filled ? .semibold : .regular))
+            .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(filled ? RibbonInk.tab : RibbonInk.text)
-            .padding(.horizontal, 14).padding(.vertical, 7)
-            .background(filled ? RibbonInk.text : RibbonInk.raised, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .lineLimit(1).fixedSize()
+            .padding(.horizontal, 14).frame(height: 28)
+            .background {
+                if filled { Capsule().fill(RibbonInk.text) } else { Capsule().strokeBorder(RibbonInk.text, lineWidth: 1.5) }
+            }
             .scaleEffect(pressed ? 0.97 : 1)
     }
 }
