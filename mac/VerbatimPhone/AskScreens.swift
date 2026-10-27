@@ -10,28 +10,6 @@ struct AskRoute: Hashable { var query: String? = nil }
 struct RecipesRoute: Hashable {}
 struct RecipeRoute: Hashable { var id: UUID }
 
-/// The Library's Ask card (Verbose style), beside Templates.
-struct AskCard: View {
-    var recipes: Int
-    var body: some View {
-        HStack(spacing: 12) {
-            IconGlyph(art: .iconAsk, size: 20, color: Ink.ink).frame(width: 30, height: 30).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Ask").font(Ink.serif(19)).foregroundStyle(.lookInk)
-                Text("Answers from your recordings, with sources").font(.system(size: 13)).foregroundStyle(.lookMute)
-            }
-            Spacer(minLength: 8)
-            if recipes > 0 { Text("\(recipes)").font(Ink.mono(12)).foregroundStyle(.lookMute) }
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
-        }
-        .padding(.horizontal, 14).frame(minHeight: 60)
-        .phoneOutlined(radius: Radius.row, line: 1)
-        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Asks a question about your recordings")
-    }
-}
-
 /// "Ask about “…”" under the Library's search field, in both looks.
 struct AskAboutRow: View {
     var query: String
@@ -183,13 +161,15 @@ struct AskScreen: View {
                 }
                 .accessibilityIdentifier("ask.field")
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        // The pill, as the search field (DESIGN.md §11.9): card white with the 1.5 pt ink outline in Verbose style.
+        // 18 pt in from the ends keeps a wrapped question inside the rounded ends.
+        .padding(.horizontal, 18).padding(.vertical, 12)
         .background {
             if look.isNative {
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(NativeInk.fillStrong)
+                Capsule().fill(NativeInk.fillStrong)
             } else {
-                RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Ink.card)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Ink.ink, lineWidth: focused ? 2 : 1.5))
+                Capsule().fill(Ink.card)
+                    .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: focused ? 2 : 1.5))
             }
         }
     }
@@ -380,7 +360,7 @@ struct PhoneAskCitations: View {
         let parts = s.title.components(separatedBy: " · ")
         return HStack(spacing: 12) {
             Text("\(s.number)").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(NativeInk.accent)
-                .frame(width: 22, height: 22).background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(NativeInk.accent.opacity(0.12)))
+                .frame(width: 22, height: 22).background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(NativeInk.accent.opacity(0.12)))
             VStack(alignment: .leading, spacing: 1) {
                 Text(parts.first ?? s.title).font(.system(size: 16)).foregroundStyle(NativeInk.label).lineLimit(1)
                 if parts.count > 1 { Text(parts.dropFirst().joined(separator: " · ")).font(.system(size: 14)).foregroundStyle(NativeInk.secondary).lineLimit(1) }

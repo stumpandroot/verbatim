@@ -106,7 +106,7 @@ struct PhoneRoot: View {
         // Today's Thoughts page; its calendar button opens By day.
         case .thoughts: DayPageScreen(kind: .idea, day: app.todayPage)
         // Journal By day (Thoughts phase B).
-        case .journal: ByDayScreen(kind: .journal)
+        case .journal: ByDayScreen(kind: .journal, fixed: true)
         case .moments: MomentsScreen()
         case .dictations: DictationsListScreen()
         case .projects: ProjectsScreen()

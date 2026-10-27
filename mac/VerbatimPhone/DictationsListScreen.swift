@@ -5,49 +5,10 @@ import UIKit
 /// With Dictations in the tab bar, the list is that tab's root too.
 struct DictationsRoute: Hashable {}
 
-/// The Library's row for every dictation, flat on the paper like the rows under it: the butter mark, "Dictations"
-/// in the serif with the count in mono, the latest words, and a chevron.
-struct DictationsCard: View {
-    var dictations: [Transcript]
-    @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 19
-    var body: some View {
-        HStack(spacing: 12) {
-            IconGlyph(art: .iconDictations, size: 18, color: Ink.inkFixed)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(PhoneInk.butter))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Dictations").lookSerif(titleSize).foregroundStyle(.lookInk)
-                    Text("\(dictations.count)").lookMono(12).foregroundStyle(.lookMute)
-                }
-                if let latest = dictations.first {
-                    Text(Self.firstWords(latest)).font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 6)
-            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookMute)
-        }
-        .padding(.vertical, 10).padding(.horizontal, 2)
-        .frame(minHeight: 64)
-        .overlay(alignment: .bottom) { Rectangle().fill(.lookHairline).frame(height: 1) }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Dictations, \(dictations.count)")
-        .accessibilityHint("Opens every dictation")
-    }
-
-    static func firstWords(_ t: Transcript) -> String {
-        let text = t.segments.map(\.text).joined(separator: " ")
-        let words = (text.isEmpty ? t.title : text).split(separator: " ")
-        return words.prefix(10).joined(separator: " ") + (words.count > 10 ? "…" : "")
-    }
-}
-
 /// Every dictation, newest first, in the website style: "Dictations · 128 kept", a lede, mono day headers, and flat
-/// rows (the app's square, the app and time in mono, the words, the cleanup level, and "not pasted" in the accent when
-/// the words didn't land). Tap a row, or its round button, to copy the words; the button turns into a check for
-/// 1.6 seconds. A sage panel at the end explains the keyboard.
+/// rows (the app's initial on a neutral square, the app and time, the words, the cleanup level when one was set, and
+/// "not pasted" in the accent when the words didn't land). Tap a row, or its round button, to copy the words; the
+/// button turns into a check for 1.6 seconds. A butter panel at the end (butter means Dictate) explains the keyboard.
 struct DictationsListScreen: View {
     @EnvironmentObject var app: PhoneState
     @State private var search = ""
@@ -122,7 +83,7 @@ struct DictationsListScreen: View {
     /// Opens the transcript on whichever stack this list is on.
     private func open(_ id: UUID) { app.pushHere(id) }
 
-    /// The keyboard, explained: sage with grain and the lines drawing. Opens the keyboard's settings.
+    /// The keyboard, explained: butter (Dictate) with grain and the lines drawing. Opens the keyboard's settings.
     private var keyboardPanel: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
         return Button {
@@ -141,7 +102,7 @@ struct DictationsListScreen: View {
             .padding(.horizontal, 16).padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                PhonePanelFill(color: PhoneInk.sage, shape: shape)
+                PhonePanelFill(color: PhoneInk.butter, shape: shape)
                     .overlay(alignment: .topTrailing) {
                         PhonePanelArt(kind: .lines).frame(width: 150, height: 100).offset(x: 20, y: -6)
                     }
@@ -155,8 +116,9 @@ struct DictationsListScreen: View {
     }
 }
 
-/// One dictation: the app's square, the app and time in mono, the words, and the cleanup level. Tapping anywhere
-/// copies the words; the round button turns into a check for 1.6 seconds.
+/// One dictation: the app's initial on a neutral square, the app and time in a sans meta line, the words, and the
+/// cleanup level when one was set. Tapping anywhere copies the words; the round button turns into a check for 1.6
+/// seconds.
 struct PhoneDictationRow: View {
     var transcript: Transcript
     @State private var copied = false
@@ -170,17 +132,19 @@ struct PhoneDictationRow: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 7) {
-                        RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Self.square(app))
-                            .frame(width: 14, height: 14).accessibilityHidden(true)
+                        Text(Self.initial(app)).font(.system(size: 11, weight: .semibold)).foregroundStyle(.lookDim)
+                            .frame(width: 18, height: 18)
+                            .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                            .accessibilityHidden(true)
                         Text("\(app) · \(Formats.style(date: .none, time: .short).string(from: transcript.createdAt))")
-                            .lookMono(12).foregroundStyle(.lookMute).lineLimit(1)
+                            .font(.system(size: small)).monospacedDigit().foregroundStyle(.lookMute).lineLimit(1)
                     }
                     Text(HomeDictationText.body(transcript))
                         .font(.system(size: textSize)).foregroundStyle(transcript.status == .failed ? Ink.danger : Ink.ink)
                         .lineSpacing(4).lineLimit(8)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                    status.font(.system(size: small))
+                    if Self.statusLine(level: level, notPasted: notPasted) != nil { status.font(.system(size: small)) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 ZStack {
@@ -213,17 +177,25 @@ struct PhoneDictationRow: View {
         return a.isEmpty ? "Keyboard" : a
     }
 
-    /// "Clean · not pasted": the cleanup level, and a warning in the accent when the words didn't land.
+    private var level: String? { transcript.flow.flatMap { CleanupLevel(stored: $0.level)?.title } }
+    private var notPasted: Bool { transcript.flow.map { !$0.pastedOK } ?? false }
+
+    /// "Clean · not pasted": the cleanup level when one was set, and a warning in the accent when the words didn't
+    /// land. Nothing when neither applies; every row here is a dictation, so it never says so.
     @ViewBuilder private var status: some View {
-        let level = transcript.flow.flatMap { CleanupLevel(stored: $0.level)?.title }
-        let notPasted = transcript.flow.map { !$0.pastedOK } ?? false
         HStack(spacing: 0) {
-            Text(level ?? "Dictation").foregroundStyle(.lookMute)
+            if let level { Text(level).foregroundStyle(.lookMute) }
             if notPasted {
-                Text(" · ").foregroundStyle(.lookMute)
+                if level != nil { Text(" · ").foregroundStyle(.lookMute) }
                 Text("not pasted").fontWeight(.semibold).foregroundStyle(.lookAccentText)
             }
         }
+    }
+
+    /// The status line's words, or nil to leave the line out (`status` draws them).
+    static func statusLine(level: String?, notPasted: Bool) -> String? {
+        let parts = [level, notPasted ? "not pasted" : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func copy() {
@@ -235,10 +207,9 @@ struct PhoneDictationRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if copies == mine { copied = false } }
     }
 
-    /// The app's square: one of the panel colors, the same for an app every time.
-    static func square(_ app: String) -> Color {
-        let colors = [PhoneInk.sage, PhoneInk.butter, PhoneInk.petal, PhoneInk.record]
-        let n = app.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return colors[n % colors.count]
+    /// The app's initial for its neutral square ("M" for Messages, "K" for Keyboard). Apps stay neutral: a hue would
+    /// say Record, Dictate, Import, or App audio.
+    static func initial(_ app: String) -> String {
+        app.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "K"
     }
 }
