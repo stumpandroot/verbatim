@@ -2446,7 +2446,8 @@ extension UITest {
         // Audio only's file: at least 44.1 kHz in 24-bit, repaired and joined whole, and Transcribe later on a real one.
         SoundFormatChecks.run { check("brain dump: " + $0, $1) }
         if let id = await SoundFormatChecks.transcribeLater(store: app.store, coordinator: app.coordinator, check: { check("brain dump: " + $0, $1) }) { made.append(id) }
-        app.delete(made)
+        // Gone for good, not to Recently Deleted: its sidebar row would cover Make › Ask in the 692 pt window (build 235).
+        app.purge(made)
         TemplateSettingsModel.shared.settings = saved
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
