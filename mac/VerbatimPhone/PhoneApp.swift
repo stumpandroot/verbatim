@@ -130,6 +130,8 @@ struct PhoneRoot: View {
         .overlay { PhoneLinkCardLayer() }
         .overlay { SessionStartLayer(session: app.session) }
         .overlay { SessionEndedLayer(session: app.session) }
+        // Record as: the tray a long press on Record opens, over the tab bar too (RecordTray.swift).
+        .overlay { RecordTrayLayer() }
         .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).

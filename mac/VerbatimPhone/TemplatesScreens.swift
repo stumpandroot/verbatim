@@ -4,23 +4,11 @@ import UIKit
 // Templates on the iPhone (mockup "Library features", section 1): Library › Templates (the library, a template's
 // sections, Try on a recording, Run automatically for a kind, and your own templates), Settings › Templates (Run
 // automatically: one template or Off per kind, and three options, kept on this iPhone), the result as a tab in the
-// transcript, and Record a kind from a long press on Record. Built from the Settings page kit, so both looks follow.
+// transcript. Record a kind from a long press on Record is the Record as tray (RecordTray.swift). Built from the Settings page kit, so both looks follow.
 
 struct TemplatesRoute: Hashable {}
 struct TemplateDetailRoute: Hashable { var id: UUID }
 struct TemplatesAutoRoute: Hashable {}
-
-/// Touch and hold on Record: start recording as a kind you pick. The new transcript is that kind as yours, so AutoLabel
-/// leaves it, and Run automatically runs that kind's template.
-struct PhoneRecordKindItems: View {
-    /// Starts the recording (the menu's owner passes `app.requestRecord(kind:)`, so it never needs the environment).
-    var start: (RecordingKind) -> Void
-    var body: some View {
-        ForEach(RecordingKind.recordChoices) { k in
-            Button(k.recordTitle) { start(k) }
-        }
-    }
-}
 
 /// The Library's Templates card (Verbose style), beside By day.
 struct TemplatesCard: View {

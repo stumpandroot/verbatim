@@ -31,6 +31,7 @@ struct PremiumRecorder: View {
     @State private var naming: RecordingMoment.ID? = nil
     @State private var nameDraft = ""
     @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 88
+    @ObservedObject private var auto = TemplateSettingsModel.shared
 
     private var paused: Bool { app.recorder.isPaused }
     private var saving: Bool { app.savingRecording }
@@ -43,6 +44,10 @@ struct PremiumRecorder: View {
                 VStack(spacing: 0) {
                     status.padding(.top, 30)
                     PremiumClock(live: app.recorder.live, size: min(clockSize, 112)).padding(.top, 12)
+                    // What it's recording as (Record as, RecordTray.swift): a gray capsule with the kind's symbol.
+                    if adding == nil, !app.recordingThought {
+                        NativeRecordKindChip(choice: app.recordingChoice).padding(.top, 12)
+                    }
                     subline.padding(.top, 10).padding(.horizontal, 24)
                     PremiumLiveWave(live: app.recorder.live, paused: paused || saving)
                         .frame(height: 96).padding(.horizontal, 22).padding(.top, 30)
@@ -104,8 +109,11 @@ struct PremiumRecorder: View {
     }
 
     private var statusText: String {
-        let what = adding.map { "Adds to “\($0.title)”" } ?? (app.recordingThought ? ThoughtRules.intoLine(PhoneState.thoughtPageTitle(app.todayPage)) : "Voice note")
         if saving { return "Saving…" }
+        // A new recording's kind is in the capsule under the clock.
+        guard let what = adding.map({ "Adds to “\($0.title)”" }) ?? (app.recordingThought ? ThoughtRules.intoLine(PhoneState.thoughtPageTitle(app.todayPage)) : nil) else {
+            return paused ? "Paused" : "Recording"
+        }
         return "\(paused ? "Paused" : "Recording") · \(what)"
     }
 
@@ -116,7 +124,9 @@ struct PremiumRecorder: View {
                 Button("Resume") { app.togglePause() }.buttonStyle(.phonePrimary)
             }
         } else {
-            Text("Saved as you go. Keeps recording with the screen locked.")
+            // The template that runs when you stop, or what the kind does; then that it keeps going when locked.
+            let line = adding == nil ? app.recordingChoice.recorderLine(settings: auto.settings, templates: app.store.allTemplates) + ". " : "Saved as you go. "
+            Text(line + "Keeps recording with the screen locked.")
                 .font(.system(size: 15)).foregroundStyle(NativeInk.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }

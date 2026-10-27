@@ -132,6 +132,7 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 // Home's note after an update, then What's new, which it opens (WhatsNewScreen.swift).
                 await whatsNewTour(app, prefix: prefix, suffix: "")
+                if prefix == "p" { await recordTrayTour(app, native: false) }
                 app.showRecorder = true
                 await show("\(prefix)02-record")
                 app.showRecorder = false
@@ -395,6 +396,7 @@ enum PhoneUITest {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
                 await whatsNewTour(app, prefix: prefix, suffix: "-native")
+                if prefix == "p" { await recordTrayTour(app, native: true) }
                 // The record flow: the full-screen recorder with two marked moments (a stand-in recording; no
                 // microphone in the simulator), then the Saved sheet for a seeded recording (nothing is changed).
                 app.previewRecording = true
@@ -488,6 +490,124 @@ enum PhoneUITest {
             write("done")
             Log.note("UITEST phone tour done")
         }
+    }
+
+    // MARK: Record as
+
+    /// The Record as tray (RecordTray.swift, mockup "Record as"): opened from Home's Record card, a row lit under the
+    /// finger, a lift in place, and (Premium Native) the floating button's tray; then what a lift on a row, a quick tap,
+    /// a kind, and Thought start. A stand-in finger drives the tray's own model (no touches in the simulator). The
+    /// choices are recorded instead of started, except Interview and Thought, which run up to the consent notice with
+    /// it turned back on for a moment, so nothing records. Light only; Run automatically is put back afterward.
+    private static func recordTrayTour(_ app: PhoneState, native: Bool) async {
+        let suffix = native ? "-native" : ""
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record as\(suffix): \(name)") }
+        let tray = RecordTray.shared
+        let saved = TemplateSettingsModel.shared.settings
+        var shown = AutoRunSettings()
+        shown.set(TemplateLibrary.scenarios[0].id, for: .meeting)
+        shown.set(TemplateLibrary.scenarios[7].id, for: .journal)
+        TemplateSettingsModel.shared.settings = shown
+        var picked: [RecordChoice] = []
+        tray.override = { picked.append($0) }
+        app.tab = .home
+        app.homePath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // Touch and hold on Home's Record card, then slide to Meeting and lift.
+        tray.tourHold(.card)
+        await show("p01t-record-tray\(suffix)")
+        let ys = RecordChoice.all.compactMap { tray.rowFrames[$0]?.minY }
+        check("touch and hold opens the tray with six rows", tray.isOpen && tray.rowFrames.count == 6)
+        check("the rows run Voice note, Meeting, Interview, Journal entry, Talk, Thought", ys.count == 6 && zip(ys, ys.dropFirst()).allSatisfy { $0 < $1 })
+        check("a kind with a template says what runs", RecordChoice.kind(.meeting).hint(settings: shown, templates: app.store.allTemplates) == "Runs Meeting notes when it finishes")
+        let end = tray.tourSlide(to: .kind(.meeting))
+        await show("p01u-record-tray-meeting\(suffix)")
+        check("sliding lights the row under the finger", tray.highlighted == .kind(.meeting))
+        tray.lift(at: end)
+        check("lifting on Meeting starts a meeting and closes the tray", picked == [.kind(.meeting)] && !tray.isOpen)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // Lift without sliding: the tray stays open for a tap, nothing lit.
+        tray.tourHold(.card)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        tray.fingerLifted()
+        check("lifting without sliding keeps the tray open for a tap", tray.isOpen && tray.highlighted == nil)
+        if !native { await show("p01w-record-tray-tap") }
+        picked = []
+        tray.choose(.kind(.talk))
+        check("tapping a row starts it", picked == [.kind(.talk)] && !tray.isOpen)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // A quick tap on Record (lifted before the hold): the plain voice note.
+        picked = []
+        tray.tap()
+        check("a quick tap starts a plain voice note", picked == [.voiceNote])
+
+        // Premium Native's floating button: the same rows above the button, and Dictate, Live captions, and Import.
+        if native {
+            check("the floating button is on Home", PremiumRecordButton.onScreen.contains(.home) && tray.floatingFrames[.home] != nil)
+            tray.tourHold(.floating(.home))
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            tray.tourSlide(to: .kind(.interview))
+            await show("p01v-record-tray-floating-native")
+            check("the floating button's tray lights the row under the finger", tray.highlighted == .kind(.interview))
+            check("the floating button's tray sits above the button",
+                  (tray.rowFrames[.thought]?.maxY ?? .infinity) < (tray.floatingFrames[.home]?.minY ?? 0))
+            tray.fingerLifted()
+            tray.close()
+            try? await Task.sleep(nanoseconds: 600_000_000)
+        }
+        tray.override = nil
+
+        if !native {
+            // The real paths, stopped at the consent notice so nothing records.
+            let key = PhoneState.consentNoticeKey
+            let seen = UserDefaults.standard.object(forKey: key)
+            UserDefaults.standard.set(false, forKey: key)
+            app.startRecordChoice(.kind(.interview))
+            check("Interview records as yours, waiting for the recording", app.recordKind == .interview && app.showConsentNotice && !app.pendingThought)
+            app.showConsentNotice = false
+            app.dismissConsentNotice()
+            app.recordKind = nil
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            app.startRecordChoice(.thought)
+            check("Thought asks for a thought, not a recording of the Thoughts kind", app.pendingThought && app.recordKind == nil && app.showConsentNotice)
+            let url = app.store.newRecordingURL()
+            app.beginThoughtIfAsked(url)
+            check("Thought opens the thought recorder (New thought, Stop & add)", app.recordingThought && app.recordingChoice == .thought)
+            app.recordingThought = false
+            app.thoughtStartedAt = nil
+            Store.clearThoughtMark(url)
+            app.showConsentNotice = false
+            app.dismissConsentNotice()
+            UserDefaults.standard.set(seen, forKey: key)
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+
+        // The recorder for a Meeting: the neutral kind chip and the template that runs when you stop.
+        app.previewRecording = true
+        app.recordKind = .meeting
+        app.recorder.live.setElapsed(12)
+        app.openRecorder()
+        await show("p02k-record-meeting\(suffix)")
+        check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
+        app.minimizeRecorder()
+        app.recordKind = nil
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        if !native {
+            // And a thought's: "New thought" and Stop & add.
+            app.recordingThought = true
+            app.openRecorder()
+            await show("p02q-record-thought")
+            app.minimizeRecorder()
+            app.recordingThought = false
+            try? await Task.sleep(nanoseconds: 700_000_000)
+        }
+        app.previewRecording = false
+        app.recorder.live.reset()
+        TemplateSettingsModel.shared.settings = saved
+        try? await Task.sleep(nanoseconds: 700_000_000)
     }
 
     // MARK: Thoughts

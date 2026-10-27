@@ -280,50 +280,37 @@ struct PremiumMoreMenu: View {
 // MARK: - The record button
 
 /// The floating record button on Home and Library: the brand persimmon disc in a ring, just above the tab bar's
-/// trailing end. A tap starts a voice note; a long press offers Dictate, Live captions, and Import. Hidden while a
-/// recording runs (the bar above the tab bar carries it then).
+/// trailing end. A tap starts a voice note; touch and hold opens the Record as tray above it (RecordTray.swift), with
+/// the six ways to record and Dictate, Live captions, and Import under them. It's a plain view with its own press
+/// gesture, not a Menu, so the system's menu and its glass are gone. Hidden while a recording runs (the bar above the
+/// tab bar carries it then).
 struct PremiumRecordButton: View {
     @EnvironmentObject var app: PhoneState
     /// Where Dictate pushes the dictations list.
     var tab: PhoneState.Tab
     /// The tabs showing the button, for the self-test.
     static var onScreen = Set<PhoneState.Tab>()
+    @State private var press: RecordPressPhase = .idle
 
     var body: some View {
-        Menu {
-            // Record as a kind you pick: AutoLabel leaves it, and Run automatically uses it (Templates.swift).
-            Section {
-                ForEach(RecordingKind.recordChoices) { k in
-                    Button { app.requestRecord(kind: k) } label: { Label(k.recordTitle, systemImage: k.nativeSymbol) }
-                }
-            }
-            Button { dictate() } label: { Label("Dictate", systemImage: "text.bubble") }
-            Button { app.requestCaptions() } label: { Label("Live captions", systemImage: "captions.bubble") }
-            Menu {
-                Button { app.showPhotoPicker = true } label: { Label("Choose from Photos", systemImage: "photo") }
-                Button { app.showImporter = true } label: { Label("Choose files…", systemImage: "folder") }
-                Button { app.showLinkSheet = true } label: { Label("Paste a link", systemImage: "link") }
-            } label: { Label("Import", systemImage: "square.and.arrow.down") }
-        } label: {
-            Circle().fill(PremiumStyle.disc)
-                .frame(width: 64, height: 64)
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: 1).padding(1).blendMode(.overlay))
-                .padding(5)
-                .background(PremiumStyle.ring, in: Circle())
-                .shadow(color: PremiumStyle.discShadow, radius: 12, y: 8)
-                .contentShape(Circle())
-        } primaryAction: {
-            app.requestRecord()
-        }
-        .accessibilityLabel("Record")
-        .accessibilityHint("Starts a voice note. Touch and hold to record a meeting or another kind, or for Dictate, Live captions, and Import.")
-        .accessibilityAction(named: "Record a meeting") { app.requestRecord(kind: .meeting) }
-        .accessibilityIdentifier("premium.record")
-        .accessibilityAction(named: "Dictate") { dictate() }
-        .accessibilityAction(named: "Live captions") { app.requestCaptions() }
-        .accessibilityAction(named: "Import") { app.showImporter = true }
-        .onAppear { Self.onScreen.insert(tab) }
-        .onDisappear { Self.onScreen.remove(tab) }
+        Circle().fill(PremiumStyle.disc)
+            .frame(width: 64, height: 64)
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: 1).padding(1).blendMode(.overlay))
+            .padding(5)
+            .background(PremiumStyle.ring, in: Circle())
+            .shadow(color: PremiumStyle.discShadow, radius: 12, y: 8)
+            .contentShape(Circle())
+            // The system's highlight while touched, as Native buttons do; no press-in.
+            .opacity(press == .pressing ? 0.75 : 1)
+            .animation(.easeOut(duration: 0.12), value: press)
+            .recordTrayPress(.floating(tab), onPhase: { press = $0 }) { RecordTray.shared.tap() }
+            .recordCardAccessibility(app, id: "premium.record",
+                                     hint: "Starts a voice note. Touch and hold for more ways to record, and for Dictate, Live captions, and Import.")
+            .accessibilityAction(named: "Dictate") { dictate() }
+            .accessibilityAction(named: "Live captions") { app.requestCaptions() }
+            .accessibilityAction(named: "Import") { app.showImporter = true }
+            .onAppear { Self.onScreen.insert(tab) }
+            .onDisappear { Self.onScreen.remove(tab) }
     }
 
     private func dictate() {

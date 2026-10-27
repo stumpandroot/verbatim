@@ -23,6 +23,8 @@ struct HomeScreen: View {
     @State private var micName = HomeScreen.currentMic()
     /// Listens to the mic while a finger is on Record, so the meter shows your real level (DESIGN.md §7).
     @StateObject private var monitor = HomeLevelMonitor()
+    /// The press on Record (RecordTray.swift): just touched, or held with the Record as tray open.
+    @State private var recordPress: RecordPressPhase = .idle
     @ObservedObject private var flow = FlowSettings.shared
     @ScaledMetric(relativeTo: .largeTitle) private var displaySize: CGFloat = 36
     @ScaledMetric(relativeTo: .title) private var recordSize: CGFloat = 30
@@ -179,77 +181,79 @@ struct HomeScreen: View {
     /// Ink on the Record fill: 4.7:1, so every line passes at any size. White would be 2.8:1.
     private var onRecord: Color { Ink.inkFixed }
 
+    /// A press on Record: the card presses in (0.98; its hard shadow tightens to (2, 3)), touch down listens (after a
+    /// moment, so a quick tap doesn't open the mic), and holding 0.4 s opens the Record as tray, which closes the mic.
+    private func recordPressChanged(_ p: RecordPressPhase) {
+        recordPress = p
+        if p == .pressing, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
+    }
+
+    private var recordPressed: Bool { recordPress != .idle }
+
     private var recordPanel: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        // Touch down listens (after a moment, so a quick tap doesn't open the mic); lifting the finger closes it.
-        return Button {
-            monitor.stop()
-            app.requestRecord()
-        } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 7) {
-                    Circle().fill(onRecord).frame(width: 7, height: 7).accessibilityHidden(true)
-                    Text("Ready · \(micName)").font(.system(size: small, weight: .semibold)).lineLimit(1)
-                }
-                .padding(.horizontal, 11).frame(minHeight: 26)
-                .background(Ink.readerFixed.opacity(0.55), in: Capsule())
-                // Real level while recording and while a finger rests here; an even breath otherwise.
-                Group {
-                    if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
-                    else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
-                    else { BreathingHomeMeter(barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
-                }
-                .frame(maxWidth: 250).frame(height: 36)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer(minLength: 0)
-                HStack(alignment: .bottom, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Record").lookSerif(recordSize)
-                        Text("a thought, a call, a walk.").lookSerif(recordLine).italic()
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 8)
-                    // Room for the record disc, which is drawn with the rings (below) so it stays centered on them.
-                    Color.clear.frame(width: 70, height: 52)
-                }
+        let hard: CGSize = recordPressed ? CGSize(width: 2, height: 3) : CGSize(width: 4, height: 5)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 7) {
+                Circle().fill(onRecord).frame(width: 7, height: 7).accessibilityHidden(true)
+                Text("Ready · \(micName)").font(.system(size: small, weight: .semibold)).lineLimit(1)
             }
-            .foregroundStyle(onRecord)
-            .padding(.horizontal, 16).padding(.vertical, 14)
-            .frame(maxWidth: .infinity, minHeight: 184, alignment: .leading)
-            .background {
-                // The art is an overlay, so its fixed 200-pt box never sizes the fill past the card.
-                PhonePanelFill(color: PhoneInk.record, shape: shape)
-                    .overlay(alignment: .topTrailing) {
-                        // The disc sits at the smallest ring's center: x 150, y 210 in the 300-pt design box, scaled
-                        // to this 200-pt frame.
-                        ZStack(alignment: .topLeading) {
-                            PhonePanelArt(kind: .rings)
-                            ZStack {
-                                Circle().fill(Ink.inkFixed)
-                                Circle().fill(PhoneInk.record).frame(width: 18, height: 18)
-                            }
-                            .frame(width: 52, height: 52)
-                            .position(x: 100, y: 140)
-                            .accessibilityHidden(true)
-                        }
-                        .frame(width: 200, height: 200).offset(x: 40, y: 6)
-                    }
-                    .clipShape(shape)
+            .padding(.horizontal, 11).frame(minHeight: 26)
+            .background(Ink.readerFixed.opacity(0.55), in: Capsule())
+            // Real level while recording and while a finger rests here; an even breath otherwise.
+            Group {
+                if app.recorder.isRecording { LiveHomeMeter(live: app.recorder.live, barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
+                else if monitor.listening { LiveHomeMeter(live: monitor.live, barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
+                else { BreathingHomeMeter(barWidth: 4.5, gap: 7, heights: HomeMeter.phoneHeights, color: onRecord) }
             }
-            .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
-            .background(shape.fill(PhoneInk.hard).offset(x: 4, y: 5))
-            .contentShape(shape)
+            .frame(maxWidth: 250).frame(height: 36)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+            HStack(alignment: .bottom, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Record").lookSerif(recordSize)
+                    Text("a thought, a call, a walk.").lookSerif(recordLine).italic()
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                // Room for the record disc, which is drawn with the rings (below) so it stays centered on them.
+                Color.clear.frame(width: 70, height: 52)
+            }
         }
-        .buttonStyle(PhonePressReporting { pressed in
-            if pressed, !app.recorder.isRecording { monitor.listen(after: 0.15) } else { monitor.stop() }
-        })
-        .accessibilityLabel("Record")
-        .accessibilityValue("Microphone: \(micName)")
-        .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
-        .accessibilityIdentifier("home.record.verbose")
-        // Touch and hold: Record a meeting, an interview, a journal entry, a talk, or a note (Templates.swift).
-        .contextMenu { PhoneRecordKindItems { app.requestRecord(kind: $0) } }
-        .accessibilityAction(named: "Record a meeting") { app.requestRecord(kind: .meeting) }
+        .foregroundStyle(onRecord)
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .frame(maxWidth: .infinity, minHeight: 184, alignment: .leading)
+        .background {
+            // The art is an overlay, so its fixed 200-pt box never sizes the fill past the card.
+            PhonePanelFill(color: PhoneInk.record, shape: shape)
+                .overlay(alignment: .topTrailing) {
+                    // The disc sits at the smallest ring's center: x 150, y 210 in the 300-pt design box, scaled
+                    // to this 200-pt frame.
+                    ZStack(alignment: .topLeading) {
+                        PhonePanelArt(kind: .rings)
+                        ZStack {
+                            Circle().fill(Ink.inkFixed)
+                            Circle().fill(PhoneInk.record).frame(width: 18, height: 18)
+                        }
+                        .frame(width: 52, height: 52)
+                        .position(x: 100, y: 140)
+                        .accessibilityHidden(true)
+                    }
+                    .frame(width: 200, height: 200).offset(x: 40, y: 6)
+                }
+                .clipShape(shape)
+        }
+        .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
+        .background(shape.fill(PhoneInk.hard).offset(hard))
+        .contentShape(shape)
+        .scaleEffect(recordPressed && !limitMotion ? 0.98 : 1)
+        .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.12), value: recordPressed)
+        // Touch and hold: the Record as tray (Voice note, Meeting, Interview, Journal entry, Talk, Thought).
+        .recordTrayPress(.card, onPhase: recordPressChanged) {
+            monitor.stop()
+            RecordTray.shared.tap()
+        }
+        .recordCardAccessibility(app, value: "Microphone: \(micName)", id: "home.record.verbose") { monitor.stop() }
         .onAppear { Self.recordCardsOnScreen.insert(.verbose) }
         .onDisappear { Self.recordCardsOnScreen.remove(.verbose) }
     }
@@ -257,37 +261,31 @@ struct HomeScreen: View {
     /// Record, Compact: one slim strip in the record color with the microphone and the disc.
     private var recordStrip: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
-        return Button {
-            monitor.stop()
-            app.requestRecord()
-        } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Record").lookSerif(24)
-                    Text("Ready · \(micName)").font(.system(size: small, weight: .semibold)).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                ZStack {
-                    Circle().fill(Ink.inkFixed)
-                    Circle().fill(PhoneInk.record).frame(width: 14, height: 14)
-                }
-                .frame(width: 40, height: 40)
-                .accessibilityHidden(true)
+        let hard: CGSize = recordPressed ? CGSize(width: 2, height: 3) : CGSize(width: 3, height: 4)
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Record").lookSerif(24)
+                Text("Ready · \(micName)").font(.system(size: small, weight: .semibold)).lineLimit(1)
             }
-            .foregroundStyle(onRecord)
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .background { PhonePanelFill(color: PhoneInk.record, shape: shape) }
-            .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
-            .background(shape.fill(PhoneInk.hard).offset(x: 3, y: 4))
-            .contentShape(shape)
+            Spacer(minLength: 8)
+            ZStack {
+                Circle().fill(Ink.inkFixed)
+                Circle().fill(PhoneInk.record).frame(width: 14, height: 14)
+            }
+            .frame(width: 40, height: 40)
+            .accessibilityHidden(true)
         }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityLabel("Record")
-        .accessibilityValue("Microphone: \(micName)")
-        .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
-        .accessibilityIdentifier("home.record.verbose.compact")
-        .contextMenu { PhoneRecordKindItems { app.requestRecord(kind: $0) } }
+        .foregroundStyle(onRecord)
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+        .background { PhonePanelFill(color: PhoneInk.record, shape: shape) }
+        .overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
+        .background(shape.fill(PhoneInk.hard).offset(hard))
+        .contentShape(shape)
+        .scaleEffect(recordPressed && !limitMotion ? 0.98 : 1)
+        .animation(limitMotion ? Motion.fade : .easeOut(duration: 0.12), value: recordPressed)
+        .recordTrayPress(.card, onPhase: { recordPress = $0 }) { RecordTray.shared.tap() }
+        .recordCardAccessibility(app, value: "Microphone: \(micName)", id: "home.record.verbose.compact")
     }
 
     // MARK: Tiles
@@ -560,16 +558,6 @@ extension HomeScreen {
 }
 // brand: native end
 
-/// Card press feedback (`PhoneCardPress`) that also reports the press, so Record can open the mic while a finger
-/// rests on it.
-struct PhonePressReporting: ButtonStyle {
-    var onPress: (Bool) -> Void
-    func makeBody(configuration: Configuration) -> some View {
-        PhoneCardPress().makeBody(configuration: configuration)
-            .onChange(of: configuration.isPressed) { _, pressed in onPress(pressed) }
-    }
-}
-
 
 extension Notification.Name {
     /// Scrolls Home to a section ("home-top", "home-recent", "home-dictations"); the screenshot tour uses it.
@@ -642,6 +630,11 @@ struct RecordScreen: View {
     /// How far a swipe down has pulled the screen (iOS 17, or with motion limited; otherwise the system's zoom
     /// transition handles the swipe).
     @State private var pull: CGFloat = 0
+    /// Started from the Record as tray: the next recorder opens with no system transition and slides up 12 pt over
+    /// 150 ms, opaque from its first frame (PhoneState.presentRecorder sets it; never under Limit animation).
+    static var slideInNext = false
+    @State private var arrive: CGFloat = RecordScreen.slideInNext ? 12 : 0
+    @ObservedObject private var auto = TemplateSettingsModel.shared
     private var paused: Bool { app.recorder.isPaused }
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
     /// The system cover slides up; its content staggers in behind it.
@@ -661,7 +654,12 @@ struct RecordScreen: View {
                 verbose
             }
         }
-        .offset(y: pull)
+        .offset(y: pull + arrive)
+        .onAppear {
+            guard Self.slideInNext else { return }
+            Self.slideInNext = false
+            withAnimation(.easeOut(duration: 0.15)) { arrive = 0 }
+        }
         // Swipe down to minimize where the system's zoom transition doesn't provide it. Never stops the recording.
         .gesture(swipeDown, including: RecorderZoomDestination.systemSwipe(limitMotion: limitMotion) ? .subviews : .all)
         .modifier(RecorderZoomDestination(zoom: zoom))
@@ -674,6 +672,32 @@ struct RecordScreen: View {
         } message: {
             Text("\(discardLength) recorded. You can restore it for 30 days.")
         }
+    }
+
+    /// The line under the meter: the template that runs when you stop (with Run automatically's glyph), or what the
+    /// kind does, then "Screen can lock". Wraps to two lines at larger text sizes.
+    private var recordMeta: some View {
+        let choice = app.recordingChoice
+        let all = app.store.allTemplates
+        let runs = choice.template(settings: auto.settings, templates: all) != nil
+        let line = HStack(spacing: 5) {
+            if runs { IconGlyph(art: .iconRecent, size: 13, color: Ink.mute).accessibilityHidden(true) }
+            Text(choice.recorderLine(settings: auto.settings, templates: all)).fixedSize(horizontal: false, vertical: true)
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                line
+                Spacer(minLength: 8)
+                Text("Screen can lock")
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                line
+                Text("Keeps recording with the screen locked")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(size: 13)).foregroundStyle(.lookMute)
+        .accessibilityElement(children: .combine)
     }
 
     /// Beside Mark: "Marked 4:12 · 3 moments" for two seconds, then how many are marked.
@@ -700,7 +724,12 @@ struct RecordScreen: View {
                 .accessibilityHint("Keeps recording. Use the bar above the tab bar to come back.")
                 Text(adding != nil ? "Continue recording" : app.recordingThought ? ThoughtRules.activityTitle : "New recording").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim)
                 DottedRule().frame(height: 1)
-                Text(adding != nil ? "Adds to \(HomeRecentStyle.length(adding!.duration))" : app.recordingThought ? PhoneState.thoughtPageTitle(app.todayPage) : "Voice note").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
+                // A kind picked in the Record as tray shows as its neutral chip; a plain Record stays "Voice note".
+                if adding == nil, !app.recordingThought, let k = app.recordKind {
+                    RecordKindChip(choice: .kind(k))
+                } else {
+                    Text(adding != nil ? "Adds to \(HomeRecentStyle.length(adding!.duration))" : app.recordingThought ? PhoneState.thoughtPageTitle(app.todayPage) : "Voice note").font(.system(size: 13)).monospacedDigit().foregroundStyle(.lookMute)
+                }
             }
             .padding(.top, 8)
             .riseIn("header", index: 0, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
@@ -766,6 +795,11 @@ struct RecordScreen: View {
                 .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 14)
                 .accessibilityElement(children: .combine)
+            } else if adding == nil {
+                // What happens when you stop: the template Run automatically will run, or what the kind does.
+                recordMeta
+                    .padding(.top, 14)
+                    .riseIn("locked", index: 3, seen: seen, epoch: 0, base: 0.2, scrollRise: false)
             } else {
                 Text("Keeps recording with the screen locked").font(.system(size: 13)).foregroundStyle(.lookMute)
                     .frame(maxWidth: .infinity).padding(.top, 14)
