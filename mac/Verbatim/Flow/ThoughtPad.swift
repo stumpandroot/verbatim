@@ -245,6 +245,8 @@ struct ThoughtPageView: View {
                 }
                 Text("Click a thought to edit it. Right-click to copy or delete it.").font(.system(size: 11.5)).foregroundStyle(Ink.mute)
                     .padding(.horizontal, 18).padding(.vertical, 6)
+                // Organize: Plan my day over the page (PlanMaker.swift), in its own window.
+                ThoughtPadOrganizeRow(day: state.day, items: items).padding(.horizontal, 14).padding(.bottom, 8)
             }
             bottomBar(items)
         }
@@ -563,6 +565,7 @@ private struct NativeThoughtPage: View {
                     }
                     .onAppear { if let last = items.last { proxy.scrollTo(last.id, anchor: .bottom) } }
                 }
+                ThoughtPadOrganizeRow(day: state.day, items: items).padding(.horizontal, 14)
             }
             HStack(spacing: 8) {
                 ThoughtMicDisc(size: 36).uiTarget("page-mic")
@@ -586,3 +589,51 @@ private struct NativeThoughtPage: View {
     }
 }
 // brand: native end
+
+
+/// Today's page's Organize (both looks): runs Plan my day over the page's thoughts and opens the plan in its own window
+/// (`ThoughtsPlanWindow`), and once a plan is made, "Plan · made 3:20 PM · 2 new thoughts since". It never runs again
+/// on its own.
+struct ThoughtPadOrganizeRow: View {
+    var day: Date
+    var items: [Transcript]
+    @ObservedObject private var center = DayPlanCenter.shared
+    @ObservedObject private var capture = ThoughtCapture.shared
+    @Environment(\.look) private var look
+
+    var body: some View {
+        let store = capture.app?.store
+        let record = store?.dayPlan(day, source: .thoughts)
+        let running = center.isRunning(day, .thoughts)
+        HStack(spacing: 8) {
+            if let r = record, r.hasPlan {
+                let fresh = r.newThoughts(in: items.map(\.id))
+                let at = r.madeAt.map { Formats.style(date: .none, time: .short).string(from: $0) } ?? ""
+                Text("Plan \u{00B7} made \(at)" + (fresh > 0 ? " \u{00B7} \(fresh == 1 ? "1 new thought" : "\(fresh) new thoughts") since" : ""))
+                    .font(.system(size: 12)).foregroundStyle(look == .native ? AnyShapeStyle(.secondary) : AnyShapeStyle(Ink.mute)).lineLimit(1)
+                Spacer(minLength: 4)
+                PillButton(title: "Open Plan", kind: .line, size: .mini) { open() }
+                    .uiTarget("page-open-plan")
+            } else {
+                if let why = center.failure(day, .thoughts) {
+                    Text(why).font(.system(size: 12)).foregroundStyle(Ink.mute).lineLimit(2)
+                }
+                Spacer(minLength: 4)
+                if running { ProgressView().controlSize(.small) }
+                PillButton(title: "Organize", kind: .line, size: .mini, icon: .iconPlanDay, enabled: !running && !DayPlanCenter.lines(items).isEmpty) { organize() }
+                    .uiTarget("page-organize")
+            }
+        }
+    }
+
+    private func organize() {
+        guard let app = capture.app else { return }
+        DayPlanCenter.shared.organize(day: day, thoughts: items, store: app.store)
+        ThoughtsPlanWindow.open(day: day, app: app)
+    }
+
+    private func open() {
+        guard let app = capture.app else { return }
+        ThoughtsPlanWindow.open(day: day, app: app)
+    }
+}

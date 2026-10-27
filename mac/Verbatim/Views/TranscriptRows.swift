@@ -200,7 +200,16 @@ struct RowMenu: View {
             if !app.store.projects.isEmpty { Divider() }
             Button("New project…") { app.newProjectFor = [transcript.id] }
         }
-        if transcript.status == .ready { Button("Export…") { app.exportRequest = ExportRequest(ids: [transcript.id]) } }
+        if AudioOnlyRules.canTranscribe(transcript) {
+            // Audio only: Transcribe, or Transcribe As each kind, like Record As (AudioOnly.swift).
+            Button("Transcribe") { app.transcribeLater(transcript.id) }
+            Menu("Transcribe As") {
+                ForEach(AudioOnlyRules.transcribeChoices, id: \.self) { k in
+                    Button(AudioOnlyRules.choiceName(k).capitalized) { app.transcribeLater(transcript.id, as: k) }
+                }
+            }
+        }
+        if transcript.status == .ready, !transcript.showsAudioDetail { Button("Export…") { app.exportRequest = ExportRequest(ids: [transcript.id]) } }
         if transcript.status == .failed { Button("Retry transcription") { app.retry(transcript) } }
         if transcript.status == .processing { Button("Cancel transcription") { app.cancel(transcript.id) } }
         Divider()

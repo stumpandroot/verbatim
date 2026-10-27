@@ -152,7 +152,9 @@ struct NativeInspector: View {
             case .library:
                 PremiumLibraryPreview(nav: nav)
             case .transcript(let id):
-                if let t = app.store.transcript(id) { PremiumTranscriptInspector(transcript: t, nav: nav) }
+                if let t = app.store.transcript(id) {
+                    if t.showsAudioDetail { MacAudioInspector(transcript: t) } else { PremiumTranscriptInspector(transcript: t, nav: nav) }
+                }
             default:
                 Color.clear
             }

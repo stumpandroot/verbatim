@@ -408,7 +408,7 @@ struct TranscriptView: View {
             if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 8) }
             if t.status == .ready {
                 KindAndTags(transcript: t, compact: true,
-                            onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
+                            onPick: { k in app.pickKind(k, for: t.id) },
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
                     .padding(.top, 12)
             }

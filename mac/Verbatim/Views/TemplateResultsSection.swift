@@ -46,6 +46,11 @@ struct TemplateResultsSection: View {
             if let why = center.failures[transcript.id] {
                 Text(why).font(.system(size: 12.5)).foregroundStyle(Ink.danger).fixedSize(horizontal: false, vertical: true)
             }
+            // Filed as a Brain dump afterward, with nothing run: "Now a Brain dump. Run Plan my day?"
+            if let offer = AutoRunRules.offer(transcript, settings: auto.settings, templates: templates), offer.result == nil,
+               !center.isPending(transcript.id), busy == nil {
+                offerRow(offer)
+            }
             ForEach(results) { r in card(r, templates) }
             if runRow, results.isEmpty, busy == nil, transcript.status == .ready, transcript.autoRunWaitingText == nil {
                 runMenu(title: "Run a template", replacing: nil, templates: templates)
@@ -92,8 +97,13 @@ struct TemplateResultsSection: View {
                 Text("Apple Intelligence declined \(r.skippedParts) of \(r.totalParts) parts, so their words aren\u{2019}t in this result.")
                     .font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
             }
-            TemplateResultBody(text: r.text, heading: Ink.serif(inline ? 19 : 17), textFont: .system(size: 13),
-                               ink: AnyShapeStyle(Ink.ink), dim: AnyShapeStyle(Ink.mute))
+            if DayPlan.isPlan(r) {
+                // Plan my day: the plan, with Send to Reminders (BrainDumpWindow.swift's MacRemindersSend).
+                MacPlanResult(transcript: transcript, result: r, inline: inline)
+            } else {
+                TemplateResultBody(text: r.text, heading: Ink.serif(inline ? 19 : 17), textFont: .system(size: 13),
+                                   ink: AnyShapeStyle(Ink.ink), dim: AnyShapeStyle(Ink.mute))
+            }
             Rectangle().fill(Ink.hairline).frame(height: 1)
             Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -114,6 +124,7 @@ struct TemplateResultsSection: View {
                 .uiTarget("result-offer-run")
                 PillButton(title: "Not now", kind: .line, size: .mini) {
                     app.store.update(transcript.id) { x in
+                        if offer.result == nil { AutoRunRules.dismissBrainDumpOffer(offer, on: &x, device: Device.id); return }
                         if let i = x.templateResults?.firstIndex(where: { $0.id == offer.result }) { x.templateResults?[i].offerDismissed = offer.kind.rawValue }
                     }
                 }
@@ -248,5 +259,58 @@ struct RunTemplateMenu: View {
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .help("Make notes, a plan, or a draft from this transcript with a template")
         .accessibilityLabel(title)
+    }
+}
+
+/// A Plan my day result in a transcript: Send to Reminders (a popover in Verbose style, a sheet in Native) or how many
+/// are there, then the plan. Each task's time plays the line it came from.
+struct MacPlanResult: View {
+    @EnvironmentObject var app: AppState
+    var transcript: Transcript
+    var result: TemplateResult
+    var inline = false
+    @Environment(\.look) private var look
+    @State private var model: SendToReminders? = nil
+
+    var body: some View {
+        let plan = DayPlan.parse(result.text)
+        let sent = result.sent ?? [:]
+        VStack(alignment: .leading, spacing: 10) {
+            if !plan.isEmpty {
+                HStack(spacing: 8) {
+                    if DayPlan.allSent(plan, sent: sent) {
+                        Text("\u{2713} " + (DayPlan.sentStatus(plan, sent: sent) ?? "")).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.ink)
+                    } else {
+                        PillButton(title: "Send to Reminders", kind: .dark, size: .mini) { open(plan, sent, only: nil) }
+                            .uiTarget("result-send-reminders")
+                            .popover(isPresented: Binding(get: { model != nil && look != .native }, set: { if !$0 { model = nil } }), arrowEdge: .bottom) {
+                                if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).environmentObject(app) }
+                            }
+                        if let s = DayPlan.sentStatus(plan, sent: sent) { Text(s).font(.system(size: 12)).foregroundStyle(Ink.mute) }
+                    }
+                }
+            }
+            PlanSections(plan: plan, recordedAt: transcript.createdAt, sent: sent, native: look == .native,
+                         headingSize: inline ? 19 : 17, textSize: 13,
+                         link: { $0.anchor.map(DayPlan.clock) },
+                         onJump: { item in if let a = item.anchor { app.player.play(from: a) } },
+                         onSend: { open(plan, sent, only: $0) })
+        }
+        .sheet(isPresented: Binding(get: { model != nil && look == .native }, set: { if !$0 { model = nil } })) {
+            if let m = model { MacRemindersSend(model: m, onSent: done, onCancel: { model = nil }).environmentObject(app) }
+        }
+    }
+
+    private func open(_ plan: DayPlan, _ sent: [String: String], only: DayPlan.Item?) {
+        let m = SendToReminders(plan: plan, sent: sent, recordedAt: transcript.createdAt,
+                                source: transcript.kind == .brainDump ? "Brain dump" : transcript.title, anchorLabel: { $0.anchor.map(DayPlan.clock) })
+        if let only { m.selection = [only.key] }
+        model = m
+    }
+
+    private func done(_ added: [String: String], _ message: String) {
+        app.store.update(transcript.id) { $0.recordSentReminders(added, result: result.id) }
+        app.toast = Toast(message)
+        model = nil
     }
 }

@@ -369,6 +369,12 @@ struct ThoughtsMenuSection: View {
                 ThoughtPadController.shared.open()
             }
             .uiTarget("menu-open-page")
+            // Brain dump (BrainDumpWindow.swift): today's note for ⌃⌥ dictation, and Make a plan.
+            row("Brain dump", keys: nil, art: .iconBrainDump) {
+                dismiss()
+                BrainDumpWindow.open(capture.app)
+            }
+            .uiTarget("menu-brain-dump")
             row("Show the bubble", keys: nil, art: nil, checked: showBubble) {
                 // The stored setting decides (the setter refreshes the bubble); the row's @AppStorage only draws the check.
                 Thoughts.showBubble = !Thoughts.showBubble

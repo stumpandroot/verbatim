@@ -62,6 +62,8 @@ struct VerbatimApp: App {
                 // AutoLabel leaves it and Run automatically uses it (Templates.swift). Meeting… is the meeting capture,
                 // which files its transcript as a Meeting; Stop Meeting and Pause Meeting show below while one runs.
                 Menu("Record As") { RecordKindMenuItems(titles: \.commandTitle).environmentObject(app) }
+                // Brain dump (BrainDumpWindow.swift): today's note, where ⌃⌥ dictation types, and Make a Plan.
+                Button("New Brain Dump") { BrainDumpWindow.open(app) }
                 Button("Live Captions") { app.toggleLiveCaptions() }
                     .keyboardShortcut("c", modifiers: [.option, .command])
                 // Meeting capture (App/MeetingCoordinator.swift): every start goes through the consent sheet. Its
