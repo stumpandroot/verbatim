@@ -108,3 +108,37 @@ final class PhoneBackgroundWork {
         reported = nil
     }
 }
+
+/// Ask's scheduled recipes on iPhone (AskRecipeCenter): a background app refresh asked for at the next scheduled time.
+/// iOS decides when it actually runs, so a Friday digest can come later than you set; a recipe owed a run also runs
+/// the next time Verbose opens. Must match BGTaskSchedulerPermittedIdentifiers in project.yml.
+enum AskBackgroundRefresh {
+    static let identifier = "co.stumpandroot.verbatim.ios.recipes"
+    private static var registered = false
+
+    /// Registers the handler; called from the app delegate before launch finishes.
+    static func register() {
+        guard !registered else { return }
+        registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
+            guard let task = task as? BGAppRefreshTask else { task.setTaskCompleted(success: false); return }
+            let work = Task { @MainActor in
+                // The library loads at launch; a background launch waits for it a little.
+                var waited = 0
+                while !(AskRecipeCenter.shared.isAttached), waited < 40 { try? await Task.sleep(nanoseconds: 250_000_000); waited += 1 }
+                await AskRecipeCenter.shared.runDueAndWait(timeout: 22)
+                task.setTaskCompleted(success: !Task.isCancelled)
+            }
+            task.expirationHandler = { work.cancel() }
+        }
+    }
+
+    /// Asks for time at `date` (the soonest scheduled recipe), or cancels the request when nothing is scheduled.
+    static func schedule(_ date: Date?) {
+        guard registered else { return }
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier)
+        guard let date else { return }
+        let req = BGAppRefreshTaskRequest(identifier: identifier)
+        req.earliestBeginDate = date
+        do { try BGTaskScheduler.shared.submit(req) } catch { Log.note("ask: background refresh not available: \(error.localizedDescription)") }
+    }
+}

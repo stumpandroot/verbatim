@@ -19,6 +19,8 @@ enum Screen: Equatable {
     case byDay(RecordingKind)
     /// Make › Templates: the template library and Run automatically (Views/TemplatesView.swift).
     case templates
+    /// Make › Ask: questions about your library and recipes (Views/AskViews.swift).
+    case ask
 }
 
 /// Which way the next screen slides in. Sidebar order decides up/down; opening a transcript pushes.
@@ -196,6 +198,16 @@ final class AppState: ObservableObject {
         TemplateCenter.shared.automatic = !UITest.enabled
         TemplateCenter.shared.announce = { [weak self] msg in self?.toast = Toast(msg) }
         TemplateCenter.shared.resumeWaiting(store: store)
+        // Ask: the passage index catches up in the background, never while something records or transcribes; recipes
+        // run on their weekly schedule while Verbose is open, or at the next launch after their time.
+        AskCenter.shared.automatic = !UITest.enabled
+        AskCenter.shared.attach(store) { [weak self] in
+            guard let self else { return true }
+            return self.recorder.isRecording || self.capture.isCapturing || self.runningID != nil || self.dictation.isListening
+                || ThoughtCapture.shared.isRecording
+        }
+        AskRecipeCenter.shared.automatic = !UITest.enabled
+        AskRecipeCenter.shared.attach(store)
         // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
         if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
@@ -294,7 +306,8 @@ final class AppState: ObservableObject {
     private func key(_ s: Screen) -> String {
         switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript"
         case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts"
-        case .templates: return "templates" }
+        case .templates: return "templates"
+        case .ask: return "ask" }
     }
 
     func applyAppearance() {

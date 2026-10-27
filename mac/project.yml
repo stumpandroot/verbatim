@@ -482,8 +482,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         VerboseChannel: $(VERBOSE_CHANNEL)
         UILaunchScreen: {}
-        UIBackgroundModes: [audio]
-        BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe]
+        # fetch: Ask's scheduled recipes run in a background app refresh (AskBackgroundRefresh, PhoneBackgroundWork.swift).
+        UIBackgroundModes: [audio, fetch]
+        BGTaskSchedulerPermittedIdentifiers: [co.stumpandroot.verbatim.ios.transcribe, co.stumpandroot.verbatim.ios.recipes]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSMicrophoneUsageDescription: "Verbose records voice memos and dictation with your microphone, and keeps it ready for the Verbose keyboard while a session is on. Audio is transcribed on this iPhone and goes to your own iCloud only when you turn on iCloud sync."
