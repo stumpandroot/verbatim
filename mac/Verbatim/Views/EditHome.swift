@@ -113,9 +113,9 @@ struct EditHomeView: View {
             .toggleStyle(.checkbox)
             .accessibilityHint(item.visible ? "Hides it from Home." : "Shows it at the end of Home.")
             if item.section == .tiles {
-                Button("Choose…") { picking.wrappedValue = true }
-                    .buttonStyle(.link)
-                    .font(.system(size: 12.5))
+                // A text link in ink (Verbose) or the accent (Native), never the system's blue link.
+                Button { picking.wrappedValue = true } label: { TextLinkLabel(title: "Choose…", glyph: .none) }
+                    .buttonStyle(.plain)
                     .popover(isPresented: picking, arrowEdge: .leading) { HomeTilePickerMac(look: hl) }
                     .help(layout.tiles.map(\.title).joined(separator: ", "))
                     .accessibilityLabel("Choose tiles")

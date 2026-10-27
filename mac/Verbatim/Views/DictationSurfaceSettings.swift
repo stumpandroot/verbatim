@@ -99,7 +99,7 @@ private struct SurfaceCard: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(selected ? Ink.card : (hover ? Ink.cardHover : Ink.paper), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .overlay { if !selected { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1) } }
-        .inkEdge(outline: selected, shadow: selected ? CGSize(width: 3, height: 4) : .zero, radius: Radius.tile)
+        .inkEdge(outline: selected, shadow: selected ? InkEdge.row : .zero, radius: Radius.tile)
         .onHover { hover = $0 }
         .tapArea(action)
         .accessibilityElement(children: .combine)
@@ -113,10 +113,12 @@ private struct SurfaceCard: View {
 private struct ChoiceDot: View {
     var on: Bool
     var size: CGFloat = 16
+    @Environment(\.look) private var look
     var body: some View {
         ZStack {
             Circle().fill(Ink.card)
-            Circle().strokeBorder(on ? Ink.ink : Ink.mute, lineWidth: on ? size * 0.31 : 1.5)
+            // Native: the accent radio, as System Settings draws it.
+            Circle().strokeBorder(on ? (look == .native ? Ink.nativeAccent : Ink.ink) : Ink.mute, lineWidth: on ? size * 0.31 : 1.5)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -191,7 +193,25 @@ struct KeyChip: View {
     var text: String
     var ghost = false
     var big = false
+    @Environment(\.look) private var look
     var body: some View {
+        if look == .native { native } else { verbose }
+    }
+
+    /// Native: the keys as plain secondary text on a soft rounded fill, as System Settings shows a shortcut.
+    private var native: some View {
+        HStack(spacing: 4) {
+            Text(text).font(.system(size: big ? 14 : 12, weight: .medium))
+            if text == "fn" { Image(systemName: "globe").font(.system(size: big ? 13 : 11)) }
+        }
+        .foregroundStyle(ghost ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+        .padding(.horizontal, 7).frame(minHeight: big ? 28 : 22)
+        .background(NativeInk.bordered, in: RoundedRectangle(cornerRadius: 5, style: .continuous))   // brand: native
+        .fixedSize()
+        .accessibilityLabel(Keycap.spoken(text))
+    }
+
+    private var verbose: some View {
         HStack(spacing: 4) {
             Text(text).font(Ink.mono(big ? 15 : 12.5))
             if text == "fn" { Image(systemName: "globe").font(.system(size: big ? 14 : 12)) }
@@ -232,16 +252,19 @@ struct HotkeyPickerRow: View {
         SettingsRow("dictate.hotkey", stacked: true) {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(spacing: 0) {
+                    // Fn's setup step is a step, not an error: dim with the attention glyph, and danger only once Fn is
+                    // chosen and the setting is still wrong.
                     option(.fnGlobe, title: "Fn or Globe key",
-                           note: fnNeedsChange ? "Set System Settings › Keyboard › Press 🌐 key to: Do nothing first." : nil, warn: true) {
+                           note: fnNeedsChange ? "Needs one setting: System Settings › Keyboard › Press 🌐 key to: Do nothing." : nil,
+                           warn: dictation.hotkey == .fnGlobe, attention: true) {
                         KeyChip(text: "fn")
                     }
-                    option(.rightCommand, title: "Right Command") { KeyChip(text: "right ⌘") }
-                    option(.rightOption, title: "Right Option", note: "The default. Left ⌥ still types special characters.") { KeyChip(text: "right ⌥") }
+                    option(.rightCommand, title: "Right Command") { KeyChip(text: "Right ⌘") }
+                    option(.rightOption, title: "Right Option", note: "The default. Left ⌥ still types special characters.") { KeyChip(text: "Right ⌥") }
                     option(.custom, title: "A shortcut you choose", note: customNote, warn: needsModifier) { customControl }
                     option(.mouse, title: "A mouse button", note: "A side button on a mouse with more than three.", last: true) { mouseControl }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .padding(4)
                 .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
                 .frame(maxWidth: 620)
                 if recording {
@@ -263,7 +286,7 @@ struct HotkeyPickerRow: View {
     // MARK: Rows
 
     private func option<Trailing: View>(_ choice: DictationController.Hotkey, title: String, note: String? = nil, warn: Bool = false,
-                                        last: Bool = false, @ViewBuilder trailing: () -> Trailing) -> some View {
+                                        attention: Bool = false, last: Bool = false, @ViewBuilder trailing: () -> Trailing) -> some View {
         let on = dictation.hotkey == choice
         return HStack(spacing: 12) {
             // The text side picks the choice; the controls on the right take their own clicks.
@@ -272,8 +295,16 @@ struct HotkeyPickerRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Ink.ink)
                     if let note {
-                        Text(note).font(.system(size: 12)).foregroundStyle(warn ? Ink.accentText : Ink.mute)
-                            .lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            if attention {
+                                BrandGlyph(art: .iconAttention, color: warn ? Ink.danger : Ink.dim, minLineWidth: 1.2)
+                                    .frame(width: 12, height: 12).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1.5 }
+                                    .accessibilityHidden(true)
+                            }
+                            Text(note).font(.system(size: 12)).foregroundStyle(warn ? Ink.danger : (attention ? Ink.dim : Ink.mute))
+                                .lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
+                        }
+                        .uiTarget("hotkey-note-\(choice.rawValue)")
                     }
                 }
                 Spacer(minLength: 8)
@@ -286,10 +317,13 @@ struct HotkeyPickerRow: View {
             .uiTarget("hotkey-\(choice.rawValue)")
             trailing()
         }
-        .padding(.horizontal, 14).padding(.vertical, 9)
+        .padding(.horizontal, 10).padding(.vertical, 9)
         .frame(minHeight: 52)
-        .background(on ? Ink.butterTint : Color.clear)
-        .overlay(alignment: .bottom) { if !last { RowRule() } }
+        // The list's selected row (DESIGN.md §11.3): the card fill, the 1.5 pt ink outline, and the (4, 5) hard shadow,
+        // with the radio as the check; never a butter wash (butter means Dictate). Native: a soft neutral wash.
+        .flatRow(highlighted: on)
+        .zIndex(on ? 1 : 0)
+        .uiTarget("hotkey-row-\(choice.rawValue)")
     }
 
     @ViewBuilder private var customControl: some View {
@@ -619,7 +653,7 @@ private struct LookCard: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(selected ? Ink.card : (hover ? Ink.cardHover : Ink.paper), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .overlay { if !selected { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1) } }
-        .inkEdge(outline: selected, shadow: selected ? CGSize(width: 3, height: 4) : .zero, radius: Radius.tile)
+        .inkEdge(outline: selected, shadow: selected ? InkEdge.row : .zero, radius: Radius.tile)
         .onHover { hover = $0 }
         .tapArea(action)
         .accessibilityElement(children: .ignore)

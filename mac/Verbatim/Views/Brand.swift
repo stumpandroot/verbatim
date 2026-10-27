@@ -218,6 +218,12 @@ extension BrandArt {
     static let iconMark = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M12 7.5V12.5"), .path("M9.5 10H14.5")], strokeWidth: 1.5)
     static let iconMarked = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M9.3 10L11.3 12L14.8 8.5")], strokeWidth: 1.5)
     static let iconAsk = BrandArt(box: iconGrid, strokes: [.path("M4 5H20V16H11.5L7 20V16H4Z"), .path("M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6")], strokeWidth: 1.5)
+    static let iconMail = BrandArt(box: iconGrid, strokes: [.path("M3.5 6H20.5V18H3.5Z"), .path("M3.5 6L12 13L20.5 6")], strokeWidth: 1.5)
+    static let iconChecklist = BrandArt(box: iconGrid, strokes: [.path("M4 6.5L5.5 8L8 5.5"), .path("M11 7H20"), .path("M4 12.5L5.5 14L8 11.5"), .path("M11 13H20"), .path("M4.5 17.5H7.5V20.5H4.5Z"), .path("M11 19H17")], strokeWidth: 1.5)
+    static let iconBullets = BrandArt(box: iconGrid, strokes: [.path("M9 7H20"), .path("M9 12H20"), .path("M9 17H20")], fills: [.circle(5, 7, 1.2), .circle(5, 12, 1.2), .circle(5, 17, 1.2)], strokeWidth: 1.5)
+    static let iconTighten = BrandArt(box: iconGrid, strokes: [.path("M4 4L10 10"), .path("M10 5.5V10H5.5"), .path("M20 20L14 14"), .path("M14 18.5V14H18.5")], strokeWidth: 1.5)
+    static let iconFilm = BrandArt(box: iconGrid, strokes: [.path("M4 9.5H20V19.5H4Z"), .path("M4 9.5L3.4 6.3L18.6 3.5L19.2 6.7"), .path("M8.2 5.5L9.6 8.3"), .path("M13 4.6L14.4 7.4")], strokeWidth: 1.5)
+    static let iconStudy = BrandArt(box: iconGrid, strokes: [.path("M2.5 9.5L12 5L21.5 9.5L12 14Z"), .path("M6.5 11.6V16C9 18.3 15 18.3 17.5 16V11.6"), .path("M21.5 9.5V15")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the

@@ -234,6 +234,14 @@ I = {
     # Ask your library (mockup "Library features", section 2, October 26, 2026), same grammar: a speech bubble holding a
     # short sound wave, the Thoughts filament's wave laid flat.
     'Ask': [s('M4 5H20V16H11.5L7 20V16H4Z'), s('M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6')],
+    # Saved actions (build 228 review, M-46), same grammar, in place of the SF Symbols they used: an envelope, a
+    # checklist, bullet points, two arrows drawing in (Tighten), a clapperboard (Screenplay), and a mortarboard (Study).
+    'Mail': [s('M3.5 6H20.5V18H3.5Z'), s('M3.5 6L12 13L20.5 6')],
+    'Checklist': [s('M4 6.5L5.5 8L8 5.5'), s('M11 7H20'), s('M4 12.5L5.5 14L8 11.5'), s('M11 13H20'), s('M4.5 17.5H7.5V20.5H4.5Z'), s('M11 19H17')],
+    'Bullets': [fl(C(5, 7, 1.2)), fl(C(5, 12, 1.2)), fl(C(5, 17, 1.2)), s('M9 7H20'), s('M9 12H20'), s('M9 17H20')],
+    'Tighten': [s('M4 4L10 10'), s('M10 5.5V10H5.5'), s('M20 20L14 14'), s('M14 18.5V14H18.5')],
+    'Film': [s('M4 9.5H20V19.5H4Z'), s('M4 9.5L3.4 6.3L18.6 3.5L19.2 6.7'), s('M8.2 5.5L9.6 8.3'), s('M13 4.6L14.4 7.4')],
+    'Study': [s('M2.5 9.5L12 5L21.5 9.5L12 14Z'), s('M6.5 11.6V16C9 18.3 15 18.3 17.5 16V11.6'), s('M21.5 9.5V15')],
 }
 
 

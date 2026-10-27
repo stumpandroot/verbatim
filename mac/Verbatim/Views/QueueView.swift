@@ -177,14 +177,14 @@ struct QueueRow: View {
         }
     }
 
-    /// "✕ Cancel" as plain accent text.
+    /// "✕ Cancel" as plain ink text (a text link; persimmon text would read as Record).
     private var cancelButton: some View {
         HStack(spacing: 4) {
             Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
             Text("Cancel")
         }
         .font(.system(size: 12.5, weight: .semibold))
-        .foregroundStyle(Ink.accentText)
+        .foregroundStyle(Ink.ink)
         .padding(.horizontal, 6).frame(height: 28)
         .tapArea { app.cancel(transcript.id) }
         .help("Cancel \(transcript.title)")

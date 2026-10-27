@@ -1,5 +1,26 @@
 import SwiftUI
 
+/// A saved action's glyph (DESIGN.md §3): its BrandArt in place of the SF Symbol name it's saved with, so stored
+/// actions and older builds keep reading the same `symbol`. Menus, a system surface, still show the symbol.
+extension FlowAction {
+    var art: BrandArt {
+        switch symbol {
+        case "envelope": return .iconMail
+        case "checklist", "list.bullet.clipboard": return .iconChecklist
+        case "doc.text": return .iconTerms
+        case "list.bullet": return .iconBullets
+        case "arrow.down.right.and.arrow.up.left": return .iconTighten
+        case "globe": return .iconLanguage
+        case "film": return .iconFilm
+        case "book.closed": return .iconNotes
+        case "square.and.pencil": return .iconFeedback
+        case "graduationcap": return .iconStudy
+        case "text.quote": return .iconQuote
+        default: return .iconAI   // sparkles, wand.and.stars, and actions you add
+        }
+    }
+}
+
 /// The saved actions as menu items, with a way to edit them.
 struct ActionsMenuItems: View {
     @EnvironmentObject var app: AppState
@@ -7,7 +28,7 @@ struct ActionsMenuItems: View {
     var pick: (FlowAction) -> Void
     var body: some View {
         ForEach(settings.actions) { a in
-            Button { pick(a) } label: { Label(a.name, systemImage: a.symbol) }
+            Button { pick(a) } label: { Label(a.name, systemImage: a.symbol) }   // brand: system surface (context menu)
         }
         Divider()
         Button("Edit Actions…") { app.dictation.openSettings(tab: .actions) }
@@ -42,8 +63,9 @@ struct ActionSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: action.symbol).font(.system(size: 15)).foregroundStyle(Ink.persimmon)
-                    .frame(width: 30, height: 30).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                // Actions are neutral (DESIGN.md §1): an ink glyph on a neutral tile; persimmon means Record.
+                IconGlyph(art: action.art, size: 16, color: Ink.ink)
+                    .frame(width: 30, height: 30).background(Ink.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(action.name).font(Ink.serif(20)).foregroundStyle(Ink.ink)
                     Text("On \(sourceLabel) · \(source.split(whereSeparator: \.isWhitespace).count.formatted()) words").font(.system(size: 12)).foregroundStyle(Ink.mute)
@@ -70,10 +92,10 @@ struct ActionSheet: View {
                             Spacer(minLength: 6)
                             if !skipped.isEmpty { Text(skipped).font(.system(size: 11.5)).foregroundStyle(Ink.mute) }
                         }
-                        .foregroundStyle(Ink.accentText)
+                        .foregroundStyle(Ink.ink)
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Ink.persimmonTint)
+                        .background(Ink.ink.opacity(0.06))
                         .accessibilityElement(children: .combine)
                         TextEditor(text: $result)
                             .font(.system(size: 14)).scrollContentBackground(.hidden)
@@ -99,11 +121,11 @@ struct ActionSheet: View {
             HStack(spacing: 10) {
                 if state == .done { Text("Apple Intelligence can be wrong. Edit the result before you keep it.").font(.system(size: 12)).foregroundStyle(Ink.mute) }
                 Spacer()
-                Button("Close") { stop(); dismiss() }.keyboardShortcut(.cancelAction)
-                if state != .running { Button("Try Again") { start() } }
+                Button("Close") { stop(); dismiss() }.buttonStyle(.pillLine(large: true)).keyboardShortcut(.cancelAction)
+                if state != .running { Button("Try again") { start() }.buttonStyle(.pillLine(large: true)) }
                 if state == .done {
-                    if let saveNote { Button("Save as Note") { saveNote(result); app.toast = Toast("Saved as a note"); dismiss() } }
-                    Button("Copy") { Paster.copy(result); app.toast = Toast("Copied"); dismiss() }.keyboardShortcut(.defaultAction)
+                    if let saveNote { Button("Save as note") { saveNote(result); app.toast = Toast("Saved as a note"); dismiss() }.buttonStyle(.pillLine(large: true)) }
+                    Button("Copy") { Paster.copy(result); app.toast = Toast("Copied"); dismiss() }.buttonStyle(.pillDark(large: true)).keyboardShortcut(.defaultAction)
                 }
             }
             .padding(.top, 14)
@@ -160,7 +182,8 @@ struct ActionSettings: View {
 
     var body: some View {
         SettingsPane(tab: .actions) {
-            SettingsGroup(title: "Actions") {
+            // No section title: the page is already titled Actions.
+            SettingsGroup {
                 SettingsRow("actions.list", stacked: true) {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach($settings.actions) { $a in
@@ -181,8 +204,8 @@ struct ActionSettings: View {
                                             .font(.system(size: 11.5)).foregroundStyle(Ink.mute)
                                     }
                                     HStack {
-                                        Button("Move Up") { move(a.id, by: -1) }.buttonStyle(.settingsPill).disabled(settings.actions.first?.id == a.id)
-                                        Button("Move Down") { move(a.id, by: 1) }.buttonStyle(.settingsPill).disabled(settings.actions.last?.id == a.id)
+                                        Button("Move up") { move(a.id, by: -1) }.buttonStyle(.settingsPill).disabled(settings.actions.first?.id == a.id)
+                                        Button("Move down") { move(a.id, by: 1) }.buttonStyle(.settingsPill).disabled(settings.actions.last?.id == a.id)
                                         Spacer()
                                         Button("Delete", role: .destructive) {
                                             // After the row's fields let go of their bindings, or AppKit can read a removed index.
@@ -195,20 +218,21 @@ struct ActionSettings: View {
                                 }
                                 .padding(.vertical, 6)
                             } label: {
-                                Label(a.name.isEmpty ? "Untitled action" : a.name, systemImage: a.symbol).font(.system(size: 13.5))
+                                Label { Text(a.name.isEmpty ? "Untitled action" : a.name) } icon: { ArtIcon(art: a.art, size: 15) }
+                                    .font(.system(size: 13.5))
                             }
                         }
                     }
                 }
                 SettingsRow("actions.add") {
-                    Button("Add Action") {
+                    Button("Add action") {
                         let new = FlowAction(name: "New action", instruction: "")
                         settings.actions.append(new); editing = new.id
                     }
                     .buttonStyle(.settingsPrimaryPill)
                 }
                 SettingsRow("actions.restore") {
-                    Button("Restore Built-in Actions…") { confirmRestore = true }.buttonStyle(.settingsPill)
+                    Button("Restore built-in actions…") { confirmRestore = true }.buttonStyle(.settingsPill)
                 }
             }
         }

@@ -133,7 +133,7 @@ struct SettingsSidebar: View {
                     Text("No matches").font(.system(size: 13)).foregroundStyle(Ink.mute).padding(.horizontal, 12).padding(.vertical, 7)
                 }
                 ForEach(Array(counts.enumerated()), id: \.element.tab) { i, c in
-                    SettingsSideItem(title: c.tab.title, count: c.count, selected: i == 0, plate: plate) {
+                    SettingsSideItem(title: c.tab.sidebarTitle, count: c.count, selected: i == 0, plate: plate) {
                         if let first = results.first(where: { $0.section == c.tab }) { model.open(first) }
                     }
                     .uiTarget("settings-match-\(c.tab.rawValue)")
@@ -142,7 +142,7 @@ struct SettingsSidebar: View {
                 Text("Press Esc to clear the search.").font(.system(size: 12)).foregroundStyle(Ink.mute).padding(.horizontal, 12)
             } else {
                 ForEach(SettingsTab.sidebar) { t in
-                    SettingsSideItem(title: t.title, art: t.art, selected: tab == t, plate: plate) { select(t) }
+                    SettingsSideItem(title: t.sidebarTitle, art: t.art, selected: tab == t, plate: plate) { select(t) }
                         .uiTarget("settings-\(t.rawValue)")
                 }
                 Spacer(minLength: 12)
@@ -241,8 +241,13 @@ struct SettingsVersionFooter: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Version \(AppVersion.label)")
                     .font(look == .native ? .system(size: 11) : Ink.mono(12)).foregroundStyle(Ink.mute)
-                Text("What's new").font(.system(size: look == .native ? 11 : 12.5, weight: .semibold))
-                    .foregroundStyle(look == .native ? Ink.nativeAccent : Ink.accentText)
+                // A text link: ink with an arrow in Verbose style (persimmon text reads as Record), the accent in Native.
+                HStack(spacing: 4) {
+                    Text("What's new")
+                    if look != .native { ArtIcon(art: .webArrow, size: 12, lineWidth: 1.5) }
+                }
+                .font(.system(size: look == .native ? 11 : 12.5, weight: .semibold))
+                .foregroundStyle(look == .native ? Ink.nativeAccent : Ink.ink)
             }
             .padding(.horizontal, 12).padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -418,7 +423,7 @@ struct MenuBarPanel: View {
                     ElapsedText(live: app.recorder.live)
                     Spacer()
                     Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }
-                    Button("Stop") { app.stopRecording() }.buttonStyle(.brandPrimary)
+                    Button("Stop") { app.stopRecording() }.buttonStyle(.pillDark())
                 }
                 .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             } else if app.capture.isCapturing {
@@ -426,7 +431,7 @@ struct MenuBarPanel: View {
                     ArtIcon(art: .iconVoice, size: 16).foregroundStyle(Ink.iris)
                     HStack(spacing: 4) { Text("Capturing \(app.capture.appName) ·").font(.system(size: 12.5)); ElapsedText(live: app.capture.live) }
                     Spacer()
-                    Button("Stop") { app.stopCapture() }.buttonStyle(.brandPrimary)
+                    Button("Stop") { app.stopCapture() }.buttonStyle(.pillDark())
                 }
                 .padding(10).background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             } else {

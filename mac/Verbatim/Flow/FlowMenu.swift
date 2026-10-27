@@ -194,7 +194,7 @@ struct FlowMenuView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(settings.actions) { a in
                             MenuRow(highlighted: false, action: { close(); actions.run(a) }) {
-                                Image(systemName: a.symbol).font(.system(size: 13)).foregroundStyle(Paper.dim).frame(width: 20)
+                                IconGlyph(art: a.art, size: 15, color: Paper.dim).frame(width: 20)
                                 Text(a.name).font(.system(size: 13)).foregroundStyle(Paper.ink).lineLimit(1)
                                 Spacer(minLength: 0)
                             }
