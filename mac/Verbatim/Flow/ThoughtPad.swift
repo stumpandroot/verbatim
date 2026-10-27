@@ -323,14 +323,15 @@ private struct DayArrow: View {
     }
 }
 
-/// The microphone on today's page and in the Library: persimmon, and the Thoughts icon with its live wave while a
-/// thought records. Click to start a thought; click again to stop.
+/// The microphone on today's page and in the Library: persimmon (system red, flat, in Native: red means recording), and
+/// the Thoughts icon with its live wave while a thought records. Click to start a thought; click again to stop.
 struct ThoughtMicDisc: View {
     var size: CGFloat
     @ObservedObject private var capture = ThoughtCapture.shared
+    @Environment(\.look) private var look
     var body: some View {
         ZStack {
-            Circle().fill(Ink.persimmon)
+            Circle().fill(look == .native ? NativeInk.record : Ink.persimmon)
             if capture.isRecording {
                 ThoughtMicLevel(live: capture.recorder.live).padding(size * 0.2)
             } else {
@@ -398,8 +399,7 @@ struct ThoughtCard: View {
                 .padding(.horizontal, 14).padding(.vertical, 11)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(PremiumInk.card, in: shape)
-                .shadow(color: PremiumInk.shadow.opacity(0.5), radius: 3, y: 1)   // brand: native
-                .overlay(shape.strokeBorder(outlined || editing ? Ink.nativeAccent : Color.clear, lineWidth: 1.5))   // brand: native
+                .overlay(shape.strokeBorder(outlined || editing ? NativeInk.accent : Color.clear, lineWidth: 1.5))   // brand: native
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(Thoughts.time(t.createdAt, native: false)).font(Ink.mono(12.5)).monospacedDigit().foregroundStyle(Ink.mute)
@@ -468,7 +468,7 @@ struct ThoughtWords: View {
                         .foregroundStyle(look == .native ? NativeInk.danger : Ink.danger)
                 }
                 Text("Transcribe again").font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(look == .native ? Ink.nativeAccent : Ink.ink).underline(look != .native)
+                    .foregroundStyle(look == .native ? NativeInk.accent : Ink.ink).underline(look != .native)
                     .tapArea { if let app = ThoughtCapture.shared.app { app.retry(t) } }
                     .accessibilityAddTraits(.isButton)
             }
@@ -543,7 +543,7 @@ private struct NativeThoughtPage: View {
                         .accessibilityLabel("Day after").uiTarget("page-next")
                 }
                 .font(.system(size: 12, weight: .semibold))
-                .background(Capsule().fill(PremiumInk.card).shadow(color: PremiumInk.shadow.opacity(0.5), radius: 3, y: 1))
+                .background(Capsule().fill(PremiumInk.card))
             }
             .padding(.horizontal, 16).padding(.top, 30).padding(.bottom, 10)
 
@@ -578,10 +578,10 @@ private struct NativeThoughtPage: View {
                     .disabled(items.isEmpty || working).lineLimit(1).fixedSize()
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(PremiumInk.card).shadow(color: PremiumInk.shadow.opacity(0.6), radius: 6, y: 2))
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(PremiumInk.card))
             .padding(10)
         }
-        .tint(Ink.nativeAccent)
+        .tint(NativeInk.accent)
         .background(PremiumInk.window)
     }
 }

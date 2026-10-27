@@ -216,8 +216,13 @@ struct AskPanel: View {
 
     @ViewBuilder private var panelSurface: some View {
         if look == .native {
-            RoundedRectangle(cornerRadius: 22, style: .continuous).fill(PremiumInk.card)
-                .shadow(color: .black.opacity(0.22), radius: 30, y: 14)   // brand: native
+            // Spotlight's surface: the system glass on macOS 26 (it carries its own depth), the content color before.
+            if #available(macOS 26, *) {
+                Color.clear.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))   // brand: native
+            } else {
+                RoundedRectangle(cornerRadius: 22, style: .continuous).fill(PremiumInk.card)
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(NativeInk.separator, lineWidth: 0.5))
+            }
         } else {
             RoundedRectangle(cornerRadius: Radius.record, style: .continuous).fill(Ink.reader)
                 .inkEdge(outline: true, shadow: CGSize(width: 7, height: 9), radius: Radius.record)
@@ -227,7 +232,7 @@ struct AskPanel: View {
     private var inputRow: some View {
         HStack(spacing: 12) {
             if look == .native {
-                Image(systemName: nav.mode == .ask ? "questionmark.bubble" : "magnifyingglass").font(.system(size: 18)).foregroundStyle(Ink.nativeAccent)   // brand: native
+                Image(systemName: nav.mode == .ask ? "questionmark.bubble" : "magnifyingglass").font(.system(size: 18)).foregroundStyle(NativeInk.accent)   // brand: native
             } else {
                 IconGlyph(art: nav.mode == .ask ? .iconAsk : .iconNotes, size: 22, color: Ink.ink)
             }
@@ -524,8 +529,8 @@ struct AskAnswerText: View {
                 var m = AttributedString("\u{2009}\(n)\u{2009}")
                 if look == .native {
                     m.font = .system(size: size - 3, weight: .semibold)
-                    m.foregroundColor = Ink.nativeAccent   // brand: native
-                    m.backgroundColor = Ink.nativeAccent.opacity(0.12)   // brand: native
+                    m.foregroundColor = NativeInk.accent   // brand: native
+                    m.backgroundColor = NativeInk.accent.opacity(0.12)   // brand: native
                 } else {
                     m.font = Ink.mono(12)
                     m.foregroundColor = Ink.dim
@@ -607,14 +612,15 @@ struct AskCitationRows: View {
             }
         }
         .padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(PremiumInk.card).shadow(color: .black.opacity(0.06), radius: 6, y: 2))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(PremiumInk.card))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(NativeInk.separator, lineWidth: 0.5))
     }
 
     private func row(_ s: AskSource) -> some View {
         let on = player.playing == s.id
         return HStack(spacing: 12) {
-            Text("\(s.number)").font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(Ink.nativeAccent)
-                .frame(width: 22, height: 22).background(Circle().fill(Ink.nativeAccent.opacity(0.12)))
+            Text("\(s.number)").font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(s.title).font(.system(size: 13)).foregroundStyle(.primary).lineLimit(1)
                 Text(s.createdAt.formatted(.dateTime.weekday(.wide).month(.wide).day())).font(.system(size: 11.5)).foregroundStyle(.secondary)
@@ -625,7 +631,7 @@ struct AskCitationRows: View {
                 Text(AskFormat.time(s.start)).font(.system(size: 12, weight: .semibold)).monospacedDigit()
             }
             .padding(.horizontal, 9).frame(height: 24)
-            .background(Capsule().fill(on ? Ink.nativeAccent.opacity(0.18) : NativeInk.bordered))
+            .background(Capsule().fill(on ? NativeInk.accent.opacity(0.18) : NativeInk.bordered))
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -710,7 +716,7 @@ struct AskQuestionsPane: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 12) {
                     if look == .native {
-                        Image(systemName: "questionmark.bubble").font(.system(size: 17)).foregroundStyle(Ink.nativeAccent)   // brand: native
+                        Image(systemName: "questionmark.bubble").font(.system(size: 17)).foregroundStyle(NativeInk.accent)   // brand: native
                     } else {
                         IconGlyph(art: .iconAsk, size: 20, color: Ink.ink)
                     }

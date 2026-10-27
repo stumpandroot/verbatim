@@ -227,7 +227,7 @@ struct DayCalendar: View {
         .background {
             let shape = RoundedRectangle(cornerRadius: native ? 14 : Radius.tile, style: .continuous)
             if native {
-                shape.fill(PremiumInk.card).shadow(color: PremiumInk.shadow.opacity(0.5), radius: 4, y: 1)   // brand: native
+                shape.fill(PremiumInk.card).overlay(shape.strokeBorder(NativeInk.separator, lineWidth: 0.5))   // brand: native
             } else {
                 shape.fill(Ink.card).overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
             }
@@ -239,11 +239,11 @@ struct DayCalendar: View {
         let isSelected = d == selected
         let isToday = d == today
         let dot = marked.contains(d)
-        let accent = native ? Ink.nativeAccent : Ink.ink
+        let accent = native ? NativeInk.accent : Ink.ink
         return VStack(spacing: 2) {
             Text("\(Calendar.current.component(.day, from: d))").font(.system(size: 13.5, weight: isSelected ? .semibold : .regular)).monospacedDigit()
-                .foregroundStyle(isSelected ? (native ? PremiumInk.onAccent : Ink.paper) : (inMonth ? (native ? Color.primary : Ink.ink) : (native ? Color.secondary : Ink.faint)))
-            Circle().fill(isSelected ? (native ? PremiumInk.onAccent : Ink.paper) : accent).frame(width: 4, height: 4).opacity(dot ? 1 : 0)
+                .foregroundStyle(isSelected ? (native ? NativeInk.onAccent : Ink.paper) : (inMonth ? (native ? Color.primary : Ink.ink) : (native ? Color.secondary : Ink.faint)))
+            Circle().fill(isSelected ? (native ? NativeInk.onAccent : Ink.paper) : accent).frame(width: 4, height: 4).opacity(dot ? 1 : 0)
         }
         .frame(maxWidth: .infinity).frame(height: 34)
         .background {
@@ -325,7 +325,7 @@ struct DayPageCard: View {
         .background {
             let shape = RoundedRectangle(cornerRadius: native ? 16 : Radius.tile, style: .continuous)
             if native {
-                shape.fill(PremiumInk.card).shadow(color: PremiumInk.shadow.opacity(0.5), radius: 5, y: 2)   // brand: native
+                shape.fill(PremiumInk.card).overlay(shape.strokeBorder(NativeInk.separator, lineWidth: 0.5))   // brand: native
             } else {
                 shape.fill(Ink.card).overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
             }
