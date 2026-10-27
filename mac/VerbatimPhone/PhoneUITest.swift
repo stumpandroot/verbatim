@@ -201,6 +201,7 @@ enum PhoneUITest {
                 app.libraryFilterRequest = "all"
                 // Thoughts (ThoughtsScreens.swift): today's page, the day arrows, and By day for Thoughts and Journal.
                 await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
+                await templatesTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app); await actionButtonDictateChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
                 if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
@@ -410,6 +411,7 @@ enum PhoneUITest {
                 app.libraryPath = NavigationPath()
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 await thoughtsTour(app, prefix: prefix, suffix: "-native", checks: prefix == "p")
+                await templatesTour(app, prefix: prefix, suffix: "-native", checks: false)
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
@@ -528,6 +530,68 @@ enum PhoneUITest {
         }
         app.libraryPath = NavigationPath()
         try? await Task.sleep(nanoseconds: 600_000_000)
+    }
+
+    /// Library › Templates (the library, Run automatically, a template), Settings › Templates, and a transcript with
+    /// Meeting notes run automatically, opened on its result tab with Show the result first; then the kind changes and
+    /// the offer appears without running anything. Run automatically's choices are put back afterward.
+    private static func templatesTour(_ app: PhoneState, prefix: String, suffix: String, checks: Bool) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") templates\(suffix): \(name)") }
+        let saved = TemplateSettingsModel.shared.settings
+        var shown = AutoRunSettings()
+        shown.set(TemplateLibrary.scenarios[0].id, for: .meeting)
+        shown.set(TemplateLibrary.scenarios[7].id, for: .journal)
+        shown.set(TemplateLibrary.scenarios[3].id, for: .interview)
+        TemplateSettingsModel.shared.settings = shown
+        app.tab = .library
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        app.libraryPath.append(TemplatesRoute())
+        await show("\(prefix)04i-templates\(suffix)")
+        if checks {
+            check("Library › Templates lists every template", TemplatesScreen.shown?.count == app.store.allTemplates.count)
+        }
+        app.libraryPath.append(TemplatesAutoRoute())
+        await show("\(prefix)04j-templates-auto\(suffix)")
+        var path = NavigationPath()
+        path.append(TemplatesRoute())
+        path.append(TemplateDetailRoute(id: TemplateLibrary.scenarios[0].id))
+        app.libraryPath = path
+        await show("\(prefix)04k-template-detail\(suffix)")
+        // A meeting with Meeting notes run automatically, opened on the result.
+        let title = "Client call · website refresh"
+        var id = app.store.live.first { $0.title == title && $0.templateResults != nil }?.id
+        if id == nil {
+            let meeting = TemplateLibrary.scenarios[0]
+            var t = TemplateChecks.recording(.meeting, picked: true)
+            t.autoRun = AutoRunMark(templateId: meeting.id, name: meeting.name, kind: .meeting, state: .done, device: Device.id)
+            t.addTemplateResult(TemplateResult(templateId: meeting.id, name: meeting.name, text: TemplateChecks.sampleMeetingNotes,
+                                               auto: true, kind: .meeting, madeOn: "iPhone"))
+            app.store.add(t)
+            id = t.id
+        }
+        if let id {
+            TemplateSettingsModel.shared.settings.showFirst = true
+            app.libraryPath = NavigationPath()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            app.libraryPath.append(id)
+            await show("\(prefix)04l-transcript-template\(suffix)")
+            if checks {
+                app.store.update(id) { $0.kind = .journal; $0.kindIsAuto = false }
+                let t = app.store.transcript(id)
+                let lib = app.store.allTemplates
+                check("the kind changed after a run, and the offer appears", t.flatMap { AutoRunRules.offer($0, settings: TemplateSettingsModel.shared.settings, templates: lib) }?.text == "Now a Journal. Run Daily reflection?")
+                TemplateCenter.shared.recordingFinished(id, store: app.store)
+                check("a kind change doesn't run the new kind's template on its own", TemplateCenter.shared.busyTemplate(id) == nil
+                      && t.map { AutoRunRules.decide($0, settings: TemplateSettingsModel.shared.settings, templates: lib, labelPending: false) } == .alreadyRan)
+                if suffix.isEmpty { await show("\(prefix)04m-transcript-template-offer") }
+                app.store.update(id) { $0.kind = .meeting }
+                check("Show the result first opens a transcript on its result", PhoneTemplateResults.tabTitle(app.store.transcript(id)!, busyName: nil) == "Meeting notes")
+            }
+        }
+        app.libraryPath = NavigationPath()
+        TemplateSettingsModel.shared.settings = saved
+        try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
     /// New thought with simulated audio (no microphone in the simulator): the recording is filed as a thought, on
@@ -1305,6 +1369,11 @@ enum PhoneUITest {
         ActionsHistoryChecks.run { name, ok in
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)")
+        }
+        // Templates and Run automatically (shared with the Mac's self-test and mac/tools/test-templates.sh).
+        TemplateChecks.run { name, ok in
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") templates: \(name)")
         }
         Log.note("UITEST library checks: \(pass) passed, \(fail) failed")
     }

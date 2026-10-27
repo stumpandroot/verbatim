@@ -114,18 +114,32 @@ struct GetLastDictationIntent: AppIntent {
     }
 }
 
-/// Starts a voice memo recording.
+/// The kind a recording starts as, for "Record a meeting" in Shortcuts. Picked kinds are yours: AutoLabel leaves them,
+/// and Run automatically runs that kind's template (Model/Templates.swift).
+enum RecordKindOption: String, AppEnum {
+    case meeting, interview, journal, talk, note
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Kind"
+    static let caseDisplayRepresentations: [RecordKindOption: DisplayRepresentation] = [
+        .meeting: "Meeting", .interview: "Interview", .journal: "Journal entry", .talk: "Talk", .note: "Note",
+    ]
+    var kind: RecordingKind { RecordingKind(rawValue: rawValue) ?? .note }
+}
+
+/// Starts a voice memo recording, optionally as a kind you pick.
 struct StartRecordingIntent: AppIntent {
     static let title: LocalizedStringResource = "Start recording"
-    static let description = IntentDescription("Opens Verbose and starts recording a voice memo.")
+    static let description = IntentDescription("Opens Verbose and starts recording a voice memo. Pick a kind, such as Meeting, to file it as that kind.")
     static let openAppWhenRun: Bool = true
+
+    @Parameter(title: "Kind")
+    var kind: RecordKindOption?
 
     init() {}
 
     @MainActor
     func perform() async throws -> some IntentResult {
         let app = try await IntentLookup.app()
-        app.requestRecord()
+        app.requestRecord(kind: kind?.kind)
         return .result()
     }
 }

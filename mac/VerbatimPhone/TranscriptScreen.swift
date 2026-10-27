@@ -11,7 +11,8 @@ struct TranscriptScreen: View {
     @EnvironmentObject var app: PhoneState
     var id: UUID
     var startMode: Mode = .transcript
-    enum Mode: Hashable { case transcript, document, review }
+    /// `result`: the template results tab (TemplatesScreens.swift), once a template ran or is running here.
+    enum Mode: Hashable { case transcript, document, review, result }
     @State private var mode: Mode = .transcript
     @State private var showNotes = false
     @State private var shareItems: [Any]? = nil
@@ -160,6 +161,15 @@ struct TranscriptScreen: View {
                                     if let why = TranscriptActions.unavailableReason { summaryUnavailable = why } else { runningAction = a }
                                 }
                             }
+                            // A template's result stays in the transcript, in its own tab (TemplatesScreens.swift).
+                            Menu {
+                                ForEach(app.store.allTemplates) { tpl in
+                                    Button(tpl.name) {
+                                        if let why = TemplateCenter.unavailableReason { summaryUnavailable = why }
+                                        else { TemplateCenter.shared.run(tpl.id, on: t.id, store: app.store); mode = .result }
+                                    }
+                                }
+                            } label: { Label("Run a template", systemImage: "doc.text") }   // brand: system surface (menu)
                             Button {
                                 if let why = SummaryAction.unavailableReason { summaryUnavailable = why }
                                 else { SummaryCenter.shared.summarize(t.id, store: app.store, replacingEdits: false) }
@@ -220,7 +230,11 @@ struct TranscriptScreen: View {
                     Button("Add") { if let s = noteFor { app.addNote(id, text: noteText, at: s.start, segment: s.id) }; noteText = "" }
                 } message: { Text(noteFor.map { "At \($0.start.timecode)" } ?? "") }
                 .onAppear {
-                    if !didStart { didStart = true; mode = startMode }
+                    if !didStart {
+                        didStart = true; mode = startMode
+                        // Show the result first: a transcript with an automatic template result opens on it.
+                        if startMode == .transcript, TemplateSettingsModel.shared.settings.showFirst, t.shownTemplateResults.contains(where: { $0.auto }) { mode = .result }
+                    }
                     if let u = app.store.audioURL(for: t) {
                         downloading = !Cloud.isDownloaded(u)
                         app.player.loadAsync(u, startAt: pendingSeek)
@@ -261,6 +275,10 @@ struct TranscriptScreen: View {
     private func modes(_ t: Transcript) -> [(Mode, String)] {
         var out: [(Mode, String)] = [(.transcript, "Original"), (.document, "Cleaned")]
         if !t.corrections.isEmpty || mode == .review { out.append((.review, "Review")) }
+        // A template's result: a tab named for it ("Meeting notes"), or "Results" with more than one.
+        let busy = TemplateCenter.shared.busyTemplate(t.id).flatMap { id in app.store.allTemplates.first { $0.id == id }?.name }
+        if let title = PhoneTemplateResults.tabTitle(t, busyName: busy) { out.append((.result, title)) }
+        else if mode == .result { out.append((.result, "Template")) }
         return out
     }
 
@@ -407,6 +425,7 @@ struct TranscriptScreen: View {
                     }
                 case .document: PhoneDocument(transcript: t)
                 case .review: review(t)
+                case .result: PhoneTemplateResults(transcript: t)
                 }
             }
         }

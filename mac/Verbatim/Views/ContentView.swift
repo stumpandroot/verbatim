@@ -171,6 +171,7 @@ struct ContentView: View {
         case .dictations: return "dictations"
         case .activity: return "activity"
         case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts"
+        case .templates: return "templates"
         case .transcript(let id): return "t-\(id)"
         }
     }
@@ -192,6 +193,7 @@ struct ContentView: View {
         case .dictations: DictationsView()
         case .activity: YouView()
         case .byDay(let k): ByDayView(kind: k)
+        case .templates: TemplatesView()
         case .transcript(let id): TranscriptView(id: id)
         }
     }

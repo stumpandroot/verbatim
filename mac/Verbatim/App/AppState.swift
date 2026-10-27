@@ -17,6 +17,8 @@ enum Screen: Equatable {
     case activity
     /// Library › By day: Thoughts (`.idea`) or Journal, a month calendar and one page a day (Views/ByDayView.swift).
     case byDay(RecordingKind)
+    /// Make › Templates: the template library and Run automatically (Views/TemplatesView.swift).
+    case templates
 }
 
 /// Which way the next screen slides in. Sidebar order decides up/down; opening a transcript pushes.
@@ -110,6 +112,9 @@ final class AppState: ObservableObject {
     var multitrackTasks: [UUID: Task<Void, Never>] = [:]
     /// The transcript the next recording start will add to (set by Continue, cleared by any other Record).
     var pendingContinue: UUID? = nil
+    /// The kind picked when the recording started (Record a meeting, an interview, …, from a right-click): the new
+    /// transcript takes it as yours, so AutoLabel never replaces it and Run automatically uses it.
+    var recordKind: RecordingKind? = nil
     /// A passage to scroll to and select when the next transcript opens (from search, a note, a link).
     var focusSegment: UUID? = nil
     /// iPhone links this Mac is fetching right now.
@@ -185,6 +190,10 @@ final class AppState: ObservableObject {
         // Anything still queued or mid-transcription when Verbatim last quit picks up where it left off.
         // Only jobs this Mac started: the iPhone's jobs show as "Transcribing on iPhone" and stay its own.
         coordinator.resume(includeUnowned: true)
+        // Templates: a toast when Run automatically finishes, and runs that hadn't finished when Verbose quit.
+        TemplateCenter.shared.automatic = !UITest.enabled
+        TemplateCenter.shared.announce = { [weak self] msg in self?.toast = Toast(msg) }
+        TemplateCenter.shared.resumeWaiting(store: store)
         // A meeting capture (App/MeetingSession.swift) a crash left behind comes back as one two-track transcript.
         if !UITest.enabled { DispatchQueue.main.async { MeetingSession.recoverLeftovers(app: self) } }
         DispatchQueue.main.async { for t in self.store.live where t.pendingLink { self.claimIfPendingLink(t) } }
@@ -282,7 +291,8 @@ final class AppState: ObservableObject {
 
     private func key(_ s: Screen) -> String {
         switch s { case .home: return "home"; case .library: return "library"; case .queue: return "queue"; case .links: return "links"; case .trash: return "trash"; case .moments: return "moments"; case .dictionary: return "dictionary"; case .dictations: return "dictations"; case .activity: return "activity"; case .transcript: return "transcript"
-        case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts" }
+        case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts"
+        case .templates: return "templates" }
     }
 
     func applyAppearance() {

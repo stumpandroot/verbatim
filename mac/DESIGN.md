@@ -256,3 +256,13 @@ Settings › Personalization and preferences › Tab bar (and Edit Home's Tab ba
 4. **Icons** are the BrandArt glyphs in Verbose style (`iconThought` for Thoughts, the Mac sidebar's journal glyph `iconNotes` for Journal, `iconDictations`, `iconProject`) and SF Symbols in Premium Native (`lightbulb`, `book`, `text.bubble`, `folder`), in the system tab bar in both looks; Premium Native's floating record button stays on Home and Library.
 5. **Nothing breaks when a tab is missing.** Removing the tab on screen goes to Home. A link or intent to a tab that isn't in the bar (a Moments link, today's page from a widget with no Thoughts tab) pushes that screen inside Library, or inside Home when Library isn't in the bar either.
 
+
+## 17. Templates
+
+Templates (mockup "Library features", section 1, October 26, 2026) turn a transcript into notes, a plan, or a draft (`Model/Templates.swift`). The five actions are the Built in templates, eight Scenario templates come with Verbose, and yours sync as `templates.json`. Each kind can run one template automatically (Run automatically, kept per device like other settings); every kind starts Off.
+
+1. **Where they live.** The Mac's sidebar has a **Make** group under By day with Templates (Ask joins it later); Settings › Actions keeps the Ribbon's text actions. On iPhone, Library › Templates and Settings › Features › Templates (Run automatically).
+2. **Color.** Templates and their results are neutral, like kinds (§1): ink chips, neutral icon tiles, and the template's result on a reader card with an ink outline (Verbose) or a white card (Native). Persimmon stays on Record.
+3. **The result** (`Views/TemplateResultsSection.swift`, `VerbatimPhone/TemplatesScreens.swift`): the eyebrow "Template", the name in the serif with an italic last word, "Ran automatically because this is a Meeting", Run again and Edit (line pills) and ⋯ (Run another template, Copy, Save as note, Delete result), the sections, and the footer "Made by Apple Intelligence from this transcript, on this Mac. It can be wrong; edit the result before you keep it." Mac: top of the side column or inspector; Show the result first puts it above the text. iPhone: a tab beside Original and Cleaned.
+4. **Never surprising.** Every prompt carries the no-add rule. A recording runs its kind's template once, after the transcript, its kind, and the summary, and never while a transcription runs. A kind change after a run offers the new kind's template ("Now a Journal. Run Daily reflection?" with Run and Not now) and never runs it on its own.
+5. **Record a kind.** Touch and hold Record on iPhone, or right-click Record on the Mac, to start a recording as a kind; the kind is the person's, so AutoLabel never replaces it.

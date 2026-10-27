@@ -58,6 +58,13 @@ struct VerbatimApp: App {
                     .keyboardShortcut("o", modifiers: [.command, .shift])
                 Button("Record Voice Memo") { app.requestRecord() }
                     .keyboardShortcut("r", modifiers: [.option, .shift])
+                // Record with a picked kind: AutoLabel leaves it, and Run automatically uses it (Templates.swift). Record a
+                // meeting is the meeting capture below, which files its transcript as a Meeting.
+                Menu("Record As") {
+                    ForEach(RecordingKind.recordChoices.filter { $0 != .meeting }) { k in
+                        Button(k.recordTitle) { app.requestRecord(kind: k) }
+                    }
+                }
                 Button("Live Captions") { app.toggleLiveCaptions() }
                     .keyboardShortcut("c", modifiers: [.option, .command])
                 // Meeting capture (App/MeetingCoordinator.swift): every start goes through the consent sheet.

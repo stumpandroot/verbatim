@@ -127,6 +127,8 @@ final class TranscriptionCoordinator: ObservableObject {
         self.store = store
         self.config = config
         SummaryCenter.shared.retitleSources = config.autoTitleSources
+        // Run automatically's templates wait while a transcription runs, so they never slow one (TemplateRunner.swift).
+        TemplateCenter.shared.transcribing = { [weak self] in self.map { $0.runningID != nil || !$0.queue.isEmpty } ?? false }
     }
 
     private var settings: TranscriptionSettings {
@@ -320,6 +322,8 @@ final class TranscriptionCoordinator: ObservableObject {
         // Names for two or more speakers, as suggestions (after the speaker pass, where it runs on its own).
         SpeakerNameSuggester.runIfNeeded(id, store: store)
         SummaryCenter.shared.summarizeIfNeeded(id, store: store)
+        // Run automatically: once its kind and summary are in, the kind's template runs, once (Templates.swift).
+        TemplateCenter.shared.recordingFinished(id, store: store)
         pump()
     }
 
@@ -327,7 +331,7 @@ final class TranscriptionCoordinator: ObservableObject {
     /// (AutoLabel). Runs once per transcript (while `kind` is nil) and never overwrites what the person set.
     private func labelIfNeeded(_ id: UUID) {
         guard AutoLabel.enabled, let t = store.transcript(id), t.status == .ready, t.source != .dictation,
-              t.kind == nil, t.kindIsAuto, !t.segments.isEmpty else { return }
+              t.wantsSuggestedKind, !t.segments.isEmpty else { return }
         let wantTitle = t.titleIsAuto && config.autoTitleSources.contains(t.source)
         // Sponsor reads (detectSponsors, just before) never name or tag the recording.
         let segs = t.segmentsWithoutSponsors, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
@@ -337,7 +341,8 @@ final class TranscriptionCoordinator: ObservableObject {
             await MainActor.run {
                 self.store.update(id) { x in
                     guard x.status == .ready else { return }
-                    if x.kindIsAuto, x.kind == nil { x.kind = r.kind }
+                    // A kind you picked (Record a meeting, or the kind chip) is never replaced (Templates.swift).
+                    x.applySuggestedKind(r.kind)
                     // A title written from the summary covers the whole recording; it wins over this excerpt-based one.
                     if wantTitle, x.titleIsAuto, !SummaryCenter.shared.retitled.contains(id), let title = r.title { x.title = title; x.titleByModel = true }
                     if !r.tags.isEmpty { x.tags = AutoLabel.merge(x.tags, r.tags) }

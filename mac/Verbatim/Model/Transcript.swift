@@ -266,6 +266,99 @@ struct Note: Codable, Identifiable, Equatable {
     var byModel: Bool { aiAction != nil }
 }
 
+/// A template's result in a transcript (Templates.swift): what Apple Intelligence wrote, which template wrote it, and
+/// why. Kept in the transcript file, so it syncs with the library. Every field decodes with a default, so a result a
+/// newer build wrote still reads; older builds keep the `templateResults` key as they found it and write it back.
+struct TemplateResult: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var templateId: UUID
+    /// The template's name when it ran ("Meeting notes").
+    var name: String
+    /// The result: section headings as "## Name" lines, then paragraphs, "- " bullets, and "- [ ] " checklist lines.
+    var text: String
+    /// True when it ran on its own after the recording finished (Run automatically).
+    var auto = false
+    /// The kind it ran for, when it ran automatically ("Ran automatically because this is a Meeting").
+    var kind: RecordingKind? = nil
+    /// "Mac" or "iPhone": where Apple Intelligence wrote it, for the footer.
+    var madeOn: String = ""
+    var createdAt = Date()
+    /// True once the person edits it; Run again asks before replacing it then.
+    var edited = false
+    /// Parts Apple Intelligence declined; their words aren't in `text`.
+    var skippedParts = 0
+    var totalParts = 1
+    /// The kind whose "Now a Meeting. Run Meeting notes?" offer was dismissed with Not now (its raw value).
+    var offerDismissed: String? = nil
+
+    init(templateId: UUID, name: String, text: String, auto: Bool = false, kind: RecordingKind? = nil, madeOn: String = "",
+         createdAt: Date = Date(), skippedParts: Int = 0, totalParts: Int = 1) {
+        self.templateId = templateId; self.name = name; self.text = text; self.auto = auto; self.kind = kind; self.madeOn = madeOn
+        self.createdAt = createdAt; self.skippedParts = skippedParts; self.totalParts = totalParts
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case id, templateId, name, text, auto, kind, madeOn, createdAt, edited, skippedParts, totalParts, offerDismissed }
+        let c = try d.container(keyedBy: K.self)
+        id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
+        templateId = (try? c.decodeIfPresent(UUID.self, forKey: .templateId)) ?? UUID()
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? "Template"
+        text = (try? c.decodeIfPresent(String.self, forKey: .text)) ?? ""
+        auto = (try? c.decodeIfPresent(Bool.self, forKey: .auto)) ?? false
+        kind = (try? c.decodeIfPresent(String.self, forKey: .kind)).flatMap { RecordingKind(rawValue: $0) }
+        madeOn = (try? c.decodeIfPresent(String.self, forKey: .madeOn)) ?? ""
+        createdAt = (try? c.decodeIfPresent(Date.self, forKey: .createdAt)) ?? Date()
+        edited = (try? c.decodeIfPresent(Bool.self, forKey: .edited)) ?? false
+        skippedParts = (try? c.decodeIfPresent(Int.self, forKey: .skippedParts)) ?? 0
+        totalParts = (try? c.decodeIfPresent(Int.self, forKey: .totalParts)) ?? 1
+        offerDismissed = (try? c.decodeIfPresent(String.self, forKey: .offerDismissed)) ?? nil
+    }
+}
+
+/// Run automatically's mark on a recording (Templates.swift, AutoRunRules): set when the recording finishes and its
+/// kind has a template, so the template runs once per recording and never again on a relaunch, a sync, or Transcribe
+/// again. Synced in the transcript file, so the other device never runs it too.
+struct AutoRunMark: Codable, Equatable {
+    enum State: String, Codable, TolerantEnum {
+        /// Waiting in the queue, or running ("Waiting to run Meeting notes").
+        case waiting
+        /// The result is in the transcript.
+        case done
+        /// It ran and failed (Apple Intelligence declined, or was off); Run again is in the result block.
+        case failed
+        /// It never ran: the recording was under two minutes with Skip short recordings on.
+        case skipped
+        /// A state a newer build added reads as done: never run again.
+        static var fallback: State { .done }
+        init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
+    }
+    var templateId: UUID
+    var name: String
+    var kind: RecordingKind? = nil
+    var state: State = .waiting
+    /// The device that runs it (Device.id): only that device picks a waiting run back up.
+    var device: String = ""
+    var at = Date()
+    /// Why it failed, for the result block.
+    var note: String? = nil
+
+    init(templateId: UUID, name: String, kind: RecordingKind?, state: State = .waiting, device: String = "", at: Date = Date(), note: String? = nil) {
+        self.templateId = templateId; self.name = name; self.kind = kind; self.state = state; self.device = device; self.at = at; self.note = note
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case templateId, name, kind, state, device, at, note }
+        let c = try d.container(keyedBy: K.self)
+        templateId = (try? c.decodeIfPresent(UUID.self, forKey: .templateId)) ?? UUID()
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? "Template"
+        kind = (try? c.decodeIfPresent(String.self, forKey: .kind)).flatMap { RecordingKind(rawValue: $0) }
+        state = (try? c.decodeIfPresent(State.self, forKey: .state)) ?? .done
+        device = (try? c.decodeIfPresent(String.self, forKey: .device)) ?? ""
+        at = (try? c.decodeIfPresent(Date.self, forKey: .at)) ?? Date()
+        note = (try? c.decodeIfPresent(String.self, forKey: .note)) ?? nil
+    }
+}
+
 /// A sponsor read in a podcast or video (SponsorDetect), by time, so it survives edits to the lines. The transcript
 /// folds it into one row, playback can skip it, and summaries, labels, copy, and export leave it out.
 struct SponsorSpan: Codable, Identifiable, Equatable {
@@ -379,7 +472,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
-             speakerSuggestions, unclear, previousVersion, rerunRequest
+             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -481,6 +574,11 @@ struct Transcript: Codable, Identifiable, Equatable {
     var previousVersion: TranscriptVersion? = nil
     /// Transcribe again asked for on the iPhone, waiting for a Mac (or running there).
     var rerunRequest: RerunRequest? = nil
+    /// Templates' results (Templates.swift), newest first: one per template. nil until a template runs; older builds
+    /// keep the key and write it back.
+    var templateResults: [TemplateResult]? = nil
+    /// Run automatically's mark: the template ran (or is waiting to run) once for this recording, never again.
+    var autoRun: AutoRunMark? = nil
     /// The file format of the file this was read from (`currentSchema` for new transcripts).
     var schemaVersion = Transcript.currentSchema
     /// What a newer build wrote that this one doesn't understand, written back unchanged on save.
@@ -589,6 +687,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         unclear = (try? c.decodeIfPresent([UnclearSpan].self, forKey: .unclear)) ?? nil
         previousVersion = (try? c.decodeIfPresent(TranscriptVersion.self, forKey: .previousVersion)) ?? nil
         rerunRequest = (try? c.decodeIfPresent(RerunRequest.self, forKey: .rerunRequest)) ?? nil
+        templateResults = (try? c.decodeIfPresent([TemplateResult].self, forKey: .templateResults)) ?? nil
+        autoRun = (try? c.decodeIfPresent(AutoRunMark.self, forKey: .autoRun)) ?? nil
         schemaVersion = (try? c.decodeIfPresent(Int.self, forKey: .schemaVersion)) ?? 1
         unknown.keys = UnknownFields.collect(from: d, known: Self.knownKeys)
         self.unknown = unknown
@@ -648,6 +748,8 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(unclear, forKey: .unclear)
         try c.encodeIfPresent(previousVersion, forKey: .previousVersion)
         try c.encodeIfPresent(rerunRequest, forKey: .rerunRequest)
+        try c.encodeIfPresent(templateResults, forKey: .templateResults)
+        try c.encodeIfPresent(autoRun, forKey: .autoRun)
         try c.encode(max(schemaVersion, Self.currentSchema), forKey: .schemaVersion)
         try unknown.encodeKeys(to: e, known: Self.knownKeys)
     }

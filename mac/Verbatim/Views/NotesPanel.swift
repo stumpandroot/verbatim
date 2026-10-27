@@ -35,6 +35,8 @@ struct NotesPanel: View {
                         .buttonStyle(.plain).help("Hide the side column").accessibilityLabel("Hide the side column")
                     }
                 }
+                // Templates' results, unless Show the result first put them above the text (TemplateResultsSection).
+                if !TemplateResultsSection.showsFirst(transcript) { TemplateResultsSection(transcript: transcript) }
                 TranscriptSummaryCard(transcript: transcript)
                 moments
                 actions

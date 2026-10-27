@@ -247,6 +247,9 @@ struct HomeScreen: View {
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
         .accessibilityIdentifier("home.record.verbose")
+        // Touch and hold: Record a meeting, an interview, a journal entry, a talk, or a note (Templates.swift).
+        .contextMenu { PhoneRecordKindItems { app.requestRecord(kind: $0) } }
+        .accessibilityAction(named: "Record a meeting") { app.requestRecord(kind: .meeting) }
         .onAppear { Self.recordCardsOnScreen.insert(.verbose) }
         .onDisappear { Self.recordCardsOnScreen.remove(.verbose) }
     }
@@ -284,6 +287,7 @@ struct HomeScreen: View {
         .accessibilityValue("Microphone: \(micName)")
         .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
         .accessibilityIdentifier("home.record.verbose.compact")
+        .contextMenu { PhoneRecordKindItems { app.requestRecord(kind: $0) } }
     }
 
     // MARK: Tiles

@@ -85,6 +85,8 @@ struct PremiumTranscriptInspector: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                // Templates' results, unless Show the result first put them above the text (TemplateResultsSection).
+                if !TemplateResultsSection.showsFirst(transcript) { TemplateResultsSection(transcript: transcript) }
                 summary
                 moments
                 speakers

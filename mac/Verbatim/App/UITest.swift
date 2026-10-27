@@ -118,6 +118,9 @@ enum UITest {
             // Thoughts: today's page, the bubble, the menu bar's group, By day, the rename, and the pad's move.
             await thoughtsSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // Templates: the library, Run automatically, the editor, a kind chip, Record a kind, and the result's offer.
+            await templatesSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -504,6 +507,7 @@ enum UITest {
         await show("05n-by-day-thoughts")
         app.go(.byDay(.journal))
         await show("05o-by-day-journal")
+        await templateShots(app: app, suffix: "")
         app.go(.library)
         // Type and platform chips: Links, broken down by site.
         app.libraryFilter = LibraryFilter(source: .links)
@@ -736,6 +740,7 @@ enum UITest {
         await show("05n-by-day-thoughts-native")
         app.go(.byDay(.journal))
         await show("05o-by-day-journal-native")
+        await templateShots(app: app, suffix: "-native")
         await thoughtShots(suffix: "-native")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
@@ -1224,6 +1229,8 @@ enum UITest {
         LibraryFilterChecks.run { check("library: " + $0, $1) }
         // Transcript actions, Library sort and search, synced playback (shared with the iPhone's self-test).
         ActionsHistoryChecks.run { check($0, $1) }
+        // Templates and Run automatically (shared with the iPhone's self-test and mac/tools/test-templates.sh).
+        TemplateChecks.run { check("templates: " + $0, $1) }
         let restored = FlowAction.builtIn
         check("actions: the five sit alongside the eight in Settings › Actions", restored.count == 13
               && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } })
@@ -2063,6 +2070,109 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 1_600_000_000)   // "Added to Thoughts" shows for two seconds
         capture.simulate = false
         Thoughts.showBubble = false
+    }
+
+    // MARK: Templates
+
+    /// A finished meeting with Meeting notes run automatically, for the steps and the screenshots (made once).
+    private static func seedTemplateResult(_ app: AppState) -> UUID {
+        let title = "Client call · website refresh"
+        if let t = app.store.live.first(where: { $0.title == title && $0.templateResults != nil }) { return t.id }
+        let meeting = TemplateLibrary.scenarios[0]
+        var t = TemplateChecks.recording(.meeting, picked: true)
+        t.autoRun = AutoRunMark(templateId: meeting.id, name: meeting.name, kind: .meeting, state: .done, device: Device.id)
+        t.addTemplateResult(TemplateResult(templateId: meeting.id, name: meeting.name, text: TemplateChecks.sampleMeetingNotes,
+                                           auto: true, kind: .meeting, madeOn: "Mac"))
+        app.store.add(t)
+        return t.id
+    }
+
+    /// Make › Templates, clicked: the sidebar item, Run automatically and back, a filter, New template, a kind chip on
+    /// the detail card, Record a kind waiting for the recording, and the kind-change offer's Not now, which never runs
+    /// anything. Run automatically's choices are put back afterward.
+    private static func templatesSteps(app: AppState, window: NSWindow) async {
+        let saved = TemplateSettingsModel.shared.settings
+        let nav = TemplatesNav.shared
+        nav.pane = .library; nav.filter = .all; nav.selected = TemplateLibrary.scenarios[0].id
+        TemplateSettingsModel.shared.settings = AutoRunSettings()
+        await step("templates: the sidebar's Templates opens the library", window, target: "side-templates", check: { app.screen == .templates })
+        oneScreen("sidebar Templates", app: app)
+        await step("templates: Run automatically opens the table of kinds", window, target: "templates-auto", check: { nav.pane == .auto })
+        await step("templates: Library goes back to the library", window, target: "templates-library", check: { nav.pane == .library })
+        await step("templates: Scenarios shows the eight", window, target: "templates-filter-scenario", check: { nav.filter == .origin(.scenario) })
+        nav.filter = .all
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        await step("templates: a kind chip runs Meeting notes for every Meeting", window, target: "template-kind-meeting",
+                   check: { TemplateSettingsModel.shared.settings.template(for: .meeting) == TemplateLibrary.scenarios[0].id })
+        await step("templates: Duplicate and edit opens the editor on a copy that's yours", window, target: "template-duplicate",
+                   check: { nav.editing?.origin == .yours && nav.editing?.name == "Meeting notes copy" })
+        nav.editing = nil
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        await step("templates: New template opens the editor", window, target: "templates-new", check: { nav.editing != nil && nav.editingIsNew })
+        nav.editing = nil
+        try? await Task.sleep(nanoseconds: 600_000_000)
+
+        // Record a kind: the picked kind waits for the recording; a plain Record leaves it to AutoLabel.
+        app.requestRecord(kind: .interview)
+        check("templates: Record an interview keeps the kind for the recording", app.recordKind == .interview || app.recorder.isRecording)
+        if app.recorder.isRecording { _ = app.recorder.stop() }
+        app.showMicSheet = false
+        app.recordKind = nil
+        app.requestRecord()
+        check("templates: a plain Record picks no kind", app.recordKind == nil)
+        if app.recorder.isRecording { _ = app.recorder.stop() }
+        app.showMicSheet = false
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // The result in the transcript: the kind changes after Meeting notes ran.
+        let id = seedTemplateResult(app)
+        TemplateSettingsModel.shared.set(TemplateLibrary.scenarios[7].id, for: .journal)
+        app.store.update(id) { $0.kind = .journal; $0.kindIsAuto = false; $0.templateResults?[0].offerDismissed = nil }
+        let lib = app.store.allTemplates
+        let t = app.store.transcript(id)
+        check("templates: the kind changed after a run, and the offer appears", t.flatMap { AutoRunRules.offer($0, settings: TemplateSettingsModel.shared.settings, templates: lib) }?.templateName == "Daily reflection")
+        TemplateCenter.shared.recordingFinished(id, store: app.store)
+        check("templates: a kind change doesn't run the new kind's template on its own", TemplateCenter.shared.busyTemplate(id) == nil
+              && t.map { AutoRunRules.decide($0, settings: TemplateSettingsModel.shared.settings, templates: lib, labelPending: false) } == .alreadyRan)
+        app.go(.transcript(id))
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        await step("templates: Not now hides the offer and runs nothing", window, target: "result-offer-dismiss",
+                   check: { app.store.transcript(id)?.templateResults?.first?.offerDismissed == "journal" && TemplateCenter.shared.busyTemplate(id) == nil })
+        app.store.update(id) { $0.kind = .meeting; $0.templateResults?[0].offerDismissed = nil }
+        TemplateSettingsModel.shared.settings = saved
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// The templates screens for the screenshot tour: the library, Run automatically, the editor, and the result.
+    private static func templateShots(app: AppState, suffix: String) async {
+        let nav = TemplatesNav.shared
+        let saved = TemplateSettingsModel.shared.settings
+        var shown = AutoRunSettings()
+        shown.set(TemplateLibrary.scenarios[0].id, for: .meeting)
+        shown.set(TemplateLibrary.scenarios[7].id, for: .journal)
+        shown.set(TemplateLibrary.scenarios[3].id, for: .interview)
+        shown.set(TemplateLibrary.scenarios[4].id, for: .talk)
+        shown.set(TemplateLibrary.builtIn[4].id, for: .podcast)
+        TemplateSettingsModel.shared.settings = shown
+        nav.pane = .library; nav.filter = .all; nav.selected = TemplateLibrary.scenarios[0].id
+        app.go(.templates)
+        await show("05p-templates\(suffix)")
+        nav.pane = .auto
+        await show("05q-templates-auto\(suffix)")
+        nav.pane = .library
+        if suffix.isEmpty {
+            var draft = TemplateLibrary.duplicate(TemplateLibrary.scenarios[2])
+            draft.name = "Website client call"
+            draft.instructions = "Notes from a call with a client about their website. Pull out what they asked to change, page by page. Keep every date, number, and page name exactly as said."
+            nav.editingIsNew = true; nav.editing = draft
+            await show("05r-template-editor")
+            nav.editing = nil
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        app.go(.transcript(seedTemplateResult(app)))
+        await show("06t-transcript-template\(suffix)")
+        TemplateSettingsModel.shared.settings = saved
     }
 
     /// Thoughts, clicked: today's page in time order with times, its day arrows, the mic and the bubble starting and

@@ -1,0 +1,571 @@
+import Foundation
+
+// Templates (mockup "Library features", section 1, October 26, 2026): a template is a name, an instruction, and the
+// sections you want back. The five transcript actions are the Built in templates, eight Scenario templates come with
+// Verbose, and you make your own (synced with the library as `templates.json`, like snippets). Each recording kind can
+// have one template that runs on its own when a recording of that kind finishes (Run automatically, kept per device
+// like other settings). Every template prompt carries the no-add rule (TranscriptActions.noAddRule) and runs on device
+// with Apple Intelligence the way the actions do (Transcription/TemplateRunner.swift).
+//
+// Pure Foundation, so mac/tools/test-templates.sh checks the model, the assignment, the skip rules, and the run-once
+// rule on Linux.
+
+// MARK: - Sections
+
+/// How a section is written.
+enum TemplateSectionFormat: String, Codable, CaseIterable, Identifiable, TolerantEnum {
+    case paragraph, bullets, checklist, quotes
+    static var fallback: TemplateSectionFormat { .bullets }
+    init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .paragraph: return "Paragraph"
+        case .bullets: return "Bullets"
+        case .checklist: return "Checklist"
+        case .quotes: return "Quotes with times"
+        }
+    }
+
+    /// What the prompt asks for under a section of this format.
+    var prompt: String {
+        switch self {
+        case .paragraph: return "a short paragraph"
+        case .bullets: return "bullet points that start with \"- \""
+        case .checklist: return "checklist lines that start with \"- [ ] \", with an owner or a date only when the transcript states it"
+        case .quotes: return "lines quoted word for word in quotation marks, each followed by the [mm:ss] time of its line"
+        }
+    }
+}
+
+struct TemplateSection: Codable, Equatable, Hashable, Identifiable {
+    var id = UUID()
+    var name: String
+    var format: TemplateSectionFormat
+
+    init(_ name: String, _ format: TemplateSectionFormat, id: UUID = UUID()) {
+        self.id = id; self.name = name; self.format = format
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case id, name, format }
+        let c = try d.container(keyedBy: K.self)
+        id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        format = (try? c.decodeIfPresent(TemplateSectionFormat.self, forKey: .format)) ?? .bullets
+    }
+}
+
+// MARK: - Template
+
+/// Where a template comes from: the five actions, the eight that come with Verbose, or yours.
+enum TemplateOrigin: String, CaseIterable, Identifiable {
+    case scenario, yours, builtIn
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .builtIn: return "Built in"
+        case .scenario: return "Scenarios"
+        case .yours: return "Yours"
+        }
+    }
+    /// The eyebrow on a template's detail ("◇ Scenario template").
+    var eyebrow: String {
+        switch self {
+        case .builtIn: return "Built-in template"
+        case .scenario: return "Scenario template"
+        case .yours: return "Yours"
+        }
+    }
+}
+
+/// A template: a name, a short description, the instruction, its sections in order, and the kinds it suits. Yours
+/// sync through the Store (`templates.json`, SyncMerge), so `updatedAt` stamps each change.
+struct TranscriptTemplate: Codable, Equatable, Identifiable, Hashable, SyncEntry {
+    var id = UUID()
+    var name: String
+    /// One line under the name ("Summary, decisions, action items, open questions").
+    var summary: String
+    /// What to write, in plain words. The no-add rule is added when it runs, even if you delete it here.
+    var instructions: String
+    var sections: [TemplateSection]
+    /// The kinds it suits ("Use it for"): listed first in Run automatically's menus.
+    var kinds: [RecordingKind]
+    /// Its icon, by name (`TemplateGlyph`): the views map it to a BrandArt glyph or an SF Symbol in Native.
+    var glyph: String = TemplateGlyph.custom
+    var createdAt = Date()
+    var updatedAt: Date? = nil
+
+    init(id: UUID = UUID(), name: String, summary: String, instructions: String, sections: [TemplateSection],
+         kinds: [RecordingKind], glyph: String = TemplateGlyph.custom) {
+        self.id = id; self.name = name; self.summary = summary; self.instructions = instructions
+        self.sections = sections; self.kinds = kinds; self.glyph = glyph
+    }
+
+    init(from d: Decoder) throws {
+        enum K: String, CodingKey { case id, name, summary, instructions, sections, kinds, glyph, createdAt, updatedAt }
+        let c = try d.container(keyedBy: K.self)
+        id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? "Untitled template"
+        summary = (try? c.decodeIfPresent(String.self, forKey: .summary)) ?? ""
+        instructions = (try? c.decodeIfPresent(String.self, forKey: .instructions)) ?? ""
+        sections = (try? c.decodeIfPresent([TemplateSection].self, forKey: .sections)) ?? []
+        // Kinds a newer build added are dropped, never the whole template.
+        let raw = (try? c.decodeIfPresent([String].self, forKey: .kinds)) ?? []
+        kinds = raw.compactMap(RecordingKind.init(rawValue:))
+        glyph = (try? c.decodeIfPresent(String.self, forKey: .glyph)) ?? TemplateGlyph.custom
+        createdAt = (try? c.decodeIfPresent(Date.self, forKey: .createdAt)) ?? Date()
+        updatedAt = (try? c.decodeIfPresent(Date.self, forKey: .updatedAt)) ?? nil
+    }
+
+    var origin: TemplateOrigin { TemplateLibrary.origin(of: id) }
+    var isEditable: Bool { origin == .yours }
+    /// Has a Quotes with times section, so the model sees each line's [mm:ss].
+    var usesTimestamps: Bool {
+        if let spec = TranscriptActions.spec(id) { return spec.timestamps }
+        return sections.contains { $0.format == .quotes }
+    }
+    /// Pulls things together (parts are merged) rather than rewriting the words in order (parts are joined).
+    var extracts: Bool { TranscriptActions.spec(id)?.extracts ?? true }
+}
+
+/// Icon names for templates. The views draw each as a BrandArt glyph (Verbose) or an SF Symbol (Native).
+enum TemplateGlyph {
+    static let plan = "plan", journal = "journal", draft = "draft", study = "study", keyPoints = "keyPoints"
+    static let meeting = "meeting", oneOnOne = "oneOnOne", client = "client", interview = "interview", lecture = "lecture"
+    static let sermon = "sermon", brainstorm = "brainstorm", reflection = "reflection", custom = "custom"
+}
+
+// MARK: - The library
+
+enum TemplateLibrary {
+    private static func id(_ n: Int) -> UUID { UUID(uuidString: String(format: "5E7B0A02-F1A0-4C00-9000-%012d", n))! }
+
+    /// The five actions as templates, with the sections each one writes. They run with the action's own instruction.
+    static let builtIn: [TranscriptTemplate] = TranscriptActions.builtIn.map { a in
+        let shape: (String, [TemplateSection], [RecordingKind], String) = {
+            switch a.name {
+            case "Make a plan": return ("A checklist grouped under short headings", [TemplateSection("Tasks", .checklist, id: sid(a.id, 1))], [.meeting, .note], TemplateGlyph.plan)
+            case "Journal entry": return ("Your words as readable paragraphs", [TemplateSection("Entry", .paragraph, id: sid(a.id, 1))], [.journal], TemplateGlyph.journal)
+            case "Write a draft": return ("An email or message from your thoughts", [TemplateSection("Draft", .paragraph, id: sid(a.id, 1))], [.note, .idea], TemplateGlyph.draft)
+            case "Study notes": return ("Topics in order, with key terms in bold", [TemplateSection("Topics", .bullets, id: sid(a.id, 1))], [.talk, .video], TemplateGlyph.study)
+            default: return ("Ideas, quotes with times, and action items",
+                             [TemplateSection("Key ideas", .bullets, id: sid(a.id, 1)), TemplateSection("Notable quotes", .quotes, id: sid(a.id, 2)),
+                              TemplateSection("Action items", .checklist, id: sid(a.id, 3))], [.podcast, .video, .talk], TemplateGlyph.keyPoints)
+            }
+        }()
+        var t = TranscriptTemplate(id: a.id, name: a.name, summary: shape.0, instructions: a.instruction, sections: shape.1, kinds: shape.2, glyph: shape.3)
+        t.createdAt = Date(timeIntervalSince1970: 1_792_000_000)
+        return t
+    }
+
+    /// A stable section ID for a built-in or scenario template, so its sections compare equal across launches.
+    private static func sid(_ template: UUID, _ n: Int) -> UUID {
+        UUID(uuidString: template.uuidString.replacingOccurrences(of: "-4C00-", with: String(format: "-4C%02d-", n))) ?? UUID()
+    }
+
+    private static func scenario(_ n: Int, _ name: String, _ summary: String, _ kinds: [RecordingKind], _ glyph: String,
+                                 _ instructions: String, _ sections: [(String, TemplateSectionFormat)]) -> TranscriptTemplate {
+        let tid = id(n)
+        var t = TranscriptTemplate(id: tid, name: name, summary: summary, instructions: instructions,
+                                   sections: sections.enumerated().map { TemplateSection($1.0, $1.1, id: sid(tid, $0 + 1)) },
+                                   kinds: kinds, glyph: glyph)
+        t.createdAt = Date(timeIntervalSince1970: 1_792_000_000)
+        return t
+    }
+
+    /// The eight that come with Verbose.
+    static let scenarios: [TranscriptTemplate] = [
+        scenario(1, "Meeting notes", "Summary, decisions, action items, open questions", [.meeting], TemplateGlyph.meeting,
+                 "Write notes from a call or meeting with two or more people. Pull out what was decided and who does what, using only what was said. Name a person only when the transcript names them.",
+                 [("Summary", .paragraph), ("Decisions", .bullets), ("Action items", .checklist), ("Open questions", .bullets)]),
+        scenario(2, "1:1", "Updates, blockers, feedback, and next steps", [.meeting], TemplateGlyph.oneOnOne,
+                 "Write notes from a one-on-one conversation between two people. Keep each update, blocker, and piece of feedback with the person who gave it.",
+                 [("Updates", .bullets), ("Blockers", .bullets), ("Feedback", .bullets), ("Next steps", .checklist)]),
+        scenario(3, "Client call", "What they asked for, dates, and follow-ups", [.meeting], TemplateGlyph.client,
+                 "Write notes from a call with a client. Pull out what the client asked for, and keep every date, number, and price exactly as said.",
+                 [("What they asked for", .bullets), ("Dates and numbers", .bullets), ("Follow-ups", .checklist)]),
+        scenario(4, "Interview", "Questions, answers, and quotes with times", [.interview, .podcast], TemplateGlyph.interview,
+                 "Write notes from an interview. Pair each question with the answer given, in order and in a few words. Keep quotes word for word.",
+                 [("Questions and answers", .bullets), ("Quotes", .quotes)]),
+        scenario(5, "Lecture", "Topics in order, terms, and questions to review", [.talk, .video], TemplateGlyph.lecture,
+                 "Write notes from a lecture or class. Follow the order of the topics. Define a term only when the speaker defines it.",
+                 [("Topics", .bullets), ("Key terms", .bullets), ("Questions to review", .bullets)]),
+        scenario(6, "Sermon notes", "Passages, main points, and one thing to apply", [.talk], TemplateGlyph.sermon,
+                 "Write notes from a sermon. List the passages the speaker cites exactly as said, the main points in order, and what the speaker asked listeners to do. Don't add interpretation or application the speaker didn't give.",
+                 [("Passages", .bullets), ("Main points", .bullets), ("To apply", .bullets)]),
+        scenario(7, "Brainstorm", "Ideas, themes, and next steps", [.idea, .meeting, .note], TemplateGlyph.brainstorm,
+                 "Collect every idea from a brainstorm, in the speaker's words where you can. Group related ideas under themes the transcript suggests. Don't rank, judge, or extend the ideas.",
+                 [("Ideas", .bullets), ("Themes", .bullets), ("Next steps", .checklist)]),
+        scenario(8, "Daily reflection", "What happened, what stood out, and for tomorrow", [.journal], TemplateGlyph.reflection,
+                 "Sort what the speaker said about their day into the sections, in their own voice. Don't add advice, feelings, lessons, or conclusions the speaker didn't say.",
+                 [("What happened", .paragraph), ("What stood out", .bullets), ("For tomorrow", .bullets)]),
+    ]
+
+    static let scenarioIDs: Set<UUID> = Set(scenarios.map(\.id))
+
+    static func origin(of id: UUID) -> TemplateOrigin {
+        if TranscriptActions.isBuiltIn(id) { return .builtIn }
+        if scenarioIDs.contains(id) { return .scenario }
+        return .yours
+    }
+
+    /// Every template in library order: Scenarios, Yours (newest first), Built in.
+    static func all(yours: [TranscriptTemplate]) -> [TranscriptTemplate] {
+        scenarios + yours.filter { origin(of: $0.id) == .yours }.sorted { $0.createdAt > $1.createdAt } + builtIn
+    }
+
+    static func template(_ id: UUID, yours: [TranscriptTemplate]) -> TranscriptTemplate? {
+        builtIn.first { $0.id == id } ?? scenarios.first { $0.id == id } ?? yours.first { $0.id == id }
+    }
+
+    /// A template filtered by the library's chips.
+    static func filtered(_ list: [TranscriptTemplate], origin: TemplateOrigin?, autoOnly: Bool, settings: AutoRunSettings) -> [TranscriptTemplate] {
+        list.filter { t in
+            (origin == nil || t.origin == origin) && (!autoOnly || !settings.kinds(for: t.id).isEmpty)
+        }
+    }
+
+    /// Duplicate and edit: a copy that's yours, named "<name> copy", with the action's instruction and its sections.
+    /// A built-in's copy runs its sections from the prompt, since it no longer has the action's own instruction.
+    static func duplicate(_ t: TranscriptTemplate, now: Date = Date()) -> TranscriptTemplate {
+        var copy = TranscriptTemplate(name: t.name + " copy", summary: t.summary,
+                                      instructions: t.instructions.replacingOccurrences(of: " " + TranscriptActions.noAddRule, with: "")
+                                        .replacingOccurrences(of: TranscriptActions.noAddRule, with: "")
+                                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                                      sections: t.sections.map { TemplateSection($0.name, $0.format) }, kinds: t.kinds, glyph: t.glyph)
+        copy.createdAt = now
+        return copy
+    }
+
+    /// A new, empty template of yours.
+    static func blank(now: Date = Date()) -> TranscriptTemplate {
+        var t = TranscriptTemplate(name: "", summary: "", instructions: "", sections: [TemplateSection("Summary", .paragraph)], kinds: [])
+        t.createdAt = now
+        return t
+    }
+
+    /// Why a template of yours can't be saved yet (nil when it can).
+    static func problem(_ t: TranscriptTemplate) -> String? {
+        if t.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Give the template a name." }
+        if t.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && t.sections.isEmpty { return "Say what it should write, or add a section." }
+        if t.sections.contains(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) { return "Name every section." }
+        return nil
+    }
+
+    /// The summary line a template of yours shows when you didn't write one: its sections, in order.
+    static func summaryLine(_ t: TranscriptTemplate) -> String {
+        let s = t.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !s.isEmpty { return s }
+        let names = t.sections.map(\.name).filter { !$0.isEmpty }
+        guard let first = names.first else { return "No sections yet" }
+        return ([first] + names.dropFirst().map { $0.lowercased() }).joined(separator: ", ")
+    }
+}
+
+// MARK: - The prompt
+
+enum TemplatePrompt {
+    /// The instruction a template runs with. A built-in action runs with its own instruction unchanged; every other
+    /// template is its instruction, then its sections as "## Name" headings in order, then the no-add rule (added
+    /// even after someone deletes it).
+    static func instruction(_ t: TranscriptTemplate) -> String {
+        if let spec = TranscriptActions.spec(t.id) { return TranscriptActions.withRule(spec.instruction) }
+        var s = t.instructions
+            .replacingOccurrences(of: TranscriptActions.noAddRule, with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !s.isEmpty, !s.hasSuffix(".") { s += "." }
+        let sections = t.sections.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+        if !sections.isEmpty {
+            let list = sections.enumerated().map { i, x in "\(i + 1). \(x.name.trimmingCharacters(in: .whitespaces)): \(x.format.prompt)." }
+            s += (s.isEmpty ? "" : " ") + "Write these sections in this order. Start each one with its name on its own line after \"## \". "
+                + list.joined(separator: " ")
+                + " If the transcript says nothing for a section, write \"None stated.\" under it."
+        }
+        return TranscriptActions.withRule(s)
+    }
+}
+
+// MARK: - Run automatically
+
+/// Run automatically's choices, kept per device like other settings (never synced; the results sync with the
+/// library): one template or Off per kind, and three options.
+struct AutoRunSettings: Equatable {
+    static let assignmentsKey = "templates.auto"
+    static let skipShortKey = "templates.skipShort"
+    static let showFirstKey = "templates.showFirst"
+    static let notifyKey = "templates.notify"
+
+    /// Kind raw value → template ID. A kind that isn't here is Off.
+    var assignments: [String: UUID] = [:]
+    /// Skip short recordings (under two minutes). On by default.
+    var skipShort = true
+    /// Show the result first: transcripts with an automatic result open on it. Off by default.
+    var showFirst = false
+    /// Notify me when it's done, for recordings over 20 minutes. On by default.
+    var notify = true
+
+    /// The kinds Run automatically lists, in the mockup's order. Dictations never run a template.
+    static let kinds: [RecordingKind] = [.meeting, .journal, .idea, .interview, .talk, .podcast, .note, .video]
+
+    func template(for kind: RecordingKind) -> UUID? { assignments[kind.rawValue] }
+    mutating func set(_ template: UUID?, for kind: RecordingKind) { assignments[kind.rawValue] = template }
+    /// The kinds a template runs for, in Run automatically's order.
+    func kinds(for template: UUID) -> [RecordingKind] { Self.kinds.filter { assignments[$0.rawValue] == template } }
+    /// How many kinds have a template ("5 of 8 kinds").
+    var assignedCount: Int { Self.kinds.filter { assignments[$0.rawValue] != nil }.count }
+
+    /// Drops assignments to templates that no longer exist (a template of yours deleted here or on the other device).
+    func pruned(existing: Set<UUID>) -> AutoRunSettings {
+        var s = self
+        s.assignments = assignments.filter { existing.contains($0.value) }
+        return s
+    }
+
+    static func load(_ d: UserDefaults = .standard) -> AutoRunSettings {
+        var s = AutoRunSettings()
+        if let data = d.data(forKey: assignmentsKey), let raw = try? JSONDecoder().decode([String: String].self, from: data) {
+            s.assignments = raw.compactMapValues(UUID.init(uuidString:))
+        }
+        if d.object(forKey: skipShortKey) != nil { s.skipShort = d.bool(forKey: skipShortKey) }
+        if d.object(forKey: showFirstKey) != nil { s.showFirst = d.bool(forKey: showFirstKey) }
+        if d.object(forKey: notifyKey) != nil { s.notify = d.bool(forKey: notifyKey) }
+        return s
+    }
+
+    func save(_ d: UserDefaults = .standard) {
+        if let data = try? JSONEncoder().encode(assignments.mapValues(\.uuidString)) { d.set(data, forKey: Self.assignmentsKey) }
+        d.set(skipShort, forKey: Self.skipShortKey)
+        d.set(showFirst, forKey: Self.showFirstKey)
+        d.set(notify, forKey: Self.notifyKey)
+    }
+}
+
+/// When a template runs on its own, pure so the self-tests and mac/tools/test-templates.sh check it.
+enum AutoRunRules {
+    /// Skip short recordings: under two minutes.
+    static let shortLimit: Double = 120
+    /// Notify me when it's done: recordings over 20 minutes.
+    static let notifyLimit: Double = 20 * 60
+    /// Only recordings made in the last two days run automatically, so Transcribe again on an old recording never
+    /// starts a template it never had.
+    static let newWindow: Double = 2 * 24 * 3600
+    /// How long a finished recording waits for its kind (AutoLabel) before Run automatically gives up on it.
+    static let labelWait: Double = 180
+
+    enum Decision: Equatable {
+        /// Run this template, for this kind.
+        case run(UUID, RecordingKind)
+        /// The kind has no template (Off), or the recording has no kind yet and won't get one.
+        case off
+        /// Under two minutes with Skip short recordings on.
+        case short
+        /// It already ran (or is waiting, failed, or was skipped): once per recording.
+        case alreadyRan
+        /// Not a recording that runs templates: a dictation, unfinished, deleted, or older than two days.
+        case notEligible
+        /// Its kind is still being worked out (AutoLabel): wait.
+        case waitForKind
+    }
+
+    /// What Run automatically does with a recording that just finished. `labelPending` is true while AutoLabel may
+    /// still give it a kind. A kind you picked (`kindIsAuto == false`) wins over the guess; AutoLabel never replaces it.
+    static func decide(_ t: Transcript, settings: AutoRunSettings, templates: [TranscriptTemplate], labelPending: Bool,
+                       now: Date = Date()) -> Decision {
+        guard t.status == .ready, t.deletedAt == nil, !t.isDictation, !t.segments.isEmpty else { return .notEligible }
+        guard t.autoRun == nil else { return .alreadyRan }
+        guard now.timeIntervalSince(t.createdAt) < newWindow else { return .notEligible }
+        guard let kind = t.kind else { return labelPending ? .waitForKind : .off }
+        guard AutoRunSettings.kinds.contains(kind), let id = settings.template(for: kind),
+              templates.contains(where: { $0.id == id }) else { return .off }
+        if settings.skipShort && t.duration < shortLimit { return .short }
+        return .run(id, kind)
+    }
+
+    /// Notify me when it's done: on, and the recording is over 20 minutes.
+    static func notifies(_ t: Transcript, settings: AutoRunSettings) -> Bool { settings.notify && t.duration > notifyLimit }
+
+    /// "Ran automatically because this is a Meeting".
+    static func reason(_ r: TemplateResult) -> String? {
+        guard r.auto else { return nil }
+        guard let k = r.kind else { return "Ran automatically" }
+        return "Ran automatically because this is \(article(k)) \(k.label)"
+    }
+
+    /// "a Meeting", "an Interview".
+    static func article(_ k: RecordingKind) -> String {
+        guard let first = k.label.lowercased().first else { return "a" }
+        return "aeiou".contains(first) ? "an" : "a"
+    }
+
+    struct Offer: Equatable {
+        var result: UUID
+        var kind: RecordingKind
+        var template: UUID
+        var templateName: String
+        /// "Now a Meeting. Run Meeting notes?"
+        var text: String { "Now \(AutoRunRules.article(kind)) \(kind.label). Run \(templateName)?" }
+    }
+
+    /// The kind changed after a template ran automatically: offer the new kind's template, never run it on its own.
+    /// Nothing when the new kind is Off, its template already wrote a result here, it's the same template, or the
+    /// offer was dismissed for this kind.
+    static func offer(_ t: Transcript, settings: AutoRunSettings, templates: [TranscriptTemplate]) -> Offer? {
+        guard let results = t.templateResults, let r = results.first(where: { $0.auto }), let old = r.kind,
+              let now = t.kind, now != old, r.offerDismissed != now.rawValue,
+              let id = settings.template(for: now), id != r.templateId,
+              !results.contains(where: { $0.templateId == id }),
+              let tpl = templates.first(where: { $0.id == id }) else { return nil }
+        return Offer(result: r.id, kind: now, template: id, templateName: tpl.name)
+    }
+
+    /// A waiting run this device should pick back up at launch (iOS suspended the app before it finished).
+    static func resumes(_ t: Transcript, device: String) -> Bool {
+        guard let m = t.autoRun, m.state == .waiting, m.device == device, t.deletedAt == nil, t.status == .ready else { return false }
+        return !(t.templateResults ?? []).contains { $0.templateId == m.templateId && $0.auto }
+    }
+
+    /// How many recordings of a kind ran a template automatically this month ("Ran 7 times this month").
+    static func runsThisMonth(_ list: [Transcript], kind: RecordingKind, now: Date = Date(), calendar: Calendar = .current) -> Int {
+        list.filter { t in
+            guard t.deletedAt == nil, let m = t.autoRun, m.state == .done, m.kind == kind else { return false }
+            return calendar.isDate(m.at, equalTo: now, toGranularity: .month)
+        }.count
+    }
+
+    /// The note beside a kind's row: "Ran 7 times this month", "Ran once", or a hint for Thoughts.
+    static func monthNote(_ count: Int, kind: RecordingKind, assigned: Bool) -> String {
+        if kind == .idea, !assigned { return "Thoughts are short; read them on today's page" }
+        switch count {
+        case 0: return assigned ? "Hasn't run this month" : ""
+        case 1: return "Ran once this month"
+        default: return "Ran \(count) times this month"
+        }
+    }
+}
+
+// MARK: - Results
+
+extension Transcript {
+    /// Adds a template's result, replacing an earlier one from the same template (and `replacing`, when given: the
+    /// result a kind-change offer runs in place of). Newest first.
+    mutating func addTemplateResult(_ r: TemplateResult, replacing: UUID? = nil) {
+        var list = (templateResults ?? []).filter { $0.templateId != r.templateId && $0.id != replacing }
+        list.insert(r, at: 0)
+        templateResults = list
+    }
+
+    mutating func removeTemplateResult(_ id: UUID) {
+        let list = (templateResults ?? []).filter { $0.id != id }
+        templateResults = list.isEmpty ? nil : list
+    }
+
+    /// Results to show (nil-safe), newest first.
+    var shownTemplateResults: [TemplateResult] { templateResults ?? [] }
+
+    /// "Waiting to run Meeting notes" while Run automatically's run is queued here.
+    var autoRunWaitingText: String? {
+        guard let m = autoRun, m.state == .waiting else { return nil }
+        return "Waiting to run \(m.name)"
+    }
+}
+
+/// A result's text as blocks to draw: section headings, paragraphs, bullets, checklist lines, and quotes.
+enum TemplateResultText {
+    enum Block: Equatable {
+        case heading(String)
+        case paragraph(String)
+        case bullet(String)
+        case check(String, done: Bool)
+    }
+
+    static func blocks(_ text: String) -> [Block] {
+        var out: [Block] = []
+        var para: [String] = []
+        func flush() { if !para.isEmpty { out.append(.paragraph(para.joined(separator: " "))); para = [] } }
+        for raw in text.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { flush(); continue }
+            if let h = heading(line) { flush(); out.append(.heading(h)); continue }
+            if let (item, done) = checkItem(line) { flush(); out.append(.check(item, done: done)); continue }
+            if let p = ["- ", "• ", "* ", "– "].first(where: { line.hasPrefix($0) }) {
+                flush(); out.append(.bullet(String(line.dropFirst(p.count)).trimmingCharacters(in: .whitespaces))); continue
+            }
+            para.append(line)
+        }
+        flush()
+        return out
+    }
+
+    /// "## Decisions", "### Decisions", or "**Decisions**" alone on its line.
+    private static func heading(_ line: String) -> String? {
+        if line.hasPrefix("#") {
+            let h = line.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
+            return h.isEmpty ? nil : stripColon(h)
+        }
+        if line.hasPrefix("**"), line.hasSuffix("**"), line.count > 4 {
+            let h = String(line.dropFirst(2).dropLast(2)).trimmingCharacters(in: .whitespaces)
+            return h.contains("**") ? nil : stripColon(h)
+        }
+        return nil
+    }
+
+    private static func stripColon(_ s: String) -> String { s.hasSuffix(":") ? String(s.dropLast()) : s }
+
+    private static func checkItem(_ line: String) -> (String, Bool)? {
+        for p in ["- [ ] ", "* [ ] ", "[ ] "] where line.hasPrefix(p) { return (String(line.dropFirst(p.count)), false) }
+        for p in ["- [x] ", "- [X] ", "* [x] ", "[x] "] where line.hasPrefix(p) { return (String(line.dropFirst(p.count)), true) }
+        return nil
+    }
+
+    /// Plain text for Copy and notes: the result as written, trimmed.
+    static func plain(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
+/// The footer under every result.
+enum TemplateCopy {
+    /// "Made by Apple Intelligence from this transcript, on this Mac. It can be wrong; edit the result before you keep it."
+    static func footer(madeOn: String, here: String) -> String {
+        let place = madeOn.isEmpty || madeOn == here ? "on this \(here)" : "on your \(madeOn)"
+        return "Made by Apple Intelligence from this transcript, \(place). It can be wrong; edit the result before you keep it."
+    }
+    /// The line under Run automatically's options and the editor.
+    static func onDevice(_ here: String) -> String { "Runs on this \(here) with Apple Intelligence. Nothing leaves your device." }
+    static let ruleNote = "Verbose adds: \u{201C}\(TranscriptActions.noAddRule)\u{201D}"
+}
+
+// MARK: - Record a kind
+
+extension RecordingKind {
+    /// The kinds you can pick when you start recording, from a long press (iPhone) or a right-click (Mac). Thoughts
+    /// have their own flow; podcasts and videos are imports.
+    static let recordChoices: [RecordingKind] = [.meeting, .interview, .journal, .talk, .note]
+
+    /// "Record a meeting", "Record an interview", "Record a journal entry".
+    var recordTitle: String {
+        switch self {
+        case .journal: return "Record a journal entry"
+        case .interview: return "Record an interview"
+        default: return "Record \(AutoRunRules.article(self)) \(label.lowercased())"
+        }
+    }
+}
+
+extension Transcript {
+    /// A recording started with a picked kind ("Record a meeting"): the kind is yours, so AutoLabel never replaces it,
+    /// and it decides which template runs automatically.
+    mutating func pickKindAtStart(_ kind: RecordingKind?) {
+        guard let kind else { return }
+        self.kind = kind
+        kindIsAuto = false
+    }
+
+    /// AutoLabel's guess may fill in a kind only while there's none and nobody picked one.
+    var wantsSuggestedKind: Bool { kind == nil && kindIsAuto }
+
+    /// Applies AutoLabel's guess, never over a kind you picked (at the start of a recording or afterward).
+    mutating func applySuggestedKind(_ k: RecordingKind) {
+        if wantsSuggestedKind { kind = k }
+    }
+}

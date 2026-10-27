@@ -48,6 +48,13 @@ struct Sidebar: View {
                      badge: "\(app.store.dayPages(.journal, hour: Thoughts.newPageHour).count)") { app.go(.byDay(.journal)) }
                 .uiTarget("side-journal")
 
+            // Make: what Apple Intelligence makes from a transcript. Templates now; Ask joins it later.
+            Text("Make").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
+                .padding(.leading, 12).padding(.top, 18).padding(.bottom, 4)
+            SideItem(label: "Templates", art: .iconSummaries, selected: app.screen == .templates,
+                     badge: "\(app.store.allTemplates.count)") { app.go(.templates) }
+                .uiTarget("side-templates")
+
             HStack {
                 Text("Projects").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
                 Spacer()

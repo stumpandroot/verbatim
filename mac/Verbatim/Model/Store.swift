@@ -26,6 +26,9 @@ enum Paths {
     static let dictionaryFile = root.appendingPathComponent("dictionary.json")
     /// Dictation snippets (say the trigger, get the text), shared by the Mac and the iPhone.
     static let snippetsFile = root.appendingPathComponent("snippets.json")
+    /// Your templates (Templates.swift), shared by the Mac and the iPhone. The built-in and scenario templates aren't
+    /// stored; Run automatically's choices stay on each device.
+    static let templatesFile = root.appendingPathComponent("templates.json")
     /// Your name and About me, shared by the Mac and the iPhone (Home greeting, titles, summaries).
     static let profileFile = root.appendingPathComponent("profile.json")
     static let models = local.appendingPathComponent("models", isDirectory: true)
@@ -399,6 +402,7 @@ enum Cloud {
         merge(Project.self, "projects.json")
         merge(DictionaryEntry.self, "dictionary.json")
         merge(Snippet.self, "snippets.json")
+        merge(TranscriptTemplate.self, "templates.json")
         // A later turn-on gets its own dated folder, since "Before iCloud" already exists.
         var backup = old.appendingPathComponent("Before iCloud", isDirectory: true)
         if fm.fileExists(atPath: backup.path) {
@@ -586,6 +590,21 @@ final class Store: Observable {
         }
     }
     private let snippetsSubject = PassthroughSubject<[Snippet], Never>()
+
+    private var _templates: [TranscriptTemplate] = []
+    /// Your templates (Templates.swift): synced like snippets (`templates.json`, SyncMerge). The built-in and scenario
+    /// templates are `TemplateLibrary`'s and never stored.
+    var templates: [TranscriptTemplate] {
+        get { registrar.access(self, keyPath: \.templates); return _templates }
+        set {
+            let old = _templates
+            registrar.withMutation(of: self, keyPath: \.templates) { _templates = newValue }
+            anyChangeSubject.send()
+            listEdited(old: old, list: \.templates, sync: \.templateSync)
+        }
+    }
+    /// Every template, in library order: Scenarios, yours, Built in.
+    var allTemplates: [TranscriptTemplate] { TemplateLibrary.all(yours: templates) }
     /// `snippets` now, then after every change.
     var snippetsPublisher: AnyPublisher<[Snippet], Never> { snippetsSubject.prepend(_snippets).eraseToAnyPublisher() }
 
@@ -617,9 +636,10 @@ final class Store: Observable {
     private var projectSync = ListSync(file: Paths.projectsFile)
     private var dictionarySync = ListSync(file: Paths.dictionaryFile)
     private var snippetSync = ListSync(file: Paths.snippetsFile)
+    private var templateSync = ListSync(file: Paths.templatesFile)
     /// The synced list files and their tombstone files, at the root of the library.
-    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json",
-                                              "projects-deleted.json", "dictionary-deleted.json", "snippets-deleted.json"]
+    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json", "templates.json",
+                                              "projects-deleted.json", "dictionary-deleted.json", "snippets-deleted.json", "templates-deleted.json"]
     /// Snippets read cleanly from the synced file (or there is none yet), so they can be mirrored over local ones.
     var snippetsReadable: Bool { snippetSync.writable }
 
@@ -668,6 +688,7 @@ final class Store: Observable {
         loadList(list: \.projects, sync: \.projectSync, budget: budget)
         loadList(list: \.dictionary, sync: \.dictionarySync, budget: budget)
         loadList(list: \.snippets, sync: \.snippetSync, budget: budget)
+        loadList(list: \.templates, sync: \.templateSync, budget: budget)
         startProfileSync(budget: budget)
         loading = false
         // The transcripts are decoded off the main thread, so the first frame never waits for a big library; screens
@@ -1144,6 +1165,7 @@ final class Store: Observable {
     }
 
     func ingestSnippets() { ingestList(list: \.snippets, sync: \.snippetSync) }
+    func ingestTemplates() { ingestList(list: \.templates, sync: \.templateSync) }
 
     /// Snippets saved on this device (the Mac's settings) while the synced file can't be read yet: shown and used
     /// as they are, without counting as edits, and merged with the file once it reads.
