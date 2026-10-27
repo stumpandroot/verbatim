@@ -523,15 +523,17 @@ enum TemplateResultText {
     static func plain(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
-/// The footer under every result.
+/// The footer under every result. Every on-device promise reads the same way (Templates, Ask, and You): "On this Mac
+/// with Apple Intelligence. Nothing leaves it." and then what's specific to the place.
 enum TemplateCopy {
-    /// "Made by Apple Intelligence from this transcript, on this Mac. It can be wrong; edit the result before you keep it."
+    /// "On this Mac with Apple Intelligence. Nothing leaves it. Made from this transcript; it can be wrong, so edit the
+    /// result before you keep it."
     static func footer(madeOn: String, here: String) -> String {
-        let place = madeOn.isEmpty || madeOn == here ? "on this \(here)" : "on your \(madeOn)"
-        return "Made by Apple Intelligence from this transcript, \(place). It can be wrong; edit the result before you keep it."
+        let place = madeOn.isEmpty || madeOn == here ? "On this \(here)" : "On your \(madeOn)"
+        return "\(place) with Apple Intelligence. Nothing leaves it. Made from this transcript; it can be wrong, so edit the result before you keep it."
     }
-    /// The line under Run automatically's options and the editor.
-    static func onDevice(_ here: String) -> String { "Runs on this \(here) with Apple Intelligence. Nothing leaves your device." }
+    /// The line under Run automatically's options and the editor: "On this Mac with Apple Intelligence. Nothing leaves it."
+    static func onDevice(_ here: String) -> String { "On this \(here) with Apple Intelligence. Nothing leaves it." }
     static let ruleNote = "Verbose adds: \u{201C}\(TranscriptActions.noAddRule)\u{201D}"
 }
 

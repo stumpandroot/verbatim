@@ -385,7 +385,7 @@ struct LintPopover: View {
                 .font(.system(size: 13))
             }
             HStack(spacing: 8) {
-                if lint.fix != nil { Button("Accept", action: accept).buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction) }
+                if lint.fix != nil { Button("Accept", action: accept).buttonStyle(.pillDark()).keyboardShortcut(.defaultAction) }
                 Button("Ignore", action: ignore).buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }

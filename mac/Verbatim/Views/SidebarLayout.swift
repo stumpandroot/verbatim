@@ -214,12 +214,12 @@ struct CustomizeSidebarSheet: View {
                 Button("Restore default order") {
                     withAnimation(limitMotion ? nil : .spring(duration: 0.3, bounce: 0)) { layout.restoreDefault() }
                 }
-                .buttonStyle(.brandSecondary)
+                .buttonStyle(.pillLine())
                 .disabled(layout.isDefault)
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.brandPrimary)
+                    .buttonStyle(.pillDark())
             }
         }
         .padding(28)

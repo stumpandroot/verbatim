@@ -204,23 +204,11 @@ private struct TrackBars: View {
     }
 }
 
+/// The footer's buttons: regular pills (DESIGN.md §11.5), dark for Transcribe and line for Cancel.
 private struct MultitrackFooterButton: ButtonStyle {
     var primary: Bool
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, primary: primary) }
-    private struct Face: View {
-        let configuration: ButtonStyleConfiguration
-        var primary: Bool
-        @Environment(\.isEnabled) private var enabled
-        var body: some View {
-            configuration.label
-                .font(.system(size: 14, weight: primary ? .semibold : .medium))
-                .foregroundStyle(primary ? Ink.onInteractive : Ink.ink)
-                .padding(.horizontal, 18).frame(height: 40)
-                .background(primary ? Ink.interactive.opacity(configuration.isPressed ? 0.85 : 1) : Ink.ink.opacity(configuration.isPressed ? 0.14 : 0.08),
-                            in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        }
+    func makeBody(configuration: Configuration) -> some View {
+        PillButtonStyle(kind: primary ? .dark : .line, size: .regular).makeBody(configuration: configuration)
     }
 }
 

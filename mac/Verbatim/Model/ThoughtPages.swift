@@ -23,6 +23,21 @@ enum ThoughtText {
     /// The page's words for Copy and Send, a blank line between thoughts.
     static func joined(_ page: [Transcript]) -> String { DayPages.joined(page.map(words)) }
 
+    /// A thought that finished transcribing with no words ("Nothing heard"). A page folds these into one row.
+    static func isEmpty(_ t: Transcript) -> Bool { t.status == .ready && words(t).isEmpty }
+
+    /// Shorter than this with nothing heard, a recorded thought is a stray press: it goes to Recently Deleted with its
+    /// audio instead of onto the page.
+    static let strayPressSeconds: Double = 1.4
+
+    /// True for a recorded thought that finished with no words and lasts under `strayPressSeconds`.
+    static func isStrayPress(_ t: Transcript) -> Bool {
+        t.kind == .idea && t.audioFileName != nil && isEmpty(t) && t.duration < strayPressSeconds
+    }
+
+    /// The thought a day list shows for its day: the first with words, else the first.
+    static func firstWithWords(_ page: [Transcript]) -> Transcript? { page.first { !words($0).isEmpty } ?? page.first }
+
     /// "9:40" in Verbose (mono, like a transcript's timecode), "9:40 AM" in Native.
     static func time(_ date: Date, native: Bool) -> String {
         if native { return Formats.style(date: .none, time: .short).string(from: date) }
@@ -68,5 +83,13 @@ extension Store {
     func todaysThoughts(now: Date = Date()) -> [Transcript] {
         let hour = DayPages.storedHour()
         return page(.idea, day: DayPages.today(now: now, hour: hour), hour: hour)
+    }
+
+    /// Journal entries started in the last seven pages (today and the six days before), for the sidebar's badge.
+    func journalThisWeek(now: Date = Date()) -> Int {
+        let hour = DayPages.storedHour()
+        let today = DayPages.today(now: now, hour: hour)
+        let first = DayPages.day(today, moved: -6)
+        return dayPages(.journal, hour: hour).filter { $0.day >= first && $0.day <= today }.reduce(0) { $0 + $1.items.count }
     }
 }

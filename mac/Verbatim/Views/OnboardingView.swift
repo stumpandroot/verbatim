@@ -26,11 +26,11 @@ struct OnboardingView: View {
                 Text(current.counter).font(.system(size: 12)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: current == .look ? .center : .leading)
             } else {
+                // The step's eyebrow in sentence case (mono 12.5 with its diamond), never an uppercase overline.
                 HStack(spacing: 10) {
-                    Diamond().stroke(Ink.ink, lineWidth: 1).frame(width: 7, height: 7)
-                    Overline(text: label, color: Ink.dim)
+                    Eyebrow(text: label, color: Ink.dim)
                     DottedRule().frame(height: 1)
-                    Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(11)).foregroundStyle(Ink.mute)
+                    Text(String(format: "%02d / %02d", step + 1, total)).font(Ink.mono(12)).foregroundStyle(Ink.mute)
                 }
             }
             Group {
@@ -168,37 +168,31 @@ struct OnboardingView: View {
         }
     }
 
+    /// The last step asks two things, one axis each (build 228 review, M-48): which languages, then (for many) speed
+    /// or accuracy. Each choice says what it trades. The pick is a card with the ink outline and a check (DESIGN.md
+    /// §11.3), never a colored wash.
     private var quality: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let many = app.preset != .english
+        return VStack(alignment: .leading, spacing: 0) {
             title("Ready when you are.")
-            para("Pick how careful transcription should be. You can change any of this in Settings.")
-            VStack(spacing: 0) {
-                ForEach([QualityPreset.english, .fast, .balanced, .accurate], id: \.self) { p in
-                    Button { app.presetRaw = p.rawValue } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
-                                    if p == .defaultPreset { Text("Default").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.sageText) }
-                                }
-                                Text(p.pitch)
-                                    .font(.system(size: 12)).foregroundStyle(Ink.mute)
-                            }
-                            Spacer()
-                            if app.preset == p { Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.sageText) }
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .background(app.preset == p ? Ink.sageTint : .clear)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    if p != .accurate { Divider().overlay(Ink.hairline) }
+            para("Two quick choices. You can change either one in Settings.")
+            questionLabel("Languages").padding(.top, 14)
+            SegmentedCapsule(label: "Languages", options: [false, true],
+                             selection: Binding(get: { many }, set: { m in app.presetRaw = (m ? QualityPreset.balanced : .english).rawValue }),
+                             title: { $0 ? "Many languages" : "English only" },
+                             target: { $0 ? "onboarding-languages-many" : "onboarding-languages-english" })
+                .padding(.top, 8)
+            if many {
+                questionLabel("Speed or accuracy").padding(.top, 16)
+                VStack(spacing: 6) {
+                    ForEach([QualityPreset.fast, .balanced, .accurate], id: \.self) { p in qualityRow(p) }
                 }
+                .padding(.top, 8)
+            } else {
+                Text("Fast and accurate for English, with Parakeet v2. The default; pick Many languages for anything else.")
+                    .font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
             }
-            .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.hairline))
-            .padding(.top, 16)
             Label(Cloud.enabled ? "Syncing with iCloud" : "iCloud is off, so everything stays on this Mac",
                   systemImage: Cloud.enabled ? "icloud" : "icloud.slash")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).padding(.top, 12)
@@ -215,7 +209,7 @@ struct OnboardingView: View {
                 if look == .native {
                     Button("Back") { step -= 1 }.buttonStyle(.bordered).controlSize(.large)
                 } else {
-                    Button("Back") { step -= 1 }.buttonStyle(.plain).foregroundStyle(Ink.dim)
+                    Button("Back") { step -= 1 }.buttonStyle(.pillLine(large: true))
                 }
                 if current == .permissions && !(trusted && micStatus == .authorized) {
                     Button("Do this later") { step += 1 }.buttonStyle(.plain).foregroundStyle(Ink.mute).padding(.leading, 14)
@@ -238,7 +232,7 @@ struct OnboardingView: View {
         if look == .native {
             Button(NativeText.titleCase(primaryTitle), action: action).buttonStyle(.borderedProminent).controlSize(.large)
         } else {
-            Button(primaryTitle, action: action).buttonStyle(.brandPrimaryLarge)
+            Button(primaryTitle, action: action).buttonStyle(.pillDark(large: true))
         }
     }
 
@@ -257,6 +251,39 @@ struct OnboardingView: View {
     }
 
     // MARK: Pieces
+
+    private func questionLabel(_ s: String) -> some View {
+        Text(s).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink).accessibilityAddTraits(.isHeader)
+    }
+
+    /// One speed-or-accuracy choice: its name, what it trades, and a check when it's the one.
+    private func qualityRow(_ p: QualityPreset) -> some View {
+        let on = app.preset == p
+        return FlatRowButton(selected: on, action: { app.presetRaw = p.rawValue }) { _ in
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(p.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.ink)
+                    Text(Self.tradeOff(p)).font(.system(size: 12)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Ink.ink).opacity(on ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+        }
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .uiTarget("onboarding-quality-\(p.rawValue)")
+    }
+
+    /// What each choice trades, said against the others.
+    static func tradeOff(_ p: QualityPreset) -> String {
+        switch p {
+        case .fast: return Engines.reduxSupported ? "Quickest, with the smallest download (about 220 MB)." : "Needs \(Engines.newerOS); uses Balanced here."
+        case .balanced: return "Good for most recordings, in 25 languages (about 480 MB)."
+        case .accurate: return "Most accurate. About as fast as Balanced (595 MB)."
+        case .english, .advanced: return p.pitch
+        }
+    }
 
     private func title(_ s: String) -> some View {
         Text(s).font(Ink.serif(32)).foregroundStyle(Ink.ink).padding(.top, 14).padding(.bottom, 6)
@@ -296,7 +323,7 @@ struct OnboardingView: View {
                     .padding(.horizontal, 10).padding(.vertical, 4).background(Ink.sageTint, in: Capsule())
                     .transition(.opacity)
             } else {
-                Button(action, action: perform).buttonStyle(.brandSecondary)
+                Button(action, action: perform).buttonStyle(.pillLine())
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 13)

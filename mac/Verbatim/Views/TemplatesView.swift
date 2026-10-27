@@ -99,9 +99,8 @@ struct TemplateLibraryPane: View {
                 PageTitle(title: "Templates", count: "\(all.count) templates",
                           lede: "Turn a transcript into notes, a plan, or a draft. Pick one per kind to run when a recording finishes. For text you select in any app, use Actions in Settings.") {
                     HStack(spacing: 8) {
-                        PillButton(title: "Run automatically", kind: .line, size: .mini, icon: .iconRecent) { nav.pane = .auto }
-                            .uiTarget("templates-auto")
-                        PillButton(title: "New template", kind: .dark, size: .mini, trailing: .plus) { nav.newTemplate() }
+                        TemplatesPaneSwitch()
+                        PillButton(title: "New template", kind: .dark, size: .mini, icon: .webPlus) { nav.newTemplate() }
                             .uiTarget("templates-new")
                     }
                 }
@@ -312,7 +311,7 @@ struct TemplateDetailCard: View {
             }
             HStack(alignment: .top, spacing: 7) {
                 IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(20)
@@ -355,6 +354,16 @@ struct TemplateTryOnMenu: View {
     }
 }
 
+/// Library | Run automatically: the shared view switch (DESIGN.md §11.15), the same on both panes.
+private struct TemplatesPaneSwitch: View {
+    @ObservedObject private var nav = TemplatesNav.shared
+    var body: some View {
+        SegmentedCapsule(label: "Templates view", options: [TemplatesPane.library, .auto], selection: $nav.pane,
+                         title: { $0 == .library ? "Library" : "Run automatically" }, small: true,
+                         target: { $0 == .library ? "templates-library" : "templates-auto" })
+    }
+}
+
 // MARK: - Run automatically
 
 struct RunAutomaticallyPane: View {
@@ -370,10 +379,7 @@ struct RunAutomaticallyPane: View {
             VStack(alignment: .leading, spacing: 18) {
                 PageTitle(title: "Run", italic: "automatically", count: "\(settings.assignedCount) of \(AutoRunSettings.kinds.count) kinds",
                           lede: "When a recording of a kind finishes, its template runs after the transcript and summary.") {
-                    HStack(spacing: 6) {
-                        FilterChip(title: "Library", selected: false, small: true) { nav.pane = .library }.uiTarget("templates-library")
-                        FilterChip(title: "Run automatically", selected: true, small: true) {}
-                    }
+                    TemplatesPaneSwitch()
                 }
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
@@ -398,7 +404,7 @@ struct RunAutomaticallyPane: View {
                 HStack(spacing: 7) {
                     IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
                     Text(TemplateCopy.onDevice("Mac") + " Your iPhone keeps its own choices; the results sync with the library.")
-                        .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                 }
             }
             .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
@@ -487,7 +493,8 @@ struct TemplateEditorSheet: View {
             Rectangle().fill(Ink.hairline).frame(height: 1)
             HStack(spacing: 10) {
                 IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12)).foregroundStyle(Ink.mute)
+                // The one on-device promise, in SF Pro 12.5 dim (DESIGN.md §8, M-65).
+                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
             // macOS order (review M-32): Try on at the left; Cancel and Save, the default action, at the right.
@@ -562,13 +569,9 @@ struct TemplateEditorSheet: View {
                 }
                 .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
-                // An ink text link: adding a section has nothing to do with recording, so it's never persimmon.
-                Button { draft.sections.append(TemplateSection("", .bullets)) } label: {
-                    HStack(spacing: 6) { Image(systemName: "plus").font(.system(size: 11, weight: .bold)); Text("Add a section") }
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
-                }
-                .buttonStyle(.plain)
-                .uiTarget("editor-add-section")
+                // An ink text link (TextLink, M-61): adding a section has nothing to do with recording, so it's never persimmon.
+                TextLink(title: "Add a section", glyph: .plus) { draft.sections.append(TemplateSection("", .bullets)) }
+                    .uiTarget("editor-add-section")
             }
         }
     }
@@ -669,7 +672,7 @@ struct TemplateTryOnSheet: View {
             }
             .frame(maxHeight: .infinity)
             if preview.phase == .done {
-                Text(TemplateCopy.footer(madeOn: "Mac", here: "Mac")).font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                Text(TemplateCopy.footer(madeOn: "Mac", here: "Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
             }
             HStack(spacing: 8) {
                 Spacer()

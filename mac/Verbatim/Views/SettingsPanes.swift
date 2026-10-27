@@ -68,10 +68,8 @@ struct UpdateSettingsSection: View {
             SettingsToggleRow("general.beta", isOn: $updater.betaUpdates, disabled: !updater.isRunning)
             SettingsRow("general.version", detail: "Version \(AppVersion.label). A check sends your IP address and Verbose's version to GitHub, nothing else.") {
                 HStack(spacing: 8) {
-                    Button("What's New…") { tab = .whatsNew }.buttonStyle(.settingsPill)
-                    Button("Check Now") { updater.checkForUpdates() }
-                        .buttonStyle(.settingsPill)
-                        .disabled(!updater.isRunning || !updater.canCheckForUpdates)
+                    PillButton(title: "What's new", kind: .line, size: .mini) { tab = .whatsNew }
+                    PillButton(title: "Check now", kind: .line, size: .mini, enabled: updater.isRunning && updater.canCheckForUpdates) { updater.checkForUpdates() }
                 }
             }
         }
@@ -551,10 +549,10 @@ struct StorageSettingsPane: View {
             CloudSyncSection()
             SettingsGroup(title: "On this Mac", footer: Paths.root.path) {
                 SettingsRow("storage.library") {
-                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }.buttonStyle(.settingsPill)
+                    PillButton(title: "Show in Finder", kind: .line, size: .mini) { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }
                 }
                 SettingsRow("storage.models") {
-                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }.buttonStyle(.settingsPill)
+                    PillButton(title: "Show in Finder", kind: .line, size: .mini) { NSWorkspace.shared.activateFileViewerSelecting([Paths.models]) }
                 }
             }
             SettingsGroup(title: "Links", footer: "Share links from Dropbox, Google Drive, OneDrive, SharePoint, and iCloud Drive download directly when they're shared with anyone who has the link.") {
@@ -690,21 +688,18 @@ struct SupportSettingsPane: View {
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose. \(Ink.tagline)")
             SettingsGroup {
                 SettingsRow("about.version", detail: "Verbose \(AppVersion.label)") {
-                    HStack(spacing: 12) {
-                        // What each build added (WhatsNewPane.swift).
-                        Button("What's New…") { tab = .whatsNew }.buttonStyle(.settingsPill)
-                        BarsMark(color: Ink.persimmon).frame(width: 18, height: 19)
-                    }
+                    // What each build added (WhatsNewPane.swift). Sentence case, as in the sidebar (DESIGN.md §2, §8).
+                    PillButton(title: "What's new", kind: .line, size: .mini) { tab = .whatsNew }
                 }
                 SettingsRow("about.support") {
                     if let u = Links.mail(subject: "Verbose support") {
-                        PillButton(title: "Contact Support", kind: .line, size: .mini) { NSWorkspace.shared.open(u) }
+                        PillButton(title: "Contact support", kind: .line, size: .mini) { NSWorkspace.shared.open(u) }
                     }
                 }
                 SettingsRow("about.log") {
                     HStack(spacing: 8) {
-                        Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }.buttonStyle(.settingsPill)
-                        Button("Send…") { sendDiagnosticLog() }.buttonStyle(.settingsPill)
+                        PillButton(title: "Show in Finder", kind: .line, size: .mini) { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }
+                        PillButton(title: "Send…", kind: .line, size: .mini) { sendDiagnosticLog() }
                     }
                 }
                 SettingsRow("about.legal") {
@@ -716,7 +711,7 @@ struct SupportSettingsPane: View {
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
                 }
                 SettingsRow("about.acknowledgements") {
-                    Button("Acknowledgements…") { showAcknowledgements = true }.buttonStyle(.settingsPill)
+                    PillButton(title: "Acknowledgements", kind: .line, size: .mini) { showAcknowledgements = true }
                 }
             }
             UpdateSettingsSection()
@@ -727,7 +722,7 @@ struct SupportSettingsPane: View {
                 Divider()
                 HStack {
                     Spacer()
-                    Button("Done") { showAcknowledgements = false }.keyboardShortcut(.defaultAction)
+                    Button("Done") { showAcknowledgements = false }.buttonStyle(.pillDark()).keyboardShortcut(.defaultAction)
                 }
                 .padding(12)
             }

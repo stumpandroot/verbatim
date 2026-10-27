@@ -93,7 +93,9 @@ struct YouView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                RatioRow(weights: [1.15, 1, 0.85], spacing: 16, stackBelow: 640) {
+                // Stacks below 780 pt: at You's 660 pt content width the three cards didn't fit side by side, so Cleanup's
+                // switch spilled past its slot and Your voice ran under the scroll bar.
+                RatioRow(weights: [1.15, 1, 0.85], spacing: 16, stackBelow: 780) {
                     aboutCard
                     cleanupCard
                     voiceCard
@@ -159,8 +161,9 @@ struct YouView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
-            Text("Everything here stays on this Mac.\nMirrored in Settings.")
-                .font(Ink.mono(12)).foregroundStyle(Ink.mute).multilineTextAlignment(.trailing).lineSpacing(4)
+            // The on-device promise in the shared phrasing, in SF Pro (mono is for data, DESIGN.md §2).
+            Text("Counted on this Mac. Nothing leaves it.\nMirrored in Settings.")
+                .font(.system(size: 12.5)).foregroundStyle(Ink.dim).multilineTextAlignment(.trailing).lineSpacing(3)
                 .fixedSize()
         }
     }
@@ -203,7 +206,16 @@ struct YouView: View {
     private var cleanupCard: some View {
         YouPanel(spacing: 14) {
             YouCardTitle(text: "Cleanup and grammar")
-            YouToggle(label: "Cleanup level", options: CleanupLevel.allCases, selection: $settings.cleanup, title: { $0.title })
+            // The switch shrinks to fit a narrow card, then becomes a menu, so it never spills out of it.
+            ViewThatFits(in: .horizontal) {
+                SegmentedCapsule(label: "Cleanup level", options: CleanupLevel.allCases, selection: $settings.cleanup, title: { $0.title })
+                SegmentedCapsule(label: "Cleanup level", options: CleanupLevel.allCases, selection: $settings.cleanup, title: { $0.title }, small: true)
+                Picker("Cleanup level", selection: $settings.cleanup) {
+                    ForEach(CleanupLevel.allCases) { Text($0.title).tag($0) }
+                }
+                .labelsHidden().pickerStyle(.menu).fixedSize()
+            }
+            .uiTarget("you-cleanup-switch")
             VStack(spacing: 0) {
                 // Grammar fixes follow the cleanup level; there's no separate switch, so this opens Cleanup.
                 settingLink("Grammar check", value: "Settings") { openCleanupSetting("dictate.cleanup") }
@@ -211,6 +223,7 @@ struct YouView: View {
                 settingLink("Cloud cleanup", value: cloudCleanup ? "On" : "Off") { openCleanupSetting("dictate.cloud") }
             }
         }
+        .uiTarget("you-cleanup")
     }
 
     private func settingLink(_ title: String, value: String, action: @escaping () -> Void) -> some View {
@@ -276,6 +289,7 @@ struct YouView: View {
             .inkEdge(outline: hovering, shadow: InkEdge.card(hover: hovering, pressed: voiceDown), radius: Radius.record)
         }
         .help(known ? "Read more passages" : "Set up your voice")
+        .uiTarget("you-voice")
         .accessibilityLabel("Your voice. \(voice.line)")
         .accessibilityHint(known ? "Read more passages" : "Set up your voice")
     }
@@ -301,7 +315,7 @@ struct YouView: View {
                 Spacer(minLength: 8)
                 arrow("chevron.left", span == .week ? "Previous week" : "Previous month", enabled: true) { step(-1) }
                 arrow("chevron.right", span == .week ? "Next week" : "Next month", enabled: !current) { step(1) }
-                YouToggle(label: "Range", options: YouRange.Span.allCases, selection: Binding(get: { span }, set: { s in
+                SegmentedCapsule(label: "Range", options: YouRange.Span.allCases, selection: Binding(get: { span }, set: { s in
                     withAnimation(limitMotion ? nil : Motion.snap) { span = s; anchor = Date() }
                 }), title: { $0.title }, small: true)
                 .padding(.leading, 4)
@@ -721,46 +735,6 @@ struct RatioRow: Layout {
     }
 }
 
-/// The website's segmented toggle: a soft wash capsule track with the chosen option as an ink pill (paper text).
-/// Each option is a button, so it works with the keyboard and VoiceOver. `small` is the Week | Month size.
-private struct YouToggle<T: Hashable>: View {
-    var label: String
-    var options: [T]
-    @Binding var selection: T
-    var title: (T) -> String
-    var small = false
-    @Namespace private var ns
-    @Environment(\.limitMotion) private var limitMotion
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(options, id: \.self) { o in
-                let on = o == selection
-                Button { withAnimation(limitMotion ? nil : Motion.snap) { selection = o } } label: {
-                    Text(title(o))
-                        .font(.system(size: small ? 12 : 13.5, weight: .semibold))
-                        .foregroundStyle(on ? Ink.paper : Ink.ink)
-                        .lineLimit(1)
-                        .padding(.horizontal, small ? 12 : 16)
-                        .frame(height: small ? 24 : 30)
-                        .background {
-                            if on { Capsule().fill(Ink.ink).matchedGeometryEffect(id: "on", in: ns) }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(title(o))
-                .accessibilityAddTraits(on ? [.isButton, .isSelected] : [.isButton])
-            }
-        }
-        .padding(small ? 3 : 4)
-        .background(Ink.chip, in: Capsule())
-        .fixedSize()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(label)
-    }
-}
-
 // MARK: - About me
 
 /// Edits About me (300 characters, as on iPhone). Opened from the You page and from Settings › Personalization and preferences.
@@ -800,7 +774,7 @@ struct AboutMeSheet: View {
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.brandPrimary)
+                    .buttonStyle(.pillDark())
             }
         }
         .padding(28)

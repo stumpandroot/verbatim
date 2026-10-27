@@ -90,8 +90,8 @@ struct DictionaryView: View {
             if adding { DispatchQueue.main.async { addFocused = true } }
         } label: {
             HStack(spacing: 8) {
-                Text("Add word")
                 ArtIcon(art: .webPlus, size: 16, lineWidth: 1.5)
+                Text("Add word")
             }
         }
         .buttonStyle(PillButtonStyle(kind: .dark, size: .regular))

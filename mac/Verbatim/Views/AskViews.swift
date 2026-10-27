@@ -466,10 +466,10 @@ struct AskResultView: View {
             if result.state == .answered {
                 Text(result.footer(native: look == .native)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
             } else if look != .native, result.state == .searchOnly {
-                Text("Found on this \(result.device). Nothing left your device.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
+                Text("Found on this \(result.device). Nothing leaves it.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
             }
             Spacer(minLength: 8)
-            PillButton(title: copied ? "Copied" : "Copy", kind: .line, size: .mini, icon: .iconCopy) {
+            PillButton(title: copied ? "✓ Copied" : "Copy", kind: .line, size: .mini, icon: copied ? nil : .iconCopy) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(result.copyText, forType: .string)
                 copied = true
@@ -682,7 +682,7 @@ struct AskView: View {
                     HStack(spacing: 6) {
                         FilterChip(title: "Questions", selected: nav.pane == .questions) { nav.pane = .questions }.uiTarget("ask-pane-questions")
                         FilterChip(title: "Recipes", selected: nav.pane == .recipes) { nav.pane = .recipes }.uiTarget("ask-pane-recipes")
-                        PillButton(title: "New recipe", kind: .dark, size: .mini, trailing: .plus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
+                        PillButton(title: "New recipe", kind: .dark, size: .mini, icon: .webPlus) { nav.editing = RecipeDraft(question: "", scope: nav.scope) }
                             .uiTarget("ask-new-recipe")
                     }
                 }
@@ -770,7 +770,7 @@ struct AskRecipesPane: View {
                     ForEach(recipes) { r in card(r, selected: r.id == selected.id) }
                     HStack(spacing: 8) {
                         IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                        Text("Runs on this Mac with Apple Intelligence. Nothing leaves your device.").font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                     .padding(.top, 4)
                 }

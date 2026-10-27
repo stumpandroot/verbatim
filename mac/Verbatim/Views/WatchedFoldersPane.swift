@@ -102,8 +102,8 @@ struct WatchedFolderRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(summary).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: 260, alignment: .trailing)
-            tag
+                .frame(minWidth: 0, maxWidth: 260, alignment: .trailing)
+            tag.fixedSize().layoutPriority(1)
         }
         .padding(.horizontal, 20).padding(.vertical, 13)
         .background(selected ? Ink.wash : Ink.ink.opacity(hover ? 0.035 : 0))
@@ -218,13 +218,19 @@ struct WatchedFolderDetail: View {
             HStack {
                 Text("Save to").font(.system(size: 13))
                 Spacer(minLength: 12)
+                // Capped, so a long path truncates in the middle instead of widening the pane past the window (the
+                // `fixedSize` it had ignored the truncation).
                 Menu {
-                    Button("Next to the Original") { watcher.update(folder.id) { $0.destination = nil; $0.destinationPath = nil } }
-                    Button("Choose Folder…") { watcher.chooseDestination(folder.id) }
+                    Button("Next to the original") { watcher.update(folder.id) { $0.destination = nil; $0.destinationPath = nil } }
+                    Button("Choose folder…") { watcher.chooseDestination(folder.id) }
                 } label: {
                     Text(folder.destinationPath.map(WatchedFolder.display) ?? "Next to the original").font(Ink.mono(12)).lineLimit(1).truncationMode(.middle)
+                        .frame(maxWidth: 240, alignment: .trailing)
                 }
-                .menuStyle(.borderlessButton).fixedSize()
+                .menuStyle(.borderlessButton)
+                .frame(maxWidth: 240, alignment: .trailing)
+                .help(folder.destinationPath.map(WatchedFolder.display) ?? "Next to the original")
+                .uiTarget("watched-save-to")
             }
             .settingsAnchor("watched.saveTo", radius: 6)
             HStack {

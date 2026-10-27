@@ -333,16 +333,20 @@ private struct ListeningExtras {
             HStack(spacing: 6) {
                 RibbonControl(id: "button-cancel", label: "Cancel", help: "Cancel (Esc)", action: controller.cancel) { pressed in
                     Text("Cancel").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.paperFixed)
+                        .lineLimit(1).fixedSize()
                         .padding(.horizontal, 12).frame(height: 28)
                         .background(Ink.inkFixed, in: Capsule())
                         .overlay(Capsule().strokeBorder(Ink.paperFixed.opacity(0.9), lineWidth: 1))
                         .opacity(pressed ? 0.85 : 1)
                 }
                 RibbonControl(id: "button-stop", label: "Stop", help: "Stop and paste", action: controller.stop) { pressed in
+                    // Its own size, never squeezed (it truncated to "St…" while the controls came in), and Cancel's
+                    // 12.5 pt so the pair reads as one set.
                     HStack(spacing: 6) {
                         RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Ink.inkFixed).frame(width: 9, height: 9)
-                        Text("Stop").font(.system(size: 14, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                        Text("Stop").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.inkFixed).lineLimit(1)
                     }
+                    .fixedSize()
                     .padding(.horizontal, 12).frame(height: 28)
                     .background(Ink.persimmonFixed, in: Capsule())
                     .overlay(Capsule().strokeBorder(Ink.inkFixed, lineWidth: 1.5))

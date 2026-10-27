@@ -221,6 +221,12 @@ extension BrandArt {
     static let iconMic = BrandArt(box: iconGrid, strokes: [.path("M9.5 3.5 H14.5 V12.5 C14.5 13.88 13.38 15 12 15 C10.62 15 9.5 13.88 9.5 12.5 Z"), .path("M6 10.5C6 14.3 8.4 16.5 12 16.5S18 14.3 18 10.5"), .path("M12 16.5V20"), .path("M8.8 20.5H15.2")], strokeWidth: 1.5)
     static let iconOneOnOne = BrandArt(box: iconGrid, strokes: [.circle(7.5, 8.5, 2.75), .circle(16.5, 8.5, 2.75), .path("M3 18C3 15 5 13.3 7.5 13.3S12 15 12 18"), .path("M12 18C12 15 14 13.3 16.5 13.3S21 15 21 18"), .path("M2.5 19.5H21.5")], strokeWidth: 1.5)
     static let iconHaptics = BrandArt(box: iconGrid, strokes: [.path("M10 3 H14 C15.38 3 16.5 4.12 16.5 5.5 V18.5 C16.5 19.88 15.38 21 14 21 H10 C8.62 21 7.5 19.88 7.5 18.5 V5.5 C7.5 4.12 8.62 3 10 3 Z"), .path("M5 9.5C4.3 10.9 4.3 13.1 5 14.5"), .path("M2.8 7.5C1.6 10.3 1.6 13.7 2.8 16.5"), .path("M19 9.5C19.7 10.9 19.7 13.1 19 14.5"), .path("M21.2 7.5C22.4 10.3 22.4 13.7 21.2 16.5")], strokeWidth: 1.5)
+    static let iconMail = BrandArt(box: iconGrid, strokes: [.path("M3.5 6H20.5V18H3.5Z"), .path("M3.5 6L12 13L20.5 6")], strokeWidth: 1.5)
+    static let iconChecklist = BrandArt(box: iconGrid, strokes: [.path("M4 6.5L5.5 8L8 5.5"), .path("M11 7H20"), .path("M4 12.5L5.5 14L8 11.5"), .path("M11 13H20"), .path("M4.5 17.5H7.5V20.5H4.5Z"), .path("M11 19H17")], strokeWidth: 1.5)
+    static let iconBullets = BrandArt(box: iconGrid, strokes: [.path("M9 7H20"), .path("M9 12H20"), .path("M9 17H20")], fills: [.circle(5, 7, 1.2), .circle(5, 12, 1.2), .circle(5, 17, 1.2)], strokeWidth: 1.5)
+    static let iconTighten = BrandArt(box: iconGrid, strokes: [.path("M4 4L10 10"), .path("M10 5.5V10H5.5"), .path("M20 20L14 14"), .path("M14 18.5V14H18.5")], strokeWidth: 1.5)
+    static let iconFilm = BrandArt(box: iconGrid, strokes: [.path("M4 9.5H20V19.5H4Z"), .path("M4 9.5L3.4 6.3L18.6 3.5L19.2 6.7"), .path("M8.2 5.5L9.6 8.3"), .path("M13 4.6L14.4 7.4")], strokeWidth: 1.5)
+    static let iconStudy = BrandArt(box: iconGrid, strokes: [.path("M2.5 9.5L12 5L21.5 9.5L12 14Z"), .path("M6.5 11.6V16C9 18.3 15 18.3 17.5 16V11.6"), .path("M21.5 9.5V15")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the

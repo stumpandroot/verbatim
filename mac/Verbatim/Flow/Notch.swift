@@ -467,9 +467,11 @@ struct NotchView: View {
                 }
                 if let primary = p.primary {
                     RibbonControl(id: "notch-prompt-primary", label: primary, action: { controller.answer(primary: true) }) { pressed in
+                        // Paper on the notch's black, ink text: persimmon stays on Record and Stop (DESIGN.md §1).
                         Text(primary).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                            .lineLimit(1).fixedSize()
                             .padding(.horizontal, 14).frame(height: 28)
-                            .background(Ink.persimmonFixed, in: Capsule())
+                            .background(Ink.onBlack, in: Capsule())
                             .opacity(pressed ? 0.85 : 1)
                     }
                 }

@@ -162,7 +162,7 @@ struct FixAllBanner: View {
                 Text(CorrectEverywhere.bannerText(heard: o.heard, count: o.count))
                     .font(.system(size: 13)).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Button(CorrectEverywhere.buttonTitle(o.count)) { fixAll(o) }.buttonStyle(.brandSecondary)
+                Button(CorrectEverywhere.buttonTitle(o.count)) { fixAll(o) }.buttonStyle(.pillLine())
                 if o.offerDictionary {
                     Button("Add to Dictionary") { addToDictionary(o) }.buttonStyle(.plain)
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.dim)
@@ -208,7 +208,7 @@ struct AllowDownloadButton: View {
                 LocalOnly.allowModelDownloads()
                 app.retry(transcript)
             }
-            .buttonStyle(.brandSecondary)
+            .buttonStyle(.pillLine())
             .help("Downloads the model once, then Local Only goes back to refusing downloads.")
         }
     }

@@ -540,7 +540,8 @@ enum PillSize {
     var font: CGFloat { self == .regular ? 13.5 : 12 }
     var icon: CGFloat { self == .regular ? 16 : 14 }
 }
-/// A drawn glyph after the title: an arrow ("Start recording →"), a plus ("New project +"), or a chevron.
+/// A drawn glyph after the title: an arrow ("Start recording →") or a chevron. A create-in-place pill leads with its
+/// plus instead (`icon: .webPlus`, "+ New project"); an ellipsis only when a dialog or file picker opens (§11.5).
 enum PillTrailing { case arrow, plus, chevron
     var art: BrandArt { switch self { case .arrow: return .webArrow; case .plus: return .webPlus; case .chevron: return .webChevronDown } }
 }
@@ -637,11 +638,14 @@ struct PillButton: View {
 struct PillButtonStyle: ButtonStyle {
     var kind: PillKind = .line
     var size: PillSize = .mini
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, kind: kind, size: size) }
+    /// Fills the width it's given (a sheet's equal-width bottom buttons).
+    var fullWidth = false
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, kind: kind, size: size, fullWidth: fullWidth) }
     private struct Face: View {
         let configuration: ButtonStyleConfiguration
         var kind: PillKind
         var size: PillSize
+        var fullWidth: Bool
         @State private var hover = false
         @Environment(\.isEnabled) private var enabled
         @Environment(\.limitMotion) private var limitMotion
@@ -649,6 +653,7 @@ struct PillButtonStyle: ButtonStyle {
         var body: some View {
             if look == .native {
                 NativeButtonStyleFace(configuration: configuration, prominent: kind == .dark, size: size == .mini ? .mini : .regular)
+                    .frame(maxWidth: fullWidth ? .infinity : nil)
             } else {
                 verbose
             }
@@ -659,6 +664,7 @@ struct PillButtonStyle: ButtonStyle {
                 .lineLimit(1)
                 .foregroundStyle(kind == .dark ? Ink.paper : Ink.ink)
                 .padding(.horizontal, size.padding)
+                .frame(maxWidth: fullWidth ? .infinity : nil)
                 .frame(height: size.height)
                 .background {
                     if kind == .dark {
@@ -670,7 +676,7 @@ struct PillButtonStyle: ButtonStyle {
                         }
                     }
                 }
-                .fixedSize()
+                .fixedSize(horizontal: !fullWidth, vertical: true)
                 .contentShape(Capsule())
                 .scaleEffect(configuration.isPressed && !limitMotion ? 0.97 : 1)
                 .opacity(enabled ? (configuration.isPressed && limitMotion ? 0.8 : 1) : 0.4)
@@ -679,6 +685,121 @@ struct PillButtonStyle: ButtonStyle {
                 .animation(Motion.press, value: configuration.isPressed)
         }
     }
+}
+
+// MARK: - Text links and the segmented capsule
+
+/// The glyph a text link carries: an arrow after the words when it goes somewhere ("Today's page →"), a plus before
+/// them when it adds something in place ("+ Add a section"), none when an ellipsis already says a choice opens
+/// ("Choose…").
+enum TextLinkGlyph { case arrow, plus, none }
+
+/// A text link (DESIGN.md §11): ink semibold 13 with a drawn arrow or plus, one line, never truncated. Persimmon
+/// text means Record, so links are never `accentText`. Native: plain accent text in title case.
+struct TextLink: View {
+    var title: String
+    var glyph: TextLinkGlyph = .arrow
+    var hint: String = ""
+    var action: () -> Void
+
+    var body: some View {
+        TextLinkLabel(title: title, glyph: glyph)
+        .tapArea(action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// A text link's face, for a real `Button` where one is needed (a row in a `List`).
+struct TextLinkLabel: View {
+    var title: String
+    var glyph: TextLinkGlyph = .arrow
+    @Environment(\.look) private var look
+
+    var body: some View {
+        Group {
+            if look == .native {
+                Text(NativeText.titleCase(title)).font(.system(size: 13)).foregroundStyle(Ink.nativeAccent)
+            } else {
+                HStack(spacing: 4) {
+                    if glyph == .plus { ArtIcon(art: .webPlus, size: 13, lineWidth: 1.5) }
+                    Text(title)
+                    if glyph == .arrow { ArtIcon(art: .webArrow, size: 13, lineWidth: 1.5) }
+                }
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
+            }
+        }
+        .lineLimit(1).fixedSize()
+        .contentShape(Rectangle())
+    }
+}
+
+/// One view switch for every screen (DESIGN.md §11.15): a soft wash capsule track with the chosen option as an ink
+/// pill and paper text (the transcript's modes, You's Week | Month, Templates' Library | Run automatically, By day,
+/// Export's formats). Each option takes clicks through a direct gesture and reads as a selected button to VoiceOver.
+/// Native: the system segmented control.
+struct SegmentedCapsule<T: Hashable>: View {
+    var label: String
+    var options: [T]
+    @Binding var selection: T
+    var title: (T) -> String
+    var small = false
+    /// A tooltip per option.
+    var help: ((T) -> String)? = nil
+    /// A self-test target per option.
+    var target: ((T) -> String)? = nil
+    @Namespace private var ns
+    @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
+
+    var body: some View {
+        if look == .native {
+            Picker(label, selection: $selection) {
+                ForEach(options, id: \.self) { o in Text(NativeText.titleCase(title(o))).tag(o) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        } else {
+            verbose
+        }
+    }
+
+    @ViewBuilder private var verbose: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.self) { o in
+                let on = o == selection
+                Text(title(o))
+                    .font(.system(size: small ? 12 : 13.5, weight: .semibold))
+                    .foregroundStyle(on ? Ink.paper : Ink.ink)
+                    .lineLimit(1).fixedSize()
+                    .padding(.horizontal, small ? 12 : 16)
+                    .frame(height: small ? 24 : 30)
+                    .background {
+                        if on { Capsule().fill(Ink.ink).matchedGeometryEffect(id: "on", in: ns) }
+                    }
+                    .contentShape(Capsule())
+                    .tapArea { if selection != o { withAnimation(limitMotion ? nil : Motion.snap) { selection = o } } }
+                    .help(help?(o) ?? "")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(title(o))
+                    .accessibilityAddTraits(on ? [.isButton, .isSelected] : [.isButton])
+                    .uiTarget(target?(o) ?? "segmented-\(title(o))")
+            }
+        }
+        .padding(small ? 3 : 4)
+        .background(Ink.chip, in: Capsule())
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+}
+
+extension ButtonStyle where Self == PillButtonStyle {
+    /// The dark pill for a real `Button`: mini, or regular with `large`.
+    static func pillDark(large: Bool = false) -> PillButtonStyle { PillButtonStyle(kind: .dark, size: large ? .regular : .mini) }
+    /// The line pill for a real `Button`: mini, or regular with `large`.
+    static func pillLine(large: Bool = false) -> PillButtonStyle { PillButtonStyle(kind: .line, size: large ? .regular : .mini) }
 }
 
 // MARK: - Filter chips

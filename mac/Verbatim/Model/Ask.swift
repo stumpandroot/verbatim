@@ -733,11 +733,13 @@ struct AskResult: Codable, Equatable, Identifiable {
 
     static func plural(_ n: Int, _ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
 
-    /// "From 9 passages in 2 recordings. Verbose found them first, then answered on this Mac." Premium Native's is
+    /// "On this Mac with Apple Intelligence. Nothing leaves it. Verbose found 9 passages in 2 recordings first, then
+    /// answered from them." (the on-device promise reads the same in Templates, Ask, and You). Premium Native's is
     /// shorter: "From 9 passages in 2 recordings, answered on this Mac."
     func footer(native: Bool) -> String {
-        let from = "From \(Self.plural(passageCount, "passage", "passages")) in \(Self.plural(recordingCount, "recording", "recordings"))"
-        return native ? "\(from), answered on this \(device)." : "\(from). Verbose found them first, then answered on this \(device)."
+        let counts = "\(Self.plural(passageCount, "passage", "passages")) in \(Self.plural(recordingCount, "recording", "recordings"))"
+        return native ? "From \(counts), answered on this \(device)."
+            : "On this \(device) with Apple Intelligence. Nothing leaves it. Verbose found \(counts) first, then answered from them."
     }
 
     /// The line under a result that isn't an answer.

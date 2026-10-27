@@ -408,8 +408,13 @@ struct ThoughtCard: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 11)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Ink.reader, in: shape)
-                .overlay(shape.strokeBorder(outlined || editing ? Ink.ink : Ink.hairline, lineWidth: outlined || editing ? 1.5 : 1))
+                // Flat on the paper with a hairline under it (DESIGN.md §14.5); only the thought added last (or the one
+                // being edited) takes the reader fill and the 1.5 pt ink outline.
+                .background(outlined || editing ? Ink.reader : Color.clear, in: shape)
+                .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5).opacity(outlined || editing ? 1 : 0))
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Ink.hairline).frame(height: 1).opacity(outlined || editing ? 0 : 1).allowsHitTesting(false)
+                }
             }
         }
         .contextMenu {

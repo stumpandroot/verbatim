@@ -5,7 +5,7 @@ import Carbon.HIToolbox
 
 // Getting a dictation back when its paste failed or landed in the wrong place:
 // - Recent dictations: ⌥⌘V (Settings › Dictation) opens a small paper panel with your last 10 dictations. A number
-//   key, Return, or a click copies one; ⇧ with it (or the Paste button) pastes it where your cursor is.
+//   key or a click copies one; ⇧ with a number, Return, or the selected row's Paste button pastes it where your cursor is.
 // - The menu bar item lists the same dictations; a click copies one.
 // - A dictation that didn't land (no text field, or the app never read the paste) stays in the Ribbon with Copy and
 //   Paste again, and on the clipboard.
@@ -136,7 +136,8 @@ enum Recall {
     enum KeyAction: Equatable { case close, move(Int), copySelected, pasteSelected, copy(Int), paste(Int) }
 
     /// What a key does in the panel. Numbers pick a row while the search field is empty (with ⌘, always); Shift
-    /// pastes instead of copying. Anything else goes to the search field.
+    /// pastes instead of copying. Return pastes the selection, as its Paste pill says. Anything else goes to the search
+    /// field.
     static func keyAction(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, queryEmpty: Bool) -> KeyAction? {
         let mods = modifiers.intersection([.command, .option, .control, .shift])
         let shift = mods.contains(.shift)
@@ -145,7 +146,7 @@ enum Recall {
         case 53: return .close                                            // Esc
         case 126: return rest.isEmpty ? .move(-1) : nil                   // ↑
         case 125: return rest.isEmpty ? .move(1) : nil                    // ↓
-        case 36, 76: return rest.isEmpty ? (shift ? .pasteSelected : .copySelected) : nil   // Return, Enter
+        case 36, 76: return rest.isEmpty ? .pasteSelected : nil           // Return, Enter (with or without ⇧)
         default: break
         }
         guard let i = index(forKeyCode: keyCode) else { return nil }
@@ -448,11 +449,12 @@ struct RecallPanelView: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
-            hint("1–0", model.query.isEmpty ? "copy" : "with ⌘ copy")
-            hint("⇧", "pastes")
-            hint("↩", "copies the selection")
+            // One form throughout: the key, then what it does.
+            hint(model.query.isEmpty ? "1–0" : "⌘ 1–0", "Copy")
+            hint(model.query.isEmpty ? "⇧ 1–0" : "⌘⇧ 1–0", "Paste")
+            hint("Return", "Paste")
             Spacer(minLength: 0)
-            hint("esc", "closes")
+            hint("Esc", "Close")
         }
         .padding(.horizontal, 16).frame(height: 36)
     }
@@ -519,13 +521,16 @@ private struct RecallRow: View {
     }
 }
 
+/// The selected row's Paste: a mini dark pill (DESIGN.md §11.5).
 private struct RecallPasteButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Ink.onInteractive)
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Ink.interactive, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .lineLimit(1).fixedSize()
+            .padding(.horizontal, 12).frame(height: 26)
+            .background(Ink.interactive, in: Capsule())
+            .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.75 : 1)
     }
 }

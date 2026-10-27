@@ -10,8 +10,8 @@ struct MicSheet: View {
             Text("Voice notes are recorded and transcribed on this Mac. Nothing is uploaded.")
                 .font(.system(size: 13)).foregroundStyle(Ink.dim).multilineTextAlignment(.center)
             HStack(spacing: 8) {
-                Button("Not now") { app.showMicSheet = false }.buttonStyle(.bordered).uiTarget("sheet-notnow")
-                Button("Allow") { app.allowMic() }.buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
+                Button("Not now") { app.showMicSheet = false }.buttonStyle(.pillLine()).uiTarget("sheet-notnow")
+                Button("Allow") { app.allowMic() }.buttonStyle(.pillDark()).keyboardShortcut(.defaultAction)
             }.padding(.top, 8)
         }
         .padding(24).frame(width: 360).background(Ink.paper)

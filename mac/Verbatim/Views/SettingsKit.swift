@@ -62,8 +62,12 @@ enum SettingsTab: CaseIterable, Identifiable, Hashable, RawRepresentable {
 
     var id: String { rawValue }
 
-    /// The sidebar title, also the pane's title (MacSettingsMap).
+    /// The pane's title (MacSettingsMap).
     var title: String { MacSettingsMap.title(rawValue) ?? rawValue }
+
+    /// The Mac sidebar's name for the pane: the title, except the first pane, whose full name ("Personalization and
+    /// preferences") truncated in the sidebar in both looks. The pane keeps the long name as its page title.
+    var sidebarTitle: String { self == .personalization ? "Personalization" : title }
 
     /// The pane's overline in Verbose style.
     var group: String { self == .whatsNew ? "Support and feedback" : "Settings" }
@@ -220,7 +224,7 @@ enum SettingsIndex {
 
         // Live captions
         .init("captions.size", .meetings, "Text size", "How big captions read in the captions bar.", keywords: "subtitles captions live font large"),
-        .init("captions.soon", .meetings, "Show the time in the header", "Open live captions from Home, the menu bar, or ⌥⌘C. Captions are made on this Mac.", keywords: "subtitles captions live timecode clock"),
+        .init("captions.soon", .meetings, "Show the time in the header", "Shows how long captions have been running at the top of the panel.", keywords: "subtitles captions live timecode clock"),
         .init("captions.above", .meetings, "Keep captions above full-screen apps", keywords: "subtitles captions floating window full screen"),
 
         // Meetings
@@ -262,7 +266,7 @@ enum SettingsIndex {
         .init("storage.deleteAll", .storage, "Delete all data", "Removes every transcript, dictation, and recording, plus projects, the Dictionary, snippets, Activity, and downloaded models. Settings stay.", keywords: "erase reset privacy remove"),
 
         // About
-        .init("about.version", .support, "Version", "What's New… shows what each build added.", keywords: "build number what's new release notes changes changelog"),
+        .init("about.version", .support, "Version", "What's new shows what each build added.", keywords: "build number what's new release notes changes changelog"),
         .init("about.support", .support, "Help", "Write to support.", keywords: "contact email support help"),
         .init("about.log", .support, "Diagnostic log", "A record of what Verbose did, to help fix problems. It keeps 7 days, leaves out links and folder names, and stays on this Mac unless you send it.", keywords: "logs debug send support"),
         .init("about.legal", .support, "Legal", "Privacy, Terms, and Refunds.", keywords: "privacy policy terms refunds"),
@@ -434,7 +438,8 @@ struct SettingsPane<Content: View>: View {
                     SettingsPaneHeader(overline: tab.group, title: tab.title, blurb: tab.blurb)
                     content()
                 }
-                .padding(.horizontal, native ? 28 : 36).padding(.top, native ? 22 : 44).padding(.bottom, native ? 28 : 36)
+                // Native starts the title at the content's top inset, as System Settings does.
+                .padding(.horizontal, native ? 28 : 36).padding(.top, native ? 8 : 44).padding(.bottom, native ? 28 : 36)
                 .frame(maxWidth: native ? 700 : 780, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

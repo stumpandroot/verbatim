@@ -88,9 +88,10 @@ final class AutoLearn {
             title: ask.count == 1 ? "Remember “\(first.fixed)”?" : "Remember \(ask.count) words?",
             body: ask.count == 1 ? "You changed " : "You changed ",
             quote: ask.count == 1 ? "\(first.heard) → \(first.fixed)" : ask.map { "\($0.heard) → \($0.fixed)" }.joined(separator: ", "),
-            after: ". Next time it's spelled your way.",
-            // With a project picked, the word goes into that project (Dictionary › Use In changes it later).
-            primary: project.map { "Remember in \($0.name)" } ?? "Remember",
+            // With a project picked, the word goes into that project (Dictionary › Use In changes it later). The scope
+            // is in the body, so the button says Remember on every surface (the Ribbon, the notch, the floating button).
+            after: project.map { ". Next time it's spelled your way in \($0.name)." } ?? ". Next time it's spelled your way.",
+            primary: "Remember",
             secondary: "Not now",
             seconds: 12,
             onPrimary: { remember(project?.id) },

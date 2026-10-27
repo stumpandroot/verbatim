@@ -259,7 +259,7 @@ struct NativeLibraryView: View {
         } else if let p = app.projectFilter {
             NativeEmptyState(art: .iconProject, title: "Nothing in this project yet",
                              message: "Add transcripts from your library or import files.",
-                             button: "Add from Library", action: { app.addFromLibrary = p })
+                             button: "Add from Library…", action: { app.addFromLibrary = p })
         } else if app.libraryKind != nil {
             NativeEmptyState(art: .iconLibrary, title: "Nothing here yet",
                              message: "Recordings of this kind land here as you make them.",

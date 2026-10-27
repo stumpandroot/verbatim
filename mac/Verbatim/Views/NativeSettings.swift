@@ -18,7 +18,7 @@ struct NativeSettingsSplit<Detail: View>: View {
         NavigationSplitView {
             List(selection: selection) {
                 ForEach(SettingsTab.sidebar) { t in
-                    Label(t.title, systemImage: NativeSymbols.settings(t.rawValue))
+                    Label(t.sidebarTitle, systemImage: NativeSymbols.settings(t.rawValue))
                         .uiTarget("settings-\(t.rawValue)")
                         .tag(t)
                 }
@@ -34,6 +34,9 @@ struct NativeSettingsSplit<Detail: View>: View {
             .searchable(text: $model.query, placement: .sidebar, prompt: "Search")
             .onSubmit(of: .search) { if let first = SettingsIndex.search(model.query).first { model.open(first) } }
             .navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 290)
+            // On the sidebar column itself, where it takes effect: on the split view alone it left a second toggle
+            // under the traffic lights and a toolbar's height of empty space above every pane's title.
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             detail()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

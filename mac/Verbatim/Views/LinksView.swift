@@ -21,7 +21,7 @@ struct LinksView: View {
             VStack(alignment: .leading, spacing: 0) {
                 PageTitle(title: "Links", count: "\(shown.count.formatted()) transcribed",
                           lede: "The page each transcript came from. Right-click any line in a transcript to open the video at that moment.") {
-                    PillButton(title: "Paste a link", kind: .line, trailing: .plus, hint: "Opens the link field on Home.") { pasteLink() }
+                    PillButton(title: "Paste a link", kind: .line, icon: .webPlus, hint: "Opens the link field on Home.") { pasteLink() }
                 }
                 .staggerIn(0)
                 if sites.count > 1 {

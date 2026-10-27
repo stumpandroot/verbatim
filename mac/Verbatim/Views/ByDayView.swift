@@ -42,7 +42,7 @@ struct ByDayView: View {
         let _ = LookSwitch.mark("byday")
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                PageTitle(title: name, count: DayPages.count(pages.count, "day", "days"),
+                PageTitle(title: name, count: titleCount(pages, today: today),
                           lede: isThoughts ? "One page per day. Pick a day to read it." : "One page per day, from your journal recordings.") {
                     if isThoughts { titleControls }
                 }
@@ -51,13 +51,15 @@ struct ByDayView: View {
                         DayCalendar(month: Binding(get: { month }, set: { shownMonth = $0 }), selected: day, today: today, marked: Set(pages.map(\.day))) { d in selected = d }
                         dayList(pages, selected: day, month: month)
                     }
-                    .frame(width: 320)
+                    .frame(width: 280)
+                    // minWidth 0: the page takes what's left and never asks for more, so the window's split view (Native)
+                    // never squeezes the sidebar off its edge.
                     DayPageCard(kind: kind, day: day, today: today, items: items)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
                 }
             }
             .padding(.horizontal, 32).padding(.top, 28).padding(.bottom, 40)
-            .frame(maxWidth: 1180, alignment: .leading)
+            .frame(minWidth: 0, maxWidth: 1180, alignment: .leading)
             .scrollPlace(ScreenPlaces.scrollKey(isThoughts ? "byday-thoughts" : "byday-journal", look: look))
             .navMarkWhenLaidOut("byday-laid-out")
         }
@@ -69,20 +71,20 @@ struct ByDayView: View {
         .uiTarget(isThoughts ? "byday-thoughts" : "byday-journal")
     }
 
+    /// By day | All thoughts (the shared view switch; All thoughts opens the Library on Thoughts), and New thought.
     @ViewBuilder private var titleControls: some View {
         HStack(spacing: 8) {
-            if look == .native {
-                Picker("View", selection: Binding(get: { 0 }, set: { v in if v == 1 { showAll() } })) {
-                    Text("By Day").tag(0)
-                    Text("All Thoughts").tag(1)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
-            } else {
-                PillButton(title: "By day", kind: .dark, size: .mini) {}
-                PillButton(title: "All thoughts", kind: .line, size: .mini) { showAll() }
-            }
-            NewThoughtPill()
+            SegmentedCapsule(label: "View", options: [0, 1], selection: Binding(get: { 0 }, set: { v in if v == 1 { showAll() } }),
+                             title: { $0 == 0 ? "By day" : "All thoughts" }, small: true,
+                             target: { $0 == 0 ? "byday-switch-day" : "byday-switch-all" })
+            NewThoughtPill(size: .mini).uiTarget("byday-new-thought")
         }
+    }
+
+    /// Thoughts: today's count ("6 today"), as the sidebar's badge. Journal: this week's entries ("3 this week").
+    private func titleCount(_ pages: [(day: Date, items: [Transcript])], today: Date) -> String {
+        if isThoughts { return "\(pages.first { $0.day == today }?.items.count ?? 0) today" }
+        return "\(app.store.journalThisWeek()) this week"
     }
 
     /// The Library, filtered to Thoughts.
@@ -120,48 +122,63 @@ struct ByDayView: View {
         }
     }
 
+    /// The day's first thought that has words (an empty one never names the day), or Journal's first title.
     private func firstLine(_ items: [Transcript]) -> String {
-        guard let first = items.first else { return "" }
+        guard let first = isThoughts ? ThoughtText.firstWithWords(items) : items.first else { return "" }
         if !isThoughts { return first.title }
         let w = Thoughts.words(first)
-        return w.isEmpty ? (first.status == .processing ? "Transcribing…" : first.title) : w
+        if !w.isEmpty { return w }
+        return first.status == .processing ? "Transcribing…" : first.status == .failed ? "Couldn't transcribe it" : "Nothing heard"
     }
 }
 
-/// New thought, from the Library: starts recording without leaving it (Stop while one records).
-private struct NewThoughtPill: View {
+/// New thought: starts recording in place (Stop while one records). A line pill with its keycap in Verbose style,
+/// never a second dark or persimmon fill beside Record (DESIGN.md §14.9); a bordered button in Native. By day's title
+/// row and Home's Today's thoughts share it.
+struct NewThoughtPill: View {
+    var size: PillSize = .mini
     @ObservedObject private var capture = ThoughtCapture.shared
     @Environment(\.look) private var look
+    @State private var hover = false
+
     var body: some View {
-        Group {
-            if look == .native {
-                Button { capture.toggle() } label: {
-                    Label { Text(capture.isRecording ? "Stop" : "New Thought") } icon: { ThoughtGlyph(color: .white, lineWidth: 1.4).frame(width: 14, height: 14) }
-                }
-                .buttonStyle(.borderedProminent).tint(Ink.nativeAccent)
-                .help("New thought (\(Thoughts.hotkey))")
-            } else {
-                HStack(spacing: 8) {
-                    if capture.isRecording {
-                        ThoughtMicLevel(live: capture.recorder.live, color: Ink.paper).frame(width: 15, height: 15)
-                    } else {
-                        ThoughtGlyph(color: Ink.paper, lineWidth: 1.4).frame(width: 15, height: 15)
-                    }
-                    Text(capture.isRecording ? "Stop" : "New thought").font(.system(size: 13.5, weight: .semibold))
-                    Text(Thoughts.hotkey).font(Ink.mono(12)).padding(.horizontal, 5).padding(.vertical, 2)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.paper.opacity(0.8), lineWidth: 1))
-                }
-                .foregroundStyle(Ink.paper)
-                .padding(.horizontal, 14).frame(height: 36)
-                .background(Capsule().fill(Ink.ink))
-                .contentShape(Capsule())
-                .tapArea { capture.toggle() }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(capture.isRecording ? "Stop the thought" : "New thought")
-                .accessibilityAddTraits(.isButton)
+        if look == .native {
+            Button { capture.toggle() } label: {
+                Label { Text(capture.isRecording ? "Stop" : "New Thought") } icon: { ThoughtGlyph(color: .primary, lineWidth: 1.4).frame(width: 14, height: 14) }
             }
+            .buttonStyle(.bordered)
+            .help("New thought (\(Thoughts.hotkey))")
+        } else {
+            HStack(spacing: 8) {
+                Group {
+                    if capture.isRecording {
+                        ThoughtMicLevel(live: capture.recorder.live, color: Ink.ink)
+                    } else {
+                        ThoughtGlyph(color: Ink.ink, lineWidth: 1.4)
+                    }
+                }
+                .frame(width: size.icon, height: size.icon)
+                Text(capture.isRecording ? "Stop" : "New thought").font(.system(size: size.font, weight: .semibold)).lineLimit(1)
+                Keycap(keys: Thoughts.hotkey, size: 12)
+            }
+            .foregroundStyle(Ink.ink)
+            .padding(.horizontal, size.padding).frame(height: size.height)
+            .background {
+                ZStack {
+                    Capsule().fill(Ink.ink.opacity(hover ? 0.07 : 0))
+                    Capsule().strokeBorder(Ink.ink, lineWidth: 1.5)
+                }
+            }
+            .fixedSize()
+            .contentShape(Capsule())
+            .onHover { hover = $0 }
+            .animation(Motion.touch, value: hover)
+            .tapArea { capture.toggle() }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(capture.isRecording ? "Stop the thought" : "New thought")
+            .accessibilityHint(capture.isRecording ? "Stops the thought and adds it to today's page." : "Records a thought for today's page (\(Keycap.spoken(Thoughts.hotkey))).")
+            .accessibilityAddTraits(.isButton)
         }
-        .uiTarget("byday-new-thought")
     }
 }
 
@@ -270,7 +287,14 @@ struct DayPageCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            DayHeader(text: day == today ? "Today · \(DayPages.eyebrowDay(day))" : DayPages.eyebrowDay(day))
+            HStack(alignment: .center, spacing: 12) {
+                DayHeader(text: day == today ? "Today · \(DayPages.eyebrowDay(day))" : DayPages.eyebrowDay(day))
+                // In the eyebrow row, on one line: in the action row it was squeezed by the pills (one letter per line).
+                if isThoughts {
+                    TextLink(title: "Open as pad", hint: "Opens this day as the floating page.") { ThoughtPadController.shared.open() }
+                        .uiTarget("byday-open-pad")
+                }
+            }
             Group {
                 if native {
                     Text(DayPages.title(Thoughts.pageName(kind), day: day)).font(.system(size: 24, weight: .bold))
@@ -286,10 +310,13 @@ struct DayPageCard: View {
             if items.isEmpty {
                 ThoughtEmptyPage(isToday: day == today, play: false).padding(.top, 16).padding(.horizontal, -18)
             } else {
+                // Thoughts with nothing heard fold into one row at the foot ("6 empty thoughts · Delete").
+                let empties = isThoughts ? items.filter(ThoughtText.isEmpty) : []
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(items) { t in
+                    ForEach(isThoughts ? items.filter { !ThoughtText.isEmpty($0) } : items) { t in
                         if isThoughts { ThoughtLine(transcript: t) } else { JournalLine(transcript: t) }
                     }
+                    if !empties.isEmpty { emptyRow(empties) }
                 }
                 .padding(.top, 12)
             }
@@ -318,7 +345,28 @@ struct DayPageCard: View {
         return DayPages.count(items.count, "thought", "thoughts") + from + updated
     }
 
-    private var text: String { Thoughts.joined(items) }
+    private var text: String { Thoughts.joined(items.filter { !ThoughtText.isEmpty($0) }) }
+
+    /// "6 empty thoughts · Delete": thoughts where nothing was heard, in one row. Delete moves them to Recently Deleted.
+    private func emptyRow(_ empties: [Transcript]) -> some View {
+        HStack(spacing: 10) {
+            Text(DayPages.count(empties.count, "empty thought", "empty thoughts"))
+                .font(.system(size: 13.5)).foregroundStyle(native ? Color.secondary : Ink.dim)
+            Text("·").foregroundStyle(native ? Color.secondary : Ink.mute).accessibilityHidden(true)
+            Text("Delete").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(native ? NativeInk.danger : Ink.danger)
+                .contentShape(Rectangle())
+                .tapArea {
+                    for t in empties { app.store.moveToTrash(t.id) }
+                    app.toast = Toast("Moved \(DayPages.count(empties.count, "empty thought", "empty thoughts")) to Recently Deleted")
+                }
+                .accessibilityLabel("Delete \(DayPages.count(empties.count, "empty thought", "empty thoughts"))")
+                .accessibilityAddTraits(.isButton)
+                .uiTarget("byday-empty-delete")
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 12)
+        .uiTarget("byday-empty-row")
+    }
 
     @ViewBuilder private var actions: some View {
         HStack(spacing: 8) {
@@ -326,8 +374,6 @@ struct DayPageCard: View {
                 Button("Copy") { Paster.copy(text); app.toast = Toast("Copied the day's thoughts") }.buttonStyle(.bordered).disabled(items.isEmpty)
                 ShareLink(item: text) { Text("Send To…") }.buttonStyle(.bordered).disabled(items.isEmpty)
                 Button("Export") { DayExport.save(items, kind: kind, day: day) }.buttonStyle(.bordered).disabled(items.isEmpty)
-                Spacer(minLength: 8)
-                Button("Open as Floating Pad") { ThoughtPadController.shared.open() }.buttonStyle(.plain).foregroundStyle(Ink.nativeAccent)
             } else {
                 PillButton(title: "Copy", kind: .line, size: .mini, icon: .iconCopy, enabled: !items.isEmpty) {
                     Paster.copy(text); app.toast = Toast("Copied the day's thoughts")
@@ -335,11 +381,6 @@ struct DayPageCard: View {
                 .uiTarget("byday-copy")
                 ShareLink(item: text) { PillLabel(title: "Send to…", kind: .line, size: .mini) }.buttonStyle(.plain).disabled(items.isEmpty)
                 PillButton(title: "Export", kind: .line, size: .mini, icon: .iconExport, enabled: !items.isEmpty) { DayExport.save(items, kind: kind, day: day) }
-                Spacer(minLength: 8)
-                Text("Open as the floating pad").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.accentText)
-                    .tapArea { ThoughtPadController.shared.open() }
-                    .accessibilityAddTraits(.isButton)
-                    .uiTarget("byday-open-pad")
             }
         }
     }
