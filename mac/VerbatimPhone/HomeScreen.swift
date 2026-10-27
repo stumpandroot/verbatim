@@ -105,13 +105,12 @@ struct HomeScreen: View {
         }
     }
 
-    /// Native uses the navigation bar's large title and the account button, with the floating record button over it.
+    /// Native uses the navigation bar's large title and the account button; Record is in the tab bar's accessory.
     private var nativeScreen: some View {
         scroller {
             nativeBody
-                .padding(.horizontal, 20).padding(.bottom, 104)   // clear of the record button
+                .padding(.horizontal, 20).padding(.bottom, 24)
         }
-        .premiumRecordButton(.home)
         .navigationTitle("Home")
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
@@ -663,14 +662,8 @@ struct RecordScreen: View {
     @Environment(\.look) private var look
 
     var body: some View {
-        // Premium Native has its own recorder (PremiumRecord.swift); both minimize, zoom, and discard the same way.
-        Group {
-            if look.isNative {
-                PremiumRecorder(confirmDiscard: $confirmDiscard, discardLength: $discardLength)
-            } else {
-                verbose
-            }
-        }
+        // Native has its own recorder, a sheet (NativeRecorder.swift); this full-screen one is Verbose style's.
+        verbose
         .offset(y: pull + arrive)
         .onAppear {
             guard Self.slideInNext else { return }

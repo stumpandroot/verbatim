@@ -67,6 +67,10 @@ struct DayPageScreen: View {
                     .disabled(ThoughtText.joined(items).isEmpty)
                     .accessibilityLabel("Copy the day")
             }
+            // Native: New thought is a toolbar button (Record is in the tab bar's accessory).
+            if look.isNative, thoughts, isToday {
+                ToolbarItem(placement: .topBarTrailing) { NativeNewThoughtButton() }
+            }
         }
         .sheet(item: $editing) { t in ThoughtEditSheet(transcript: t).environmentObject(app) }
         .onAppear { note(items) }
@@ -241,20 +245,15 @@ struct DayPageScreen: View {
                 if items.isEmpty {
                     VStack(spacing: 12) {
                         EmptyDayArt(play: playEmpty).frame(height: 200)
-                        Text(thoughts && isToday ? "Nothing on today's page yet. Tap the record button and start talking." : ThoughtRules.emptyPage)
+                        Text(thoughts && isToday ? "Nothing on today's page yet. Tap New thought and start talking." : ThoughtRules.emptyPage)
                             .font(.subheadline).foregroundStyle(NativeInk.secondary).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity).padding(.top, 20)
                 } else {
                     ForEach(items) { t in nativeCard(t) }
                 }
-                // Room for the record button over the last thought: its 86 pt plus 16 (review P-13).
-                Color.clear.frame(height: 104).accessibilityHidden(true)
             }
-            .padding(.horizontal, 20)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if thoughts && isToday && !app.recordingActive { ThoughtRecordFAB().padding(.trailing, 18).padding(.bottom, 12) }
+            .padding(.horizontal, 20).padding(.bottom, 24)
         }
     }
 
@@ -267,7 +266,7 @@ struct DayPageScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .premiumSoftCard(radius: 18)
+            .nativeCell(radius: 18)
             .overlay {
                 if t.id == app.lastThought { RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(NativeInk.accent, lineWidth: 1.5) }
             }
@@ -384,23 +383,16 @@ private struct DayPillStyle: ButtonStyle {
 }
 
 // brand: native begin
-/// Today's page in Premium Native: the record button, starting a thought instead of a voice note.
-private struct ThoughtRecordFAB: View {
+/// Today's page in Native: New thought in the toolbar, starting a thought instead of a voice note (Record, in the tab
+/// bar's accessory, records a voice note).
+private struct NativeNewThoughtButton: View {
     @EnvironmentObject var app: PhoneState
     var body: some View {
-        Button { app.requestThought() } label: {
-            Circle().fill(PremiumStyle.disc)
-                .frame(width: 64, height: 64)
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: 1).padding(1).blendMode(.overlay))
-                .padding(5)
-                .background(PremiumStyle.ring, in: Circle())
-                .shadow(color: PremiumStyle.discShadow, radius: 12, y: 8)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("New thought")
-        .accessibilityHint("Starts recording a thought for today's page")
-        .accessibilityIdentifier("thoughts.new")
+        Button { app.requestThought() } label: { Image(systemName: "plus") }
+            .disabled(app.recordingActive)
+            .accessibilityLabel("New thought")
+            .accessibilityHint("Starts recording a thought for today's page")
+            .accessibilityIdentifier("thoughts.new")
     }
 }
 // brand: native end

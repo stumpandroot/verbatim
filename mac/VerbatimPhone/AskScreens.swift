@@ -41,7 +41,7 @@ struct AskCardSurface: ViewModifier {
     var radius: CGFloat = Radius.row
     @Environment(\.look) private var look
     func body(content: Content) -> some View {
-        if look.isNative { content.premiumSoftCard(radius: 22) } else { content.phoneOutlined(radius: radius, fill: Ink.reader, line: 1.5) }
+        if look.isNative { content.nativeCell(radius: 22) } else { content.phoneOutlined(radius: radius, fill: Ink.reader, line: 1.5) }
     }
 }
 
@@ -541,7 +541,7 @@ struct RecipeScreen: View {
                 HStack(spacing: 10) {
                     Button { center.run(r) } label: {
                         Text(center.running.contains(r.id) ? "Running…" : "Run now").font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(look.isNative ? PremiumInk.onAccent : Ink.paper)
+                            .foregroundStyle(look.isNative ? NativeInk.onAccent : Ink.paper)
                             .padding(.horizontal, 18).frame(height: 40)
                             .background(Capsule().fill(look.isNative ? NativeInk.accent : Ink.ink))
                     }

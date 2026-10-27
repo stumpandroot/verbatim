@@ -205,15 +205,22 @@ struct MiniRecorderInset: ViewModifier {
     var tab: PhoneState.Tab
     var zoom: Namespace.ID
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
 
     private var showing: Bool {
         RecorderPresentation.showsBar(recording: app.recorder.isRecording || app.previewRecording, saving: app.savingRecording)
     }
 
+    /// Native before iOS 26: Record (or the live recording) in an opaque bar on every tab, where iOS 26 has the tab
+    /// bar's bottom accessory (RecordAccessory.swift). Off while you read a transcript.
+    private var nativeBar: Bool { look.isNative && !NativeRecordPlacement.systemAccessory && app.readingTranscripts == 0 }
+
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if showing {
+                if look.isNative {
+                    if nativeBar { NativeRecordBar() }   // brand: native
+                } else if showing {
                     MiniRecorderBar(live: app.recorder.live, words: app.recordingWords, zoom: zoom, isZoomSource: app.tab == tab)
                         .transition(limitMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }

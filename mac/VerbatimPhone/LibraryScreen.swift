@@ -484,7 +484,6 @@ extension LibraryScreen {
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
-        .premiumRecordButton(.library)
     }
 
     /// "Today", "Yesterday", "Mon Oct 19": plain, in secondary semibold.
@@ -533,7 +532,7 @@ extension LibraryScreen {
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .premiumSoftCard(radius: 18)
+            .nativeCell(radius: 18)
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(PhoneCardPress())
@@ -556,7 +555,7 @@ extension LibraryScreen {
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .premiumSoftCard(radius: 18)
+            .nativeCell(radius: 18)
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(PhoneCardPress())
@@ -578,7 +577,7 @@ extension LibraryScreen {
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .premiumSoftCard(radius: 18)
+            .nativeCell(radius: 18)
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(PhoneCardPress())
@@ -590,12 +589,12 @@ extension LibraryScreen {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: symbol).font(.system(size: 16, weight: .medium)).foregroundStyle(NativeInk.accent)
             Spacer(minLength: 4)
-            Text(count.formatted()).font(PremiumStyle.number(20, weight: .heavy)).foregroundStyle(NativeInk.label)
+            Text(count.formatted()).font(NativeStyle.number(20)).foregroundStyle(NativeInk.label)
             Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.label).lineLimit(1).minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-        .premiumSoftCard(radius: 18)
+        .nativeCell(radius: 18)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title), \(count)")
@@ -603,7 +602,9 @@ extension LibraryScreen {
     }
 
     private func premiumRow(_ t: Transcript, now: Date) -> some View {
-        PremiumRecordingItem(transcript: t, now: now)
+        Button { app.open(t.id) } label: { NativeLibraryRow(transcript: t, now: now) }
+            .buttonStyle(.plain)
+            .contextMenu { RowActions(transcript: t) }
             .draggable(TranscriptDrag.payload([t.id]))
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }

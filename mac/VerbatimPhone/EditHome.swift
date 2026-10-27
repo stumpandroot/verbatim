@@ -337,7 +337,6 @@ struct HomeTilePicker: View {
             if look.isNative {
                 Image(systemName: t.symbol).font(.system(size: compact ? 15 : 17, weight: .medium)).foregroundStyle(NativeInk.accent)
                     .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
-                    .background(PremiumInk.accentSoft, in: Circle())
             } else {
                 IconGlyph(art: t.art, size: compact ? 16 : 20, color: fill == nil ? Ink.ink : Ink.inkFixed)
             }
@@ -352,7 +351,7 @@ struct HomeTilePicker: View {
         .frame(maxWidth: .infinity, minHeight: compact ? 64 : 82, alignment: look.isNative ? .center : .topLeading)
         .background {
             if look.isNative {
-                shape.fill(PremiumInk.card).shadow(color: PremiumStyle.cardShadow, radius: 6, y: 3)
+                shape.fill(NativeInk.card)
             } else if let fill {
                 PhonePanelFill(color: fill, shape: shape)
             } else {

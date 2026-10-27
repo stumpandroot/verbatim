@@ -61,7 +61,7 @@ struct PremiumHome: View {
         return Button { HomeScreen.openProfile(app) } label: {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 10) {
-                    Text(week.words.formatted()).font(PremiumStyle.number(min(bigNumber, 76)))
+                    Text(week.words.formatted()).font(NativeStyle.number(min(bigNumber, 76)))
                         .lineLimit(1).minimumScaleFactor(0.5)
                     Spacer(minLength: 8)
                     PremiumWeekChart(week: week)
@@ -76,7 +76,7 @@ struct PremiumHome: View {
             }
             .padding(.leading, 20).padding(.trailing, 18).padding(.vertical, 16)
             .frame(maxWidth: .infinity, minHeight: 178, alignment: .topLeading)
-            .premiumCard(.persimmon)
+            .foregroundStyle(NativeInk.label).nativeCell()
             .onAppear { HomeScreen.recordCardsOnScreen.insert(.native) }
             .onDisappear { HomeScreen.recordCardsOnScreen.remove(.native) }
         }
@@ -92,14 +92,14 @@ struct PremiumHome: View {
         let week = app.store.dictationWeek(now: now)
         return Button { HomeScreen.openProfile(app) } label: {
             HStack(spacing: 12) {
-                Text(week.words.formatted()).font(PremiumStyle.number(30)).lineLimit(1).minimumScaleFactor(0.6)
+                Text(week.words.formatted()).font(NativeStyle.number(30)).lineLimit(1).minimumScaleFactor(0.6)
                 Text("words this week").font(.system(size: 15, weight: .semibold)).lineLimit(1)
                 Spacer(minLength: 8)
                 PremiumWeekChart(week: week, height: 26, letters: false)
             }
             .padding(.horizontal, 18).padding(.vertical, 12)
             .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .premiumCard(.persimmon, radius: 22)
+            .foregroundStyle(NativeInk.label).nativeCell(radius: 22)
             .onAppear { HomeScreen.recordCardsOnScreen.insert(.native) }
             .onDisappear { HomeScreen.recordCardsOnScreen.remove(.native) }
         }
@@ -130,13 +130,11 @@ struct PremiumHome: View {
                 }
             }
             Spacer(minLength: 8)
-            Circle().fill(PremiumStyle.disc).frame(width: compact ? 34 : 48, height: compact ? 34 : 48)
-                .padding(compact ? 3 : 4).background(PremiumStyle.ring, in: Circle())
-                .accessibilityHidden(true)
+            NativeRecordDisc(size: compact ? 34 : 48)
         }
         .padding(.horizontal, 16).padding(.vertical, compact ? 10 : 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .premiumSoftCard(radius: 26)
+        .nativeCell(radius: 26)
         .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .opacity(recordPress != .idle ? 0.6 : 1)
         .animation(.easeOut(duration: 0.12), value: recordPress != .idle)
@@ -172,13 +170,12 @@ struct PremiumHome: View {
         VStack(spacing: 7) {
             Image(systemName: symbol).font(.system(size: 18, weight: .medium)).foregroundStyle(NativeInk.accent)
                 .frame(width: 38, height: 38)
-                .background(PremiumInk.accentSoft, in: Circle())
             Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(NativeInk.label)
                 .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, minHeight: 86)
-        .premiumSoftCard(radius: 22)
+        .nativeCell(radius: 22)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -190,7 +187,6 @@ struct PremiumHome: View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: t.symbol).font(.system(size: 18, weight: .medium)).foregroundStyle(NativeInk.accent)
                 .frame(width: 40, height: 40)
-                .background(PremiumInk.accentSoft, in: Circle())
             Spacer(minLength: 10)
             Text(t.title).font(.system(size: 18, weight: .bold)).foregroundStyle(NativeInk.label).lineLimit(1).minimumScaleFactor(0.8)
             Text(t.detail).font(.system(size: 13)).foregroundStyle(NativeInk.secondary).lineLimit(1).minimumScaleFactor(0.8)
@@ -198,7 +194,7 @@ struct PremiumHome: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .premiumSoftCard(radius: 24)
+        .nativeCell(radius: 24)
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(t.title)
@@ -219,7 +215,7 @@ struct PremiumHome: View {
     private func recent(_ size: HomeCardSize) -> some View {
         let items = Array(Self.recentRecordings(app.store).prefix(3))
         return VStack(alignment: .leading, spacing: 0) {
-            PremiumSectionHeader(title: "Recent recordings", action: "Library") { app.go(.library) }
+            NativeListHeader(title: "Recent recordings", action: "See all") { app.go(.library) }
             if items.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Record something new.").font(.body.weight(.semibold)).foregroundStyle(NativeInk.label)
@@ -229,7 +225,7 @@ struct PremiumHome: View {
                 .padding(.vertical, 16)
             } else if size == .large {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
-                    PremiumRecordingItem(transcript: t, now: now, showsDivider: i < items.count - 1)
+                    Button { app.open(t.id) } label: { NativeRecentRow(transcript: t, now: now) }.buttonStyle(.plain)
                 }
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, t in
@@ -278,7 +274,7 @@ struct PremiumWeekChart: View {
             ForEach(Array(week.days.enumerated()), id: \.offset) { i, day in
                 VStack(spacing: 5) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.white.opacity(heights[i] == nil ? 0.18 : day.isToday ? 1 : 0.4))
+                        .fill(heights[i] == nil ? NativeInk.fill : day.isToday ? NativeInk.accent : NativeInk.gray)
                         .frame(width: letters ? 9 : 7, height: CGFloat(heights[i] ?? 4))
                         .frame(height: height, alignment: .bottom)
                     if letters {

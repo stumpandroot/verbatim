@@ -365,11 +365,7 @@ struct RecordTrayLayer: View {
     /// The floating button, lit above the dimmed screen while the tray it opened is up.
     private func litButton(in global: CGRect) -> some View {
         let f = tray.buttonFrame
-        return Circle().fill(PremiumStyle.disc)
-            .frame(width: 64, height: 64)
-            .padding(5)
-            .background(PremiumStyle.ring, in: Circle())
-            .shadow(color: PremiumStyle.discShadow, radius: 12, y: 8)
+        return NativeRecordDisc(size: 64)   // brand: native
             .position(x: f.midX - global.minX, y: f.midY - global.minY)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
@@ -471,7 +467,7 @@ struct RecordTrayLayer: View {
     @ViewBuilder private func listBox<L: View>(_ list: L, scrolls: Bool) -> some View {
         if look.isNative {
             list
-                .background(PremiumInk.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .gesture(dismissDrag, including: scrolls ? .subviews : .all)
         } else {
@@ -531,7 +527,7 @@ struct RecordTrayLayer: View {
             Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(NativeInk.label).lineLimit(1).minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, minHeight: 62)
-        .background(PremiumInk.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
     // brand: native end
@@ -566,7 +562,6 @@ private struct NativeTrayFace<Content: View>: View {
             .background {
                 if reduceTransparency { shape.fill(NativeInk.paper) } else { shape.fill(.regularMaterial) }
             }
-            .shadow(color: Color.black.opacity(0.18), radius: 24, y: 8)
             .padding(.horizontal, 8)
             .modalTray()
     }
@@ -667,11 +662,6 @@ private struct TrayRow: View {
                     .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Circle().fill(PremiumStyle.disc)
-                .frame(width: 30, height: 30)
-                .padding(3).background(PremiumStyle.ring, in: Circle())
-                .opacity(highlighted ? 1 : 0)
-                .accessibilityHidden(true)
         }
         .padding(.leading, 14).padding(.trailing, 12).padding(.vertical, 8)
         .frame(minHeight: rowHeight)

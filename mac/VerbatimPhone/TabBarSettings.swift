@@ -209,7 +209,7 @@ struct TabBarPreview: View {
         .padding(.horizontal, 8).padding(.vertical, 9)
         .background {
             if look.isNative {
-                Capsule().fill(NativeInk.card).shadow(color: PremiumStyle.cardShadow, radius: 8, y: 4)
+                Capsule().fill(NativeInk.card)
             } else {
                 Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
             }

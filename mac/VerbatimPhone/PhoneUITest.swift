@@ -389,7 +389,7 @@ enum PhoneUITest {
                 await show("\(prefix)01-home-native")
                 if prefix == "p" {
                     homeLayoutCheck(.native)
-                    lookCheck("Home in Native shows the floating record button", PremiumRecordButton.onScreen.contains(.home))
+                    lookCheck("Home in Native shows Record in the tab bar's accessory", NativeRecordAccessory.onScreen > 0 && NativeRecordAccessory.showsRecord)
                 }
                 // Premium's recent recordings, as Voicenotes-style items (light only, to keep the tour short).
                 if prefix == "p" {
@@ -399,7 +399,7 @@ enum PhoneUITest {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
                 await whatsNewTour(app, prefix: prefix, suffix: "-native")
-                if prefix == "p" { await recordTrayTour(app, native: true) }
+                if prefix == "p" { await nativeRecordAsTour(app) }
                 // The record flow: the full-screen recorder with two marked moments (a stand-in recording; no
                 // microphone in the simulator), then the Saved sheet for a seeded recording (nothing is changed).
                 app.previewRecording = true
@@ -407,7 +407,7 @@ enum PhoneUITest {
                 app.recordingMoments = [RecordingMoment(at: 42, source: MarkSource.phoneApp.rawValue), RecordingMoment(at: 118, source: MarkSource.lockScreen.rawValue)]
                 app.openRecorder()
                 await show("\(prefix)02-record-native")
-                if prefix == "p" { lookCheck("the record flow opens Premium's full-screen recorder", PremiumRecorder.visible) }
+                if prefix == "p" { lookCheck("the record flow opens the Native recorder sheet", NativeRecorder.visible) }
                 app.minimizeRecorder()
                 app.previewRecording = false
                 app.recordingMoments = []
@@ -416,7 +416,7 @@ enum PhoneUITest {
                 if let voice = app.store.live.first(where: { !$0.isDictation && $0.source == .voiceMemo }) ?? app.store.live.first(where: { !$0.isDictation }) {
                     app.savedRecording = SavedRecording(id: voice.id, length: 134, moments: 2, savedAt: Date())
                     await show("\(prefix)02s-saved-native")
-                    if prefix == "p" { lookCheck("Stop opens the Saved sheet", PremiumSavedSheet.visible) }
+                    if prefix == "p" { lookCheck("Stop opens the Saved sheet", NativeSavedSheet.visible) }
                     app.savedRecording = nil
                     try? await Task.sleep(nanoseconds: 800_000_000)
                 }
@@ -547,20 +547,6 @@ enum PhoneUITest {
         tray.tap()
         check("a quick tap starts a plain voice note", picked == [.voiceNote])
 
-        // Premium Native's floating button: the same rows above the button, and Dictate, Live captions, and Import.
-        if native {
-            check("the floating button is on Home", PremiumRecordButton.onScreen.contains(.home) && tray.floatingFrames[.home] != nil)
-            tray.tourHold(.floating(.home))
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            tray.tourSlide(to: .kind(.interview))
-            await show("p01v-record-tray-floating-native")
-            check("the floating button's tray lights the row under the finger", tray.highlighted == .kind(.interview))
-            check("the floating button's tray sits above the button",
-                  (tray.rowFrames[.thought]?.maxY ?? .infinity) < (tray.floatingFrames[.home]?.minY ?? 0))
-            tray.fingerLifted()
-            tray.close()
-            try? await Task.sleep(nanoseconds: 600_000_000)
-        }
         tray.override = nil
 
         if !native {
@@ -611,6 +597,85 @@ enum PhoneUITest {
         app.recorder.live.reset()
         TemplateSettingsModel.shared.settings = saved
         try? await Task.sleep(nanoseconds: 700_000_000)
+    }
+
+    /// Record as in the Native look (RecordAccessory.swift; mockup "Verbose Native Redesign", sections 1, 4, and 5):
+    /// Record in the tab bar's bottom accessory on every tab, a tap as the plain voice note, the system menu's six ways
+    /// with the line under each, the live recording in the accessory, and the recorder sheet with its red stop. The
+    /// system menu itself can't be opened without a finger, so its contents are checked through `NativeRecordMenu`.
+    /// Light only; Run automatically and the tab are put back afterward.
+    private static func nativeRecordAsTour(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") record as-native: \(name)") }
+        let tray = RecordTray.shared
+        let saved = TemplateSettingsModel.shared.settings
+        var shown = AutoRunSettings()
+        shown.set(TemplateLibrary.scenarios[0].id, for: .meeting)
+        TemplateSettingsModel.shared.settings = shown
+        var picked: [RecordChoice] = []
+        tray.override = { picked.append($0) }
+        app.tab = .home
+        app.homePath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        await show("p01t-record-accessory-native")
+
+        // On every tab in the bar.
+        var missing: [String] = []
+        for t in app.tabBar.tabs {
+            app.tab = t
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            if NativeRecordAccessory.onScreen == 0 || !NativeRecordAccessory.showsRecord { missing.append(t.rawValue) }
+        }
+        check("Record is in the tab bar's accessory on every tab\(missing.isEmpty ? "" : " (missing on \(missing.joined(separator: ", ")))")", missing.isEmpty)
+        check("no floating record disc is left on any tab", RecordTray.shared.floatingFrames.isEmpty)
+        app.tab = .home
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // A tap is the plain Record; the menu's rows run each way through the same entry point.
+        tray.tap()
+        check("a tap on Record starts a plain voice note", picked == [.voiceNote])
+        tray.override = nil
+        check("the menu lists Voice note, Meeting, Interview, Journal entry, Talk, and Thought",
+              RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought"])
+        check("Voice note's line says Verbose picks the kind",
+              NativeRecordMenu.hint(.voiceNote, settings: shown, templates: app.store.allTemplates) == "Verbose picks the kind")
+        check("a kind with a template says what runs",
+              NativeRecordMenu.hint(.kind(.meeting), settings: shown, templates: app.store.allTemplates) == "Runs Meeting notes when it finishes")
+        check("a kind without one says what it does",
+              NativeRecordMenu.hint(.kind(.journal), settings: shown, templates: app.store.allTemplates) == RecordChoice.kind(.journal).fallbackHint)
+
+        // The live recording in the accessory, then the recorder sheet for a Meeting.
+        app.previewRecording = true
+        app.recordKind = .meeting
+        app.recorder.live.setElapsed(134)
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        await show("p01v-record-accessory-live-native")
+        check("while recording, the accessory is the live recording", NativeRecordAccessory.onScreen > 0 && !NativeRecordAccessory.showsRecord)
+        app.openRecorder()
+        await show("p02k-record-meeting-native")
+        check("the recorder is a sheet, Voice Memos style", NativeRecorder.visible)
+        check("the recorder shows the picked kind", app.recordingChoice == .kind(.meeting))
+        check("the recorder's stop is system red", NativeRecorder.stopColor.map { sameColor($0, .systemRed) } ?? false)
+        app.minimizeRecorder()
+        app.recordKind = nil
+        app.previewRecording = false
+        app.recorder.live.reset()
+        TemplateSettingsModel.shared.settings = saved
+        try? await Task.sleep(nanoseconds: 700_000_000)
+    }
+
+    /// Whether a color is the given system color in both light and dark (and with Increase Contrast), resolved.
+    static func sameColor(_ c: Color, _ system: UIColor) -> Bool {
+        let ui = UIColor(c)
+        let traits: [UITraitCollection] = [
+            UITraitCollection(userInterfaceStyle: .light), UITraitCollection(userInterfaceStyle: .dark),
+            UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: .light), UITraitCollection(accessibilityContrast: .high)]),
+        ]
+        return traits.allSatisfy { t in
+            var a = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0)), b = a
+            ui.resolvedColor(with: t).getRed(&a.0, green: &a.1, blue: &a.2, alpha: &a.3)
+            system.resolvedColor(with: t).getRed(&b.0, green: &b.1, blue: &b.2, alpha: &b.3)
+            return abs(a.0 - b.0) < 0.01 && abs(a.1 - b.1) < 0.01 && abs(a.2 - b.2) < 0.01 && abs(a.3 - b.3) < 0.01
+        }
     }
 
     // MARK: Thoughts
@@ -1342,8 +1407,8 @@ enum PhoneUITest {
         app.tab = .home
         try? await Task.sleep(nanoseconds: 600_000_000)
         if look.isNative {
-            check("the floating record button stays while the Record section is hidden",
-                  PremiumRecordButton.onScreen.contains(.home) && HomeProbe.sections[.record] == nil)
+            check("Record stays in the tab bar's accessory while the Record section is hidden",
+                  NativeRecordAccessory.onScreen > 0 && HomeProbe.sections[.record] == nil)
         }
     }
 
@@ -1669,8 +1734,8 @@ enum PhoneUITest {
         var silent = Transcript(title: "Self-test silent", source: .file, sourceLabel: "MP3 file", duration: 1920, audioFileName: nil, model: "")
         silent.status = .ready
         check("an item with nothing to play shows its length in the date line (P-21)",
-              PremiumRecordingItem.dateLine(silent, now: Date(), length: true).hasSuffix("· 32:00")
-              && !PremiumRecordingItem.dateLine(silent, now: Date()).contains("32:00"))
+              NativeRows.dateLine(silent, now: Date(), length: true).hasSuffix("· 32:00")
+              && !NativeRows.dateLine(silent, now: Date()).contains("32:00"))
         // P-23: live words keep whole words; the last word alone is always a candidate.
         let tails = TailWords<Text>.candidates("about the spec sheet before Thursday")
         check("live words drop whole words from the front (P-23)", tails.first == "about the spec sheet before Thursday" && tails.last == "Thursday")
@@ -1701,11 +1766,17 @@ enum PhoneUITest {
               && notes.allSatisfy { $0.markSource == MarkSource.phoneApp.rawValue })
         check("moments added to a transcript start after it", notes.map { $0.at ?? -1 } == [642, 718])
         check("the Record card is off by default in Native", !HomeLayout.defaults(.phone, .native).isVisible(.record))
-        check("settings search finds the Record card", SettingsSearchIndex.search("record card").flatMap(\.entries).contains { $0.id == "homeRecordCard" })
-        let low = PremiumRules.minWhiteContrast(PremiumInk.persimmonLight, from: 1.0 / 3)
-        check("white text keeps 4.5:1 on the lower two thirds of the persimmon card (\(String(format: "%.2f", low)):1)", low >= 4.5)
-        check("black on the dark accent keeps 7:1", PremiumRules.contrast(Ink.nativeAccentDarkHex, PremiumInk.onAccentDarkHex) >= 7)
-        check("recorder clock", PremiumRules.recorderClock(134) == "02:14")
+        // The Native redesign (October 27, 2026): system blue for what you tap, system red only for recording, system
+        // backgrounds, and no persimmon in the chrome.
+        check("Native's accent is system blue", sameColor(NativeInk.accent, .systemBlue))
+        check("Native's record color is system red", sameColor(NativeInk.record, .systemRed))
+        check("Native's pages are the system's grouped and plain backgrounds",
+              sameColor(NativeInk.paper, .systemGroupedBackground) && sameColor(NativeInk.plain, .systemBackground))
+        check("Native's switches stay system green", sameColor(NativeInk.toggle, .systemGreen))
+        let persimmons: [UInt32] = [Ink.persimmonHex, Ink.nativeAccentLightHex, Ink.nativeAccentDarkHex]
+        let chrome: [Color] = [NativeInk.accent, NativeInk.record, NativeInk.paper, NativeInk.plain, NativeInk.card, NativeInk.fill, NativeInk.onAccent]
+        check("no persimmon in Native's chrome", !chrome.contains { c in persimmons.contains { sameColor(c, UIColor(Color(hex: $0))) } })
+        check("Native's recorder clock shows hundredths", NativeRules.recorderClock(138.41) == "02:18.41")
         Log.note("UITEST premium checks: \(pass) passed, \(fail) failed")
     }
 

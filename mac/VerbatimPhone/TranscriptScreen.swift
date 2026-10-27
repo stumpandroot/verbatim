@@ -252,6 +252,9 @@ struct TranscriptScreen: View {
                 Text("This transcript was deleted.").foregroundStyle(.lookMute).frame(maxWidth: .infinity, maxHeight: .infinity).background(Ink.paper)
             }
         }
+        // Reading: Native's Record accessory turns off with the tab bar (RecordAccessory.swift).
+        .onAppear { app.readingTranscripts += 1 }
+        .onDisappear { app.readingTranscripts = max(0, app.readingTranscripts - 1) }
     }
 
     /// A toolbar button's icon: the brand line icon in Verbose style, its SF Symbol in Native.
@@ -472,7 +475,7 @@ struct TranscriptScreen: View {
                 Button { selecting.toggle() } label: {
                     Label(selecting ? "Done selecting" : "Select text", art: .iconSelect, size: 15)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(selecting ? (look.isNative ? PremiumInk.onAccent : Ink.onInteractive) : (look.isNative ? NativeInk.label : Ink.ink))
+                        .foregroundStyle(selecting ? (look.isNative ? NativeInk.onAccent : Ink.onInteractive) : (look.isNative ? NativeInk.label : Ink.ink))
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .modifier(OriginalBarCapsule(native: look.isNative, selected: selecting))
                 }
@@ -829,10 +832,10 @@ extension PhoneDock {
             Button { app.player.toggle() } label: {
                 ZStack {
                     Circle().fill(NativeInk.accent)
-                    if downloading { ProgressView().tint(PremiumInk.onAccent) }
+                    if downloading { ProgressView().tint(NativeInk.onAccent) }
                     else {
                         Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(PremiumInk.onAccent)
+                            .foregroundStyle(NativeInk.onAccent)
                     }
                 }
                 .frame(width: 40, height: 40)
@@ -882,7 +885,7 @@ extension PhoneDock {
                 Text("Follow").font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(follow ? NativeInk.accent : NativeInk.secondary)
                     .padding(.horizontal, 12).frame(minHeight: 34)
-                    .background(follow ? PremiumInk.accentSoft : NativeInk.fill, in: Capsule())
+                    .background(NativeInk.fill, in: Capsule())
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -926,7 +929,7 @@ private struct NativeDockSurface<Content: View>: View {
             content.glassEffect(.regular, in: Capsule())
         } else {
             content.background(.bar, in: Capsule())
-                .shadow(color: Color.black.opacity(0.12), radius: 12, y: 6)
+                .overlay(Capsule().strokeBorder(NativeInk.separator, lineWidth: 0.5))
         }
     }
 }
@@ -1138,7 +1141,7 @@ struct PhoneSummaryPanel: View {
     var body: some View {
         if SummaryBlock.shows(transcript, center: center) {
             Group {
-                if look.isNative { premiumCard } else { verboseCard }
+                if look.isNative { nativeCard } else { verboseCard }
             }
             .confirmationDialog("Replace your edited summary?", isPresented: $confirmReplace, titleVisibility: .visible) {
                 Button("Replace", role: .destructive) { onSummarize(true) }
@@ -1169,41 +1172,41 @@ struct PhoneSummaryPanel: View {
     }
 
     // brand: native begin
-    /// Premium Native: a persimmon gradient card (its deeper half, so every line of white text keeps 4.5:1) with the
-    /// sparkles symbol, Apple Intelligence's mark, and the moment and speaker counts.
-    private var premiumCard: some View {
+    /// Native: an inset grouped cell with label text, the sparkles symbol, Apple Intelligence's mark, and the moment
+    /// and speaker counts.
+    private var nativeCard: some View {
         let moments = transcript.notes.filter { $0.at != nil }.count
         let speakers = transcript.speakers.count
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Summary", systemImage: "sparkles").font(.system(size: 15, weight: .semibold))
+                Label("Summary", systemImage: "sparkles").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.secondary)
                 Spacer(minLength: 6)
-                if transcript.summaryByModel { Text("Apple Intelligence").font(.system(size: 12.5, weight: .medium)) }
+                if transcript.summaryByModel { Text("Apple Intelligence").font(.caption).foregroundStyle(NativeInk.secondary) }
             }
             .accessibilityAddTraits(.isHeader)
             content
             if !editing, moments > 0 || speakers >= 2 {
                 HStack(spacing: 8) {
-                    if moments > 0 { premiumCount("bookmark", moments == 1 ? "1 moment" : "\(moments) moments") }
-                    if speakers >= 2 { premiumCount("person.2", "\(speakers) speakers") }
+                    if moments > 0 { nativeCount("bookmark", moments == 1 ? "1 moment" : "\(moments) moments") }
+                    if speakers >= 2 { nativeCount("person.2", "\(speakers) speakers") }
                 }
                 .padding(.top, 4)
             }
         }
-        .foregroundStyle(Color.white)
-        .tint(Color.white)
-        .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 18)
+        .foregroundStyle(NativeInk.label)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(PremiumStyle.persimmonDeep, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .nativeCell()
     }
 
-    private func premiumCount(_ symbol: String, _ text: String) -> some View {
+    private func nativeCount(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
-            Text(text).font(.system(size: 14, weight: .semibold)).monospacedDigit()
+            Image(systemName: symbol).font(.footnote)
+            Text(text).font(.footnote).monospacedDigit()
         }
-        .padding(.horizontal, 12).frame(minHeight: 30)
-        .background(Color.black.opacity(0.16), in: Capsule())
+        .foregroundStyle(NativeInk.secondary)
+        .padding(.horizontal, 10).frame(minHeight: 26)
+        .background(NativeInk.fill, in: Capsule())
         .accessibilityElement(children: .combine)
     }
     // brand: native end
@@ -1228,7 +1231,7 @@ struct PhoneSummaryPanel: View {
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in
                             HStack(alignment: .firstTextBaseline, spacing: 9) {
-                                Circle().fill(look.isNative ? Color.white : Ink.inkFixed).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
+                                Circle().fill(look.isNative ? NativeInk.label : Ink.inkFixed).frame(width: 4.5, height: 4.5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
                                 Text(p).font(.system(size: bodySize)).lineSpacing(2)
                                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                             }
@@ -1254,7 +1257,7 @@ struct PhoneSummaryPanel: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 14, weight: .semibold))
                 .underline(!look.isNative)
-                .foregroundStyle(look.isNative ? Color.white : Ink.inkFixed)
+                .foregroundStyle(look.isNative ? NativeInk.accent : Ink.inkFixed)
             }
         } else if running {
             progressRow
@@ -1271,7 +1274,7 @@ struct PhoneSummaryPanel: View {
 
     private var progressRow: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small).tint(look.isNative ? Color.white : Ink.inkFixed)
+            ProgressView().controlSize(.small).tint(look.isNative ? NativeInk.secondary : Ink.inkFixed)
             Text(progressText).font(.system(size: 14))
         }
     }
