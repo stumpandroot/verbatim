@@ -168,6 +168,9 @@ enum Ink {
         #if os(macOS)
         // Increase Contrast is read once per change (ContrastSetting), not on every resolve.
         return Color(nsColor: NSColor(name: nil) { a in f(a.isDark, ContrastSetting.increased) })
+        #elseif os(watchOS)
+        // The Apple Watch app is always dark (DESIGN.md §20), and watchOS has no trait collection to resolve against.
+        return Color(uiColor: f(true, false))
         #else
         return Color(uiColor: UIColor { tc in f(tc.userInterfaceStyle == .dark, tc.accessibilityContrast == .high) })
         #endif
@@ -267,6 +270,32 @@ enum PremiumInk {
     }
 }
 
+// MARK: - Apple Watch
+
+/// The Apple Watch app and its complications (DESIGN.md §20; mockup "Library features", section 4). Always dark: the
+/// page is the app's dark paper, text is paper, and persimmon means record, the one fill on a screen (ink on it,
+/// 4.7:1). Fixed values, because the watch has no light mode.
+enum WatchInk {
+    /// The page: Ink.paper's dark value.
+    static let page = Color(hex: 0x18241F)
+    /// The Smart Stack card and the complications' plate: Ink.card's dark value.
+    static let card = Color(hex: 0x202F28)
+    static let text = Color(hex: Ink.paperHex)
+    /// Secondary text, 62% paper (6.2:1 on the page).
+    static let dim = Color(hex: Ink.paperHex).opacity(0.62)
+    /// Outlined buttons (New thought, Mark) and the Sent ring.
+    static let hair = Color(hex: Ink.paperHex).opacity(0.22)
+    /// A pressed outlined button.
+    static let pressed = Color(hex: Ink.paperHex).opacity(0.16)
+    /// Record, Stop, the recording dot, and the voice bars: the Record panel's fill (`recordFill`'s light value), so ink
+    /// text on it reaches 4.7:1 at any size.
+    static let record = Color(hex: 0xFB7350)
+    static let onRecord = Color(hex: Ink.inkHex)
+    /// The "Marked 4:12" toast: paper with ink text.
+    static let toast = Color(hex: Ink.paperHex)
+    static let onToast = Color(hex: Ink.inkHex)
+}
+
 // MARK: - Look switch card
 
 /// Verbose style's paper, card, ink, and hard shadow, which never turn into Native's system colors on the Mac (`dyn`
@@ -328,6 +357,8 @@ enum Radius {
     static let tile: CGFloat = 8
     /// The Record panel.
     static let record: CGFloat = 10
+    /// The Apple Watch app's Record and New thought buttons (DESIGN.md §20), rounded to sit inside the watch's screen.
+    static let watch: CGFloat = 26
 }
 
 /// Motion (BRAND_GUIDE §10): quick ease-outs, no springy bounce in productivity controls.
