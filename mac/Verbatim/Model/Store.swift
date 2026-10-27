@@ -31,6 +31,9 @@ enum Paths {
     static let templatesFile = root.appendingPathComponent("templates.json")
     /// Ask's recipes (AskRecipes.swift), shared by the Mac and the iPhone. Their schedules and answers stay on each device.
     static let recipesFile = root.appendingPathComponent("recipes.json")
+    /// Plans kept with a day (DayPlan.swift): Organize today's thoughts and the Mac's brain dump note, shared by the Mac
+    /// and the iPhone. Builds before them never read this file and leave it alone.
+    static let plansFile = root.appendingPathComponent("plans.json")
     /// Your name and About me, shared by the Mac and the iPhone (Home greeting, titles, summaries).
     static let profileFile = root.appendingPathComponent("profile.json")
     static let models = local.appendingPathComponent("models", isDirectory: true)
@@ -406,6 +409,7 @@ enum Cloud {
         merge(Snippet.self, "snippets.json")
         merge(TranscriptTemplate.self, "templates.json")
         merge(AskRecipe.self, "recipes.json")
+        merge(DayPlanRecord.self, "plans.json")
         // A later turn-on gets its own dated folder, since "Before iCloud" already exists.
         var backup = old.appendingPathComponent("Before iCloud", isDirectory: true)
         if fm.fileExists(atPath: backup.path) {
@@ -617,6 +621,32 @@ final class Store: Observable {
             listEdited(old: old, list: \.recipes, sync: \.recipeSync)
         }
     }
+    private var _plans: [DayPlanRecord] = []
+    /// Plans kept with a day (DayPlan.swift): synced like recipes (`plans.json`, SyncMerge), one per day and source.
+    var plans: [DayPlanRecord] {
+        get { registrar.access(self, keyPath: \.plans); return _plans }
+        set {
+            let old = _plans
+            registrar.withMutation(of: self, keyPath: \.plans) { _plans = newValue }
+            anyChangeSubject.send()
+            listEdited(old: old, list: \.plans, sync: \.planSync)
+        }
+    }
+    /// The plan kept with a day, if one was made or a note written.
+    func dayPlan(_ day: Date, source: DayPlanRecord.Source) -> DayPlanRecord? {
+        let key = DayPlanRecord.dayKey(day)
+        return plans.first { $0.day == key && $0.source == source }
+    }
+    /// Changes (or starts) the plan kept with a day, stamping it for the merge.
+    func updateDayPlan(_ day: Date, source: DayPlanRecord.Source, _ change: (inout DayPlanRecord) -> Void) {
+        let key = DayPlanRecord.dayKey(day)
+        var list = plans
+        var r = list.first { $0.day == key && $0.source == source } ?? DayPlanRecord(day: key, source: source)
+        change(&r)
+        r.updatedAt = Date()
+        if let i = list.firstIndex(where: { $0.id == r.id }) { list[i] = r } else { list.append(r) }
+        plans = list
+    }
     /// Every template, in library order: Scenarios, yours, Built in.
     var allTemplates: [TranscriptTemplate] { TemplateLibrary.all(yours: templates) }
     /// `snippets` now, then after every change.
@@ -652,10 +682,11 @@ final class Store: Observable {
     private var snippetSync = ListSync(file: Paths.snippetsFile)
     private var templateSync = ListSync(file: Paths.templatesFile)
     private var recipeSync = ListSync(file: Paths.recipesFile)
+    private var planSync = ListSync(file: Paths.plansFile)
     /// The synced list files and their tombstone files, at the root of the library.
-    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json", "templates.json", "recipes.json",
+    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json", "templates.json", "recipes.json", "plans.json",
                                               "projects-deleted.json", "dictionary-deleted.json", "snippets-deleted.json", "templates-deleted.json",
-                                              "recipes-deleted.json"]
+                                              "recipes-deleted.json", "plans-deleted.json"]
     /// Snippets read cleanly from the synced file (or there is none yet), so they can be mirrored over local ones.
     var snippetsReadable: Bool { snippetSync.writable }
 
@@ -709,6 +740,7 @@ final class Store: Observable {
         loadList(list: \.snippets, sync: \.snippetSync, budget: budget)
         loadList(list: \.templates, sync: \.templateSync, budget: budget)
         loadList(list: \.recipes, sync: \.recipeSync, budget: budget)
+        loadList(list: \.plans, sync: \.planSync, budget: budget)
         startProfileSync(budget: budget)
         loading = false
         // The transcripts are decoded off the main thread, so the first frame never waits for a big library; screens
@@ -1016,7 +1048,7 @@ final class Store: Observable {
         for (f, dur, when) in probe.orphans where !known.contains(f.lastPathComponent) && !RecordingSegments.isActive(f) {
             guard dur > 1 else {
                 if Self.isStaleTinyOrphan(duration: dur, bytes: Self.fileSize(f), modified: when) {
-                    try? fm.removeItem(at: f); Self.clearContinuation(f); Self.clearThoughtMark(f); Marks.clear(f)
+                    try? fm.removeItem(at: f); Self.clearContinuation(f); Self.clearThoughtMark(f); Self.clearKindMark(f); Marks.clear(f)
                     Log.note("recovery: deleted \(f.lastPathComponent), \(String(format: "%.1f", dur)) s and over a week old")
                 }
                 continue
@@ -1038,11 +1070,18 @@ final class Store: Observable {
                 if started != .distantPast { t.createdAt = started }
                 Self.clearThoughtMark(f)
             }
+            // Audio only or a Brain dump the app quit in the middle of: that kind, and Audio only stays sound.
+            if let kind = Self.recordedKind(for: f) {
+                t.pickKindAtStart(kind)
+                if kind == .audio { t.status = .ready; t.stage = nil; t.processingDevice = nil; t.processingDeviceName = nil }
+                Self.clearKindMark(f)
+            }
             searchCache[t.id] = nil
             transcripts.append(t)
             appended = true
             save(t)
-            recovered.append(t.id)
+            // Audio only is kept, not queued, so it isn't announced as transcribing.
+            if !t.isAudioOnly { recovered.append(t.id) }
         }
         // Only when something was added: this runs after the first frame now, and every change re-renders.
         if appended { transcripts.sort { $0.createdAt > $1.createdAt } }
@@ -1195,6 +1234,7 @@ final class Store: Observable {
     func ingestSnippets() { ingestList(list: \.snippets, sync: \.snippetSync) }
     func ingestTemplates() { ingestList(list: \.templates, sync: \.templateSync) }
     func ingestRecipes() { ingestList(list: \.recipes, sync: \.recipeSync) }
+    func ingestPlans() { ingestList(list: \.plans, sync: \.planSync) }
 
     /// Snippets saved on this device (the Mac's settings) while the synced file can't be read yet: shown and used
     /// as they are, without counting as edits, and merged with the file once it reads.

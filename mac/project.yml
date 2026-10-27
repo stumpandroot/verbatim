@@ -128,6 +128,10 @@ targets:
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: "© 2026 Stump & Root Co."
         NSMicrophoneUsageDescription: "Verbose records voice memos and dictation with your microphone and transcribes them on this Mac. Recordings stay on this Mac, or in your own iCloud if you turn on sync."
+        # Send to Reminders (App/RemindersBridge.swift): a plan's tasks, added to the list you pick, asked the first time
+        # you add. macOS 14 has no add-only access for reminders, so it's full access; the older key covers macOS 13.
+        NSRemindersFullAccessUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."
+        NSRemindersUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."
         # Core Audio process taps (Audio/ProcessTapCapture.swift, the meeting capture test behind the meetings.poc flag):
         # macOS shows this the first time a tap's aggregate device starts. Without the key the tap delivers silence.
         NSAudioCaptureUsageDescription: "Verbose records the other people in your meetings from the app's audio, on this Mac."
@@ -138,6 +142,10 @@ targets:
         NSAppleEventsUsageDescription: "Verbose reads the website you're dictating into, by domain only, to show where you dictate."
         # Dictionary › Suggest names from Contacts (Model/ContactNames.swift): names only, read when you ask.
         NSContactsUsageDescription: "Verbose suggests names from your contacts for your Dictionary, so it spells them correctly. Names stay on this device."
+        # Send to Reminders (App/RemindersBridge.swift): asked the first time you add a plan's tasks. iOS 17 has no add-only
+        # access for reminders, so it's full access; the older key is kept for completeness.
+        NSRemindersFullAccessUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."
+        NSRemindersUsageDescription: "Verbose adds the tasks from a plan you make to the Reminders list you pick. It reads your lists only to show them."
         NSHighResolutionCapable: true
         # verbatim:// links from the desktop widgets (WidgetLink in VerbatimWidgets/WidgetSnapshot.swift): a transcript,
         # Record, Dictate, and the Thought pad. App/SystemHooks.swift handles them.
@@ -247,6 +255,9 @@ targets:
         com.apple.security.automation.apple-events: true
         # Hardened runtime: reading contact names for Dictionary suggestions (Model/ContactNames.swift).
         com.apple.security.personal-information.addressbook: true
+        # Hardened runtime: Send to Reminders (App/RemindersBridge.swift). EventKit's reminders sit under the calendars
+        # resource; the app isn't sandboxed, so this is the hardened runtime's permission, not a sandbox exception.
+        com.apple.security.personal-information.calendars: true
         # The App Group container shared with the desktop widgets (VerbatimMacWidgets): the snapshot they draw.
         # build.sh fills in the team prefix when it signs; Verbatim-iCloud.entitlements (Debug) has the same group.
         com.apple.security.application-groups: [$(TeamIdentifierPrefix)co.stumpandroot.verbatim]
@@ -406,6 +417,9 @@ targets:
       - Verbatim/Views/SummaryBlock.swift
       # Templates' icons and a result's sections, shared with the Mac (Model/Templates.swift).
       - Verbatim/Views/TemplateViews.swift
+      # Plan my day's sections and Audio only's waveform, and Send to Reminders (EventKit), shared with the Mac.
+      - Verbatim/Views/PlanViews.swift
+      - Verbatim/App/RemindersBridge.swift
       - Verbatim/Views/VoiceEnrollment.swift
       - Verbatim/Flow/CleanupPrepass.swift
       # Spoken corrections ("scratch that", "at 2, actually 3"), shared with the keyboard, and their self-tests.

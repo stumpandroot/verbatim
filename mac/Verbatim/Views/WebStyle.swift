@@ -420,6 +420,8 @@ struct KindDot: View {
         case .interview: return .iconQuote
         case .video: return .iconPlay
         case .talk: return .iconVoice
+        case .brainDump: return .iconBrainDump
+        case .audio: return .iconAudio
         case nil:
             if transcript.isDictation { return .iconDictations }
             if LibrarySource.isLink(transcript) { return .iconLinks }

@@ -254,6 +254,14 @@ I = {
     'Tighten': [s('M4 4L10 10'), s('M10 5.5V10H5.5'), s('M20 20L14 14'), s('M14 18.5V14H18.5')],
     'Film': [s('M4 9.5H20V19.5H4Z'), s('M4 9.5L3.4 6.3L18.6 3.5L19.2 6.7'), s('M8.2 5.5L9.6 8.3'), s('M13 4.6L14.4 7.4')],
     'Study': [s('M2.5 9.5L12 5L21.5 9.5L12 14Z'), s('M6.5 11.6V16C9 18.3 15 18.3 17.5 16V11.6'), s('M21.5 9.5V15')],
+    # Audio only and Brain dump (mockup "Verbose Brain Dump", October 27, 2026), same grammar: the Dictations wave with
+    # no text lines under it (sound with no transcript), a spoken line that becomes a checklist, and a day with a check
+    # (Plan my day).
+    'Audio': [s('M3 12C4.5 7.5 6 7.5 7.5 12S10.5 16.5 12 12 15 7.5 16.5 12 19.5 16.5 21 12')],
+    'BrainDump': [s('M3.5 6.5C4.7 4.5 5.8 4.5 7 6.5S9.3 8.5 10.5 6.5'), s('M13.5 6.5H20.5'), s('M4 12L5.2 13.2L7 11'), s('M10 12H20.5'),
+                  s('M4 17.5L5.2 18.7L7 16.5'), s('M10 17.5H17')],
+    'PlanDay': [s('M5.5 5.5H18.5A1.5 1.5 0 0 1 20 7V18.5A1.5 1.5 0 0 1 18.5 20H5.5A1.5 1.5 0 0 1 4 18.5V7A1.5 1.5 0 0 1 5.5 5.5Z'),
+                s('M4 10H20'), s('M8.5 3.5V7.5'), s('M15.5 3.5V7.5'), s('M9 15L11 17L15 13')],
 }
 
 

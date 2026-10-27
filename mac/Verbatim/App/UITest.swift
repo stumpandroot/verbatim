@@ -122,6 +122,10 @@ enum UITest {
             // Templates: the library, Run automatically, the editor, a kind chip, Record a kind, and the result's offer.
             await templatesSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // Audio only and Brain dump: the Audio only screen, Transcribe later, kinds, the brain dump window, plans,
+            // Send to Reminders with the stand-in Reminders, and Organize on today's page.
+            await brainDumpSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             // Ask: the sidebar's Ask, a suggested recipe, the ⌘K panel's switch, an answer, a citation, and no answer.
             await askSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
@@ -432,8 +436,10 @@ enum UITest {
     /// right-click menu and File › Record As are the same view (`RecordKindMenuItems`), so the File menu, which the
     /// self-test can read, stands in for both.
     private static func recordChoiceChecks() {
-        check("record as: the right-click menu lists six choices in the tray's order",
-              RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
+        check("record as: the right-click menu lists eight choices in the tray's order",
+              RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought",
+                                                    "Record a brain dump", "Record audio only"])
+        check("record as: File has New Brain Dump", NSApp.mainMenu?.items.first(where: { $0.title == "File" })?.submenu?.items.contains { $0.title == "New Brain Dump" } ?? true)
         let missing = RecordChoice.all.filter { NSImage(symbolName: $0.symbolName, bundle: .main, variableValue: 1) == nil }.map(\.symbolName)
         check("record as: each choice's icon is a custom symbol in the app\(missing.isEmpty ? "" : " (missing \(missing.joined(separator: ", ")))")", missing.isEmpty)
         let template = RecordChoice.all.compactMap { NSImage(symbolName: $0.symbolName, bundle: .main, variableValue: 1) }.allSatisfy(\.isTemplate)
@@ -448,7 +454,7 @@ enum UITest {
         recordAs.update()
         let items = recordAs.items.filter { !$0.isSeparatorItem }
         if items.isEmpty { Log.note("UITEST note: File › Record As builds its items when opened; not counted"); return }
-        check("record as: File › Record As lists the same six (\(items.map(\.title).joined(separator: ", ")))",
+        check("record as: File › Record As lists the same eight (\(items.map(\.title).joined(separator: ", ")))",
               items.map(\.title) == RecordChoice.all.map(\.commandTitle))
         check("record as: every File › Record As item has its icon", items.allSatisfy { $0.image != nil })
         check("record as: File has no separate Record Meeting… beside Record As › Meeting…", !file.items.contains { $0.title == "Record Meeting…" })
@@ -1032,7 +1038,7 @@ enum UITest {
         // Record in the toolbar (decision 8): a click records a voice note (or asks for the mic); its menu has Dictate,
         // Live captions, and Import, then Record as's six choices.
         check("native: Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
-              NativeRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 6
+              NativeRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 8
               && windowFrames["tb-record-menu"]?() != nil)
         await step("native: the toolbar's Record asks for the mic or records", window, target: "tb-record",
                    check: { app.showMicSheet || app.recorder.isRecording })
@@ -2338,6 +2344,109 @@ extension UITest {
         await step("templates: Not now hides the offer and runs nothing", window, target: "result-offer-dismiss",
                    check: { app.store.transcript(id)?.templateResults?.first?.offerDismissed == "journal" && TemplateCenter.shared.busyTemplate(id) == nil })
         app.store.update(id) { $0.kind = .meeting; $0.templateResults?[0].offerDismissed = nil }
+        TemplateSettingsModel.shared.settings = saved
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Audio only and Brain dump (mockup "Verbose Brain Dump", October 27, 2026). The model never runs: plans are canned,
+    /// and Reminders is the stand-in. Everything made here goes to Recently Deleted afterward.
+    private static func brainDumpSteps(app: AppState, window: NSWindow) async {
+        let saved = TemplateSettingsModel.shared.settings
+        TemplateSettingsModel.shared.settings = AutoRunSettings.startingChoices
+        PlanChecks.run { check("brain dump: " + $0, $1) }
+        await RemindersChecks.run { check("brain dump: " + $0, $1) }
+        var made: [UUID] = []
+
+        // Audio only: kept with no transcript, skipped by the queue, and on its own screen.
+        let audio = PlanChecks.audioOnly(at: Date().addingTimeInterval(-900))
+        app.coordinator.keepAudioOnly(audio)
+        made.append(audio.id)
+        app.coordinator.enqueueExisting(audio.id)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        let kept = app.store.transcript(audio.id)
+        check("brain dump: Audio only is saved with no transcript and the queue skips it", kept?.status == .ready && kept?.isAudioOnly == true
+              && kept?.segments.isEmpty == true && app.coordinator.runningID != audio.id)
+        app.go(.transcript(audio.id))
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("brain dump: an Audio only recording opens on its own screen", MacAudioDetail.shown == audio.id)
+        oneScreen("Audio only", app: app)
+
+        // Transcribe later, through the queue (this one's audio isn't here, so nothing transcribes), then the words
+        // landing as the queue applies them.
+        var later = PlanChecks.audioOnly(at: Date().addingTimeInterval(-800))
+        later.audioFileName = "self-test-missing-audio.wav"
+        later.title = "Porch rain, late"
+        app.coordinator.keepAudioOnly(later)
+        made.append(later.id)
+        app.transcribeLater(later.id)
+        let queued = app.store.transcript(later.id)
+        check("brain dump: Transcribe later queues it, still Audio only", (queued?.status == .processing || queued?.status == .failed) && queued?.isAudioOnly == true)
+        app.store.update(later.id) { x in
+            x.segments = [Segment(start: 30, end: 34, text: "Rain on the porch roof.")]
+            x.status = .ready
+            x.finishTranscribeLater(as: nil)
+        }
+        let done = app.store.transcript(later.id)
+        check("brain dump: Transcribe later makes a voice note with its title and moments kept", done?.kind == nil && done?.kindIsAuto == true
+              && done?.title == "Porch rain, late" && done?.notes.count == 2)
+
+        // Kinds to and from Brain dump and Audio only: nothing is deleted.
+        var call = TemplateChecks.recording(.meeting, picked: true)
+        call.createdAt = Date().addingTimeInterval(-7200)
+        app.store.add(call)
+        made.append(call.id)
+        let lines = call.segments
+        app.pickKind(.brainDump, for: call.id)
+        check("brain dump: changing a kind to Brain dump offers Plan my day", app.store.transcript(call.id).flatMap {
+            AutoRunRules.offer($0, settings: TemplateSettingsModel.shared.settings, templates: app.store.allTemplates) }?.text == "Now a Brain dump. Run Plan my day?")
+        app.pickKind(.audio, for: call.id)
+        check("brain dump: changing a kind to Audio only keeps the words", app.store.transcript(call.id)?.kind == .audio && app.store.transcript(call.id)?.segments == lines)
+        app.pickKind(.meeting, for: call.id)
+        check("brain dump: and back to Meeting, every line kept", app.store.transcript(call.id)?.kind == .meeting && app.store.transcript(call.id)?.segments == lines)
+
+        // The brain dump window: text inserted at the cursor lands in the note, which is kept with the day; Make a plan
+        // (canned) sorts it, and each task links to its paragraph.
+        let today = Calendar.current.startOfDay(for: Date())
+        let savedNote = app.store.dayPlan(today, source: .note)
+        BrainDumpWindow.open(app)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("brain dump: File › New Brain Dump opens the window with its note", BrainDumpWindow.isOpen && BrainDumpWindow.textView != nil)
+        BrainDumpWindow.textView?.string = ""
+        BrainDumpWindow.insert("Send the bakery invoice today.\n\nTomorrow, book the drone pilot for the farm shoot.")
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        let noted = app.store.dayPlan(today, source: .note)?.note ?? ""
+        check("brain dump: the window receives inserted text and keeps it with the day", noted.contains("bakery invoice") && noted.contains("drone pilot"))
+        DayPlanCenter.shared.canned = { lines in "## Today\n- [ ] Send the bakery invoice [00:00]\n## Tomorrow\n- [ ] Book the drone pilot [01:00]" }
+        DayPlanCenter.shared.planNote(day: today, note: noted, store: app.store)
+        DayPlanCenter.shared.canned = nil
+        let plan = app.store.dayPlan(today, source: .note)
+        check("brain dump: Make a plan sorts the note, each task linked to its paragraph", plan?.hasPlan == true && plan?.paragraphs.count == 2
+              && plan.map { r in DayPlan.parse(r.text).tomorrow.first.flatMap { DayPlan.index(of: $0, count: r.paragraphs.count) } } == 1)
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        BrainDumpWindow.close()
+        if let savedNote { app.store.updateDayPlan(today, source: .note) { $0 = savedNote } } else { app.store.plans.removeAll { $0.source == .note && $0.day == DayPlanRecord.dayKey(today) } }
+
+        // Organize on today's page (canned), in its own window.
+        let page = ThoughtPadController.shared.state.today
+        let thoughts = app.store.page(.idea, day: page, hour: Thoughts.newPageHour)
+        let withWords = DayPlanCenter.lines(thoughts)
+        if !withWords.isEmpty {
+            DayPlanCenter.shared.canned = { lines in "## Top three\n- [ ] \(lines[0]) [00:00]" }
+            DayPlanCenter.shared.organize(day: page, thoughts: thoughts, store: app.store)
+            DayPlanCenter.shared.canned = nil
+            let r = app.store.dayPlan(page, source: .thoughts)
+            check("brain dump: Organize keeps a plan with the day, linked to its thoughts", r?.hasPlan == true && r?.thoughtIDs == withWords.map(\.id))
+            ThoughtsPlanWindow.open(day: page, app: app)
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            check("brain dump: the plan opens in its own window", ThoughtsPlanWindow.isOpen)
+            ThoughtsPlanWindow.close()
+            app.store.plans.removeAll { $0.source == .thoughts && $0.day == DayPlanRecord.dayKey(page) }
+        }
+        // Audio only's file: at least 44.1 kHz in 24-bit, repaired and joined whole, and Transcribe later on a real one.
+        SoundFormatChecks.run { check("brain dump: " + $0, $1) }
+        if let id = await SoundFormatChecks.transcribeLater(store: app.store, coordinator: app.coordinator, check: { check("brain dump: " + $0, $1) }) { made.append(id) }
+        app.delete(made)
         TemplateSettingsModel.shared.settings = saved
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)

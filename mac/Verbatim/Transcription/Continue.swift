@@ -20,11 +20,20 @@ enum Continuation {
         var wave: [Float]
     }
 
-    /// Joins `a` then `b` into one 16 kHz mono WAV at `dest`, reading and writing in chunks.
+    /// Joins `a` then `b` into one mono WAV at `dest`, reading and writing in chunks: 16 kHz, or `a`'s own rate in
+    /// 24-bit when `a` is above 16 kHz (Audio only transcribed later, `SoundFormat`), so continuing never dulls it.
     /// Returns the total length and the length of `a` as written (the offset for `b`'s lines).
     /// Throws if either file can't be read to the end, so a partial join is never kept.
     static func join(_ a: URL, _ b: URL, to dest: URL) throws -> (total: Double, first: Double) {
-        let out = try AVAudioFile(forWriting: dest, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
+        let firstRate = try AVAudioFile(forReading: a).processingFormat.sampleRate
+        let sound = SoundFormat.isSoundFile(a, rate: firstRate)
+        let target = sound ? SoundFormat.processing(rate: SoundFormat.rate(for: firstRate)) : recordingFormat
+        let out: AVAudioFile
+        if sound {
+            out = try AVAudioFile(forWriting: dest, settings: SoundFormat.settings(rate: target.sampleRate), commonFormat: .pcmFormatFloat32, interleaved: false)
+        } else {
+            out = try AVAudioFile(forWriting: dest, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
+        }
         var frames: AVAudioFramePosition = 0
         var firstFrames: AVAudioFramePosition = 0
         var expected: Double = 0
@@ -32,15 +41,15 @@ enum Continuation {
             let file = try AVAudioFile(forReading: src)
             let inFormat = file.processingFormat
             expected += Double(file.length) / inFormat.sampleRate
-            guard let converter = AVAudioConverter(from: inFormat, to: recordingFormat) else {
+            guard let converter = AVAudioConverter(from: inFormat, to: target) else {
                 throw NSError(domain: "Verbatim", code: 20, userInfo: [NSLocalizedDescriptionKey: "Couldn't read \(src.lastPathComponent)."])
             }
             let chunk: AVAudioFrameCount = 1 << 15
             var readError: Error? = nil
             var done = false
             while !done {
-                let ratio = recordingFormat.sampleRate / inFormat.sampleRate
-                guard let outBuf = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: AVAudioFrameCount(Double(chunk) * ratio) + 64) else { break }
+                let ratio = target.sampleRate / inFormat.sampleRate
+                guard let outBuf = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(chunk) * ratio) + 64) else { break }
                 var err: NSError?
                 let status = converter.convert(to: outBuf, error: &err) { _, st in
                     // A fresh buffer per request: the converter may still hold the previous one.
@@ -59,11 +68,11 @@ enum Continuation {
             }
             if index == 0 { firstFrames = frames }
         }
-        let total = Double(frames) / recordingFormat.sampleRate
+        let total = Double(frames) / target.sampleRate
         guard abs(total - expected) < 0.25 else {
             throw NSError(domain: "Verbatim", code: 21, userInfo: [NSLocalizedDescriptionKey: "The recordings didn't join cleanly (\(Int(total)) of \(Int(expected)) seconds)."])
         }
-        return (total, Double(firstFrames) / recordingFormat.sampleRate)
+        return (total, Double(firstFrames) / target.sampleRate)
     }
 
     /// Transcribes `part` (recorded after `existing` ended), joins the audio into `combined`, and works out speakers.
@@ -86,7 +95,10 @@ enum Continuation {
         let all = existing.segments + fixed
         if wantSpeakers, all.count > 1 {
             do {
-                let turns = try await FluidDiarizer.shared.diarize(url: combined, progress: progress)
+                // A sound file (Audio only transcribed later, then continued) is heard through a 16 kHz copy.
+                let heard = try TranscriptionInput.prepare(combined)
+                defer { TranscriptionInput.finish(heard, original: combined) }
+                let turns = try await FluidDiarizer.shared.diarize(url: heard, progress: progress)
                 if existing.speakers.isEmpty {
                     // No speakers yet: label everything fresh (nothing named to lose).
                     var everything = all

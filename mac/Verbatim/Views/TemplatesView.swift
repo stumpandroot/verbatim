@@ -394,6 +394,18 @@ struct RunAutomaticallyPane: View {
                     .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
                     .accessibilityHidden(true)
                     ForEach(AutoRunSettings.kinds) { k in kindRow(k, all, settings) }
+                    // Audio only has no transcript, so no template can run on it: listed with no picker.
+                    HStack(spacing: 0) {
+                        HStack(spacing: 10) {
+                            kindIcon(.audio)
+                            Text(RecordingKind.audio.label).font(.system(size: 13.5)).foregroundStyle(Ink.ink)
+                        }
+                        .frame(width: 190, alignment: .leading)
+                        Text(AudioOnlyCopy.noTemplate).font(.system(size: 12.5)).foregroundStyle(Ink.mute)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 8)
+                    .uiTarget("auto-kind-audio")
                 }
                 .padding(.horizontal, 16).padding(.vertical, 4)
                 .modifier(TemplateCardSurface())

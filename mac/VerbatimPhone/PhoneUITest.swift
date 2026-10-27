@@ -214,6 +214,7 @@ enum PhoneUITest {
                 // Thoughts (ThoughtsScreens.swift): today's page, the day arrows, and By day for Thoughts and Journal.
                 await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 await templatesTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
+                await brainDumpTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 await askTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app); await actionButtonDictateChecks(app); await watchChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
@@ -429,6 +430,7 @@ enum PhoneUITest {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 await thoughtsTour(app, prefix: prefix, suffix: "-native", checks: prefix == "p")
                 await templatesTour(app, prefix: prefix, suffix: "-native", checks: false)
+                await brainDumpTour(app, prefix: prefix, suffix: "-native", checks: false)
                 await askTour(app, prefix: prefix, suffix: "-native", checks: false)
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
@@ -528,8 +530,13 @@ enum PhoneUITest {
         tray.tourHold(.card)
         await show("p01t-record-tray\(suffix)")
         let ys = RecordChoice.all.compactMap { tray.rowFrames[$0]?.minY }
-        check("touch and hold opens the tray with six rows", tray.isOpen && tray.rowFrames.count == 6)
-        check("the rows run Voice note, Meeting, Interview, Journal entry, Talk, Thought", ys.count == 6 && zip(ys, ys.dropFirst()).allSatisfy { $0 < $1 })
+        check("touch and hold opens the tray with eight rows", tray.isOpen && tray.rowFrames.count == 8)
+        check("the rows run Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, Audio only",
+              ys.count == 8 && zip(ys, ys.dropFirst()).allSatisfy { $0 < $1 }
+              && RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
+        check("Audio only's line never names a template, and Brain dump's names Plan my day when it's on",
+              RecordChoice.kind(.audio).hint(settings: shown, templates: app.store.allTemplates) == "Keeps the sound, no transcript"
+              && RecordChoice.kind(.brainDump).hint(settings: AutoRunSettings.startingChoices, templates: app.store.allTemplates) == "Runs Plan my day when it finishes")
         check("a kind with a template says what runs", RecordChoice.kind(.meeting).hint(settings: shown, templates: app.store.allTemplates) == "Runs Meeting notes when it finishes")
         let end = tray.tourSlide(to: .kind(.meeting))
         await show("p01u-record-tray-meeting\(suffix)")
@@ -645,8 +652,10 @@ enum PhoneUITest {
         tray.tap()
         check("a tap on Record starts a plain voice note", picked == [.voiceNote])
         tray.override = nil
-        check("the menu lists Voice note, Meeting, Interview, Journal entry, Talk, and Thought",
-              RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought"])
+        check("the menu lists Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, and Audio only",
+              RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
+        check("Native symbols: Voice note mic, Audio only waveform, Brain dump the head",
+              RecordChoice.voiceNote.nativeSymbol == "mic" && RecordChoice.kind(.audio).nativeSymbol == "waveform" && RecordChoice.kind(.brainDump).nativeSymbol == "brain.head.profile")
         check("Voice note's line says Verbose picks the kind",
               NativeRecordMenu.hint(.voiceNote, settings: shown, templates: app.store.allTemplates) == "Verbose picks the kind")
         check("a kind with a template says what runs",
@@ -802,6 +811,126 @@ enum PhoneUITest {
         }
         app.libraryPath = NavigationPath()
         TemplateSettingsModel.shared.settings = saved
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Audio only and Brain dump (mockup "Verbose Brain Dump", October 27, 2026): an Audio only recording kept with no
+    /// transcript and skipped by the queue, its own screen and Library card, Transcribe later (the queue's path, with a
+    /// recording whose audio isn't here, so nothing transcribes), kinds changed to and from Brain dump and Audio only,
+    /// a brain dump's plan from a canned result (the model never runs), Send to Reminders with the stand-in Reminders,
+    /// and Organize today's thoughts with a canned plan. Everything made here goes to Recently Deleted afterward.
+    private static func brainDumpTour(_ app: PhoneState, prefix: String, suffix: String, checks: Bool) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") brain dump\(suffix): \(name)") }
+        let savedSettings = TemplateSettingsModel.shared.settings
+        TemplateSettingsModel.shared.settings = AutoRunSettings.startingChoices
+        var made: [UUID] = []
+        // Audio only, kept with no transcript.
+        let audio = PlanChecks.audioOnly(at: Date().addingTimeInterval(-900))
+        app.coordinator.keepAudioOnly(audio)
+        made.append(audio.id)
+        app.coordinator.enqueueExisting(audio.id)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        if checks {
+            let a = app.store.transcript(audio.id)
+            check("Audio only is saved with no transcript and the queue skips it", a?.status == .ready && a?.isAudioOnly == true && a?.segments.isEmpty == true
+                  && app.runningID != audio.id && a?.processingDevice == nil)
+        }
+        app.tab = .library
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        await show("\(prefix)04o-library-audio\(suffix)")
+        app.libraryPath.append(audio.id)
+        await show("\(prefix)04p-audio-detail\(suffix)")
+        if checks { check("an Audio only recording opens on its own screen", PhoneAudioDetail.shown == audio.id) }
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
+
+        // A brain dump with Plan my day's result (canned), opened on the plan.
+        let dump = PlanChecks.brainDump(at: Date().addingTimeInterval(-3600))
+        app.store.add(dump)
+        made.append(dump.id)
+        TemplateSettingsModel.shared.settings.showFirst = true
+        app.libraryPath.append(dump.id)
+        await show("\(prefix)04q-brain-dump-plan\(suffix)")
+        TemplateSettingsModel.shared.settings.showFirst = false
+        app.libraryPath = NavigationPath()
+        try? await Task.sleep(nanoseconds: 400_000_000)
+
+        if checks {
+            // Transcribe later: through the queue, and still Audio only until words land (this recording's audio isn't
+            // here, so the job stops with the audio missing and nothing is transcribed).
+            var later = PlanChecks.audioOnly(at: Date().addingTimeInterval(-800))
+            later.audioFileName = "self-test-missing-audio.wav"
+            later.title = "Porch rain, late"
+            app.coordinator.keepAudioOnly(later)
+            made.append(later.id)
+            app.transcribeLater(later.id)
+            let queued = app.store.transcript(later.id)
+            check("Transcribe later queues it through the normal transcription path, still Audio only",
+                  (queued?.status == .processing || queued?.status == .failed) && queued?.isAudioOnly == true && queued?.title == "Porch rain, late")
+            // The words landing, as the queue applies them.
+            app.store.update(later.id) { x in
+                x.status = .processing
+                x.segments = [Segment(start: 30, end: 34, text: "Rain on the porch roof.")]
+                x.status = .ready
+                x.finishTranscribeLater(as: nil)
+            }
+            let done = app.store.transcript(later.id)
+            check("when the words are in, it's a voice note with its title and moments kept", done?.kind == nil && done?.kindIsAuto == true
+                  && done?.title == "Porch rain, late" && done?.notes.count == 2 && done?.showsAudioDetail == false)
+
+            // Kinds changed to and from Brain dump and Audio only: nothing is deleted.
+            var call = TemplateChecks.recording(.meeting, picked: true)
+            call.createdAt = Date().addingTimeInterval(-7200)
+            app.store.add(call)
+            made.append(call.id)
+            let lines = call.segments
+            app.pickKind(.brainDump, for: call.id)
+            let asDump = app.store.transcript(call.id)
+            check("changing a kind to Brain dump offers Plan my day", asDump?.kind == .brainDump
+                  && asDump.flatMap { AutoRunRules.offer($0, settings: TemplateSettingsModel.shared.settings, templates: app.store.allTemplates) }?.text == "Now a Brain dump. Run Plan my day?")
+            app.pickKind(.audio, for: call.id)
+            let asAudio = app.store.transcript(call.id)
+            check("changing a kind to Audio only keeps the words and stays a transcript", asAudio?.kind == .audio && asAudio?.segments == lines && asAudio?.showsAudioDetail == false
+                  && asAudio.map { AutoRunRules.decide($0, settings: TemplateSettingsModel.shared.settings, templates: app.store.allTemplates, labelPending: false) } == .notEligible)
+            app.pickKind(.meeting, for: call.id)
+            check("and back to Meeting, with every line kept", app.store.transcript(call.id)?.kind == .meeting && app.store.transcript(call.id)?.segments == lines)
+            app.pickKind(.brainDump, for: audio.id)
+            check("an Audio only recording with no words filed as another kind is transcribed as it (its audio isn't here, so it stays Audio only)",
+                  app.store.transcript(audio.id)?.isAudioOnly == true)
+
+            // Send to Reminders, with the stand-in Reminders.
+            await RemindersChecks.run { name, ok in check(name, ok) }
+
+            // Organize today's thoughts, with a canned plan.
+            let page = app.store.page(.idea, day: app.todayPage, hour: app.newPageHour)
+            let withWords = DayPlanCenter.lines(page)
+            DayPlanCenter.shared.canned = { lines in
+                "## Top three\n" + lines.prefix(3).enumerated().map { i, l in "- [ ] \(l) [\(String(format: "%02d", i)):00]" }.joined(separator: "\n")
+            }
+            DayPlanCenter.shared.organize(day: app.todayPage, thoughts: page, store: app.store)
+            DayPlanCenter.shared.canned = nil
+            let rec = app.store.dayPlan(app.todayPage, source: .thoughts)
+            check("Organize today's thoughts keeps the plan with the day, made from the day's thoughts", rec?.hasPlan == true && rec?.thoughtIDs == withWords.map(\.id))
+            let first = rec.map { DayPlan.parse($0.text) }?.top.first
+            check("each task links back to the thought it came from", first.flatMap { DayPlan.index(of: $0, count: withWords.count) } == 0)
+        }
+        if app.store.dayPlan(app.todayPage, source: .thoughts)?.hasPlan == true {
+            app.tab = .library
+            app.libraryPath = NavigationPath()
+            app.libraryPath.append(ThoughtsPlanRoute(day: app.todayPage))
+            await show("\(prefix)04r-thoughts-plan\(suffix)")
+            if checks { check("the plan from today's thoughts opens", ThoughtsPlanScreen.shown == app.todayPage) }
+            app.libraryPath = NavigationPath()
+        }
+        app.store.plans.removeAll { $0.source == .thoughts && $0.day == DayPlanRecord.dayKey(app.todayPage) }
+        if checks {
+            // Audio only's file: at least 44.1 kHz in 24-bit, repaired and joined whole, and Transcribe later on a real one.
+            SoundFormatChecks.run { name, ok in check(name, ok) }
+            if let id = await SoundFormatChecks.transcribeLater(store: app.store, coordinator: app.coordinator, check: { name, ok in check(name, ok) }) { made.append(id) }
+        }
+        app.delete(made)
+        TemplateSettingsModel.shared.settings = savedSettings
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
 
@@ -1941,6 +2070,11 @@ enum PhoneUITest {
         TemplateChecks.run { name, ok in
             if ok { pass += 1 } else { fail += 1 }
             Log.note("UITEST \(ok ? "PASS" : "FAIL") templates: \(name)")
+        }
+        // Plan my day, Audio only, and Brain dump (shared with the Mac's self-test and mac/tools/test-templates.sh).
+        PlanChecks.run { name, ok in
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") brain dump: \(name)")
         }
         // Ask your library and recipes (shared with the Mac's self-test and mac/tools/test-ask.sh).
         AskChecks.run { name, ok in

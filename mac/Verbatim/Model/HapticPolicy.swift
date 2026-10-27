@@ -40,6 +40,8 @@ enum HapticEvent: String, CaseIterable {
     case smallSave
     /// A rare milestone: Your voice set up.
     case milestone
+    /// Send to Reminders added a plan's tasks (DayPlan.swift): `.success`, with "Added 9 reminders to Studio" showing.
+    case sentToReminders
     /// A choice in a list, a scrubber line, a row under the finger, the keyboard's format chip or polished swap.
     case picked
     /// The Record as tray opens under a held finger.
@@ -108,7 +110,7 @@ struct HapticPolicy {
             case .recordStop: return Self.stop
             case .pause, .resume: return Self.pauseTap
             case .mark: return Self.markBuzzes ? Self.markTap : nil
-            case .transcriptReady, .milestone: return .success
+            case .transcriptReady, .milestone, .sentToReminders: return .success
             case .failed: return .error
             case .autoPaused, .lowStorage: return .warning
             case .copied, .picked: return .selection

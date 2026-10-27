@@ -99,6 +99,8 @@ enum NativeSymbols {
         case "interview"?: return "quote.bubble"
         case "video"?: return "play.rectangle"
         case "talk"?: return "person.wave.2"
+        case "brainDump"?: return "brain.head.profile"
+        case "audio"?: return "waveform"
         default:
             if dictation { return "text.bubble" }
             if link { return "link" }

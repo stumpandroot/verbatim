@@ -52,6 +52,8 @@ final class TemplateCenter: ObservableObject {
     private var work: Task<TranscriptActions.Output, Error>? = nil
 
     func isRunning(_ id: UUID) -> Bool { current?.transcript == id }
+    /// A recording that just finished, waiting for Run automatically to decide (the kind-change offer waits too).
+    func isPending(_ id: UUID) -> Bool { pending[id] != nil }
     /// Running or queued on this transcript: the template's ID.
     func busyTemplate(_ id: UUID) -> UUID? { current?.transcript == id ? current?.template : queue.first { $0.transcript == id }?.template }
 

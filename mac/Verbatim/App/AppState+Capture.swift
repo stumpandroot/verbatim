@@ -45,7 +45,13 @@ extension AppState {
         Log.note("startRecording")
         guard !recorder.isRecording else { return }
         let url = store.newRecordingURL()
-        recordingWords.begin(recorder)   // before the mic opens, so live words hear the first word
+        // Audio only keeps the sound: no live words (the Mac's input unit never processes voice), and the file keeps
+        // the mic's own rate in 24-bit (SoundFormat) instead of 16 kHz.
+        let soundOnly = recordKind == .audio && pendingContinue == nil
+        recorder.soundOnly = soundOnly
+        if !soundOnly { recordingWords.begin(recorder) }   // before the mic opens, so live words hear the first word
+        // Audio only or a Brain dump: if Verbose quits mid-recording, recovery files it as that kind.
+        if pendingContinue == nil { Store.markKind(url, recordKind) }
         recorder.begin(to: url) { [weak self] error in
             guard let self else { return }
             if let error {
@@ -93,6 +99,7 @@ extension AppState {
         recordKind = nil
         if recorder.isRecording, !wasStarting { savingRecording = true }
         let stopped = await recorder.stopAndSave()
+        recorder.soundOnly = false
         savingRecording = false
         guard let r = stopped else {
             if wasStarting { pendingContinue = nil }
@@ -105,6 +112,8 @@ extension AppState {
             return
         }
         Store.clearContinuation(r.startedAs ?? r.url)
+        Store.clearKindMark(r.startedAs ?? r.url)
+        Store.clearKindMark(r.url)
         Marks.clear(r.startedAs ?? r.url)
         Marks.clear(r.url)
         guard r.framesWritten > 0 else {
@@ -117,12 +126,33 @@ extension AppState {
             return
         }
         guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the recording."); return }
-        var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
+        var t = Transcript(title: kind == .audio ? "Audio only" : "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
                            duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
         t.notes = Store.skippedNotes(r.skipped) + RecordingMark.notes(marks)
         t.pickKindAtStart(kind)
+        if t.isAudioOnly {
+            // Audio only: kept as sound, never queued (AudioOnly.swift).
+            coordinator.keepAudioOnly(t)
+            toast = Toast(AudioOnlyCopy.saved)
+            return
+        }
         enqueue(t)
+    }
+
+    /// Transcribe on an Audio only recording (its screen, the Library's menu): the normal queue, filed as a voice note
+    /// or as the kind picked with Transcribe As when the words are in.
+    func transcribeLater(_ id: UUID, as kind: RecordingKind? = nil) {
+        guard let t = store.transcript(id), AudioOnlyRules.canTranscribe(t) else { return }
+        coordinator.transcribeLater(id, as: kind)
+    }
+
+    /// A kind picked for a recording (the kind chip, the inspector): yours from then on. An Audio only recording with
+    /// no words filed as another kind is transcribed as that kind. Nothing is ever deleted.
+    func pickKind(_ k: RecordingKind, for id: UUID) {
+        guard let t = store.transcript(id) else { return }
+        if t.showsAudioDetail, k != .audio, t.status != .processing { transcribeLater(id, as: k); return }
+        store.update(id) { $0.kind = k; $0.kindIsAuto = false }
     }
 
     /// Queues a new recording to be transcribed and joined onto the end of `id`.

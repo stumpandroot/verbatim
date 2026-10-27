@@ -98,6 +98,8 @@ final class DictationController: ObservableObject {
     private var escapeCancels: Bool { isListening || writingSession != nil }
     @Published private(set) var handsFree = false
     @Published private(set) var targetAppName = ""
+    /// This dictation is going into Verbose's brain dump window (BrainDumpWindow.swift): it isn't kept in Dictations.
+    private(set) var intoBrainDump = false
     /// The last dictation's final text. Kept (never cleared by a paste, a failed paste, or today's page's
     /// Send) so ⌃⌘V (or Copy last dictation in the floating menu) can always bring it back.
     @Published private(set) var lastResult: String? = nil
@@ -634,7 +636,10 @@ final class DictationController: ObservableObject {
             return
         }
         target = NSWorkspace.shared.frontmostApplication
-        targetAppName = target?.localizedName ?? "the front app"
+        // Dictating into Verbose's own brain dump window: the words stay only in the brain dump (decision 11), so this
+        // dictation isn't kept in Dictations, and the Ribbon says where they're going.
+        intoBrainDump = target?.processIdentifier == ProcessInfo.processInfo.processIdentifier && BrainDumpWindow.isKey
+        targetAppName = intoBrainDump ? "Brain dump" : (target?.localizedName ?? "the front app")
         siteProbe = SiteCapture.probe(bundleID: target?.bundleIdentifier)
         // The mic starts first: reading the app's text through Accessibility can take a moment, and the
         // first word must not be lost to it.
@@ -860,6 +865,7 @@ final class DictationController: ObservableObject {
         let site = siteProbe
         let isCommand = command
         let targetName = targetAppName
+        let toBrainDump = intoBrainDump
         let baseCategory = ctx?.category ?? .other
         let styles = Dictionary(uniqueKeysWithValues: AppCategory.allCases.map { ($0, s.style(for: $0)) })
         let level = s.cleanup
@@ -945,10 +951,10 @@ final class DictationController: ObservableObject {
                     // Cancelled with Esc while writing: kept in Dictations as not pasted, and nothing is pasted.
                     if cancelled.remove(mine) {
                         var kept = flowInfo; kept.pastedOK = false
-                        _ = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: kept, cleaned: wasCleaned, project: project)
+                        _ = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: kept, cleaned: wasCleaned, project: project, brainDump: toBrainDump)
                         return
                     }
-                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: flowInfo, cleaned: wasCleaned, project: project)
+                    let id = self?.keep(url: url, duration: duration, env: env, original: original, segments: keptSegs, fixes: fixes, result: r, info: flowInfo, cleaned: wasCleaned, project: project, brainDump: toBrainDump)
                     if let id, !isCommand, !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         ActivityLog.shared.add(ActivityLog.event(id: id, date: Date(), info: flowInfo, seconds: duration, fixes: fixes.count, transcribe: transcribeTime, cleanup: cleanupTime))
                         SiteLog.shared.attach(id, site)
@@ -977,8 +983,14 @@ final class DictationController: ObservableObject {
         var note: String?
     }
 
-    private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool, project: UUID? = nil) -> UUID? {
+    private func keep(url: URL, duration: Double, env: [Float], original: [Segment], segments: [Segment], fixes: [Correction], result: EngineResult, info: FlowInfo, cleaned: Bool, project: UUID? = nil, brainDump: Bool = false) -> UUID? {
         guard let app else { return nil }
+        // Into the brain dump window: the words are in the note, and nothing goes to Dictations (decision 11).
+        if brainDump {
+            try? FileManager.default.removeItem(at: url)
+            Log.note("dictation into the brain dump window: kept in the note only")
+            return nil
+        }
         let name = app.store.adoptRecording(url) ?? url.lastPathComponent
         let titleSource = info.pasted.isEmpty ? segments : [Segment(start: 0, end: duration, text: info.pasted)]
         var t = Transcript(title: Transcript.titleFrom(titleSource) ?? "Dictation", source: .dictation, sourceLabel: "Dictation · \(info.app)", duration: duration, audioFileName: name, model: Engines.displayName(engine: result.engine, model: result.model))

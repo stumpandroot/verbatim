@@ -127,6 +127,29 @@ extension Store {
         try? FileManager.default.removeItem(at: thoughtMarker(for: recording))
     }
 
+    // MARK: Audio only and Brain dump, across a crash
+
+    /// Beside an Audio only or Brain dump recording: ".<stem>.kind", holding the kind's raw value. If the app dies mid-
+    /// recording, recovery files it as that kind: Audio only is kept as sound and never queued to transcribe.
+    static func kindMarker(for recording: URL) -> URL {
+        recording.deletingLastPathComponent().appendingPathComponent(".\(recording.deletingPathExtension().lastPathComponent).kind")
+    }
+
+    static func markKind(_ recording: URL, _ kind: RecordingKind?) {
+        guard let kind, kind == .audio || kind == .brainDump else { return }
+        try? Data(kind.rawValue.utf8).write(to: kindMarker(for: recording), options: .atomic)
+    }
+
+    static func clearKindMark(_ recording: URL) {
+        try? FileManager.default.removeItem(at: kindMarker(for: recording))
+    }
+
+    /// The kind a recovered recording was started as, when it was Audio only or a Brain dump.
+    static func recordedKind(for recording: URL) -> RecordingKind? {
+        guard let data = try? Data(contentsOf: kindMarker(for: recording)) else { return nil }
+        return RecordingKind(rawValue: String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     /// When a recovered recording started as a thought, or nil when it wasn't one.
     static func thoughtStart(for recording: URL) -> Date? {
         guard let data = try? Data(contentsOf: thoughtMarker(for: recording)) else { return nil }

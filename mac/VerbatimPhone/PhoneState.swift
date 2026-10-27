@@ -277,14 +277,19 @@ final class PhoneState: ObservableObject {
         let activityFirst = RecordingPresence.shared.startActivityBeforeRecording(thought: pendingThought)
         do {
             let url = store.newRecordingURL()
+            // Audio only keeps the sound: no live words, and the system's voice processing off (Recorder.soundOnly).
+            let soundOnly = recordKind == .audio && pendingContinue == nil
+            recorder.soundOnly = soundOnly
             // A thought with Show words in the Dynamic Island keeps its live words going in the background.
             recordingWords.keepInBackground = pendingThought && ThoughtRules.islandWords()
-            recordingWords.prepare(recorder)   // before start, so live text hears the first word
+            if !soundOnly { recordingWords.prepare(recorder) }   // before start, so live text hears the first word
             // The start tap plays before the microphone opens, so it isn't in the recording. (In the background, from
             // the Action button, a widget, or Siri, iOS plays nothing; the Live Activity shows the start instead.)
             Haptics.play(.recordStart)
             try recorder.start(to: url)
-            recordingWords.begin()
+            if !soundOnly { recordingWords.begin() }
+            // Audio only or a Brain dump: if Verbose is closed mid-recording, recovery files it as that kind.
+            if pendingContinue == nil { Store.markKind(url, recordKind) }
             recordingMoments = []
             continuing = pendingContinue
             pendingContinue = nil
@@ -427,6 +432,9 @@ final class PhoneState: ObservableObject {
         Store.clearContinuation(r.startedAs ?? r.url)
         Store.clearThoughtMark(r.startedAs ?? r.url)
         Store.clearThoughtMark(r.url)
+        Store.clearKindMark(r.startedAs ?? r.url)
+        Store.clearKindMark(r.url)
+        recorder.soundOnly = false
         Marks.clear(r.startedAs ?? r.url)
         Marks.clear(r.url)
         guard r.framesWritten > 0 else {
@@ -452,10 +460,21 @@ final class PhoneState: ObservableObject {
             return
         }
         guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); Haptics.play(.failed); return }
-        var t = Transcript(title: "Voice note", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
+        var t = Transcript(title: kind == .audio ? "Audio only" : "Voice note", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
         t.notes = Store.skippedNotes(r.skipped) + RecordingMoment.notes(moments)
         t.pickKindAtStart(kind)
+        if t.isAudioOnly {
+            // Audio only: kept as sound, never queued ("Saved. No transcript.").
+            coordinator.keepAudioOnly(t)
+            if AppLook.current == .native {
+                let saved = SavedRecording(id: t.id, length: r.duration, moments: moments.count, savedAt: Date())
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.savedRecording = saved }
+            } else {
+                say(AudioOnlyCopy.saved)
+            }
+            return
+        }
         enqueue(t)
         // Premium Native: the Saved sheet, once the recorder's cover has gone.
         if AppLook.current == .native {
@@ -487,6 +506,23 @@ final class PhoneState: ObservableObject {
             RecordingPresence.shared.marked()
         }
         return true
+    }
+
+    /// Transcribe on an Audio only recording (its detail screen, the Library row's menu): the normal queue, filed as a
+    /// voice note or as the kind picked with Transcribe as when the words are in (AudioOnly.swift).
+    func transcribeLater(_ id: UUID, as kind: RecordingKind? = nil) {
+        guard let t = store.transcript(id), AudioOnlyRules.canTranscribe(t) else { return }
+        coordinator.transcribeLater(id, as: kind)
+        warmModel()
+    }
+
+    /// A kind picked for a recording (the kind chip, Details): yours from then on. An Audio only recording with no words
+    /// that you file as another kind is transcribed as that kind, since only Audio only keeps sound without words.
+    /// Nothing is ever deleted: the transcript, notes, moments, and results stay.
+    func pickKind(_ k: RecordingKind, for id: UUID) {
+        guard let t = store.transcript(id) else { return }
+        if t.showsAudioDetail, k != .audio, t.status != .processing { transcribeLater(id, as: k); return }
+        store.update(id) { $0.kind = k; $0.kindIsAuto = false }
     }
 
     /// Recordings recovered after launch: transcribed now (or added to the transcript they continued).

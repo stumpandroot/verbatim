@@ -23,6 +23,8 @@ extension RecordingKind {
         case .video: return .kindVideo
         case .talk: return .kindTalk
         case .interview: return .kindInterview
+        case .brainDump: return .kindBrainDump
+        case .audio: return .kindAudio
         }
     }
     var plural: String {
@@ -36,6 +38,8 @@ extension RecordingKind {
         case .video: return "Videos"
         case .talk: return "Talks"
         case .interview: return "Interviews"
+        case .brainDump: return "Brain dumps"
+        case .audio: return "Audio"
         }
     }
     var index: String {
@@ -49,6 +53,8 @@ extension RecordingKind {
         case .video: return "07"
         case .talk: return "08"
         case .interview: return "09"
+        case .brainDump: return "10"
+        case .audio: return "11"
         }
     }
     /// The hero card's one line.
@@ -63,6 +69,8 @@ extension RecordingKind {
         case .video: return "Things you watched."
         case .talk: return "One voice, at length."
         case .interview: return "Questions and answers."
+        case .brainDump: return "Your day, talked through."
+        case .audio: return "Sound you keep as sound."
         }
     }
 }
@@ -82,6 +90,8 @@ extension RecordingKind {
         case .video: return "play.rectangle"
         case .talk: return "person.wave.2"
         case .interview: return "quote.bubble"
+        case .brainDump: return "brain.head.profile"
+        case .audio: return "waveform"
         }
     }
 }

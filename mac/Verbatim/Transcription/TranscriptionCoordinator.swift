@@ -159,8 +159,9 @@ final class TranscriptionCoordinator: ObservableObject {
 
     // MARK: Queueing
 
-    /// Adds a new transcript to the Store and queues it.
+    /// Adds a new transcript to the Store and queues it. An Audio only recording is kept instead (`keepAudioOnly`).
     func enqueue(_ t: Transcript) {
+        if t.isAudioOnly { keepAudioOnly(t); return }
         var t = t
         t.status = .processing
         t.stage = "Queued"
@@ -171,6 +172,43 @@ final class TranscriptionCoordinator: ObservableObject {
         host?.didEnqueue(t.id)
         queue.append(t.id)
         pump()
+    }
+
+    /// Audio only (AudioOnly.swift): saved as sound, ready at once, and never queued until you ask for its words.
+    func keepAudioOnly(_ t: Transcript) {
+        var t = t
+        t.status = .ready
+        t.stage = nil
+        t.processingDevice = nil; t.processingDeviceName = nil
+        host?.prepareNew(&t)
+        store.add(t)
+        store.waitForWrites()
+    }
+
+    /// The kind each Transcribe on an Audio only recording files it as when the words are in (`nil`: a voice note).
+    /// Kept on this device while the job runs; a job a quit interrupted becomes a voice note.
+    private var laterKinds: [UUID: RecordingKind?] = [:]
+
+    /// Transcribe on an Audio only recording (Transcribe later): the normal transcription queue, the same path as
+    /// Transcribe again. It stays Audio only, with its progress where Transcribe was, until the words are in; then it's
+    /// a voice note, or the kind you picked with Transcribe as. The title, notes, moments, and audio stay.
+    func transcribeLater(_ id: UUID, as kind: RecordingKind? = nil) {
+        guard let t = store.transcript(id), AudioOnlyRules.canTranscribe(t) else { return }
+        laterKinds[id] = .some(kind)
+        if let name = t.audioFileName { SectionCheckpoint.remove(audio: name) }
+        store.update(id) { x in
+            x.beginTranscribeLater()
+            x.processingDevice = Device.id; x.processingDeviceName = Device.name
+        }
+        if !queue.contains(id) && runningID != id { queue.append(id) }
+        pump()
+    }
+
+    /// Words just landed on a transcript: an Audio only one stops being Audio only (`finishTranscribeLater`).
+    private func promoteAudioOnly(_ x: inout Transcript, _ id: UUID) {
+        guard x.isAudioOnly else { return }
+        let picked = laterKinds.removeValue(forKey: id) ?? nil
+        x.finishTranscribeLater(as: picked)
     }
 
     /// Queues a transcript that's already in the Store (an import or a fetched link that's ready).
@@ -192,7 +230,8 @@ final class TranscriptionCoordinator: ObservableObject {
     /// Whether a transcript can take a continued recording right now.
     func canContinue(_ id: UUID) -> Bool {
         guard let t = store.transcript(id), t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil else { return false }
-        return true
+        // Audio only has no transcript to add to (Continue transcribes the new part); Transcribe it first.
+        return !t.isAudioOnly
     }
 
     /// Transcribes a finished transcript again, in `language` (nil: Verbatim checks the language). Its words,
@@ -305,6 +344,8 @@ final class TranscriptionCoordinator: ObservableObject {
             queue.removeFirst()
             // A job another device has taken over since it was queued (Retry or a claimed link there) is theirs now.
             guard let t = store.transcript(next), (t.status == .processing && t.jobIsMine()) || (t.pendingAppend != nil && t.processingDevice == Device.id) else { continue }
+            // Audio only waits until you ask for its words (Transcribe sets it to processing).
+            guard !AudioOnlyRules.skipsQueue(t) else { continue }
             runningID = next
             host?.jobStarted(next)
             run(next)
@@ -343,7 +384,7 @@ final class TranscriptionCoordinator: ObservableObject {
     /// (AutoLabel). Runs once per transcript (while `kind` is nil) and never overwrites what the person set.
     private func labelIfNeeded(_ id: UUID) {
         guard AutoLabel.enabled, let t = store.transcript(id), t.status == .ready, t.source != .dictation,
-              t.wantsSuggestedKind, !t.segments.isEmpty else { return }
+              AudioOnlyRules.labels(t), t.wantsSuggestedKind, !t.segments.isEmpty else { return }
         let wantTitle = t.titleIsAuto && config.autoTitleSources.contains(t.source)
         // Sponsor reads (detectSponsors, just before) never name or tag the recording.
         let segs = t.segmentsWithoutSponsors, speakers = max(t.speakers.count, Set(t.segments.compactMap(\.speaker)).count), duration = t.duration
@@ -503,7 +544,10 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 if waitForDownload || keepsVersion { _ = await Cloud.ensureDownloaded(url) }
                 if keepsVersion, !FileManager.default.fileExists(atPath: url.path) { throw missing }
-                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
+                // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
+                let work = try TranscriptionInput.prepare(url)
+                defer { TranscriptionInput.finish(work, original: url) }
+                let out = try await TranscriptionJob.run(url: work, engineId: engineId, model: model, wantSpeakers: wantSpeakers,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let original = out.original, fixed = out.fixed, speakers = out.speakers, corrections = out.corrections, wave = out.wave
                 await MainActor.run {
@@ -524,6 +568,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.model = out.model
                         x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
+                        self.promoteAudioOnly(&x, id)
                         if !wave.isEmpty { x.waveform = wave }
                         if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(fixed) { x.title = auto }
                         // New words: a summary Apple Intelligence wrote for the old ones goes (an edited one stays).
@@ -577,6 +622,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.model = out.model
                         x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
+                        self.promoteAudioOnly(&x, id)
                     }
                     self.store.removeAfterPendingWrites([Paths.tracks(id)])
                     self.host?.transcriptReady(id, corrections: out.corrections.count, queueEmpty: self.queue.isEmpty)
@@ -609,7 +655,10 @@ final class TranscriptionCoordinator: ObservableObject {
                 // A recording just handed to iCloud is moved into the audio folder in the background first.
                 await self.store.waitForAdoption(of: url)
                 if waitForDownload { _ = await Cloud.ensureDownloaded(url) }
-                let out = try await TranscriptionJob.run(url: url, engineId: engineId, model: model, wantSpeakers: false,
+                // Audio only's file (48 kHz, 24-bit) is heard through a 16 kHz copy, removed when the job ends.
+                let work = try TranscriptionInput.prepare(url)
+                defer { TranscriptionInput.finish(work, original: url) }
+                let out = try await TranscriptionJob.run(url: work, engineId: engineId, model: model, wantSpeakers: false,
                                                          dictionary: dict, project: project, needWave: needWave, options: options, progress: progress)
                 let findSpeakers = wantSpeakers && out.fixed.count > 1
                 let proceed = await MainActor.run { () -> Bool in
@@ -618,6 +667,7 @@ final class TranscriptionCoordinator: ObservableObject {
                         x.original = out.original; x.segments = out.fixed; x.speakers = []; x.corrections = out.corrections; x.unclear = out.unclear
                         x.status = .ready; x.stage = findSpeakers ? "Finding speakers" : nil; x.engine = out.engine; x.model = out.model; x.language = out.language
                         x.processingDevice = nil; x.processingDeviceName = nil
+                        self.promoteAudioOnly(&x, id)
                         if !out.wave.isEmpty { x.waveform = out.wave }
                         if autoTitle.contains(x.source), x.titleIsAuto, !x.titleByModel, let auto = Transcript.titleFrom(out.fixed) { x.title = auto }
                         if x.summaryByModel { x.summary = nil; x.summaryByModel = false }
@@ -629,7 +679,7 @@ final class TranscriptionCoordinator: ObservableObject {
                 }
                 guard proceed, findSpeakers else { return }
                 guard !Task.isCancelled else { await MainActor.run { self.store.update(id) { $0.stage = nil }; self.finished(id, token: token) }; return }
-                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: url, progress: { _ in })
+                let found = try? await FluidDiarizer.shared.diarizeDetailed(url: work, progress: { _ in })
                 await MainActor.run {
                     guard self.runToken == token else { return }
                     defer { self.finished(id, token: token) }

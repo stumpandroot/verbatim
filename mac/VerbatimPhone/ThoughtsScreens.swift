@@ -118,6 +118,10 @@ struct DayPageScreen: View {
                     .accessibilityAddTraits(.isHeader)
                 dayArrows
                     .padding(.top, 14)
+                // Organize today's thoughts: Plan my day over the page (PhonePlanViews.swift).
+                if thoughts, !items.isEmpty {
+                    ThoughtsOrganizeRow(day: day, isToday: isToday, thoughts: items).padding(.top, 12)
+                }
                 if items.isEmpty {
                     empty.padding(.top, 24)
                 } else {
@@ -251,6 +255,12 @@ struct DayPageScreen: View {
                     }
                     .frame(maxWidth: .infinity).padding(.top, 20)
                 } else {
+                    if thoughts {
+                        ThoughtsOrganizeRow(day: day, isToday: isToday, thoughts: items)
+                            .padding(.horizontal, 14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .nativeCell(radius: 18)
+                    }
                     ForEach(items) { t in nativeCard(t) }
                 }
             }

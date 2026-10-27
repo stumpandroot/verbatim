@@ -401,6 +401,7 @@ struct HomeView: View {
         case .projects: app.projectFilter = nil; app.go(.library)
         case .newThought: ThoughtCapture.shared.toggle()
         case .journal: HomeDayPages.openJournal(app)
+        case .brainDump: BrainDumpWindow.open(app)
         case .whatsPlaying: break
         }
     }
@@ -431,6 +432,7 @@ struct HomeView: View {
         case .projects: return "Opens the Library, with your projects in the sidebar."
         case .newThought: return "Records a thought for today's page without leaving Home. Click again to stop."
         case .journal: return "Opens Journal by day."
+        case .brainDump: return "Opens today's brain dump. Hold your dictation keys and talk, then make a plan."
         case .whatsPlaying: return ""
         }
     }

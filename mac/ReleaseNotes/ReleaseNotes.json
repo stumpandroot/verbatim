@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Ask your library, Apple Watch capture, and a Native look that follows Apple",
+      "title": "Brain dump, Audio only, Ask your library, and a Native look that follows Apple",
       "items": [
         {
           "platforms": [
@@ -182,6 +182,69 @@
           ],
           "text": "Add Record and Today's thoughts to your watch face.",
           "detail": "Your last recording shows in the Smart Stack, and each one opens Verbose ready to record."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Record as adds Brain dump and Audio only, after Thought.",
+          "detail": "Brain dump records you talking through your day. Audio only keeps the sound with no transcript, for a melody, a guitar part, or a room."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Audio only records at your microphone's full quality, with voice processing off.",
+          "detail": "It saves 24-bit sound at 48 or 44.1 kHz, so music keeps its high end and dynamics. Its Library row plays without opening it."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Transcribe an Audio only recording later, as a voice note or any kind.",
+          "detail": "Its title, notes, moments, and audio stay. Touch and hold Transcribe on iPhone, or open its menu on the Mac, to pick a kind."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Plan my day sorts a brain dump into Top three, Today, Tomorrow, This week, and Someday.",
+          "detail": "It uses only the days you said, counted from when you recorded, keeps ideas apart, and links each task to the moment you said it."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Send a plan's tasks to the Reminders list you pick.",
+          "detail": "A task gets a due date only when you said a day, ideas go in only if you check them, and sending again adds only what's new."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Organize today's thoughts into the same plan, linked to each thought.",
+          "detail": "On iPhone it's on the Thoughts page. On the Mac, it's Organize on today's page."
+        },
+        {
+          "platforms": [
+            "iphone",
+            "mac"
+          ],
+          "text": "Change any recording's kind later, including to Brain dump or Audio only.",
+          "detail": "Changing a kind never deletes the transcript, notes, or results. Changing one to Brain dump offers to run Plan my day."
+        },
+        {
+          "platforms": [
+            "mac"
+          ],
+          "text": "Choose File › New Brain Dump to talk or type through your day, then make a plan.",
+          "detail": "Hold your dictation keys to talk into the note; those dictations stay in the note, not in Dictations. The menu bar and an optional Home tile open it too."
         }
       ]
     },

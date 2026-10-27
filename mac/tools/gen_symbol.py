@@ -5,8 +5,9 @@ and Marked ('Mark', 'Marked': the recording's Live Activity and Dynamic Island, 
 and the Control Center controls' glyphs (DESIGN.md §3): Dictations ('dictate'), Captions ('captions'), BrandArt's
 capture ('record', redrawn here on the 24 grid), and the bars mark ('bars', filled, from BrandArt.markBars).
 For the Mac's menus (the right-click menu on Record and File › Record As, mockup "Record as", October 26, 2026), the
-six ways to record: Voice note ('Mic' as rec.voice), Meeting ('Speakers'), Interview ('Quote'), Journal entry ('Notes'),
-Talk ('Voice'), and Thought ('Thought'), so the menu draws Verbose's glyphs in its own text color.
+eight ways to record: Voice note ('Mic' as rec.voice), Meeting ('Speakers'), Interview ('Quote'), Journal entry ('Notes'),
+Talk ('Voice'), Thought ('Thought'), Brain dump ('BrainDump'), and Audio only ('Audio'), so the menu draws Verbose's glyphs
+in its own text color.
 
 A custom symbol is an SVG template whose shapes are filled outlines, so the icon's 1.5 strokes (round caps and joins)
 are outlined here and joined into one shape. Only the Regular-M variant is drawn (a static template): the system
@@ -59,7 +60,8 @@ EXTRA = {
 # The Mac's Record menus, in RecordChoice.all's order (Model/Templates.swift).
 MAC_SYMBOLS = [('Mic', 'rec.voice', 'the Voice note icon'), ('Speakers', 'rec.meeting', 'the Meeting icon'),
                ('Quote', 'rec.interview', 'the Interview icon'), ('Notes', 'rec.journal', 'the Journal entry icon'),
-               ('Voice', 'rec.talk', 'the Talk icon'), ('Thought', 'thought', 'the Thoughts icon')]
+               ('Voice', 'rec.talk', 'the Talk icon'), ('Thought', 'thought', 'the Thoughts icon'),
+               ('BrainDump', 'rec.braindump', 'the Brain dump icon'), ('Audio', 'rec.audio', 'the Audio only icon')]
 # The 24-unit grid at 100 points: 4.3 units per grid unit puts the bulb a little above the cap height and the base
 # a little below the baseline, as SF Symbols' own lightbulb sits.
 SCALE = 4.3

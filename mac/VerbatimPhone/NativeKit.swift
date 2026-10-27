@@ -67,6 +67,8 @@ struct NativeListHeader: View {
 enum NativeRows {
     /// "Meeting", "Thought", "Voice note", "YouTube": the kind when it has one, else what it is.
     static func kind(_ t: Transcript) -> String {
+        // Audio only reads "Audio · 1:12 · 2 moments", in the rhythm of the other rows.
+        if t.kind == .audio { return "Audio" }
         if let k = t.kind, k != .dictation { return k.label }
         return HomeRecentStyle(t).source
     }
@@ -95,6 +97,9 @@ enum NativeRows {
         switch t.status {
         case .processing: parts.append(PhoneRowState.shortStage(t))
         case .failed: parts.append("Didn't finish")
+        case .ready where t.showsAudioDetail:
+            let n = t.notes.filter { $0.at != nil }.count
+            if n > 0 { parts.append(n == 1 ? "1 moment" : "\(n) moments") }
         case .ready:
             let names = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
             if names.count >= 2 { parts.append(names.prefix(3).joined(separator: ", ")) }
@@ -174,12 +179,17 @@ struct NativeLibraryRow: View {
                     .foregroundStyle(t.status == .failed ? NativeInk.danger : NativeInk.label)
             }
             .font(.subheadline)
-            let preview = NativeRows.preview(t)
-            if !preview.isEmpty {
-                Text(preview).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(2)
+            if t.showsAudioDetail {
+                // Audio only: the sound instead of words, with a play button, so you can hear it without opening it.
+                PhoneAudioRowPlayer(transcript: t, native: true).padding(.top, 4)
+            } else {
+                let preview = NativeRows.preview(t)
+                if !preview.isEmpty {
+                    Text(preview).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(2)
+                }
             }
         }
         .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: t.showsAudioDetail ? .contain : .combine)
     }
 }

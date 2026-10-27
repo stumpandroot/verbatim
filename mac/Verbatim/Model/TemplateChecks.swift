@@ -36,7 +36,8 @@ enum TemplateChecks {
     static func run(_ check: (String, Bool) -> Void) {
         let meeting = TemplateLibrary.scenarios[0], reflection = TemplateLibrary.scenarios[7]
         let lib = TemplateLibrary.all(yours: [])
-        check("five built-ins and eight scenarios", TemplateLibrary.builtIn.count == 5 && TemplateLibrary.scenarios.count == 8 && lib.count == 13)
+        check("five built-ins and nine scenarios, Plan my day ninth", TemplateLibrary.builtIn.count == 5 && TemplateLibrary.scenarios.count == 9 && lib.count == 14
+              && TemplateLibrary.scenarios[8].id == TemplateLibrary.planMyDayID)
         check("every template prompt carries the no-add rule", lib.allSatisfy { TemplatePrompt.instruction($0).hasSuffix(TranscriptActions.noAddRule) })
         check("Meeting notes asks for its four sections as headings", TemplatePrompt.instruction(meeting).contains("1. Summary") && TemplatePrompt.instruction(meeting).contains("4. Open questions"))
 
@@ -72,13 +73,17 @@ enum TemplateChecks {
         check("the result says why it ran", ran.templateResults.flatMap { $0.first.flatMap(AutoRunRules.reason) } == "Ran automatically because this is a Meeting")
         check("the result's sections are the template's", TemplateResultText.blocks(sampleMeetingNotes).compactMap { if case .heading(let h) = $0 { return h } else { return nil } }
               == meeting.sections.map(\.name))
-        check("record as: six choices, Voice note first and Thought last, no Note",
-              RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought"])
-        check("record menu titles", RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
+        check("record as: eight choices, Voice note first, then Thought, Brain dump, and Audio only, no Note",
+              RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
+        check("record menu titles", RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought",
+                                                                          "Record a brain dump", "Record audio only"])
         var hints = AutoRunSettings()
         hints.set(meeting.id, for: .meeting)
         check("record as: a kind with a template says it runs", RecordChoice.kind(.meeting).hint(settings: hints, templates: lib) == "Runs Meeting notes when it finishes")
         check("record as: a kind with Run automatically off says what it does", RecordChoice.kind(.interview).hint(settings: hints, templates: lib) == "Filed under Interviews, every voice kept")
+        check("record as: Brain dump runs Plan my day from the start; Audio only names no template",
+              RecordChoice.kind(.brainDump).hint(settings: AutoRunSettings.startingChoices, templates: lib) == "Runs Plan my day when it finishes"
+              && RecordChoice.kind(.audio).hint(settings: AutoRunSettings.startingChoices, templates: lib) == RecordChoice.audioOnlyLine)
         check("record as: Voice note and Thought keep their lines", RecordChoice.voiceNote.hint(settings: hints, templates: lib) == "Plain Record. Verbose picks the kind."
               && RecordChoice.thought.hint(settings: hints, templates: lib) == "Adds to today\u{2019}s page")
     }

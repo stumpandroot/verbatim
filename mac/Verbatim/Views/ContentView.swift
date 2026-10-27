@@ -196,7 +196,9 @@ struct ContentView: View {
         case .byDay(let k): ByDayView(kind: k)
         case .templates: TemplatesView()
         case .ask: AskView()
-        case .transcript(let id): TranscriptView(id: id)
+        case .transcript(let id):
+            // Audio only with no words yet: its own screen (MacAudioDetail.swift), until Transcribe brings the words.
+            if app.store.transcript(id)?.showsAudioDetail == true { MacAudioDetail(id: id) } else { TranscriptView(id: id) }
         }
     }
 

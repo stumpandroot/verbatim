@@ -640,7 +640,15 @@ struct RowActions: View {
             if !app.store.projects.isEmpty { Divider() }
             Button { app.newProjectFor = transcript.id } label: { Label("New project…", systemImage: "folder.badge.plus") }   // brand: system surface (context menu)
         } label: { Label("Add to project", systemImage: "folder.badge.plus") }   // brand: system surface (context menu)
-        if transcript.status == .ready { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }   // brand: system surface (context menu)
+        if AudioOnlyRules.canTranscribe(transcript) {
+            // Audio only: Transcribe, or Transcribe as each kind, like Record as (AudioOnly.swift).
+            Button { app.transcribeLater(transcript.id) } label: { Label("Transcribe", systemImage: "text.bubble") }   // brand: system surface (context menu)
+            Menu {
+                ForEach(AudioOnlyRules.transcribeChoices, id: \.self) { k in
+                    Button(AudioOnlyRules.choiceName(k)) { app.transcribeLater(transcript.id, as: k) }
+                }
+            } label: { Label("Transcribe as", systemImage: "text.bubble") }   // brand: system surface (context menu)
+        } else if transcript.status == .ready, !transcript.showsAudioDetail { Button { app.copyText(transcript) } label: { Label("Copy text", systemImage: "doc.on.doc") } }   // brand: system surface (context menu)
         if transcript.status == .failed { Button { app.retry(transcript) } label: { Label("Retry", systemImage: "arrow.clockwise") } }   // brand: system surface (context menu)
         if transcript.status == .processing, transcript.processingDevice == Device.id { Button { app.cancel(transcript.id) } label: { Label("Cancel transcription", systemImage: "xmark") } }
         Divider()
@@ -672,6 +680,8 @@ struct RecordScreen: View {
     @State private var discardLength = ""
     private var saving: Bool { app.savingRecording }
     @Environment(\.look) private var look
+    /// Audio only: no transcript, so no live words, and Stop saves (AudioOnly.swift).
+    private var audioOnly: Bool { adding == nil && !app.recordingThought && app.recordKind == .audio }
 
     var body: some View {
         // Native has its own recorder, a sheet (NativeRecorder.swift); this full-screen one is Verbose style's.
@@ -802,7 +812,7 @@ struct RecordScreen: View {
                     LiveCaptureMark(live: app.recorder.live, paused: paused).frame(width: 78, height: 100)
                 }
                 RecordWave(live: app.recorder.live, paused: paused).frame(height: 84).padding(.top, 14)
-                Text("Transcribed on this iPhone").font(.system(size: 13)).foregroundStyle(.lookMute).padding(.top, 10)
+                Text(audioOnly ? RecordChoice.audioOnlyLine : "Transcribed on this iPhone").font(.system(size: 13)).foregroundStyle(.lookMute).padding(.top, 10)
             }
             .padding(20)
             .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
@@ -834,10 +844,12 @@ struct RecordScreen: View {
                     .frame(maxWidth: .infinity).padding(.top, 14)
             }
 
-            // Show words while you record: the newest three lines, a preview only.
-            RecordLiveText(text: app.recordingWords)
-                .padding(.top, 16)
-                .padding(.horizontal, 4)
+            // Show words while you record: the newest three lines, a preview only. Audio only has no words.
+            if !audioOnly {
+                RecordLiveText(text: app.recordingWords)
+                    .padding(.top, 16)
+                    .padding(.horizontal, 4)
+            }
 
             Spacer(minLength: 20)
 
@@ -850,7 +862,7 @@ struct RecordScreen: View {
                 } action: { app.markMoment() }
                 .accessibilityHint("Saves this point in the recording as a moment.")
                 .frame(maxWidth: .infinity)
-                RoundControl(label: saving ? "Saving…" : (adding == nil && !app.recordingThought) ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
+                RoundControl(label: saving ? "Saving…" : audioOnly ? AudioOnlyCopy.stop : (adding == nil && !app.recordingThought) ? "Stop & transcribe" : "Stop & add", size: 100, primary: true) {
                     if saving { ProgressView().tint(Ink.readerFixed) }
                     else { RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.readerFixed).frame(width: 32, height: 32) }
                 } action: { app.stopRecording() }
@@ -894,6 +906,7 @@ struct RecordScreen: View {
         if paused, app.autoPauseReason != nil { return "Paused. What you said is saved." }
         if paused { return "Paused. Pick up when you're ready." }
         if let t = adding { return "Keep going. This adds to “\(t.title)”." }
+        if audioOnly { return AudioOnlyCopy.headline }
         return "Go ahead, I'm listening."
     }
 }

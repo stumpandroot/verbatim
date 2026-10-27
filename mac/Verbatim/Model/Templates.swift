@@ -2,7 +2,7 @@ import Foundation
 
 // Templates (mockup "Library features", section 1, October 26, 2026): a template is a name, an instruction, and the
 // sections you want back. The five transcript actions are the Built in templates, eight Scenario templates come with
-// Verbose, and you make your own (synced with the library as `templates.json`, like snippets). Each recording kind can
+// Verbose (nine with Plan my day), and you make your own (synced with the library as `templates.json`, like snippets). Each recording kind can
 // have one template that runs on its own when a recording of that kind finishes (Run automatically, kept per device
 // like other settings). Every template prompt carries the no-add rule (TranscriptActions.noAddRule) and runs on device
 // with Apple Intelligence the way the actions do (Transcription/TemplateRunner.swift).
@@ -124,6 +124,8 @@ struct TranscriptTemplate: Codable, Equatable, Identifiable, Hashable, SyncEntry
     /// Has a Quotes with times section, so the model sees each line's [mm:ss].
     var usesTimestamps: Bool {
         if let spec = TranscriptActions.spec(id) { return spec.timestamps }
+        // Plan my day: each task links back to the line it came from.
+        if id == TemplateLibrary.planMyDayID { return true }
         return sections.contains { $0.format == .quotes }
     }
     /// Pulls things together (parts are merged) rather than rewriting the words in order (parts are joined).
@@ -135,6 +137,8 @@ enum TemplateGlyph {
     static let plan = "plan", journal = "journal", draft = "draft", study = "study", keyPoints = "keyPoints"
     static let meeting = "meeting", oneOnOne = "oneOnOne", client = "client", interview = "interview", lecture = "lecture"
     static let sermon = "sermon", brainstorm = "brainstorm", reflection = "reflection", custom = "custom"
+    /// Plan my day (DayPlan.swift): a day with a check.
+    static let planDay = "planDay"
 }
 
 // MARK: - The library
@@ -175,7 +179,16 @@ enum TemplateLibrary {
         return t
     }
 
-    /// The eight that come with Verbose.
+    /// Plan my day's ID: Brain dump's template from the start (`AutoRunSettings.load`), and the one whose result
+    /// draws as a plan with Send to Reminders (DayPlan.swift).
+    static let planMyDayID = Transcript.planMyDayID
+
+    /// Plan my day's instruction (approved mockup "Verbose Brain Dump", section 10). The no-add rule is added when it
+    /// runs, as for every template.
+    static let planMyDayInstruction = "Make a plan for the speaker's day from what they said. Put the three tasks they call most important under Top three, in their order; if they don't name them, use the first three tasks for today in the order said, and say so. Sort the other tasks by when the speaker said they'd do them: Today, Tomorrow, This week, or Someday. Name a day only when the transcript names it. Put tasks with no day under Someday. Put ideas that aren't tasks under Ideas, in the speaker's words. Leave out a section with nothing in it."
+
+    /// The nine that come with Verbose. Plan my day is ninth, a Scenario template: "Built in" means the five Ribbon text
+    /// actions (TranscriptActions.builtIn).
     static let scenarios: [TranscriptTemplate] = [
         scenario(1, "Meeting notes", "Summary, decisions, action items, open questions", [.meeting], TemplateGlyph.meeting,
                  "Write notes from a call or meeting with two or more people. Pull out what was decided and who does what, using only what was said. Name a person only when the transcript names them.",
@@ -201,6 +214,10 @@ enum TemplateLibrary {
         scenario(8, "Daily reflection", "What happened, what stood out, and for tomorrow", [.journal], TemplateGlyph.reflection,
                  "Sort what the speaker said about their day into the sections, in their own voice. Don't add advice, feelings, lessons, or conclusions the speaker didn't say.",
                  [("What happened", .paragraph), ("What stood out", .bullets), ("For tomorrow", .bullets)]),
+        scenario(9, "Plan my day", "Top three, then tasks by day, and ideas", [.brainDump], TemplateGlyph.planDay,
+                 planMyDayInstruction,
+                 [("Top three", .checklist), ("Today", .checklist), ("Tomorrow", .checklist), ("This week", .checklist),
+                  ("Someday", .checklist), ("Ideas", .bullets)]),
     ]
 
     static let scenarioIDs: Set<UUID> = Set(scenarios.map(\.id))
@@ -281,7 +298,12 @@ enum TemplatePrompt {
             let list = sections.enumerated().map { i, x in "\(i + 1). \(x.name.trimmingCharacters(in: .whitespaces)): \(x.format.prompt)." }
             s += (s.isEmpty ? "" : " ") + "Write these sections in this order. Start each one with its name on its own line after \"## \". "
                 + list.joined(separator: " ")
-                + " If the transcript says nothing for a section, write \"None stated.\" under it."
+            if t.id == TemplateLibrary.planMyDayID {
+                // Its own instruction leaves out empty sections; each task and idea links back to its line.
+                s += " End each task and idea with the [mm:ss] time of the line it came from."
+            } else {
+                s += " If the transcript says nothing for a section, write \"None stated.\" under it."
+            }
         }
         return TranscriptActions.withRule(s)
     }
@@ -296,6 +318,9 @@ struct AutoRunSettings: Equatable {
     static let skipShortKey = "templates.skipShort"
     static let showFirstKey = "templates.showFirst"
     static let notifyKey = "templates.notify"
+    /// Set once Run automatically's choices are saved on this device: Brain dump's Plan my day is seeded only before it,
+    /// so turning Brain dump Off stays Off.
+    static let seededKey = "templates.auto.seeded"
 
     /// Kind raw value → template ID. A kind that isn't here is Off.
     var assignments: [String: UUID] = [:]
@@ -306,8 +331,17 @@ struct AutoRunSettings: Equatable {
     /// Notify me when it's done, for recordings over 20 minutes. On by default.
     var notify = true
 
-    /// The kinds Run automatically lists, in the mockup's order. Dictations never run a template.
-    static let kinds: [RecordingKind] = [.meeting, .journal, .idea, .interview, .talk, .podcast, .note, .video]
+    /// The kinds Run automatically lists, in the mockup's order, then Brain dump. Dictations never run a template, and
+    /// neither does Audio only (no transcript; the screens list it with no picker).
+    static let kinds: [RecordingKind] = [.meeting, .journal, .idea, .interview, .talk, .podcast, .note, .video, .brainDump]
+
+    /// What a device starts with: every kind Off but Brain dump, which runs Plan my day, because the plan is the point
+    /// of the kind (decision 4, October 27, 2026).
+    static var startingChoices: AutoRunSettings {
+        var s = AutoRunSettings()
+        s.set(TemplateLibrary.planMyDayID, for: .brainDump)
+        return s
+    }
 
     func template(for kind: RecordingKind) -> UUID? { assignments[kind.rawValue] }
     mutating func set(_ template: UUID?, for kind: RecordingKind) { assignments[kind.rawValue] = template }
@@ -328,6 +362,11 @@ struct AutoRunSettings: Equatable {
         if let data = d.data(forKey: assignmentsKey), let raw = try? JSONDecoder().decode([String: String].self, from: data) {
             s.assignments = raw.compactMapValues(UUID.init(uuidString:))
         }
+        // Before this device saved its choices with Brain dump in them (a new install, or a build from before Brain
+        // dump): Brain dump starts with Plan my day.
+        if !d.bool(forKey: seededKey), s.assignments[RecordingKind.brainDump.rawValue] == nil {
+            s.assignments[RecordingKind.brainDump.rawValue] = TemplateLibrary.planMyDayID
+        }
         if d.object(forKey: skipShortKey) != nil { s.skipShort = d.bool(forKey: skipShortKey) }
         if d.object(forKey: showFirstKey) != nil { s.showFirst = d.bool(forKey: showFirstKey) }
         if d.object(forKey: notifyKey) != nil { s.notify = d.bool(forKey: notifyKey) }
@@ -339,6 +378,7 @@ struct AutoRunSettings: Equatable {
         d.set(skipShort, forKey: Self.skipShortKey)
         d.set(showFirst, forKey: Self.showFirstKey)
         d.set(notify, forKey: Self.notifyKey)
+        d.set(true, forKey: Self.seededKey)
     }
 }
 
@@ -373,13 +413,15 @@ enum AutoRunRules {
     /// still give it a kind. A kind you picked (`kindIsAuto == false`) wins over the guess; AutoLabel never replaces it.
     static func decide(_ t: Transcript, settings: AutoRunSettings, templates: [TranscriptTemplate], labelPending: Bool,
                        now: Date = Date()) -> Decision {
-        guard t.status == .ready, t.deletedAt == nil, !t.isDictation, !t.segments.isEmpty else { return .notEligible }
+        // Audio only has no transcript to run on until you transcribe it (and then it's a voice note).
+        guard t.status == .ready, t.deletedAt == nil, !t.isDictation, !t.isAudioOnly, !t.segments.isEmpty else { return .notEligible }
         guard t.autoRun == nil else { return .alreadyRan }
         guard now.timeIntervalSince(t.createdAt) < newWindow else { return .notEligible }
         guard let kind = t.kind else { return labelPending ? .waitForKind : .off }
         guard AutoRunSettings.kinds.contains(kind), let id = settings.template(for: kind),
               templates.contains(where: { $0.id == id }) else { return .off }
-        if settings.skipShort && t.duration < shortLimit { return .short }
+        // A brain dump is often short, and its plan is the point: Skip short recordings leaves it alone.
+        if settings.skipShort && t.duration < shortLimit && kind != .brainDump { return .short }
         return .run(id, kind)
     }
 
@@ -400,7 +442,8 @@ enum AutoRunRules {
     }
 
     struct Offer: Equatable {
-        var result: UUID
+        /// The automatic result it runs in place of; nil when nothing ran automatically (a kind changed to Brain dump).
+        var result: UUID?
         var kind: RecordingKind
         var template: UUID
         var templateName: String
@@ -412,12 +455,33 @@ enum AutoRunRules {
     /// Nothing when the new kind is Off, its template already wrote a result here, it's the same template, or the
     /// offer was dismissed for this kind.
     static func offer(_ t: Transcript, settings: AutoRunSettings, templates: [TranscriptTemplate]) -> Offer? {
-        guard let results = t.templateResults, let r = results.first(where: { $0.auto }), let old = r.kind,
-              let now = t.kind, now != old, r.offerDismissed != now.rawValue,
-              let id = settings.template(for: now), id != r.templateId,
-              !results.contains(where: { $0.templateId == id }),
+        if let results = t.templateResults, let r = results.first(where: { $0.auto }), let old = r.kind {
+            guard let now = t.kind, now != old, r.offerDismissed != now.rawValue,
+                  let id = settings.template(for: now), id != r.templateId,
+                  !results.contains(where: { $0.templateId == id }),
+                  let tpl = templates.first(where: { $0.id == id }) else { return nil }
+            return Offer(result: r.id, kind: now, template: id, templateName: tpl.name)
+        }
+        return brainDumpOffer(t, settings: settings, templates: templates)
+    }
+
+    /// A recording you filed as a Brain dump after it finished, with nothing run automatically: "Now a Brain dump. Run
+    /// Plan my day?" (Brain dump's template), once. Not now marks it (`dismissBrainDumpOffer`). The screens also wait
+    /// while Run automatically still decides on a recording that just finished (`TemplateCenter.isPending`).
+    static func brainDumpOffer(_ t: Transcript, settings: AutoRunSettings, templates: [TranscriptTemplate]) -> Offer? {
+        let results = t.templateResults ?? []
+        guard t.kind == .brainDump, !t.kindIsAuto, t.status == .ready, t.deletedAt == nil, !t.segments.isEmpty,
+              t.autoRun == nil, !results.contains(where: { $0.auto }),
+              let id = settings.template(for: .brainDump), !results.contains(where: { $0.templateId == id }),
               let tpl = templates.first(where: { $0.id == id }) else { return nil }
-        return Offer(result: r.id, kind: now, template: id, templateName: tpl.name)
+        return Offer(result: nil, kind: .brainDump, template: id, templateName: tpl.name)
+    }
+
+    /// Not now on an offer with no result to mark: the recording's Run automatically mark says it was skipped, so the
+    /// offer never comes back and nothing runs on its own.
+    static func dismissBrainDumpOffer(_ offer: Offer, on t: inout Transcript, device: String) {
+        guard offer.result == nil, t.autoRun == nil else { return }
+        t.autoRun = AutoRunMark(templateId: offer.template, name: offer.templateName, kind: offer.kind, state: .skipped, device: device, note: "Not now")
     }
 
     /// A waiting run this device should pick back up at launch (iOS suspended the app before it finished).
@@ -451,6 +515,11 @@ extension Transcript {
     /// Adds a template's result, replacing an earlier one from the same template (and `replacing`, when given: the
     /// result a kind-change offer runs in place of). Newest first.
     mutating func addTemplateResult(_ r: TemplateResult, replacing: UUID? = nil) {
+        var r = r
+        // Run again keeps what was sent to Reminders: the tasks match by their words and their line (DayPlan.Item.key).
+        if r.sent == nil, let old = (templateResults ?? []).first(where: { $0.templateId == r.templateId || $0.id == replacing }), let sent = old.sent {
+            r.sent = sent
+        }
         var list = (templateResults ?? []).filter { $0.templateId != r.templateId && $0.id != replacing }
         list.insert(r, at: 0)
         templateResults = list
@@ -544,11 +613,12 @@ extension RecordingKind {
     /// the list (a plain Record covers it); podcasts and videos are imports.
     static let recordChoices: [RecordingKind] = [.meeting, .interview, .journal, .talk]
 
-    /// "Record a meeting", "Record an interview", "Record a journal entry".
+    /// "Record a meeting", "Record an interview", "Record a journal entry", "Record a brain dump", "Record audio only".
     var recordTitle: String {
         switch self {
         case .journal: return "Record a journal entry"
         case .interview: return "Record an interview"
+        case .audio: return "Record audio only"
         default: return "Record \(AutoRunRules.article(self)) \(label.lowercased())"
         }
     }
@@ -557,13 +627,16 @@ extension RecordingKind {
 /// One way to start recording (approved mockup "Record as", October 26, 2026), in this order everywhere: the iPhone's
 /// Record as tray, the Mac's right-click menu on Record, File › Record As, and VoiceOver's actions on Record. Voice
 /// note is the plain Record (Verbose picks the kind); the four kinds are yours from the start; Thought starts the New
-/// thought flow (Stop & add, today's page), never an ordinary recording of the Thoughts kind.
+/// thought flow (Stop & add, today's page), never an ordinary recording of the Thoughts kind. Brain dump records as
+/// that kind (Plan my day runs when it finishes); Audio only keeps the sound and isn't transcribed (AudioOnly.swift).
 enum RecordChoice: Hashable, Identifiable {
     case voiceNote
     case kind(RecordingKind)
     case thought
 
-    static let all: [RecordChoice] = [.voiceNote] + RecordingKind.recordChoices.map { .kind($0) } + [.thought]
+    /// Voice note, Meeting, Interview, Journal entry, Talk, Thought, Brain dump, and Audio only (decision 2, October 27,
+    /// 2026: the two new rows come after Thought, so the six you know stay where your thumb expects them).
+    static let all: [RecordChoice] = [.voiceNote] + RecordingKind.recordChoices.map { .kind($0) } + [.thought, .kind(.brainDump), .kind(.audio)]
 
     var id: String {
         switch self {
@@ -605,6 +678,8 @@ enum RecordChoice: Hashable, Identifiable {
         case .voiceNote: return "Voice Note"
         case .kind(.meeting): return "Meeting…"
         case .kind(.journal): return "Journal Entry"
+        case .kind(.brainDump): return "Brain Dump"
+        case .kind(.audio): return "Audio Only"
         case .kind(let k): return k.label
         case .thought: return "Thought"
         }
@@ -636,6 +711,8 @@ enum RecordChoice: Hashable, Identifiable {
         case .kind(.interview): return "rec.interview"
         case .kind(.journal): return "rec.journal"
         case .kind(.talk): return "rec.talk"
+        case .kind(.brainDump): return "rec.braindump"
+        case .kind(.audio): return "rec.audio"
         case .kind: return "rec.voice"
         case .thought: return "thought"
         }
@@ -649,6 +726,8 @@ enum RecordChoice: Hashable, Identifiable {
         case .kind(.interview): return "quote.bubble"
         case .kind(.journal): return "book"
         case .kind(.talk): return "person.wave.2"
+        case .kind(.brainDump): return "brain.head.profile"
+        case .kind(.audio): return "waveform"
         case .kind: return "mic"
         case .thought: return "lightbulb"
         }
@@ -657,7 +736,7 @@ enum RecordChoice: Hashable, Identifiable {
     /// The template Run automatically runs for this choice when the recording finishes, if one is assigned and still
     /// exists. Voice note's kind isn't known yet; a thought never runs one from here (Thoughts are short).
     func template(settings: AutoRunSettings, templates: [TranscriptTemplate]) -> TranscriptTemplate? {
-        guard case .kind(let k) = self, let id = settings.template(for: k) else { return nil }
+        guard case .kind(let k) = self, k != .audio, let id = settings.template(for: k) else { return nil }
         return templates.first { $0.id == id }
     }
 
@@ -671,6 +750,8 @@ enum RecordChoice: Hashable, Identifiable {
         case .kind(.interview): return "Filed under Interviews, every voice kept"
         case .kind(.journal): return "Filed under Journal by day"
         case .kind(.talk): return "Filed under Talks, every voice kept"
+        case .kind(.brainDump): return "Filed under Brain dumps"
+        case .kind(.audio): return RecordChoice.audioOnlyLine
         case .kind(let k): return "Filed as \(AutoRunRules.article(k)) \(k.label)"
         case .thought: return "Adds to today\u{2019}s page"
         }
@@ -679,9 +760,17 @@ enum RecordChoice: Hashable, Identifiable {
     /// The line under the row: "Runs Meeting notes when it finishes" when Run automatically has a template for the
     /// kind, otherwise what the kind does.
     func hint(settings: AutoRunSettings, templates: [TranscriptTemplate]) -> String {
+        // Audio only never names a template: none can run on it.
+        if case .kind(.audio) = self { return Self.audioOnlyLine }
         if let t = template(settings: settings, templates: templates) { return "Runs \(t.name) when it finishes" }
         return fallbackHint
     }
+
+    /// Audio only's line, everywhere it's described.
+    static let audioOnlyLine = "Keeps the sound, no transcript"
+
+    /// Audio only: Stop saves the sound and nothing is transcribed.
+    var isAudioOnly: Bool { if case .kind(.audio) = self { return true }; return false }
 
     /// The line under the recorder's timer: the template that will run, or what happens without one.
     func recorderLine(settings: AutoRunSettings, templates: [TranscriptTemplate]) -> String {

@@ -14,8 +14,47 @@ import CoreAudio
 /// 16 kHz mono 16-bit: what the engines want and a quarter of the disk of 48 kHz float.
 let recordingFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
 
+/// Audio only's file (AudioOnly.swift, DESIGN.md §17.8): sound, not speech, so it keeps what 16 kHz cuts (everything
+/// above 8 kHz: a guitar's top end, the air in a voice). The input's own rate (48 or 44.1 kHz, whatever the hardware
+/// gives; a 16 or 24 kHz input such as AirPods on the call link is upsampled to 48 kHz, so the file is never below
+/// 44.1 kHz), mono, 24-bit PCM in a WAV. WAV rather than AAC because it's written as it goes: a segment the app dies in
+/// is repaired by fixing its header (WavRepair) and joined byte for byte (RecordingSegments), which an AAC file that
+/// was never closed can't be. About 8.6 MB a minute at 48 kHz. The engines still hear 16 kHz: Transcribe later works
+/// from a 16 kHz copy (TranscriptionInput).
+enum SoundFormat {
+    static let minimumRate: Double = 44_100
+    static let fallbackRate: Double = 48_000
+    static let bitDepth = 24
+
+    /// The file's rate for an input delivering `inputRate`.
+    static func rate(for inputRate: Double) -> Double { inputRate >= minimumRate ? inputRate : fallbackRate }
+
+    /// What the writer converts to: mono float at `rate`. AVAudioFile turns it into 24-bit samples on disk.
+    static func processing(rate: Double) -> AVAudioFormat {
+        AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false)!
+    }
+
+    /// A recording kept at a sound rate: a WAV above 16 kHz. Verbose's other recordings are 16 kHz WAVs and its imports
+    /// are M4A, so this is Audio only's file (even after Transcribe later), which the engines hear through a 16 kHz copy.
+    static func isSoundFile(_ url: URL, rate: Double) -> Bool {
+        url.pathExtension.lowercased() == "wav" && rate > recordingFormat.sampleRate
+    }
+
+    /// The file on disk: 24-bit little-endian integer PCM, mono, at `rate`.
+    static func settings(rate: Double) -> [String: Any] {
+        [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: rate, AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: bitDepth,
+         AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false, AVLinearPCMIsNonInterleaved: false]
+    }
+}
+
 final class RecordingWriter: @unchecked Sendable {
     private let lock = NSLock()
+    /// What every buffer is converted to before it's written: `recordingFormat` (16 kHz Int16) for speech, or Audio
+    /// only's mono float at the input's own rate (`SoundFormat`). Fixed for the whole recording, so every segment
+    /// has the same format and they join byte for byte, whatever device the recording moves to.
+    let format: AVAudioFormat
+    /// Audio only: the file is `SoundFormat` (24-bit at `format`'s rate) instead of 16 kHz Int16.
+    let sound: Bool
     private var file: AVAudioFile?
     private var converter: AVAudioConverter?
     /// The format the converter expects. A buffer in any other format (one still in flight from a device the
@@ -30,7 +69,7 @@ final class RecordingWriter: @unchecked Sendable {
     private var preRollFrames: Int64 = 0
     private var holding = false
     /// A memory guard only: the file normally opens within milliseconds of the first buffer.
-    private static let preRollCap = Int64(recordingFormat.sampleRate * 10)
+    private var preRollCap: Int64 { Int64(format.sampleRate * 10) }
     private let createdAt = ProcessInfo.processInfo.systemUptime
     private var firstBufferAt: TimeInterval?
     /// Uptime of the latest buffer from the microphone, paused or not: proof the input is delivering.
@@ -63,16 +102,28 @@ final class RecordingWriter: @unchecked Sendable {
     var failWritesAfterFrames: Int64?
 
     /// `segmented`: roll to a new file every `RecordingSegments.seconds` (normal recordings, not dictation).
-    init(url: URL, inputFormat: AVAudioFormat, segmented: Bool = false) throws {
-        file = try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
-        converter = AVAudioConverter(from: inputFormat, to: recordingFormat)
+    /// `sound`: Audio only's format (`SoundFormat`), at the rate `inputFormat` delivers.
+    init(url: URL, inputFormat: AVAudioFormat, segmented: Bool = false, sound: Bool = false) throws {
+        self.sound = sound
+        format = sound ? SoundFormat.processing(rate: SoundFormat.rate(for: inputFormat.sampleRate)) : recordingFormat
+        file = try Self.openFile(url, format: format, sound: sound)
+        converter = AVAudioConverter(from: inputFormat, to: format)
         self.inputFormat = inputFormat
-        segmentLimit = segmented ? Int64(recordingFormat.sampleRate * RecordingSegments.seconds) : nil
+        segmentLimit = segmented ? Int64(format.sampleRate * RecordingSegments.seconds) : nil
         segmentURLs = [url]
+        if sound { Log.note("recorder: Audio only at \(Int(format.sampleRate)) Hz, 24-bit mono (input \(Int(inputFormat.sampleRate)) Hz)") }
     }
 
-    /// Converts from the first buffer and holds the audio until `attach(url:)` opens the file.
+    /// A new file (or segment) in the recording's format.
+    private static func openFile(_ url: URL, format: AVAudioFormat, sound: Bool) throws -> AVAudioFile {
+        if sound { return try AVAudioFile(forWriting: url, settings: SoundFormat.settings(rate: format.sampleRate), commonFormat: .pcmFormatFloat32, interleaved: false) }
+        return try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
+    }
+
+    /// Converts from the first buffer and holds the audio until `attach(url:)` opens the file. Speech only (dictation).
     init(inputFormat: AVAudioFormat) throws {
+        sound = false
+        format = recordingFormat
         guard let c = AVAudioConverter(from: inputFormat, to: recordingFormat) else {
             throw NSError(domain: "Verbatim", code: 2, userInfo: [NSLocalizedDescriptionKey: "The microphone's format can't be converted."])
         }
@@ -84,7 +135,7 @@ final class RecordingWriter: @unchecked Sendable {
 
     /// Opens the file and writes the held pre-roll into it, so nothing heard before now is lost.
     func attach(url: URL) throws {
-        let f = try AVAudioFile(forWriting: url, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true)
+        let f = try Self.openFile(url, format: format, sound: sound)
         lock.lock(); defer { lock.unlock() }
         for b in preRoll {
             // Only audio that reached the file counts.
@@ -95,7 +146,7 @@ final class RecordingWriter: @unchecked Sendable {
         file = f
     }
 
-    /// Live words (`LiveTranscriber`): gets each converted 16 kHz mono buffer as it's written. Called on the
+    /// Live words (`LiveTranscriber`): gets each converted mono buffer (16 kHz for speech) as it's written. Called on the
     /// audio thread, outside the lock; the buffer is freshly made for each call, so it may be kept.
     private var liveTap: (@Sendable (AVAudioPCMBuffer) -> Void)?
     func setLiveTap(_ tap: (@Sendable (AVAudioPCMBuffer) -> Void)?) { lock.lock(); liveTap = tap; lock.unlock() }
@@ -142,7 +193,7 @@ final class RecordingWriter: @unchecked Sendable {
         guard failed else { return true }
         guard segmentLimit != nil, let first = segmentURLs.first else { return false }
         let next = RecordingSegments.url(for: first, index: segmentURLs.count + 1)
-        guard let f = try? AVAudioFile(forWriting: next, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true) else {
+        guard let f = try? Self.openFile(next, format: format, sound: sound) else {
             Log.note("recorder: still can't open a new segment"); return false
         }
         if #available(macOS 15, iOS 18, *) { file?.close() }
@@ -176,19 +227,27 @@ final class RecordingWriter: @unchecked Sendable {
         // instead of dropping it, so the file keeps one format and nothing is lost.
         if let f = inputFormat, buffer.format.sampleRate != f.sampleRate || buffer.format.channelCount != f.channelCount
             || buffer.format.commonFormat != f.commonFormat || buffer.format.isInterleaved != f.isInterleaved {
-            guard let c = AVAudioConverter(from: buffer.format, to: recordingFormat) else { return v }
+            guard let c = AVAudioConverter(from: buffer.format, to: format) else { return v }
             converter = c
             inputFormat = buffer.format
         }
         guard let converter else { return v }
-        let ratio = recordingFormat.sampleRate / buffer.format.sampleRate
-        let cap = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
-        guard let out = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: cap) else { return v }
-        var fed = false
+        let out: AVAudioPCMBuffer
         var err: NSError?
-        _ = converter.convert(to: out, error: &err) { _, status in
-            if fed { status.pointee = .noDataNow; return nil }
-            fed = true; status.pointee = .haveData; return buffer
+        if buffer.format == format, let same = Self.copy(buffer) {
+            // Audio only on a mono mic already at the file's rate: nothing to convert, so the samples are copied as
+            // they are (the engine reuses its buffer after the callback).
+            out = same
+        } else {
+            let ratio = format.sampleRate / buffer.format.sampleRate
+            let cap = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
+            guard let made = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: cap) else { return v }
+            var fed = false
+            _ = converter.convert(to: made, error: &err) { _, status in
+                if fed { status.pointee = .noDataNow; return nil }
+                fed = true; status.pointee = .haveData; return buffer
+            }
+            out = made
         }
         if err == nil, out.frameLength > 0 {
             if liveTap != nil { tapped = out; tap = liveTap }
@@ -197,7 +256,7 @@ final class RecordingWriter: @unchecked Sendable {
             } else {
                 preRoll.append(out)
                 preRollFrames += Int64(out.frameLength)
-                while preRollFrames > Self.preRollCap, !preRoll.isEmpty { preRollFrames -= Int64(preRoll.removeFirst().frameLength) }
+                while preRollFrames > preRollCap, !preRoll.isEmpty { preRollFrames -= Int64(preRoll.removeFirst().frameLength) }
             }
         }
         envAccum += v; envCount += 1
@@ -205,7 +264,19 @@ final class RecordingWriter: @unchecked Sendable {
         return v
     }
 
-    var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames + preRollFrames) / recordingFormat.sampleRate }
+    var seconds: TimeInterval { lock.lock(); defer { lock.unlock() }; return Double(frames + preRollFrames) / format.sampleRate }
+
+    /// A copy of a float buffer in its own format, or nil for any other kind of buffer.
+    private static func copy(_ b: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let src = b.floatChannelData, let c = AVAudioPCMBuffer(pcmFormat: b.format, frameCapacity: max(1, b.frameLength)),
+              let dst = c.floatChannelData else { return nil }
+        let n = Int(b.frameLength)
+        let channels = b.format.isInterleaved ? 1 : Int(b.format.channelCount)
+        let perChannel = b.format.isInterleaved ? n * Int(b.format.channelCount) : n
+        for ch in 0..<channels { dst[ch].update(from: src[ch], count: perChannel) }
+        c.frameLength = b.frameLength
+        return c
+    }
 
     /// Opens the next segment file, then closes the current one (finalizing its header). Called with `lock`
     /// held, on the audio thread. If the next file can't be opened, keeps writing the current one and tries again
@@ -214,11 +285,11 @@ final class RecordingWriter: @unchecked Sendable {
         framesInSegment = 0
         guard let first = segmentURLs.first else { return }
         let next = RecordingSegments.url(for: first, index: segmentURLs.count + 1)
-        guard let f = try? AVAudioFile(forWriting: next, settings: recordingFormat.settings, commonFormat: .pcmFormatInt16, interleaved: true) else {
+        guard let f = try? Self.openFile(next, format: format, sound: sound) else {
             segmentOpenFailures += 1
             Log.note("recorder: couldn't open segment \(segmentURLs.count + 1) (try \(segmentOpenFailures)); continuing in the current file")
             if segmentOpenFailures >= 3 { fail("couldn't open a new segment 3 times", failure: &failure); return }
-            framesInSegment = max(0, (segmentLimit ?? 0) - Int64(recordingFormat.sampleRate))
+            framesInSegment = max(0, (segmentLimit ?? 0) - Int64(format.sampleRate))
             return
         }
         segmentOpenFailures = 0
@@ -230,7 +301,7 @@ final class RecordingWriter: @unchecked Sendable {
 
     /// Converts from a new input format (the recording moved to a fresh engine). False if it can't be converted.
     func replaceInput(_ format: AVAudioFormat) -> Bool {
-        guard let c = AVAudioConverter(from: format, to: recordingFormat) else { return false }
+        guard let c = AVAudioConverter(from: format, to: self.format) else { return false }
         lock.lock(); defer { lock.unlock() }
         guard converter != nil else { return false }
         converter = c
@@ -264,7 +335,7 @@ final class RecordingWriter: @unchecked Sendable {
 
     private func drain(_ converter: AVAudioConverter, into file: AVAudioFile) {
         for _ in 0..<8 {
-            guard let out = AVAudioPCMBuffer(pcmFormat: recordingFormat, frameCapacity: 4096) else { return }
+            guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096) else { return }
             var err: NSError?
             let status = converter.convert(to: out, error: &err) { _, s in s.pointee = .endOfStream; return nil }
             if err == nil, out.frameLength > 0 {
@@ -691,11 +762,17 @@ final class Recorder: ObservableObject {
         NSError(domain: "Verbatim", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available."])
     }
 
+    /// Audio only (AudioOnly.swift): record sound, not speech. On iPhone the session uses the measurement mode, which
+    /// turns off the system's input processing (gain control and the voice shaping the spoken-audio mode allows), so a
+    /// hummed melody or a guitar keeps its dynamics. On both, the file keeps the input's own rate in 24-bit
+    /// (`SoundFormat`) instead of 16 kHz. Set before `start` (or `begin`); the Mac's input unit never processes voice.
+    var soundOnly = false
+
     func start(to url: URL) throws {
         #if os(iOS)
         // iPhone: a record session that keeps going with the screen locked (background audio mode).
         let session = AVAudioSession.sharedInstance()
-        try RecordingRoute.setCategory(session, options: RecordingRoute.options())
+        try RecordingRoute.setCategory(session, mode: soundOnly ? .measurement : .spokenAudio, options: RecordingRoute.options())
         try session.setActive(true)
         #endif
         if keepWarm {
@@ -715,7 +792,7 @@ final class Recorder: ObservableObject {
             self.engine = nil
             throw Self.noInput
         }
-        let w = try RecordingWriter(url: url, inputFormat: inFormat, segmented: true)
+        let w = try RecordingWriter(url: url, inputFormat: inFormat, segmented: true, sound: soundOnly)
         w.setLiveTap(liveTap)
         watchWrites(w)
         writer = w
@@ -1064,8 +1141,9 @@ final class Recorder: ObservableObject {
         Log.note("recorder: starting")
         let levels = levelHandler()
         let probe = MicNameProbe()
+        let sound = soundOnly
         audioQueue.async { [weak self] in
-            let result = Self.openInput(newFileAt: url, continuing: nil, levels: levels, probe: probe)
+            let result = Self.openInput(newFileAt: url, continuing: nil, sound: sound, levels: levels, probe: probe)
             Task { @MainActor in
                 guard let self else {
                     if case .success(let (open, w)) = result { open.release(); _ = w.close() }
@@ -1092,7 +1170,7 @@ final class Recorder: ObservableObject {
     /// at the new device's format; otherwise a new segmented writer is made at `url`. On failure everything it
     /// opened is released (and a new file removed). `device` opens that device instead of the current one.
     nonisolated private static func openInput(on device: AudioDevices.Device? = nil, newFileAt url: URL?, continuing existing: RecordingWriter?,
-                                              levels: @escaping @Sendable (Float, TimeInterval) -> Void,
+                                              sound: Bool = false, levels: @escaping @Sendable (Float, TimeInterval) -> Void,
                                               probe: MicNameProbe) -> Result<(OpenInput, RecordingWriter), Error> {
         CaptureStep.set("recording: finding the microphone")
         // The chosen device if it's connected, otherwise the system default; never anything else.
@@ -1110,7 +1188,7 @@ final class Recorder: ObservableObject {
                 guard existing.replaceInput(u.format) else { throw RecorderError("The microphone's format can't be converted.") }
                 w = existing
             } else if let url {
-                w = try RecordingWriter(url: url, inputFormat: u.format, segmented: true)
+                w = try RecordingWriter(url: url, inputFormat: u.format, segmented: true, sound: sound)
             } else {
                 throw RecorderError("No file to record into.")
             }
@@ -1855,7 +1933,7 @@ final class Recorder: ObservableObject {
         guard isRecording, writer != nil else { engine = nil; tapFormat = nil; return }
         let s = AVAudioSession.sharedInstance()
         do {
-            try RecordingRoute.setCategory(s, options: RecordingRoute.options())
+            try RecordingRoute.setCategory(s, mode: soundOnly ? .measurement : .spokenAudio, options: RecordingRoute.options())
             try s.setActive(true)
             Log.note("recorder: audio session set up again")
         } catch {
@@ -2290,7 +2368,12 @@ enum WavRepair {
         var format: Data
         /// From the fmt chunk: bytes per second, and bytes per frame (all channels).
         var byteRate: UInt32 { format.count >= 12 ? format[format.startIndex + 8..<format.startIndex + 12].enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << (8 * UInt32($1.offset)) } : 0 }
-        var blockAlign: UInt16 { format.count >= 14 ? UInt16(format[format.startIndex + 12]) | UInt16(format[format.startIndex + 13]) << 8 : 0 }
+        var blockAlign: UInt16 { WavRepair.blockAlign(format) }
+    }
+
+    /// Bytes per frame from a fmt chunk's fields (0 when too short).
+    static func blockAlign(_ fmt: Data) -> UInt16 {
+        fmt.count >= 14 ? UInt16(fmt[fmt.startIndex + 12]) | UInt16(fmt[fmt.startIndex + 13]) << 8 : 0
     }
 
     static func layout(_ url: URL) -> Layout? {
@@ -2313,7 +2396,10 @@ enum WavRepair {
                 guard let fmt else { return nil }
                 let start = UInt64(o + 8)
                 guard len >= start else { return nil }
-                return Layout(dataOffset: start, dataLength: (len - start) & ~1, dataSizeField: UInt64(o + 4), format: fmt)
+                // Whole frames only: 2 bytes for speech, 3 for Audio only's 24-bit mono. A WAV's pad byte after an odd
+                // data chunk, or a frame the app died part way through, is never counted as audio.
+                let block = UInt64(max(1, Self.blockAlign(fmt)))
+                return Layout(dataOffset: start, dataLength: (len - start) / block * block, dataSizeField: UInt64(o + 4), format: fmt)
             }
             o += 8 + size + (size & 1)
         }
@@ -2340,13 +2426,18 @@ enum WavRepair {
         func u32(_ o: Int) -> UInt32 { head[o..<o + 4].enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << (8 * UInt32($1.offset)) } }
         func le(_ v: UInt32) -> Data { Data([UInt8(v & 0xff), UInt8(v >> 8 & 0xff), UInt8(v >> 16 & 0xff), UInt8(v >> 24 & 0xff)]) }
         var o = 12
+        var block: UInt64 = 2
         while o + 8 <= head.count {
             let id = String(data: head[o..<o + 4], encoding: .ascii) ?? ""
             let size = u32(o + 4)
+            if id == "fmt ", o + 8 + 14 <= head.count {
+                block = UInt64(max(1, blockAlign(head.subdata(in: (o + 8)..<(o + 8 + 14)))))
+            }
             if id == "data" {
                 let dataStart = UInt64(o + 8)
                 guard len > dataStart else { return }
-                let actual = UInt32(clamping: (len - dataStart) & ~1)
+                // Whole frames (3 bytes each in Audio only's 24-bit files).
+                let actual = UInt32(clamping: (len - dataStart) / block * block)
                 let riff = UInt32(clamping: len - 8)
                 guard size != actual || u32(4) != riff else { return }
                 try? h.seek(toOffset: 4); h.write(le(riff))

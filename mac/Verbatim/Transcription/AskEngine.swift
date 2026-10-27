@@ -51,7 +51,7 @@ actor AskIndex {
     /// go. Stops between recordings while `canWork` says no (recording, transcribing), and yields between them.
     func sync(_ list: [Transcript], canWork: @escaping @Sendable () async -> Bool) async {
         loadIfNeeded()
-        let live = list.filter { $0.deletedAt == nil && $0.status == .ready && !$0.isDictation && !$0.segments.isEmpty }
+        let live = list.filter { $0.deletedAt == nil && $0.status == .ready && !$0.isDictation && AudioOnlyRules.indexes($0) && !$0.segments.isEmpty }
         let ids = Set(live.map(\.id))
         for id in entries.keys where !ids.contains(id) {
             entries[id] = nil

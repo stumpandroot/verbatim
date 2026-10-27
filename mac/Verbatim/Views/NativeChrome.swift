@@ -152,7 +152,9 @@ struct NativeInspector: View {
             case .library:
                 PremiumLibraryPreview(nav: nav)
             case .transcript(let id):
-                if let t = app.store.transcript(id) { PremiumTranscriptInspector(transcript: t, nav: nav) }
+                if let t = app.store.transcript(id) {
+                    if t.showsAudioDetail { MacAudioInspector(transcript: t) } else { PremiumTranscriptInspector(transcript: t, nav: nav) }
+                }
             default:
                 Color.clear
             }
@@ -406,7 +408,7 @@ private struct NativeActionsItem: View {
                 Button("Mark This Moment") { nav.bookmark(t, app: app) }
                     .disabled(t.audioFileName == nil || t.status != .ready)
                 Button("Continue Recording") { app.continueRecording(t.id) }
-                    .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
+                    .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || t.isAudioOnly || app.recorder.isRecording)
                 Divider()
                 Menu("Run an Action") { ActionsMenuItems { nav.runningAction = $0 } }
                     .disabled(t.status != .ready)

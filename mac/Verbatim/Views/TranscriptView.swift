@@ -408,7 +408,7 @@ struct TranscriptView: View {
             if t.titleIsAuto && t.titleByModel { AITitleNote().padding(.top, 8) }
             if t.status == .ready {
                 KindAndTags(transcript: t, compact: true,
-                            onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
+                            onPick: { k in app.pickKind(k, for: t.id) },
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
                     .padding(.top, 12)
             }
@@ -588,7 +588,7 @@ struct TranscriptView: View {
             ExportMenu(transcript: t, compact: compact, version: copyVersion)
             Button { app.continueRecording(t.id) } label: { ToolLabel(title: "Record more", art: .capture, compact: compact) }
                 .buttonStyle(.plain)
-                .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
+                .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || t.isAudioOnly || app.recorder.isRecording)
                 .help("Record more and add it to the end of this transcript")
             Menu {
                 ActionsMenuItems { runningAction = $0 }
