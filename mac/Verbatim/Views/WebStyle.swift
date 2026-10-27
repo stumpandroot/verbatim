@@ -1091,7 +1091,7 @@ struct AppIconView: View {
             RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.neutralChip)
                 .overlay {
                     GeometryReader { g in
-                        IconGlyph(art: .iconGrid, size: g.size.width * 0.7, color: Ink.dim)
+                        IconGlyph(art: .iconWidgets, size: g.size.width * 0.7, color: Ink.dim)
                             .frame(width: g.size.width, height: g.size.height)
                     }
                 }

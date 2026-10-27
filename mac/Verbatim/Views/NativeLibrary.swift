@@ -163,13 +163,13 @@ struct NativeLibraryView: View {
             }
         }
         .alternatingRowBackgrounds()
-        // Room under the last row for the floating record button, so it never covers a length (review M-07).
-        .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.recordButtonRoom).allowsHitTesting(false) }
         .contextMenu(forSelectionType: String.self) { ids in
             menu(for: ids)
         } primaryAction: { ids in
             if let id = ids.first(where: { !$0.hasPrefix("h:") }), let u = UUID(uuidString: id) { app.go(.transcript(u)) }
         }
+        // Room under the last row for the floating record button, so it never covers a length (review M-07).
+        .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.recordButtonRoom).allowsHitTesting(false) }
     }
 
     /// A row drags its transcript, or the whole selection when it's part of it, onto a project.
