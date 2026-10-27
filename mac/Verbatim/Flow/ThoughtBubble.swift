@@ -8,6 +8,10 @@ import AppKit
 // thought records, the disc turns persimmon and shows the Thoughts icon with its wave following the mic, with "Click to
 // stop" and your words on an outlined card beside it (never on glass). Saved shows "Added to Thoughts · 10:42" for two
 // seconds. Drag it anywhere; its spot is kept per display. Settings › Features › Thoughts › Show the bubble.
+//
+// Mark a moment (mockup "Library features", section 3b): while a thought or a voice note records, the card has Mark
+// with its hotkey (⌃⌥B); a click marks the time (MarkCenter) and the card says "Marked 4:12 · 3 moments" for two
+// seconds. A voice note started anywhere shows here too, "Recording · Voice note", and a click on the disc stops it.
 
 /// The bubble's measured frames and where its card goes.
 @MainActor
@@ -90,9 +94,10 @@ final class ThoughtBubble {
     }
 
     private func build() {
-        guard let capture else { return }
+        guard let capture, let app = capture.app else { return }
         let p = SurfacePanel.make(size: Self.panelSize)
-        let host = FlowHostingView(rootView: ThoughtBubbleView(capture: capture, layout: layout, owner: self).limitMotionRoot())
+        let host = FlowHostingView(rootView: ThoughtBubbleView(capture: capture, layout: layout, owner: self, main: app.recorder, mainWords: app.recordingWords,
+                                                               marks: MarkCenter.shared).limitMotionRoot())
         host.onMouseMoved = { [weak self] in self?.updatePointer() }
         host.onRightClick = { ThoughtPadController.shared.open() }
         host.sizingOptions = []
@@ -151,7 +156,17 @@ final class ThoughtBubble {
         place(center: center, on: screen)
     }
 
-    func clicked() { capture?.toggle() }
+    /// The disc: stops a voice note while one records, otherwise starts or stops a thought.
+    func clicked() {
+        if let app = capture?.app, capture?.isRecording != true, app.recorder.isRecording {
+            app.stopRecording()
+            return
+        }
+        capture?.toggle()
+    }
+
+    /// The card's Mark.
+    func markClicked() { MarkCenter.shared.mark(.macBubble) }
 }
 
 // MARK: - View
@@ -160,6 +175,10 @@ struct ThoughtBubbleView: View {
     @ObservedObject var capture: ThoughtCapture
     @ObservedObject var layout: BubbleLayout
     let owner: ThoughtBubble
+    /// The app's voice-note recorder and its words: a voice note shows on the bubble too.
+    @ObservedObject var main: Recorder
+    let mainWords: RecordingWords
+    @ObservedObject var marks: MarkCenter
     @Environment(\.limitMotion) private var limitMotion
 
     private static let space = "thought-bubble-panel"
@@ -196,24 +215,33 @@ struct ThoughtBubbleView: View {
         .animation(limitMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22), value: stateKey)
     }
 
+    /// A voice note records (and no thought does): the disc stops it and the card shows it.
+    private var voiceNote: Bool { !capture.isRecording && main.isRecording && !main.isStarting }
+
     private var spokenLabel: String {
-        capture.isRecording ? "Recording a thought. Click to stop." : "New thought, " + Keycap.spoken(Thoughts.hotkey)
+        if voiceNote { return "Recording a voice note. Click to stop." }
+        return capture.isRecording ? "Recording a thought. Click to stop." : "New thought, " + Keycap.spoken(Thoughts.hotkey)
     }
 
-    private var stateKey: String { "\(capture.phase)-\(layout.hover)-\(capture.notice ?? "")" }
+    /// What animates: a mark's "Marked 4:12" isn't in it, so a mark from ⌃⌥B swaps the card at once (§7).
+    private var stateKey: String { "\(capture.phase)-\(voiceNote)-\(layout.hover)-\(capture.notice ?? "")" }
 
     private var disc: some View {
         let s = ThoughtBubble.disc
-        let recording = capture.isRecording
+        let recording = capture.isRecording || voiceNote
         return ZStack {
             Circle().fill(recording ? Ink.persimmonFixed : Ink.inkFixed)
-            switch capture.phase {
-            case .recording:
-                ThoughtMicLevel(live: capture.recorder.live, color: Ink.inkFixed).frame(width: s * 0.55, height: s * 0.55)
-            case .saved:
-                BrandGlyph(art: .webCheck, color: Ink.paperFixed, minLineWidth: 1.8).frame(width: s * 0.4, height: s * 0.4)
-            case .idle:
-                ThoughtGlyph(color: Ink.paperFixed, lineWidth: 1.4).frame(width: s * 0.55, height: s * 0.55)
+            if voiceNote {
+                RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Ink.inkFixed).frame(width: s * 0.3, height: s * 0.3)
+            } else {
+                switch capture.phase {
+                case .recording:
+                    ThoughtMicLevel(live: capture.recorder.live, color: Ink.inkFixed).frame(width: s * 0.55, height: s * 0.55)
+                case .saved:
+                    BrandGlyph(art: .webCheck, color: Ink.paperFixed, minLineWidth: 1.8).frame(width: s * 0.4, height: s * 0.4)
+                case .idle:
+                    ThoughtGlyph(color: Ink.paperFixed, lineWidth: 1.4).frame(width: s * 0.55, height: s * 0.55)
+                }
             }
         }
         .frame(width: s, height: s)
@@ -232,10 +260,17 @@ struct ThoughtBubbleView: View {
                 }
             }
             .surfaceFrame(in: Self.space)
+        } else if let c = marks.confirmation, capture.isRecording || voiceNote {
+            BubbleMarkedCard(confirmation: c).surfaceFrame(in: Self.space).uiTarget("thought-bubble-marked")
+        } else if voiceNote {
+            BubbleRecordingCard(title: "Recording · Voice note", live: main.live, words: mainWords, stopHint: "Click the disc to stop", onMark: owner.markClicked)
+                .surfaceFrame(in: Self.space)
+                .uiTarget("thought-bubble-voice-note")
         } else {
             switch capture.phase {
             case .recording:
-                BubbleRecordingCard(capture: capture, words: capture.words).surfaceFrame(in: Self.space)
+                BubbleRecordingCard(title: "New thought", live: capture.recorder.live, words: capture.words, stopHint: nil, onMark: owner.markClicked)
+                    .surfaceFrame(in: Self.space)
             case .saved(let at):
                 BubbleCard {
                     HStack(spacing: 8) {
@@ -276,26 +311,35 @@ private struct BubbleCard<Content: View>: View {
 
 private struct BubbleKeycap: View {
     var keys: String
+    /// A raised keycap (a 1.5 pt ink floor), as on the Mark pill.
+    var floor = false
     var body: some View {
         Text(keys).font(SurfaceFont.mono(12)).foregroundStyle(Ink.inkFixed)
-            .padding(.horizontal, 5).padding(.vertical, 2)
+            .padding(.horizontal, floor ? 4 : 5).padding(.vertical, floor ? 1 : 2)
             .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Ink.inkFixed, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.readerFixed))
+            .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.inkFixed).offset(y: floor ? 1.5 : 0).opacity(floor ? 1 : 0))
             .accessibilityLabel(Keycap.spoken(keys))
     }
 }
 
-/// While a thought records: persimmon voice bars, "New thought", the time in mono, your words, and "Click to stop".
+/// While a thought or a voice note records: persimmon voice bars, "New thought" or "Recording · Voice note", the time
+/// in mono, your words, and Mark with its hotkey beside how to stop.
 private struct BubbleRecordingCard: View {
-    @ObservedObject var capture: ThoughtCapture
+    var title: String
+    let live: LiveMeter
     @ObservedObject var words: RecordingWords
+    /// "Click the disc to stop" (a voice note); nil for a thought, which also stops with ⌃⌥P.
+    var stopHint: String?
+    var onMark: () -> Void
     var body: some View {
         BubbleCard {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
-                    BubbleBars(live: capture.recorder.live)
-                    Text("New thought").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                    BubbleBars(live: live)
+                    Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.inkFixed)
                     Spacer(minLength: 12)
-                    BubbleClock(live: capture.recorder.live)
+                    BubbleClock(live: live)
                 }
                 let d = words.shown.tail(70).display
                 Group {
@@ -310,11 +354,66 @@ private struct BubbleRecordingCard: View {
                 .lineLimit(2).truncationMode(.head)
                 .frame(width: 250, alignment: .leading)
                 .accessibilityHidden(true)
-                HStack(spacing: 6) {
-                    Text("Click to stop ·").font(.system(size: 12)).foregroundStyle(Ink.inkFixed.opacity(0.75))
-                    BubbleKeycap(keys: Thoughts.hotkey)
+                HStack(spacing: 8) {
+                    BubbleMarkPill(action: onMark)
+                    Spacer(minLength: 12)
+                    if let stopHint {
+                        Text(stopHint).font(.system(size: 12)).foregroundStyle(Ink.inkFixed.opacity(0.75))
+                    } else {
+                        HStack(spacing: 6) {
+                            Text("Click to stop ·").font(.system(size: 12)).foregroundStyle(Ink.inkFixed.opacity(0.75))
+                            BubbleKeycap(keys: Thoughts.hotkey)
+                        }
+                    }
                 }
+                .padding(.top, 2)
             }
+        }
+    }
+}
+
+/// Mark on the recording card: a mini line pill with the Mark icon and its hotkey. A tap area, not a Button (§12).
+private struct BubbleMarkPill: View {
+    var action: () -> Void
+    @State private var hover = false
+    var body: some View {
+        let keys = MarkHotkeyStore.current().title
+        HStack(spacing: 6) {
+            BrandGlyph(art: .iconMark, color: Ink.inkFixed, minLineWidth: 1.3).frame(width: 13, height: 13)
+            Text("Mark").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+            BubbleKeycap(keys: keys, floor: true)
+        }
+        .padding(.leading, 9).padding(.trailing, 6)
+        .frame(height: 28)
+        .background(Capsule().fill(Ink.inkFixed.opacity(hover ? 0.06 : 0)))
+        .overlay(Capsule().strokeBorder(Ink.inkFixed, lineWidth: 1.5))
+        .contentShape(Capsule())
+        .onHover { hover = $0 }
+        .tapArea(action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Mark a moment, \(Keycap.spoken(keys))")
+        .accessibilityAction { action() }
+        .uiTarget("thought-bubble-mark")
+    }
+}
+
+/// For two seconds after a mark: the Marked icon on a butter square, "Marked 4:12", and the count.
+private struct BubbleMarkedCard: View {
+    var confirmation: MarkConfirmation
+    var body: some View {
+        BubbleCard {
+            HStack(spacing: 8) {
+                BrandGlyph(art: .iconMarked, color: Ink.inkFixed, minLineWidth: 1.3).frame(width: 14, height: 14)
+                    .frame(width: 24, height: 24)
+                    .background(Ink.butterFixed, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                Text("Marked").font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.inkFixed)
+                Text(Marks.clock(confirmation.at)).font(SurfaceFont.mono(13)).foregroundStyle(Ink.inkFixed)
+                Text(Marks.count(confirmation.count)).font(SurfaceFont.mono(12)).foregroundStyle(Ink.inkFixed.opacity(0.7))
+                    .padding(.leading, 6)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Marks.confirmation(confirmation))
         }
     }
 }

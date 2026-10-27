@@ -18,7 +18,13 @@
         "Mac and iPhone: Run automatically gives each kind of recording one template, so every Meeting can get Meeting notes when it finishes. It runs after the transcript and summary, once per recording, and skips recordings under 2 minutes unless you turn that off. Each device keeps its own choices, and every kind starts Off.",
         "Mac and iPhone: a template's result stays in the transcript with why it ran, Run again, and Edit. On iPhone, it's a tab beside Original and Cleaned. Templates use only what the transcript says and run on your device with Apple Intelligence.",
         "Mac and iPhone: start a recording as a kind. Touch and hold Record on iPhone and choose Record a meeting, an interview, a journal entry, a talk, or a note; on the Mac, right-click Record. Verbose keeps the kind you pick, and Run automatically uses it. On the Mac, Shortcuts' Start recording takes a kind too.",
-        "Mac and iPhone: when you change a recording's kind after its template ran, the result asks, for example, “Now a Journal. Run Daily reflection?” Nothing runs until you choose Run, and the old result stays until then."
+        "Mac and iPhone: when you change a recording's kind after its template ran, the result asks, for example, “Now a Journal. Run Daily reflection?” Nothing runs until you choose Run, and the old result stays until then.",
+        "iPhone: mark a moment while you record, without opening Verbose. Tap Mark in the expanded Dynamic Island or in the Lock Screen's recording, or on the recorder. The Island says “Marked 4:12” with how many moments you've marked, and the Lock Screen shows your last mark.",
+        "iPhone: the Lock Screen's recording sits on paper with your voice, Mark, Pause, and Stop.",
+        "iPhone: Settings › Action button has a new choice, Record or mark. Press once to start a voice note; while it records, each press marks a moment. Set up the Action button shows the three steps in the Settings app.",
+        "Mac: mark a moment while you record. Click Mark on Home's record panel or on the bubble's card, or press ⌃⌥B in any app. With nothing recording, ⌃⌥B does nothing. Change it in Settings › Dictation and keyboard › Mark a moment.",
+        "Mac: the Thoughts bubble shows a voice note while it records, with your words and Mark. Click the disc to stop it.",
+        "Mac and iPhone: each mark becomes a moment on the line you were saying, quoting its first sentence, with a chip such as “Moment 4:12 · from the Lock Screen”. Moments show where each mark came from, and marks sync with the transcript. On the Mac, right-click a moment and choose Rename to use your own words."
       ]
     },
     {

@@ -156,6 +156,21 @@ enum ShortcutCheck {
     }
 }
 
+/// Settings › Dictation › Other shortcuts › Mark a moment (mockup "Library features", section 3b): the global hotkey
+/// that marks a moment while a recording runs, ⌃⌥B unless you change it (B, as in a playing transcript's bookmark).
+/// It's registered only while something records, so with nothing recording other apps get the keys.
+enum MarkHotkeyStore {
+    static let key = "marks.hotkey"
+    static let standard = KeyCombo(keyCode: 11, mods: [.control, .option])
+
+    static func current(_ d: UserDefaults = .standard) -> KeyCombo { KeyCombo(stored: d.string(forKey: key)) ?? standard }
+
+    /// The mark hotkey as a shortcut Verbose knows is taken, for the other shortcut recorders' checks.
+    static func known(_ c: KeyCombo) -> ShortcutCheck.Known {
+        ShortcutCheck.Known(combo: c, owner: "Verbose", does: "marks a moment while recording")
+    }
+}
+
 /// Mouse buttons for Settings › Dictation › Hotkey › A mouse button. macOS numbers them from 0 (left, right,
 /// middle); people call them 1, 2, 3, so "button 4" is number 3.
 enum MouseButtons {

@@ -154,6 +154,15 @@ check("Esc alone cancels dictation", ShortcutCheck.check(KeyCombo(keyCode: 53, m
 let recall = ShortcutCheck.Known(combo: KeyCombo(keyCode: 9, mods: [.option, .command]), owner: "Verbose", does: "opens Recent dictations")
 check("the Recent dictations setting counts when passed in", ShortcutCheck.check(KeyCombo(keyCode: 9, mods: [.option, .command]), also: [recall]) == .taken(owner: "Verbose", sentence: "⌥⌘V opens Recent dictations."))
 check("…and not otherwise", ShortcutCheck.check(KeyCombo(keyCode: 9, mods: [.option, .command])) == .ok)
+// Mark a moment's hotkey (Settings › Dictation › Other shortcuts).
+check("the mark hotkey is ⌃⌥B unless you change it", MarkHotkeyStore.standard.title == "⌃⌥B" && MarkHotkeyStore.standard.keycaps == ["⌃", "⌥", "B"])
+check("⌃⌥B is free of macOS's and Verbose's fixed shortcuts", ShortcutCheck.check(MarkHotkeyStore.standard) == .ok)
+check("a dictation hotkey on the mark hotkey is taken", ShortcutCheck.check(MarkHotkeyStore.standard, also: [MarkHotkeyStore.known(MarkHotkeyStore.standard)])
+      == .taken(owner: "Verbose", sentence: "⌃⌥B marks a moment while recording."))
+let markDefaults = UserDefaults(suiteName: "mark-hotkey-test-\(UUID().uuidString)")!
+check("no stored mark hotkey reads as ⌃⌥B", MarkHotkeyStore.current(markDefaults) == MarkHotkeyStore.standard)
+markDefaults.set(KeyCombo(keyCode: 46, mods: [.control, .option]).stored, forKey: MarkHotkeyStore.key)
+check("a rebound mark hotkey reads back", MarkHotkeyStore.current(markDefaults).title == "⌃⌥M")
 
 // MARK: Mouse buttons
 

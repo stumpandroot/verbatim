@@ -162,6 +162,8 @@ final class ThoughtCapture: ObservableObject {
 
     /// Stop: the recording is saved, then the thought joins its day at once, and transcription follows.
     private func finish(started: Date) async {
+        // Moments marked while it recorded (⌃⌥B, the bubble's Mark): bookmarks on the thought.
+        let marks = MarkCenter.shared.take(.thought)
         let stopped = await recorder.stopAndSave()
         words.end()
         let marked = url
@@ -178,20 +180,21 @@ final class ThoughtCapture: ObservableObject {
             say(Store.joinFailedNotice)
             return
         }
-        if let marked { Store.clearThoughtMark(marked) }
+        if let marked { Store.clearThoughtMark(marked); Marks.clear(marked) }
         Store.clearThoughtMark(r.startedAs ?? r.url)
+        Marks.clear(r.startedAs ?? r.url)
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             phase = .idle; startedAt = nil
             say(Store.nothingRecordedNotice)
             return
         }
-        file(url: r.url, duration: r.duration, envelope: r.envelope, startedAt: started, skipped: r.skipped)
+        file(url: r.url, duration: r.duration, envelope: r.envelope, startedAt: started, skipped: r.skipped, marks: marks)
     }
 
     /// Adds a recorded thought to its day and queues it to transcribe. Returns its ID.
     @discardableResult
-    func file(url: URL, duration: Double, envelope: [Float], startedAt: Date, skipped: [ClosedRange<Double>] = []) -> UUID? {
+    func file(url: URL, duration: Double, envelope: [Float], startedAt: Date, skipped: [ClosedRange<Double>] = [], marks: [RecordingMark] = []) -> UUID? {
         guard let app, let name = app.store.adoptRecording(url) else {
             if !isRecording || stopping { phase = .idle; self.startedAt = nil }
             say("Couldn't save the thought. Its audio is in the recordings folder.")
@@ -202,7 +205,7 @@ final class ThoughtCapture: ObservableObject {
         t.kind = .idea
         t.kindIsAuto = false
         t.waveform = envelope
-        t.notes = Store.skippedNotes(skipped)
+        t.notes = Store.skippedNotes(skipped) + RecordingMark.notes(marks)
         app.enqueue(t)
         lastAdded = t.id
         Log.note("thought: added \(String(format: "%.1f", duration)) s; transcribing")

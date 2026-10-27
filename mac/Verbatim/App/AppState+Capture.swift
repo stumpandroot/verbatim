@@ -72,6 +72,8 @@ extension AppState {
     func finishRecording() async {
         // Stop while the mic is still starting cancels the start: nothing was recorded.
         let wasStarting = recorder.isStarting
+        // Moments marked while it recorded (MarkCenter): bookmarks on the transcript, each on its line once transcribed.
+        let marks = MarkCenter.shared.take(.voiceNote)
         let target = continuing
         continuing = nil
         let kind = recordKind
@@ -90,29 +92,31 @@ extension AppState {
             return
         }
         Store.clearContinuation(r.startedAs ?? r.url)
+        Marks.clear(r.startedAs ?? r.url)
+        Marks.clear(r.url)
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             toast = Toast(Store.nothingRecordedNotice)
             return
         }
         if let target {
-            appendRecording(r.url, to: target, skipped: r.skipped)
+            appendRecording(r.url, to: target, skipped: r.skipped, marks: marks)
             return
         }
         guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the recording."); return }
         var t = Transcript(title: "Voice memo", source: .voiceMemo, sourceLabel: "Voice memo",
                            duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
-        t.notes = Store.skippedNotes(r.skipped)
+        t.notes = Store.skippedNotes(r.skipped) + RecordingMark.notes(marks)
         t.pickKindAtStart(kind)
         enqueue(t)
     }
 
     /// Queues a new recording to be transcribed and joined onto the end of `id`.
-    private func appendRecording(_ url: URL, to id: UUID, skipped: [ClosedRange<Double>] = []) {
+    private func appendRecording(_ url: URL, to id: UUID, skipped: [ClosedRange<Double>] = [], marks: [RecordingMark] = []) {
         let offset = store.transcript(id)?.duration ?? 0
         guard coordinator.queueAppend(recording: url, to: id) else { toast = Toast("Couldn't save the recording."); return }
-        for n in Store.skippedNotes(skipped, offset: offset) { store.addNote(n, to: id) }
+        for n in Store.skippedNotes(skipped, offset: offset) + RecordingMark.notes(marks, offset: offset) { store.addNote(n, to: id) }
         go(.transcript(id))
     }
 
@@ -134,7 +138,7 @@ extension AppState {
         capture.onStreamError = { [weak self] stopped, reason in
             guard let self else { return }
             let name = self.capture.appName.isEmpty ? "the app" : self.capture.appName
-            let kept = self.adoptCapture(stopped)
+            let kept = self.adoptCapture(stopped, marks: MarkCenter.shared.take(.appAudio))
             self.toast = Toast(kept ? "Capturing \(name) stopped (\(reason)). What was captured is saved and transcribing."
                                     : "Capturing \(name) stopped (\(reason)).")
         }
@@ -152,15 +156,17 @@ extension AppState {
     }
 
     func finishCapture() async {
+        let marks = MarkCenter.shared.take(.appAudio)
         guard let r = await capture.stop() else { return }
-        _ = adoptCapture(r)
+        _ = adoptCapture(r, marks: marks)
     }
 
     /// Adopts a stopped capture and queues it. False when nothing was kept (a toast says why).
     @discardableResult
-    private func adoptCapture(_ stopped: StoppedCapture?) -> Bool {
+    private func adoptCapture(_ stopped: StoppedCapture?, marks: [RecordingMark] = []) -> Bool {
         guard let r = stopped else { return false }
         if r.joinFailed { toast = Toast(Store.joinFailedNotice); return false }
+        Marks.clear(r.url)
         guard r.framesWritten > 0 else {
             try? FileManager.default.removeItem(at: r.url)
             toast = Toast(Store.nothingRecordedNotice)
@@ -169,7 +175,7 @@ extension AppState {
         guard let name = store.adoptRecording(r.url) else { toast = Toast("Couldn't save the capture."); return false }
         var t = Transcript(title: capture.appName.isEmpty ? "App audio" : capture.appName, source: .app, sourceLabel: capture.appName,
                            duration: r.duration, audioFileName: name, model: "")
-        t.notes = Store.skippedNotes(r.skipped)
+        t.notes = Store.skippedNotes(r.skipped) + RecordingMark.notes(marks)
         enqueue(t)
         return true
     }

@@ -203,7 +203,7 @@ struct MomentCard: View {
                     .padding(.trailing, Self.pad - 2)
             }
         }
-        .accessibilityLabel("\(note.isBookmark ? "Bookmark" : "Note") at \(at.timecode), \(transcript.title)")
+        .accessibilityLabel("\(note.isBookmark ? "Bookmark" : "Note") at \(at.timecode)\(Marks.shortSource(note).map { ", marked from \($0)" } ?? ""), \(transcript.title)")
         .accessibilityValue(displayText)
         .accessibilityHint("Opens the transcript at this moment.")
         .contextMenu {
@@ -232,8 +232,12 @@ struct MomentCard: View {
 
     private func header(ink: Color) -> some View {
         HStack(spacing: 8) {
-            ArtIcon(art: note.isBookmark ? .iconPin : .iconNotes, size: 16, lineWidth: 1.3)
+            ArtIcon(art: note.isMark ? .iconMarked : note.isBookmark ? .iconPin : .iconNotes, size: 16, lineWidth: 1.3)
             Text(at.timecode).font(Ink.mono(12)).monospacedDigit()
+            // Marked while recording: where from ("Lock Screen", "Mac, ⌃⌥B").
+            if let from = Marks.shortSource(note) {
+                Text(from).font(.system(size: 12.5)).opacity(0.78).lineLimit(1)
+            }
             Spacer(minLength: 0)
             if playURL != nil {
                 ZStack {

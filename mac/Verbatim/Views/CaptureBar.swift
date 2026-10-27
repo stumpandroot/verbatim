@@ -227,6 +227,8 @@ struct RecordButton: View {
 
 struct RecordPanel: View {
     @EnvironmentObject var app: AppState
+    /// Mark a moment (App/MarkCenter.swift): the Mark button and "Marked 4:12 · 3 moments" for two seconds.
+    @ObservedObject private var marks = MarkCenter.shared
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             controls
@@ -248,6 +250,19 @@ struct RecordPanel: View {
                 if let id = app.continuing, let t = app.store.transcript(id) {
                     Text("Adding to “\(t.title)”").font(.system(size: 12)).foregroundStyle(Ink.accentText).lineLimit(1)
                 }
+                if let c = marks.confirmation, !starting {
+                    HStack(spacing: 5) {
+                        ArtIcon(art: .iconMarked, size: 13)
+                        Text("Marked").font(.system(size: 12, weight: .semibold))
+                        Text(Marks.clock(c.at)).font(Ink.mono(12)).monospacedDigit()
+                        Text("· \(Marks.count(c.count))").font(.system(size: 12))
+                    }
+                    .foregroundStyle(Ink.butterText)
+                    .lineLimit(1)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(Marks.confirmation(c))
+                    .uiTarget("record-panel-marked")
+                }
                 // Muted, or only digital silence: said at once, and cleared as soon as the mic is back.
                 if let w = app.recorder.micWarning, !starting, !app.recorder.isPaused {
                     Text("\(w.title). \(w.detail).")
@@ -259,6 +274,18 @@ struct RecordPanel: View {
             }
             .frame(width: 170, alignment: .leading)
             LiveReadout(live: app.recorder.live, frozen: app.recorder.isPaused)
+            // Mark a moment at the recording's time (also ⌃⌥B from any app while it records).
+            Button { marks.mark(.macApp) } label: {
+                HStack(spacing: 6) {
+                    ArtIcon(art: .iconMark, size: 15)
+                    Text("Mark")
+                    Keycap(keys: MarkHotkeyStore.current().title, size: 12)
+                }
+            }
+            .buttonStyle(.brandSecondaryLarge).disabled(starting)
+            .help("Mark this moment (\(MarkHotkeyStore.current().title) from any app while you record)")
+            .accessibilityLabel("Mark a moment")
+            .uiTarget("record-panel-mark")
             Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.brandSecondaryLarge).disabled(starting)
             // While the mic is starting, Stop cancels the start.
             Button(starting ? "Cancel" : "Stop") { app.stopRecording() }.buttonStyle(.brandPrimaryLarge).keyboardShortcut(".", modifiers: [.option, .shift])

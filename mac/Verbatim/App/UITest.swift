@@ -460,6 +460,7 @@ enum UITest {
         timings = []   // the tour's summaries leave out the Settings, Ribbon, and meeting steps' navigations
         ScreenPlaces.shared.reset()   // every screen opens where it always did in the screenshots
         seedRich(app)
+        seededMarkChecks(app)
         seedArchive(app)
         seedDictations(app)
         seedActivity()
@@ -1031,6 +1032,11 @@ enum UITest {
         app.store.addNote(Note(text: "Ask Jonathan for the wheel spec sheet before the shoot.", at: 11, segmentId: shoot.id, isBookmark: false), to: t.id)
         app.store.addNote(Note(text: "Folding wagon spread", at: 31.8, segmentId: spread.id, isBookmark: true), to: t.id)
         app.store.addNote(Note(text: "Quote for the one-page sheet: separate line item.", at: nil, segmentId: nil, isBookmark: false), to: t.id)
+        // Moments marked while it recorded (Model/Marks.swift), snapped to their lines as a finished transcription does:
+        // one from the Lock Screen, one from ⌃⌥B.
+        let marks = RecordingMark.notes([RecordingMark(at: 26, source: MarkSource.lockScreen.rawValue),
+                                         RecordingMark(at: 8, source: MarkSource.macHotkey.rawValue, keys: MarkHotkeyStore.standard.title)])
+        app.store.update(t.id) { $0.notes = Marks.snap($0.notes + marks, to: $0.segments) }
     }
 
     /// Capture and archive: Journal entries on three days (one with background voices), an idea, and a note.
@@ -1231,6 +1237,9 @@ enum UITest {
         ActionsHistoryChecks.run { check($0, $1) }
         // Templates and Run automatically (shared with the iPhone's self-test and mac/tools/test-templates.sh).
         TemplateChecks.run { check("templates: " + $0, $1) }
+        // Mark a moment (shared with the iPhone's self-test and mac/tools/test-marks.sh), then the Mac's MarkCenter.
+        MarkChecks.run { check("marks: " + $0, $1) }
+        markCenterChecks(check)
         let restored = FlowAction.builtIn
         check("actions: the five sit alongside the eight in Settings › Actions", restored.count == 13
               && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } })
@@ -2063,6 +2072,17 @@ extension UITest {
         Thoughts.showBubble = true
         capture.start()
         await show("08f-thought-bubble-recording")
+        // The bubble's Mark (mockup "Library features", section 3b): "Marked 4:12 · 1 moment" for two seconds.
+        MarkCenter.shared.simulated = (.thought, 252)
+        ThoughtBubble.shared.markClicked()
+        let markedOK = MarkCenter.shared.count(.thought) == 1 && MarkCenter.shared.confirmation?.at == 252
+        if markedOK { pass += 1 } else { fail += 1 }
+        Log.note("UITEST \(markedOK ? "PASS" : "FAIL") marks: the bubble's Mark marks the thought")
+        write(show: "08h-thought-bubble-marked")
+        Log.note("UITEST show 08h-thought-bubble-marked")
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        _ = MarkCenter.shared.take(.thought)
+        MarkCenter.shared.simulated = nil
         capture.stop()
         try? await Task.sleep(nanoseconds: 300_000_000)
         write(show: "08g-thought-bubble-saved")
@@ -2070,6 +2090,38 @@ extension UITest {
         try? await Task.sleep(nanoseconds: 1_600_000_000)   // "Added to Thoughts" shows for two seconds
         capture.simulate = false
         Thoughts.showBubble = false
+    }
+
+    // MARK: Marks
+
+    /// The Mac's marks (App/MarkCenter.swift): nothing recording marks nothing; a recording takes marks from the record
+    /// panel, the bubble, and the hotkey with their sources; a second mark within 3 seconds confirms the first; Stop
+    /// takes them; the hotkey defaults to ⌃⌥B; and the seeded transcript's marks sit on their lines with their chips.
+    static func markCenterChecks(_ check: (String, Bool) -> Void) {
+        let marks = MarkCenter.shared
+        marks.simulated = nil
+        _ = marks.take(.voiceNote)
+        check("marks: with nothing recording, Mark does nothing", marks.target != nil || !marks.mark(.macHotkey, keys: "⌃⌥B"))
+        marks.simulated = (.voiceNote, 252)
+        check("marks: the record panel's Mark marks the voice note", marks.mark(.macApp) && marks.count(.voiceNote) == 1)
+        marks.simulated = (.voiceNote, 253)
+        _ = marks.mark(.macHotkey, keys: "⌃⌥B")
+        check("marks: ⌃⌥B within 3 seconds confirms the first", marks.count(.voiceNote) == 1 && marks.confirmation?.at == 252)
+        marks.simulated = (.voiceNote, 707)
+        _ = marks.mark(.macBubble)
+        check("marks: the bubble's Mark is its own moment", marks.count(.voiceNote) == 2 && marks.confirmation.map(Marks.confirmation) == "Marked 11:47 · 2 moments")
+        let taken = marks.take(.voiceNote)
+        check("marks: Stop takes them, with their sources", taken.map(\.source) == ["macApp", "macBubble"] && marks.count(.voiceNote) == 0)
+        marks.simulated = nil
+        check("marks: the hotkey is ⌃⌥B unless you change it", MarkHotkeyStore.current().title == "⌃⌥B" || !(UserDefaults.standard.string(forKey: MarkHotkeyStore.key) ?? "").isEmpty)
+    }
+
+    /// The seeded transcript's marks (seedRich) sit on their lines, with chips that say where they came from.
+    private static func seededMarkChecks(_ app: AppState) {
+        guard let t = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) else { return }
+        let m = t.notes.filter(\.isMark)
+        check("marks: the seeded marks sit on their lines", m.count == 2 && m.allSatisfy { n in t.segments.contains { $0.id == n.segmentId && $0.start == n.at } })
+        check("marks: their chips name where they came from", Set(m.compactMap(Marks.chip)) == ["Moment 0:24 · from the Lock Screen", "Moment 0:06 · from ⌃⌥B on the Mac"])
     }
 
     // MARK: Templates

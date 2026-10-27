@@ -62,7 +62,9 @@ struct NotesPanel: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 8)
             ForEach(Array(transcript.notes.enumerated()), id: \.element.id) { i, n in
-                NoteCard(note: n, onSeek: { if let at = n.at { app.player.seek(to: at) } }, onDelete: { app.deleteNote(transcript: transcript.id, note: n.id) })
+                NoteCard(note: n, words: Marks.words(n, in: transcript.segments), onSeek: { if let at = n.at { app.player.seek(to: at) } },
+                         onDelete: { app.deleteNote(transcript: transcript.id, note: n.id) },
+                         onRename: { app.renameNote(transcript: transcript.id, note: n.id, to: $0) })
                     .staggerIn(i)
                     .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .identity))
             }
@@ -389,11 +391,61 @@ private struct TranscriptLanguageMenuMac: View {
 /// pointer) and the context menu delete it.
 struct NoteCard: View {
     var note: Note
+    /// What the moment says: its text, or for a bookmark with none, the line it's on.
+    var words: String = ""
     var onSeek: () -> Void
     var onDelete: () -> Void
+    var onRename: (String) -> Void = { _ in }
     @State private var hover = false
+    @State private var renaming = false
+    @State private var newName = ""
 
     var body: some View {
+        if note.isMark { markCard } else { noteCard }
+    }
+
+    /// A moment marked while recording (mockup "Library features", section 3c): a butter panel with the Marked icon,
+    /// the time in mono (click to play from it), where it came from, and the line's words (or your name for it) as a
+    /// quote in the italic serif. Rename replaces the quote with your own words.
+    private var markCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                ArtIcon(art: .iconMarked, size: 14)
+                Text(Marks.clock(note.at ?? 0)).font(Ink.mono(12))
+                    .tapArea(onSeek).help("Play from here").accessibilityAddTraits(.isButton)
+                Spacer(minLength: 8)
+                if let from = Marks.shortSource(note) { Text(from).font(.system(size: 12.5)).opacity(0.78).lineLimit(1) }
+            }
+            Text("“\(words.isEmpty ? note.text : words)”").font(Ink.serif(17).italic()).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tapArea(onSeek)
+        }
+        .foregroundStyle(Ink.panelInk)
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .colorPanel(Ink.panelButter, radius: Radius.tile)
+        .padding(.top, 10)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Moment at \(Marks.clock(note.at ?? 0)), \(Marks.shortSource(note) ?? ""): \(words.isEmpty ? note.text : words)")
+        .accessibilityAction(named: "Play from here", onSeek)
+        .contextMenu {
+            Button("Play from \(Marks.clock(note.at ?? 0))") { onSeek() }
+            Button("Rename…") { newName = words; renaming = true }
+            Divider()
+            Button("Delete", role: .destructive) { onDelete() }
+        }
+        .alert("Rename this moment", isPresented: $renaming) {
+            TextField("Moment", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") { onRename(newName) }
+        } message: {
+            Text("Your words replace the quoted line.")
+        }
+    }
+
+    private var noteCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let f = note.frameFile {
                 FrameImage(file: f).frame(height: 90)

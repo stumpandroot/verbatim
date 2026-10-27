@@ -74,6 +74,7 @@ enum MacSettingsMap {
             Section(nil, [Setting("dictate.enabled")]),
             Section("Starting and stopping", [
                 Setting("dictate.hotkey"), Setting("dictate.mode"), Setting("dictate.shortcuts"),
+                Setting("dictate.markHotkey", keys: ["marks.hotkey"]),
                 Setting("dictate.recall", keys: ["dictation.recentShortcut"]),
                 Setting("dictate.lowerAudio"), Setting("dictate.autoSend"), Setting("dictate.maxMinutes"),
             ]),

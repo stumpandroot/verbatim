@@ -342,9 +342,11 @@ struct HotkeyPickerRow: View {
         switch RecallShortcut.current {
         case .optionCommandV: mods = [.option, .command]
         case .controlOptionV: mods = [.control, .option]
-        case .off: return []
+        case .off: return [MarkHotkeyStore.known(MarkHotkeyStore.current())]
         }
-        return [ShortcutCheck.Known(combo: KeyCombo(keyCode: 9, mods: mods), owner: "Verbose", does: "opens Recent dictations")]
+        // The mark hotkey (Settings › Dictation › Other shortcuts) is a setting too.
+        return [ShortcutCheck.Known(combo: KeyCombo(keyCode: 9, mods: mods), owner: "Verbose", does: "opens Recent dictations"),
+                MarkHotkeyStore.known(MarkHotkeyStore.current())]
     }
 
     // MARK: Choosing

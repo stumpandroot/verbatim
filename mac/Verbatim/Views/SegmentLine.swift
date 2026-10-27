@@ -13,6 +13,8 @@ struct SegmentLine: View {
     var showSpeaker: Bool
     var current: Bool
     var saved: Bool = false
+    /// A moment marked on this line while recording (Model/Marks.swift): its chip under the text.
+    var mark: Note? = nil
     var selected: Bool
     var editable: Bool
     var size: CGFloat
@@ -148,6 +150,10 @@ struct SegmentLine: View {
                         }
                         .padding(14).frame(width: 300)
                     }
+                if let mark {
+                    MarkChip(note: mark) { app.player.play(from: mark.at ?? segment.start) }
+                        .padding(.leading, 10).padding(.bottom, 4)
+                }
             }
         }
         // About 24 pt between speakers; lines from the same speaker sit closer.
@@ -169,6 +175,41 @@ struct SegmentLine: View {
         let to = replacement.trimmingCharacters(in: .whitespaces)
         if !to.isEmpty, to != from { app.correct(transcript: transcript.id, segment: segment.id, from: from, to: to, remember: remember) }
         fixing = nil
+    }
+}
+
+/// A marked line's chip (mockup "Library features", section 3c): the Marked icon, "Moment 4:12", and where it came
+/// from ("· from the Lock Screen"), on butter, the saved wash's color, in ink. Native: the accent's symbol and the same
+/// words on a neutral capsule. Click it to play from the moment.
+struct MarkChip: View {
+    @Environment(\.look) private var look
+    var note: Note
+    var play: () -> Void
+
+    var body: some View {
+        let native = look == .native
+        HStack(spacing: 6) {
+            if native {
+                Image(systemName: "bookmark.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.nativeAccent)   // brand: native
+            } else {
+                ArtIcon(art: .iconMarked, size: 13)
+            }
+            Text("Moment").font(.system(size: 12.5, weight: .semibold))
+            Text(Marks.clock(note.at ?? 0)).font(native ? .system(size: 12.5, weight: .medium).monospacedDigit() : Ink.mono(12))
+            if let from = Marks.chipSource(note) { Text("· \(from)").font(.system(size: 12.5)).opacity(0.78) }
+        }
+        .foregroundStyle(native ? Ink.ink : Ink.inkFixed)
+        .lineLimit(1)
+        .padding(.horizontal, 10).frame(height: 24)
+        .background(native ? Ink.ink.opacity(0.07) : Ink.panelButter, in: Capsule())
+        .contentShape(Capsule())
+        .tapArea(play)
+        .help("Play from this moment")
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(Marks.chip(note) ?? "Moment")
+        .accessibilityHint("Plays from this moment.")
+        .accessibilityAction { play() }
     }
 }
 
@@ -240,6 +281,8 @@ struct TranscriptLines: View {
         let _ = playingIDs
         let current = Self.playing(segments, at: clock.time, isPlaying: isPlaying)
         let saved = Set(transcript.notes.filter(\.isBookmark).compactMap(\.segmentId))
+        // Moments marked while recording, by line, for their chips (the first on a line).
+        let marked = Dictionary(transcript.notes.filter(\.isMark).compactMap { n in n.segmentId.map { ($0, n) } }, uniquingKeysWith: { a, _ in a })
         // Lazy: a long recording has hundreds of lines, each with menus and a popover. Build only what's on screen.
         // Sponsor reads fold into one row at their first line; their lines show once the row is opened.
         let folds = self.folds.count == segments.count ? self.folds : SponsorFold.places(segments, in: transcript)
@@ -258,7 +301,7 @@ struct TranscriptLines: View {
                     }
                     .padding(.leading, 74).padding(.top, i == 0 ? 0 : 8).padding(.bottom, 6)
                 }
-                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current.contains(s.id), saved: saved.contains(s.id), selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
+                SegmentLine(transcript: transcript, segment: s, showSpeaker: showSpeaker, current: current.contains(s.id), saved: saved.contains(s.id), mark: marked[s.id], selected: selected == s.id, editable: editable, size: textSize, first: i == 0) {
                     selected = selected == s.id ? nil : s.id
                 }
                 .id(s.id)

@@ -106,6 +106,7 @@ struct DictationForm: View {
                 HotkeyPickerRow(dictation: dictation)
                 HowItStartsRow(dictation: dictation)
                 DictationHotkeyRows(dictation: dictation)
+                MarkHotkeyRow(dictation: dictation)
                 RecallShortcutRow()
                 LowerAudioRow()
                 AutoSendSettingsRow()

@@ -68,6 +68,13 @@ extension AppState {
         if at != nil, let video = store.transcript(id)?.videoFile { grabFrames(id, video: video, only: [note.id]) }
     }
 
+    /// Rename a moment: your words replace its quote. Empty keeps it as it was.
+    func renameNote(transcript id: UUID, note nid: UUID, to text: String) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        store.update(id) { t in if let i = t.notes.firstIndex(where: { $0.id == nid }) { t.notes[i].text = clean } }
+    }
+
     func deleteNote(transcript id: UUID, note nid: UUID) {
         store.update(id) { $0.notes.removeAll { $0.id == nid } }
     }

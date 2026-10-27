@@ -160,6 +160,8 @@ final class AppState: ObservableObject {
         dictation.attach(self)
         // Thoughts: ⌃⌥P, the bubble, and the pad's pieces moving in once (Flow/Thoughts.swift).
         ThoughtCapture.shared.attach(self)
+        // Mark a moment: the record panel's and the bubble's Mark, and ⌃⌥B while something records (App/MarkCenter.swift).
+        MarkCenter.shared.attach(self)
         mirrorSnippets()
         // Watched folders compare new files with the library, so they start once it has loaded.
         store.whenLoaded { [weak self] in if let self { FolderWatcher.shared.attach(self) } }
