@@ -29,6 +29,8 @@ enum Paths {
     /// Your templates (Templates.swift), shared by the Mac and the iPhone. The built-in and scenario templates aren't
     /// stored; Run automatically's choices stay on each device.
     static let templatesFile = root.appendingPathComponent("templates.json")
+    /// Ask's recipes (AskRecipes.swift), shared by the Mac and the iPhone. Their schedules and answers stay on each device.
+    static let recipesFile = root.appendingPathComponent("recipes.json")
     /// Your name and About me, shared by the Mac and the iPhone (Home greeting, titles, summaries).
     static let profileFile = root.appendingPathComponent("profile.json")
     static let models = local.appendingPathComponent("models", isDirectory: true)
@@ -403,6 +405,7 @@ enum Cloud {
         merge(DictionaryEntry.self, "dictionary.json")
         merge(Snippet.self, "snippets.json")
         merge(TranscriptTemplate.self, "templates.json")
+        merge(AskRecipe.self, "recipes.json")
         // A later turn-on gets its own dated folder, since "Before iCloud" already exists.
         var backup = old.appendingPathComponent("Before iCloud", isDirectory: true)
         if fm.fileExists(atPath: backup.path) {
@@ -603,6 +606,17 @@ final class Store: Observable {
             listEdited(old: old, list: \.templates, sync: \.templateSync)
         }
     }
+    private var _recipes: [AskRecipe] = []
+    /// Ask's recipes (AskRecipes.swift): synced like templates (`recipes.json`, SyncMerge). None are seeded.
+    var recipes: [AskRecipe] {
+        get { registrar.access(self, keyPath: \.recipes); return _recipes }
+        set {
+            let old = _recipes
+            registrar.withMutation(of: self, keyPath: \.recipes) { _recipes = newValue }
+            anyChangeSubject.send()
+            listEdited(old: old, list: \.recipes, sync: \.recipeSync)
+        }
+    }
     /// Every template, in library order: Scenarios, yours, Built in.
     var allTemplates: [TranscriptTemplate] { TemplateLibrary.all(yours: templates) }
     /// `snippets` now, then after every change.
@@ -637,9 +651,11 @@ final class Store: Observable {
     private var dictionarySync = ListSync(file: Paths.dictionaryFile)
     private var snippetSync = ListSync(file: Paths.snippetsFile)
     private var templateSync = ListSync(file: Paths.templatesFile)
+    private var recipeSync = ListSync(file: Paths.recipesFile)
     /// The synced list files and their tombstone files, at the root of the library.
-    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json", "templates.json",
-                                              "projects-deleted.json", "dictionary-deleted.json", "snippets-deleted.json", "templates-deleted.json"]
+    nonisolated static let syncedListFiles = ["projects.json", "dictionary.json", "snippets.json", "templates.json", "recipes.json",
+                                              "projects-deleted.json", "dictionary-deleted.json", "snippets-deleted.json", "templates-deleted.json",
+                                              "recipes-deleted.json"]
     /// Snippets read cleanly from the synced file (or there is none yet), so they can be mirrored over local ones.
     var snippetsReadable: Bool { snippetSync.writable }
 
@@ -689,6 +705,7 @@ final class Store: Observable {
         loadList(list: \.dictionary, sync: \.dictionarySync, budget: budget)
         loadList(list: \.snippets, sync: \.snippetSync, budget: budget)
         loadList(list: \.templates, sync: \.templateSync, budget: budget)
+        loadList(list: \.recipes, sync: \.recipeSync, budget: budget)
         startProfileSync(budget: budget)
         loading = false
         // The transcripts are decoded off the main thread, so the first frame never waits for a big library; screens
@@ -1174,6 +1191,7 @@ final class Store: Observable {
 
     func ingestSnippets() { ingestList(list: \.snippets, sync: \.snippetSync) }
     func ingestTemplates() { ingestList(list: \.templates, sync: \.templateSync) }
+    func ingestRecipes() { ingestList(list: \.recipes, sync: \.recipeSync) }
 
     /// Snippets saved on this device (the Mac's settings) while the synced file can't be read yet: shown and used
     /// as they are, without counting as edits, and merged with the file once it reads.

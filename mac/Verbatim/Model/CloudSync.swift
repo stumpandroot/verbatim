@@ -35,7 +35,7 @@ final class CloudSync: NSObject {
         defer { query.enableUpdates() }
         guard let store else { return }
         var transcriptsChanged: [URL] = [], unchanged: [URL] = []
-        var projects = false, dictionary = false, snippets = false, templates = false, profile = false
+        var projects = false, dictionary = false, snippets = false, templates = false, recipes = false, profile = false
         // Every item once when gathering finishes; after that only what each update says was added or changed.
         let items: [Any]
         if n.name == .NSMetadataQueryDidUpdate {
@@ -70,6 +70,7 @@ final class CloudSync: NSObject {
             case (_, "dictionary.json"), (_, "dictionary-deleted.json"): dictionary = true
             case (_, "snippets.json"), (_, "snippets-deleted.json"): snippets = true
             case (_, "templates.json"), (_, "templates-deleted.json"): templates = true
+            case (_, "recipes.json"), (_, "recipes-deleted.json"): recipes = true
             case (_, "profile.json"): profile = true
             default: break
             }
@@ -89,6 +90,7 @@ final class CloudSync: NSObject {
         if dictionary { store.ingestDictionary() }
         if snippets { store.ingestSnippets() }
         if templates { store.ingestTemplates() }
+        if recipes { store.ingestRecipes() }
         if profile { store.ingestProfile() }
     }
 
