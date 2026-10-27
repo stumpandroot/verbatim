@@ -14,6 +14,8 @@ struct TranscriptScreen: View {
     /// `result`: the template results tab (TemplatesScreens.swift), once a template ran or is running here.
     enum Mode: Hashable { case transcript, document, review, result }
     @State private var mode: Mode = .transcript
+    /// This screen's place in `PhoneState.readingScreens`.
+    @State private var readingToken = UUID()
     @State private var showNotes = false
     @State private var shareItems: [Any]? = nil
     @State private var noteFor: Segment? = nil
@@ -296,8 +298,8 @@ struct TranscriptScreen: View {
             }
         }
         // Reading: Native's Record accessory turns off with the tab bar (RecordAccessory.swift).
-        .onAppear { app.readingTranscripts += 1 }
-        .onDisappear { app.readingTranscripts = max(0, app.readingTranscripts - 1) }
+        .onAppear { app.readingScreens.insert(readingToken) }
+        .onDisappear { app.readingScreens.remove(readingToken) }
     }
 
     /// A toolbar button's icon: the brand line icon in Verbose style, its SF Symbol in Native.

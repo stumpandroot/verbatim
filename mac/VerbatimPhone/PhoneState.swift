@@ -62,8 +62,10 @@ final class PhoneState: ObservableObject {
     @Published var showPlayingSheet = false
     /// Native: Record as's Import asks where from (Photos, files, or a link) (RecordAccessory.swift).
     @Published var showImportChoices = false
-    /// Transcripts on screen: the Native tab bar's Record accessory turns off while you read (RecordAccessory.swift).
-    @Published var readingTranscripts = 0
+    /// Transcript screens on screen, one token each, so a second onAppear can't leave Record's accessory off after you
+    /// leave (build 233). The Native tab bar's Record accessory turns off while you read (RecordAccessory.swift).
+    @Published var readingScreens: Set<UUID> = []
+    var readingTranscripts: Int { readingScreens.count }
     /// The Action button's What's playing: the sheet asks for the system broadcast picker as soon as it shows.
     var playingSheetStartsPicker = false
     @Published var showOnboarding = Onboarding.shouldShow

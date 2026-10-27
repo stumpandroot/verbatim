@@ -438,8 +438,9 @@ enum PhoneUITest {
                         lookCheck("a transcript turns off Record's accessory while you read", app.readingTranscripts > 0)
                     }
                     app.libraryPath = NavigationPath()
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    if prefix == "p" { lookCheck("leaving the transcript brings Record's accessory back", app.readingTranscripts == 0) }
+                    // The pop's transition ends before onDisappear; give a slow runner up to 3 s.
+                    for _ in 0..<12 where app.readingTranscripts > 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
+                    if prefix == "p" { lookCheck("leaving the transcript brings Record's accessory back (\(app.readingTranscripts) still open)", app.readingTranscripts == 0) }
                 }
                 // You, from Home's This week card: the week, the year, the stat cards, and the calendar.
                 app.tab = .home
