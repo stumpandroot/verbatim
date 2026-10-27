@@ -120,5 +120,16 @@ if args.count >= 5, let before = load(args[2]), let stamped = load(args[3]), let
     check("stamped: Home's note finds build \(n)", ReleaseNotes.pending(current: n, lastSeen: n - 1, notes: stamped)?.build == String(n))
 }
 
+// MARK: Items for this device (What's new on iPhone leads with what you can use there)
+
+let mixed = ["Mac: one.", "Mac: two.", "Fixes a crash.", "iPhone: three.", "Mac and iPhone: four."]
+let phoneSplit = ReleaseNotes.split(mixed, phone: true)
+check("split on iPhone: iPhone and Mac and iPhone first, then the rest, in order",
+      phoneSplit.here == ["iPhone: three.", "Mac and iPhone: four.", "Fixes a crash."])
+check("split on iPhone: Mac-only items fold away, in order", phoneSplit.other == ["Mac: one.", "Mac: two."])
+let macSplit = ReleaseNotes.split(mixed, phone: false)
+check("split on Mac: Mac items first, iPhone-only items fold away",
+      macSplit.here == ["Mac: one.", "Mac: two.", "Mac and iPhone: four.", "Fixes a crash."] && macSplit.other == ["iPhone: three."])
+
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -157,6 +157,21 @@ enum ReleaseNotes {
         return out
     }
 
+    /// A build's items for one device, in the file's order within each part: first the ones for this device ("iPhone:"
+    /// on iPhone, and "Mac and iPhone:"), then the ones with no device named, and apart from them the ones only for the
+    /// other device ("Mac:" on iPhone), which What's new folds under "On your Mac".
+    static func split(_ items: [String], phone: Bool) -> (here: [String], other: [String]) {
+        let mine = phone ? "iPhone:" : "Mac:", theirs = phone ? "Mac:" : "iPhone:"
+        var first: [String] = [], unnamed: [String] = [], other: [String] = []
+        for item in items {
+            let t = item.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix(theirs) { other.append(item) }
+            else if t.hasPrefix(mine) || t.hasPrefix("Mac and iPhone:") || t.hasPrefix("iPhone and Mac:") { first.append(item) }
+            else { unnamed.append(item) }
+        }
+        return (first + unnamed, other)
+    }
+
     /// The entry for a build number.
     static func note(for build: Int, in notes: [ReleaseNote]) -> ReleaseNote? {
         notes.first { $0.number == build }
