@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Add from Library on iPhone: a searchable list of transcripts not in Recently Deleted and not already in the project,
-/// with the Library's type and platform chips, tap to select, and an Add button. A transcript is in one project at a
+/// built like the Library (its soft type and platform chips, mono day headers, and flat rows with a leading check),
+/// tap to select, and an Add button. A transcript is in one project at a
 /// time, so one from another project says where it moves from, and adding asks first.
 struct PhoneAddFromLibrarySheet: View {
     @EnvironmentObject var app: PhoneState
@@ -24,7 +25,7 @@ struct PhoneAddFromLibrarySheet: View {
         NavigationStack {
             List {
                 Section {
-                    LibraryFilterBar(filter: $filter, items: candidates, searching: searching, wraps: false) { filter.save(LibraryFilter.addSheetKey) }
+                    chips(candidates, searching: searching)
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
@@ -34,14 +35,20 @@ struct PhoneAddFromLibrarySheet: View {
                             .font(.system(size: 15)).foregroundStyle(.lookDim)
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     }
-                    ForEach(shown) { t in
-                        row(t)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                    ForEach(Self.days(shown), id: \.day) { group in
+                        PhoneDayHeader(text: PhoneDayHeader.label(group.day))
+                            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        ForEach(group.items) { t in
+                            row(t)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        }
                     }
                 }
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 1)
             .scrollContentBackground(.hidden)
             .phonePage()
             .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
@@ -68,31 +75,72 @@ struct PhoneAddFromLibrarySheet: View {
         .tint(Ink.ink)
     }
 
+    /// The Library's chips: All and each type the candidates have, then platforms for Videos and Links.
+    private func chips(_ candidates: [Transcript], searching: Bool) -> some View {
+        let sources = filter.sourceCounts(candidates, searching: searching).filter { $0.0 != .all }.map(\.0)
+        let platforms = filter.platformCounts(candidates, searching: searching)
+        return VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    PhoneChip(label: "All", selected: filter == .all) { setFilter(.all) }
+                    ForEach(sources) { s in
+                        PhoneChip(label: s.label, selected: filter.source == s, dot: LibraryScreen.dot(s)) {
+                            setFilter(filter.source == s ? .all : LibraryFilter(source: s))
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            if filter.source.hasPlatforms, !platforms.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(platforms, id: \.0) { p, n in
+                            PhoneChip(label: p, selected: filter.platform == p, count: n) {
+                                setFilter(LibraryFilter(source: filter.source, platform: filter.platform == p ? nil : p))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
+            }
+        }
+    }
+
+    private func setFilter(_ f: LibraryFilter) {
+        guard f != filter else { return }
+        filter = f
+        filter.save(LibraryFilter.addSheetKey)
+    }
+
+    /// The candidates by day, newest day first, keeping their order inside each day.
+    static func days(_ items: [Transcript]) -> [(day: Date, items: [Transcript])] {
+        let cal = Calendar.current
+        var out: [(day: Date, items: [Transcript])] = []
+        for t in items {
+            let d = cal.startOfDay(for: t.createdAt)
+            if let last = out.indices.last, out[last].day == d { out[last].items.append(t) } else { out.append((d, [t])) }
+        }
+        return out
+    }
+
+    /// A Library row with a check in front: tap to choose it. One from another project says where it moves from.
     private func row(_ t: Transcript) -> some View {
         let on = selection.contains(t.id)
+        var meta = LibraryScreen.meta(t)
+        if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name { meta += " · Moves from \(name)" }
         return Button {
             if on { selection.remove(t.id) } else { selection.insert(t.id) }
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22)).foregroundStyle(on ? Ink.ink : Ink.mute)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(t.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
-                    HStack(spacing: 5) {
-                        Text(LibraryFilter.describe(t))
-                        if t.duration > 0 { Text("·"); Text(t.duration.timecode).font(.system(size: 12.5)).monospacedDigit() }
-                    }
-                    .font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(1)
-                    if let other = t.projectId, let name = app.store.projects.first(where: { $0.id == other })?.name {
-                        Text("Moves from \(name)").font(.system(size: 12.5, weight: .medium)).foregroundStyle(.lookDim)
-                    }
+                    .accessibilityHidden(true)
+                PhoneFlatRow(transcript: t, serif: false, meta: meta) {
+                    if t.duration > 0 { Text(t.duration.timecode).font(Ink.mono(12)).foregroundStyle(.lookDim) }
                 }
-                Spacer(minLength: 6)
-                Text(Formats.style(date: .short, time: .none).string(from: t.createdAt)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.lookMute)
             }
-            .padding(12)
-            .cardSurface(radius: Radius.row, fill: on ? Ink.ink.opacity(0.06) : Ink.card)
-            .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

@@ -599,6 +599,26 @@ struct PhoneKindDot: View {
     }
 }
 
+/// The title a recording's row shows. A thought still transcribing or one that failed can have no title, and some
+/// recordings keep a placeholder ("Thought", "Voice memo"); those rows show what it is and when instead: "Thought ·
+/// 2:09 AM", "Voice note · 4:12 PM". A row never shows an empty title line. `withTime` is off where the row already
+/// shows the time beside the title (Premium's date line).
+enum PhoneRowTitle {
+    /// Titles that only say what a recording is, not what's in it.
+    static let placeholders: Set<String> = Transcript.defaultTitles.union(["Thought"])
+
+    static func title(_ t: Transcript, withTime: Bool = true) -> String {
+        let trimmed = t.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty || placeholders.contains(trimmed) else { return trimmed }
+        let what: String
+        if t.kind == .idea { what = "Thought" }
+        else if trimmed.isEmpty || trimmed == "Voice memo" || trimmed == "Untitled" { what = t.isDictation ? "Dictation" : "Voice note" }
+        else { what = trimmed }
+        guard withTime else { return what }
+        return "\(what) · \(Formats.style(date: .none, time: .short).string(from: t.createdAt))"
+    }
+}
+
 /// One recording as a flat row on the paper (Library, Home): the round source mark, the title (serif in Library,
 /// semibold sans on Home), a meta line, and on the right the state as a plain word and the length in mono. A
 /// hairline below; no card.
@@ -627,7 +647,7 @@ struct PhoneFlatRow<Trailing: View>: View {
                     if transcript.pinned {
                         Image(systemName: "pin.fill").font(.caption2).foregroundStyle(NativeInk.secondary).accessibilityLabel("Pinned")   // brand: native
                     }
-                    Text(transcript.title).font(.body).foregroundStyle(NativeInk.label).lineLimit(1)
+                    Text(PhoneRowTitle.title(transcript)).font(.body).foregroundStyle(NativeInk.label).lineLimit(1)
                 }
                 Text(meta).font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1)
             }
@@ -646,7 +666,7 @@ struct PhoneFlatRow<Trailing: View>: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     if transcript.pinned { IconGlyph(art: .iconPin, size: 12, color: Ink.mute).accessibilityLabel("Pinned") }
-                    Text(transcript.title)
+                    Text(PhoneRowTitle.title(transcript))
                         .font(serif ? Ink.serif(titleSize) : .system(size: sansSize, weight: .semibold))
                         .foregroundStyle(.lookInk).lineLimit(1)
                 }
