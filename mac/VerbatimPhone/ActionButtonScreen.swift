@@ -140,6 +140,7 @@ struct ActionButtonSetupCard: View {
 /// End the session after: 10 or 30 minutes, 1, 2, or 4 hours idle, or Until I end it. The same setting as
 /// Settings › Keyboard.
 private struct IdleTimeoutRow: View {
+    @Environment(\.look) private var look
     @ObservedObject var session: KeyboardSession
     var body: some View {
         HStack(spacing: 10) {
