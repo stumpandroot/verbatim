@@ -27,7 +27,7 @@ struct DictionaryScreen: View {
                             Text(e.heardAs.joined(separator: ", ")).font(.system(size: 13)).foregroundStyle(.lookMute)
                         }
                     }
-                    .tint(Ink.switchOn)
+                    .tint(PhoneInk.switchOn)
                 }
                 .onDelete { idx in app.store.dictionary.remove(atOffsets: idx) }
             }

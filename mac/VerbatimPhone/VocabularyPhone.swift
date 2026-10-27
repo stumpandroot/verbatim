@@ -160,7 +160,7 @@ struct PhoneBuiltInVocabularySection: View {
                     Text(on ? "\(active) of \(all.count) terms on" : "Off").font(.system(size: 13)).foregroundStyle(.lookMute)
                 }
             }
-            .tint(Ink.switchOn)
+            .tint(PhoneInk.switchOn)
             if on {
                 NavigationLink { PhoneBuiltInTermsScreen() } label: { Text("Terms") }
             }
@@ -196,7 +196,7 @@ struct PhoneBuiltInTermsScreen: View {
                             .font(.system(size: 13)).foregroundStyle(.lookMute).lineLimit(2)
                     }
                 }
-                .tint(Ink.switchOn)
+                .tint(PhoneInk.switchOn)
             }
         }
         .overlay { if shown.isEmpty { Text("Nothing matches \u{201C}\(query)\u{201D}").foregroundStyle(.lookMute) } }

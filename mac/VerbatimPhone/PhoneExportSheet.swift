@@ -32,12 +32,14 @@ struct PhoneExportSheet: View {
                 } footer: {
                     Text(format.note)
                 }
+                .listRowBackground(Ink.card)
                 Section("Options") {
                     ExportOptionRows(options: $options, format: format,
                                      speakersAvailable: ts.contains { $0.speakers.count >= 2 },
                                      summaryAvailable: ts.contains { Exporter.summary($0) != nil })
                 }
                 .listRowBackground(Ink.card)
+                .tint(PhoneInk.switchOn)
                 Section {
                     Text(preview.isEmpty ? "Nothing to export yet." : preview)
                         .lookMono(11.5).foregroundStyle(.lookInk).lineSpacing(3)
@@ -66,10 +68,13 @@ struct PhoneExportSheet: View {
                 .font(.system(size: 16, weight: .semibold))
                 .disabled(ts.isEmpty)
                 .padding(.horizontal, 20).padding(.vertical, 10)
-                .background(.bar)
+                // Opaque paper with a hairline on top: the Copy and Share labels never sit on a blur (DESIGN.md §5.1).
+                .background(Ink.paper)
+                .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
             }
         }
-        .tint(Ink.switchOn)
+        // Values and Cancel in ink; the Options switches take the app's switch color (above).
+        .tint(Ink.ink)
         .onAppear(perform: refresh)
         .onChange(of: options) { _, o in o.save(); refresh() }
         .onChange(of: format) { _, f in ExportOptions.savedFormat = f; refresh() }
