@@ -210,7 +210,6 @@ struct NativeLiveAccessory: View {
             .padding(.trailing, 4)
         }
         .disabled(saving)
-        .sensoryFeedback(trigger: paused) { _, _ in Haptics.feedback(.impact(weight: .light)) }
         // One element for VoiceOver, as the Verbose bar: "Recording, 4 minutes 12 seconds", with Pause or Resume,
         // Stop, and Open.
         .accessibilityElement(children: .ignore)

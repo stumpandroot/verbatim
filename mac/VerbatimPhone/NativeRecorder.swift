@@ -80,7 +80,6 @@ struct NativeRecorder: View {
             startedAt = Date().addingTimeInterval(-app.recorder.live.elapsed)
         }
         .onDisappear { Self.visible = false }
-        .sensoryFeedback(trigger: paused) { _, _ in Haptics.feedback(.impact(weight: .light)) }
         .accessibilityAction(.escape) { app.minimizeRecorder() }
         .alert("Name this moment", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
             TextField("Moment", text: $nameDraft)
