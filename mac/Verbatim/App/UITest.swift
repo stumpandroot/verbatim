@@ -124,6 +124,9 @@ enum UITest {
             // Ask: the sidebar's Ask, a suggested recipe, the ⌘K panel's switch, an answer, a citation, and no answer.
             await askSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // Build 228 review fixes (Mac: Home, Library, Transcript, Templates, Moments).
+            await reviewFixesMacA(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -2673,6 +2676,84 @@ extension UITest {
         let homeAfter = ScreenPlaces.shared.liveOffset(homeKey)
         check("\(tag): Home comes back at the same scroll offset (\(homeBefore.map { "\(Int($0))" } ?? "none"), now \(homeAfter.map { "\(Int($0))" } ?? "none"))",
               homeBefore != nil && homeAfter.map { abs($0 - homeBefore!) <= 4 } == true)
+    }
+
+    // MARK: Review fixes (build 228, Mac group A)
+
+    /// The build 228 review's Mac fixes for Home, the Library, the transcript, Templates, and Moments (M-01 to M-34,
+    /// M-55 to M-57): the rules behind them, then the Library's Read by day link, clicked.
+    private static func reviewFixesMacA(app: AppState, window: NSWindow) async {
+        let name = "review 228"
+        // Home
+        check("\(name): the Accessibility popover has a fixed width, so its reason wraps (M-01)", DictateControls.width == 320)
+        check("\(name): previews run a greeting's blank line into one space (M-04)",
+              HomeDictationText.oneLine("Hi Jonathan,\n\nI think we should meet  on Friday.") == "Hi Jonathan, I think we should meet on Friday.")
+        check("\(name): Edit Home names the tiles row Tiles (M-02)", HomeSection.tiles.title == "Tiles")
+        check("\(name): a compact Native tile row needs 760 pt, else two by two (M-06)", HomeView.nativeTilesRowWidth == 760)
+        var memo = Transcript(title: "m", source: .voiceMemo, sourceLabel: "Voice memo", duration: 67, audioFileName: "m.m4a", model: "")
+        memo.status = .ready
+        memo.createdAt = Date()
+        let meta = HomeRecentStyle.metaParts(memo, style: HomeRecentStyle(memo), compact: false, day: false).map(\.text)
+        check("\(name): Premium items leave the day out of the meta line (M-09: \(meta.joined(separator: " · ")))",
+              !meta.contains("Today") && meta.contains("Voice note"))
+        check("\(name): the app picker's error is plain words with a way to fix it (M-11)",
+              !AppPickerSheet.permissionText.contains("TCC") && AppPickerSheet.permissionText.contains("Screen & System Audio Recording"))
+        // Library
+        var thought = ThoughtPadMigration.textThought("Buy the long wagon bolts.", at: Date(), source: "Mac")
+        thought.status = .ready
+        var ideaMemo = memo; ideaMemo.kind = .idea
+        check("\(name): Thoughts' kind dot is neutral, voice notes keep Record (M-12)",
+              KindDot.isNeutral(thought) && KindDot.isNeutral(ideaMemo) && !KindDot.isNeutral(memo))
+        check("\(name): a text-only thought reads Text with no length (M-13)", WebStatus.isTextOnly(thought) && !WebStatus.isTextOnly(memo))
+        check("\(name): one name for voice notes (M-14)", LibrarySource.voiceMemos.label == "Voice notes" && LibraryFilter.describe(memo) == "Voice note"
+              && TranscriptView.sourceName(memo) == "Voice note")
+        check("\(name): Journal's day headers use the Library's date order (M-15)", JournalDays.dateFormat == "EEE MMM d")
+        let thisYear = Calendar.current.component(.year, from: Date())
+        let upload = LinkUploadDate.short("\(thisYear)0912") ?? ""
+        let older = LinkUploadDate.short("20190912") ?? ""
+        check("\(name): a link's date drops this year, keeps an older one (M-18: \(upload), \(older))",
+              !upload.isEmpty && !upload.contains("\(thisYear)") && older.contains("2019"))
+        check("\(name): a dictation's meta says Cleaned once (M-23)",
+              DictationMeta.parts(app: "Mail", level: "Clean", byVoice: false, cleaned: true) == ["Mail", "Cleaned"]
+              && DictationMeta.parts(app: "Messages", level: "Literal", byVoice: false, cleaned: false) == ["Messages", "Literal"])
+        check("\(name): the table's Status column fits Transcribing (M-22)", NativeLibraryView.statusMinWidth >= 104)
+        // Transcript
+        check("\(name): playback is sage, not Record (M-24)", PlayerDock.playFill == Ink.panelSage && PlayerDock.playFill != Ink.panelRecord)
+        let segs = [Segment(start: 0, end: 1, text: "Hi.", speaker: "S2"), Segment(start: 1, end: 2, text: "Hello.", speaker: "S1"),
+                    Segment(start: 2, end: 3, text: "Again.", speaker: "S2")]
+        check("\(name): speaker colors follow who talks first (M-30)",
+              SpeakerRotation.firstAppearance("S2", in: segs) == 0 && SpeakerRotation.firstAppearance("S1", in: segs) == 1
+              && SpeakerRotation.firstAppearance("S3", in: segs) == nil)
+        check("\(name): the multitrack sheet uses the transcript's rotation (M-30)", MultitrackSheet.marks == SpeakerRotation.fills)
+        check("\(name): the Export sheet fits the window and names a batch (M-28)",
+              ExportSheet.height(window: 620) == 540 && ExportSheet.height(window: nil) == 660 && ExportSheet.height(window: 300) == 420
+              && ExportSheet.exportTitle(count: 3, batch: true) == "Export 3 files…" && ExportSheet.exportTitle(count: 1, batch: false) == "Export…")
+        // Templates
+        check("\(name): a template row's auto state is in its meta line (M-31)",
+              TemplateAutoBadge.metaLine(summary: "Decisions", kinds: [.meeting]) == "Runs for Meeting · Decisions"
+              && TemplateAutoBadge.metaLine(summary: "Decisions", kinds: []) == "Decisions")
+        check("\(name): the template editor never runs past the window (M-32)", TemplateEditorSheet.maxHeight(window: 700) == 620)
+        // Moments
+        var mark = Note(text: "", at: 12, isBookmark: true); mark.markSource = MarkSource.lockScreen.rawValue
+        let plain = Note(text: "Mine", at: 3, isBookmark: false)
+        check("\(name): Moments has a Marked chip, and marks count as bookmarks (M-55)",
+              MomentFilter.kinds.contains("Marked") && MomentFilter.matches("Marked", mark) && MomentFilter.matches("Bookmarks", mark)
+              && !MomentFilter.matches("Marked", plain) && MomentFilter.matches("Notes", plain))
+        check("\(name): one short form for where a mark came from (M-56)",
+              MarkSource.macHotkey.short() == "Mac · \(Marks.defaultHotkey)" && Marks.shortSource(mark) == "Lock Screen")
+        // UI copy in the new strings: no em dashes or exclamation points.
+        let copy = [AppPickerSheet.permissionText, ExportSheet.exportTitle(count: 2, batch: true), TemplateAutoBadge.metaLine(summary: "x", kinds: [.journal])]
+        check("\(name): new copy has no em dashes or exclamation points", copy.allSatisfy { !$0.contains("\u{2014}") && !$0.contains("!") })
+
+        // The Library's Thoughts hero links to By day (M-21), clicked.
+        app.projectFilter = nil; app.libraryFilter = .all; app.libraryKind = .idea
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        await step("\(name): the Library's Thoughts has Read by day, which opens By day (M-21)", window, target: "library-read-by-day",
+                   check: { app.screen == .byDay(.idea) })
+        app.libraryKind = nil
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 600_000_000)
     }
 
     /// View › `title`, validated as the menu bar would before it opens.
