@@ -370,6 +370,8 @@ struct KeyboardSetupScreen: View {
 
                 PhoneLowerAudioRow()
 
+                KeyboardTypingHapticsRow()
+
                 Text(Distribution.current.returnsToHostApp
                      ? "The first time you tap the record button, Verbose opens for a second to turn on the microphone, then switches back. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it. If Verbose can't switch back by itself, tap ◀ and your app's name at the top left."
                      : "The first time you tap Start a session, Verbose opens to turn on the microphone. Go back to your app with ◀ and its name at the top left, or swipe right along the bottom edge. That starts a session: from then on, dictation starts right in the keyboard. The session shows in the Dynamic Island and on the Lock Screen, where you can end it.")

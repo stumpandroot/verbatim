@@ -434,7 +434,7 @@ struct PhoneTemplateTryOnSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { preview.stop(); dismiss() } }
                 if preview.phase == .done {
-                    ToolbarItem(placement: .primaryAction) { Button("Copy") { UIPasteboard.general.string = preview.text; app.say("Copied") } }
+                    ToolbarItem(placement: .primaryAction) { Button("Copy") { UIPasteboard.general.string = preview.text; app.say("Copied"); Haptics.play(.copied) } }
                 }
             }
         }
@@ -519,7 +519,7 @@ struct PhoneTemplateResults: View {
                             Button(t.name) { center.run(t.id, on: transcript.id, store: app.store) }
                         }
                     }
-                    Button("Copy") { UIPasteboard.general.string = TemplateResultText.plain(r.text); app.say("Copied") }
+                    Button("Copy") { UIPasteboard.general.string = TemplateResultText.plain(r.text); app.say("Copied"); Haptics.play(.copied) }
                     ShareLink(item: TemplateResultText.plain(r.text)) { Text("Share") }
                     Button("Save as note") {
                         app.store.addNote(Note(text: TemplateResultText.plain(r.text), aiAction: r.name), to: transcript.id)

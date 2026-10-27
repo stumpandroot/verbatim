@@ -561,6 +561,8 @@ targets:
       - Verbatim/Views/Brand.swift
       # Pure string rules: strikes out spoken corrections in the live words, and the notice after inserting.
       - Verbatim/Flow/SpokenCorrections.swift
+      # Which haptic each event plays, shared with the app and the watch (DESIGN.md §7).
+      - Verbatim/Model/HapticPolicy.swift
     info:
       path: VerbatimKeyboard/Info.plist
       properties:
@@ -751,6 +753,7 @@ targets:
       - path: VerbatimWatch
         excludes: ["Info.plist", "VerbatimWatch.entitlements"]
       - Verbatim/Model/WatchTransfer.swift
+      - Verbatim/Model/HapticPolicy.swift
       - Verbatim/Views/Tokens.swift
       - Verbatim/Views/Look.swift
       - Verbatim/Views/Brand.swift

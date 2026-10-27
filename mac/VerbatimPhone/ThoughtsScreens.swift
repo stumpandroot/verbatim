@@ -92,6 +92,7 @@ struct DayPageScreen: View {
     private func copyPage(_ items: [Transcript]) {
         UIPasteboard.general.string = ThoughtText.joined(items)
         app.say("Copied \(DayPages.title(name, day: day))")
+        Haptics.play(.copied)
     }
 
     private func move(_ to: Date?) {
@@ -303,7 +304,7 @@ struct DayPageScreen: View {
     @ViewBuilder private func menu(_ t: Transcript) -> some View {
         let words = ThoughtText.words(t)
         if !words.isEmpty {
-            Button { UIPasteboard.general.string = words; app.say("Copied") } label: { Label("Copy", art: .iconCopy) }
+            Button { UIPasteboard.general.string = words; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", art: .iconCopy) }
         }
         if thoughts, t.status == .ready {
             Button { editing = t } label: { Label("Edit", art: .iconNotes) }

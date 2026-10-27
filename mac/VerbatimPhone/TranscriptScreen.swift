@@ -667,9 +667,9 @@ struct PhoneLines: View {
                     Button { app.addNote(transcript.id, text: String(s.text.prefix(60)), at: s.start, segment: s.id, bookmark: true) } label: { Label("Bookmark", systemImage: "bookmark") }   // brand: system surface (menu)
                     Button { onNote(s) } label: { Label("Add note…", systemImage: "note.text.badge.plus") }   // brand: system surface (menu)
                     Button { fixing = s } label: { Label("Fix a word…", systemImage: "pencil") }   // brand: system surface
-                    Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied") } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
+                    Button { UIPasteboard.general.string = "“\(s.text)”"; app.say("Quote copied"); Haptics.play(.copied) } label: { Label("Copy quote", systemImage: "quote.opening") }   // brand: system surface (menu)
                     if let info = transcript.linkInfo, info.supportsTimestamps, let u = info.url(at: s.start) {
-                        Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied") } label: { Label("Copy quote with link", systemImage: "link") }   // brand: system surface (menu)
+                        Button { UIPasteboard.general.string = "“\(s.text)” \(u.absoluteString)"; app.say("Quote and link copied"); Haptics.play(.copied) } label: { Label("Copy quote with link", systemImage: "link") }   // brand: system surface (menu)
                         Link(destination: u) { Label("Open video at \(s.start.timecode)", systemImage: "play.rectangle") }   // brand: system surface (menu)
                     }
                     if transcript.offersSponsorMarking, fold == nil {

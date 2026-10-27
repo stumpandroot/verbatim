@@ -49,7 +49,10 @@ final class KeyboardModel: ObservableObject {
     @Published var showsGlobe = true
     /// Allow Full Access. Off until the controller reads it: nothing touches the App Group without it.
     @Published var hasFullAccess = false {
-        didSet { typing.hasFullAccess = hasFullAccess }
+        didSet {
+            typing.hasFullAccess = hasFullAccess
+            typing.typingHaptic = policy.haptic(for: .typingKey)
+        }
     }
     /// The resting view: Home or Typing (`KeyboardSurface.opening` picks it on each appearance). Typing works
     /// without Full Access; Home explains why dictation needs it.
@@ -374,7 +377,7 @@ final class KeyboardModel: ObservableObject {
         KeyboardBridge.format = format.next
         refreshFormat()
         if stage == .listening, let d = dictation { KeyboardBridge.writeCategory(formatCategory, for: d) }
-        UISelectionFeedbackGenerator().selectionChanged()
+        haptic(.picked)
     }
 
     /// Re-reads the choice (the app resets it to Auto when a session ends) and works out Auto again from the
@@ -397,11 +400,19 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: Haptics
 
-    /// A tap you can feel when dictation starts and when you tap Done. Keyboards can play haptics only with
-    /// Allow Full Access; without it, nothing plays.
-    private func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        guard hasFullAccess else { return }
-        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    /// The keyboard's haptics: the app's start and stop taps when dictation starts and when you tap Done, and a
+    /// selection tick for Inserted, Copied, and the format chip (HapticPolicy.swift). They follow Verbose's Settings ›
+    /// Haptics, read from the App Group. Keyboards can play haptics only with Allow Full Access; without it, nothing
+    /// plays and nothing is read.
+    private func haptic(_ event: HapticEvent) {
+        guard hasFullAccess, let h = policy.haptic(for: event) else { return }
+        HapticPlayer.play(h)
+    }
+
+    /// Settings › Haptics and Settings › Keyboard › Typing haptics, from the App Group (Full Access only).
+    var policy: HapticPolicy {
+        let d = hasFullAccess ? KeyboardBridge.defaults : nil
+        return HapticPolicy(enabled: hasFullAccess && HapticSettings.enabled(in: d), typingKeys: HapticSettings.typingKeys(in: d), platform: .keyboard)
     }
 
     /// Step 1: a session request, then Verbatim opens for a moment and switches back here. With Start dictating
@@ -461,7 +472,7 @@ final class KeyboardModel: ObservableObject {
         defaults.set(d.uuidString, forKey: KeyboardBridge.Key.startID)
         KeyboardBridge.post(KeyboardBridge.Note.command)
         set(.listening)
-        haptic(.medium)
+        haptic(.recordStart)
         retime()
     }
 
@@ -469,7 +480,7 @@ final class KeyboardModel: ObservableObject {
         guard let d = dictation, stage == .listening else { return }
         defaults?.set(d.uuidString, forKey: KeyboardBridge.Key.doneID)
         KeyboardBridge.post(KeyboardBridge.Note.command)
-        haptic(.light)
+        haptic(.recordStop)
         clock.setLevel(0)
         set(.writing)
     }
@@ -557,6 +568,7 @@ final class KeyboardModel: ObservableObject {
         showingRecent = false
         insertion = Insertion(inserted: inserted, text: r.text, raw: r.text, words: Self.wordCount(r.text))
         set(.inserted)
+        haptic(.copied)
     }
 
     /// Copies a recent dictation (touch and hold). Writing the clipboard needs Full Access; without it, tap inserts.
@@ -566,7 +578,7 @@ final class KeyboardModel: ObservableObject {
             return
         }
         UIPasteboard.general.string = r.text
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        haptic(.copied)
         flashInfo("Copied.")
     }
 
@@ -730,7 +742,7 @@ final class KeyboardModel: ObservableObject {
             if dictation == nil, let running = KeyboardBridge.currentRunningDictation { dictation = running.id }
             if dictation != nil {
                 set(.listening)
-                haptic(.medium)
+                haptic(.recordStart)
                 pollDictation(defaults)
             } else {
                 set(.idle)
@@ -894,7 +906,7 @@ final class KeyboardModel: ObservableObject {
             updated.text = polished
             updated.words = Self.wordCount(polished)
             insertion = updated
-            UISelectionFeedbackGenerator().selectionChanged()
+            haptic(.picked)
             report(d, "swapped")
         }
     }

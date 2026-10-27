@@ -298,7 +298,6 @@ struct MiniRecorderBar: View {
         .padding(.horizontal, 12)
         .padding(.top, 6)
         .padding(.bottom, 8)
-        .sensoryFeedback(trigger: paused) { _, _ in Haptics.feedback(.impact(weight: .light)) }
         // One element for VoiceOver: "Recording, 4 minutes 12 seconds", with Pause or Resume, Stop, and Open.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(RecorderPresentation.accessibilityLabel(paused: paused, saving: saving, elapsed: live.elapsed))

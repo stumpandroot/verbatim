@@ -110,7 +110,7 @@ struct AskScreen: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if let r = center.result, center.phase == .done {
-                        Button { UIPasteboard.general.string = r.copyText; app.say("Copied") } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
+                        Button { UIPasteboard.general.string = r.copyText; app.say("Copied"); Haptics.play(.copied) } label: { Label("Copy", systemImage: "doc.on.doc") }   // brand: system surface (menu)
                         Button { editing = PhoneRecipeDraft(question: r.question, scope: r.scope) } label: { Label("Save as Recipe", systemImage: "bookmark") }   // brand: system surface (menu)
                     }
                     Button { app.pushHere(RecipesRoute()) } label: { Label("Recipes", systemImage: "calendar") }   // brand: system surface (menu)

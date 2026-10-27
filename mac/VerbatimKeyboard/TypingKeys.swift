@@ -21,7 +21,20 @@ final class TypingModel: ObservableObject {
 
     /// Haptics need Allow Full Access; input clicks don't.
     var hasFullAccess = false {
-        didSet { impact = hasFullAccess ? UIImpactFeedbackGenerator(style: .light) : nil }
+        didSet { updateImpact() }
+    }
+    /// A key's tap: nil unless Settings › Keyboard › Typing haptics is on (off by default) and Haptics is on
+    /// (`HapticPolicy`, read when the keyboard appears).
+    var typingHaptic: Haptic? {
+        didSet { updateImpact() }
+    }
+
+    private func updateImpact() {
+        if hasFullAccess, case .impact(let weight, _)? = typingHaptic {
+            if impact == nil || impactWeight != weight { impact = UIImpactFeedbackGenerator(style: weight.style); impactWeight = weight }
+        } else {
+            impact = nil; impactWeight = nil
+        }
     }
 
     weak var controller: UIInputViewController?
@@ -46,6 +59,7 @@ final class TypingModel: ObservableObject {
     private var touches: [ObjectIdentifier: Touch] = [:]
     private var repeatTimer: Timer?
     private var impact: UIImpactFeedbackGenerator?
+    private var impactWeight: HapticWeight?
 
     private var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
 
@@ -264,10 +278,10 @@ final class TypingModel: ObservableObject {
     }
 
     /// The system's input click (follows Settings › Sounds › Keyboard Clicks; works without Full Access), plus a
-    /// light tap you can feel with Full Access.
+    /// light tap you can feel with Full Access and Typing haptics on.
     private func feedback() {
         UIDevice.current.playInputClick()
-        impact?.impactOccurred(intensity: 0.6)
+        if let impact, case .impact(_, let intensity)? = typingHaptic { impact.impactOccurred(intensity: CGFloat(intensity)) }
     }
 }
 

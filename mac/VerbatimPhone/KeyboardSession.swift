@@ -362,7 +362,7 @@ final class KeyboardSession: ObservableObject {
         let s = AVAudioSession.sharedInstance()
         // Mixes with other audio, so a session doesn't stop your music or podcast.
         // AirPods record over their high-quality link on iOS 26 (RecordingRoute), falling back to HFP.
-        try s.setCategory(.playAndRecord, mode: .spokenAudio, options: RecordingRoute.options(mixWithOthers: true))
+        try RecordingRoute.setCategory(s, options: RecordingRoute.options(mixWithOthers: true))
         // No pinned input from an earlier recording: the system's current microphone (AirPods when they're in,
         // the iPhone's otherwise), and the capture follows it when that changes.
         try? s.setPreferredInput(nil)
@@ -382,6 +382,8 @@ final class KeyboardSession: ObservableObject {
             return
         }
         do {
+            // The start tap, before the microphone opens (the same tap as Record).
+            Haptics.play(.recordStart)
             try startAudio()
         } catch {
             capture.stop()
@@ -394,10 +396,10 @@ final class KeyboardSession: ObservableObject {
             startedForTake = false
             answer(ok: false, "Couldn't turn on the microphone: \(error.localizedDescription)")
             app?.say("Couldn't turn on the microphone.")
+            Haptics.play(.failed)
             return
         }
         captureStarted()
-        Haptics.play(.light)
         // Back to your app as soon as the capture is running. A short beat lets the screen draw first.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.goBack() }
     }
@@ -1114,7 +1116,7 @@ final class KeyboardSession: ObservableObject {
         KeyboardBridge.copyDictation(text)
         copiedChangeCount = UIPasteboard.general.changeCount
         app?.say("Copied your last take.")
-        Haptics.play(.selection)
+        Haptics.play(.copied)
         if result?.phase == .failed { result = nil; updateActivity() }
     }
 
@@ -1507,7 +1509,7 @@ final class KeyboardSession: ObservableObject {
     }
 
     /// Copied, Inserted, or a failure for a ribbon take. A result shows for `Ribbon.resultHold` seconds; a failed
-    /// copy stays until Verbose opens or the next take starts, so it's never missed. The success haptic plays only
+    /// copy stays until Verbose opens or the next take starts, so it's never missed. The selection tick plays only
     /// with Verbose in front (in-app).
     private func showResult(_ phase: Ribbon.Phase, for id: UUID, words: Int, message: String? = nil) {
         transcribingTakes.remove(id)
@@ -1516,7 +1518,7 @@ final class KeyboardSession: ObservableObject {
         result = (phase, words, message, until)
         updateActivity()
         if phase == .copied || phase == .inserted, UIApplication.shared.applicationState == .active {
-            Haptics.play(.selection)
+            Haptics.play(.copied)
         }
         guard !sticky else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + Ribbon.resultHold + 0.05) { [weak self] in

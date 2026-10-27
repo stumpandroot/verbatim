@@ -7,8 +7,8 @@ import UIKit
 ///
 /// Each file is moved into Verbatim's own temporary folder before its manifest is deleted, so an item is never
 /// imported twice, then it goes through the same import path as a picked file (`importSources`). The first new
-/// item shows the "added" card, which folds and flies into the Library tab (LinkAddedCard.swift); its landing plays
-/// the success haptic. Links go to the link flow, which shows its own card.
+/// item shows the "added" card, which folds and flies into the Library tab (LinkAddedCard.swift); its landing pops
+/// the tab's badge, with no haptic. Links go to the link flow, which shows its own card.
 @MainActor
 private enum InboxRun {
     static var busy = false

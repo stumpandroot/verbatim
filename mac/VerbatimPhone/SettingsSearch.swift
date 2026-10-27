@@ -95,8 +95,8 @@ enum SettingsSearchIndex {
               description: "Use a model that knows each recording's language"),
         .init(id: "limitMotion", section: personalization, label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
               description: "Fades instead of movement; illustrations stay still"),
-        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility"],
-              description: "Light taps when you save, copy, or mark"),
+        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility", "apple watch", "keyboard"],
+              description: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch"),
 
         // Recording and transcription
         .init(id: "quality", section: recording, label: "Quality", keywords: ["model", "accuracy", "speed", "preset", "language"],
@@ -155,6 +155,9 @@ enum SettingsSearchIndex {
         .init(id: "keyboardLowerAudio", section: dictation, label: "Lower other audio while Verbose listens",
               keywords: ["duck", "music", "spotify", "youtube", "podcast", "volume", "quiet", "background sound"],
               description: "Other sound drops to a whisper so it doesn't reach the microphone", target: .page(.keyboard)),
+        .init(id: "keyboardTypingHaptics", section: dictation, label: "Typing haptics",
+              keywords: ["haptics", "vibration", "vibrate", "keys", "typing", "tap", "feedback", "battery"],
+              description: "A light tap with each key you type in the Verbose keyboard", target: .page(.keyboard)),
         // Settings › Action button.
         .init(id: "actionButton", section: dictation, label: "Action button",
               keywords: ["action button", "control center", "dynamic island", "lock screen", "shortcut", "siri", "press", "ribbon", "dictate anywhere", "voice note", "live captions", "clipboard", "what's playing", "broadcast", "thought pad", "quick capture"],
@@ -285,6 +288,7 @@ enum SettingsSearchIndex {
         case "keyboardPolishAfter": return onOff(KeyboardBridge.polishAfter)
         case "keyboardLiveWords": return onOff(KeyboardBridge.liveWords)
         case "keyboardAlwaysCopy": return onOff(KeyboardBridge.alwaysCopy)
+        case "keyboardTypingHaptics": return onOff(HapticSettings.typingKeys(in: KeyboardBridge.defaults))
         case "keyboardDictateButton":
             let b = DictateButton.read(KeyboardBridge.defaults)
             return b.size.title + " · " + b.position.title

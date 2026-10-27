@@ -41,7 +41,7 @@ struct VoiceProfileScreen: View {
         // Verbose style: the eyebrow and serif title sit on the paper, as on every Settings page; the bar stays empty.
         .toolbar { if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } } }
         .onDisappear { model.cancel() }
-        .sensoryFeedback(trigger: isGoodResult) { _, good in good ? Haptics.feedback(.success) : nil }
+        .sensoryFeedback(trigger: isGoodResult) { _, good in good ? Haptics.feedback(.milestone) : nil }
     }
 
     private var isGoodResult: Bool {

@@ -7,6 +7,10 @@ import WatchKit
 // session is active, and watchOS shows the microphone indicator. It stops and saves when another app takes the
 // microphone, or when the watch runs low on space. Stop hands the file to the outbox (WatchLink), which keeps it until
 // the iPhone has it. A mark is a light tap on your wrist and "Marked 4:12" for two seconds.
+//
+// Haptics (DESIGN.md §7 and §20): `.start` just before the microphone opens, `.click` on a mark, `.stop` once it has
+// stopped, and `.failure` when it can't start. They follow the iPhone's Settings › Haptics, which arrives in the
+// context the iPhone sends (`WatchContext.haptics`), and play only with the watch app in front.
 
 @MainActor
 final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
@@ -61,23 +65,41 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         case .undetermined:
             AVAudioApplication.requestRecordPermission { granted in
                 Task { @MainActor in
-                    if granted { self.begin(kind) } else { self.phase = .problem(WatchRules.micMessage) }
+                    if granted { self.begin(kind) } else { self.fail(WatchRules.micMessage) }
                 }
             }
         default:
-            phase = .problem(WatchRules.micMessage)
+            fail(WatchRules.micMessage)
         }
     }
 
+    /// The iPhone's Haptics switch, as the iPhone last sent it (on until it says otherwise).
+    private func play(_ event: HapticEvent) {
+        let policy = HapticPolicy(enabled: link.context?.haptics ?? true, platform: .watch)
+        guard let type = policy.haptic(for: event)?.watchType else { return }
+        WKInterfaceDevice.current().play(type)
+    }
+
+    /// Couldn't start: the message, with the failure tap.
+    private func fail(_ message: String) {
+        phase = .problem(message)
+        play(.failed)
+    }
+
     private func begin(_ kind: WatchCaptureKind) {
-        guard WatchRules.canStart(freeBytes: WatchStore.freeBytes()) else { phase = .problem(WatchRules.fullMessage); return }
+        guard WatchRules.canStart(freeBytes: WatchStore.freeBytes()) else { fail(WatchRules.fullMessage); return }
+        // The start tap before the microphone opens, so its sound isn't in the recording.
+        play(.recordStart)
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.record, mode: .default, options: [])
+            // Marks tap the wrist while recording; watchOS turns haptics off during recording unless this is set
+            // before the session activates.
+            try? session.setAllowHapticsAndSystemSoundsDuringRecording(true)
             try session.setActive(true)
         } catch {
             watchLog.error("audio session: \(error.localizedDescription, privacy: .public)")
-            phase = .problem(WatchRules.failedMessage)
+            fail(WatchRules.failedMessage)
             return
         }
         let id = UUID()
@@ -91,14 +113,14 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         ]
         guard let r = try? AVAudioRecorder(url: url, settings: settings) else {
             try? session.setActive(false)
-            phase = .problem(WatchRules.failedMessage)
+            fail(WatchRules.failedMessage)
             return
         }
         r.delegate = self
         r.isMeteringEnabled = true
         guard r.record() else {
             try? session.setActive(false)
-            phase = .problem(WatchRules.failedMessage)
+            fail(WatchRules.failedMessage)
             return
         }
         self.id = id
@@ -111,7 +133,6 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         // Written now and on each mark, so a recording the app is closed in the middle of still goes to the iPhone.
         WatchStore.writeDetails(currentTransfer(duration: 0), beside: url)
         phase = .recording
-        WKInterfaceDevice.current().play(.start)
         ticks = 0
         meter = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -143,7 +164,7 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         let r = WatchRules.adding(elapsed, to: marks)
         marks = r.marks
         WatchStore.writeDetails(currentTransfer(duration: elapsed), beside: WatchStore.recordingURL(id))
-        WKInterfaceDevice.current().play(.click)
+        play(.mark)
         confirmed = r.confirmed
         let token = UUID()
         confirmToken = token
@@ -162,6 +183,8 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         meter = nil
         r.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // After the microphone has stopped, with the screen changing to Sent (or back to Record when too short).
+        play(.recordStop)
         let url = WatchStore.recordingURL(id)
         guard duration >= 0.5 else {
             WatchStore.remove(url)
@@ -170,7 +193,6 @@ final class WatchRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
         let t = currentTransfer(duration: duration)
         link.enqueue(file: url, transfer: t)
-        WKInterfaceDevice.current().play(.stop)
         confirmed = nil
         phase = .sent(t, reachable: link.reachable, note: note)
         watchLog.notice("saved \(Int(duration)) s with \(t.marks.count) marks")

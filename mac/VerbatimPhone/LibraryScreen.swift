@@ -349,7 +349,7 @@ struct LibraryScreen: View {
                                 guard !ids.isEmpty else { return false }
                                 for id in ids { app.move(id, to: p.id) }
                                 app.say(ids.count == 1 ? "Moved to \(p.name)" : "Moved \(ids.count) to \(p.name)")
-                                Haptics.play(.light)
+                                Haptics.play(.smallSave)
                                 return true
                             }
                     }

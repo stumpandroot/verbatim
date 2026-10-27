@@ -109,17 +109,20 @@ struct WatchContext: Equatable {
     var lastAt: Date? = nil
     /// When the iPhone sent it.
     var sentAt = Date()
+    /// The iPhone's Settings › Haptics: the watch's start, mark, stop, and failure taps follow it. On when a context
+    /// from an older iPhone build doesn't say.
+    var haptics = true
 
     enum Key {
         static let thoughtsToday = "thoughtsToday", pageEnds = "pageEnds", lastTitle = "lastTitle", lastKind = "lastKind"
-        static let lastDuration = "lastDuration", lastAt = "lastAt", sentAt = "sentAt"
+        static let lastDuration = "lastDuration", lastAt = "lastAt", sentAt = "sentAt", haptics = "haptics"
     }
 
     /// The longest title sent: the Smart Stack shows two lines at most.
     static let titleLimit = 60
 
     func dictionary() -> [String: Any] {
-        var d: [String: Any] = [Key.thoughtsToday: thoughtsToday, Key.pageEnds: pageEnds, Key.sentAt: sentAt]
+        var d: [String: Any] = [Key.thoughtsToday: thoughtsToday, Key.pageEnds: pageEnds, Key.sentAt: sentAt, Key.haptics: haptics]
         if let lastTitle { d[Key.lastTitle] = String(lastTitle.prefix(Self.titleLimit)) }
         if let lastKind { d[Key.lastKind] = lastKind }
         if let lastDuration { d[Key.lastDuration] = lastDuration }
@@ -128,9 +131,9 @@ struct WatchContext: Equatable {
     }
 
     init(thoughtsToday: Int, pageEnds: Date, lastTitle: String? = nil, lastKind: String? = nil, lastDuration: Double? = nil,
-         lastAt: Date? = nil, sentAt: Date = Date()) {
+         lastAt: Date? = nil, sentAt: Date = Date(), haptics: Bool = true) {
         self.thoughtsToday = thoughtsToday; self.pageEnds = pageEnds; self.lastTitle = lastTitle; self.lastKind = lastKind
-        self.lastDuration = lastDuration; self.lastAt = lastAt; self.sentAt = sentAt
+        self.lastDuration = lastDuration; self.lastAt = lastAt; self.sentAt = sentAt; self.haptics = haptics
     }
 
     /// Nil when the dictionary isn't one (an empty context, or one from a build that sent something else).
@@ -144,6 +147,7 @@ struct WatchContext: Equatable {
         lastDuration = (d[Key.lastDuration] as? Double) ?? (d[Key.lastDuration] as? NSNumber)?.doubleValue
         lastAt = d[Key.lastAt] as? Date
         sentAt = (d[Key.sentAt] as? Date) ?? Date()
+        haptics = (d[Key.haptics] as? Bool) ?? (d[Key.haptics] as? NSNumber)?.boolValue ?? true
     }
 
     /// Kept as a property list in the App Group, where the complication reads it.

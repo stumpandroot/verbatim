@@ -11,6 +11,7 @@ extension PhoneState {
     func copyForAI(_ t: Transcript) {
         UIPasteboard.general.string = t.copyForAI
         say("Copied for AI, with title, date, and source")
+        Haptics.play(.copied)
     }
 }
 

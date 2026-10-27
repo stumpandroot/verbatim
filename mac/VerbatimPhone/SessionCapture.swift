@@ -186,6 +186,7 @@ final class SessionCapture: @unchecked Sendable {
         pendingRebuild = nil
         guard running else { endBackground(); return }
         do {
+            RecordingRoute.allowHaptics()
             try? AVAudioSession.sharedInstance().setActive(true)
             try startEngine(reason: "rebuild after \(why)")
             scheduleVerify()

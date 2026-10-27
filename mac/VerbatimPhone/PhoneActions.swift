@@ -91,7 +91,7 @@ struct PhoneActionSheet: View {
                     Text("Apple Intelligence can be wrong. Edit the result before you keep it.")
                         .font(.system(size: 12.5)).foregroundStyle(.lookMute)
                     HStack(spacing: 10) {
-                        Button { UIPasteboard.general.string = result; app.say("Copied"); dismiss() } label: {
+                        Button { UIPasteboard.general.string = result; app.say("Copied"); Haptics.play(.copied); dismiss() } label: {
                             Label("Copy", art: .iconCopy).frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.phonePrimary)

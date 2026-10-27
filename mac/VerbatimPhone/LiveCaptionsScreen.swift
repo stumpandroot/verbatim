@@ -34,6 +34,7 @@ final class PhoneCaptions: ObservableObject {
         recorder.onAutoPaused = { [weak self] reason in
             self?.paused = true
             self?.pauseReason = reason
+            Haptics.play(.autoPaused)
         }
         // The recording resumed on its own after a call (or moved to another mic): show it running again.
         recorder.onInputSwitched = { [weak self] _ in
@@ -58,6 +59,8 @@ final class PhoneCaptions: ObservableObject {
         words.locale = CaptionLanguage.locale
         recorder.liveTap = words.tap
         do {
+            // Before the microphone opens, so the tap isn't in the recording.
+            Haptics.play(.recordStart)
             try recorder.start(to: url)
         } catch {
             recorder.liveTap = nil
@@ -75,7 +78,10 @@ final class PhoneCaptions: ObservableObject {
     }
 
     func togglePause() {
+        let resuming = recorder.isPaused
+        if resuming { Haptics.play(.resume) }
         recorder.togglePause()
+        if !resuming, recorder.isPaused { Haptics.play(.pause) }
         paused = recorder.isPaused
         if !paused { pauseReason = nil }
     }

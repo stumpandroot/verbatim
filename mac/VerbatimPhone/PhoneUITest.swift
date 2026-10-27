@@ -107,6 +107,7 @@ enum PhoneUITest {
         premiumChecks(app)
         markChecks(app)
         reviewFixesPhoneA(app)        // Build 228 review fixes: cross-cutting, Home and Edit Home, and Record.
+        hapticChecks(app)             // Haptics: the policy, the switch in the App Group, and haptics while recording.
         reviewFixesPhoneB(app)        // Build 228 review fixes, group B (PhoneReviewFixesB.swift).
         reviewFixesWidgets()   // Build 228 review, W-01 to W-10: Live Activities, controls, widgets, and the keyboard.
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
@@ -1637,12 +1638,13 @@ enum PhoneUITest {
             .allSatisfy { SettingsLabel.square(for: $0) == PhoneInk.wash })
         // P-04: one switch for haptics, on by default, and searchable.
         let hapticsKey = Haptics.enabledKey
-        let storedHaptics = UserDefaults.standard.object(forKey: hapticsKey)
-        UserDefaults.standard.removeObject(forKey: hapticsKey)
+        let hapticsStore = Haptics.store
+        let storedHaptics = hapticsStore.object(forKey: hapticsKey)
+        hapticsStore.removeObject(forKey: hapticsKey)
         let onByDefault = Haptics.enabled
-        UserDefaults.standard.set(false, forKey: hapticsKey)
-        let offWhenOff = !Haptics.enabled && Haptics.feedback(.selection) == nil
-        if let storedHaptics { UserDefaults.standard.set(storedHaptics, forKey: hapticsKey) } else { UserDefaults.standard.removeObject(forKey: hapticsKey) }
+        hapticsStore.set(false, forKey: hapticsKey)
+        let offWhenOff = !Haptics.enabled && Haptics.feedback(.copied) == nil
+        if let storedHaptics { hapticsStore.set(storedHaptics, forKey: hapticsKey) } else { hapticsStore.removeObject(forKey: hapticsKey) }
         check("haptics are on by default and the switch turns them off (P-04)", onByDefault && offWhenOff)
         check("settings search finds Haptics (P-04)", SettingsSearchIndex.search("haptics").flatMap(\.entries).contains { $0.id == "haptics" })
         // P-07: no banned words in You's week sentence.
@@ -1712,6 +1714,47 @@ enum PhoneUITest {
     /// Mark a moment (Model/Marks.swift, mockup "Library features", section 3): the shared rules, marks from each place
     /// on the iPhone with their source and the 3-second dedupe, the confirmation, the Live Activity's state, and the
     /// seeded transcript's mark on its line.
+    /// Haptics (HapticPolicy.swift, DESIGN.md §7): the policy the Linux tests also check, the switch where the keyboard
+    /// and the watch read it, the keyboard's Typing haptics, and the recording session that lets haptics play.
+    static func hapticChecks(_ app: PhoneState) {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") haptics: \(name)")
+        }
+        HapticChecks.run(check)
+
+        // The switch lives in the App Group (the keyboard reads it there), and the watch's context carries it.
+        let key = Haptics.enabledKey
+        let stored = Haptics.store.object(forKey: key)
+        Haptics.store.set(false, forKey: key)
+        let groupOff = KeyboardBridge.defaults.map { !HapticSettings.enabled(in: $0) } ?? false
+        let watchOff = !PhoneWatchLink.context(app.store).haptics
+        let policyOff = HapticEvent.allCases.allSatisfy { Haptics.policy.haptic(for: $0) == nil && Haptics.feedback($0) == nil }
+        if let stored { Haptics.store.set(stored, forKey: key) } else { Haptics.store.removeObject(forKey: key) }
+        check("the Haptics switch is in the App Group, where the keyboard reads it", groupOff)
+        check("the switch off plays nothing, here or on the watch", policyOff && watchOff)
+        check("the watch's context follows the switch back on", PhoneWatchLink.context(app.store).haptics == Haptics.enabled)
+        check("Typing haptics is off by default and searchable",
+              (KeyboardBridge.defaults?.object(forKey: HapticSettings.typingKey) != nil || !HapticSettings.typingKeys(in: KeyboardBridge.defaults))
+              && SettingsSearchIndex.search("typing haptics").flatMap(\.entries).contains { $0.id == "keyboardTypingHaptics" })
+
+        // Haptics while recording: the recording session allows them before it activates (RecordingRoute).
+        let session = AVAudioSession.sharedInstance()
+        let allowedBefore = session.allowHapticsAndSystemSoundsDuringRecording
+        try? session.setAllowHapticsAndSystemSoundsDuringRecording(false)
+        RecordingRoute.allowHaptics(session)
+        check("the recording session allows haptics while the microphone records", session.allowHapticsAndSystemSoundsDuringRecording)
+        try? session.setAllowHapticsAndSystemSoundsDuringRecording(allowedBefore)
+
+        // Transcript ready plays once per recording.
+        let id = UUID()
+        var once = ReadyOnce()
+        check("transcript ready plays once per recording, only in front",
+              once.ready(id, foreground: true, queueEmpty: true) && !once.ready(id, foreground: true, queueEmpty: true))
+        Log.note("UITEST haptics: \(pass) passed, \(fail) failed")
+    }
+
     static func markChecks(_ app: PhoneState) {
         var pass = 0, fail = 0
         func check(_ name: String, _ ok: Bool) {

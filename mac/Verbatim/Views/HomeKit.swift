@@ -554,10 +554,12 @@ final class HomeMicTap: @unchecked Sendable {
             guard self.engine == nil else { return }
             let s = AVAudioSession.sharedInstance()
             do {
-                // Mixes with whatever is playing; the recorder sets its own category when it starts.
+                // Mixes with whatever is playing; the recorder sets its own category when it starts. Haptics stay
+                // allowed, so Record's start tap still plays while this meter has the microphone open.
                 if s.category != .playAndRecord && s.category != .record {
-                    try s.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
+                    try RecordingRoute.setCategory(s, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
                 }
+                RecordingRoute.allowHaptics(s)
                 try s.setActive(true)
                 let e = AVAudioEngine()
                 let format = e.inputNode.outputFormat(forBus: 0)

@@ -333,7 +333,7 @@ struct TranscriptScrubber: View {
             TranscriptScrubModel.onScreen = model
         }
         .onChange(of: end) { _, new in model.lines = lines; model.end = new }
-        .sensoryFeedback(trigger: crossings) { _, _ in Haptics.feedback(.selection) }
+        .sensoryFeedback(trigger: crossings) { _, _ in Haptics.feedback(.picked) }
         .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)) { _ in
             voiceOver = UIAccessibility.isVoiceOverRunning
         }

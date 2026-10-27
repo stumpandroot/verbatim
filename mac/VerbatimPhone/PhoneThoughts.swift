@@ -95,6 +95,7 @@ extension PhoneState {
                      moments: [RecordingMoment] = []) -> UUID? {
         guard let name = store.adoptRecording(url) else {
             say("Couldn't save the thought. Its audio is kept in Verbose's recordings folder.")
+            Haptics.play(.failed)
             return nil
         }
         var t = Transcript(title: "Thought", source: .voiceMemo, sourceLabel: Self.thoughtSource, duration: duration, audioFileName: name, model: "")
@@ -106,7 +107,6 @@ extension PhoneState {
         coordinator.enqueue(t)
         lastThought = t.id
         Log.note("thought: added \(String(format: "%.1f", duration)) s; transcribing")
-        Haptics.play(.light)
         if UIApplication.shared.applicationState == .active { say(ThoughtRules.savedTitle) }
         return t.id
     }

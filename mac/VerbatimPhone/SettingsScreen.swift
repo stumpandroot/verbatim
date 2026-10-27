@@ -32,8 +32,8 @@ struct SettingsScreen: View {
     @State private var showAcknowledgements = false
     /// Show words while you record (MiniRecorder.swift). On by default.
     @AppStorage(RecordingLiveText.enabledKey) private var recordLiveWords = true
-    /// Haptics (PhoneMotion.swift's `Haptics`). On by default, per device.
-    @AppStorage(Haptics.enabledKey) private var hapticsOn = true
+    /// Haptics (PhoneMotion.swift's `Haptics`). On by default, per device, in the App Group so the keyboard follows it.
+    @AppStorage(Haptics.enabledKey, store: Haptics.store) private var hapticsOn = true
     /// Understand spoken corrections, in the App Group so the keyboard's live words follow it.
     @AppStorage(SpokenCorrections.enabledKey, store: SpokenCorrections.store) private var spokenCorrections = true
     /// Dictation cleanup level (the Mac's `flow.cleanup` key; per device, never synced).
@@ -337,8 +337,10 @@ struct SettingsScreen: View {
             .settingsSearchTarget("limitMotion", flash: searchFlash)
         SettingsDivider()
         SettingsToggleRow(icon: "hand.tap", tint: PhoneInk.wash, art: .iconHaptics, title: "Haptics",
-                          subtitle: "Light taps when you save, copy, or mark", isOn: $hapticsOn)
+                          subtitle: "Taps when you record, stop, mark, or copy, here, in the keyboard, and on Apple Watch", isOn: $hapticsOn)
             .settingsSearchTarget("haptics", flash: searchFlash)
+            // The Apple Watch follows this switch through the context the iPhone sends it.
+            .onChange(of: hapticsOn) { _, _ in PhoneWatchLink.shared.publish(app.store) }
     }
 
     @ViewBuilder private var recording: some View {

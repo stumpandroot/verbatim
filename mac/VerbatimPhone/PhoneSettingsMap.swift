@@ -87,6 +87,7 @@ enum PhoneSettingsMap {
                 Setting("keyboardIslandWords", keys: ["ribbon.islandWords"]),
                 Setting("keyboardAlwaysCopy", keys: ["kb.alwaysCopy"]),
                 Setting("keyboardLowerAudio", keys: ["audio.lowerOthers"]),
+                Setting("keyboardTypingHaptics", keys: ["kb.typingHaptics"]),
             ]),
             Row(id: "actionButtonRow", page: "actionButton", settings: [
                 Setting("actionButton", keys: ["ribbon.actionButton"]),

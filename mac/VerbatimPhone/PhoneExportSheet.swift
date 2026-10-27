@@ -97,6 +97,7 @@ struct PhoneExportSheet: View {
         guard !ts.isEmpty else { return }
         UIPasteboard.general.string = Exporter.clipboard(ts, as: format, options: options)
         app.say(ts.count == 1 ? "Copied" : "Copied \(ts.count) transcripts")
+        Haptics.play(.copied)
         dismiss()
     }
 

@@ -44,7 +44,7 @@ enum PhoneDucker {
         var options = s.categoryOptions
         if want { options.insert(.duckOthers) } else { options.remove(.duckOthers) }
         do {
-            try s.setCategory(.playAndRecord, mode: s.mode, options: options)
+            try RecordingRoute.setCategory(s, mode: s.mode, options: options)
             try s.setActive(true)
             ducking = want
             Log.note("keyboard session: other audio \(want ? "lowered" : "back to full volume")")

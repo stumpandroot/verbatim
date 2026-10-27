@@ -91,6 +91,8 @@ final class PhoneState: ObservableObject {
     var pendingThought = false
     /// The last Stop was Discard (a thought's Live Activity then ends without "Added to Thoughts").
     var lastStopDiscarded = false
+    /// Transcript ready's `.success`, once per recording (HapticPolicy.swift).
+    private var readyOnce = ReadyOnce()
     /// Stop or Discard was tapped and the recording is being saved: the record screen says "Saving…" until it's done.
     @Published var savingRecording = false
     /// Microphone access is off: an alert with Open Settings.
@@ -131,7 +133,7 @@ final class PhoneState: ObservableObject {
         store.snippetsPublisher.sink { list in
             KeyboardBridge.writeSnippets(list.map { KeyboardBridge.Snippet(id: $0.id, trigger: $0.trigger, expansion: $0.expansion) })
         }.store(in: &bag)
-        recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason) }
+        recorder.onAutoPaused = { [weak self] reason in self?.autoPauseReason = reason; self?.say(reason); Haptics.play(.autoPaused) }
         recorder.onInputSwitched = { [weak self] note in
             if self?.recorder.isPaused == false { self?.autoPauseReason = nil }
             self?.say(note)
@@ -254,7 +256,7 @@ final class PhoneState: ObservableObject {
     private func askMicAndRecord() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.startRecording() } else { self.pendingContinue = nil; self.pendingThought = false; self.recorderSlideIn = false; self.showMicDenied = true }
+                if ok { self.startRecording() } else { self.pendingContinue = nil; self.pendingThought = false; self.recorderSlideIn = false; self.showMicDenied = true; Haptics.play(.failed) }
             }
         }
     }
@@ -272,6 +274,9 @@ final class PhoneState: ObservableObject {
             // A thought with Show words in the Dynamic Island keeps its live words going in the background.
             recordingWords.keepInBackground = pendingThought && ThoughtRules.islandWords()
             recordingWords.prepare(recorder)   // before start, so live text hears the first word
+            // The start tap plays before the microphone opens, so it isn't in the recording. (In the background, from
+            // the Action button, a widget, or Siri, iOS plays nothing; the Live Activity shows the start instead.)
+            Haptics.play(.recordStart)
             try recorder.start(to: url)
             recordingWords.begin()
             recordingMoments = []
@@ -282,15 +287,19 @@ final class PhoneState: ObservableObject {
             // A thought: if Verbatim is closed mid-thought, recovery brings it back as a thought on the day it started.
             beginThoughtIfAsked(url)
             presentRecorder()
-            Haptics.play(.medium)
             warmModel()
-            if let warning = Store.lowSpaceWarning() { say(warning) }
+            if let warning = Store.lowSpaceWarning() {
+                say(warning)
+                // A beat after the start tap, so the two don't run together.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { Haptics.play(.lowStorage) }
+            }
         } catch {
             recordingWords.end()
             pendingThought = false
             recorderSlideIn = false
             if activityFirst { RecordingPresence.shared.cancelActivityBeforeRecording() }
             say("Couldn't start recording: \(error.localizedDescription)")
+            Haptics.play(.failed)
         }
     }
 
@@ -357,8 +366,13 @@ final class PhoneState: ObservableObject {
     }
 
     /// Pause or Resume on the record screen. Resuming clears an automatic pause's reason.
+    /// Pause plays its tap after the audio stops being written; Resume plays it before writing starts again, so
+    /// neither ends up in the recording.
     func togglePause() {
+        let resuming = recorder.isPaused
+        if resuming { Haptics.play(.resume) }
         recorder.togglePause()
+        if !resuming, recorder.isPaused { Haptics.play(.pause) }
         if !recorder.isPaused { autoPauseReason = nil }
     }
 
@@ -377,6 +391,8 @@ final class PhoneState: ObservableObject {
     }
 
     private func finishRecording(discard: Bool) async {
+        // Stop or Discard: the stop tap plays at the tap, not after a long recording's parts are joined.
+        Haptics.play(.recordStop)
         lastStopDiscarded = discard
         recordingWords.end()   // the preview stops at once; the saved transcript comes from the full engine
         autoPauseReason = nil
@@ -399,6 +415,7 @@ final class PhoneState: ObservableObject {
             // Every part stays in the recordings folder; launch recovery joins it into one recording (and the
             // continuation marker sends it to the right transcript, the thought marker to Thoughts).
             say(Store.joinFailedNotice)
+            Haptics.play(.failed)
             return
         }
         Store.clearContinuation(r.startedAs ?? r.url)
@@ -413,14 +430,14 @@ final class PhoneState: ObservableObject {
         }
         if discard {
             if store.keepDiscarded(r) != nil { say("Moved to Recently Deleted.") }
-            else { say("Couldn't move the recording. Verbose recovers it the next time it opens.") }
+            else { say("Couldn't move the recording. Verbose recovers it the next time it opens."); Haptics.play(.failed) }
             return
         }
         if let target {
             let offset = store.transcript(target)?.duration ?? 0
-            guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); return }
+            guard coordinator.queueAppend(recording: r.url, to: target) else { say("Couldn't save the recording."); Haptics.play(.failed); return }
             for n in Store.skippedNotes(r.skipped, offset: offset) + RecordingMoment.notes(moments, offset: offset) { store.addNote(n, to: target) }
-            Haptics.play(.light)
+            readyOnce.newRecording(target)
             return
         }
         if let thoughtStart {
@@ -428,13 +445,12 @@ final class PhoneState: ObservableObject {
             fileThought(url: r.url, duration: r.duration, envelope: r.envelope, startedAt: thoughtStart, skipped: r.skipped, moments: moments)
             return
         }
-        guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); return }
+        guard let name = store.adoptRecording(r.url) else { say("Couldn't save the recording."); Haptics.play(.failed); return }
         var t = Transcript(title: "Voice note", source: .voiceMemo, sourceLabel: "Voice memo", duration: r.duration, audioFileName: name, model: "")
         t.waveform = r.envelope
         t.notes = Store.skippedNotes(r.skipped) + RecordingMoment.notes(moments)
         t.pickKindAtStart(kind)
         enqueue(t)
-        Haptics.play(.light)
         // Premium Native: the Saved sheet, once the recorder's cover has gone.
         if AppLook.current == .native {
             let saved = SavedRecording(id: t.id, length: r.duration, moments: moments.count, savedAt: Date())
@@ -456,7 +472,7 @@ final class PhoneState: ObservableObject {
         if let url = recorder.recordingURL { Marks.save(marks, for: url) }
         let c = MarkConfirmation(at: confirmed.at, count: marks.count)
         lastMark = c
-        Haptics.play(.light)
+        Haptics.play(.mark)
         Log.note("marks: marked \(Marks.clock(confirmed.at)) from \(source.rawValue) (\(marks.count) in this recording)")
         RecordingPresence.shared.marked()
         DispatchQueue.main.asyncAfter(deadline: .now() + Marks.confirmSeconds) { [weak self] in
@@ -492,7 +508,7 @@ final class PhoneState: ObservableObject {
     private func askMicAndOpenCaptions() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.openCaptions() } else { self.showMicDenied = true }
+                if ok { self.openCaptions() } else { self.showMicDenied = true; Haptics.play(.failed) }
             }
         }
     }
@@ -509,23 +525,24 @@ final class PhoneState: ObservableObject {
             } else {
                 showCaptions = false
                 say(captions.status ?? "Couldn't start live captions.")
+                Haptics.play(.failed)
             }
         }
     }
 
     /// Stop or Save transcript on the captions screen.
     func stopCaptions(save: Bool) {
+        Haptics.play(.recordStop)
         showCaptions = false
         if PhoneUITest.enabled { captions.endScreenshots(); return }
         guard save else { captions.discard(); return }
-        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); return }
+        guard let (url, duration, env) = captions.stop() else { say("Couldn't finish saving. Verbose will recover the recording the next time it opens."); Haptics.play(.failed); return }
         // A short one is kept too; only a recording with no audio at all is removed.
         guard duration > 0 else { try? FileManager.default.removeItem(at: url); say(Store.nothingRecordedNotice); return }
-        guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); return }
+        guard let name = store.adoptRecording(url) else { say("Couldn't save the recording."); Haptics.play(.failed); return }
         var t = Transcript(title: "Live captions", source: .voiceMemo, sourceLabel: "Live captions", duration: duration, audioFileName: name, model: "")
         t.waveform = env
         enqueue(t)
-        Haptics.play(.light)
         say("Saved. Transcribing now.")
     }
 
@@ -895,7 +912,7 @@ final class PhoneState: ObservableObject {
     func useSpeakerSuggestion(_ id: UUID, _ s: SpeakerSuggestion) {
         renameSpeaker(id, speaker: s.speakerId, to: s.name)
         store.update(id) { $0.markSpeakerSuggestion(s.id, .accepted) }
-        Haptics.play(.light)
+        Haptics.play(.smallSave)
     }
     /// Dismiss: the suggestion hides and isn't made again.
     func dismissSpeakerSuggestion(_ id: UUID, _ s: SpeakerSuggestion) {
@@ -909,7 +926,7 @@ final class PhoneState: ObservableObject {
     func addNote(_ id: UUID, text: String, at: Double?, segment: UUID?, bookmark: Bool = false) {
         store.addNote(Note(text: text, at: at, segmentId: segment, isBookmark: bookmark), to: id)
         say(bookmark ? "Bookmarked \((at ?? 0).timecode)" : "Note added")
-        Haptics.play(.light)
+        Haptics.play(.smallSave)
     }
     func deleteNote(_ id: UUID, note: UUID) { store.update(id) { $0.notes.removeAll { $0.id == note } } }
 
@@ -918,6 +935,7 @@ final class PhoneState: ObservableObject {
     func copyText(_ t: Transcript, _ v: Exporter.CopyVersion = .cleaned, timestamps: Bool = false) {
         UIPasteboard.general.string = Exporter.copyText(t, v, timestamps: timestamps)
         say("Copied the \(v.name)" + (timestamps ? " with timestamps" : ""))
+        Haptics.play(.copied)
     }
 
     /// Writes an export to a temporary file for the share sheet, named "{title}.{ext}".
@@ -1080,19 +1098,30 @@ extension PhoneState: TranscriptionHost {
     }
 
     func transcriptReady(_ id: UUID, corrections: Int, queueEmpty: Bool) {
-        if queueEmpty { say("Transcript ready"); Haptics.play(.light) }
+        if queueEmpty { say("Transcript ready") }
+        playReady(id, queueEmpty: queueEmpty)
     }
 
     func jobFailed(_ id: UUID, error: Error) {
         say("Transcription failed: \(error.localizedDescription)")
+        Haptics.play(.failed)
     }
 
     func appendReady(_ id: UUID, queueEmpty: Bool) {
-        if queueEmpty { say("New recording added"); Haptics.play(.light) }
+        if queueEmpty { say("New recording added") }
+        playReady(id, queueEmpty: queueEmpty)
     }
 
     func appendFailed(_ id: UUID, error: Error) {
         say("Couldn't add the new recording: \(error.localizedDescription)")
+        Haptics.play(.failed)
+    }
+
+    /// `.success` once per recording, with Verbose in front and the "ready" message showing. A template that runs
+    /// after it adds no second one.
+    private func playReady(_ id: UUID, queueEmpty: Bool) {
+        let front = UIApplication.shared.applicationState == .active
+        if readyOnce.ready(id, foreground: front, queueEmpty: queueEmpty) { Haptics.play(.transcriptReady) }
     }
 
     func notify(_ message: String) { say(message) }

@@ -278,6 +278,7 @@ struct HomeLastDictationSection: View {
 
     private func copy(_ t: Transcript) {
         HomeScreen.copyDictation(HomeDictationText.pasted(t))
+        Haptics.play(.copied)
         copies += 1
         let token = copies
         withAnimation(limitMotion ? Motion.fade : HomeMotion.morph) { copied = true }

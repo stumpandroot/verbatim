@@ -680,7 +680,6 @@ struct RecordScreen: View {
         // Swipe down to minimize where the system's zoom transition doesn't provide it. Never stops the recording.
         .gesture(swipeDown, including: RecorderZoomDestination.systemSwipe(limitMotion: limitMotion) ? .subviews : .all)
         .modifier(RecorderZoomDestination(zoom: zoom))
-        .sensoryFeedback(trigger: paused) { _, _ in Haptics.feedback(.impact(weight: .light)) }
         .accessibilityElement(children: .contain)
         .accessibilityAction(.escape) { app.minimizeRecorder() }
         .confirmationDialog("Move this recording to Recently Deleted?", isPresented: $confirmDiscard, titleVisibility: .visible) {

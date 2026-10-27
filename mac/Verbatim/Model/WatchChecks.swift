@@ -77,6 +77,14 @@ enum WatchChecks {
               && ctxBack?.lastTitle?.count == WatchContext.titleLimit && ctxBack?.lastKind == "Thought" && ctxBack?.lastDuration == 42)
         check("watch: the context survives the App Group", ctx.encoded().flatMap(WatchContext.decode)?.thoughtsToday == 6)
         check("watch: an empty context isn't one", WatchContext(dictionary: [:]) == nil)
+        // The watch's haptics follow the iPhone's Settings › Haptics; an older iPhone's context leaves them on.
+        var quiet = ctx
+        quiet.haptics = false
+        var older = dict
+        older.removeValue(forKey: WatchContext.Key.haptics)
+        check("watch: the iPhone's Haptics switch travels in the context, on when an older iPhone doesn't say",
+              ctxBack?.haptics == true && WatchContext(dictionary: quiet.dictionary())?.haptics == false
+              && quiet.encoded().flatMap(WatchContext.decode)?.haptics == false && WatchContext(dictionary: older)?.haptics == true)
         let now = started.addingTimeInterval(600)
         check("watch: today's count is the iPhone's plus unsent thoughts from today's page",
               WatchRules.thoughtsToday(context: ctx, unsent: [now, started.addingTimeInterval(-90_000)], now: now) == 7)
@@ -118,5 +126,7 @@ enum WatchChecks {
         let sent = WatchImport.context(today: [t], pageEnds: ends, live: [t, meeting, dictation], now: now)
         check("watch import: the context counts today's thoughts and names the newest recording, never a dictation",
               sent.thoughtsToday == 1 && sent.lastTitle == "Design review" && sent.lastKind == "Meeting" && sent.lastDuration == 2465 && sent.pageEnds == ends)
+        check("watch import: the context carries the iPhone's Haptics switch",
+              sent.haptics && !WatchImport.context(today: [t], pageEnds: ends, live: [t], now: now, haptics: false).haptics)
     }
 }

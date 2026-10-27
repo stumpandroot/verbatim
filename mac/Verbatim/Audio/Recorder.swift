@@ -496,6 +496,24 @@ enum RecordingRoute {
         return o
     }
 
+    /// Sets the recording category and lets haptics play while the microphone records. iOS turns haptics off when
+    /// recording begins unless `allowHapticsAndSystemSoundsDuringRecording` is set before the session activates
+    /// (DESIGN.md §7, Haptics), so every recording session (voice notes, thoughts, Live captions, the keyboard
+    /// session) sets its category here, before `setActive(true)`.
+    static func setCategory(_ s: AVAudioSession = .sharedInstance(), mode: AVAudioSession.Mode = .spokenAudio,
+                            options: AVAudioSession.CategoryOptions) throws {
+        try s.setCategory(.playAndRecord, mode: mode, options: options)
+        allowHaptics(s)
+    }
+
+    /// Pause, resume, and mark can buzz while recording. A failure is logged, never thrown: recording matters more.
+    static func allowHaptics(_ s: AVAudioSession = .sharedInstance()) {
+        guard !s.allowHapticsAndSystemSoundsDuringRecording else { return }
+        do { try s.setAllowHapticsAndSystemSoundsDuringRecording(true) } catch {
+            Log.note("audio session: couldn't allow haptics while recording: \(error.localizedDescription)")
+        }
+    }
+
     /// True when the options ask for AirPods high-quality recording (iOS 26 and later), for the self-test.
     static var asksForHighQuality: Bool {
         if #available(iOS 26, *) { return options().contains(.bluetoothHighQualityRecording) }
@@ -677,7 +695,7 @@ final class Recorder: ObservableObject {
         #if os(iOS)
         // iPhone: a record session that keeps going with the screen locked (background audio mode).
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .spokenAudio, options: RecordingRoute.options())
+        try RecordingRoute.setCategory(session, options: RecordingRoute.options())
         try session.setActive(true)
         #endif
         if keepWarm {
@@ -852,6 +870,7 @@ final class Recorder: ObservableObject {
     private func restartCapture(keepInput: Bool = false) -> Bool {
         guard !keepWarm, var engine, let w = writer else { return false }
         #if os(iOS)
+        RecordingRoute.allowHaptics()
         do { try AVAudioSession.sharedInstance().setActive(true) } catch {
             Log.note("recorder: couldn't activate the audio session: \(error.localizedDescription)")
         }
@@ -1836,7 +1855,7 @@ final class Recorder: ObservableObject {
         guard isRecording, writer != nil else { engine = nil; tapFormat = nil; return }
         let s = AVAudioSession.sharedInstance()
         do {
-            try s.setCategory(.playAndRecord, mode: .spokenAudio, options: RecordingRoute.options())
+            try RecordingRoute.setCategory(s, options: RecordingRoute.options())
             try s.setActive(true)
             Log.note("recorder: audio session set up again")
         } catch {
