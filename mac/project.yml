@@ -4,6 +4,9 @@ options:
   deploymentTarget:
     macOS: "14.0"
     iOS: "17.0"
+    # The Apple Watch app and its complications (DESIGN.md §20): watchOS 11 for the double-tap gesture on Mark and the
+    # Smart Stack. An iPhone on iOS 17 still runs Verbose; only the watch needs watchOS 11.
+    watchOS: "11.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -473,6 +476,13 @@ targets:
       - target: VerbatimShare
       # Transcribe what's playing: the ReplayKit broadcast extension that keeps app audio only, also in PlugIns.
       - target: VerbatimBroadcast
+      # The Apple Watch app (VerbatimWatch, DESIGN.md §20), in the app's Watch folder. One switch leaves it out:
+      # VERBOSE_WATCH=NO bash tools/generate-project.sh drops the marked lines, so the iPhone app builds and ships
+      # without it (CI's TestFlight job retries that way if the watch app fails to sign). Keep only this dependency
+      # between the markers; tools/test-watch.sh checks.
+      # >>> Apple Watch
+      - target: VerbatimWatch
+      # <<< Apple Watch
     info:
       path: VerbatimPhone/Info.plist
       properties:
@@ -723,6 +733,103 @@ targets:
         SWIFT_STRICT_CONCURRENCY: minimal
         TARGETED_DEVICE_FAMILY: "1,2"
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        APPLICATION_EXTENSION_API_ONLY: true
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
+
+  # The Apple Watch app (DESIGN.md §20; mockup "Library features", section 4): Record and New thought, a recording
+  # screen with Mark and Stop, and Sent to iPhone. It records AAC into its own outbox and sends each file to the iPhone
+  # with Watch Connectivity, which queues it until the iPhone is in reach; the iPhone imports, transcribes, and syncs
+  # it (VerbatimPhone/PhoneWatch.swift). Always dark. Embedded in the iPhone app's Watch folder (the switch on
+  # VerbatimPhone's dependencies). Kept small: the wire format, the palette, and the glyphs, nothing else shared.
+  VerbatimWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: VerbatimWatch
+        excludes: ["Info.plist", "VerbatimWatch.entitlements"]
+      - Verbatim/Model/WatchTransfer.swift
+      - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
+      - Verbatim/Views/Brand.swift
+    dependencies:
+      # The complications and the Smart Stack card, in the watch app's PlugIns folder.
+      - target: VerbatimWatchWidgets
+    info:
+      path: VerbatimWatch/Info.plist
+      properties:
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: co.stumpandroot.verbatim.ios
+        # The iPhone transcribes, so the watch app comes with the iPhone app.
+        WKRunsIndependentlyOfCompanionApp: false
+        NSMicrophoneUsageDescription: "Verbose records voice notes and thoughts on your Apple Watch and sends them to your iPhone, which transcribes them."
+        # Recording goes on with the screen off or your wrist down while its audio session is active.
+        UIBackgroundModes: [audio]
+        # verbatim://watch/record and …/thought from the complications and the Smart Stack (WatchRules).
+        CFBundleURLTypes:
+          - CFBundleURLName: co.stumpandroot.verbatim.ios.watchkitapp
+            CFBundleURLSchemes: [verbatim]
+    entitlements:
+      path: VerbatimWatch/VerbatimWatch.entitlements
+      properties:
+        # Shared with the complications only (on the watch): the iPhone's thought count and the unsent thoughts.
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.watchkitapp
+        PRODUCT_NAME: VerbatimWatch
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        WATCHOS_DEPLOYMENT_TARGET: "11.0"
+        TARGETED_DEVICE_FAMILY: "4"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+        DEAD_CODE_STRIPPING: true
+
+  # The watch's complications and Smart Stack card (WidgetKit): Record (circular), today's thoughts (rectangular), and
+  # the last capture with a relevance score for the Smart Stack. They draw only, from what the watch app keeps in the
+  # App Group, and open the watch app to its recorder; they can't record on their own.
+  VerbatimWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: VerbatimWatchWidgets
+        excludes: ["Info.plist", "VerbatimWatchWidgets.entitlements"]
+      - Verbatim/Model/WatchTransfer.swift
+      - Verbatim/Views/Tokens.swift
+      - Verbatim/Views/Look.swift
+      - Verbatim/Views/Brand.swift
+    info:
+      path: VerbatimWatchWidgets/Info.plist
+      properties:
+        CFBundleName: Verbose
+        CFBundleDisplayName: Verbose
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: VerbatimWatchWidgets/VerbatimWatchWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.stumpandroot.verbatim.ios]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.stumpandroot.verbatim.ios.watchkitapp.widgets
+        PRODUCT_NAME: VerbatimWatchWidgets
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        WATCHOS_DEPLOYMENT_TARGET: "11.0"
+        TARGETED_DEVICE_FAMILY: "4"
         APPLICATION_EXTENSION_API_ONLY: true
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: true

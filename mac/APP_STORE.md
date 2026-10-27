@@ -75,6 +75,18 @@ To go back to the ad hoc archive, run `gh secret delete IOS_DEV_CERTIFICATE --en
 
 Quick check (`.github/workflows/check-swift.yml`) compiles the iPhone app both ways on every push to `integrate`, and on every branch push that changes a file the iPhone app or its extensions build from. The App Store pass confirms that `APP_STORE` is defined, that `YOUTUBE_ON_DEVICE` isn't, and that none of the private names below are left in the app (`_hostBundleID`, `_hostApplicationBundleIdentifier`, `_systemNavigationAction`, `LSApplicationWorkspace`, `openApplicationWithBundleID`). It no longer rejects the keyboard's `openURL:options:completionHandler:` selector; see the next section.
 
+### Apple Watch
+
+The iPhone app embeds the Apple Watch app (`VerbatimWatch`, bundle ID `co.stumpandroot.verbatim.ios.watchkitapp`) and its complications (`co.stumpandroot.verbatim.ios.watchkitapp.widgets`), DESIGN.md §20. Both carry the App Group `group.co.stumpandroot.verbatim.ios`. The export's automatic signing registers the two bundle IDs and their profiles with the API key, the same way it handles the extensions.
+
+One switch leaves the watch app out: `VERBOSE_WATCH=NO bash tools/generate-project.sh` generates the project without the iPhone app's dependency on it. The TestFlight job tries with the watch app first. If the archive, the entitlement check, or the upload fails, it generates the project again with `VERBOSE_WATCH=NO`, archives and uploads once more, and prints a warning that the build left the watch app out. When that warning shows:
+
+1. Open the job's warnings. The first try's errors say what failed, such as a profile that couldn't be created for a watch bundle ID.
+1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list), check that both bundle IDs exist with the App Groups capability and the group `group.co.stumpandroot.verbatim.ios`. Create them if they don't.
+1. Push to main again. The next build includes the watch app.
+
+The App Store listing needs Apple Watch screenshots before a build with the watch app goes to App Review.
+
 ## Accepted risk: the keyboard opens Verbose (guideline 4.4.1)
 
 Guideline 4.4.1 says keyboard extensions may not launch apps other than Settings. Verbose's keyboard opens Verbose anyway, in every build, App Store and TestFlight included, the way Wispr Flow's does: Start a session (and the record button with no session) opens `verbatim://session?start=1&request=…`, which starts the session. Tim decided this in October 2026, knowing it risks rejection, because the alternative (a card with three text instructions) was bad to use.

@@ -133,7 +133,7 @@ struct PhoneRoot: View {
         .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
         // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); AskRecipeCenter.shared.runDue() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); app.importWatchInbox(); AskRecipeCenter.shared.runDue() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
@@ -282,6 +282,9 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate {
         LinkDownloads.shared.activate()
         // Ask's recipes on their schedule: iOS's background refresh, registered before launch finishes.
         AskBackgroundRefresh.register()
+        // Apple Watch recordings (PhoneWatch.swift): activated before launch finishes, so iOS can hand over a file from
+        // the watch while Verbose runs in the background.
+        PhoneWatchLink.shared.activate()
         return true
     }
 

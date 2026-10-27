@@ -154,11 +154,12 @@ jobs:
             echo "  $s: $(du -sch Vendor/ffmpeg/*.xcframework/$s/*.framework 2>/dev/null | tail -1 | cut -f1)"
           done
 
+      # With the Apple Watch app (the default of tools/generate-project.sh), so the iPhone leg compiles it too.
       - name: Generate the project
         run: |
           brew install xcodegen
           [ -f Local.xcconfig ] || : > Local.xcconfig
-          xcodegen generate --quiet
+          bash tools/generate-project.sh
           bash tools/package-resolved.sh install
       - name: Build the grammar library
         if: steps.harper.outputs.cache-hit != 'true'
@@ -170,7 +171,9 @@ jobs:
           if [ "${{ matrix.target }}" = "Mac" ]; then
             ARGS=(-scheme Verbatim -destination 'generic/platform=macOS' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
           else
-            ARGS=(-scheme VerbatimPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
+            # No -sdk: it would force the embedded Apple Watch app onto the iPhone simulator's SDK. The destination
+            # picks iphonesimulator for the iPhone targets and watchsimulator for the watch app and its complications.
+            ARGS=(-scheme VerbatimPhone -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
           fi
           if ! xcodebuild -project Verbatim.xcodeproj "${ARGS[@]}" -configuration Debug -derivedDataPath build/dd \
               -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
@@ -184,6 +187,12 @@ jobs:
           FW="$APP/Contents/Frameworks"; [ -d "$FW" ] || FW="$APP/Frameworks"
           ls -d "$FW"/libav*.framework "$FW"/libswresample.framework || { echo "::error::FFmpeg's frameworks aren't embedded in $APP"; exit 1; }
           echo "FFmpeg frameworks in the ${{ matrix.target }} app: $(du -sch "$FW"/libav*.framework "$FW"/libswresample.framework | tail -1 | cut -f1)"
+          # The Apple Watch app (DESIGN.md §20) and its complications, built for the watch simulator and embedded.
+          if [ "${{ matrix.target }}" = "iPhone" ]; then
+            W="$APP/Watch/VerbatimWatch.app"
+            ls -d "$W" "$W/PlugIns/VerbatimWatchWidgets.appex" || { echo "::error::The Apple Watch app or its complications aren't embedded in $APP"; exit 1; }
+            echo "Apple Watch app in the iPhone app: $(du -sh "$W" | cut -f1)"
+          fi
 
       # Every Swift package version comes from mac/Package.resolved; a build that resolved anything else fails.
       - name: Swift package versions match Package.resolved
@@ -198,7 +207,7 @@ jobs:
         run: |
           set -o pipefail
           LOG="$RUNNER_TEMP/appstore.log"
-          if ! xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+          if ! xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -destination 'generic/platform=iOS Simulator' \
               ARCHS=arm64 ONLY_ACTIVE_ARCH=YES -configuration Debug -derivedDataPath build/dd \
               -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
               CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO VERBATIM_APP_STORE=YES build > "$LOG" 2>&1; then
@@ -224,6 +233,16 @@ jobs:
           # Not checked on purpose: the keyboard's openURL:options:completionHandler: (opening Verbose from the
           # keyboard), an accepted guideline 4.4.1 risk (mac/APP_STORE.md). The loop above still covers the keyboard.
           echo "The App Store build compiles, with no undocumented interfaces beyond the keyboard's accepted openURL selector."
+
+      # The switch TestFlight falls back on (mac/APP_STORE.md, "Apple Watch"): VERBOSE_WATCH=NO generates a project whose
+      # iPhone app doesn't embed the watch app. Seconds, no build; the last step, since it replaces the project.
+      - name: The project without the Apple Watch app generates
+        if: matrix.target == 'iPhone'
+        run: |
+          VERBOSE_WATCH=NO bash tools/generate-project.sh
+          if grep -q "Embed Watch Content" Verbatim.xcodeproj/project.pbxproj; then echo "::error::VERBOSE_WATCH=NO still embeds the Apple Watch app"; exit 1; fi
+          xcodebuild -project Verbatim.xcodeproj -list > /dev/null
+          echo "Without the watch app, the iPhone app embeds nothing in a Watch folder; the project still lists every target."
 
   # The pure-logic tests (mac/tools/test-*.sh): no Xcode, so they run on Linux with Swift 6.1.2 from swift.org.
   logic:

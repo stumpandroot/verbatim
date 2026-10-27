@@ -148,6 +148,9 @@ final class PhoneState: ObservableObject {
         RecordingPresence.shared.attach(self)
         // New thought from a widget, control, the Action button, Back Tap, or Siri (NewThoughtIntent, PhoneThoughts.swift).
         ThoughtSignal.attach(self)
+        // Recordings from the Apple Watch, and today's thought count for it (PhoneWatch.swift). Watch Connectivity itself
+        // is activated at launch (PhoneAppDelegate), so files arrive even before this runs.
+        PhoneWatchLink.shared.attach(self)
         // The queue, unfinished imports, link fetches, the keyboard's numbers, the widgets, and the self-test start
         // once the library has loaded (the transcripts are decoded off the main thread, after the first frame).
         store.whenLoaded { [weak self] in self?.resumeAfterLoad() }
@@ -534,6 +537,10 @@ final class PhoneState: ObservableObject {
         var label: String
         var source: SourceKind = .file
         var createdAt: Date? = nil
+        /// A kind you chose (a thought from the Apple Watch): kept, so AutoLabel never replaces it. Nil lets AutoLabel pick.
+        var kind: RecordingKind? = nil
+        /// Notes the transcript starts with (the Apple Watch's marks, as bookmarks).
+        var notes: [Note] = []
         /// Runs once the audio is prepared or the import failed (the inbox deletes its staged copy here).
         var finished: (() -> Void)? = nil
     }
@@ -546,6 +553,8 @@ final class PhoneState: ObservableObject {
         for s in sources {
             var t = Transcript(title: s.title, source: s.source, sourceLabel: s.label, duration: 0, audioFileName: nil, model: "")
             if let d = s.createdAt { t.createdAt = d }
+            if let k = s.kind { t.kind = k; t.kindIsAuto = false }
+            if !s.notes.isEmpty { t.notes = s.notes }
             t.status = .processing; t.stage = PendingImports.stage; t.processingDevice = Device.id; t.processingDeviceName = Device.name
             store.add(t)
             // Picked files: if the app quits before the audio is ready, launch imports the file again when it's still

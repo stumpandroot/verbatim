@@ -210,7 +210,7 @@ enum PhoneUITest {
                 await thoughtsTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 await templatesTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
                 await askTour(app, prefix: prefix, suffix: "", checks: prefix == "p")
-                if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app); await actionButtonDictateChecks(app) }
+                if prefix == "p" { await newThoughtChecks(app); await newThoughtIntentChecks(app); await actionButtonDictateChecks(app); await watchChecks(app) }
                 // Add from Library on the seeded project (made-up transcripts; nothing is added).
                 if let project = app.store.projects.first(where: { $0.name == "Lapp Wagons" }) {
                     app.addFromLibrary = project.id
@@ -760,6 +760,68 @@ enum PhoneUITest {
     /// continuation stood in for). First a cold launch, before `PhoneState` attaches: the request waits and Verbose
     /// opens. Then with the app running: a thought records in place behind its Live Activity, or, as in a simulator
     /// with no microphone, Verbose opens with nothing recording and no Live Activity left. Either way, no trap.
+    /// Apple Watch capture (DESIGN.md §20): the shared rules, then a recording from the watch as Watch Connectivity hands
+    /// it over (there's no watch in CI): a thought with two marks lands on today's page from the Apple Watch with its
+    /// moments, the inbox empties, the same file sent again isn't a second recording, a voice note keeps AutoLabel's
+    /// kind, a file without Verbose's details is ignored, and the count the watch gets is today's page.
+    private static func watchChecks(_ app: PhoneState) async {
+        func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name.hasPrefix("watch") ? "" : "watch: ")\(name)") }
+        WatchChecks.run(check)
+        let link = PhoneWatchLink.shared
+        func tone(_ name: String) -> URL {
+            let u = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: u)
+            writeToneFile(u, seconds: 2)
+            return u
+        }
+        /// Waits for the import to give the transcript its audio (the self-test never transcribes).
+        func imported(_ label: String, startedAt: Date) async -> Transcript? {
+            for _ in 0..<50 {
+                if let t = app.store.live.first(where: { $0.sourceLabel == label && abs($0.createdAt.timeIntervalSince(startedAt)) < 0.01 }), t.audioFileName != nil { return t }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+            return app.store.live.first { $0.sourceLabel == label && abs($0.createdAt.timeIntervalSince(startedAt)) < 0.01 }
+        }
+
+        let started = Date().addingTimeInterval(-30)
+        let marks = [WatchTransferMark(at: 0.4, createdAt: started), WatchTransferMark(at: 1.6, createdAt: started)]
+        let thought = WatchTransfer(kind: .thought, startedAt: started, duration: 2, marks: marks)
+        let before = app.store.todaysThoughts().count
+        check("a thought from the watch is received", link.receive(fileAt: tone("watch-selftest-thought.wav"), metadata: thought.metadata()))
+        let t = await imported(WatchImport.thoughtLabel, startedAt: started)
+        check("it's imported with its audio", t?.audioFileName != nil && t?.status != .failed)
+        check("it's a Thoughts recording you chose", t?.kind == .idea && t?.kindIsAuto == false)
+        check("it lands on today's page", t.map { tt in app.store.todaysThoughts().contains { $0.id == tt.id } } ?? false
+              && app.store.todaysThoughts().count == before + 1)
+        check("its page says Apple Watch", t.map(ThoughtText.origin) == "Apple Watch")
+        let moments = t?.notes.filter(\.isMark) ?? []
+        check("its two marks are moments from the Apple Watch", moments.count == 2 && moments.allSatisfy { Marks.source($0) == .watch }
+              && moments.first.flatMap(Marks.chipSource) == "from the Apple Watch")
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        check("the Watch inbox lets go of the audio once it's imported", WatchInbox.pending().isEmpty && WatchInbox.wasImported(thought.id))
+
+        let count = app.store.live.count
+        check("the same file again is received", link.receive(fileAt: tone("watch-selftest-again.wav"), metadata: thought.metadata()))
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        check("the same file again isn't a second recording", app.store.live.count == count && WatchInbox.pending().isEmpty)
+
+        let noteStart = Date().addingTimeInterval(-20)
+        let note = WatchTransfer(kind: .voiceNote, startedAt: noteStart, duration: 2)
+        link.receive(fileAt: tone("watch-selftest-note.wav"), metadata: note.metadata())
+        let v = await imported(WatchImport.voiceLabel, startedAt: noteStart)
+        check("a voice note from the watch goes to the Library for AutoLabel to name", v?.audioFileName != nil && v?.kind == nil && v?.kindIsAuto == true)
+        check("a voice note isn't a thought", v.map { vv in !app.store.todaysThoughts().contains { $0.id == vv.id } } ?? false)
+
+        check("a file without Verbose's details is ignored", !link.receive(fileAt: tone("watch-selftest-other.wav"), metadata: ["other": 1]) && WatchInbox.pending().isEmpty)
+
+        let ctx = PhoneWatchLink.context(app.store)
+        check("the watch's count is today's page", ctx.thoughtsToday == app.store.todaysThoughts().count && ctx.pageEnds > Date())
+        check("the watch's count travels as a property list", WatchContext(dictionary: ctx.dictionary())?.thoughtsToday == ctx.thoughtsToday)
+
+        // The tour's screens stay as they were.
+        for x in [t, v].compactMap({ $0 }) { if let cur = app.store.transcript(x.id) { app.store.delete(cur) } }
+    }
+
     private static func newThoughtIntentChecks(_ app: PhoneState) async {
         func check(_ name: String, _ ok: Bool) { Log.note("UITEST \(ok ? "PASS" : "FAIL") thoughts: \(name)") }
         // A cold launch from the widget.

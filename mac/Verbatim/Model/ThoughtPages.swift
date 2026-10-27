@@ -12,8 +12,10 @@ enum ThoughtText {
         return t.segments.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// "Mac" or "iPhone": where it was recorded, in the sans meta line under a thought.
+    /// "Mac", "iPhone", or "Apple Watch": where it was recorded, in the sans meta line under a thought. A thought from
+    /// the watch is transcribed on the iPhone, so its label decides before the device that transcribed it.
     static func origin(_ t: Transcript) -> String {
+        if t.sourceLabel.lowercased().contains("apple watch") { return WatchImport.origin }
         let s = (t.sourceLabel + " " + (t.processingDeviceName ?? "")).lowercased()
         return s.contains("iphone") ? "iPhone" : "Mac"
     }

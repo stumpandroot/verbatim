@@ -664,7 +664,9 @@ struct BrandPrimaryButtonStyle: ButtonStyle {
                 .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : hover ? 0.92 : 1), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .opacity(enabled ? 1 : 0.45)
                 .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                #if !os(watchOS)
                 .onHover { hover = $0 }
+                #endif
                 .animation(.easeOut(duration: 0.14), value: hover)
         }
     }
@@ -688,7 +690,9 @@ struct BrandSecondaryButtonStyle: ButtonStyle {
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(hover ? Ink.outlineStrong : Ink.hairline))
                 .opacity(enabled ? 1 : 0.45)
                 .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                #if !os(watchOS)
                 .onHover { hover = $0 }
+                #endif
                 .animation(.easeOut(duration: 0.14), value: hover)
         }
     }

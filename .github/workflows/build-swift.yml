@@ -881,11 +881,12 @@ jobs:
         with:
           path: mac/build/spm
           key: spm-${{ hashFiles('mac/project.yml', 'mac/Package.resolved') }}
+      # With the Apple Watch app (the default of tools/generate-project.sh), as TestFlight first tries.
       - name: Generate the project
         run: |
           brew install xcodegen
           [ -f Local.xcconfig ] || : > Local.xcconfig
-          xcodegen generate --quiet
+          bash tools/generate-project.sh
           bash tools/package-resolved.sh install
 
       # The same stamping as the Mac build: What's new names this build (mac/ReleaseNotes/README.md).
@@ -907,7 +908,8 @@ jobs:
           else
             bash Vendor/harper/build-ios.sh > "$P/diag/phone-harper-${N}.log" 2>&1
           fi
-          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug -sdk iphonesimulator \
+          # No -sdk: it would force the embedded Apple Watch app onto the iPhone simulator's SDK (check-swift.yml).
+          xcodebuild -project Verbatim.xcodeproj -scheme VerbatimPhone -configuration Debug \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build-phone \
             -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO build > "$P/xcodebuild.log" 2>&1
           status=$?
@@ -1064,7 +1066,8 @@ jobs:
           bash Vendor/harper/build-ios.sh
           brew install xcodegen
           [ -f Local.xcconfig ] || : > Local.xcconfig
-          xcodegen generate --quiet
+          # With the Apple Watch app first; the upload step retries without it if it fails (VERBOSE_WATCH=NO).
+          bash tools/generate-project.sh
           bash tools/package-resolved.sh install
           xcodebuild -resolvePackageDependencies -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" \
             -clonedSourcePackagesDirPath build/spm > "$RUNNER_TEMP/resolve.log" 2>&1 || { tail -n 30 "$RUNNER_TEMP/resolve.log"; exit 1; }
@@ -1133,25 +1136,6 @@ jobs:
           # YouTube on the iPhone (YOUTUBE_ON_DEVICE). Guideline 5.2.3 makes that a rejection risk, so never submit
           # one of these builds for App Review or external testing; archive one without it (mac/APP_STORE.md).
           echo "::notice::TestFlight build ${GITHUB_RUN_NUMBER} fetches YouTube on the iPhone. Internal testing only; don't submit it for review."
-          xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -configuration AppStore -destination 'generic/platform=iOS' \
-            -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
-            "VERBATIM_PHONE_CONDITIONS_YES=APP_STORE YOUTUBE_ON_DEVICE" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            "${SIGN[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1 || {
-              echo "::error::iPhone archive failed"
-              if grep -q "maximum number of certificates" "$RUNNER_TEMP/phone-archive.log"; then echo "::error::$LIMIT_HINT"; fi
-              grep -E "error:|No profiles|requires a provisioning|Provisioning profile" "$RUNNER_TEMP/phone-archive.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
-              tail -n 40 "$RUNNER_TEMP/phone-archive.log"; exit 1; }
-          # The export keeps the entitlements each binary was signed with, so check them before anything is uploaded:
-          # the app and its four extensions (project.yml) share the App Group, and the app also has iCloud.
-          APP="$ARCHIVE/Products/Applications/Verbatim.app"
-          missing=0
-          for b in "$APP" "$APP"/PlugIns/{VerbatimKeyboard,VerbatimWidgets,VerbatimShare,VerbatimBroadcast}.appex; do
-            ent=$(codesign -d --entitlements - "$b" 2>/dev/null || true)
-            grep -q "group.co.stumpandroot.verbatim.ios" <<< "$ent" || { echo "::error::${b##*/} is missing from the archive or has no App Group entitlement"; missing=1; }
-            if [ "$b" = "$APP" ]; then grep -q "iCloud.co.stumpandroot.verbatim" <<< "$ent" || { echo "::error::Verbatim.app has no iCloud entitlement in the archive"; missing=1; }; fi
-          done
-          [ $missing -eq 0 ] || { echo "::error::Nothing was uploaded. See mac/APP_STORE.md, \"TestFlight signing\"."; exit 1; }
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1164,12 +1148,62 @@ jobs:
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict></plist>
           PLIST
-          xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -exportPath "$RUNNER_TEMP/phone-export" "${AUTH[@]}" > "$RUNNER_TEMP/phone-upload.log" 2>&1 || {
-              echo "::error::TestFlight upload failed"
-              if grep -q "maximum number of certificates" "$RUNNER_TEMP/phone-upload.log"; then echo "::error::$LIMIT_HINT"; fi
-              grep -iE "error|No suitable application records|ITMS-" "$RUNNER_TEMP/phone-upload.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::error::$l"; done
-              tail -n 40 "$RUNNER_TEMP/phone-upload.log"; exit 1; }
+          # Archive, check, and upload. Returns 1 on a failure and prints its errors at LEVEL ("error", or "warning" on a
+          # try that's followed by another).
+          ship() {
+            local level="$1"
+            rm -rf "$ARCHIVE" "$RUNNER_TEMP/phone-export"
+            if ! xcodebuild -project Verbatim.xcodeproj -scheme "VerbatimPhone App Store" -configuration AppStore -destination 'generic/platform=iOS' \
+                -archivePath "$ARCHIVE" -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation \
+                "VERBATIM_PHONE_CONDITIONS_YES=APP_STORE YOUTUBE_ON_DEVICE" \
+                DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+                "${SIGN[@]}" archive > "$RUNNER_TEMP/phone-archive.log" 2>&1; then
+              echo "::$level::iPhone archive failed"
+              if grep -q "maximum number of certificates" "$RUNNER_TEMP/phone-archive.log"; then echo "::$level::$LIMIT_HINT"; fi
+              grep -E "error:|No profiles|requires a provisioning|Provisioning profile" "$RUNNER_TEMP/phone-archive.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::$level::$l"; done
+              tail -n 40 "$RUNNER_TEMP/phone-archive.log"; return 1
+            fi
+            # The export keeps the entitlements each binary was signed with, so check them before anything is uploaded:
+            # the app and its four extensions (project.yml) share the App Group, and the app also has iCloud.
+            APP="$ARCHIVE/Products/Applications/Verbatim.app"
+            local missing=0
+            for b in "$APP" "$APP"/PlugIns/{VerbatimKeyboard,VerbatimWidgets,VerbatimShare,VerbatimBroadcast}.appex; do
+              ent=$(codesign -d --entitlements - "$b" 2>/dev/null || true)
+              grep -q "group.co.stumpandroot.verbatim.ios" <<< "$ent" || { echo "::$level::${b##*/} is missing from the archive or has no App Group entitlement"; missing=1; }
+              if [ "$b" = "$APP" ]; then grep -q "iCloud.co.stumpandroot.verbatim" <<< "$ent" || { echo "::$level::Verbatim.app has no iCloud entitlement in the archive"; missing=1; }; fi
+            done
+            [ $missing -eq 0 ] || { echo "::$level::Nothing was uploaded. See mac/APP_STORE.md, \"TestFlight signing\"."; return 1; }
+            # The Apple Watch app (DESIGN.md §20), when it's in: it and its complications share the App Group on the watch.
+            if [ -d "$APP/Watch/VerbatimWatch.app" ]; then
+              for b in "$APP/Watch/VerbatimWatch.app" "$APP/Watch/VerbatimWatch.app/PlugIns/VerbatimWatchWidgets.appex"; do
+                ent=$(codesign -d --entitlements - "$b" 2>/dev/null || true)
+                grep -q "group.co.stumpandroot.verbatim.ios" <<< "$ent" || { echo "::$level::${b##*/} is missing from the archive or has no App Group entitlement"; return 1; }
+              done
+              echo "The archive embeds the Apple Watch app."
+            fi
+            if ! xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+                -exportPath "$RUNNER_TEMP/phone-export" "${AUTH[@]}" > "$RUNNER_TEMP/phone-upload.log" 2>&1; then
+              echo "::$level::TestFlight upload failed"
+              if grep -q "maximum number of certificates" "$RUNNER_TEMP/phone-upload.log"; then echo "::$level::$LIMIT_HINT"; fi
+              grep -iE "error|No suitable application records|ITMS-" "$RUNNER_TEMP/phone-upload.log" | sort -u | head -n 10 | cut -c1-400 | while IFS= read -r l; do echo "::$level::$l"; done
+              tail -n 40 "$RUNNER_TEMP/phone-upload.log"; return 1
+            fi
+            return 0
+          }
+          # The Apple Watch app goes in first. If anything fails with it in (a new bundle ID that doesn't sign, most
+          # likely), the iPhone app ships without it: the project is generated again with VERBOSE_WATCH=NO and the
+          # archive and upload run once more (mac/APP_STORE.md, "Apple Watch").
+          if grep -q "Embed Watch Content" Verbatim.xcodeproj/project.pbxproj; then
+            if ! ship warning; then
+              echo "::warning::The iPhone app didn't archive or upload with the Apple Watch app in it (the warnings above say why). Trying once more without the watch app."
+              VERBOSE_WATCH=NO bash tools/generate-project.sh
+              bash tools/package-resolved.sh install
+              ship error || exit 1
+              echo "::warning::TestFlight build ${GITHUB_RUN_NUMBER} was uploaded without the Apple Watch app, which failed to archive, sign, or upload with it. See mac/APP_STORE.md, \"Apple Watch\"."
+            fi
+          else
+            ship error || exit 1
+          fi
           echo "::notice::iPhone build ${GITHUB_RUN_NUMBER} uploaded to TestFlight"
 
       - name: Remove the App Store Connect key and the development certificate

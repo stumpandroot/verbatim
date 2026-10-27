@@ -2,7 +2,7 @@
   "notes": [
     {
       "build": "next",
-      "title": "Ask your library",
+      "title": "Ask your library and Apple Watch capture",
       "items": [
         "Mac and iPhone: ask your library a question in plain words, such as “What did Alex want changed on the homepage?” Verbose finds the passages that match on your device, then Apple Intelligence answers from those passages only. Each sentence cites the recording and the time it came from.",
         "Mac: press ⌘K anywhere in Verbose, or click Search or ask at the top of the sidebar, to open one field for both. Switch to Search to filter the Library as before, or to Ask for an answer. In the Native look, the toolbar's search field asks when you press Return.",
@@ -12,7 +12,11 @@
         "Mac and iPhone: recipes are questions you ask again. Run one now, or schedule it weekly on that device; its answers stay in Ask › Recipes with their citations. Recipes sync between your Mac and iPhone, and schedules stay on each device. Start from three suggestions, such as Weekly digest of my thoughts.",
         "Mac and iPhone: a scheduled recipe runs while Verbose is open, or the next time it opens after its time, once even if you missed several weeks. On iPhone, it can also run when iOS gives Verbose background time. You get a notification with the first line of the answer.",
         "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device.",
-        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers."
+        "Mac and iPhone: when you delete a recording or move it to Recently Deleted, Ask forgets its passages at once, and saved answers drop its citations. Delete all data also removes Ask's index, your recent questions, recipes, and their answers.",
+        "Apple Watch: record a voice note or a thought from your wrist. Tap Record or New thought, mark moments while you record, then tap Stop. Your iPhone transcribes it and adds it to the Library, or to today's Thoughts with Apple Watch as where it came from. The Apple Watch app needs watchOS 11.",
+        "Apple Watch: tap Mark, or double-tap your fingers on a watch that supports it, to mark a moment. Your wrist gets a tap and the watch says “Marked 4:12”. In the transcript, the moment says “from the Apple Watch”.",
+        "Apple Watch: recording keeps going when you lower your wrist. When your iPhone is out of reach, the watch keeps the recording and sends it once your iPhone is back, and shows how many recordings are waiting.",
+        "Apple Watch: add Record and Today's thoughts to your watch face, and find your last recording in the Smart Stack. Each one opens Verbose ready to record."
       ]
     },
     {

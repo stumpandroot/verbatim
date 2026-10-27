@@ -16,7 +16,7 @@ import sys
 
 # Read by every build: the project, package pins, the vendored and third-party builds, and CI itself.
 BOTH = ("mac/project.yml", "mac/Package.resolved", "mac/Vendor/", "mac/harper-ffi/", "mac/ffmpeg/",
-        "mac/tools/package-resolved.sh", ".github/workflows/")
+        "mac/tools/package-resolved.sh", "mac/tools/generate-project.sh", "mac/tools/generate-project.py", ".github/workflows/")
 
 
 def targets(text):
