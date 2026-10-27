@@ -38,7 +38,7 @@ enum Thoughts {
     /// A thought's words: what you edited or the cleaned text when there is one, else what was heard.
     static func words(_ t: Transcript) -> String { ThoughtText.words(t) }
 
-    /// "Mac" or "iPhone": where it was recorded, in the sans meta line under a thought.
+    /// "Mac", "iPhone", or "Apple Watch": where it was recorded, in the sans meta line under a thought.
     static func origin(_ t: Transcript) -> String { ThoughtText.origin(t) }
 
     /// "9:40" in Verbose (mono, like a transcript's timecode), "9:40 AM" in Native.
