@@ -106,14 +106,14 @@ struct ImportPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Import").font(.system(size: 14, weight: .bold))
             Button { done(); openFile() } label: { Label("Choose files or a folder…", art: .document, size: 15) }
-                .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.pillLine(large: true)).frame(maxWidth: .infinity, alignment: .leading)
             Button { done(); app.chooseMultitrack() } label: { Label("Multi-track recording…", art: .iconMultitrack, size: 15) }
-                .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.pillLine(large: true)).frame(maxWidth: .infinity, alignment: .leading)
                 .help("One audio file per mic, recorded at the same time. Each file becomes a speaker.")
             Text("Or paste a link").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 TextField("https://…", text: $link).textFieldStyle(.roundedBorder).focused($focused).onSubmit(submit)
-                Button("Fetch", action: submit).buttonStyle(.brandPrimary).disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Fetch", action: submit).buttonStyle(.pillDark()).disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             Toggle("Also keep the video (MP4)", isOn: $keepVideo).toggleStyle(.checkbox).font(.system(size: 12.5))
             Text(keepVideo ? "Saved to \(Keep.folder.lastPathComponent) in \(Keep.folder.deletingLastPathComponent().lastPathComponent), up to 1080p. Keep only what you have the right to save." : "YouTube, Vimeo, podcasts, and most video pages. Only the audio is downloaded.")
@@ -197,7 +197,7 @@ struct DictateControls: View {
                         Text("To hear the key and paste into other apps. Verbose reads nothing from them.").font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                     }
                     Spacer()
-                    Button("Allow") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }.buttonStyle(.brandPrimary)
+                    Button("Allow") { app.dictation.requestAccessibility(); app.dictation.openAccessibilitySettings() }.buttonStyle(.pillDark())
                 }
                 
             }
@@ -282,13 +282,13 @@ struct RecordPanel: View {
                     Keycap(keys: MarkHotkeyStore.current().title, size: 12)
                 }
             }
-            .buttonStyle(.brandSecondaryLarge).disabled(starting)
+            .buttonStyle(.pillLine(large: true)).disabled(starting)
             .help("Mark this moment (\(MarkHotkeyStore.current().title) from any app while you record)")
             .accessibilityLabel("Mark a moment")
             .uiTarget("record-panel-mark")
-            Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.brandSecondaryLarge).disabled(starting)
+            Button(app.recorder.isPaused ? "Resume" : "Pause") { app.togglePause() }.buttonStyle(.pillLine(large: true)).disabled(starting)
             // While the mic is starting, Stop cancels the start.
-            Button(starting ? "Cancel" : "Stop") { app.stopRecording() }.buttonStyle(.brandPrimaryLarge).keyboardShortcut(".", modifiers: [.option, .shift])
+            Button(starting ? "Cancel" : "Stop") { app.stopRecording() }.buttonStyle(.pillDark(large: true)).keyboardShortcut(".", modifiers: [.option, .shift])
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 70)
@@ -304,7 +304,7 @@ struct CapturePanel: View {
             SignalRings(color: Ink.sageText).frame(width: 30, height: 30).padding(.leading, 6)
             Text("Capturing \(app.capture.appName)").font(.system(size: 15, weight: .semibold)).foregroundStyle(Ink.ink).lineLimit(1).frame(width: 170, alignment: .leading)
             LiveReadout(live: app.capture.live, color: NSColor(hex: Ink.inkHex))
-            Button("Stop") { app.stopCapture() }.buttonStyle(.brandPrimaryLarge)
+            Button("Stop") { app.stopCapture() }.buttonStyle(.pillDark(large: true))
         }
         .padding(.horizontal, 16)
         .frame(height: 70)

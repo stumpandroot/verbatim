@@ -16,10 +16,10 @@ struct LinkCard: View {
             }
             Spacer(minLength: 8)
             Button { if let u = URL(string: info.url) { NSWorkspace.shared.open(u) } } label: { Label("Open video", art: .iconPlay, size: 13) }
-                .buttonStyle(.bordered).controlSize(.small).fixedSize()
+                .buttonStyle(.pillLine())
             KeepButton(transcript: transcript)
             Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(info.url, forType: .string); app.toast = Toast("Link copied") } label: { ArtIcon(art: .iconLinks, size: 14) }
-                .buttonStyle(.bordered).controlSize(.small).help("Copy link")
+                .buttonStyle(.pillLine()).help("Copy link").accessibilityLabel("Copy link")
         }
         .padding(8)
         .cardSurface(radius: Radius.row)
@@ -39,10 +39,10 @@ struct KeepButton: View {
                 .font(.system(size: 12)).foregroundStyle(Ink.iris).fixedSize()
         } else if let v = transcript.keptVideo, kept.exists(v) {
             Button { app.showKept(v) } label: { Label("Kept", systemImage: "checkmark") }
-                .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Show the MP4 in Finder")
+                .buttonStyle(.pillLine()).help("Show the MP4 in Finder")
         } else {
             Button { app.keepVideo(transcript.id) } label: { Label("Keep video", art: .iconDownload, size: 13) }
-                .buttonStyle(.bordered).controlSize(.small).fixedSize().help("Save the video as an MP4 in your Keep folder")
+                .buttonStyle(.pillLine()).help("Save the video as an MP4 in your Keep folder")
         }
     }
 }

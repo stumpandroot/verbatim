@@ -25,7 +25,7 @@ struct AddFromLibrarySheet: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Add to \(projectName)").font(Ink.serif(28)).foregroundStyle(Ink.ink).lineLimit(1)
                 Spacer(minLength: 12)
-                Overline(text: selection.isEmpty ? "From your library" : "\(selection.count) selected", color: Ink.mute)
+                Eyebrow(text: selection.isEmpty ? "From your library" : "\(selection.count) selected", color: Ink.mute)
             }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Ink.mute)
@@ -46,9 +46,9 @@ struct AddFromLibrarySheet: View {
                 }
                 .buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.iris).disabled(shown.isEmpty)
                 Spacer()
-                Button("Cancel") { dismiss() }.buttonStyle(SheetButtonStyle()).frame(width: 110).keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(PillButtonStyle(kind: .line, size: .regular)).keyboardShortcut(.cancelAction)
                 Button(chosen.isEmpty ? "Add to \(projectName)" : "Add \(chosen.count) to \(projectName)") { add(chosen) }
-                    .buttonStyle(SheetButtonStyle(primary: true)).frame(minWidth: 180).fixedSize()
+                    .buttonStyle(PillButtonStyle(kind: .dark, size: .regular))
                     .keyboardShortcut(.defaultAction).disabled(chosen.isEmpty)
                     .uiTarget("add-from-library-add")
             }

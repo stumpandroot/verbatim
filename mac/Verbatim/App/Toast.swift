@@ -18,8 +18,15 @@ struct ToastView: View {
             HStack(spacing: 14) {
                 Text(t.message).font(.system(size: 13)).lineLimit(2)
                 if let a = t.action {
-                    Button(a) { t.onAction?(); app.toast = nil }
-                        .buttonStyle(.plain).foregroundStyle(Color(nsColor: NSColor(hex: Ink.butterHex))).fontWeight(.semibold)
+                    // A mini line pill in paper on the toast's ink (DESIGN.md §11.5).
+                    Button { t.onAction?(); app.toast = nil } label: {
+                        Text(a).font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.readerFixed)
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 12).frame(height: 28)
+                            .overlay(Capsule().strokeBorder(Ink.readerFixed, lineWidth: 1.5))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 10)

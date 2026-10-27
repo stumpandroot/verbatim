@@ -774,7 +774,7 @@ struct AboutMeSheet: View {
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.brandPrimary)
+                    .buttonStyle(.pillDark())
             }
         }
         .padding(28)

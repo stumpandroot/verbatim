@@ -101,7 +101,7 @@ struct SegmentLine: View {
                                 Text("Name this speaker").font(.system(size: 12.5, weight: .semibold))
                                 TextField("Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 200)
                                     .onSubmit { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }
-                                HStack { Spacer(); Button("Cancel") { renaming = false }; Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }.buttonStyle(.brandPrimary) }
+                                HStack { Spacer(); Button("Cancel") { renaming = false }.buttonStyle(.pillLine()); Button("Save") { app.renameSpeaker(transcript: transcript.id, speaker: sp, to: newName); renaming = false }.buttonStyle(.pillDark()) }
                             }
                             .padding(14)
                         }
@@ -146,7 +146,7 @@ struct SegmentLine: View {
                             HStack { Text("Heard as").font(.system(size: 11)).foregroundStyle(Ink.mute); Text(fixing ?? "").font(.system(size: 13, weight: .semibold)) }
                             TextField("Correct spelling", text: $replacement).textFieldStyle(.roundedBorder).onSubmit { commit() }
                             Toggle("Remember in Dictionary", isOn: $remember).font(.system(size: 12))
-                            HStack { Spacer(); Button("Cancel") { fixing = nil }; Button("Fix") { commit() }.buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction) }
+                            HStack { Spacer(); Button("Cancel") { fixing = nil }.buttonStyle(.pillLine()); Button("Fix") { commit() }.buttonStyle(.pillDark()).keyboardShortcut(.defaultAction) }
                         }
                         .padding(14).frame(width: 300)
                     }

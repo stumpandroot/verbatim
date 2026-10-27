@@ -54,14 +54,23 @@ extension PremiumInk {
 // MARK: - Surfaces
 
 /// The window's background: the warm off-white (or black) with the persimmon glow at the top left.
+/// The window glow's size: its radius follows the width, and its frame is never shorter than the radius.
+enum PremiumGlow {
+    static func radius(width: CGFloat) -> CGFloat { max(320, width * 0.62) }
+    static func height(width: CGFloat) -> CGFloat { max(420, radius(width: width).rounded(.up)) }
+}
+
 struct PremiumBackground: View {
     var body: some View {
         ZStack(alignment: .top) {
             PremiumInk.window
             GeometryReader { g in
+                // The frame is as tall as the glow's radius, so the gradient reaches clear before the frame ends (at
+                // 420 pt it was cut off at a hard line while still tinted, on any window wider than 677 pt).
+                let radius = PremiumGlow.radius(width: g.size.width)
                 RadialGradient(colors: [PremiumInk.glow, PremiumInk.glow.opacity(0)], center: UnitPoint(x: 0.3, y: 0),
-                               startRadius: 0, endRadius: max(320, g.size.width * 0.62))
-                    .frame(height: 420)
+                               startRadius: 0, endRadius: radius)
+                    .frame(height: PremiumGlow.height(width: g.size.width))
                     .frame(maxWidth: .infinity, alignment: .top)
             }
             .allowsHitTesting(false)

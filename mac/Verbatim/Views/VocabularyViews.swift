@@ -125,7 +125,7 @@ struct ContactNamesSheet: View {
                     Button("Open System Settings") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts") { NSWorkspace.shared.open(url) }
                     }
-                    .buttonStyle(.brandSecondary)
+                    .buttonStyle(.pillLine())
                 }
                 .frame(maxWidth: .infinity, minHeight: 280, alignment: .topLeading)
             case .ready:
@@ -136,8 +136,8 @@ struct ContactNamesSheet: View {
                 } else {
                     HStack(spacing: 8) {
                         TextField("Search \(candidates.count) names", text: $filter).textFieldStyle(.roundedBorder)
-                        Button("Select all") { picked.formUnion(visible.map(\.id)) }.buttonStyle(.brandSecondary)
-                        Button("Select none") { picked.subtract(visible.map(\.id)) }.buttonStyle(.brandSecondary)
+                        Button("Select all") { picked.formUnion(visible.map(\.id)) }.buttonStyle(.pillLine())
+                        Button("Select none") { picked.subtract(visible.map(\.id)) }.buttonStyle(.pillLine())
                     }
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
@@ -163,7 +163,7 @@ struct ContactNamesSheet: View {
                     app.toast = Toast(names.count == 1 ? "Added 1 name to your Dictionary" : "Added \(names.count) names to your Dictionary")
                     dismiss()
                 }
-                .buttonStyle(.brandPrimary).keyboardShortcut(.defaultAction)
+                .buttonStyle(.pillDark()).keyboardShortcut(.defaultAction)
                 .disabled(picked.isEmpty || phase != .ready)
             }
         }

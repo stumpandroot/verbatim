@@ -53,6 +53,7 @@ struct ExportSheet: View {
                 Text(tag(ts)).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(Ink.mute)
             }
             FormatControl(selection: $format)
+                .frame(maxWidth: .infinity, alignment: .leading)
             // The card at its own height when it fits; scrolling when it doesn't.
             ViewThatFits(in: .vertical) {
                 optionsCard(ts)
@@ -222,7 +223,7 @@ struct ExportSheet: View {
 
     private func previewPane(_ ts: [Transcript]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Overline(text: previewTitle(ts), color: Ink.mute)
+            Eyebrow(text: previewTitle(ts), color: Ink.mute)
             if ts.isEmpty {
                 Text("Nothing to export yet. Transcripts still in progress are left out.").font(.system(size: 13)).foregroundStyle(Ink.mute)
                 Spacer()
@@ -277,63 +278,21 @@ struct ExportSheet: View {
     }
 }
 
-/// The six formats as one segmented control, in the mockup's form: a quiet track with a raised reader-white
-/// segment for the pick.
+/// The six formats in the shared view switch (DESIGN.md §11.15), as the transcript's modes and You's Week | Month;
+/// Native draws the system segmented control. Each format's note is its tooltip.
 struct FormatControl: View {
     @Binding var selection: ExportFormat
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(ExportFormat.allCases) { f in
-                let on = f == selection
-                Button { selection = f } label: {
-                    Text(f.short)
-                        .font(.system(size: 12, weight: on ? .semibold : .medium))
-                        .foregroundStyle(on ? Ink.ink : Ink.dim)
-                        .frame(maxWidth: .infinity).frame(height: 30)
-                        .background {
-                            if on {
-                                RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.reader)
-                                    .shadow(color: Ink.inkFixed.opacity(0.15), radius: 1, y: 1)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(f.note)
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
-        }
-        .padding(3)
-        .background(Ink.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        .animation(.easeOut(duration: 0.15), value: selection)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Format")
+        SegmentedCapsule(label: "Format", options: ExportFormat.allCases, selection: $selection, title: { $0.short },
+                         small: true, help: { $0.note }, target: { "export-format-\($0.rawValue)" })
     }
 }
 
-/// The sheet's bottom buttons: 40 points tall, equal widths. Primary is ink with a reader-white label.
+/// The sheet's bottom buttons, equal widths: regular pills (DESIGN.md §11.5), dark for the main one and line for the
+/// rest; Native draws its own faces.
 struct SheetButtonStyle: ButtonStyle {
     var primary = false
-    func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration, primary: primary) }
-    private struct Styled: View {
-        let configuration: ButtonStyleConfiguration
-        var primary: Bool
-        @State private var hover = false
-        @Environment(\.isEnabled) private var enabled
-        var body: some View {
-            configuration.label
-                .font(.system(size: 14, weight: primary ? .semibold : .medium))
-                .foregroundStyle(primary ? Ink.onInteractive : Ink.ink)
-                .frame(maxWidth: .infinity).frame(height: 40)
-                .background(fill, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .opacity(enabled ? 1 : 0.45)
-                .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-                .onHover { hover = $0 }
-                .animation(.easeOut(duration: 0.14), value: hover)
-        }
-        private var fill: Color {
-            if primary { return Ink.interactive.opacity(configuration.isPressed ? 0.85 : hover ? 0.92 : 1) }
-            return Ink.ink.opacity(configuration.isPressed ? 0.14 : hover ? 0.11 : 0.08)
-        }
+    func makeBody(configuration: Configuration) -> some View {
+        PillButtonStyle(kind: primary ? .dark : .line, size: .regular, fullWidth: true).makeBody(configuration: configuration)
     }
 }

@@ -235,7 +235,7 @@ struct LinkAddedCard: View {
             }
             HStack(spacing: 8) {
                 Button(action: onCancel) { label("Cancel") }
-                    .buttonStyle(LinkCardButtonStyle(fill: Ink.ink.opacity(0.08), text: Ink.ink))
+                    .buttonStyle(LinkCardButtonStyle(fill: Ink.ink.opacity(0.08), text: Ink.ink, outline: true))
                 if failed {
                     Button(action: onRetry) { label("Retry") }
                         .buttonStyle(LinkCardButtonStyle(fill: Ink.interactive, text: Ink.onInteractive))
@@ -349,16 +349,17 @@ struct LinkAddedCard: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(failed ? "Couldn't download" : "\(phaseText.capitalized), \(percentText)")
+        .accessibilityLabel(failed ? "Couldn't download" : "\(phaseText), \(percentText)")
     }
 
     private var phaseText: String {
         switch imp.phase {
-        case .resolving: return "FINDING THE AUDIO"
-        case .downloading: return "DOWNLOADING"
-        case .queued: return "ADDED TO QUEUE"
-        case .waitingForMac: return "SENT TO YOUR MAC"
-        case .failed: return "COULDN'T DOWNLOAD"
+        // Sentence case, never uppercase tracked labels (DESIGN.md §2.1).
+        case .resolving: return "Finding the audio"
+        case .downloading: return "Downloading"
+        case .queued: return "Added to queue"
+        case .waitingForMac: return "Sent to your Mac"
+        case .failed: return "Couldn't download"
         }
     }
 
@@ -372,16 +373,29 @@ struct LinkAddedCard: View {
     private var percentText: String { "\(Int((fraction * 100).rounded()))%" }
 }
 
-/// The card's two buttons: a quiet fill and the ink fill, 10 pt corners.
+/// The card's two buttons: a quiet fill and the ink fill. On the Mac they're pills (DESIGN.md §11.5), and `outline`
+/// draws the secondary one as a 1.5 pt ink line instead of the fill; the iPhone keeps its button corners.
 struct LinkCardButtonStyle: ButtonStyle {
     var fill: Color
     var text: Color
+    var outline = false
     func makeBody(configuration: Configuration) -> some View {
+        #if os(macOS)
+        configuration.label
+            .foregroundStyle(text)
+            .background {
+                if outline { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) } else { Capsule().fill(fill) }
+            }
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
+        #else
         configuration.label
             .foregroundStyle(text)
             .background(fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .opacity(configuration.isPressed ? 0.8 : 1)
             .animation(Motion.press, value: configuration.isPressed)
+        #endif
     }
 }
 

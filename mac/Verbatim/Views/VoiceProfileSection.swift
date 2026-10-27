@@ -321,10 +321,10 @@ struct VoiceEnrollmentView: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.brandSecondary)
+                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
                 Button("Start") { model.start() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.brandPrimary)
+                    .buttonStyle(.pillDark())
             }
         }
     }
@@ -338,11 +338,11 @@ struct VoiceEnrollmentView: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.brandSecondary)
+                Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
                 if model.isPaused {
                     Button("Finish Now") { model.finishNow() }
                         .keyboardShortcut(.defaultAction)
-                        .buttonStyle(.brandPrimary)
+                        .buttonStyle(.pillDark())
                 }
             }
         }
@@ -353,7 +353,7 @@ struct VoiceEnrollmentView: View {
             ProgressView().controlSize(.small)
             Text("Learning your voice…").font(.system(size: 13)).foregroundStyle(Ink.mute)
             Spacer()
-            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.brandSecondary)
+            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
         }
         .frame(minHeight: 120, alignment: .top)
     }
@@ -363,10 +363,10 @@ struct VoiceEnrollmentView: View {
             VoiceQualityPanel(line: VoiceEnrollment.line(for: r))
             HStack {
                 Spacer()
-                Button("Read More") { model.readMore() }.buttonStyle(.brandSecondary)
+                Button("Read more") { model.readMore() }.buttonStyle(.pillLine())
                 Button("Done") { close() }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.brandPrimary)
+                    .buttonStyle(.pillDark())
             }
             VoiceProfileControls(onDelete: { close() })
         }
@@ -375,10 +375,10 @@ struct VoiceEnrollmentView: View {
     private var failed: some View {
         HStack {
             Spacer()
-            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.brandSecondary)
+            Button("Cancel") { close() }.keyboardShortcut(.cancelAction).buttonStyle(.pillLine())
             Button("Try Again") { model.start() }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.brandPrimary)
+                .buttonStyle(.pillDark())
         }
     }
 }
