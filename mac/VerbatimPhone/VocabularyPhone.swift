@@ -91,7 +91,7 @@ struct PhoneContactNamesSheet: View {
                                 } label: {
                                     HStack(spacing: 12) {
                                         Image(systemName: picked.contains(c.id) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(picked.contains(c.id) ? Ink.persimmon : Ink.faint)
+                                            .foregroundStyle(picked.contains(c.id) ? AnyShapeStyle(.lookMark) : AnyShapeStyle(.lookFaint))
                                             .font(.system(size: 20))
                                         Text(c.name).foregroundStyle(.lookInk)
                                     }

@@ -2,20 +2,24 @@
 import SwiftUI
 import UIKit
 
-// The Native look on iPhone (DESIGN.md §13): Premium Native (mockup "premium", section 01, October 25, 2026), which
-// replaced the first Native look. Apple's controls, SF Pro, and SF Symbols on a warm off-white page (black in dark)
-// with a soft persimmon glow, gradient cards in the four warm brand colors (PremiumKit.swift), and the persimmon accent.
-// The kit in PhoneWebStyle.swift reads `@Environment(\.look)` and draws either look, so most screens switch without
-// edits; Home, Library, the transcript header, Settings, and Appearance have Native layouts of their own.
+// The Native look on iPhone (DESIGN.md §13; mockup "Verbose Native Redesign", October 27, 2026): drawn the way Apple
+// draws its own apps since iOS 27.2, with the brand taken out of the chrome. System blue for everything you tap, system
+// red only for recording (the record disc, the stop square, the recording playhead), system grouped backgrounds,
+// SF Pro and SF Symbols, and no glows, gradient cards, tinted icon circles, or custom shadows. The kit in
+// PhoneWebStyle.swift reads `@Environment(\.look)` and draws either look, so most screens switch without edits; Home,
+// Library, the transcript, the recorder, Settings, and Appearance have Native layouts of their own.
 //
 // This file is Native look code: brand-check skips its SF Symbols and system colors (`// brand: native file`).
 
 // MARK: - Tokens
 
-/// The Native look's colors, named like the `Ink` tokens they stand in for. All system colors except the accent.
+/// The Native look's colors, named like the `Ink` tokens they stand in for. All system colors: they follow light and
+/// dark, Increase Contrast, and the system's own tuning, so nothing here is a brand hue.
 enum NativeInk {
-    /// Premium's warm off-white page (#F6F3F1), black in dark (Tokens.swift, `PremiumInk`).
-    static let paper = PremiumInk.paper
+    /// Lists and grouped screens (Home, Settings, Moments): the system grouped background.
+    static let paper = Color(uiColor: .systemGroupedBackground)
+    /// Plain lists and reading surfaces (the Library, a transcript, the recorder sheet).
+    static let plain = Color(uiColor: .systemBackground)
     static let card = Color(uiColor: .secondarySystemGroupedBackground)
     static let raised = Color(uiColor: .tertiarySystemGroupedBackground)
     /// Chips, the search field, segmented tracks, and the sponsor row.
@@ -27,18 +31,47 @@ enum NativeInk {
     static let tertiary = Color(uiColor: .tertiaryLabel)
     /// Bars and quiet marks (This week's days, the meter at rest).
     static let gray = Color(uiColor: .systemGray3)
-    /// Buttons, tinted text, selection, and links (Tokens.swift: #D5431F light, #FF6B47 dark).
-    static let accent = Ink.nativeAccent
-    /// The record disc keeps the brand persimmon: it carries no text.
-    static let record = Ink.persimmonFixed
-    /// Switches stay green, as in Apple's own apps (the accent doesn't tint switches on iPhone).
+    /// Tabs, links, selection, primary buttons, and list symbols: system blue, the default accent (#007AFF, #0A84FF in
+    /// dark; #0040DD and #409CFF with Increase Contrast).
+    static let accent = Color(uiColor: .systemBlue)
+    /// Text and glyphs on the accent: white, as on Apple's own filled buttons.
+    static let onAccent = Color.white
+    /// Recording only: the record disc, the stop square, and the recording playhead. System red, flat.
+    static let record = Color(uiColor: .systemRed)
+    /// Switches stay green, as in Apple's own iPhone apps.
     static let toggle = Color(uiColor: .systemGreen)
+    /// Destructive actions, drawn by the system's destructive role.
     static let danger = Color(uiColor: .systemRed)
     /// Settings › Keyboard's preview of the Native keyboard: Apple's gray backdrop, white keys (gray in dark), and the
     /// function key gray.
     static let keyboardBackdrop = Color(uiColor: .systemGray5)
     static let keyboardKey = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? .systemGray2 : .white })
     static let keyboardFunction = Color(uiColor: .systemGray3)
+}
+
+/// Find's highlight in Native: the system's yellow at a third, as Safari's and Notes' find draw it.
+enum NativeFind {
+    static let highlight = Color(uiColor: .systemYellow).opacity(0.35)
+}
+
+extension NativeRules.Square {
+    /// The square's system color (Settings' rows, iPhone and Mac alike).
+    var color: Color {
+        switch self {
+        case .blue: return Color(uiColor: .systemBlue)
+        case .indigo: return Color(uiColor: .systemIndigo)
+        case .purple: return Color(uiColor: .systemPurple)
+        case .pink: return Color(uiColor: .systemPink)
+        case .orange: return Color(uiColor: .systemOrange)
+        case .yellow: return Color(uiColor: .systemYellow)
+        case .green: return Color(uiColor: .systemGreen)
+        case .mint: return Color(uiColor: .systemMint)
+        case .teal: return Color(uiColor: .systemTeal)
+        case .cyan: return Color(uiColor: .systemCyan)
+        case .brown: return Color(uiColor: .systemBrown)
+        case .gray: return Color(uiColor: .systemGray)
+        }
+    }
 }
 
 /// A color that follows the look: the Verbose style token, or its Native stand-in. Resolved from the environment, so a
@@ -62,6 +95,13 @@ extension ShapeStyle where Self == LookStyle {
     /// Text on a color panel: always ink in Verbose style (the panels stay bright in dark), the label color on Native's
     /// grouped card.
     static var lookOnPanel: LookStyle { LookStyle(verbose: Ink.inkFixed, native: NativeInk.label) }
+    /// Recording's mark (a live dot): persimmon in Verbose style, system red in Native.
+    static var lookRecord: LookStyle { LookStyle(verbose: Ink.persimmon, native: NativeInk.record) }   // verbose look
+    /// A status mark that isn't a recording (the keyboard session's voice bars, a hint's dot): persimmon in Verbose
+    /// style, the accent in Native.
+    static var lookMark: LookStyle { LookStyle(verbose: Ink.persimmon, native: NativeInk.accent) }   // verbose look
+    /// A soft wash behind a marked strip or a flashed row: the persimmon tint in Verbose style, the system fill in Native.
+    static var lookWash: LookStyle { LookStyle(verbose: Ink.persimmonTint, native: NativeInk.fill) }   // verbose look
 }
 
 extension AppLook {
@@ -92,19 +132,22 @@ extension View {
     func lookSerif(_ size: CGFloat, weight: Font.Weight = .regular) -> some View { modifier(LookFont(serif: true, size: size, weight: weight)) }
     /// `Ink.mono` in Verbose style, SF Pro with monospaced digits in Native.
     func lookMono(_ size: CGFloat, weight: Font.Weight = .regular) -> some View { modifier(LookFont(serif: false, size: size, weight: weight)) }
-    /// A screen's background: paper, or Premium's warm page with the glow at the top.
-    func phonePage() -> some View { modifier(PhonePage()) }
-    /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or the Native accent). A look
+    /// A screen's background: paper, or the system grouped background in Native (`plain`: the system background, for
+    /// plain lists and reading surfaces).
+    func phonePage(plain: Bool = false) -> some View { modifier(PhonePage(plain: plain)) }
+    /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or none in Native, so the
+    /// system accent and green switches apply). A look
     /// switch has no animation of its own here: the switching card covers the rebuild and fades out over it
     /// (LookSwitch.swift). Animating every changed view in both looks at once was most of what made switching slow.
     func phoneLookRoot() -> some View { modifier(PhoneLookRoot()) }
 }
 
 private struct PhonePage: ViewModifier {
+    var plain: Bool
     @Environment(\.look) private var look
     func body(content: Content) -> some View {
         if look.isNative {
-            content.background { PremiumPageBackground() }
+            content.background((plain ? NativeInk.plain : NativeInk.paper).ignoresSafeArea())
         } else {
             content.background(Ink.paper.ignoresSafeArea())
         }
@@ -114,7 +157,9 @@ private struct PhonePage: ViewModifier {
 private struct PhoneLookRoot: ViewModifier {
     @Environment(\.look) private var look
     func body(content: Content) -> some View {
-        content.tint(look.isNative ? Ink.nativeAccent : Ink.ink)
+        // Native sets no tint: the default accent is system blue, and switches keep the system's green, as in
+        // Apple's own iPhone apps (a blue tint here would turn every switch blue).
+        content.tint(look.isNative ? nil : Ink.ink)
     }
 }
 
@@ -240,10 +285,10 @@ struct PhonePrimaryButtonStyle: ButtonStyle {
         @Environment(\.isEnabled) private var enabled
         var body: some View {
             if look.isNative {
-                // White on the light accent, black on the dark one (PremiumInk.onAccent, 7.2:1).
+                // White on system blue, as Apple's filled buttons draw it.
                 configuration.label
                     .font(.system(size: large ? 17 : 15, weight: .semibold))
-                    .foregroundStyle(PremiumInk.onAccent)
+                    .foregroundStyle(NativeInk.onAccent)
                     .padding(.horizontal, large ? 20 : 14).frame(minHeight: large ? 50 : 34)
                     .background(NativeInk.accent.opacity(configuration.isPressed ? 0.8 : 1), in: Capsule())
                     .opacity(enabled ? 1 : 0.45)
@@ -262,7 +307,8 @@ struct PhonePrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// The secondary pill: the line pill in Verbose style; the accent on its soft tint in Native ("Record another").
+/// The secondary pill: the line pill in Verbose style; the accent on the system's gray fill in Native, as `.bordered`
+/// draws it ("Record another").
 struct PhoneSecondaryButtonStyle: ButtonStyle {
     var large = false
     func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration, large: large) }
@@ -277,7 +323,7 @@ struct PhoneSecondaryButtonStyle: ButtonStyle {
                     .font(.system(size: large ? 17 : 15, weight: .medium))
                     .foregroundStyle(NativeInk.accent)
                     .padding(.horizontal, large ? 20 : 14).frame(minHeight: large ? 50 : 34)
-                    .background(PremiumInk.accentSoft.opacity(configuration.isPressed ? 0.6 : 1), in: Capsule())
+                    .background(NativeInk.fill.opacity(configuration.isPressed ? 0.6 : 1), in: Capsule())
                     .opacity(enabled ? 1 : 0.45)
                     .contentShape(Capsule())
             } else {
@@ -368,51 +414,59 @@ struct LookThumbnail: View {
         }
     }
 
-    /// Premium Native: the title, the persimmon This week card, four soft tiles, two recording items, and the
-    /// floating record disc beside the tab bar.
+    /// Native: the large title, an inset grouped card of blue-symbol rows, This week as one stat cell, and a recent
+    /// recording, over the system grouped background.
     private var native: some View {
         VStack(alignment: .leading, spacing: 5 * u) {
             Text("Home").font(.system(size: 10 * u, weight: .bold)).foregroundStyle(NativeInk.label)
-            VStack(alignment: .leading, spacing: 3 * u) {
-                Capsule().fill(Color.white.opacity(0.8)).frame(width: 14 * u, height: 2 * u)
-                HStack(alignment: .bottom) {
-                    Text("3,620").font(PremiumStyle.number(12 * u)).foregroundStyle(Color.white)
-                    Spacer(minLength: 0)
-                    HStack(alignment: .bottom, spacing: 1.5 * u) {
-                        ForEach([5, 2, 4, 9, 7], id: \.self) { h in
-                            Capsule().fill(Color.white.opacity(h == 7 ? 1 : 0.4)).frame(width: 2 * u, height: CGFloat(h) * u)
-                        }
+            VStack(alignment: .leading, spacing: 4 * u) {
+                ForEach(0..<3, id: \.self) { _ in
+                    HStack(spacing: 4 * u) {
+                        RoundedRectangle(cornerRadius: 1 * u).fill(NativeInk.accent).frame(width: 5 * u, height: 5 * u)
+                        Capsule().fill(NativeInk.label).frame(width: 30 * u, height: 2 * u)
                     }
                 }
             }
             .padding(5 * u)
-            .frame(height: 34 * u)
-            .premiumCard(.persimmon, radius: 6 * u)
-            HStack(spacing: 3 * u) {
-                ForEach(0..<4) { _ in
-                    Circle().fill(PremiumInk.accentSoft).frame(width: 7 * u)
-                        .frame(maxWidth: .infinity).frame(height: 15 * u)
-                        .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 4 * u, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 5 * u, style: .continuous))
+            VStack(alignment: .leading, spacing: 3 * u) {
+                HStack(alignment: .bottom) {
+                    Text("1,414").font(.system(size: 9 * u, weight: .bold)).monospacedDigit().foregroundStyle(NativeInk.label)
+                    Spacer(minLength: 0)
+                    HStack(alignment: .bottom, spacing: 1.5 * u) {
+                        ForEach([5, 7, 4, 1, 1], id: \.self) { h in
+                            Capsule().fill(h == 4 ? NativeInk.accent : NativeInk.gray).frame(width: 2 * u, height: CGFloat(h) * u)
+                        }
+                    }
                 }
+                Capsule().fill(NativeInk.secondary).frame(width: 34 * u, height: 1.8 * u)
             }
-            ForEach(0..<2) { _ in
-                VStack(alignment: .leading, spacing: 2.5 * u) {
-                    Capsule().fill(NativeInk.label).frame(width: 46 * u, height: 2.5 * u)
-                    Capsule().fill(NativeInk.secondary).frame(width: 60 * u, height: 1.8 * u)
-                    Capsule().fill(NativeInk.card).frame(width: 16 * u, height: 5 * u)
-                }
-                .padding(.top, 2 * u)
+            .padding(5 * u)
+            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 5 * u, style: .continuous))
+            VStack(alignment: .leading, spacing: 2.5 * u) {
+                Capsule().fill(NativeInk.label).frame(width: 46 * u, height: 2.5 * u)
+                Capsule().fill(NativeInk.secondary).frame(width: 60 * u, height: 1.8 * u)
             }
+            .padding(5 * u)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NativeInk.card, in: RoundedRectangle(cornerRadius: 5 * u, style: .continuous))
         }
     }
 
+    /// The tab bar; in Native, the bottom accessory above it with the red record disc.
     private var tabBar: some View {
-        HStack(spacing: 4 * u) {
-            tabCapsule
+        VStack(spacing: 3 * u) {
             if look.isNative {
-                Circle().fill(PremiumStyle.disc).frame(width: 16 * u, height: 16 * u)
-                    .padding(1.5 * u).background(PremiumStyle.ring, in: Circle())
+                HStack(spacing: 4 * u) {
+                    Circle().fill(NativeInk.record).frame(width: 7 * u, height: 7 * u)
+                    Capsule().fill(NativeInk.label).frame(width: 20 * u, height: 2 * u)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 5 * u).padding(.vertical, 3.5 * u)
+                .background(NativeInk.card, in: Capsule())
             }
+            tabCapsule
         }
         .padding(.horizontal, 8 * u)
     }
@@ -421,7 +475,7 @@ struct LookThumbnail: View {
         HStack(spacing: 0) {
             ForEach(0..<4) { i in
                 RoundedRectangle(cornerRadius: 1.5 * u)
-                    .fill(i == 0 ? (look.isNative ? NativeInk.accent : Ink.persimmon) : (look.isNative ? NativeInk.gray : Ink.ink.opacity(0.35)))
+                    .fill(i == 0 ? (look.isNative ? NativeInk.accent : Ink.persimmon) : (look.isNative ? NativeInk.gray : Ink.ink.opacity(0.35)))   // verbose look
                     .frame(width: 7 * u, height: 7 * u)
                     .frame(maxWidth: .infinity)
             }
@@ -481,7 +535,7 @@ struct LookPicker: View {
                 ZStack {
                     if on {
                         Circle().fill(NativeInk.accent)
-                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(PremiumInk.onAccent)
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(NativeInk.onAccent)
                     } else {
                         Circle().strokeBorder(NativeInk.gray, lineWidth: 1.5)
                     }

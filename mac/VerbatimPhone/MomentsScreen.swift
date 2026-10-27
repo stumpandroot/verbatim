@@ -27,6 +27,20 @@ struct MomentsScreen: View {
         }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if look.isNative {
+                    // Native: the large title and its subtitle carry the count; the filter is a segmented control.
+                    if !NativeSubtitle.supported {
+                        Text("\(all.count) saved").font(.subheadline).foregroundStyle(NativeInk.secondary).padding(.horizontal, 20)
+                    }
+                    Picker("Show", selection: $show) {
+                        Text("All").tag(Show.all)
+                        Text("Bookmarks").tag(Show.bookmarks)
+                        Text("Notes").tag(Show.notes)
+                        if all.contains(where: { $0.n.frameFile != nil }) { Text("Stills").tag(Show.stills) }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 20).padding(.top, 8)
+                } else {
                 PhoneCompactTitle(title: "Moments", count: "\(all.count) saved")
                     .padding(.horizontal, 20)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -41,8 +55,13 @@ struct MomentsScreen: View {
                     .padding(.horizontal, 20)
                 }
                 .padding(.top, 14).padding(.bottom, 4)
+                }
 
-                if moments.isEmpty {
+                if moments.isEmpty, look.isNative {
+                    ContentUnavailableView("No moments yet", systemImage: "bookmark",   // brand: native
+                                           description: Text(all.isEmpty ? "Bookmark a moment while a transcript plays, or touch and hold a line." : "Nothing here yet."))
+                        .padding(.top, 40)
+                } else if moments.isEmpty {
                     VStack(spacing: 12) {
                         IconPlate(art: .iconMoments, size: 96)
                         Text(all.isEmpty ? "Bookmark a moment while a transcript plays, or long-press a line." : "Nothing here yet.")
@@ -70,11 +89,12 @@ struct MomentsScreen: View {
         .onChange(of: show) { _, v in LookKeep.momentsShow = v }
         .phonePage()
         .navigationTitle("Moments")
-        .navigationBarTitleDisplayMode(.inline)
+        .nativeSubtitle(look.isNative ? "\(all.count) saved" : nil)
+        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .toolbar {
             if pushed && !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } }
         }
-        .toolbar(pushed ? .visible : .hidden, for: .navigationBar)
+        .toolbar(pushed || look.isNative ? .visible : .hidden, for: .navigationBar)
     }
 }
 
@@ -100,18 +120,16 @@ struct PhoneMomentCard: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    IconGlyph(art: note.isMark ? .iconMarked : bookmark ? .iconPin : (note.aiAction != nil ? .iconAI : .iconNotes), size: 16, color: on)
+                    LookIcon(art: note.isMark ? .iconMarked : bookmark ? .iconPin : (note.aiAction != nil ? .iconAI : .iconNotes),
+                             symbol: bookmark ? "bookmark.fill" : (note.aiAction != nil ? "sparkles" : "note.text"), size: 16, color: on,
+                             nativeColor: bookmark ? NativeInk.accent : NativeInk.secondary)
                     Text((note.at ?? 0).timecode).lookMono(12).foregroundStyle(on)
                     // Marked while recording: where from ("Lock Screen", "Mac, ⌃⌥B").
                     if let from = Marks.shortSource(note) {
                         Text(from).font(.system(size: 13)).foregroundStyle(on).opacity(0.78).lineLimit(1)
                     }
                     Spacer(minLength: 6)
-                    ArtIcon(art: .iconPlay, size: 12, lineWidth: 1.4)
-                        .foregroundStyle(on)
-                        .frame(width: 30, height: 30)
-                        .overlay(Circle().strokeBorder(on, lineWidth: 1.3))
-                        .accessibilityHidden(true)
+                    MomentPlayMark(color: on)
                 }
                 if bookmark {
                     Text("“\(Marks.words(note, in: transcript.segments))”").lookSerif(quoteSize).italic().foregroundStyle(on)
@@ -140,3 +158,23 @@ struct PhoneMomentCard: View {
 }
 
 struct Moment: Identifiable { let t: Transcript; let n: Note; var id: UUID { n.id } }
+
+/// The play mark on a moment: Verbose style's line play in a ring; Native's play.circle in the accent.
+private struct MomentPlayMark: View {
+    var color: Color
+    @Environment(\.look) private var look
+    var body: some View {
+        Group {
+            if look.isNative {
+                Image(systemName: "play.circle.fill").font(.system(size: 26)).foregroundStyle(NativeInk.accent)   // brand: native
+            } else {
+                ArtIcon(art: .iconPlay, size: 12, lineWidth: 1.4)
+                    .foregroundStyle(color)
+                    .frame(width: 30, height: 30)
+                    .overlay(Circle().strokeBorder(color, lineWidth: 1.3))
+            }
+        }
+        .frame(width: 30, height: 30)
+        .accessibilityHidden(true)
+    }
+}

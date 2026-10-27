@@ -193,11 +193,10 @@ struct PhoneOnboarding: View {
         }
     }
 
-    /// Native: a full-width persimmon capsule with a white label (black in dark, `PremiumInk.onAccent`), whatever the
-    /// Verbose style fill.
+    /// Native: a full-width button in the accent (system blue) with a white label, whatever the Verbose style fill.
     private func bigButton(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(look.isNative ? PremiumInk.onAccent : text)
+            Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(look.isNative ? NativeInk.onAccent : text)
                 .frame(maxWidth: .infinity).padding(.vertical, 16)
                 .background(look.isNative ? NativeInk.accent : fill, in: RoundedRectangle(cornerRadius: look.isNative ? 26 : Radius.tile, style: .continuous))
         }

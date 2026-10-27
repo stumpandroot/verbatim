@@ -3,7 +3,7 @@ import SwiftUI
 // Home's sections that both looks share on iPhone (Edit Home, mockup "premium", section 03): Last dictation, Projects,
 // Moments, and Queue, each Compact (one slim row or strip) or Large (the full card); the shortcut tiles' actions; and
 // the Edit Home button at the end of Home. Record, the tiles, This week, and Recent recordings are drawn by each
-// look's Home (HomeScreen.swift, PremiumHome.swift). Every view reads `\.look` and draws the look's clothes; the
+// look's Home (HomeScreen.swift, NativeHome.swift). Every view reads `\.look` and draws the look's clothes; the
 // Native branches are stock Apple and marked for the brand check.
 
 // MARK: - Spacing
@@ -26,9 +26,10 @@ enum HomeSpacing {
         return 12
     }
 
-    /// The sections Home draws: the layout's shown ones, without Queue while nothing is transcribing.
-    static func drawn(_ layout: HomeLayout, working: Bool) -> [HomeLayout.Item] {
-        layout.shown.filter { $0.section != .queue || working }
+    /// The sections Home draws: the layout's shown ones, without Queue while nothing is transcribing. Native draws no
+    /// Record section: Record is in the tab bar's accessory there (RecordAccessory.swift).
+    static func drawn(_ layout: HomeLayout, working: Bool, native: Bool = false) -> [HomeLayout.Item] {
+        layout.shown.filter { ($0.section != .queue || working) && !(native && $0.section == .record) }
     }
 }
 
@@ -123,7 +124,7 @@ struct HomeSectionHeading: View {
 
     var body: some View {
         if look.isNative {
-            PremiumSectionHeader(title: nativeTitle, action: link, onAction: onLink)
+            NativeListHeader(title: nativeTitle, action: link, onAction: onLink)
         } else {
             HStack(alignment: .firstTextBaseline) {
                 (Text(title.isEmpty ? "" : title + " ") + Text(italic ?? "").italic())
@@ -156,7 +157,7 @@ private struct HomeStrip: ViewModifier {
         if look.isNative {
             content.padding(.horizontal, 16).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .premiumSoftCard(radius: 20)
+                .nativeCell(radius: 20)
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         } else {
             content.padding(.horizontal, 14).padding(.vertical, 11)
@@ -254,8 +255,7 @@ struct HomeLastDictationSection: View {
 
     @ViewBuilder private var panel: some View {
         if look.isNative {
-            RoundedRectangle(cornerRadius: 22, style: .continuous).fill(PremiumInk.card)
-                .shadow(color: PremiumStyle.cardShadow, radius: 11, y: 6)
+            RoundedRectangle(cornerRadius: 22, style: .continuous).fill(NativeInk.card)
         } else {
             let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
             PhonePanelFill(color: PhoneInk.butter, shape: shape).overlay(shape.strokeBorder(Ink.inkFixed, lineWidth: 1.5))
@@ -269,7 +269,7 @@ struct HomeLastDictationSection: View {
             .foregroundStyle(look.isNative ? NativeInk.accent : Ink.inkFixed)
             .padding(.horizontal, 14).frame(minHeight: 32)
             .background {
-                if look.isNative { Capsule().fill(PremiumInk.accentSoft) }
+                if look.isNative { Capsule().fill(NativeInk.fill) }
                 else { Capsule().fill(Ink.readerFixed.opacity(0.7)).overlay(Capsule().strokeBorder(Ink.inkFixed, lineWidth: 1.2)) }
             }
             .contentTransition(.opacity)
@@ -344,7 +344,7 @@ struct HomeProjectsSection: View {
         }
         .padding(.horizontal, 14).frame(minHeight: 40)
         .background {
-            if look.isNative { Capsule().fill(PremiumInk.card).shadow(color: PremiumStyle.cardShadow, radius: 6, y: 3) }
+            if look.isNative { Capsule().fill(NativeInk.fill) }
             else { Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5)) }
         }
     }
@@ -551,7 +551,7 @@ struct HomeThoughtsSection: View {
             .foregroundStyle(look.isNative ? NativeInk.accent : Ink.ink)
             .padding(.horizontal, compact ? 0 : 14).frame(minWidth: 34, minHeight: 34)
             .background {
-                if look.isNative { Capsule().fill(PremiumInk.accentSoft) }
+                if look.isNative { Capsule().fill(NativeInk.fill) }
                 else { Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5)) }
             }
             .contentShape(Capsule())

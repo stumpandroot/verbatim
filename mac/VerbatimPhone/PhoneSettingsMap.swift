@@ -41,7 +41,6 @@ enum PhoneSettingsMap {
             Row(id: "appearanceRow", page: "appearance", settings: [
                 Setting("look", keys: ["appearance.look"]),
                 Setting("appearance", keys: ["appearance"]),
-                Setting("homeRecordCard", keys: ["home.premium.recordCard"]),
             ]),
             // Customize Home: Edit Home's sections, sizes, and tiles (EditHome.swift).
             Row(id: "customizeHomeRow", page: "customizeHome", settings: [Setting("customizeHome")]),

@@ -32,9 +32,10 @@ struct VerbatimPhoneApp: App {
 }
 
 /// The tabs in the system tab bar (Liquid Glass on iOS 26): Home, up to three you pick (Library and Moments unless you
-/// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. The recorder
-/// covers the screen until you minimize it; then a bar above the tab bar carries the recording on every tab
-/// (MiniRecorder.swift).
+/// change them in Settings › Personalization and preferences › Tab bar), and Settings. Paper underneath. In Verbose
+/// style the recorder covers the screen until you minimize it; then a bar above the tab bar carries the recording on
+/// every tab (MiniRecorder.swift). In Native, Record and the live recording live in the tab bar's bottom accessory
+/// (RecordAccessory.swift), and the recorder is a sheet.
 struct PhoneRoot: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.scenePhase) private var scenePhase
@@ -75,6 +76,9 @@ struct PhoneRoot: View {
                     .tag(t)
             }
         }
+        // Native: Record in the tab bar's bottom accessory, and a tab bar that shrinks on scroll down (iOS 26;
+        // RecordAccessory.swift). On in both looks, so the tab view keeps its identity when the look changes.
+        .nativeTabChrome(native: look.isNative, hidden: app.readingTranscripts > 0)
         // The tab you leave keeps the look it was drawn in; the one you open follows the current look.
         .onChange(of: app.tab) { old, new in
             tabLooks[old] = look
@@ -125,7 +129,21 @@ struct PhoneRoot: View {
 
     var body: some View {
         tabs
-        .fullScreenCover(isPresented: $app.showRecorder) { RecordScreen(zoom: recorderZoom) }
+        // The recorder: full screen in Verbose style; in Native, a standard sheet with a grabber, like Voice Memos'.
+        // Swiping either one down minimizes it; the recording goes on.
+        .fullScreenCover(isPresented: Binding(get: { app.showRecorder && !look.isNative }, set: { app.showRecorder = $0 })) {
+            RecordScreen(zoom: recorderZoom)
+        }
+        .sheet(isPresented: Binding(get: { app.showRecorder && look.isNative }, set: { app.showRecorder = $0 })) {
+            NativeRecorder().environmentObject(app)
+        }
+        // Native: Record as's Import, from Photos, files, or a link (RecordAccessory.swift).
+        .confirmationDialog("Import", isPresented: $app.showImportChoices, titleVisibility: .hidden) {
+            Button("Choose from Photos") { app.showPhotoPicker = true }
+            Button("Choose files…") { app.showImporter = true }
+            Button("Paste a link") { app.showLinkSheet = true }
+            Button("Cancel", role: .cancel) {}
+        }
         .fullScreenCover(isPresented: $app.showCaptions) {
             LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).environmentObject(app)
         }
@@ -191,8 +209,8 @@ struct PhoneRoot: View {
         .sheet(isPresented: $app.showLinkSheet) { LinkSheet() }
         .sheet(isPresented: $app.showPlayingSheet) { WhatsPlayingSheet().environmentObject(app) }
         .sheet(item: $app.exportRequest) { r in PhoneExportSheet(ids: r.ids).environmentObject(app) }
-        // Premium Native: Saved to Library, after Stop (PremiumRecord.swift).
-        .sheet(item: $app.savedRecording) { s in PremiumSavedSheet(saved: s).environmentObject(app) }
+        // Native: Saved to Library, after Stop (NativeRecorder.swift).
+        .sheet(item: $app.savedRecording) { s in NativeSavedSheet(saved: s).environmentObject(app) }
         // A pasted link that turned out to be a whole show or feed: pick the episode.
         .sheet(item: $app.episodeChoice) { choice in
             NavigationStack {
@@ -251,7 +269,7 @@ private extension View {
     /// A tab's stack in its own look: the look, its tint, and a fresh identity when the look changes.
     func tabLook(_ look: AppLook) -> some View {
         environment(\.look, look)
-            .tint(look.isNative ? Ink.nativeAccent : Ink.ink)
+            .tint(look.isNative ? nil : Ink.ink)   // Native: the system accent (blue), switches green
             .id(look)
     }
 }

@@ -11,8 +11,8 @@ import AppKit
 // 1. Record and dictate. iPhone: small (Record), medium (both), Lock Screen circular (Record) and rectangular (both),
 //    and StandBy (small). Mac: small and medium.
 // 2. Recent recordings: medium (three) and large (five, with This week at the foot). Each row opens its transcript.
-// 3. This week: small and medium. Native draws a gradient card (the color is the widget's one option); Verbose style
-//    an outlined paper card with the serif number.
+// 3. This week: small and medium. Native draws it on black like the others; Verbose style an outlined paper card with
+//    the serif number. (The widget's Color option is from Premium Native's gradient cards; Native no longer uses it.)
 // 4. New thought (the Quick capture widget's kind): small. Starts a thought (`NewThoughtIntent`): on iPhone it records in
 //    place behind a Live Activity when iOS allows it; on the Mac it starts in the running app without bringing it
 //    forward.
@@ -24,7 +24,10 @@ import AppKit
 // persimmon panel is SF Pro semibold 14 in full ink (DESIGN.md §1.5, §2).
 //
 // Widgets follow the look chosen in Verbose (DESIGN.md §13, item 8): iPhone reads `AppLook` from the App Group; the Mac reads
-// the look from the snapshot, since the Mac keeps it in the app's own defaults. Data comes from the snapshot the app
+// the look from the snapshot, since the Mac keeps it in the app's own defaults. Native draws them black, like Apple
+// Music's widgets in iOS 27.2 (mockup "Verbose Native Redesign", section 7): white text, gray secondary text, and the
+// flat red record disc as the only color, in light and dark alike (`NativeWidget.black`; false falls back to the
+// system background). Data comes from the snapshot the app
 // writes (WidgetSnapshot.swift). Tinted and clear Home Screens, the Lock Screen, and StandBy at night draw one color:
 // the record disc, the bars, and today's bar are `widgetAccentable()`, and shape and type carry the look.
 //
@@ -271,6 +274,11 @@ private struct Skin {
     var onPanel: Color { full && showsBackground ? Ink.inkFixed : .primary }
 }
 
+/// Native's text on the widget: white and gray on black in full color; the system's own in tinted, clear, and
+/// one-color modes (or without the background, in StandBy and on the Lock Screen).
+private func nativeText(_ skin: Skin) -> Color { skin.full && skin.showsBackground ? NativeWidget.primary : .primary }
+private func nativeSecondary(_ skin: Skin) -> Color { skin.full && skin.showsBackground ? NativeWidget.secondary : .secondary }
+
 private struct SkinReader<Content: View>: View {
     var look: AppLook
     @ViewBuilder var content: (Skin) -> Content
@@ -280,22 +288,37 @@ private struct SkinReader<Content: View>: View {
 }
 
 // brand: native begin
-/// Native look surfaces: the system's card, and a tile tinted with the accent.
+/// Native look surfaces: black, like Music's widgets (white text, gray secondary, the red record disc the only
+/// color). `black = false` falls back to the system background with the system's text colors, should Apple pull
+/// Music's change before release.
 private enum NativeWidget {
+    static let black = true
+    /// The widget's background.
     static var card: Color {
+        if black { return Color.black }
         #if os(iOS)
-        return Color(uiColor: .secondarySystemGroupedBackground)
+        return Color(uiColor: .systemBackground)
         #else
         return Color(nsColor: .controlBackgroundColor)
         #endif
     }
-    static let tile = Ink.nativeAccent.opacity(0.12)
-    static let secondary = Color.secondary
+    /// Text and glyphs.
+    static var primary: Color { black ? Color.white : Color.primary }
+    /// Secondary text: system gray on black.
+    static var secondary: Color { black ? Color(white: 0.62) : Color.secondary }
+    /// A quiet tile or chip on the background (the medium widget's Record and Dictate).
+    static var tile: Color { black ? Color(white: 1, opacity: 0.12) : Color.primary.opacity(0.08) }
+    /// Bars that aren't today's.
+    static var bar: Color { black ? Color(white: 0.4) : Color.secondary }
+    /// The record disc: flat system red, the only color.
+    static let record = Color.red
+    /// Its ring: a gray hairline circle, like Voice Memos'.
+    static var ring: Color { black ? Color(white: 0.32) : Color.secondary.opacity(0.4) }
 }
 // brand: native end
 
-/// The record button. Verbose style: an ink disc with a persimmon dot. Native: the persimmon sphere. In one-color
-/// modes: a ring around a dot (Verbose) or a solid disc (Native), both accentable.
+/// The record button. Verbose style: an ink disc with a persimmon dot. Native: the flat red disc in a gray ring. In
+/// one-color modes: a ring around a dot (Verbose) or a solid disc (Native), both accentable.
 private struct RecordDisc: View {
     var look: AppLook
     var size: CGFloat
@@ -314,10 +337,12 @@ private struct RecordDisc: View {
                     .widgetAccentable()
                 }
             } else if look == .native {
-                // The iPhone's Premium record disc (`PremiumInk.disc`: highlight, brand persimmon, shade).
-                Circle().fill(RadialGradient(colors: PremiumInk.discColors, center: UnitPoint(x: 0.34, y: 0.28),
-                                             startRadius: 0, endRadius: size * 0.69))
-                    .shadow(color: Ink.persimmonFixed.opacity(0.35), radius: size * 0.1, y: size * 0.05)
+                // brand: native begin
+                Circle().fill(NativeWidget.record)
+                    .frame(width: size * 0.78, height: size * 0.78)
+                    .frame(width: size, height: size)
+                    .overlay(Circle().strokeBorder(NativeWidget.ring, lineWidth: max(1.5, size * 0.06)))
+                // brand: native end
             } else {
                 Circle().fill(Ink.inkFixed)
                     .overlay(Circle().fill(Ink.persimmonFixed).frame(width: size * 0.36, height: size * 0.36))
@@ -328,7 +353,8 @@ private struct RecordDisc: View {
     }
 }
 
-/// Dictate's mark. Verbose style: the dictation waves. Native: a microphone on an accent disc.
+/// Dictate's mark. Verbose style: the dictation waves. Native: a white microphone in a gray ring (no color: the red disc
+/// stays the widget's only one).
 private struct DictateMark: View {
     var skin: Skin
     var size: CGFloat
@@ -337,12 +363,12 @@ private struct DictateMark: View {
             if skin.native {
                 ZStack {
                     if skin.full {
-                        Circle().fill(Ink.nativeAccent)
+                        Circle().strokeBorder(NativeWidget.ring, lineWidth: max(1.5, size * 0.06))   // brand: native
                     } else {
                         Circle().strokeBorder(lineWidth: max(1.5, size * 0.05)).widgetAccentable()
                     }
                     Image(systemName: "mic.fill").font(.system(size: size * 0.42, weight: .semibold))   // brand: native
-                        .foregroundStyle(skin.full ? Color.white : Color.primary)
+                        .foregroundStyle(skin.full ? NativeWidget.primary : Color.primary)
                 }
                 .frame(width: size, height: size)
             } else {
@@ -393,13 +419,15 @@ private struct DayLetters: View {
     var count: Int
     var color: Color
     var spacing: CGFloat = 3
+    /// Native's letters are SF Pro; Verbose style's are SF Pro Rounded.
+    var native = false
     var body: some View {
         let cal = Calendar.current
         let symbols = cal.veryShortStandaloneWeekdaySymbols
         HStack(spacing: spacing) {
             ForEach(0..<count, id: \.self) { i in
                 Text(symbols[(cal.firstWeekday - 1 + i) % symbols.count])
-                    .font(.system(size: 8, weight: .bold, design: .rounded)).foregroundStyle(color)
+                    .font(native ? .system(size: 8, weight: .semibold) : .system(size: 8, weight: .bold, design: .rounded)).foregroundStyle(color)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -434,12 +462,12 @@ private struct RecordDictateView: View {
             RecordTap {
                 VStack(spacing: 6) {
                     Spacer(minLength: 0)
-                    RecordDisc(look: .native, size: 66)
-                    Text("Record").font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary)
-                    Text("Voice note").font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)
+                    RecordDisc(look: .native, size: 58)
                     Spacer(minLength: 0)
+                    Text("Record").font(.system(size: 17, weight: .semibold)).foregroundStyle(nativeText(skin))
+                    Text("Starts a voice note").font(.system(size: 13)).foregroundStyle(nativeSecondary(skin))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
             .containerBackground(for: .widget) { NativeWidget.card }
             .accessibilityLabel("Record a voice note")
@@ -470,7 +498,7 @@ private struct RecordDictateView: View {
             VStack(spacing: 8) {
                 Spacer(minLength: 0)
                 if record { RecordDisc(look: .native, size: 50) } else { DictateMark(skin: skin, size: 50) }
-                Text(record ? "Record" : "Dictate").font(.system(size: 14, weight: .semibold)).foregroundStyle(.primary)
+                Text(record ? "Record" : "Dictate").font(.system(size: 14, weight: .semibold)).foregroundStyle(nativeText(skin))
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -596,7 +624,7 @@ private struct RecentView: View {
                     Spacer(minLength: 0)
                 } else {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { i, item in
-                        if i > 0 { Rectangle().fill(Color.primary.opacity(0.1)).frame(height: 0.5) }
+                        if i > 0 { Rectangle().fill(skin.native && skin.full ? NativeWidget.tile : Color.primary.opacity(0.1)).frame(height: 0.5) }
                         Link(destination: WidgetLink.transcript(item.id).url) { row(item, skin) }
                     }
                     Spacer(minLength: 0)
@@ -614,11 +642,11 @@ private struct RecentView: View {
         let kept = entry.snapshot?.kept ?? 0
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             if skin.native {
-                BarsMark(color: skin.full ? Ink.nativeAccent : .primary).frame(width: 11, height: 11).widgetAccentable()
+                BarsMark(color: skin.full ? NativeWidget.primary : .primary).frame(width: 11, height: 11).widgetAccentable()
                 Text("Recent recordings").font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
+                    .foregroundStyle(skin.full ? NativeWidget.primary : .primary)
                 Spacer(minLength: 4)
-                if kept > 0 { Text(kept, format: .number).font(.system(size: 12)).monospacedDigit().foregroundStyle(NativeWidget.secondary) }
+                if kept > 0 { Text(kept, format: .number).font(.system(size: 12)).monospacedDigit().foregroundStyle(nativeSecondary(skin)) }
             } else {
                 Text("Recent \(Text("recordings").italic())").font(Ink.serif(16)).foregroundStyle(Ink.ink)
                 Spacer(minLength: 4)
@@ -634,9 +662,9 @@ private struct RecentView: View {
         let length = WidgetSnapshot.lengthLabel(item.duration)
         if skin.native {
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.primary).lineLimit(1).privacySensitive()
+                Text(item.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(nativeText(skin)).lineLimit(1).privacySensitive()
                 Text(nativeMeta(item, day: day, length: length))
-                    .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(NativeWidget.secondary).lineLimit(1)
+                    .font(.system(size: 11.5)).monospacedDigit().foregroundStyle(nativeSecondary(skin)).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 5)
@@ -654,13 +682,6 @@ private struct RecentView: View {
         }
     }
 
-    /// The persimmon gradient's deeper half in full color (small white text reads at 4.5:1 across it, as on the
-    /// iPhone's Summary card); a quiet wash in one color.
-    private func footerFill(_ skin: Skin) -> AnyShapeStyle {
-        guard skin.full else { return AnyShapeStyle(Color.primary.opacity(0.12)) }
-        let deep = Array(PremiumInk.stops(PremiumInk.persimmonLight, PremiumInk.persimmonDark).dropFirst())
-        return AnyShapeStyle(LinearGradient(colors: deep, startPoint: .leading, endPoint: .trailing))
-    }
 
     /// "Today · 9:12 AM · 1:04:12".
     private func nativeMeta(_ item: WidgetSnapshot.Item, day: String, length: String) -> String {
@@ -671,14 +692,20 @@ private struct RecentView: View {
     @ViewBuilder private func footer(_ snap: WidgetSnapshot, _ skin: Skin) -> some View {
         let week = snap.week(at: entry.date)
         if skin.native {
+            // brand: native begin
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(week.words, format: .number).font(.system(size: 19, weight: .bold, design: .rounded))
+                Text(week.words, format: .number).font(.system(size: 19, weight: .bold)).monospacedDigit()
+                    .foregroundStyle(nativeText(skin))
                 Text(week.words == 1 ? "word this week" : "words this week").font(.system(size: 12, weight: .semibold))
-                Spacer(minLength: 0)
+                    .foregroundStyle(nativeSecondary(skin))
+                Spacer(minLength: 4)
+                WeekBars(week: week, today: WidgetSnapshot.todayIndex(in: week, now: entry.date), bar: NativeWidget.bar,
+                         todayColor: skin.full ? NativeWidget.primary : .primary, spacing: 2)
+                    .frame(width: 44, height: 14)
             }
-            .foregroundStyle(skin.full ? Color.white : .primary)
             .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(footerFill(skin), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(skin.full ? NativeWidget.tile : Color.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            // brand: native end
         } else {
             VStack(spacing: 6) {
                 Rectangle().fill(Ink.hairline).frame(height: 1)
@@ -760,20 +787,23 @@ private struct WeekView: View {
         }
     }
 
-    // Native: the Journal-style gradient, a big rounded number, and the mini chart.
+    // Native: on black, "This week", the words in SF Pro bold with monospaced digits, and the bars with today's in
+    // white (not blue, so the red disc stays the widgets' only color).
+    // brand: native begin
     @ViewBuilder private func native(_ week: WidgetSnapshot.Week, _ today: Int?, _ skin: Skin) -> some View {
-        let ink: Color = skin.full && skin.showsBackground ? entry.tint.text : .primary
+        let ink: Color = skin.full ? NativeWidget.primary : .primary
+        let quiet: Color = skin.full ? NativeWidget.secondary : .secondary
         let lead = VStack(alignment: .leading, spacing: 0) {
-            Text("This week").font(.system(size: 13, weight: .semibold))
+            Text("This week").font(.system(size: 13, weight: .semibold)).foregroundStyle(quiet)
             Spacer(minLength: 2)
-            Text(week.words, format: .number).font(.system(size: 34, weight: .bold, design: .rounded))
+            Text(week.words, format: .number).font(.system(size: 34, weight: .bold)).monospacedDigit()
+                .foregroundStyle(ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
-            Text(week.words == 1 ? "word" : "words").font(.system(size: 12, weight: .semibold))
+            Text("words dictated").font(.system(size: 12)).foregroundStyle(quiet)
         }
         let chart = VStack(spacing: 3) {
-            WeekBars(week: week, today: today, bar: ink.opacity(0.55), todayColor: ink)
-            // Text on a gradient is solid white, never faded (DESIGN.md §13.3.2).
-            DayLetters(count: week.days.count, color: ink)
+            WeekBars(week: week, today: today, bar: skin.full ? NativeWidget.bar : Color.primary.opacity(0.5), todayColor: ink)
+            DayLetters(count: week.days.count, color: quiet, native: true)
         }
         Group {
             if family == .systemMedium {
@@ -788,12 +818,10 @@ private struct WeekView: View {
                 }
             }
         }
-        .foregroundStyle(ink)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(for: .widget) {
-            LinearGradient(colors: entry.tint.colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
+        .containerBackground(for: .widget) { NativeWidget.card }
     }
+    // brand: native end
 
     // Verbose style: a paper card with an ink outline, the serif number, ink bars with today in persimmon.
     @ViewBuilder private func verbose(_ week: WidgetSnapshot.Week, _ today: Int?, _ skin: Skin) -> some View {
@@ -860,8 +888,8 @@ private struct QuickCaptureView: View {
             mark(skin)
             Spacer(minLength: 4)
             if skin.native {
-                Text("\(title.0) \(title.1)").font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary)
-                Text(detail).font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)
+                Text("\(title.0) \(title.1)").font(.system(size: 15, weight: .semibold)).foregroundStyle(nativeText(skin))
+                Text(detail).font(.system(size: 12)).foregroundStyle(nativeSecondary(skin))
             } else {
                 Text("\(title.0) \(Text(title.1).italic())").font(Ink.serif(22)).foregroundStyle(ink(skin)).lineLimit(1)
                 Text(detail).font(.system(size: 12)).foregroundStyle(ink(skin))
@@ -877,7 +905,7 @@ private struct QuickCaptureView: View {
         let disc: Color = skin.full ? (skin.native ? NativeWidget.tile : Ink.persimmon) : Color.primary.opacity(0.18)
         ZStack {
             Circle().fill(disc)
-            BrandGlyph(art: .iconThought, color: skin.full ? (skin.native ? Ink.nativeAccent : Ink.inkFixed) : .primary, minLineWidth: 1.3)
+            BrandGlyph(art: .iconThought, color: skin.full ? (skin.native ? NativeWidget.primary : Ink.inkFixed) : .primary, minLineWidth: 1.3)
                 .padding(8).widgetAccentable()
         }
         .frame(width: 36, height: 36)
@@ -973,8 +1001,8 @@ private struct TodayThoughtsView: View {
                         Link(destination: WidgetLink.thought.url) {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(line.date, format: .dateTime.hour().minute())
-                                    .font(skin.native ? .system(size: 12).monospacedDigit() : Ink.mono(12)).foregroundStyle(skin.native ? NativeWidget.secondary : Ink.mute)
-                                Text(line.text).font(.system(size: 13)).foregroundStyle(skin.native ? Color.primary : Ink.ink).lineLimit(1).privacySensitive()
+                                    .font(skin.native ? .system(size: 12).monospacedDigit() : Ink.mono(12)).foregroundStyle(skin.native ? nativeSecondary(skin) : Ink.mute)
+                                Text(line.text).font(.system(size: 13)).foregroundStyle(skin.native ? nativeText(skin) : Ink.ink).lineLimit(1).privacySensitive()
                             }
                         }
                     }
@@ -982,7 +1010,7 @@ private struct TodayThoughtsView: View {
                 Spacer(minLength: 0)
                 HStack {
                     let n = today?.transcribing ?? 0
-                    Text(n == 0 ? "" : (n == 1 ? "One transcribing" : "\(n) transcribing")).font(.system(size: 11.5)).foregroundStyle(skin.native ? NativeWidget.secondary : Ink.mute)
+                    Text(n == 0 ? "" : (n == 1 ? "One transcribing" : "\(n) transcribing")).font(.system(size: 11.5)).foregroundStyle(skin.native ? nativeSecondary(skin) : Ink.mute)
                     Spacer(minLength: 4)
                     Button(intent: NewThoughtIntent()) { newThought(skin) }.buttonStyle(.plain)
                 }
@@ -1003,10 +1031,10 @@ private struct TodayThoughtsView: View {
         let count = today?.count ?? 0
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             if skin.native {
-                Text("Today's thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(skin.full ? Ink.nativeAccent : .primary).widgetAccentable()
-                if count > 0 { Text("\(count)").font(.system(size: 12)).monospacedDigit().foregroundStyle(NativeWidget.secondary) }
+                Text("Today's thoughts").font(.system(size: 13, weight: .semibold)).foregroundStyle(nativeText(skin))
+                if count > 0 { Text("\(count)").font(.system(size: 12)).monospacedDigit().foregroundStyle(nativeSecondary(skin)) }
                 Spacer(minLength: 4)
-                Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(.system(size: 12)).foregroundStyle(NativeWidget.secondary)
+                Text(entry.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day()).font(.system(size: 12)).foregroundStyle(nativeSecondary(skin))
             } else {
                 Text("Today's \(Text("thoughts").italic())").font(Ink.serif(16)).foregroundStyle(Ink.ink)
                 if count > 0 { Text("\(count)").font(Ink.mono(12)).foregroundStyle(Ink.mute) }
@@ -1017,19 +1045,21 @@ private struct TodayThoughtsView: View {
         .lineLimit(1)
     }
 
-    /// The persimmon pill: the record action, so it may carry the brand's one saturated fill.
+    /// The New thought pill: persimmon in Verbose style (the record action may carry the brand's one saturated fill);
+    /// white on Native's black.
     private func newThought(_ skin: Skin) -> some View {
         HStack(spacing: 6) {
             ZStack {
-                Circle().fill(skin.full ? Ink.inkFixed : Color.primary.opacity(0.2))
-                BrandGlyph(art: .iconThought, color: skin.full ? Ink.persimmonFixed : .primary, minLineWidth: 1.1).padding(3)
+                Circle().fill(skin.full ? (skin.native ? NativeWidget.card : Ink.inkFixed) : Color.primary.opacity(0.2))
+                BrandGlyph(art: .iconThought, color: skin.full ? (skin.native ? NativeWidget.primary : Ink.persimmonFixed) : .primary, minLineWidth: 1.1).padding(3)
             }
             .frame(width: 18, height: 18)
             Text(skin.native ? "New Thought" : "New thought").font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(skin.full ? (skin.native ? PremiumInk.onAccent : Ink.inkFixed) : .primary)
+                .foregroundStyle(skin.full ? (skin.native ? NativeWidget.card : Ink.inkFixed) : .primary)
         }
         .padding(.leading, 5).padding(.trailing, 11).frame(height: 28)
-        .background(Capsule().fill(skin.full ? (skin.native ? Ink.nativeAccent : Ink.persimmon) : Color.primary.opacity(0.12)))
+        // Native: a white pill on black (no color: the red disc is the widgets' only one); Verbose style: persimmon.
+        .background(Capsule().fill(skin.full ? (skin.native ? NativeWidget.primary : Ink.persimmon) : Color.primary.opacity(0.12)))
         .widgetAccentable()
         .accessibilityLabel("New thought")
     }

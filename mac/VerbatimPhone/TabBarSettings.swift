@@ -195,6 +195,30 @@ struct TabBarPreview: View {
     static var shown: [PhoneTab] = []
 
     var body: some View {
+        VStack(spacing: 6) {
+            // Native: Record in the tab bar's bottom accessory, above the tabs (RecordAccessory.swift).
+            if look.isNative {
+                HStack(spacing: 10) {
+                    NativeRecordDisc(size: 22)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Record").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.label)
+                        Text("Voice note").font(.system(size: 11)).foregroundStyle(NativeInk.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(Capsule().fill(NativeInk.card))
+            }
+            tabs
+        }
+        .animation(nil, value: bar)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview: \(bar.tabs.map(\.title).joined(separator: ", "))\(look.isNative ? ", with Record above the tabs" : "")")
+        .onAppear { Self.shown = bar.tabs }
+        .onChange(of: bar) { _, b in Self.shown = b.tabs }
+    }
+
+    private var tabs: some View {
         HStack(spacing: 0) {
             ForEach(bar.tabs, id: \.self) { t in
                 let on = t == .home
@@ -209,15 +233,10 @@ struct TabBarPreview: View {
         .padding(.horizontal, 8).padding(.vertical, 9)
         .background {
             if look.isNative {
-                Capsule().fill(NativeInk.card).shadow(color: PremiumStyle.cardShadow, radius: 8, y: 4)
+                Capsule().fill(NativeInk.card)
             } else {
                 Capsule().fill(Ink.card).overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
             }
         }
-        .animation(nil, value: bar)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Preview: \(bar.tabs.map(\.title).joined(separator: ", "))")
-        .onAppear { Self.shown = bar.tabs }
-        .onChange(of: bar) { _, b in Self.shown = b.tabs }
     }
 }

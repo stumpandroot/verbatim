@@ -10,6 +10,7 @@ import UIKit
 /// tap Start session.
 struct SessionStartScreen: View {
     @ObservedObject var session: KeyboardSession
+    @Environment(\.look) private var look
 
     var body: some View {
         if session.confirming != nil { confirmation } else { starting }
@@ -17,12 +18,8 @@ struct SessionStartScreen: View {
 
     private var confirmation: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                Overline(text: "Keyboard session", color: Ink.dim)
-            }
+            SessionEyebrow()
             .padding(.top, 24)
-            .accessibilityElement(children: .combine)
 
             Text("Start a keyboard session?")
                 .lookSerif(34).foregroundStyle(.lookInk)
@@ -55,12 +52,8 @@ struct SessionStartScreen: View {
     private var starting: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
-                    Overline(text: "Keyboard session", color: Ink.dim)
-                }
+                SessionEyebrow()
                 .padding(.top, 24)
-                .accessibilityElement(children: .combine)
 
                 Text(title)
                     .lookSerif(34).foregroundStyle(.lookInk)
@@ -98,7 +91,7 @@ struct SessionStartScreen: View {
 
                 // A status, not a recording: a neutral card with an ink outline, and persimmon only on the voice bars.
                 HStack(spacing: 18) {
-                    VoiceBars(level: session.isOn ? 0.35 : 0, color: Ink.persimmon, barWidth: 14, maxHeight: 64)
+                    VoiceBars(level: session.isOn ? 0.35 : 0, color: look.isNative ? NativeInk.accent : Ink.persimmon, barWidth: 14, maxHeight: 64)
                         .frame(width: 72)
                     Text(session.dictating ? "Listening" : session.isOn ? "Ready" : "Starting…")
                         .lookSerif(24).foregroundStyle(.lookInk)
@@ -106,8 +99,7 @@ struct SessionStartScreen: View {
                 }
                 .padding(22)
                 .frame(maxWidth: .infinity, minHeight: showsWayBack && session.coach == .full ? 96 : 120, alignment: .leading)
-                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
+                .modifier(SessionStatusSurface())
                 .padding(.top, 22)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(session.dictating ? "Listening" : session.isOn ? "Session ready" : "Starting")
@@ -220,11 +212,11 @@ private struct SwipeHint: View {
             let w = g.size.width, h = g.size.height
             ZStack(alignment: .topLeading) {
                 UnevenRoundedRectangle(bottomLeadingRadius: 16, bottomTrailingRadius: 16, style: .continuous)
-                    .stroke(Ink.ink, lineWidth: 1.5)
+                    .stroke(.lookInk, lineWidth: 1.5)
                     .frame(width: w, height: h)
-                Capsule().fill(Ink.ink).frame(width: w * 0.46, height: 4)
+                Capsule().fill(.lookInk).frame(width: w * 0.46, height: 4)
                     .position(x: w / 2, y: h - 9)
-                Circle().fill(Ink.persimmon).frame(width: 12, height: 12)
+                Circle().fill(.lookMark).frame(width: 12, height: 12)
                     .position(x: limitMotion || travel ? w * 0.72 : w * 0.28, y: h - 9)
                     .opacity(limitMotion ? 1 : (travel ? 0.15 : 1))
                 if limitMotion {
@@ -249,7 +241,7 @@ private struct BreadcrumbHint: View {
             let w = g.size.width, h = g.size.height
             ZStack(alignment: .topLeading) {
                 UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16, style: .continuous)
-                    .stroke(Ink.ink, lineWidth: 1.5)
+                    .stroke(.lookInk, lineWidth: 1.5)
                     .frame(width: w, height: h)
                 HStack(spacing: 2) {
                     Image(systemName: "chevron.left").font(.system(size: 9, weight: .bold))
@@ -257,7 +249,7 @@ private struct BreadcrumbHint: View {
                 }
                 .foregroundStyle(.lookInk)
                 .padding(.horizontal, 6).padding(.vertical, 3)
-                .overlay(Capsule().stroke(Ink.persimmon, lineWidth: 2))
+                .overlay(Capsule().stroke(.lookMark, lineWidth: 2))
                 .frame(maxWidth: w - 16, alignment: .leading)
                 .offset(x: 8, y: 9)
                 Text("9:41").lookMono(9).foregroundStyle(.lookMute)
@@ -272,7 +264,7 @@ private struct BreadcrumbHint: View {
 struct FirstDictationNote: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7).padding(.top, 6)
+            Diamond().stroke(.lookAccentText, lineWidth: 1).frame(width: 7, height: 7).padding(.top, 6)
             Text(Ribbon.firstDictationNote)
                 .font(.system(size: 14)).foregroundStyle(.lookDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -417,11 +409,12 @@ struct KeyboardSetupScreen: View {
 /// The session's state, End session, and the idle timeout.
 private struct SessionCard: View {
     @ObservedObject var session: KeyboardSession
+    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Circle().fill(session.isOn ? Ink.persimmon : Ink.mute.opacity(0.4)).frame(width: 9, height: 9)
+                Circle().fill(session.isOn ? AnyShapeStyle(.lookMark) : AnyShapeStyle(Ink.mute.opacity(0.4))).frame(width: 9, height: 9)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.paused ? "Paused for a call" : session.isOn ? "Session on" : "No session").font(.system(size: 16, weight: .medium)).foregroundStyle(.lookInk)
                     if session.isOn {
@@ -457,7 +450,7 @@ private struct SessionCard: View {
                     }
                 }
                 .labelsHidden()
-                .tint(Ink.accentText)
+                .tint(look.isNative ? NativeInk.accent : Ink.accentText)
             }
             Text("A call or Siri pauses the session; it picks up when the call ends. While a session is on, the orange microphone dot shows at the top of the screen.")
                 .font(.system(size: 13)).foregroundStyle(.lookMute)
@@ -498,7 +491,7 @@ struct SessionEndedScreen: View {
 
             if let take = notice.lastTake {
                 HStack(spacing: 10) {
-                    IconGlyph(art: .iconRecent, size: 20, color: Ink.ink)
+                    LookIcon(art: .iconRecent, symbol: "clock.arrow.circlepath", size: 20)
                     Text(take).font(.system(size: 16)).foregroundStyle(.lookInk).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 8)
                     if let at = notice.lastTakeAt {
@@ -532,6 +525,41 @@ struct SessionEndedScreen: View {
         .phonePage()
     }
 }
+
+// brand: native begin
+/// "Keyboard session" over the session screens: the diamond and the overline in Verbose style, a plain secondary line
+/// in Native.
+private struct SessionEyebrow: View {
+    @Environment(\.look) private var look
+    var body: some View {
+        Group {
+            if look.isNative {
+                Text("Keyboard session").font(.subheadline.weight(.semibold)).foregroundStyle(NativeInk.secondary)
+            } else {
+                HStack(spacing: 8) {
+                    Diamond().stroke(Ink.accentText, lineWidth: 1).frame(width: 7, height: 7)
+                    Overline(text: "Keyboard session", color: Ink.dim)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The session's status card: the ink-outlined card in Verbose style, a grouped cell in Native.
+private struct SessionStatusSurface: ViewModifier {
+    @Environment(\.look) private var look
+    func body(content: Content) -> some View {
+        if look.isNative {
+            content.nativeCell()
+        } else {
+            content
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
+        }
+    }
+}
+// brand: native end
 
 /// A quiet text button beside a pill on the session screens ("End session"): semibold dim text, no fill or outline,
 /// a 44 pt target.
