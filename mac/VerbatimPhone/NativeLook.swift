@@ -229,7 +229,7 @@ struct LookIcon: View {
 
 // MARK: - Buttons
 
-/// The primary pill: `.brandPrimary` in Verbose style; a tinted, filled capsule (`.borderedProminent`) in Native.
+/// The primary pill: the dark pill in Verbose style; a tinted, filled capsule (`.borderedProminent`) in Native.
 struct PhonePrimaryButtonStyle: ButtonStyle {
     var large = false
     func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration, large: large) }
@@ -249,13 +249,20 @@ struct PhonePrimaryButtonStyle: ButtonStyle {
                     .opacity(enabled ? 1 : 0.45)
                     .contentShape(Capsule())
             } else {
-                BrandPrimaryButtonStyle(large: large).makeBody(configuration: configuration)
+                // Verbose style: the dark pill (DESIGN.md §11.5), 36 pt when large, 28 pt (mini) otherwise.
+                configuration.label
+                    .font(.system(size: large ? 13.5 : 12, weight: .semibold))
+                    .foregroundStyle(Ink.onInteractive)
+                    .padding(.horizontal, large ? 18 : 12).frame(minHeight: large ? 36 : 28)
+                    .background(Ink.interactive.opacity(configuration.isPressed ? 0.85 : 1), in: Capsule())
+                    .opacity(enabled ? 1 : 0.45)
+                    .contentShape(Capsule())
             }
         }
     }
 }
 
-/// The secondary pill: `.brandSecondary` in Verbose style; the accent on its soft tint in Native ("Record another").
+/// The secondary pill: the line pill in Verbose style; the accent on its soft tint in Native ("Record another").
 struct PhoneSecondaryButtonStyle: ButtonStyle {
     var large = false
     func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration, large: large) }
@@ -274,7 +281,15 @@ struct PhoneSecondaryButtonStyle: ButtonStyle {
                     .opacity(enabled ? 1 : 0.45)
                     .contentShape(Capsule())
             } else {
-                BrandSecondaryButtonStyle(large: large).makeBody(configuration: configuration)
+                // Verbose style: the line pill (DESIGN.md §11.5), a 1.5 pt ink outline, 36 pt when large, 28 pt otherwise.
+                configuration.label
+                    .font(.system(size: large ? 13.5 : 12, weight: .semibold))
+                    .foregroundStyle(Ink.ink)
+                    .padding(.horizontal, large ? 18 : 12).frame(minHeight: large ? 36 : 28)
+                    .background(Ink.ink.opacity(configuration.isPressed ? 0.08 : 0), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Ink.ink, lineWidth: 1.5))
+                    .opacity(enabled ? 1 : 0.45)
+                    .contentShape(Capsule())
             }
         }
     }

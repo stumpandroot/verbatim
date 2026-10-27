@@ -787,7 +787,7 @@ struct Transcript: Codable, Identifiable, Equatable {
     var summaryIsEdited: Bool { summary != nil && !summaryByModel }
 
     /// Placeholder titles Verbatim gives a transcript before it has words.
-    static let defaultTitles: Set<String> = ["Voice memo", "Recovered recording", "Dictation", "App audio", "Untitled"]
+    static let defaultTitles: Set<String> = ["Voice memo", "Voice note", "Recovered recording", "Dictation", "App audio", "Untitled"]
 
     /// A press-and-hold (or hands-free) dictation. These live only in Dictations: the Library and Home's Recent
     /// leave them out unless you're searching (Tim, October 18, 2026).

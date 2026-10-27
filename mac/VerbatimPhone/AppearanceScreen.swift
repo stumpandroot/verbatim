@@ -72,7 +72,7 @@ struct AppearanceScreen: View {
         }
         .phonePage()
         .navigationTitle("Appearance")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .toolbar {
             // Verbose style puts the serif title on the paper.
             if !look.isNative {

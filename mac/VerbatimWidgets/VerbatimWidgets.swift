@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WidgetKit
 import ActivityKit
 import AppIntents
@@ -211,12 +212,24 @@ private struct RibbonLockScreen: View {
 private struct IslandWords: View {
     var line: String
     var body: some View {
-        let parts = Ribbon.splitWords(line)
-        Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
-            .font(Ink.serif(16)).lineLimit(2).truncationMode(.head)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel(line)
+        // Whole words only: the longest end that fits in two lines, never cut mid-word (review P-23).
+        TailWords(text: line, lines: 2, lineHeight: IslandWordsMetrics.lineHeight) { tail in
+            let parts = Ribbon.splitWords(tail)
+            Text("\(Text(parts.older).foregroundStyle(Color.white.opacity(0.5)))\(Text(parts.newest).foregroundStyle(Color.white))")
+                .font(Ink.serif(16))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line)
     }
+}
+
+/// One line of the expanded Island's serif 16 words (New York), for `TailWords`.
+enum IslandWordsMetrics {
+    static let lineHeight: CGFloat = {
+        let base = UIFont.systemFont(ofSize: 16)
+        return UIFont(descriptor: base.fontDescriptor.withDesign(.serif) ?? base.fontDescriptor, size: 16).lineHeight
+    }()
 }
 
 /// "Into Messages", or "Into the Verbose keyboard" when the app isn't known (always in App Store builds).

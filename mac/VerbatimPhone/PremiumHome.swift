@@ -208,9 +208,16 @@ struct PremiumHome: View {
 
     // MARK: Recent recordings
 
+    /// Recordings (not dictations), newest first by when they were made, as the Library sorts them. The store keeps
+    /// the order things were added, so a synced or imported older recording would otherwise show as recent (review
+    /// P-15). Worked out once per library change.
+    static func recentRecordings(_ store: Store) -> [Transcript] {
+        store.memo("phone.home.recent") { store.live.filter { !$0.isDictation }.sorted { $0.createdAt > $1.createdAt } }
+    }
+
     /// Large: the three newest as Voicenotes-style items. Compact: the three newest as one-line rows with a play mark.
     private func recent(_ size: HomeCardSize) -> some View {
-        let items = Array(app.store.live.lazy.filter { !$0.isDictation }.prefix(3))
+        let items = Array(Self.recentRecordings(app.store).prefix(3))
         return VStack(alignment: .leading, spacing: 0) {
             PremiumSectionHeader(title: "Recent recordings", action: "Library") { app.go(.library) }
             if items.isEmpty {

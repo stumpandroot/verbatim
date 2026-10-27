@@ -69,6 +69,9 @@ struct PhoneRoot: View {
             ForEach(tabBar.bar.tabs, id: \.self) { t in
                 tabRoot(t)
                     .tabItem { Label { Text(t.title) } icon: { tabIcon(t) } }
+                    // What's queued, transcribing, or downloading: the system badge, on Library or on Home when
+                    // Library isn't in the bar (review P-12). Zero hides it.
+                    .badge(t == tabBar.bar.host(for: .library) ? app.libraryBadgeCount : 0)
                     .tag(t)
             }
         }
@@ -126,7 +129,7 @@ struct PhoneRoot: View {
         .fullScreenCover(isPresented: $app.showCaptions) {
             LiveCaptionsScreen(captions: app.captions, feed: app.captions.feed).environmentObject(app)
         }
-        // The "link added" card and the Library tab's count badge, above the tab bar (PhoneLinkCard.swift).
+        // The "link added" card, above the tab bar (PhoneLinkCard.swift).
         .overlay { PhoneLinkCardLayer() }
         .overlay { SessionStartLayer(session: app.session) }
         .overlay { SessionEndedLayer(session: app.session) }
@@ -138,15 +141,15 @@ struct PhoneRoot: View {
         // The Action button's control is named for the choice in Settings › Action button (ActionButtonScreen.swift).
         .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); app.importWatchInbox(); AskRecipeCenter.shared.runDue(); ActionChoiceMirror.sync() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
-            Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
+            Button("Not now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
         } message: {
             Text("Many places require everyone's consent to record a conversation. Let people know before you record them.")
         }
         // Live captions or the keyboard while a recording runs behind the bar.
         .alert("Finish your recording first", isPresented: Binding(get: { app.finishRecordingFirst != nil }, set: { if !$0 { app.finishRecordingFirst = nil } })) {
-            Button("Not Now", role: .cancel) {}
-            Button("Open Recording") {
+            Button("Not now", role: .cancel) {}
+            Button("Open recording") {
                 // After the alert has gone, so the recorder's cover can present.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { app.openRecorder() }
             }
@@ -155,13 +158,13 @@ struct PhoneRoot: View {
         }
         // A recording in a language the English-only model can't hear, with Parakeet v3 not downloaded yet.
         .alert(app.v3Offer?.title ?? "", isPresented: Binding(get: { app.v3Offer != nil }, set: { if !$0 { app.v3Offer = nil } })) {
-            Button("Not Now", role: .cancel) { app.v3Offer = nil }
+            Button("Not now", role: .cancel) { app.v3Offer = nil }
             Button("Download") { app.acceptV3Offer() }
         } message: {
             Text(app.v3Offer?.message ?? "")
         }
         .alert("Microphone access is off", isPresented: $app.showMicDenied) {
-            Button("Not Now", role: .cancel) {}
+            Button("Not now", role: .cancel) {}
             Button("Open Settings") { app.openAppSettings() }
         } message: {
             Text("To record, turn on Microphone for Verbose in Settings.")

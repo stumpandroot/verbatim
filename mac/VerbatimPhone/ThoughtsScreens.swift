@@ -52,6 +52,7 @@ struct DayPageScreen: View {
         Group {
             if look.isNative { native(items) } else { verbose(items) }
         }
+        .phoneTopFade()
         .phonePage()
         .navigationTitle(look.isNative ? name : DayPages.title(name, day: day))
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
@@ -247,7 +248,8 @@ struct DayPageScreen: View {
                 } else {
                     ForEach(items) { t in nativeCard(t) }
                 }
-                Color.clear.frame(height: 96).accessibilityHidden(true)
+                // Room for the record button over the last thought: its 86 pt plus 16 (review P-13).
+                Color.clear.frame(height: 104).accessibilityHidden(true)
             }
             .padding(.horizontal, 20)
         }
@@ -491,7 +493,7 @@ struct ByDayScreen: View {
             if look.isNative { native(pages) } else { verbose(pages) }
         }
         .phonePage()
-        .navigationTitle(look.isNative ? "By Day" : "By day")
+        .navigationTitle("By day")
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .toolbar { if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } } }
         .onAppear { note(pages) }

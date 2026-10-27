@@ -13,9 +13,6 @@ struct LibraryScreen: View {
     @State private var typeFilter = LibraryFilter.saved(LibraryFilter.libraryKey)
     @State private var newProject = false
     @State private var projectName = ""
-    /// Rows rise in once; the first screenful staggers when you switch to Library.
-    @State private var seen = SeenRows()
-    @State private var entrance = 0
     /// Newest, Oldest, Longest, or Title A–Z, remembered on this iPhone.
     @AppStorage(LibrarySort.key) private var sortRaw = LibrarySort.newest.rawValue
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
@@ -193,7 +190,6 @@ struct LibraryScreen: View {
         }
         }
         .modifier(NativeSearchable(enabled: look.isNative, text: $search))
-        .tabEntrance(.library) { seen.entered(); entrance += 1 }
         .onChange(of: search) { _, v in if route == nil { LookKeep.librarySearch = v } }
         .onChange(of: filter) { _, v in if route == nil { LookKeep.libraryFilter = v } }
         .onAppear {
@@ -205,6 +201,7 @@ struct LibraryScreen: View {
         }
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
+        .phoneTopFade()
         .phonePage()
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
@@ -266,7 +263,6 @@ struct LibraryScreen: View {
             PhoneFlatRow(transcript: t, meta: Self.meta(t)) { PhoneRowState(transcript: t) }
         }
         .buttonStyle(PhoneCardPress())
-        .riseIn(t.id, index: i, seen: seen, epoch: entrance, scrollRise: search.isEmpty)   // typing never animates rows
         .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
         .contextMenu { RowActions(transcript: t) }
@@ -353,7 +349,7 @@ struct LibraryScreen: View {
                                 guard !ids.isEmpty else { return false }
                                 for id in ids { app.move(id, to: p.id) }
                                 app.say(ids.count == 1 ? "Moved to \(p.name)" : "Moved \(ids.count) to \(p.name)")
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                Haptics.play(.light)
                                 return true
                             }
                     }
@@ -483,8 +479,8 @@ extension LibraryScreen {
                         .listRowInsets(clear).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
-            // Room for the record button over the last item.
-            Color.clear.frame(height: 88).listRowBackground(Color.clear).listRowSeparator(.hidden).accessibilityHidden(true)
+            // Room for the record button over the last item: its 86 pt (disc, ring, and margin) plus 16 (review P-13).
+            Color.clear.frame(height: 104).listRowBackground(Color.clear).listRowSeparator(.hidden).accessibilityHidden(true)
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
@@ -529,7 +525,7 @@ extension LibraryScreen {
             HStack(spacing: 12) {
                 Image(systemName: "calendar").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("By Day").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
+                    Text("By day").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
                     Text("Thoughts and Journal, a page a day").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
                 }
                 Spacer(minLength: 8)

@@ -381,16 +381,9 @@ enum Motion {
     static let bounce = Animation.smooth(duration: 0.3)
     static let hero = Animation.smooth(duration: 0.36)
 
-    // Entrances and presses on iPhone (tuned in the web prototype, October 2026). Gentle, never fast.
+    // Presses on iPhone (tuned in the web prototype, October 2026). Screens and rows have no entrance (§7).
     /// The prototype's ease, cubic-bezier(.22, .7, .2, 1): a quick start that settles slowly.
     static func gentle(_ duration: Double) -> Animation { .timingCurve(0.22, 0.7, 0.2, 1, duration: duration) }
-    /// A screen's first screenful: each element rises 12 pt and fades in, 70 ms after the previous one.
-    static let enter = gentle(0.76)
-    static let enterStep: Double = 0.07
-    /// Tab content arrives from the side you moved toward (26 pt) while it fades in.
-    static let enterTab = gentle(0.62)
-    /// Rows rise 14 pt as they first scroll into view.
-    static let rise = gentle(0.9)
     /// Press: scale 0.97 in and out.
     static let pressSoft = gentle(0.32)
     /// What replaces movement when motion is limited: a short crossfade.

@@ -8,6 +8,7 @@ struct PhoneAddFromLibrarySheet: View {
     @EnvironmentObject var app: PhoneState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.look) private var look
     var project: UUID
     @State private var query = ""
     @State private var filter = LibraryFilter.saved(LibraryFilter.addSheetKey)
@@ -52,7 +53,7 @@ struct PhoneAddFromLibrarySheet: View {
             .scrollContentBackground(.hidden)
             .phonePage()
             .animation(limitMotion ? Motion.fade : Motion.settle, value: shown.map(\.id))
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search titles, tags, and text")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: look.isNative ? "Search your library" : "Find the line you need")
             .navigationTitle("Add to \(projectName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -137,7 +138,7 @@ struct PhoneAddFromLibrarySheet: View {
                     .font(.system(size: 22)).foregroundStyle(on ? Ink.ink : Ink.mute)
                     .accessibilityHidden(true)
                 PhoneFlatRow(transcript: t, serif: false, meta: meta) {
-                    if t.duration > 0 { Text(t.duration.timecode).font(Ink.mono(12)).foregroundStyle(.lookDim) }
+                    if t.duration > 0 { Text(HomeRecentStyle.length(t.duration)).font(Ink.mono(12)).foregroundStyle(.lookDim) }
                 }
             }
             .contentShape(Rectangle())

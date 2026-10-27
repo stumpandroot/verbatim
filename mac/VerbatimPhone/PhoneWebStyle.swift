@@ -270,6 +270,90 @@ struct PhonePanelArt: View {
     }
 }
 
+// MARK: - Scroll edge
+
+extension View {
+    /// The top scroll edge under a floating toolbar (review P-11). Verbose style leaves the bar's background off, so
+    /// text scrolled up would sit crisply behind the Back button and the toolbar's glass: paper fills the bar's area
+    /// and fades out over 12 pt below it. Native keeps the system's soft scroll edge effect.
+    func phoneTopFade() -> some View { modifier(PhoneTopFade()) }
+}
+
+private struct PhoneTopFade: ViewModifier {
+    @Environment(\.look) private var look
+    func body(content: Content) -> some View {
+        if look.isNative {
+            if #available(iOS 26, *) { content.scrollEdgeEffectStyle(.soft, for: .top) } else { content }
+        } else {
+            content.overlay(alignment: .top) {
+                GeometryReader { g in
+                    VStack(spacing: 0) {
+                        Ink.paper.frame(height: g.safeAreaInsets.top)
+                        LinearGradient(colors: [Ink.paper, Ink.paper.opacity(0)], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 12)
+                    }
+                    .ignoresSafeArea(edges: .top)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+// MARK: - Grouped lists
+
+extension View {
+    /// A List of grouped rows (Edit Home, Tab bar). Native: the system's inset grouped style. Verbose style: a plain list
+    /// inset 16 pt, whose rows draw their own card with the token radius (`PhoneListRowCard`), since inset grouped
+    /// sections round at the system's 20 pt or more (DESIGN.md §5.3, review P-19). Section titles there are rows
+    /// (`PhoneListHeading`), never pinned headers, so no title sits on a material.
+    func phoneGroupedList() -> some View { modifier(PhoneGroupedList()) }
+}
+
+private struct PhoneGroupedList: ViewModifier {
+    @Environment(\.look) private var look
+    func body(content: Content) -> some View {
+        if look.isNative {
+            content.listStyle(.insetGrouped)
+        } else {
+            content.listStyle(.plain).padding(.horizontal, 16)
+        }
+    }
+}
+
+/// A grouped row's background: Native's card, or in Verbose style the card fill with `Radius.tile` on the group's
+/// first row's top corners and its last row's bottom corners.
+struct PhoneListRowCard: View {
+    var first = false
+    var last = false
+    @Environment(\.look) private var look
+    var body: some View {
+        if look.isNative {
+            NativeInk.card
+        } else {
+            UnevenRoundedRectangle(topLeadingRadius: first ? Radius.tile : 0, bottomLeadingRadius: last ? Radius.tile : 0,
+                                   bottomTrailingRadius: last ? Radius.tile : 0, topTrailingRadius: first ? Radius.tile : 0,
+                                   style: .continuous)
+                .fill(Ink.card)
+        }
+    }
+}
+
+/// Verbose style's group title as a list row: mono 12 in `mute` on the paper, like Settings' group labels.
+struct PhoneListHeading: View {
+    var text: String
+    var body: some View {
+        Text(text).font(Ink.mono(12)).foregroundStyle(Ink.mute)
+            .padding(.top, 18).padding(.bottom, 2)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 4, trailing: 4))
+            .moveDisabled(true)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 // MARK: - Type
 
 /// The website's eyebrow: a small outlined diamond and a mono label ("Friday, October 23", "Meeting · Thu Oct 22").
@@ -291,8 +375,11 @@ struct PhoneEyebrow: View {
 
     private var verbose: some View {
         HStack(spacing: 8) {
-            Rectangle().strokeBorder(color, lineWidth: 1.3)
-                .frame(width: 7, height: 7).rotationEffect(.degrees(45))
+            // Drawn as a path inside its own frame, so a row or sheet that clips never cuts it to a chevron (a rotated
+            // square overflowed its frame; review P-10).
+            Diamond().stroke(color, lineWidth: 1.3)
+                .padding(1)
+                .frame(width: 11, height: 11)
                 .accessibilityHidden(true)
             Text(text).font(Ink.mono(size)).foregroundStyle(color)
                 .fixedSize(horizontal: false, vertical: true)
@@ -706,7 +793,7 @@ struct PhoneRowState: View {
     private var native: some View {
         VStack(alignment: .trailing, spacing: 2) {
             if transcript.duration > 0 {
-                Text(transcript.duration.timecode).font(.subheadline).monospacedDigit().foregroundStyle(NativeInk.secondary)
+                Text(HomeRecentStyle.length(transcript.duration)).font(.subheadline).monospacedDigit().foregroundStyle(NativeInk.secondary)
             }
             switch transcript.status {
             case .processing:
@@ -744,7 +831,7 @@ struct PhoneRowState: View {
                     .foregroundStyle(Self.cleaned(transcript) ? Ink.accentText : Ink.dim)
             }
             if transcript.duration > 0 {
-                Text(transcript.duration.timecode).font(Ink.mono(mono)).foregroundStyle(.lookDim)
+                Text(HomeRecentStyle.length(transcript.duration)).font(Ink.mono(mono)).foregroundStyle(.lookDim)
             }
         }
         .fixedSize()

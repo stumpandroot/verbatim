@@ -35,8 +35,8 @@ struct PhoneActionSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookAccentText)
-                        .frame(width: 34, height: 34).background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(.lookInk)
+                        .frame(width: 34, height: 34).background(PhoneInk.wash, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(action.name).lookSerif(22).foregroundStyle(.lookInk)
                         Text("From the original transcript · \(words.formatted()) words").font(.system(size: 13)).foregroundStyle(.lookMute)

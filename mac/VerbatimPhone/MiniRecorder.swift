@@ -263,8 +263,10 @@ struct MiniRecorderBar: View {
                         }
                         .lineLimit(1)
                         if let line {
-                            Text(line).font(.system(size: 12.5)).foregroundStyle(.lookMute)
-                                .lineLimit(1).truncationMode(.head)
+                            // Whole words only, never cut mid-word at the start (TailWords, review P-23).
+                            TailWords(text: line, lines: 1, lineHeight: UIFont.systemFont(ofSize: 12.5).lineHeight) { tail in
+                                Text(tail).font(.system(size: 12.5)).foregroundStyle(.lookMute)
+                            }
                         }
                     }
                     Spacer(minLength: 6)
@@ -296,7 +298,7 @@ struct MiniRecorderBar: View {
         .padding(.horizontal, 12)
         .padding(.top, 6)
         .padding(.bottom, 8)
-        .sensoryFeedback(.impact(weight: .light), trigger: paused)
+        .sensoryFeedback(trigger: paused) { _, _ in Haptics.feedback(.impact(weight: .light)) }
         // One element for VoiceOver: "Recording, 4 minutes 12 seconds", with Pause or Resume, Stop, and Open.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(RecorderPresentation.accessibilityLabel(paused: paused, saving: saving, elapsed: live.elapsed))
@@ -451,17 +453,22 @@ struct RecordLiveText: View {
     var body: some View {
         let w = text.shown.tail(260)
         if showWords && !w.isEmpty {
-            let gap = w.settled.isEmpty || w.volatile.isEmpty ? "" : " "
-            (Text(w.settled).foregroundStyle(.lookInk) + Text(gap) + Text(w.volatile).foregroundStyle(.lookMute))
-                .font(.system(size: size))
-                .lineSpacing(3)
-                .lineLimit(3)
-                .truncationMode(.head)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Live text")
-                .accessibilityValue(w.text)
-                .accessibilityAddTraits(.updatesFrequently)
+            // Whole words only: the longest end that fits in three lines (TailWords, review P-23). The last words that
+            // are still changing stay lighter.
+            let changing = w.volatile.split(whereSeparator: { $0.isWhitespace }).count
+            TailWords(text: w.text, lines: 3, lineHeight: UIFont.systemFont(ofSize: size).lineHeight + 3) { tail in
+                let words = tail.split(separator: " ")
+                let settled = words.dropLast(min(changing, words.count)).joined(separator: " ")
+                let volatile = words.suffix(min(changing, words.count)).joined(separator: " ")
+                (Text(settled).foregroundStyle(.lookInk) + Text(settled.isEmpty || volatile.isEmpty ? "" : " ") + Text(volatile).foregroundStyle(.lookMute))
+                    .font(.system(size: size))
+                    .lineSpacing(3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Live text")
+            .accessibilityValue(w.text)
+            .accessibilityAddTraits(.updatesFrequently)
         }
     }
 }

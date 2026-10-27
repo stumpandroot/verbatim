@@ -43,7 +43,7 @@ struct PhonePrivacyScreen: View {
             Section {
                 Toggle(isOn: $model.localOnly) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Local Only").font(.system(size: 16, weight: .semibold))
+                        Text("Local only").font(.system(size: 16, weight: .semibold))
                         Text(PrivacyStatement.localOnlyDetail).font(.system(size: 13)).foregroundStyle(.lookMute)
                             .fixedSize(horizontal: false, vertical: true)
                     }

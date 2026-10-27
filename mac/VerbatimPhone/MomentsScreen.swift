@@ -6,9 +6,6 @@ import SwiftUI
 /// The first card without a still of its own shows the circles drawing on sage, the screen's one moving drawing.
 struct MomentsScreen: View {
     @EnvironmentObject var app: PhoneState
-    /// Cards rise in once; the first screenful staggers when you switch to Moments.
-    @State private var seen = SeenRows()
-    @State private var entrance = 0
     /// The chip, kept when a look switch rebuilds Moments (`LookKeep`).
     @State private var show: Show = LookKeep.momentsShow
     /// Pushed inside another tab (Moments isn't in the bar): the navigation bar shows, with Back.
@@ -32,7 +29,6 @@ struct MomentsScreen: View {
             VStack(alignment: .leading, spacing: 0) {
                 PhoneCompactTitle(title: "Moments", count: "\(all.count) saved")
                     .padding(.horizontal, 20)
-                    .riseIn("title", index: 0, seen: seen, epoch: entrance)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         PhoneChip(label: "All", selected: show == .all) { show = .all }
@@ -45,7 +41,6 @@ struct MomentsScreen: View {
                     .padding(.horizontal, 20)
                 }
                 .padding(.top, 14).padding(.bottom, 4)
-                .riseIn("chips", index: 1, seen: seen, epoch: entrance)
 
                 if moments.isEmpty {
                     VStack(spacing: 12) {
@@ -63,7 +58,6 @@ struct MomentsScreen: View {
                             PhoneMomentCard(transcript: t, note: n)
                         }
                         .buttonStyle(PhoneCardPress())
-                        .riseIn(m.id, index: i + 2, seen: seen, epoch: entrance)
                         .contextMenu {
                             if let info = t.linkInfo, info.supportsTimestamps, let u = info.url(at: n.at ?? 0) { Link(destination: u) { Label("Open video", systemImage: "play.rectangle") } }   // brand: system surface (context menu)
                             Button(role: .destructive) { app.deleteNote(t.id, note: n.id) } label: { Label("Delete", systemImage: "trash") }
@@ -73,7 +67,6 @@ struct MomentsScreen: View {
                 .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 24)
             }
         }
-        .tabEntrance(.moments) { seen.entered(); entrance += 1 }
         .onChange(of: show) { _, v in LookKeep.momentsShow = v }
         .phonePage()
         .navigationTitle("Moments")

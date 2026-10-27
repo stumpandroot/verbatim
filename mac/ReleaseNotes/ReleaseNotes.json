@@ -27,7 +27,13 @@
         "iPhone: a transcript hides the tab bar while you read, and the player's play button and progress are sage. The header has one meta line; tap the data path chip for the source, engine, and time. The Cleaned tab's Clean up chip stays on one line.",
         "iPhone: Dictations, Add from Library, Moments, You, Settings › Keyboard, About me, Your voice, and the Action button page use the same chips, rows, titles, and colors as the rest of the app. The keyboard session screens make going back to your app the main step.",
         "Mac and iPhone: a transcript without a kind shows a Kind menu, and Add a tag says Tag until you add one. While a link downloads, its card offers Cancel download and Keep in background.",
-        "Mac and iPhone: the 1:1 template has its own icon, and the Dictionary tile in the Native look no longer shares Journal's symbol. On iPhone, What's new lists what you can use on this iPhone first and folds Mac-only items under On your Mac."
+        "Mac and iPhone: the 1:1 template has its own icon, and the Dictionary tile in the Native look no longer shares Journal's symbol. On iPhone, What's new lists what you can use on this iPhone first and folds Mac-only items under On your Mac.",
+        "iPhone: screens, tabs, and rows appear at once, without rising or sliding in.",
+        "iPhone: a Haptics switch in Settings › Personalization and preferences turns off every tap Verbose plays. Copying and saving give a light tap instead of a success buzz, and Delete all data no longer buzzes.",
+        "iPhone: in Verbose style, Settings icons are neutral, Home's tiles take their color from what they do (Dictate butter, Import sage, What's playing petal) wherever you put them, and every button is a pill.",
+        "iPhone: Recent recordings on Home lists your newest recordings first, by when you made them, as the Library does.",
+        "iPhone: the Verbose style recorder puts Mark moment, Stop & transcribe, and Pause in the thumb row, as Premium Native does, shows your last two moments under the meter, and moves Discard under the row. Live words while you record start on a whole word.",
+        "iPhone: smaller fixes. Voice notes have one name everywhere, Native uses sentence case and large titles on Settings pages, the Library's count is the system's tab badge, the Saved sheet keeps Open transcript as its one filled button, Home shows a person icon until you add your name, and Edit Home, the tab bar picker, and Today's thoughts no longer cut off their labels."
       ]
     },
     {

@@ -190,7 +190,7 @@ struct YouView: View {
                     .lineLimit(6)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 4)
-                Text("Verbose uses this to spell names and word titles and summaries.")
+                Text("Verbose uses this to spell names correctly and to write titles and summaries.")
                     .font(.system(size: 12)).foregroundStyle(Ink.mute).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
             .modifier(YouCardFace(hover: hovering, pressed: aboutDown))
@@ -774,7 +774,7 @@ struct AboutMeSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("You").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
                 Text("About me").font(Ink.serif(32)).foregroundStyle(Ink.ink).accessibilityAddTraits(.isHeader)
-                Text("A few lines about you and your work. Verbose uses this to spell names and word titles and summaries. It stays on this Mac.")
+                Text("A few lines about you and your work. Verbose uses this to spell names correctly and to write titles and summaries. It stays on this Mac.")
                     .font(.system(size: 13)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
             }
             ZStack(alignment: .topLeading) {
@@ -831,7 +831,7 @@ struct AboutMeSettingsRow: View {
     @AppStorage(YouProfile.aboutMeKey) private var aboutMe = ""
     @State private var editing = false
     var body: some View {
-        SettingsRow("general.aboutMe", detail: aboutMe.isEmpty ? nil : "\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters. Verbose uses this to spell names and word titles and summaries.") {
+        SettingsRow("general.aboutMe", detail: aboutMe.isEmpty ? nil : "\(aboutMe.count) of \(YouProfile.aboutMeLimit) characters. Verbose uses this to spell names correctly and to write titles and summaries.") {
             Button(aboutMe.isEmpty ? "Add…" : "Edit…") { editing = true }.buttonStyle(PillButtonStyle(kind: .line, size: .mini))
         }
         .sheet(isPresented: $editing) { AboutMeSheet() }

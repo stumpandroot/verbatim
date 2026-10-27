@@ -188,7 +188,7 @@ private struct ActionChoiceRow: View {
         .buttonStyle(SettingsRowPress())
         .disabled(!choice.available)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
-        .sensoryFeedback(.selection, trigger: selected) { _, now in now }
+        .sensoryFeedback(trigger: selected) { _, now in now ? Haptics.feedback(.selection) : nil }
     }
 
     private var art: BrandArt {

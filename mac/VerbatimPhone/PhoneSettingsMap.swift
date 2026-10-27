@@ -55,6 +55,7 @@ enum PhoneSettingsMap {
             ]),
             Row(id: "language", settings: [Setting("language", keys: ["language.detect"])]),
             Row(id: "limitMotion", settings: [Setting("limitMotion", keys: ["motion.limited"])]),
+            Row(id: "haptics", settings: [Setting("haptics", keys: ["haptics.enabled"])]),
         ]),
         Group(title: recording, rows: [
             Row(id: "quality", settings: [Setting("quality", keys: ["preset"])]),

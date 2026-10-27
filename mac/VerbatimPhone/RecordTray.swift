@@ -13,7 +13,8 @@ import UIKit
 // Motion: the tray opens on a critically damped spring (280 ms, no bounce), the highlight jumps to the row under your
 // finger with no animation (a high-frequency action), and the tray leaves in 200 ms, ease-out. Limit animation
 // crossfades it instead. Haptics: a light impact on open, a selection tick on each new row, and the recorder's own
-// Record haptic when a row starts; like every haptic in Verbose they follow the iPhone's System Haptics setting.
+// Record haptic when a row starts; like every haptic in Verbose they go through `Haptics` (PhoneMotion.swift), so
+// Settings › Personalization and preferences › Haptics turns them off, and they follow the iPhone's System Haptics.
 
 // MARK: - The tray's state
 
@@ -62,8 +63,8 @@ final class RecordTray: ObservableObject {
 
     /// On touch down: the haptics are ready by the time the hold completes.
     func prepare() {
-        impact.prepare()
-        selection.prepare()
+        Haptics.prepare(impact)
+        Haptics.prepare(selection)
     }
 
     /// The hold completed: open the tray, with the finger still down. While a recording runs, Record brings it back
@@ -80,7 +81,7 @@ final class RecordTray: ObservableObject {
         slid = false
         origin = nil
         isOpen = true
-        impact.impactOccurred()
+        Haptics.impact(impact)
         // VoiceOver: the tray is a modal; move focus into it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { UIAccessibility.post(notification: .screenChanged, argument: nil) }
     }
@@ -96,7 +97,7 @@ final class RecordTray: ObservableObject {
         var t = Transaction()
         t.disablesAnimations = true
         withTransaction(t) { highlighted = row }
-        if row != nil { selection.selectionChanged(); selection.prepare() }
+        if row != nil { Haptics.selection(selection); Haptics.prepare(selection) }
     }
 
     /// The finger lifted where the drag ended: start the row under it, or keep the tray open for a tap.

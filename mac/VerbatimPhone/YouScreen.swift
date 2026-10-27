@@ -31,7 +31,6 @@ struct YouScreen: View {
     @State private var editingName = false
     @State private var nameDraft = ""
     @FocusState private var nameFocused: Bool
-    @State private var seen = SeenRows()
     @State private var now = Date()
 
     @ScaledMetric(relativeTo: .largeTitle) private var nameSize: CGFloat = 34
@@ -75,15 +74,10 @@ struct YouScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                    .riseIn("header", index: 0, seen: seen, epoch: 0, scrollRise: false)
                 aboutCard.padding(.top, 22)
-                    .riseIn("about", index: 1, seen: seen, epoch: 0)
                 voicePanel.padding(.top, 14)
-                    .riseIn("voice", index: 2, seen: seen, epoch: 0)
                 weekCard(week).padding(.top, 14)
-                    .riseIn("week", index: 3, seen: seen, epoch: 0)
                 cleanupCard.padding(.top, 14)
-                    .riseIn("cleanup", index: 4, seen: seen, epoch: 0)
                 footer.padding(.top, 18)
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 32)
@@ -279,7 +273,7 @@ struct YouScreen: View {
                     .foregroundStyle(aboutMe.isEmpty ? Ink.mute : Ink.ink)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Verbose uses this to spell names and word titles and summaries.")
+                Text("Verbose uses this to spell names correctly and to write titles and summaries.")
                     .font(.system(size: small)).foregroundStyle(.lookMute)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -294,7 +288,7 @@ struct YouScreen: View {
         .accessibilityLabel(aboutMe.isEmpty ? "Add About me" : "Edit About me")
         .accessibilityValue(aboutMe.isEmpty ? Self.aboutPlaceholder : aboutMe)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Verbose uses this to spell names and word titles and summaries.")
+        .accessibilityHint("Verbose uses this to spell names correctly and to write titles and summaries.")
     }
 
     // MARK: Your voice

@@ -397,7 +397,7 @@ final class KeyboardSession: ObservableObject {
             return
         }
         captureStarted()
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.play(.light)
         // Back to your app as soon as the capture is running. A short beat lets the screen draw first.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.goBack() }
     }
@@ -1114,7 +1114,7 @@ final class KeyboardSession: ObservableObject {
         KeyboardBridge.copyDictation(text)
         copiedChangeCount = UIPasteboard.general.changeCount
         app?.say("Copied your last take.")
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.play(.selection)
         if result?.phase == .failed { result = nil; updateActivity() }
     }
 
@@ -1516,7 +1516,7 @@ final class KeyboardSession: ObservableObject {
         result = (phase, words, message, until)
         updateActivity()
         if phase == .copied || phase == .inserted, UIApplication.shared.applicationState == .active {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Haptics.play(.selection)
         }
         guard !sticky else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + Ribbon.resultHold + 0.05) { [weak self] in

@@ -241,6 +241,11 @@ I = {
     # line, so it never reads as Meeting notes' Speakers.
     'OneOnOne': [s(C(7.5, 8.5, 2.75)), s(C(16.5, 8.5, 2.75)), s('M3 18C3 15 5 13.3 7.5 13.3S12 15 12 18'),
                  s('M12 18C12 15 14 13.3 16.5 13.3S21 15 21 18'), s('M2.5 19.5H21.5')],
+    # Settings › Haptics on iPhone (build 228 review, P-04), same grammar: Back Tap's phone with no tap, buzzing, two
+    # arcs on each side.
+    'Haptics': [s('M10 3H14A2.5 2.5 0 0 1 16.5 5.5V18.5A2.5 2.5 0 0 1 14 21H10A2.5 2.5 0 0 1 7.5 18.5V5.5A2.5 2.5 0 0 1 10 3Z'),
+                s('M5 9.5C4.3 10.9 4.3 13.1 5 14.5'), s('M2.8 7.5C1.6 10.3 1.6 13.7 2.8 16.5'),
+                s('M19 9.5C19.7 10.9 19.7 13.1 19 14.5'), s('M21.2 7.5C22.4 10.3 22.4 13.7 21.2 16.5')],
 }
 
 

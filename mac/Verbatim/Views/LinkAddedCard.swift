@@ -383,14 +383,18 @@ struct LinkAddedCard: View {
     private var percentText: String { "\(Int((fraction * 100).rounded()))%" }
 }
 
-/// The card's two buttons: a quiet fill and the ink fill, 10 pt corners.
+/// The card's two buttons, pills like every Verbose button (DESIGN.md §11.5): the ink-text one is the line pill
+/// (a 1.5 pt ink outline), the other the dark pill in its fill.
 struct LinkCardButtonStyle: ButtonStyle {
     var fill: Color
     var text: Color
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let line = text == Ink.ink
+        return configuration.label
             .foregroundStyle(text)
-            .background(fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .background(line ? Color.clear : fill, in: Capsule())
+            .overlay { if line { Capsule().strokeBorder(Ink.ink, lineWidth: 1.5) } }
+            .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.8 : 1)
             .animation(Motion.press, value: configuration.isPressed)
     }

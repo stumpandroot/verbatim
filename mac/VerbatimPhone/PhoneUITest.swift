@@ -106,6 +106,7 @@ enum PhoneUITest {
         recorderChecks(app)
         premiumChecks(app)
         markChecks(app)
+        reviewFixesPhoneA(app)        // Build 228 review fixes: cross-cutting, Home and Edit Home, and Record.
         reviewFixesPhoneB(app)        // Build 228 review fixes, group B (PhoneReviewFixesB.swift).
         reviewFixesWidgets()   // Build 228 review, W-01 to W-10: Live Activities, controls, widgets, and the keyboard.
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
@@ -1620,6 +1621,60 @@ enum PhoneUITest {
         app.openRecorder()
         check("PhoneState: nothing to reopen without a recording", !app.showRecorder)
         Log.note("UITEST recorder checks: \(pass) passed, \(fail) failed")
+    }
+
+    /// The build 228 review's fixes for cross-cutting rules, Home and Edit Home, and Record (P-01 to P-24) that a rule
+    /// can check: neutral settings tiles, the haptics switch, one name for voice notes, tiles by meaning, Recent
+    /// recordings by date, no "?" avatar, the length on items with nothing to play, and copy.
+    static func reviewFixesPhoneA(_ app: PhoneState) {
+        var pass = 0, fail = 0
+        func check(_ name: String, _ ok: Bool) {
+            if ok { pass += 1 } else { fail += 1 }
+            Log.note("UITEST \(ok ? "PASS" : "FAIL") review A: \(name)")
+        }
+        // P-01: every settings square is the neutral wash, whatever tint a row passes.
+        check("settings tiles are neutral (P-01)", [Ink.persimmonTint, Ink.butterTint, Ink.sageTint, Ink.petalTint, PhoneInk.wash]
+            .allSatisfy { SettingsLabel.square(for: $0) == PhoneInk.wash })
+        // P-04: one switch for haptics, on by default, and searchable.
+        let hapticsKey = Haptics.enabledKey
+        let storedHaptics = UserDefaults.standard.object(forKey: hapticsKey)
+        UserDefaults.standard.removeObject(forKey: hapticsKey)
+        let onByDefault = Haptics.enabled
+        UserDefaults.standard.set(false, forKey: hapticsKey)
+        let offWhenOff = !Haptics.enabled && Haptics.feedback(.selection) == nil
+        if let storedHaptics { UserDefaults.standard.set(storedHaptics, forKey: hapticsKey) } else { UserDefaults.standard.removeObject(forKey: hapticsKey) }
+        check("haptics are on by default and the switch turns them off (P-04)", onByDefault && offWhenOff)
+        check("settings search finds Haptics (P-04)", SettingsSearchIndex.search("haptics").flatMap(\.entries).contains { $0.id == "haptics" })
+        // P-07: no banned words in You's week sentence.
+        check("You's week sentence has no \"just\" (P-07)", !PremiumRules.daysSentence(5).contains("just"))
+        // P-08: voice notes, everywhere you read it.
+        let memo = Transcript(title: "Self-test memo", source: .voiceMemo, sourceLabel: "Voice memo", duration: 30, audioFileName: nil, model: "")
+        check("the filter chip says Voice notes (P-08)", LibrarySource.voiceMemos.label == "Voice notes")
+        check("a recording describes itself as a Voice note (P-08)", LibraryFilter.describe(memo) == "Voice note"
+              && memo.sourceName == "Voice note" && memo.provenanceSource == "Voice note")
+        // P-14: tiles wear their capture mode's color, never their slot's.
+        let edited: [HomeTile] = [.newThought, .journal, .dictate, .importMedia]
+        check("New thought and Journal stay neutral in the first slots (P-14)",
+              HomeScreen.tileFill(.newThought, in: edited) == nil && HomeScreen.tileFill(.journal, in: edited) == nil)
+        check("Dictate is butter and Import sage wherever they sit (P-14)",
+              HomeScreen.tileFill(.dictate, in: edited) == PhoneInk.butter && HomeScreen.tileFill(.importMedia, in: edited) == PhoneInk.sage)
+        check("Live captions keeps the outline (P-14)", HomeScreen.tileFill(.captions, in: [.dictate, .importMedia, .whatsPlaying, .captions]) == nil)
+        // P-15: Recent recordings, newest first by date, no dictations.
+        let recent = PremiumHome.recentRecordings(app.store)
+        check("Recent recordings run newest first (P-15)", zip(recent, recent.dropFirst()).allSatisfy { $0.createdAt >= $1.createdAt }
+              && !recent.contains(where: \.isDictation))
+        // P-16: no "?" for a missing name.
+        check("no name means no initials, never \"?\" (P-16)", HomeScreen.initials("") == "" && HomeScreen.initials("Tim Medina") == "TM")
+        // P-21: an item with nothing to play carries its length in the date line.
+        var silent = Transcript(title: "Self-test silent", source: .file, sourceLabel: "MP3 file", duration: 1920, audioFileName: nil, model: "")
+        silent.status = .ready
+        check("an item with nothing to play shows its length in the date line (P-21)",
+              PremiumRecordingItem.dateLine(silent, now: Date(), length: true).hasSuffix("· 32:00")
+              && !PremiumRecordingItem.dateLine(silent, now: Date()).contains("32:00"))
+        // P-23: live words keep whole words; the last word alone is always a candidate.
+        let tails = TailWords<Text>.candidates("about the spec sheet before Thursday")
+        check("live words drop whole words from the front (P-23)", tails.first == "about the spec sheet before Thursday" && tails.last == "Thursday")
+        Log.note("UITEST review A checks: \(pass) passed, \(fail) failed")
     }
 
     /// Premium Native's record flow and Home (PremiumRecord.swift, PremiumHome.swift): Mark moment saves a moment at

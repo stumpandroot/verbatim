@@ -95,6 +95,8 @@ enum SettingsSearchIndex {
               description: "Use a model that knows each recording's language"),
         .init(id: "limitMotion", section: personalization, label: "Limit animation", keywords: ["reduce motion", "animation", "accessibility", "movement"],
               description: "Fades instead of movement; illustrations stay still"),
+        .init(id: "haptics", section: personalization, label: "Haptics", keywords: ["vibration", "vibrate", "taps", "feedback", "buzz", "accessibility"],
+              description: "Light taps when you save, copy, or mark"),
 
         // Recording and transcription
         .init(id: "quality", section: recording, label: "Quality", keywords: ["model", "accuracy", "speed", "preset", "language"],
@@ -272,6 +274,7 @@ enum SettingsSearchIndex {
         case "look": return AppLook.current.label
         case "appearance": return app.appearance == "light" ? "Light" : app.appearance == "dark" ? "Dark" : "Match system"
         case "limitMotion": return onOff(d.bool(forKey: MotionPreference.key))
+        case "haptics": return onOff(Haptics.enabled)
         case "recordLiveWords": return onOff(RecordingLiveText.enabled)
         case "audioTracks": return AudioTracksPreference.current == .separate ? "Separate" : "Mix"
         case "keyboardTimeout":

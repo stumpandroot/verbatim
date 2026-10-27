@@ -177,7 +177,10 @@ struct PremiumRecorder: View {
                         .frame(width: 86, height: 86)
                         .padding(6).background(PremiumStyle.ring, in: Circle())
                         .shadow(color: PremiumStyle.discShadow, radius: 14, y: 10)
-                        Text(saving ? "Saving…" : "Stop").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.label)
+                        // The same three labels as Verbose style's recorder (review P-22).
+                        Text(saving ? "Saving…" : (adding == nil && !app.recordingThought) ? "Stop & transcribe" : "Stop & add")
+                            .font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.label)
+                            .lineLimit(1).fixedSize()
                     }
                     .padding(.top, -12)
                 }
@@ -255,8 +258,8 @@ private struct PremiumLiveWave: View {
 
 // MARK: - Saved
 
-/// After Stop: Saved to Library, with Discard and Done, the transcription's progress, the kind, the project, Open
-/// transcript, and Record another.
+/// After Stop: Saved to Library, with Done, the transcription's progress, the kind, the project, Open transcript (the
+/// one prominent button), Record another, and Discard as a destructive word at the foot (review P-24).
 struct PremiumSavedSheet: View {
     /// Whether the Saved sheet is on screen, for the self-test.
     static var visible = false
@@ -278,16 +281,13 @@ struct PremiumSavedSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // Done is a plain toolbar-style button: Open transcript stays the one accent fill.
                 HStack {
-                    Button("Discard") { confirmDiscard = true }
-                        .font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.label)
-                        .padding(.horizontal, 16).frame(minHeight: 44)
-                        .premiumGlass(Capsule())
                     Spacer()
                     Button("Done") { commitName(); dismiss() }
-                        .font(.system(size: 17, weight: .semibold)).foregroundStyle(PremiumInk.onAccent)
-                        .padding(.horizontal, 18).frame(minHeight: 44)
-                        .background(NativeInk.accent, in: Capsule())
+                        .font(.system(size: 17, weight: .semibold)).foregroundStyle(NativeInk.accent)
+                        .padding(.horizontal, 6).frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 Image(systemName: "checkmark").font(.system(size: 26, weight: .semibold)).foregroundStyle(NativeInk.accent)
@@ -314,6 +314,12 @@ struct PremiumSavedSheet: View {
                         Text("Record another").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.phoneSecondaryLarge)
+                    // The recording is already saved, so Discard sits last, as a destructive word, and asks first.
+                    Button("Discard") { confirmDiscard = true }
+                        .font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.danger)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Asks before it moves the recording to Recently Deleted.")
                 }
                 .padding(.top, 22)
             }
