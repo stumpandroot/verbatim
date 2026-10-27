@@ -56,8 +56,15 @@ extension AppState: TranscriptionHost {
 
     func transcriptReady(_ id: UUID, corrections n: Int, queueEmpty: Bool) {
         FolderWatcher.shared.transcriptReady(id)   // auto-export, if it came from a watched folder
-        // A thought just fills in its words on its page: the bubble already said it was added.
-        if store.transcript(id)?.kind == .idea, store.transcript(id)?.sourceLabel == Thoughts.macSource { return }
+        // A thought just fills in its words on its page: the bubble already said it was added. A stray press (nothing
+        // heard, under 1.4 s) goes to Recently Deleted with its audio instead of adding an empty row to the page.
+        if let t = store.transcript(id), t.kind == .idea, t.sourceLabel == Thoughts.macSource {
+            if ThoughtText.isStrayPress(t) {
+                store.moveToTrash(id)
+                Log.note("thought: nothing heard in \(String(format: "%.1f", t.duration)) s; moved to Recently Deleted")
+            }
+            return
+        }
         // In a batch, stay quiet until the last one; then one chime and one toast.
         if queueEmpty {
             Sounds.done()

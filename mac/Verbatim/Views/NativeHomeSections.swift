@@ -441,9 +441,10 @@ struct NativeHomeThoughts: View {
 
     private var newThought: some View {
         Button { capture.toggle() } label: {
-            Label { Text(capture.isRecording ? "Stop" : "New Thought") } icon: { ThoughtGlyph(color: .white, lineWidth: 1.4).frame(width: 14, height: 14) }
+            Label { Text(capture.isRecording ? "Stop" : "New Thought") } icon: { ThoughtGlyph(color: .primary, lineWidth: 1.4).frame(width: 14, height: 14) }
         }
-        .buttonStyle(.borderedProminent).tint(Ink.nativeAccent)
+        // Bordered, never a second accent fill beside Record (DESIGN.md §14.9).
+        .buttonStyle(.bordered)
         .help("New thought (\(Thoughts.hotkey))")
         .uiTarget("home-thoughts-new")
     }

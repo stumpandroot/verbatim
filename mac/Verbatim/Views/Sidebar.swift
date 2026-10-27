@@ -49,10 +49,10 @@ struct Sidebar: View {
                     Text("By day").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
                         .padding(.leading, 12).padding(.top, 18).padding(.bottom, 4)
                     SideItem(label: "Thoughts", art: .iconThought, selected: app.screen == .byDay(.idea),
-                             badge: "\(app.store.dayPages(.idea, hour: Thoughts.newPageHour).count)") { app.go(.byDay(.idea)) }
+                             badge: SideBadge.count(app.store.todaysThoughts().count)) { app.go(.byDay(.idea)) }
                         .uiTarget("side-thoughts")
                     SideItem(label: "Journal", art: .iconNotes, selected: app.screen == .byDay(.journal),
-                             badge: "\(app.store.dayPages(.journal, hour: Thoughts.newPageHour).count)") { app.go(.byDay(.journal)) }
+                             badge: SideBadge.count(app.store.journalThisWeek())) { app.go(.byDay(.journal)) }
                         .uiTarget("side-journal")
 
                     // Make: what Apple Intelligence makes from your recordings: Templates, and Ask (questions and recipes).
@@ -122,7 +122,11 @@ struct Sidebar: View {
         .padding(.horizontal, 12).padding(.top, 40).padding(.bottom, 12)
         .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
-        .frame(maxHeight: .infinity, alignment: .top)
+        // minHeight 0: the sidebar never reports more height than the window has. When its rows outgrew the window (the
+        // Recently Deleted row appearing was enough in build 228), the taller sidebar was centered in the window's row,
+        // which lifted the lockup under the traffic lights for good. Now any overflow runs off the bottom, and the lockup
+        // stays at the title bar's height (the 40 pt above) plus its own 10 pt.
+        .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
         // One persimmon tick at the window edge, beside the selected row. It slides to the next selection over
         // 300 ms instead of jumping (Limit animation: it moves at once).
         .overlayPreferenceValue(SideTickAnchor.self) { anchor in
@@ -178,6 +182,11 @@ struct Sidebar: View {
                 .uiTarget("side-dict")
         }
     }
+}
+
+/// Badges count items, never days: Thoughts shows today's thoughts and Journal this week's entries; zero shows none.
+enum SideBadge {
+    static func count(_ n: Int) -> String? { n > 0 ? "\(n)" : nil }
 }
 
 /// The selected row's bounds, for the sliding selection tick.

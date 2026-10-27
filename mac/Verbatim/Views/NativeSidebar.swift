@@ -40,10 +40,10 @@ struct NativeSidebar: View {
             // Library › By day: one page a day for Thoughts and Journal (Views/ByDayView.swift).
             Section("By Day") {
                 Label { Text("Thoughts") } icon: { ThoughtGlyph(color: Ink.nativeAccent, lineWidth: 1.4).frame(width: 16, height: 16) }
-                    .badge(app.store.dayPages(.idea, hour: Thoughts.newPageHour).count)
+                    .badge(app.store.todaysThoughts().count)
                     .tag(Item.byDay(.idea)).uiTarget("side-thoughts")
                 Label { Text("Journal") } icon: { Image(systemName: RecordingKind.journal.nativeSymbol).foregroundStyle(Ink.nativeAccent) }
-                    .badge(app.store.dayPages(.journal, hour: Thoughts.newPageHour).count)
+                    .badge(app.store.journalThisWeek())
                     .tag(Item.byDay(.journal)).uiTarget("side-journal")
             }
             // Make: Templates, and Ask (questions about your library, and recipes).

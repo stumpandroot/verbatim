@@ -380,12 +380,9 @@ struct HomeThoughtsMac: View {
         }
     }
 
+    /// A line pill with its keycap, never a second fill beside Record (DESIGN.md §14.9; `NewThoughtPill`, ByDayView.swift).
     private var newThought: some View {
-        PillButton(title: capture.isRecording ? "Stop" : "New thought", kind: .dark, size: .mini, icon: .iconThought,
-                   hint: capture.isRecording ? "Stops the thought and adds it to today's page." : "Records a thought for today's page (\(Thoughts.hotkey)).") {
-            capture.toggle()
-        }
-        .uiTarget("home-thoughts-new")
+        NewThoughtPill(size: .mini).uiTarget("home-thoughts-new")
     }
 
     private func strip(_ page: [Transcript]) -> some View {
@@ -397,7 +394,7 @@ struct HomeThoughtsMac: View {
                     Text(words(last)).font(.system(size: 13.5)).foregroundStyle(Ink.dim).lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                Color.clear.frame(width: 130, height: 1)   // room for New thought
+                Color.clear.frame(width: 176, height: 1)   // room for New thought and its keycap
             }
             .padding(.horizontal, 16)
             .frame(height: 56)
