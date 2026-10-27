@@ -2,6 +2,9 @@
 """Exports icons from gen_icons.py as custom SF Symbols for the iPhone's system surfaces: the Thoughts icon ('Thought',
 the Live Activity and Dynamic Island, the Control Center control, and the Lock Screen widgets, DESIGN.md §14), and Mark
 and Marked ('Mark', 'Marked': the recording's Live Activity and Dynamic Island, mockup "Library features", section 3).
+For the Mac's menus (the right-click menu on Record and File › Record As, mockup "Record as", October 26, 2026), the
+six ways to record: Voice note ('Mic' as rec.voice), Meeting ('Speakers'), Interview ('Quote'), Journal entry ('Notes'),
+Talk ('Voice'), and Thought ('Thought'), so the menu draws Verbose's glyphs in its own text color.
 
 A custom symbol is an SVG template whose shapes are filled outlines, so the icon's 1.5 strokes (round caps and joins)
 are outlined here and joined into one shape. Only the Regular-M variant is drawn (a static template): the system
@@ -11,7 +14,8 @@ scales it for other sizes and weights, keeping the brand's fine line.
     python3 mac/tools/gen_symbol.py --write
 
 writes thought.symbolset, mark.symbolset, and marked.symbolset into VerbatimPhone/Assets.xcassets and
-VerbatimWidgets/Assets.xcassets. Without --write it prints the Thoughts symbol's SVG.
+VerbatimWidgets/Assets.xcassets, and the Record as symbols (and thought) into Verbatim/Resources/Assets.xcassets.
+Without --write it prints the Thoughts symbol's SVG.
 """
 import json
 import os
@@ -29,6 +33,10 @@ import gen_icons  # noqa: E402
 
 # Each exported icon: its name in gen_icons.py, the symbol's name, and what the SVG's comment calls it.
 SYMBOLS = [('Thought', 'thought', 'the Thoughts icon'), ('Mark', 'mark', 'the Mark icon'), ('Marked', 'marked', 'the Marked icon')]
+# The Mac's Record menus, in RecordChoice.all's order (Model/Templates.swift).
+MAC_SYMBOLS = [('Mic', 'rec.voice', 'the Voice note icon'), ('Speakers', 'rec.meeting', 'the Meeting icon'),
+               ('Quote', 'rec.interview', 'the Interview icon'), ('Notes', 'rec.journal', 'the Journal entry icon'),
+               ('Voice', 'rec.talk', 'the Talk icon'), ('Thought', 'thought', 'the Thoughts icon')]
 # The 24-unit grid at 100 points: 4.3 units per grid unit puts the bulb a little above the cap height and the base
 # a little below the baseline, as SF Symbols' own lightbulb sits.
 SCALE = 4.3
@@ -127,16 +135,30 @@ class CubicPen(BasePen):
         self.out.closePath()
 
 
+def circle_path(cx, cy, r):
+    """A circle as four cubic quarters (the template takes cubics)."""
+    k = 0.5522847498 * r
+    p = pathops.Path()
+    p.moveTo(cx + r, cy)
+    p.cubicTo(cx + r, cy + k, cx + k, cy + r, cx, cy + r)
+    p.cubicTo(cx - k, cy + r, cx - r, cy + k, cx - r, cy)
+    p.cubicTo(cx - r, cy - k, cx - k, cy - r, cx, cy - r)
+    p.cubicTo(cx + k, cy - r, cx + r, cy - k, cx + r, cy)
+    p.close()
+    return p
+
+
 def outline(icon='Thought'):
-    """The icon's strokes, outlined and joined, on the 24 grid."""
+    """The icon's strokes, outlined, and its filled dots, joined into one shape on the 24 grid."""
     shapes = []
-    for kind, el, _ in gen_icons.I[icon]:
+    for kind, el, dash in gen_icons.I[icon]:
         k, data = el
-        assert kind == 's' and k == 'path', 'an exported icon is strokes only'
-        stroked = path_from(gen_icons.de_arc(data))
-        stroked.stroke(STROKE, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
-        stroked.convertConicsToQuads()
-        shapes.append(stroked)
+        assert not dash, 'an exported icon has no dashed lines'
+        shape = circle_path(*data) if k == 'circle' else path_from(gen_icons.de_arc(data))
+        if kind == 's':
+            shape.stroke(STROKE, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
+            shape.convertConicsToQuads()
+        shapes.append(shape)
     joined = pathops.Path()
     pathops.union(shapes, joined.getPen(), fix_winding=True)
     return joined
@@ -220,5 +242,7 @@ if __name__ == '__main__':
         for c in ('VerbatimPhone/Assets.xcassets', 'VerbatimWidgets/Assets.xcassets'):
             for icon, name, called in SYMBOLS:
                 write(os.path.join(mac, c), icon, name, called)
+        for icon, name, called in MAC_SYMBOLS:
+            write(os.path.join(mac, 'Verbatim/Resources/Assets.xcassets'), icon, name, called)
     else:
         sys.stdout.write(symbol_svg())
