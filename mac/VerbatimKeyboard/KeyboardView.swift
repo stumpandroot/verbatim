@@ -30,16 +30,18 @@ enum KB {
     /// Metadata. `Ink.mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
     static var muted: Color { native ? N.muted : V.muted }
     static var hairline: Color { native ? N.hairline : Ink.hairline }
-    /// Text and glyphs on the filled dictate button: fixed ink on butter (butter stays butter in dark); on the Native
-    /// accent, white in light and black in dark (`PremiumInk.onAccent`; white on the dark accent measures 2.8:1).
-    static var inkFixed: Color { native ? PremiumInk.onAccent : Ink.inkFixed }
+    /// Text and glyphs on the filled dictate button: fixed ink on butter (butter stays butter in dark); white on
+    /// Native's system blue, as on Apple's own keys.
+    static var inkFixed: Color { native ? Color.white : Ink.inkFixed }
+    /// Native's accent: system blue, like the system keyboard's return key (DESIGN.md §13, item 1).
+    static let nativeAccent = Color(uiColor: .systemBlue)
 
     // Keyboard-only colors (not in Tokens.swift; defined here, not shared). The keys and soft surfaces are tuned
     // for Apple's keyboard backdrop rather than a panel of ours.
     /// The keyboard's one action, dictation: Tap to talk, Start, and Listening's done button. Butter in Verbose style
     /// (dark is #DDB563, a little lighter than `Ink.butter`'s dark value, so it holds up on the dark backdrop); the
     /// Native accent in Native.
-    static var dictate: Color { native ? Ink.nativeAccent : V.dictate }
+    static var dictate: Color { native ? nativeAccent : V.dictate }
     /// The butter's 1.5 pt outline: fixed ink in light, as the mockup; none in dark, where a dark ring would
     /// melt into the dark backdrop and shrink the butter. The butter itself holds 8:1 against the dark gray. None in
     /// Native.
@@ -60,7 +62,7 @@ enum KB {
     /// system keys have (a light edge under a dark key reads as a rim), with a paper edge under Increase Contrast.
     static var keyShadow: Color { native ? N.keyShadow : V.keyShadow }
     /// The voice bars while you talk: ink in Verbose style, the accent in Native (the one place color moves).
-    static var voice: Color { native ? Ink.nativeAccent : Ink.ink }
+    static var voice: Color { native ? nativeAccent : Ink.ink }
 
     /// Keys use a 7 pt radius, like the system keyboard's keys; cards use the Record panel's radius (12 pt in Native).
     static let keyRadius: CGFloat = 7
@@ -794,9 +796,8 @@ private struct StillBars: View {
 
 /// Text and glyphs on the dictate button: fixed ink on butter (butter stays butter in dark), adaptive ink on card.
 private func dictateForeground(_ style: DictateButton.Style) -> Color {
-    // Native: `PremiumInk.onAccent` on the accent (white in light, black in dark, DESIGN.md §13.3.4), or the accent
-    // on a white key.
-    if KB.native { return style == .filled ? PremiumInk.onAccent : Ink.nativeAccent }
+    // Native: white on system blue, or system blue on a white key.
+    if KB.native { return style == .filled ? Color.white : KB.nativeAccent }
     return style == .filled ? KB.inkFixed : KB.ink
 }
 
@@ -1196,7 +1197,7 @@ private struct ListRow: View {
                 Text(Self.oneLine(text)).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.native ? Ink.nativeAccent : KB.ink)
+            Text("Insert").font(.system(size: 13, weight: .bold)).foregroundStyle(KB.native ? KB.nativeAccent : KB.ink)
                 .padding(.horizontal, 11).frame(height: 28)
                 .background(Capsule().fill(KB.native ? KB.wash : Color.clear))
                 .overlay(Capsule().strokeBorder(KB.native ? Color.clear : KB.ink, lineWidth: 1.3))
@@ -1414,9 +1415,9 @@ private struct DarkPill: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.native ? PremiumInk.onAccent : KB.paper).lineLimit(1)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.native ? Color.white : KB.paper).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
-                .background(KB.native ? Ink.nativeAccent : KB.ink, in: Capsule())
+                .background(KB.native ? KB.nativeAccent : KB.ink, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(PressFade())
