@@ -3,9 +3,9 @@ import AppKit
 
 // brand: native file
 //
-// The main window's sidebar in the Native look (mockup section 03): macOS 26's standard sidebar (`List` with the
-// sidebar style, which the system floats on its glass panel), SF Symbols in persimmon, counts as badges, and the
-// standard gray selection. Projects move here from the Library, with their counts and New Project. Settings leaves the
+// The main window's sidebar in the Native look (mockup "Verbose Native Redesign", section 8): the standard sidebar
+// (`List` with the sidebar style, which the system floats on its glass panel), SF Symbols in the system accent color
+// (System Settings › Appearance, blue by default), counts as badges, and the system's gray selection. Projects move here from the Library, with their counts and New Project. Settings leaves the
 // sidebar for the app menu (⌘,), where Mac apps keep it. The order, hiding, and Customize sidebar work as in Verbose
 // style (SidebarLayout); transcripts dropped on Library or a project move there.
 
@@ -38,27 +38,27 @@ struct NativeSidebar: View {
                 .onMove { from, to in move(from: from, to: to) }
             }
             // Library › By day: one page a day for Thoughts and Journal (Views/ByDayView.swift).
-            Section("By Day") {
-                Label { Text("Thoughts") } icon: { ThoughtGlyph(color: Ink.nativeAccent, lineWidth: 1.4).frame(width: 16, height: 16) }
+            Section("By day") {
+                Label { Text("Thoughts") } icon: { ThoughtGlyph(color: NativeInk.accent, lineWidth: 1.4).frame(width: 16, height: 16) }
                     .badge(app.store.todaysThoughts().count)
                     .tag(Item.byDay(.idea)).uiTarget("side-thoughts")
-                Label { Text("Journal") } icon: { Image(systemName: RecordingKind.journal.nativeSymbol).foregroundStyle(Ink.nativeAccent) }
+                Label { Text("Journal") } icon: { Image(systemName: RecordingKind.journal.nativeSymbol).foregroundStyle(NativeInk.accent) }
                     .badge(app.store.journalThisWeek())
                     .tag(Item.byDay(.journal)).uiTarget("side-journal")
             }
             // Make: Templates, and Ask (questions about your library, and recipes).
             Section("Make") {
-                Label { Text("Templates") } icon: { Image(systemName: "doc.text").foregroundStyle(Ink.nativeAccent) }
+                Label { Text("Templates") } icon: { Image(systemName: "doc.text").foregroundStyle(NativeInk.accent) }
                     .badge(app.store.allTemplates.count)
                     .tag(Item.templates).uiTarget("side-templates")
-                Label { Text("Ask") } icon: { Image(systemName: "questionmark.bubble").foregroundStyle(Ink.nativeAccent) }
+                Label { Text("Ask") } icon: { Image(systemName: "questionmark.bubble").foregroundStyle(NativeInk.accent) }
                     .badge(app.store.recipes.count)
                     .tag(Item.ask).uiTarget("side-ask")
             }
             Section("Projects") {
                 ForEach(app.store.projects) { p in
                     NativeDropRow(onDrop: { app.move($0, to: p.id) }) {
-                        Label { Text(p.name) } icon: { Image(systemName: "folder").foregroundStyle(Ink.nativeAccent) }
+                        Label { Text(p.name) } icon: { Image(systemName: "folder").foregroundStyle(NativeInk.accent) }
                     }
                     .badge(perProject[p.id] ?? 0)
                     .contextMenu {
@@ -75,13 +75,12 @@ struct NativeSidebar: View {
             }
             if trash > 0 || app.screen == .trash {
                 Section {
-                    Label { Text("Recently Deleted") } icon: { Image(systemName: "trash").foregroundStyle(Ink.nativeAccent) }
+                    Label { Text("Recently Deleted") } icon: { Image(systemName: "trash").foregroundStyle(NativeInk.accent) }
                         .badge(trash).tag(Item.trash)
                 }
             }
         }
         .listStyle(.sidebar)
-        .tint(Ink.nativeAccent)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // Where the library lives: one quiet line, as Notes and Mail show their accounts' state.
@@ -99,7 +98,7 @@ struct NativeSidebar: View {
     /// One main item: its symbol, title, badge, and (Library) drop target.
     @ViewBuilder private func row(_ id: SidebarItemID, library: Int) -> some View {
         let label = Label { Text(id.title) } icon: {
-            Image(systemName: NativeSymbols.sidebar(id.rawValue)).foregroundStyle(Ink.nativeAccent)
+            Image(systemName: NativeSymbols.sidebar(id.rawValue)).foregroundStyle(NativeInk.accent)
         }
         switch id {
         case .library:
@@ -203,7 +202,7 @@ struct NativeDropRow<Content: View>: View {
             .contentShape(Rectangle())
             .overlay {
                 if dropping {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Ink.nativeAccent, lineWidth: 2).padding(-3)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(NativeInk.accent, lineWidth: 2).padding(-3)
                 }
             }
             .modifier(TranscriptDropTarget(enabled: true, dropping: $dropping, perform: onDrop))
