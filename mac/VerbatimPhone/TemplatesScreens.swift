@@ -13,10 +13,11 @@ struct TemplatesAutoRoute: Hashable {}
 /// Touch and hold on Record: start recording as a kind you pick. The new transcript is that kind as yours, so AutoLabel
 /// leaves it, and Run automatically runs that kind's template.
 struct PhoneRecordKindItems: View {
-    @EnvironmentObject var app: PhoneState
+    /// Starts the recording (the menu's owner passes `app.requestRecord(kind:)`, so it never needs the environment).
+    var start: (RecordingKind) -> Void
     var body: some View {
         ForEach(RecordingKind.recordChoices) { k in
-            Button(k.recordTitle) { app.requestRecord(kind: k) }
+            Button(k.recordTitle) { start(k) }
         }
     }
 }
