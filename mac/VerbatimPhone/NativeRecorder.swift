@@ -44,6 +44,8 @@ struct NativeRecorder: View {
     private var paused: Bool { app.recorder.isPaused }
     private var saving: Bool { app.savingRecording }
     private var adding: Transcript? { app.continuing.flatMap { app.store.transcript($0) } }
+    /// Audio only: the space for live words stays empty, and the line under the title says there's no transcript.
+    private var audioOnly: Bool { adding == nil && !app.recordingThought && app.recordKind == .audio }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,8 +63,10 @@ struct NativeRecorder: View {
                     }
                     NativeRecorderWave(live: app.recorder.live, moments: app.recordingMoments, paused: paused || saving, still: limitMotion)
                         .frame(height: 150).padding(.top, 18)
-                    RecordLiveText(text: app.recordingWords)
-                        .padding(.horizontal, 24).padding(.top, 18)
+                    if !audioOnly {
+                        RecordLiveText(text: app.recordingWords)
+                            .padding(.horizontal, 24).padding(.top, 18)
+                    }
                     moments.padding(.horizontal, 16).padding(.top, 18)
                 }
                 .padding(.bottom, 20)
@@ -148,8 +152,9 @@ struct NativeRecorder: View {
     private var statusLine: String {
         let when = "\(HomeRecentStyle.day(startedAt)), \(Formats.style(date: .none, time: .short).string(from: startedAt))"
         if saving { return "Saving…" }
-        if paused { return "Paused · \(when)" }
-        return when
+        let tail = audioOnly ? " · No transcript" : ""
+        if paused { return "Paused · \(when)\(tail)" }
+        return when + tail
     }
 
     /// The moments so far, in one gray cell: "3 moments" and their times. A tap names the newest one.
@@ -204,7 +209,7 @@ struct NativeRecorder: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(saving ? "Saving" : "Stop")
-                .accessibilityHint(adding == nil && !app.recordingThought ? "Stops and transcribes the recording." : "Stops and adds the recording.")
+                .accessibilityHint(audioOnly ? "Stops and saves the sound, with no transcript." : adding == nil && !app.recordingThought ? "Stops and transcribes the recording." : "Stops and adds the recording.")
                 .accessibilityIdentifier("native.recorder.stop")
                 .frame(maxWidth: .infinity)
                 control(paused ? "Resume" : "Pause", symbol: paused ? "play.fill" : "pause.fill") { app.togglePause() }
@@ -337,6 +342,8 @@ struct NativeSavedSheet: View {
     /// The live progress (StageClock): a tick re-renders this sheet's progress, not the screens under it.
     @ObservedObject private var stages = StageClock.shared
     private var t: Transcript? { app.store.transcript(saved.id).map(stages.applied(to:)) }
+    /// Audio only: "Saved. No transcript.", with Open and Record another, and no kind or progress to show.
+    private var audio: Bool { t?.showsAudioDetail == true }
 
     var body: some View {
         NavigationStack {
@@ -353,27 +360,34 @@ struct NativeSavedSheet: View {
                         .submitLabel(.done)
                         .onSubmit { commitName() }
                 }
-                Section {
-                    progressRow
-                }
-                Section("Kind") {
-                    Picker("Kind", selection: Binding(get: { t?.kind ?? .note }, set: { k in app.store.update(saved.id) { $0.kind = k; $0.kindIsAuto = false } })) {
-                        ForEach(Self.kinds) { k in Text(k.label).tag(k) }
+                if audio {
+                    Section {
+                        Label { Text(AudioOnlyCopy.saved) } icon: { Image(systemName: "waveform") }
+                            .foregroundStyle(NativeInk.label)
+                    } footer: { Text("Transcribe is on its screen if you want words later.") }
+                } else {
+                    Section {
+                        progressRow
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    Section("Kind") {
+                        Picker("Kind", selection: Binding(get: { t?.kind ?? .note }, set: { k in app.store.update(saved.id) { $0.kind = k; $0.kindIsAuto = false } })) {
+                            ForEach(Self.kinds) { k in Text(k.label).tag(k) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
                 }
                 Section {
                     projectRow
                 }
                 Section {
                     Button { commitName(); let id = saved.id; dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { app.open(id) } } label: {
-                        Text("Open transcript").frame(maxWidth: .infinity)
+                        Text(audio ? "Open" : "Open transcript").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.phonePrimaryLarge)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
-                    Button { commitName(); dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { app.requestRecord() } } label: {
+                    Button { commitName(); let again = audio; dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { app.requestRecord(kind: again ? .audio : nil) } } label: {
                         Text("Record another").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.phoneSecondaryLarge)
@@ -388,7 +402,7 @@ struct NativeSavedSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Saved to Library")
+            .navigationTitle(audio ? "Saved" : "Saved to Library")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { commitName(); dismiss() } }

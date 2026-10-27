@@ -56,6 +56,7 @@ enum HomeTileAction {
         case .dictionary: app.homePath.append(HomeDictionaryRoute())
         case .newThought: startThought(app)
         case .journal: app.go(.journal)
+        case .brainDump: app.startRecordChoice(.kind(.brainDump))
         case .appAudio, .thoughtPad: break
         }
     }
@@ -75,6 +76,7 @@ enum HomeTileAction {
         case .projects: return "Opens your library, with a chip for each project."
         case .newThought: return "Records a thought for today's page."
         case .journal: return "Opens your journal, by day."
+        case .brainDump: return "Records a brain dump. Plan my day sorts it into a plan when it finishes."
         case .appAudio, .thoughtPad: return ""
         }
     }

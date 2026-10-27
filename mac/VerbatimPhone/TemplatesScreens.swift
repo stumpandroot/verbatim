@@ -211,6 +211,12 @@ struct TemplatesAutoScreen: View {
                     if i > 0 { SettingsDivider() }
                     kindRow(k, all, settings)
                 }
+                // Audio only has no transcript, so no template can run on it: listed with no picker.
+                SettingsDivider()
+                SettingsRow(icon: RecordingKind.audio.nativeSymbol, tint: Ink.neutralChip, art: RecordingKind.audio.art, title: RecordingKind.audio.label, subtitle: AudioOnlyCopy.noTemplate) {
+                    EmptyView()
+                }
+                .accessibilityIdentifier("templates.auto.audio")
             }
             .settingsSearchTarget("templatesAuto", flash: nil)
             SettingsPageGroup(footer: TemplateCopy.onDevice("iPhone") + " Your Mac keeps its own choices; the results sync with the library.") {
@@ -450,6 +456,8 @@ struct PhoneTemplateTryOnSheet: View {
 struct PhoneTemplateResults: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
+    /// A plan task's time: play that line in the transcript.
+    var onJump: ((Double) -> Void)? = nil
     @ObservedObject private var center = TemplateCenter.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @Environment(\.look) private var look
@@ -557,9 +565,14 @@ struct PhoneTemplateResults: View {
                 Text("Apple Intelligence declined \(r.skippedParts) of \(r.totalParts) parts, so their words aren\u{2019}t in this result.")
                     .font(.system(size: 13)).foregroundStyle(.lookMute)
             }
-            TemplateResultBody(text: r.text, heading: look.serif(20), textFont: .system(size: 16),
-                               ink: AnyShapeStyle(.lookInk), dim: AnyShapeStyle(.lookMute))
-                .padding(.top, 4)
+            if DayPlan.isPlan(r) {
+                // Plan my day: the plan, with Send to Reminders (PhonePlanViews.swift).
+                PhonePlanResult(transcript: transcript, result: r, onJump: onJump).padding(.top, 4)
+            } else {
+                TemplateResultBody(text: r.text, heading: look.serif(20), textFont: .system(size: 16),
+                                   ink: AnyShapeStyle(.lookInk), dim: AnyShapeStyle(.lookMute))
+                    .padding(.top, 4)
+            }
             Rectangle().fill(.lookHairline).frame(height: 1)
             Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).font(.system(size: 13)).foregroundStyle(.lookMute)
                 .fixedSize(horizontal: false, vertical: true)

@@ -267,10 +267,17 @@ struct LibraryScreen: View {
     // MARK: Rows
 
     private func row(_ t: Transcript, index i: Int) -> some View {
-        Button { app.open(t.id) } label: {
-            PhoneFlatRow(transcript: t, meta: Self.meta(t)) { PhoneRowState(transcript: t) }
+        Group {
+            if t.showsAudioDetail {
+                // Audio only: a waveform card you can play from the list (AudioDetailScreen.swift).
+                PhoneAudioCard(transcript: t)
+            } else {
+                Button { app.open(t.id) } label: {
+                    PhoneFlatRow(transcript: t, meta: Self.meta(t)) { PhoneRowState(transcript: t) }
+                }
+                .buttonStyle(PhoneCardPress())
+            }
         }
-        .buttonStyle(PhoneCardPress())
         .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
         .contextMenu { RowActions(transcript: t) }

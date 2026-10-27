@@ -76,6 +76,15 @@ struct TranscriptScreen: View {
     private var t: Transcript? { app.store.transcript(id) }
 
     var body: some View {
+        // Audio only with no words yet: its own screen (AudioDetailScreen.swift), until Transcribe brings the words.
+        if app.store.transcript(id)?.showsAudioDetail == true {
+            PhoneAudioDetail(id: id)
+        } else {
+            transcriptBody
+        }
+    }
+
+    private var transcriptBody: some View {
         Group {
             if let t {
                 ScrollViewReader { proxy in
@@ -404,10 +413,12 @@ struct TranscriptScreen: View {
             if t.status == .ready, !look.isNative {
                 // Mini chips (28 pt, as mini pills), so the add-a-tag button fits inline after the last tag.
                 KindAndTags(transcript: t, compact: true,
-                            onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
+                            onPick: { k in app.pickKind(k, for: t.id) },
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
                     .padding(.top, 8)
             }
+            // Filed as a Brain dump afterward: "Now a Brain dump. Run Plan my day?" (TemplatesScreens.swift).
+            if t.status == .ready { PhoneKindOffer(transcript: t) { mode = .result }.padding(.top, 8) }
             if t.status == .ready, !t.visibleSpeakerSuggestions.isEmpty {
                 SpeakerSuggestionRows(transcript: t,
                                       onUse: { app.useSpeakerSuggestion(t.id, $0) },
@@ -510,7 +521,11 @@ struct TranscriptScreen: View {
                     }
                 case .document: PhoneDocument(transcript: t)
                 case .review: review(t)
-                case .result: PhoneTemplateResults(transcript: t)
+                case .result: PhoneTemplateResults(transcript: t, onJump: { at in
+                    app.player.play(from: at)
+                    mode = .transcript
+                    if let s = PlaybackSync.line(at: at, in: t.segments) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { scrollTarget = s.id } }
+                })
                 }
             }
         }

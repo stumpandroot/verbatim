@@ -176,7 +176,7 @@ struct NativeTranscriptDetails: View {
                 if let t = app.store.transcript(id) {
                     Section {
                         if t.kind != .dictation {
-                            Picker("Kind", selection: Binding(get: { t.kind ?? .note }, set: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } })) {
+                            Picker("Kind", selection: Binding(get: { t.kind ?? .note }, set: { k in app.pickKind(k, for: t.id) })) {
                                 ForEach(RecordingKind.pickable) { k in Text(k.label).tag(k) }
                             }
                         }

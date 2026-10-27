@@ -161,6 +161,7 @@ extension View {
             .navigationDestination(for: HomeDictionaryRoute.self) { _ in DictionaryScreen() }
             .navigationDestination(for: ByDayRoute.self) { r in ByDayScreen(kind: r.kind) }
             .navigationDestination(for: DayPageRoute.self) { r in DayPageScreen(kind: r.kind, day: r.day).id(r) }
+            .navigationDestination(for: ThoughtsPlanRoute.self) { r in ThoughtsPlanScreen(day: r.day) }
             .navigationDestination(for: MomentsRoute.self) { _ in MomentsScreen(pushed: true) }
             .navigationDestination(for: LibraryRoute.self) { r in LibraryScreen(route: r) }
             .navigationDestination(for: TemplatesRoute.self) { _ in TemplatesScreen() }

@@ -219,6 +219,8 @@ extension RecordChoice {
         case .kind(.interview): return .iconQuote
         case .kind(.journal): return .iconNotes
         case .kind(.talk): return .iconVoice
+        case .kind(.brainDump): return .iconBrainDump
+        case .kind(.audio): return .iconAudio
         case .kind: return .iconMic
         case .thought: return .iconThought
         }
@@ -248,7 +250,7 @@ extension View {
     /// Record as one button for VoiceOver: activating it is the plain Record, the actions rotor has each way to
     /// record, and a double-tap and hold opens the tray as a modal.
     func recordCardAccessibility(_ app: PhoneState, value: String = "", id: String,
-                                 hint: String = "Starts a voice note. Touch and hold to record a meeting, an interview, a journal entry, a talk, or a thought.",
+                                 hint: String = "Starts a voice note. Touch and hold to record a meeting, an interview, a journal entry, a talk, a thought, a brain dump, or audio only.",
                                  before: @escaping () -> Void = {}) -> some View {
         accessibilityElement(children: .ignore)
             .accessibilityAddTraits(.isButton)
