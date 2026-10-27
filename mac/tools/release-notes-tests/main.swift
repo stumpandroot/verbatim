@@ -15,6 +15,22 @@ func load(_ path: String) -> [ReleaseNote]? {
 }
 
 let args = CommandLine.arguments
+
+// `--summary <json>`: every build's items sorted for the iPhone app, the Mac app, and GitHub, one line each, for
+// test-release-notes.sh to compare with release_notes.py's `summary` and `by_platform` (they must agree).
+if args.count >= 3, args[1] == "--summary" {
+    guard let notes = load(args[2]) else { exit(1) }
+    for n in notes {
+        for (app, name) in [(ReleaseApp.phone, "iphone"), (ReleaseApp.mac, "mac")] {
+            let sum = ReleaseNotes.summary(n.items, for: app)
+            for sec in sum.sections { for i in sec.items { print([n.build, name, "own", sec.platform.rawValue, i.text, i.detail ?? ""].joined(separator: "\t")) } }
+            for sec in sum.also { for i in sec.items { print([n.build, name, sum.alsoTitle, sec.platform.rawValue, i.text, i.detail ?? ""].joined(separator: "\t")) } }
+        }
+        for sec in ReleaseNotes.byPlatform(n.items) { for i in sec.items { print([n.build, "github", "", sec.platform.rawValue, i.text, i.detail ?? ""].joined(separator: "\t")) } }
+    }
+    exit(0)
+}
+
 guard args.count >= 2, let notes = load(args[1]) else { exit(1) }
 
 // MARK: The bundled file
@@ -28,8 +44,11 @@ let numbers = notes.compactMap(\.number)
 check("builds go down, newest first", zip(numbers, numbers.dropFirst()).allSatisfy { $0 > $1 })
 check("numbered builds have a date", notes.filter { !$0.isNext }.allSatisfy { $0.date != nil })
 check("no em dashes or exclamation points (Google developer style)",
-      notes.allSatisfy { n in ([n.title] + n.items).allSatisfy { !$0.contains("\u{2014}") && !$0.contains("!") } })
-check("items are sentences that end with a period", notes.allSatisfy { $0.items.allSatisfy { $0.hasSuffix(".") || $0.hasSuffix(".)") } })
+      notes.allSatisfy { n in ([n.title] + n.items.flatMap { [$0.text] + ($0.detail.map { [$0] } ?? []) }).allSatisfy { !$0.contains("\u{2014}") && !$0.contains("!") } })
+check("items are sentences that end with a period", notes.allSatisfy { $0.items.allSatisfy { $0.text.hasSuffix(".") || $0.text.hasSuffix(".)") } })
+if let first = notes.first, first.isNext {
+    check("every item in \"next\" is an object with its platforms", first.items.allSatisfy { !$0.isLegacy })
+}
 
 // MARK: Headings
 
@@ -43,7 +62,7 @@ check("a bad date reads as no date", ReleaseNote(build: "9", date: "Oct 25", tit
 // MARK: The rules catch mistakes
 
 func bad(_ list: [ReleaseNote]) -> Bool { !ReleaseNotes.problems(list).isEmpty }
-let next = ReleaseNote(build: "next", date: nil, title: "Next", items: ["A change."])
+let next = ReleaseNote(build: "next", date: nil, title: "Next", items: [ReleaseItem(platforms: [.iphone, .mac], text: "A change.")])
 let b202 = ReleaseNote(build: "202", date: "2026-10-25", title: "t", items: ["i."])
 check("rules: a good list passes", !bad([next, b203, b202]))
 check("rules: two \"next\" entries fail", bad([next, next, b203]))
@@ -120,16 +139,72 @@ if args.count >= 5, let before = load(args[2]), let stamped = load(args[3]), let
     check("stamped: Home's note finds build \(n)", ReleaseNotes.pending(current: n, lastSeen: n - 1, notes: stamped)?.build == String(n))
 }
 
-// MARK: Items for this device (What's new on iPhone leads with what you can use there)
+// MARK: Platforms (What's new leads with this device's platforms; Sparkle, GitHub, and TestFlight sort the same way)
 
-let mixed = ["Mac: one.", "Mac: two.", "Fixes a crash.", "iPhone: three.", "Mac and iPhone: four."]
-let phoneSplit = ReleaseNotes.split(mixed, phone: true)
-check("split on iPhone: iPhone and Mac and iPhone first, then the rest, in order",
-      phoneSplit.here == ["iPhone: three.", "Mac and iPhone: four.", "Fixes a crash."])
-check("split on iPhone: Mac-only items fold away, in order", phoneSplit.other == ["Mac: one.", "Mac: two."])
-let macSplit = ReleaseNotes.split(mixed, phone: false)
-check("split on Mac: Mac items first, iPhone-only items fold away",
-      macSplit.here == ["Mac: one.", "Mac: two.", "Mac and iPhone: four.", "Fixes a crash."] && macSplit.other == ["iPhone: three."])
+let mItem = ReleaseItem(platforms: [.mac], text: "Mac one.")
+let mItem2 = ReleaseItem(platforms: [.mac], text: "Mac two.", detail: "More about it.")
+let both = ReleaseItem(platforms: [.iphone, .mac], text: "Both.")
+let pItem = ReleaseItem(platforms: [.iphone], text: "Phone.")
+let wItem = ReleaseItem(platforms: [.watch], text: "Watch.")
+let pw = ReleaseItem(platforms: [.watch, .iphone], text: "Phone and watch.")
+let mixed = [mItem, wItem, both, pItem, mItem2, pw]
+let onPhone = ReleaseNotes.summary(mixed, for: .phone)
+check("summary on iPhone: iPhone first, then Apple Watch, in the file's order",
+      onPhone.sections.map(\.platform) == [.iphone, .watch] && onPhone.sections[0].items == [both, pItem, pw] && onPhone.sections[1].items == [wItem])
+check("summary on iPhone: the Mac's items fold under Also on Mac", onPhone.also.map(\.platform) == [.mac] && onPhone.also[0].items == [mItem, mItem2]
+      && onPhone.alsoTitle == "Also on Mac" && onPhone.alsoCount == 2)
+let onMac = ReleaseNotes.summary(mixed, for: .mac)
+check("summary on Mac: Mac first, with the change for both", onMac.sections.map(\.platform) == [.mac] && onMac.sections[0].items == [mItem, both, mItem2])
+check("summary on Mac: iPhone, then Apple Watch, under Also on iPhone and Apple Watch",
+      onMac.also.map(\.platform) == [.iphone, .watch] && onMac.also[0].items == [pItem, pw] && onMac.also[1].items == [wItem]
+      && onMac.alsoTitle == "Also on iPhone and Apple Watch")
+check("summary: each item once per app", onPhone.sections.flatMap(\.items).count + onPhone.alsoCount == mixed.count
+      && onMac.sections.flatMap(\.items).count + onMac.alsoCount == mixed.count)
+check("summary: no Mac items, no fold on iPhone", ReleaseNotes.summary([pItem, wItem], for: .phone).also.isEmpty && ReleaseNotes.summary([pItem, wItem], for: .phone).alsoTitle.isEmpty)
+check("summary: only iPhone items on the Mac read Also on iPhone", ReleaseNotes.summary([pItem], for: .mac).alsoTitle == "Also on iPhone" && ReleaseNotes.summary([pItem], for: .mac).sections.isEmpty)
+check("by platform (GitHub): Mac, iPhone, Apple Watch, a change for two in both",
+      ReleaseNotes.byPlatform(mixed).map(\.platform) == [.mac, .iphone, .watch] && ReleaseNotes.byPlatform(mixed)[1].items == [both, pItem, pw])
+check("joined: two with and, three with a serial comma", ReleaseNotes.joined(["iPhone", "Apple Watch"]) == "iPhone and Apple Watch"
+      && ReleaseNotes.joined(["Mac", "iPhone", "Apple Watch"]) == "Mac, iPhone, and Apple Watch")
+
+// Older builds' strings: the prefix gives the platforms and comes off the line.
+func legacy(_ s: String) -> ([ReleasePlatform], String) { let i = ReleaseItem(legacy: s); return (i.platforms, i.text) }
+check("legacy: Mac: is the Mac's, capitalized", legacy("Mac: press ⌘K anywhere.") == ([.mac], "Press ⌘K anywhere."))
+check("legacy: iPhone: and Apple Watch:", legacy("iPhone: smaller fixes.") == ([.iphone], "Smaller fixes.") && legacy("Apple Watch: tap Mark.") == ([.watch], "Tap Mark."))
+check("legacy: Mac and iPhone: and iPhone and Mac: are both", legacy("Mac and iPhone: ask.") == ([.iphone, .mac], "Ask.") && legacy("iPhone and Mac: in the Native look, x.") == ([.iphone, .mac], "In the Native look, x."))
+check("legacy: Mac Home: keeps its area", legacy("Mac Home: the Dictate tile wraps.") == ([.mac], "Home: the Dictate tile wraps.") && legacy("Mac transcripts: sage.") == ([.mac], "Transcripts: sage."))
+check("legacy: no prefix is both apps, as written", legacy("Edit Home: drag tiles.") == ([.iphone, .mac], "Edit Home: drag tiles.") && legacy("The Mac app updates itself.") == ([.iphone, .mac], "The Mac app updates itself."))
+check("legacy: a first word with a capital stays", legacy("Mac: iCloud works.") == ([.mac], "iCloud works.") && legacy("Mac: ⌘K opens it.") == ([.mac], "⌘K opens it."))
+check("legacy: no space after the colon isn't a prefix", legacy("Mac:x.") == ([.iphone, .mac], "Mac:x."))
+check("legacy: a string literal is a legacy item", ({ () -> Bool in let i: ReleaseItem = "iPhone: a."; return i.isLegacy && i.platforms == [.iphone] })())
+
+// Items as objects, and the rules for them
+if let data = #"{"notes": [{"build": "next", "title": "t", "items": [{"platforms": ["iphone", "watch"], "text": "Tap Record.", "detail": "Touch and hold opens Record as."}, {"platforms": ["mac"], "text": "Press ⌘K."}]}, {"build": "8", "date": "2026-10-01", "title": "t", "items": ["Mac: old.", {"platforms": ["mac"], "text": "New."}]}]}"#.data(using: .utf8),
+   let parsed = try? ReleaseNotes.parse(data) {
+    let a = parsed[0].items[0], b = parsed[0].items[1]
+    check("parse: an object item's platforms, text, and detail", a.platforms == [.iphone, .watch] && a.text == "Tap Record." && a.detail == "Touch and hold opens Record as." && !a.isLegacy)
+    check("parse: detail is optional", b.detail == nil && b.platforms == [.mac])
+    check("parse: strings and objects mix in a numbered entry", parsed[1].items[0].isLegacy && parsed[1].items[0].text == "Old." && !parsed[1].items[1].isLegacy)
+    check("rules: a file with objects passes", ReleaseNotes.problems(parsed).isEmpty)
+} else { check("parse: object items", false) }
+func itemBad(_ json: String, next: Bool = true) -> Bool {
+    let entry = next ? #"{"build": "next", "title": "t", "items": [\#(json)]}"# : #"{"build": "8", "date": "2026-10-01", "title": "t", "items": [\#(json)]}"#
+    guard let data = #"{"notes": [\#(entry)]}"#.data(using: .utf8), let parsed = try? ReleaseNotes.parse(data) else { return true }
+    return !ReleaseNotes.problems(parsed).isEmpty
+}
+check("rules: a string in next fails", itemBad(#""iPhone: a.""#))
+check("rules: a string in a numbered build passes", !itemBad(#""iPhone: a.""#, next: false))
+check("rules: no platforms fails", itemBad(#"{"text": "A."}"#) && itemBad(#"{"platforms": [], "text": "A."}"#))
+check("rules: an unknown platform fails", itemBad(#"{"platforms": ["ipad"], "text": "A."}"#))
+check("rules: a platform twice fails", itemBad(#"{"platforms": ["mac", "mac"], "text": "A."}"#))
+check("rules: a line over 90 characters fails, 90 passes",
+      itemBad(#"{"platforms": ["mac"], "text": "\#(String(repeating: "a", count: 90))."}"#) && !itemBad(#"{"platforms": ["mac"], "text": "\#(String(repeating: "a", count: 89))."}"#))
+check("rules: a detail over 200 characters fails, 200 passes",
+      itemBad(#"{"platforms": ["mac"], "text": "A.", "detail": "\#(String(repeating: "a", count: 200))."}"#) && !itemBad(#"{"platforms": ["mac"], "text": "A.", "detail": "\#(String(repeating: "a", count: 199))."}"#))
+check("rules: an empty detail fails", itemBad(#"{"platforms": ["mac"], "text": "A.", "detail": " "}"#))
+check("rules: a platform prefix in an object fails", itemBad(#"{"platforms": ["mac"], "text": "Mac: press it."}"#) && itemBad(#"{"platforms": ["iphone", "mac"], "text": "Mac and iPhone: ask."}"#))
+check("rules: an em dash or exclamation point fails", itemBad(#"{"platforms": ["mac"], "text": "A \#u{2014} b."}"#) && itemBad(#"{"platforms": ["mac"], "text": "A.", "detail": "Wow!"}"#))
+check("rules: no period fails", itemBad(#"{"platforms": ["mac"], "text": "A"}"#))
 
 print("\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

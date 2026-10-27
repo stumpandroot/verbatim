@@ -65,10 +65,10 @@ NEXT_TITLE="$(python3 -c 'import json,sys; n=json.load(open(sys.argv[1]))["notes
 desc() { python3 -c 'import sys,xml.etree.ElementTree as E; i=[x for x in E.fromstring(sys.argv[1]).find("channel").findall("item") if x.find("{http://www.andymatuschak.org/xml-namespaces/sparkle}channel") is not None][0]; print(i.find("description").text)' "$1"; }
 if [ -n "$NEXT_TITLE" ]; then
   D="$(desc "$F")"
-  check "main build: the appcast description carries the next entry's title and items" \
-    'grep -qF "<h3>$NEXT_TITLE</h3>" <<< "$D" && grep -q "<ul><li>" <<< "$D" && grep -q "Release notes on GitHub" <<< "$D"'
-  check "main build: the GitHub release body carries them as Markdown" \
-    'grep "release create beta-101 " "$T/state/gh.log" | grep -qF -- "**$NEXT_TITLE**  - "'
+  check "main build: the appcast description carries the next entry's title and items, the Mac's first" \
+    'grep -qF "<h3>$NEXT_TITLE</h3><h4>" <<< "$D" && grep -q "<ul><li>" <<< "$D" && grep -q "Release notes on GitHub" <<< "$D"'
+  check "main build: the GitHub release body carries them as Markdown, under platform headings" \
+    'grep "release create beta-101 " "$T/state/gh.log" | grep -F -- "**$NEXT_TITLE**  ### " | grep -qE -- "### (Mac|iPhone|Apple Watch)  - "'
 fi
 
 printf 'beta-%s\n' 95 96 97 98 99 100 >> "$T/state/releases"
