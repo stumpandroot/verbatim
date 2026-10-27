@@ -55,7 +55,8 @@ struct AskScope: Codable, Equatable, Hashable {
 
     /// A finished recording with words, not a dictation, in this scope.
     func includes(_ t: Transcript, now: Date = Date()) -> Bool {
-        guard t.deletedAt == nil, t.status == .ready, !t.isDictation, !t.segments.isEmpty else { return false }
+        // Audio only stays out of Ask, even after you file a transcribed recording as Audio only.
+        guard t.deletedAt == nil, t.status == .ready, !t.isDictation, !t.isAudioOnly, !t.segments.isEmpty else { return false }
         if range == .thisWeek, t.createdAt < now.addingTimeInterval(-Self.weekSpan) { return false }
         switch source {
         case .all: return true

@@ -18,8 +18,8 @@ enum HapticChecks {
         check("haptics: small saves and the tray are a light tap", phone.haptic(for: .smallSave) == .impact(.light, intensity: 1)
               && phone.haptic(for: .trayOpened) == .impact(.light, intensity: 1))
         check("haptics: the app plays no typing tap", phone.haptic(for: .typingKey) == nil)
-        check("haptics: success is only for a finished transcript and Your voice",
-              HapticEvent.allCases.filter { phone.haptic(for: $0) == .success } == [.transcriptReady, .milestone])
+        check("haptics: success is only for a finished transcript, Your voice, and Send to Reminders",
+              HapticEvent.allCases.filter { phone.haptic(for: $0) == .success } == [.transcriptReady, .milestone, .sentToReminders])
         check("haptics: the iPhone never plays a watch haptic",
               HapticEvent.allCases.compactMap { phone.haptic(for: $0) }.allSatisfy { !Self.isWatch($0) })
 

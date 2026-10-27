@@ -45,8 +45,12 @@ struct Segment: Codable, Identifiable, Equatable {
 }
 
 /// What a recording is, for filtering the library. Suggested automatically (`Transcript.kindIsAuto`), changeable later.
+///
+/// Brain dump and Audio only (approved mockup "Verbose Brain Dump", October 27, 2026) are kinds you pick, never
+/// suggested. Builds before them read their raw values ("brainDump", "audio") as unlabeled and write them back
+/// unchanged while the kind stays as read (`Transcript.init(from:)`, `UnknownFields`).
 enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
-    case journal, idea, meeting, note, dictation, podcast, video, talk, interview
+    case journal, idea, meeting, note, dictation, podcast, video, talk, interview, brainDump, audio
     static var fallback: RecordingKind { .note }
     init(from decoder: Decoder) throws { self = try Self.tolerantValue(from: decoder) }
     var id: String { rawValue }
@@ -61,10 +65,13 @@ enum RecordingKind: String, Codable, CaseIterable, Identifiable, TolerantEnum {
         case .video: return "Video"
         case .talk: return "Talk"
         case .interview: return "Interview"
+        case .brainDump: return "Brain dump"
+        case .audio: return "Audio only"
         }
     }
-    /// The kinds a person can pick; dictation is set automatically for dictations.
-    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview]
+    /// The kinds a person can pick; dictation is set automatically for dictations. Brain dump and Audio only come last,
+    /// as they do in Record as.
+    static let pickable: [RecordingKind] = [.journal, .idea, .meeting, .note, .podcast, .video, .talk, .interview, .brainDump, .audio]
     /// The kinds Apple Intelligence may suggest for a recording (AutoLabel). Links and imported media get theirs from
     /// `AutoLabel.mediaKind`; interview is only ever picked.
     static let modelKinds: [RecordingKind] = [.journal, .idea, .meeting, .note]
@@ -298,6 +305,10 @@ struct TemplateResult: Codable, Equatable, Identifiable {
     var totalParts = 1
     /// The kind whose "Now a Meeting. Run Meeting notes?" offer was dismissed with Not now (its raw value).
     var offerDismissed: String? = nil
+    /// Send to Reminders (Plan my day, DayPlan.swift): each sent task's key (`DayPlan.Item.key`) and the reminder's
+    /// identifier, so a second send adds only what's new. nil until something is sent. Builds before this drop the key
+    /// when they save the transcript (their results write only the fields they know).
+    var sent: [String: String]? = nil
 
     init(templateId: UUID, name: String, text: String, auto: Bool = false, kind: RecordingKind? = nil, madeOn: String = "",
          createdAt: Date = Date(), skippedParts: Int = 0, totalParts: Int = 1) {
@@ -306,7 +317,7 @@ struct TemplateResult: Codable, Equatable, Identifiable {
     }
 
     init(from d: Decoder) throws {
-        enum K: String, CodingKey { case id, templateId, name, text, auto, kind, madeOn, createdAt, edited, skippedParts, totalParts, offerDismissed }
+        enum K: String, CodingKey { case id, templateId, name, text, auto, kind, madeOn, createdAt, edited, skippedParts, totalParts, offerDismissed, sent }
         let c = try d.container(keyedBy: K.self)
         id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
         templateId = (try? c.decodeIfPresent(UUID.self, forKey: .templateId)) ?? UUID()
@@ -320,6 +331,7 @@ struct TemplateResult: Codable, Equatable, Identifiable {
         skippedParts = (try? c.decodeIfPresent(Int.self, forKey: .skippedParts)) ?? 0
         totalParts = (try? c.decodeIfPresent(Int.self, forKey: .totalParts)) ?? 1
         offerDismissed = (try? c.decodeIfPresent(String.self, forKey: .offerDismissed)) ?? nil
+        sent = (try? c.decodeIfPresent([String: String].self, forKey: .sent)) ?? nil
     }
 }
 
@@ -480,7 +492,7 @@ struct Transcript: Codable, Identifiable, Equatable {
              document, documentHistory, documentLevel, documentTone, deletedAt, link, processingDevice,
              processingDeviceName, pendingLink, flow, pendingAppend, kind, kindIsAuto, titleIsAuto, titleByModel,
              summary, summaryByModel, multitrack, documentCleanedBy, documentMarkHistory, documentEdited, schemaVersion,
-             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun
+             speakerSuggestions, unclear, previousVersion, rerunRequest, templateResults, autoRun, remindersSent
     }
     /// Every key this build reads or writes, including the legacy path keys: anything else is a newer build's.
     static let knownKeys: Set<String> = Set(CodingKeys.allCases.map(\.stringValue) + LegacyKeys.allCases.map(\.stringValue))
@@ -587,6 +599,10 @@ struct Transcript: Codable, Identifiable, Equatable {
     var templateResults: [TemplateResult]? = nil
     /// Run automatically's mark: the template ran (or is waiting to run) once for this recording, never again.
     var autoRun: AutoRunMark? = nil
+    /// Plan my day's sent reminders (`TemplateResult.sent`), kept beside the results too: builds before Brain dump
+    /// write a result back without its `sent`, but keep a transcript key they don't know, so a plan sent from this
+    /// build is never sent twice after an older build saves the file (`recordSentReminders`).
+    var remindersSent: [String: String]? = nil
     /// The file format of the file this was read from (`currentSchema` for new transcripts).
     var schemaVersion = Transcript.currentSchema
     /// What a newer build wrote that this one doesn't understand, written back unchanged on save.
@@ -697,6 +713,12 @@ struct Transcript: Codable, Identifiable, Equatable {
         rerunRequest = (try? c.decodeIfPresent(RerunRequest.self, forKey: .rerunRequest)) ?? nil
         templateResults = (try? c.decodeIfPresent([TemplateResult].self, forKey: .templateResults)) ?? nil
         autoRun = (try? c.decodeIfPresent(AutoRunMark.self, forKey: .autoRun)) ?? nil
+        remindersSent = (try? c.decodeIfPresent([String: String].self, forKey: .remindersSent)) ?? nil
+        // An older build saved the file and dropped the result's own copy: it comes back from the kept one.
+        if let kept = remindersSent, !kept.isEmpty, let i = templateResults?.firstIndex(where: { $0.templateId == Self.planMyDayID }) {
+            let mine = templateResults?[i].sent ?? [:]
+            templateResults?[i].sent = mine.merging(kept) { a, _ in a }
+        }
         schemaVersion = (try? c.decodeIfPresent(Int.self, forKey: .schemaVersion)) ?? 1
         unknown.keys = UnknownFields.collect(from: d, known: Self.knownKeys)
         self.unknown = unknown
@@ -758,6 +780,7 @@ struct Transcript: Codable, Identifiable, Equatable {
         try c.encodeIfPresent(rerunRequest, forKey: .rerunRequest)
         try c.encodeIfPresent(templateResults, forKey: .templateResults)
         try c.encodeIfPresent(autoRun, forKey: .autoRun)
+        try c.encodeIfPresent(remindersSent, forKey: .remindersSent)
         try c.encode(max(schemaVersion, Self.currentSchema), forKey: .schemaVersion)
         try unknown.encodeKeys(to: e, known: Self.knownKeys)
     }
@@ -786,8 +809,20 @@ struct Transcript: Codable, Identifiable, Equatable {
     /// A summary the person wrote or edited: automatic summaries leave it alone.
     var summaryIsEdited: Bool { summary != nil && !summaryByModel }
 
+    /// Plan my day's template ID (`TemplateLibrary.planMyDayID`, the ninth Scenario), here so this file reads on its own.
+    static let planMyDayID = UUID(uuidString: "5E7B0A02-F1A0-4C00-9000-000000000009")!
+
     /// Placeholder titles Verbatim gives a transcript before it has words.
-    static let defaultTitles: Set<String> = ["Voice memo", "Voice note", "Recovered recording", "Dictation", "App audio", "Untitled"]
+    static let defaultTitles: Set<String> = ["Voice memo", "Voice note", "Recovered recording", "Dictation", "App audio", "Untitled", "Audio only", "Brain dump"]
+
+    /// Audio only (AudioOnly.swift): kept as sound. The transcription queue, AutoLabel, Ask's index, and Run
+    /// automatically leave it alone until you transcribe it, which files it as a voice note.
+    var isAudioOnly: Bool { kind == .audio }
+
+    /// An Audio only recording with no words yet: it opens on its own screen (the player, title, moments, notes, and
+    /// Transcribe) instead of the transcript. A transcribed recording you later file as Audio only keeps its words
+    /// and opens as a transcript.
+    var showsAudioDetail: Bool { kind == .audio && segments.isEmpty }
 
     /// A press-and-hold (or hands-free) dictation. These live only in Dictations: the Library and Home's Recent
     /// leave them out unless you're searching (Tim, October 18, 2026).

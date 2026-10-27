@@ -17,11 +17,11 @@ let now = Date(timeIntervalSince1970: 1_800_000_000)
 let builtIn = TemplateLibrary.builtIn, scenarios = TemplateLibrary.scenarios
 check("five built-ins, the actions, with their IDs", builtIn.map(\.name) == TranscriptActions.builtIn.map(\.name)
       && builtIn.map(\.id) == TranscriptActions.builtIn.map(\.id) && builtIn.allSatisfy { $0.origin == .builtIn })
-check("eight scenarios in the mockup's order", scenarios.map(\.name) == ["Meeting notes", "1:1", "Client call", "Interview", "Lecture",
-                                                                       "Sermon notes", "Brainstorm", "Daily reflection"],
+check("nine scenarios in the mockup's order, Plan my day last", scenarios.map(\.name) == ["Meeting notes", "1:1", "Client call", "Interview", "Lecture",
+                                                                       "Sermon notes", "Brainstorm", "Daily reflection", "Plan my day"],
       "\(scenarios.map(\.name))")
 let allIDs = (builtIn + scenarios).map(\.id)
-check("every template has its own fixed ID", Set(allIDs).count == 13 && scenarios.allSatisfy { $0.origin == .scenario })
+check("every template has its own fixed ID", Set(allIDs).count == 14 && scenarios.allSatisfy { $0.origin == .scenario })
 check("every built-in and scenario has sections and a summary", (builtIn + scenarios).allSatisfy { !$0.sections.isEmpty && !$0.summary.isEmpty })
 let shipped: [TranscriptTemplate] = builtIn + scenarios
 let sectionIDs: [UUID] = shipped.flatMap { t in t.sections.map { $0.id } }
@@ -33,7 +33,7 @@ check("Meeting notes: Summary, Decisions, Action items, Open questions", meeting
 let reflection = scenarios[7]
 check("Daily reflection: What happened, What stood out, For tomorrow, no advice", reflection.sections.map(\.name) == ["What happened", "What stood out", "For tomorrow"]
       && reflection.instructions.contains("Don't add advice") && reflection.kinds == [.journal])
-check("only Interview and Key points read times", (builtIn + scenarios).filter(\.usesTimestamps).map(\.name) == ["Key points", "Interview"],
+check("only Interview, Key points, and Plan my day read times", (builtIn + scenarios).filter(\.usesTimestamps).map(\.name) == ["Key points", "Interview", "Plan my day"],
       "\((builtIn + scenarios).filter(\.usesTimestamps).map(\.name))")
 check("Journal entry rewrites in order; the rest pull things together", (builtIn + scenarios).filter { !$0.extracts }.map(\.name) == ["Journal entry"])
 
@@ -46,7 +46,7 @@ let planCopy = TemplateLibrary.duplicate(builtIn[0])
 check("a built-in's copy drops the rule from its editable instruction (it's added back when it runs)", !planCopy.instructions.contains(rule)
       && TemplatePrompt.instruction(planCopy).hasSuffix(rule))
 let all = TemplateLibrary.all(yours: [mine])
-check("library order: Scenarios, Yours, Built in", all.map(\.origin) == Array(repeating: .scenario, count: 8) + [.yours] + Array(repeating: .builtIn, count: 5))
+check("library order: Scenarios, Yours, Built in", all.map(\.origin) == Array(repeating: .scenario, count: 9) + [.yours] + Array(repeating: .builtIn, count: 5))
 check("a template is found by ID among all three", TemplateLibrary.template(mine.id, yours: [mine]) == mine
       && TemplateLibrary.template(meeting.id, yours: []) == meeting && TemplateLibrary.template(builtIn[4].id, yours: []) == builtIn[4]
       && TemplateLibrary.template(UUID(), yours: [mine]) == nil)
@@ -90,8 +90,11 @@ check("Interview asks for quotes with times", TemplatePrompt.instruction(scenari
 
 let d = UserDefaults(suiteName: "templates-tests-\(UUID().uuidString)")!
 var settings = AutoRunSettings.load(d)
-check("defaults: every kind Off, skip short on, show first off, notify on", settings.assignments.isEmpty && settings.skipShort && !settings.showFirst && settings.notify)
-check("Run automatically lists eight kinds, never dictations", AutoRunSettings.kinds.count == 8 && !AutoRunSettings.kinds.contains(.dictation))
+check("defaults: every kind Off but Brain dump (Plan my day), skip short on, show first off, notify on",
+      settings.assignments == [RecordingKind.brainDump.rawValue: TemplateLibrary.planMyDayID] && settings.skipShort && !settings.showFirst && settings.notify
+      && settings == AutoRunSettings.startingChoices)
+check("Run automatically lists nine kinds, Brain dump last, never dictations or Audio only", AutoRunSettings.kinds.count == 9 && AutoRunSettings.kinds.last == .brainDump
+      && !AutoRunSettings.kinds.contains(.dictation) && !AutoRunSettings.kinds.contains(.audio))
 settings.set(meeting.id, for: .meeting)
 settings.set(reflection.id, for: .journal)
 settings.set(mine.id, for: .interview)
@@ -100,7 +103,16 @@ settings.save(d)
 let loaded = AutoRunSettings.load(d)
 check("the per-kind assignment and options round-trip", loaded == settings && loaded.template(for: .meeting) == meeting.id && loaded.template(for: .talk) == nil)
 check("one template per kind; a template can run for several kinds", { var s = loaded; s.set(meeting.id, for: .interview); return s.kinds(for: meeting.id) == [.meeting, .interview] && s.template(for: .interview) == meeting.id }())
-check("\"3 of 8 kinds\"", loaded.assignedCount == 3)
+check("\"4 of 9 kinds\" (with Brain dump's Plan my day)", loaded.assignedCount == 4)
+let offD = UserDefaults(suiteName: "templates-tests-off-\(UUID().uuidString)")!
+var turnedOff = AutoRunSettings.load(offD)
+turnedOff.set(nil, for: .brainDump)
+turnedOff.save(offD)
+check("Brain dump turned Off stays Off", AutoRunSettings.load(offD).template(for: .brainDump) == nil)
+let oldD = UserDefaults(suiteName: "templates-tests-old-\(UUID().uuidString)")!
+oldD.set(try! JSONEncoder().encode([RecordingKind.meeting.rawValue: meeting.id.uuidString]), forKey: AutoRunSettings.assignmentsKey)
+check("choices saved by a build before Brain dump get Plan my day for it, and keep theirs", AutoRunSettings.load(oldD).template(for: .brainDump) == TemplateLibrary.planMyDayID
+      && AutoRunSettings.load(oldD).template(for: .meeting) == meeting.id)
 check("deleting a template of yours turns its kinds Off", loaded.pruned(existing: Set(TemplateLibrary.all(yours: []).map(\.id))).template(for: .interview) == nil
       && loaded.pruned(existing: Set(all.map(\.id))).template(for: .interview) == mine.id)
 settings = AutoRunSettings()
@@ -169,15 +181,20 @@ check("record kind titles", RecordingKind.recordChoices.map(\.recordTitle) == ["
 
 // MARK: Record as (the iPhone's tray, the Mac's menus)
 
-check("six choices in one order: Voice note, the four kinds, Thought", RecordChoice.all == [.voiceNote, .kind(.meeting), .kind(.interview), .kind(.journal), .kind(.talk), .thought])
-check("row names", RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought"])
+check("eight choices in one order: Voice note, the four kinds, Thought, Brain dump, Audio only",
+      RecordChoice.all == [.voiceNote, .kind(.meeting), .kind(.interview), .kind(.journal), .kind(.talk), .thought, .kind(.brainDump), .kind(.audio)])
+check("row names", RecordChoice.all.map(\.name) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump", "Audio only"])
 check("serif names put the last word in italic", RecordChoice.voiceNote.serifParts == ("Voice ", "note") && RecordChoice.kind(.talk).serifParts == ("Talk", nil)
       && RecordChoice.kind(.journal).serifParts == ("Journal ", "entry"))
-check("Mac right-click titles", RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
-check("File › Record As titles", RecordChoice.all.map(\.commandTitle) == ["Voice Note", "Meeting…", "Interview", "Journal Entry", "Talk", "Thought"])
-check("VoiceOver actions", RecordChoice.all.map(\.actionName) == ["Record a voice note", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
-check("each choice has its own custom symbol", Set(RecordChoice.all.map(\.symbolName)).count == 6
-      && RecordChoice.all.map(\.symbolName) == ["rec.voice", "rec.meeting", "rec.interview", "rec.journal", "rec.talk", "thought"])
+check("Mac right-click titles", RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought",
+                                                                     "Record a brain dump", "Record audio only"])
+check("File › Record As titles", RecordChoice.all.map(\.commandTitle) == ["Voice Note", "Meeting…", "Interview", "Journal Entry", "Talk", "Thought", "Brain Dump", "Audio Only"])
+check("VoiceOver actions", RecordChoice.all.map(\.actionName) == ["Record a voice note", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought",
+                                                                "Record a brain dump", "Record audio only"])
+check("each choice has its own custom symbol", Set(RecordChoice.all.map(\.symbolName)).count == 8
+      && RecordChoice.all.map(\.symbolName) == ["rec.voice", "rec.meeting", "rec.interview", "rec.journal", "rec.talk", "thought", "rec.braindump", "rec.audio"])
+check("Native symbols: Voice note is mic, Audio only the waveform, Brain dump the head", RecordChoice.voiceNote.nativeSymbol == "mic"
+      && RecordChoice.kind(.audio).nativeSymbol == "waveform" && RecordChoice.kind(.brainDump).nativeSymbol == "brain.head.profile")
 check("Voice note leaves the kind to AutoLabel; Thought files as Thoughts", RecordChoice.voiceNote.kind == nil && RecordChoice.thought.kind == .idea
       && RecordChoice.kind(.meeting).kind == .meeting)
 var trayAuto = AutoRunSettings()
@@ -194,6 +211,12 @@ check("hint: Run automatically off says what the kind really does", RecordChoice
 check("hint: a deleted template counts as off", RecordChoice.kind(.meeting).hint(settings: trayAuto, templates: []) == "Filed under Meetings, every voice kept")
 check("hint: Voice note and Thought never name a template", RecordChoice.voiceNote.hint(settings: trayAuto, templates: trayLib) == "Plain Record. Verbose picks the kind."
       && RecordChoice.thought.hint(settings: trayAuto, templates: trayLib) == "Adds to today\u{2019}s page")
+check("hint: Brain dump runs Plan my day from the start, and says what it files as when Off",
+      RecordChoice.kind(.brainDump).hint(settings: AutoRunSettings.startingChoices, templates: trayLib) == "Runs Plan my day when it finishes"
+      && RecordChoice.kind(.brainDump).hint(settings: AutoRunSettings(), templates: trayLib) == "Filed under Brain dumps")
+check("hint: Audio only never names a template", RecordChoice.kind(.audio).hint(settings: { var s = AutoRunSettings(); s.set(meeting.id, for: .audio); return s }(), templates: trayLib) == "Keeps the sound, no transcript"
+      && RecordChoice.kind(.audio).template(settings: { var s = AutoRunSettings(); s.set(meeting.id, for: .audio); return s }(), templates: trayLib) == nil
+      && RecordChoice.kind(.audio).recorderLine(settings: AutoRunSettings(), templates: trayLib) == "Keeps the sound, no transcript")
 check("the recorder's line", RecordChoice.voiceNote.recorderLine(settings: trayAuto, templates: trayLib) == "Verbose picks the kind after it listens"
       && RecordChoice.kind(.meeting).recorderLine(settings: trayAuto, templates: trayLib) == "Runs Meeting notes when it finishes")
 check("the kinds' fallbacks match what the app does: every voice stays in a meeting, interview, or talk",
@@ -272,6 +295,190 @@ check("footer: on this Mac, or on your iPhone when it was made there",
       TemplateCopy.footer(madeOn: "Mac", here: "Mac") == "On this Mac with Apple Intelligence. Nothing leaves it. Made from this transcript; it can be wrong, so edit the result before you keep it."
       && TemplateCopy.footer(madeOn: "iPhone", here: "Mac").hasPrefix("On your iPhone with Apple Intelligence."))
 check("on-device line: one phrasing everywhere", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
+
+// MARK: Brain dump's offer
+
+var bd = rec(.meeting, minutes: 3)
+bd.kind = .brainDump; bd.kindIsAuto = false
+let startS = AutoRunSettings.startingChoices
+let bdOffer = AutoRunRules.offer(bd, settings: startS, templates: lib)
+check("filed as a Brain dump afterward with nothing run: \"Now a Brain dump. Run Plan my day?\"", bdOffer?.text == "Now a Brain dump. Run Plan my day?"
+      && bdOffer?.result == nil && bdOffer?.template == TemplateLibrary.planMyDayID, "\(String(describing: bdOffer))")
+var bdDismissed = bd
+AutoRunRules.dismissBrainDumpOffer(bdOffer!, on: &bdDismissed, device: "test-device")
+check("Not now on it never offers again and never runs", AutoRunRules.offer(bdDismissed, settings: startS, templates: lib) == nil && decide(bdDismissed, startS) == .alreadyRan)
+var bdRan = bd
+bdRan.addTemplateResult(TemplateResult(templateId: TemplateLibrary.planMyDayID, name: "Plan my day", text: "## Today\n- [ ] Call [00:04]"))
+check("no offer once Plan my day has a result", AutoRunRules.offer(bdRan, settings: startS, templates: lib) == nil)
+check("no offer with Brain dump Off", AutoRunRules.offer(bd, settings: AutoRunSettings(), templates: lib) == nil)
+var bdAuto = rec(.meeting)
+bdAuto.addTemplateResult(TemplateResult(templateId: meeting.id, name: "Meeting notes", text: "## Summary\nx", auto: true, kind: .meeting))
+bdAuto.kind = .brainDump; bdAuto.kindIsAuto = false
+var both = startS; both.set(meeting.id, for: .meeting)
+check("a Meeting that ran Meeting notes, now a Brain dump: the offer replaces it", AutoRunRules.offer(bdAuto, settings: both, templates: lib)?.result == bdAuto.templateResults?.first?.id)
+check("a short brain dump still runs Plan my day with Skip short recordings on", decide({ var x = rec(nil, minutes: 0.5); x.pickKindAtStart(.brainDump); return x }(), startS)
+      == .run(TemplateLibrary.planMyDayID, .brainDump))
+let planPrompt = TemplatePrompt.instruction(scenarios[8])
+check("Plan my day: the mockup's instruction, its six sections, times on each line, and the no-add rule",
+      planPrompt.hasPrefix(TemplateLibrary.planMyDayInstruction) && planPrompt.contains("1. Top three: checklist") && planPrompt.contains("6. Ideas: bullet points")
+      && planPrompt.contains("[mm:ss] time of the line it came from") && !planPrompt.contains("None stated") && planPrompt.hasSuffix(rule))
+check("Plan my day's ID follows the scenarios' pattern", TemplateLibrary.planMyDayID.uuidString == String(format: "5E7B0A02-F1A0-4C00-9000-%012d", 9))
+check("Plan my day is Brain dump's, with a day glyph", scenarios[8].kinds == [.brainDump] && scenarios[8].glyph == TemplateGlyph.planDay && scenarios[8].origin == .scenario
+      && TemplateLibrary.planMyDayID == scenarios[8].id && TranscriptActions.builtIn.count == 5)
+
+// MARK: Audio only
+
+var audio = rec(nil, minutes: 1.2)
+audio.segments = []; audio.original = []
+audio.pickKindAtStart(.audio)
+audio.title = "Melody for the second verse"; audio.titleIsAuto = false
+audio.notes = [Note(text: "", at: 31, isBookmark: true, markSource: "lockScreen"), Note(text: "Chorus starts", at: 58, isBookmark: true, markSource: "phoneApp")]
+check("Audio only: the queue, AutoLabel, Ask, and Run automatically leave it alone", AudioOnlyRules.skipsQueue(audio) && !AudioOnlyRules.labels(audio)
+      && !AudioOnlyRules.indexes(audio) && decide(audio, startS) == .notEligible && audio.showsAudioDetail && !audio.wantsSuggestedKind)
+var withWords = audio; withWords.segments = [Segment(start: 0, end: 3, text: "La la la.")]
+check("Audio only with words (filed afterward) still never runs a template, and opens as a transcript", decide(withWords, startS) == .notEligible && !withWords.showsAudioDetail)
+var later = audio
+later.beginTranscribeLater()
+check("Transcribe: it queues, still Audio only until the words are in", later.status == .processing && later.isAudioOnly && !AudioOnlyRules.skipsQueue(later)
+      && later.showsAudioDetail)
+later.segments = [Segment(start: 0, end: 4, text: "The chorus goes up here.")]
+later.status = .ready
+later.finishTranscribeLater(as: nil)
+check("Transcribe later: a plain voice note with its title and moments kept, ready for AutoLabel", later.kind == nil && later.kindIsAuto && later.wantsSuggestedKind
+      && later.title == "Melody for the second verse" && later.notes == audio.notes && !later.isAudioOnly)
+var asMeeting = audio
+asMeeting.beginTranscribeLater()
+asMeeting.segments = [Segment(start: 0, end: 4, text: "Hi.")]; asMeeting.status = .ready
+asMeeting.finishTranscribeLater(as: .meeting)
+asMeeting.duration = 600
+check("Transcribe as a meeting: the kind is yours, and its template runs by the normal rules", asMeeting.kind == .meeting && !asMeeting.kindIsAuto
+      && decide(asMeeting) == .run(meeting.id, .meeting))
+var notAudio = rec(.journal); notAudio.finishTranscribeLater(as: .meeting)
+check("finishing Transcribe later leaves anything not Audio only alone", notAudio.kind == .journal)
+check("Transcribe as: Voice note and each kind, never Audio only", AudioOnlyRules.transcribeChoices.map(AudioOnlyRules.choiceName) == ["Voice note", "Meeting", "Interview", "Journal entry", "Talk", "Thought", "Brain dump"]
+      && !AudioOnlyRules.transcribeChoices.contains(.audio) && AudioOnlyRules.menuTitle(.meeting) == "Transcribe as meeting")
+check("Audio only's VoiceOver row", AudioOnlyRules.accessibilityLabel({ var x = audio; x.duration = 72; return x }()) == "Melody for the second verse, Audio only, 1 minute 12 seconds, no transcript, 2 moments")
+check("the kinds you can pick include Brain dump and Audio only, last", Array(RecordingKind.pickable.suffix(2)) == [.brainDump, .audio]
+      && !RecordingKind.modelKinds.contains(.audio) && !RecordingKind.modelKinds.contains(.brainDump))
+let audioFile = (try? enc.encode(audio)).flatMap { try? dec.decode(Transcript.self, from: $0) }
+check("the new kinds round-trip in the transcript file", audioFile?.kind == .audio && audioFile?.title == audio.title)
+
+// MARK: Plan my day's result
+
+let recorded = { () -> Date in var c = DateComponents(); c.year = 2026; c.month = 10; c.day = 27; c.hour = 7; c.minute = 42; return Calendar(identifier: .gregorian).date(from: c)! }()
+var greg = Calendar(identifier: .gregorian); greg.timeZone = TimeZone(identifier: "America/New_York")!
+let canned = """
+## Top three
+- [ ] Send the bakery invoice [00:04]
+- [ ] Finish the orchard storyboard before Thursday's call [00:11]
+- [ ] Call the print shop about the menu proofs [00:19]
+
+## Today
+- [ ] Back up the cards from yesterday's shoot [00:27]
+
+## Tomorrow
+- [ ] Book the drone pilot for the farm shoot [00:41]
+- [ ] Send the shot list to the client [00:47]
+
+## This week
+- [ ] Renew the portfolio site's domain [00:58]
+- [ ] Pick up the lens from repair on Friday [01:06]
+
+## Someday
+- [ ] Redo the studio reel [01:15]
+
+## Ideas
+- A short series on how families run their farm stands [01:24]
+- A mug with the barn logo for the welcome kits [01:39]
+"""
+let plan = DayPlan.parse(canned)
+check("plan: the six sections from a canned result, in order", plan.shownSections == [.top, .today, .tomorrow, .week, .someday, .ideas]
+      && plan.top.count == 3 && plan.tasks.count == 9 && plan.ideas.count == 2 && !plan.topInferred, "\(plan)")
+check("plan: times come off the words and become the line's anchor", plan.top[0].text == "Send the bakery invoice" && plan.top[0].anchor == 4
+      && plan.week[1].anchor == 66 && plan.ideas[1].anchor == 99)
+check("plan: a named day under This week is kept; Someday has none", plan.week[1].weekday == 6 && plan.week[0].weekday == nil && plan.someday[0].weekday == nil
+      && plan.top[1].weekday == nil)
+let day = { (c: DateComponents?) -> String in c.map { "\($0.year!)-\($0.month!)-\($0.day!)" } ?? "none" }
+check("plan: days resolve from the recording's date", day(DayPlan.due(plan.top[0], recordedAt: recorded, calendar: greg)) == "2026-10-27"
+      && day(DayPlan.due(plan.tomorrow[0], recordedAt: recorded, calendar: greg)) == "2026-10-28"
+      && day(DayPlan.due(plan.week[1], recordedAt: recorded, calendar: greg)) == "2026-10-30"
+      && DayPlan.due(plan.week[0], recordedAt: recorded, calendar: greg) == nil && DayPlan.due(plan.someday[0], recordedAt: recorded, calendar: greg) == nil
+      && DayPlan.due(plan.ideas[0], recordedAt: recorded, calendar: greg) == nil)
+check("plan: a due date has no time (all day)", DayPlan.due(plan.top[0], recordedAt: recorded, calendar: greg).map { $0.hour == nil && $0.minute == nil } == true)
+let aWeekLater = recorded.addingTimeInterval(7 * 86_400)
+check("plan: opened a week later, Tomorrow is still the day after the recording", day(DayPlan.due(plan.tomorrow[0], recordedAt: recorded, calendar: greg)) == "2026-10-28"
+      && DayPlan.dueLabel(DayPlan.due(plan.top[0], recordedAt: recorded, calendar: greg), now: aWeekLater, calendar: greg, locale: Locale(identifier: "en_US")) == "Tue, Oct 27"
+      && DayPlan.dueLabel(DayPlan.due(plan.top[0], recordedAt: recorded, calendar: greg), now: recorded, calendar: greg) == "Today"
+      && DayPlan.dueLabel(nil) == "No date")
+check("plan: the Tomorrow heading's date", DayPlan.tomorrowLabel(recordedAt: recorded, calendar: greg, locale: Locale(identifier: "en_US")) == "Wed, Oct 28")
+let saidSunday = DayPlan.item("Water the plants (Sunday) [00:30]", section: .week)
+check("plan: a day in parentheses comes off and names the date", saidSunday.text == "Water the plants" && saidSunday.weekday == 1
+      && day(DayPlan.due(saidSunday, recordedAt: recorded, calendar: greg)) == "2026-11-1")
+let noTop = DayPlan.parse("## Today\n- [ ] One [00:01]\n- [ ] Two [00:02]\n- [ ] Three [00:03]\n- [ ] Four [00:04]\n\n## Someday\nNone stated.\n\n## Ideas\nNone stated.")
+check("plan: no top three named, today's first three in the order said, and the section says so", noTop.topInferred && noTop.top.map(\.text) == ["One", "Two", "Three"]
+      && noTop.today.map(\.text) == ["Four"] && noTop.shownSections == [.top, .today])
+let said = DayPlan.parse("## Top three\nYou didn't name three, so these are the first three.\n- [ ] One [00:01]\n## Today\n- [ ] One [00:01]\n- [ ] Two [00:05]")
+check("plan: the model saying it chose them shows the line; a task listed twice shows once", said.topInferred && said.top.map(\.text) == ["One"] && said.today.map(\.text) == ["Two"])
+check("plan: an empty brain dump says so", DayPlan.parse("## Top three\nNone stated.").isEmpty && DayPlan.noTasksLine == "No tasks or ideas in what you said.")
+check("plan: Someday's line", DayPlan.somedayLine == "And anything you didn\u{2019}t give a day")
+
+// Send to Reminders (no EventKit here: the drafts are what the app hands it).
+var sel = DayPlan.defaultSelection(plan, sent: [:])
+check("reminders: every task checked, ideas unchecked", sel.count == 9 && !sel.contains(plan.ideas[0].key))
+let drafts = DayPlan.drafts(plan, selected: sel, sent: [:], recordedAt: recorded, source: "Brain dump", anchorLabel: { $0.anchor.map { DayPlan.clock($0) } },
+                            calendar: greg, locale: Locale(identifier: "en_US"))
+check("reminders: nine, in the plan's order, due only where a day was said", drafts.count == 9 && drafts[0].title == "Send the bakery invoice"
+      && day(drafts[0].due) == "2026-10-27" && day(drafts[4].due) == "2026-10-28" && drafts[6].due == nil && day(drafts[7].due) == "2026-10-30" && drafts[8].due == nil)
+check("reminders: each says where it came from", drafts[0].notes == "From Verbose \u{00B7} Brain dump, Tue, Oct 27, 0:04", drafts[0].notes)
+sel.insert(plan.ideas[0].key)
+let withIdea = DayPlan.drafts(plan, selected: sel, sent: [:], recordedAt: recorded, source: "Brain dump", anchorLabel: { _ in nil }, calendar: greg)
+check("reminders: a checked idea goes in with no date", withIdea.count == 10 && withIdea.last?.title == plan.ideas[0].text && withIdea.last?.due == nil)
+var sentIDs: [String: String] = [:]
+for (i, d) in drafts.enumerated() { sentIDs[d.key] = "reminder-\(i)" }
+check("reminders: never twice; a second send adds only what's new", DayPlan.drafts(plan, selected: Set(plan.tasks.map(\.key)), sent: sentIDs, recordedAt: recorded, source: "Brain dump",
+                                                                                   anchorLabel: { _ in nil }, calendar: greg).isEmpty
+      && DayPlan.defaultSelection(plan, sent: sentIDs).isEmpty && DayPlan.allSent(plan, sent: sentIDs))
+check("reminders: the messages", DayPlan.sentMessage(added: 9, already: 0, list: "Studio") == "Added 9 reminders to Studio"
+      && DayPlan.sentMessage(added: 2, already: 9, list: "Studio") == "Added 2. 9 were already in Reminders."
+      && DayPlan.sentStatus(plan, sent: sentIDs) == "9 in Reminders" && DayPlan.sentStatus(plan, sent: [:]) == nil)
+var resent = rec(.brainDump)
+var first = TemplateResult(templateId: TemplateLibrary.planMyDayID, name: "Plan my day", text: canned)
+first.sent = sentIDs
+resent.addTemplateResult(first)
+resent.addTemplateResult(TemplateResult(templateId: TemplateLibrary.planMyDayID, name: "Plan my day", text: canned))
+check("Run again keeps what's in Reminders marked as sent", resent.templateResults?.count == 1 && resent.templateResults?.first?.sent == sentIDs)
+let sentFile = (try? enc.encode(resent)).flatMap { try? dec.decode(Transcript.self, from: $0) }
+check("sent reminders round-trip in the transcript file", sentFile?.templateResults?.first?.sent == sentIDs)
+var marking = rec(.brainDump)
+let planResult = TemplateResult(templateId: TemplateLibrary.planMyDayID, name: "Plan my day", text: canned)
+marking.addTemplateResult(planResult)
+marking.recordSentReminders(["a|4": "r1"], result: planResult.id)
+marking.recordSentReminders(["b|11": "r2"], result: planResult.id)
+check("sending records the reminders on the result and beside it", marking.templateResults?.first?.sent == ["a|4": "r1", "b|11": "r2"] && marking.remindersSent == ["a|4": "r1", "b|11": "r2"])
+// What a build before Brain dump writes back: the result without its "sent", the transcript's unknown key kept.
+var olderSaved = (try? JSONSerialization.jsonObject(with: try enc.encode(marking))) as? [String: Any] ?? [:]
+if var results = olderSaved["templateResults"] as? [[String: Any]] { results[0]["sent"] = nil; results[0]["kind"] = nil; olderSaved["templateResults"] = results }
+let reread = (try? JSONSerialization.data(withJSONObject: olderSaved)).flatMap { try? dec.decode(Transcript.self, from: $0) }
+check("an older build dropping the result's copy never makes a plan send twice", reread?.templateResults?.first?.sent == ["a|4": "r1", "b|11": "r2"])
+
+// Organize today's thoughts and the Mac's note.
+let thoughts = ["Send the bakery invoice today.", "The storyboard needs the barn shot moved up.", "Call the print shop about the menu proofs."]
+let input = DayPlan.input(thoughts, title: "Thoughts", createdAt: recorded)
+check("thoughts: one line a minute, so a time names its thought", input.segments.map(\.start) == [0, 60, 120] && input.segments.map(\.text) == thoughts)
+let tp = DayPlan.parse("## Top three\n- [ ] Send the bakery invoice [00:00]\n- [ ] Call the print shop [02:00]\n## Ideas\n- A mug [05:00]")
+check("thoughts: each task links back to its thought", DayPlan.index(of: tp.top[0], count: 3) == 0 && DayPlan.index(of: tp.top[1], count: 3) == 2
+      && DayPlan.index(of: tp.ideas[0], count: 3) == nil)
+check("note: paragraphs between blank lines", DayPlan.paragraphs("First line.\nStill first.\n\n\nSecond.\n  \nThird.") == ["First line. Still first.", "Second.", "Third."])
+var rec1 = DayPlanRecord(day: "2026-10-27", source: .thoughts)
+rec1.text = "## Top three\n- [ ] A [00:00]"; rec1.thoughtIDs = [UUID(), UUID()]
+check("a day's plan has one ID per day and source, on every device", rec1.id == DayPlanRecord.id(day: "2026-10-27", source: .thoughts)
+      && rec1.id != DayPlanRecord.id(day: "2026-10-27", source: .note) && rec1.id != DayPlanRecord.id(day: "2026-10-28", source: .thoughts))
+check("a day's plan counts thoughts added since", rec1.newThoughts(in: rec1.thoughtIDs + [UUID(), UUID()]) == 2 && DayPlanRecord(day: "2026-10-27", source: .thoughts).newThoughts(in: [UUID()]) == 0)
+let recBack = (try? enc.encode([rec1])).flatMap { try? dec.decode([DayPlanRecord].self, from: $0) }
+check("a day's plan round-trips, and a newer build's source reads safely", recBack == [rec1]
+      && (try? dec.decode(DayPlanRecord.self, from: Data(#"{"day":"2026-10-27","source":"watch","extra":1}"#.utf8)))?.source == .thoughts)
+check("plans merge like the other synced lists", SyncMerge.merge(local: [rec1], remote: [], localTombstones: [], remoteTombstones: []).items == [rec1])
+check("day keys", DayPlanRecord.dayKey(recorded, calendar: greg) == "2026-10-27" && DayPlanRecord.date("2026-10-27", calendar: greg).map { greg.component(.day, from: $0) } == 27)
 
 // The checks both self-tests run (TemplateChecks.swift), here too.
 TemplateChecks.run { check("self-test: " + $0, $1) }

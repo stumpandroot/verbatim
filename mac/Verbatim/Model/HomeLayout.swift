@@ -87,6 +87,9 @@ enum HomeTile: String, CaseIterable, Sendable {
     case importMedia = "import"
     case whatsPlaying, appAudio, captions, pasteLink, thoughtPad, search, moments, queue, dictations, dictionary, projects
     case newThought, journal
+    /// Brain dump (October 27, 2026): records one on iPhone, opens the Brain dump window on the Mac. Offered in Edit
+    /// Home, never picked by default.
+    case brainDump
 
     var title: String {
         switch self {
@@ -105,6 +108,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .projects: return "Projects"
         case .newThought: return "New thought"
         case .journal: return "Journal"
+        case .brainDump: return "Brain dump"
         }
     }
 
@@ -126,6 +130,7 @@ enum HomeTile: String, CaseIterable, Sendable {
         case .projects: return "Your projects"
         case .newThought: return "Record one now"
         case .journal: return "Your journal, by day"
+        case .brainDump: return "Talk through your day"
         }
     }
 

@@ -227,6 +227,9 @@ extension BrandArt {
     static let iconTighten = BrandArt(box: iconGrid, strokes: [.path("M4 4L10 10"), .path("M10 5.5V10H5.5"), .path("M20 20L14 14"), .path("M14 18.5V14H18.5")], strokeWidth: 1.5)
     static let iconFilm = BrandArt(box: iconGrid, strokes: [.path("M4 9.5H20V19.5H4Z"), .path("M4 9.5L3.4 6.3L18.6 3.5L19.2 6.7"), .path("M8.2 5.5L9.6 8.3"), .path("M13 4.6L14.4 7.4")], strokeWidth: 1.5)
     static let iconStudy = BrandArt(box: iconGrid, strokes: [.path("M2.5 9.5L12 5L21.5 9.5L12 14Z"), .path("M6.5 11.6V16C9 18.3 15 18.3 17.5 16V11.6"), .path("M21.5 9.5V15")], strokeWidth: 1.5)
+    static let iconAudio = BrandArt(box: iconGrid, strokes: [.path("M3 12C4.5 7.5 6 7.5 7.5 12S10.5 16.5 12 12 15 7.5 16.5 12 19.5 16.5 21 12")], strokeWidth: 1.5)
+    static let iconBrainDump = BrandArt(box: iconGrid, strokes: [.path("M3.5 6.5C4.7 4.5 5.8 4.5 7 6.5S9.3 8.5 10.5 6.5"), .path("M13.5 6.5H20.5"), .path("M4 12L5.2 13.2L7 11"), .path("M10 12H20.5"), .path("M4 17.5L5.2 18.7L7 16.5"), .path("M10 17.5H17")], strokeWidth: 1.5)
+    static let iconPlanDay = BrandArt(box: iconGrid, strokes: [.path("M5.5 5.5 H18.5 C19.33 5.5 20 6.17 20 7 V18.5 C20 19.33 19.33 20 18.5 20 H5.5 C4.67 20 4 19.33 4 18.5 V7 C4 6.17 4.67 5.5 5.5 5.5 Z"), .path("M4 10H20"), .path("M8.5 3.5V7.5"), .path("M15.5 3.5V7.5"), .path("M9 15L11 17L15 13")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the
@@ -321,6 +324,24 @@ extension BrandArt {
         .path("M20 72 L20 92"),
         .path("M80 72 L80 92"),
     ], fills: [.circle(24, 32, 2.2), .circle(76, 32, 2.2)], strokeWidth: 2.2)
+    // Audio only and Brain dump (mockup "Verbose Brain Dump", October 27, 2026), the same line family: Dictation's wave
+    // with no text lines under it (sound, no transcript), and a spoken line that turns into a checklist.
+    static let kindAudio = BrandArt(box: glyphBox, strokes: [
+        .path("M8 50 C8 22 30 22 30 50 C30 78 46 82 46 50 C46 18 62 22 62 50 C62 78 84 78 84 50 C84 34 92 34 92 50"),
+        .circle(8, 50, 4),
+        .circle(30, 50, 4),
+        .circle(46, 50, 4),
+        .circle(62, 50, 4),
+        .circle(84, 50, 4),
+    ], strokeWidth: 2.2)
+    static let kindBrainDump = BrandArt(box: glyphBox, strokes: [
+        .path("M10 24 C15 14 20 14 25 24 S35 34 40 24"),
+        .path("M52 24 L90 24"),
+        .path("M12 52 L18 58 L28 46"),
+        .path("M40 52 L90 52"),
+        .path("M12 80 L18 86 L28 74"),
+        .path("M40 80 L76 80"),
+    ], fills: [.circle(10, 24, 3), .circle(40, 24, 3)], strokeWidth: 2.2)
     static let featureBackground = BrandArt(box: glyphBox, strokes: [
         .circle(50, 50, 38),
         .circle(50, 50, 18),

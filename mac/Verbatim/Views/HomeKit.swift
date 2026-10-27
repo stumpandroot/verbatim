@@ -752,6 +752,7 @@ extension HomeTile {
         case .projects: return .iconProject
         case .newThought: return .iconThought
         case .journal: return .iconNotes
+        case .brainDump: return .iconBrainDump
         }
     }
 
@@ -773,6 +774,7 @@ extension HomeTile {
         case .projects: return "folder"
         case .newThought: return "lightbulb"
         case .journal: return "book"
+        case .brainDump: return "brain.head.profile"
         }
     }
     // brand: native end

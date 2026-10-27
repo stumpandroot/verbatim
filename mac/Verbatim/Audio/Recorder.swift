@@ -691,11 +691,16 @@ final class Recorder: ObservableObject {
         NSError(domain: "Verbatim", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available."])
     }
 
+    /// Audio only (AudioOnly.swift): record sound, not speech. On iPhone the session uses the measurement mode, which
+    /// turns off the system's input processing (gain control and the voice shaping the spoken-audio mode allows), so a
+    /// hummed melody or a guitar keeps its dynamics. Set before `start`; the Mac's input unit never processes voice.
+    var soundOnly = false
+
     func start(to url: URL) throws {
         #if os(iOS)
         // iPhone: a record session that keeps going with the screen locked (background audio mode).
         let session = AVAudioSession.sharedInstance()
-        try RecordingRoute.setCategory(session, options: RecordingRoute.options())
+        try RecordingRoute.setCategory(session, mode: soundOnly ? .measurement : .spokenAudio, options: RecordingRoute.options())
         try session.setActive(true)
         #endif
         if keepWarm {
@@ -1855,7 +1860,7 @@ final class Recorder: ObservableObject {
         guard isRecording, writer != nil else { engine = nil; tapFormat = nil; return }
         let s = AVAudioSession.sharedInstance()
         do {
-            try RecordingRoute.setCategory(s, options: RecordingRoute.options())
+            try RecordingRoute.setCategory(s, mode: soundOnly ? .measurement : .spokenAudio, options: RecordingRoute.options())
             try s.setActive(true)
             Log.note("recorder: audio session set up again")
         } catch {
