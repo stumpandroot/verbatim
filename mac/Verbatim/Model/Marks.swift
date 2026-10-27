@@ -28,7 +28,8 @@ enum MarkSource: String, CaseIterable {
         }
     }
 
-    /// In the Moments column and on the Moments screen: "Lock Screen", "Mac, ⌃⌥B".
+    /// The one short form, on the transcript's chip, in the Moments column, and on the Moments screen: "Lock Screen",
+    /// "Mac · ⌃⌥B". `chip(keys:)` is the sentence VoiceOver reads.
     func short(keys: String? = nil) -> String {
         switch self {
         case .island: return "Dynamic Island"
@@ -36,8 +37,8 @@ enum MarkSource: String, CaseIterable {
         case .actionButton: return "Action button"
         case .phoneApp: return "iPhone"
         case .macApp: return "Mac"
-        case .macBubble: return "Mac, bubble"
-        case .macHotkey: return "Mac, \(keys ?? Marks.defaultHotkey)"
+        case .macBubble: return "Mac · bubble"
+        case .macHotkey: return "Mac · \(keys ?? Marks.defaultHotkey)"
         case .watch: return "Apple Watch"
         }
     }

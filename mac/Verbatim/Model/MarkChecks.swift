@@ -69,9 +69,9 @@ enum MarkChecks {
         check("words: chips name where each mark came from", lock.flatMap(Marks.chip) == "Moment 4:12 · from the Lock Screen"
               && dots.flatMap(Marks.chip) == "Moment 11:47 · from the Apple Watch")
         check("words: the Moments column's short sources", MarkSource.allCases.map { $0.short() } ==
-              ["Dynamic Island", "Lock Screen", "Action button", "iPhone", "Mac", "Mac, bubble", "Mac, ⌃⌥B", "Apple Watch"])
-        check("words: a rebound hotkey is named as pressed", MarkSource.macHotkey.short(keys: "⌃⌥M") == "Mac, ⌃⌥M"
-              && Marks.shortSource(Note(text: "", at: 1, isBookmark: true).marked("macHotkey", keys: "⌃⇧K")) == "Mac, ⌃⇧K")
+              ["Dynamic Island", "Lock Screen", "Action button", "iPhone", "Mac", "Mac · bubble", "Mac · ⌃⌥B", "Apple Watch"])
+        check("words: a rebound hotkey is named as pressed", MarkSource.macHotkey.short(keys: "⌃⌥M") == "Mac · ⌃⌥M"
+              && Marks.shortSource(Note(text: "", at: 1, isBookmark: true).marked("macHotkey", keys: "⌃⇧K")) == "Mac · ⌃⇧K")
         check("words: a source from a newer build still reads", Marks.chipSource(Note(text: "", at: 1, isBookmark: true).marked("ring")) == "marked while recording"
               && Marks.shortSource(Note(text: "", at: 1, isBookmark: true).marked("ring")) == "Marked")
         check("words: other notes have no source", Marks.chip(Note(text: "Mine", at: 3, isBookmark: true)) == nil)
