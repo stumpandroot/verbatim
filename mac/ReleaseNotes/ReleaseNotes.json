@@ -32,7 +32,11 @@
         "Mac and iPhone: Copy puts the answer and its sources on the clipboard, and Save as recipe keeps the question and where it looks. Ask is under Make in the Mac's sidebar, and in Library › Ask on iPhone. On iPhone, the Library's search field offers Ask about what you typed.",
         "Mac and iPhone: recipes are questions you ask again. Run one now, or schedule it weekly on that device; its answers stay in Ask › Recipes with their citations. Recipes sync between your Mac and iPhone, and schedules stay on each device. Start from three suggestions, such as Weekly digest of my thoughts.",
         "Mac and iPhone: a scheduled recipe runs while Verbose is open, or the next time it opens after its time, once even if you missed several weeks. On iPhone, it can also run when iOS gives Verbose background time. You get a notification with the first line of the answer.",
-        "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device."
+        "Mac and iPhone: Ask's index stays on your device and updates in the background as your transcripts change, never while you record or transcribe. Nothing from your transcripts leaves your device.",
+        "Apple Watch: record a voice note or a thought from your wrist. Tap Record or New thought, mark moments while you record, then tap Stop. Your iPhone transcribes it and adds it to the Library, or to today's Thoughts with Apple Watch as where it came from. The Apple Watch app needs watchOS 11.",
+        "Apple Watch: tap Mark, or double-tap your fingers on a watch that supports it, to mark a moment. Your wrist gets a tap and the watch says “Marked 4:12”. In the transcript, the moment says “from the Apple Watch”.",
+        "Apple Watch: recording keeps going when you lower your wrist. When your iPhone is out of reach, the watch keeps the recording and sends it once your iPhone is back, and shows how many recordings are waiting.",
+        "Apple Watch: add Record and Today's thoughts to your watch face, and find your last recording in the Smart Stack. Each one opens Verbose ready to record."
       ]
     },
     {
