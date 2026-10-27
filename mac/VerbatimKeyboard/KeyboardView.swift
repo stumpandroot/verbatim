@@ -30,9 +30,9 @@ enum KB {
     /// Metadata. `Ink.mute`, a step deeper in light so it holds 4.5:1 on the system's light gray and on `wash`.
     static var muted: Color { native ? N.muted : V.muted }
     static var hairline: Color { native ? N.hairline : Ink.hairline }
-    /// Text and glyphs on the filled dictate button: fixed ink on butter (butter stays butter in dark); white on the
-    /// Native accent.
-    static var inkFixed: Color { native ? Color.white : Ink.inkFixed }
+    /// Text and glyphs on the filled dictate button: fixed ink on butter (butter stays butter in dark); on the Native
+    /// accent, white in light and black in dark (`PremiumInk.onAccent`; white on the dark accent measures 2.8:1).
+    static var inkFixed: Color { native ? PremiumInk.onAccent : Ink.inkFixed }
 
     // Keyboard-only colors (not in Tokens.swift; defined here, not shared). The keys and soft surfaces are tuned
     // for Apple's keyboard backdrop rather than a panel of ours.
@@ -769,6 +769,9 @@ private struct DictateDone: View {
                 .dictateSurface(look.style, shape: Circle(), shadow: large ? CGSize(width: 3, height: 4) : CGSize(width: 2, height: 3), grain: large)
         }
         .buttonStyle(PressFade())
+        // Icon only, so VoiceOver would read "Checkmark".
+        .accessibilityLabel("Done")
+        .accessibilityHint("Stops listening and puts your words in")
     }
 }
 
@@ -791,8 +794,9 @@ private struct StillBars: View {
 
 /// Text and glyphs on the dictate button: fixed ink on butter (butter stays butter in dark), adaptive ink on card.
 private func dictateForeground(_ style: DictateButton.Style) -> Color {
-    // Native: white on the accent, or the accent on a white key.
-    if KB.native { return style == .filled ? Color.white : Ink.nativeAccent }
+    // Native: `PremiumInk.onAccent` on the accent (white in light, black in dark, DESIGN.md §13.3.4), or the accent
+    // on a white key.
+    if KB.native { return style == .filled ? PremiumInk.onAccent : Ink.nativeAccent }
     return style == .filled ? KB.inkFixed : KB.ink
 }
 
@@ -1188,7 +1192,7 @@ private struct ListRow: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(meta).font(KB.mono(11.5)).foregroundStyle(KB.muted).lineLimit(1)
+                Text(meta).font(KB.mono(12)).foregroundStyle(KB.muted).lineLimit(1)
                 Text(Self.oneLine(text)).font(.system(size: 14.5)).foregroundStyle(KB.ink).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1410,7 +1414,7 @@ private struct DarkPill: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.native ? Color.white : KB.paper).lineLimit(1)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(KB.native ? PremiumInk.onAccent : KB.paper).lineLimit(1)
                 .padding(.horizontal, 12).frame(height: 30)
                 .background(KB.native ? Ink.nativeAccent : KB.ink, in: Capsule())
                 .contentShape(Capsule())
