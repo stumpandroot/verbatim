@@ -9,7 +9,15 @@ struct Sidebar: View {
     @State private var projectName = ""
     @ObservedObject private var layout = SidebarLayout.shared
     @State private var customizing = false
+    /// A short window: the rows and headers tighten so the Make group (Templates and Ask) stays in view (`compactBelow`).
+    @State private var compact = false
     @Environment(\.limitMotion) private var limitMotion
+
+    /// The window height below which the sidebar goes compact. With the default 800 pt window everything through Ask fits at
+    /// full size; a shorter one (the 692 pt the self-test's window gets on CI's 768 pt screen, or a small display)
+    /// tightens the rows from 35 to 31 pt and the gaps above the headers, the field, and the lockup, which brings Ask
+    /// back above the fold. Still shorter windows scroll the items as before.
+    nonisolated static let compactBelow: CGFloat = 770
 
     var body: some View {
         // Counted once per library change (Store+Memo.swift), not on every render.
@@ -20,14 +28,14 @@ struct Sidebar: View {
                 BarsMark(color: Ink.persimmon).frame(width: 19, height: 20)
                 Ink.wordmark(21)
             }
-            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 16)
+            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, compact ? 12 : 16)
             .accessibilityElement(children: .ignore).accessibilityLabel("Verbose")
 
             // Search or ask (⌘K): the one search field, opening the panel (Views/AskViews.swift).
-            AskSidebarField().padding(.bottom, 14)
+            AskSidebarField().padding(.bottom, compact ? 10 : 14)
 
             // The items scroll when the window is too short for all of them (the Search or ask field and the bottom
-            // rows stay put); with room to spare they sit at the top, as before.
+            // rows stay put); with room to spare they sit at the top, as before. A short window goes compact first.
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 2) {
                     // The main items, in your order (SidebarLayout): drag to move, right-click to hide or customize.
@@ -47,7 +55,7 @@ struct Sidebar: View {
 
                     // Library › By day: one page a day for Thoughts and Journal (Views/ByDayView.swift).
                     Text("By day").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
-                        .padding(.leading, 12).padding(.top, 18).padding(.bottom, 4)
+                        .padding(.leading, 12).padding(.top, headerGap).padding(.bottom, 4)
                     SideItem(label: "Thoughts", art: .iconThought, selected: app.screen == .byDay(.idea),
                              badge: "\(app.store.dayPages(.idea, hour: Thoughts.newPageHour).count)") { app.go(.byDay(.idea)) }
                         .uiTarget("side-thoughts")
@@ -57,7 +65,7 @@ struct Sidebar: View {
 
                     // Make: what Apple Intelligence makes from your recordings: Templates, and Ask (questions and recipes).
                     Text("Make").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute).accessibilityAddTraits(.isHeader)
-                        .padding(.leading, 12).padding(.top, 18).padding(.bottom, 4)
+                        .padding(.leading, 12).padding(.top, headerGap).padding(.bottom, 4)
                     SideItem(label: "Templates", art: .iconSummaries, selected: app.screen == .templates,
                              badge: "\(app.store.allTemplates.count)") { app.go(.templates) }
                         .uiTarget("side-templates")
@@ -71,7 +79,7 @@ struct Sidebar: View {
                         Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(Ink.mute).frame(width: 22, height: 22).hoverChip().tapArea { newProject = true }
                             .help("New project")
                     }
-                    .padding(.leading, 12).padding(.trailing, 6).padding(.top, 18).padding(.bottom, 4)
+                    .padding(.leading, 12).padding(.trailing, 6).padding(.top, headerGap).padding(.bottom, 4)
                     ForEach(app.store.projects) { p in
                         SideItem(label: p.name, art: .iconProject,
                                  selected: app.screen == .library && app.projectFilter == p.id, onDropIDs: { app.move($0, to: p.id) }) { app.projectFilter = p.id; app.go(.library) }
@@ -120,6 +128,7 @@ struct Sidebar: View {
             .buttonStyle(.plain).hoverChip(radius: Radius.button)
         }
         .padding(.horizontal, 12).padding(.top, 40).padding(.bottom, 12)
+        .environment(\.sidebarCompact, compact)
         .font(.system(size: 14.5))
         .foregroundStyle(Ink.ink)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -141,8 +150,13 @@ struct Sidebar: View {
         }
         .modifier(SidebarPaper())
         .ignoresSafeArea(edges: .top)
+        // The window's height (the sidebar's bottom edge, which compact doesn't move, so it never flips back and forth).
+        .onGeometryChange(for: Bool.self) { $0.frame(in: .global).maxY < Self.compactBelow } action: { compact = $0 }
         .sheet(isPresented: $customizing) { CustomizeSidebarSheet() }
     }
+
+    /// The gap above a group's header (By day, Make, Projects).
+    private var headerGap: CGFloat { compact ? 10 : 18 }
 
     /// One main item: its label, icon, selection, badge, and drop target for transcripts.
     @ViewBuilder private func mainItem(_ id: SidebarItemID) -> some View {
@@ -177,6 +191,18 @@ struct Sidebar: View {
             SideItem(label: id.title, art: id.art, selected: app.screen == .dictionary, badge: app.store.dictionary.isEmpty ? nil : "\(app.store.dictionary.count)") { app.go(.dictionary) }
                 .uiTarget("side-dict")
         }
+    }
+}
+
+private struct SidebarCompactKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True in a short window: the sidebar's rows are 31 pt instead of 35 (`Sidebar.compactBelow`).
+    var sidebarCompact: Bool {
+        get { self[SidebarCompactKey.self] }
+        set { self[SidebarCompactKey.self] = newValue }
     }
 }
 
@@ -223,6 +249,7 @@ struct SideItem: View {
     var onDropIDs: (([UUID]) -> Void)? = nil
     var action: () -> Void
     @Environment(\.limitMotion) private var limitMotion
+    @Environment(\.sidebarCompact) private var compact
     @State private var hover = false
     @State private var dropping = false
     @State private var replay = 0
@@ -249,7 +276,7 @@ struct SideItem: View {
                     .animation(Motion.fade, value: badge == nil)
             } else if let b = badge { Text(b).font(.system(size: 11)).foregroundStyle(Ink.mute) }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 12).padding(.vertical, compact ? 6 : 8)
         .background {
             let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
             if dropping {
