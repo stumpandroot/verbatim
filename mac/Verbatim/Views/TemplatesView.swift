@@ -298,7 +298,7 @@ struct TemplateDetailCard: View {
             }
             HStack(alignment: .top, spacing: 7) {
                 IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 11.5)).foregroundStyle(Ink.mute).fixedSize(horizontal: false, vertical: true)
+                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(20)
@@ -384,7 +384,7 @@ struct RunAutomaticallyPane: View {
                 HStack(spacing: 7) {
                     IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
                     Text(TemplateCopy.onDevice("Mac") + " Your iPhone keeps its own choices; the results sync with the library.")
-                        .font(.system(size: 12)).foregroundStyle(Ink.mute)
+                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                 }
             }
             .padding(.horizontal, 40).padding(.top, 28).padding(.bottom, 40)
@@ -515,7 +515,7 @@ struct TemplateEditorSheet: View {
             Rectangle().fill(Ink.hairline).frame(height: 1)
             HStack(spacing: 10) {
                 IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12)).foregroundStyle(Ink.mute)
+                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                 Spacer(minLength: 8)
                 TemplateTryOnMenu(template: draft, title: "Try on", onPick: { tryOn = TemplateTryOn(template: draft, transcript: $0) })
             }
@@ -628,7 +628,7 @@ struct TemplateTryOnSheet: View {
             }
             .frame(maxHeight: .infinity)
             if preview.phase == .done {
-                Text(TemplateCopy.footer(madeOn: "Mac", here: "Mac")).font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+                Text(TemplateCopy.footer(madeOn: "Mac", here: "Mac")).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
             }
             HStack(spacing: 8) {
                 Spacer()

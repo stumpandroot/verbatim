@@ -92,7 +92,7 @@ struct TemplateResultsSection: View {
             TemplateResultBody(text: r.text, heading: Ink.serif(inline ? 19 : 17), textFont: .system(size: 13),
                                ink: AnyShapeStyle(Ink.ink), dim: AnyShapeStyle(Ink.mute))
             Rectangle().fill(Ink.hairline).frame(height: 1)
-            Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).font(.system(size: 11.5)).foregroundStyle(Ink.mute)
+            Text(TemplateCopy.footer(madeOn: r.madeOn, here: TemplateCenter.here)).font(.system(size: 12.5)).foregroundStyle(Ink.dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(18)

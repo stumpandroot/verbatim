@@ -148,7 +148,7 @@ check("citations: the first sentence for a notification", sample?.firstSentence.
 
 var res = AskResult(question: q, scope: .all, state: .answered, device: "Mac", askedAt: now)
 res.passageCount = 9; res.recordingCount = 2
-check("result: the footer", res.footer(native: false) == "From 9 passages in 2 recordings. Verbose found them first, then answered on this Mac."
+check("result: the footer", res.footer(native: false) == "On this Mac with Apple Intelligence. Nothing leaves it. Verbose found 9 passages in 2 recordings first, then answered from them."
       && res.footer(native: true) == "From 9 passages in 2 recordings, answered on this Mac.")
 res.passageCount = 1; res.recordingCount = 1; res.device = "iPhone"
 check("result: the footer in the singular", res.footer(native: true) == "From 1 passage in 1 recording, answered on this iPhone.")

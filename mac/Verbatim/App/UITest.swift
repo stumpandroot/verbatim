@@ -2293,7 +2293,7 @@ extension UITest {
         check("ask: the answer keeps the cited sentence and drops the made-up citation", r?.state == .answered && r?.answer?.citations.count == 1
               && r?.answer?.plainText.contains("made up") == false)
         check("ask: the citation is a seeded passage, with its time", r?.answer?.citations.first.map { seeded.1.contains($0.transcriptId) && $0.start > 0 } == true)
-        check("ask: the footer says how many passages and recordings, on this Mac", r?.footer(native: false).hasSuffix("Verbose found them first, then answered on this Mac.") == true)
+        check("ask: the footer says how many passages and recordings, on this Mac", r?.footer(native: false).hasPrefix("On this Mac with Apple Intelligence. Nothing leaves it.") == true)
         try? await Task.sleep(nanoseconds: 500_000_000)
         await step("ask: a citation plays from its time, or opens the transcript at its line", window, target: "ask-cite-1",
                    check: { AskPlayer.shared.playing != nil || { if case .transcript(let id) = app.screen { return seeded.1.contains(id) } else { return false } }() })

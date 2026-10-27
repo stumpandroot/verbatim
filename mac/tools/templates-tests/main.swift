@@ -212,8 +212,9 @@ check("result text: headings, paragraphs, bullets, and checklist lines", blocks 
     .heading("Summary"), .paragraph("Alex wants the site live. The homepage changes."), .heading("Decisions"), .bullet("Launch stays on November 18."),
     .heading("Action items"), .check("Send headlines (Sam)", done: false), .check("Check the form", done: true), .paragraph("None stated.")], "\(blocks)")
 check("footer: on this Mac, or on your iPhone when it was made there",
-      TemplateCopy.footer(madeOn: "Mac", here: "Mac") == "Made by Apple Intelligence from this transcript, on this Mac. It can be wrong; edit the result before you keep it."
-      && TemplateCopy.footer(madeOn: "iPhone", here: "Mac").contains("on your iPhone"))
+      TemplateCopy.footer(madeOn: "Mac", here: "Mac") == "On this Mac with Apple Intelligence. Nothing leaves it. Made from this transcript; it can be wrong, so edit the result before you keep it."
+      && TemplateCopy.footer(madeOn: "iPhone", here: "Mac").hasPrefix("On your iPhone with Apple Intelligence."))
+check("on-device line: one phrasing everywhere", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
 
 // The checks both self-tests run (TemplateChecks.swift), here too.
 TemplateChecks.run { check("self-test: " + $0, $1) }
