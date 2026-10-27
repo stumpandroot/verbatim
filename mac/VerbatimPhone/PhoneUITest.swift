@@ -892,7 +892,7 @@ enum PhoneUITest {
         func tone(_ name: String) -> URL {
             let u = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             try? FileManager.default.removeItem(at: u)
-            writeToneFile(u, seconds: 2)
+            writeToneFile(u, seconds: 8)
             return u
         }
         /// Waits for the import to give the transcript its audio (the self-test never transcribes).
@@ -905,8 +905,9 @@ enum PhoneUITest {
         }
 
         let started = Date().addingTimeInterval(-30)
-        let marks = [WatchTransferMark(at: 0.4, createdAt: started), WatchTransferMark(at: 1.6, createdAt: started)]
-        let thought = WatchTransfer(kind: .thought, startedAt: started, duration: 2, marks: marks)
+        // Marks more than the 3-second dedupe window apart (Marks.dedupeWindow), or the import rightly keeps one.
+        let marks = [WatchTransferMark(at: 0.5, createdAt: started), WatchTransferMark(at: 6.0, createdAt: started)]
+        let thought = WatchTransfer(kind: .thought, startedAt: started, duration: 8, marks: marks)
         let before = app.store.todaysThoughts().count
         check("a thought from the watch is received", link.receive(fileAt: tone("watch-selftest-thought.wav"), metadata: thought.metadata()))
         let t = await imported(WatchImport.thoughtLabel, startedAt: started)
