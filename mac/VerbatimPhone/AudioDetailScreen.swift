@@ -14,6 +14,8 @@ struct PhoneAudioDetail: View {
     @Environment(\.look) private var look
     @Environment(\.dismiss) private var dismiss
     @State private var shareItems: [Any]? = nil
+    /// This screen's place in `PhoneState.readingScreens`.
+    @State private var readingToken = UUID()
     @State private var naming: Note? = nil
     @State private var nameDraft = ""
     @State private var addingNote = false
@@ -67,8 +69,8 @@ struct PhoneAudioDetail: View {
             Button("Cancel", role: .cancel) {}
         } message: { Text("You can restore it for 30 days.") }
         // Reading: Native's Record accessory turns off with the tab bar (RecordAccessory.swift).
-        .onAppear { app.readingTranscripts += 1 }
-        .onDisappear { app.readingTranscripts = max(0, app.readingTranscripts - 1) }
+        .onAppear { app.readingScreens.insert(readingToken) }
+        .onDisappear { app.readingScreens.remove(readingToken) }
     }
 
     /// The Audio only screen on screen, for the self-test.
