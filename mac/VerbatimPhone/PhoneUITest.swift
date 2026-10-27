@@ -432,8 +432,13 @@ enum PhoneUITest {
                 if let rich = app.store.live.first(where: { $0.title == "Lapp Wagons catalog call" }) {
                     app.libraryPath.append(rich.id)
                     await show("\(prefix)05-transcript-native")
+                    if prefix == "p" {
+                        // Reading: the tab bar hides, and Record's accessory turns off with it (the player takes the bottom).
+                        lookCheck("a transcript turns off Record's accessory while you read", app.readingTranscripts > 0)
+                    }
                     app.libraryPath = NavigationPath()
                     try? await Task.sleep(nanoseconds: 500_000_000)
+                    if prefix == "p" { lookCheck("leaving the transcript brings Record's accessory back", app.readingTranscripts == 0) }
                 }
                 // You, from Home's This week card: the week, the year, the stat cards, and the calendar.
                 app.tab = .home
@@ -1777,6 +1782,8 @@ enum PhoneUITest {
         let chrome: [Color] = [NativeInk.accent, NativeInk.record, NativeInk.paper, NativeInk.plain, NativeInk.card, NativeInk.fill, NativeInk.onAccent]
         check("no persimmon in Native's chrome", !chrome.contains { c in persimmons.contains { sameColor(c, UIColor(Color(hex: $0))) } })
         check("Native's recorder clock shows hundredths", NativeRules.recorderClock(138.41) == "02:18.41")
+        check("no Settings square is red: red means recording", !NativeRules.Square.allCases.contains { sameColor($0.color, .systemRed) })
+        check("Settings' Appearance square is blue, as in Apple's Settings", sameColor(NativeRules.square(for: "circle.lefthalf.filled").color, .systemBlue))
         Log.note("UITEST premium checks: \(pass) passed, \(fail) failed")
     }
 
