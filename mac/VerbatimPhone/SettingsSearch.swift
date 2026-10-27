@@ -72,8 +72,8 @@ enum SettingsSearchIndex {
 
     static let all: [SettingsSearchEntry] = [
         // Personalization and preferences. Settings › Appearance: the look, light or dark, and the Record card.
-        .init(id: "look", section: personalization, label: "Look", keywords: ["native", "verbose style", "apple", "plain", "illustrated", "theme", "style", "keyboard look", "appearance"],
-              description: "Verbose style or Native", target: .page(.appearance)),
+        .init(id: "look", section: personalization, label: "Appearance", keywords: ["look", "native", "verbose style", "apple", "plain", "illustrated", "theme", "style", "keyboard look", "appearance"],
+              description: "The look: Verbose style or Native", target: .page(.appearance)),
         .init(id: "appearance", section: personalization, label: "Light or dark", keywords: ["appearance", "dark mode", "light mode", "theme", "night", "color"],
               description: "Match the system, light, or dark", target: .page(.appearance)),
         .init(id: "homeRecordCard", section: personalization, label: "Show the Record card", keywords: ["record card", "home", "record button", "native"],

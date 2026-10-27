@@ -225,8 +225,9 @@ struct YouScreen: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text(privacyLine).lookMono(monoSize).foregroundStyle(.lookMute)
-                .lineSpacing(3)
+            // A sentence, so sans (mono is for data, DESIGN.md §2).
+            Text(privacyLine).font(.system(size: 13)).foregroundStyle(.lookDim)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -298,15 +299,16 @@ struct YouScreen: View {
 
     // MARK: Your voice
 
-    /// A sage panel with grain and the rings in the bottom-right corner. The corner is kept clear in the layout, so
-    /// the drawing never sits under text. The whole panel opens Your voice.
+    /// A neutral outlined reader card (Your voice is a setting, not a capture mode, so no brand hue) with the rings in
+    /// the bottom-right corner. The corner is kept clear in the layout, so the drawing never sits under text. The whole
+    /// card opens Your voice.
     private var voicePanel: some View {
         let known = voice.isEnrolled || voice.isPartial
         let shape = RoundedRectangle(cornerRadius: Radius.record, style: .continuous)
         return Button { commitName(); showVoice = true } label: {
             VStack(alignment: .leading, spacing: 10) {
-                PhoneEyebrow(text: "Your voice", color: Ink.inkFixed)
-                Text(voice.line).lookSerif(voiceSize).foregroundStyle(.lookOnPanel)
+                PhoneEyebrow(text: "Your voice")
+                Text(voice.line).lookSerif(voiceSize).foregroundStyle(.lookInk)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -316,7 +318,7 @@ struct YouScreen: View {
                         Image(systemName: "arrow.right").font(.system(size: small, weight: .semibold))
                             .accessibilityHidden(true)
                     }
-                    .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(.lookOnPanel)
+                    .font(.system(size: small + 1, weight: .semibold)).foregroundStyle(.lookInk)
                     .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     // The rings' corner (the drawing shows about 90 × 92 pt of it, less the padding).
@@ -327,10 +329,11 @@ struct YouScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 ZStack(alignment: .bottomTrailing) {
-                    PhonePanelFill(color: PhoneInk.sage, shape: shape)
-                    PhonePanelArt(kind: .rings).frame(width: 124, height: 124).offset(x: 32, y: 30)
+                    shape.fill(Ink.reader)
+                    PhonePanelArt(kind: .rings, color: Ink.ink).frame(width: 124, height: 124).offset(x: 32, y: 30)
                 }
                 .clipShape(shape)
+                .overlay(shape.strokeBorder(Ink.ink, lineWidth: 1.5))
             }
             .contentShape(shape)
         }
@@ -366,7 +369,10 @@ struct YouScreen: View {
                 VStack(alignment: .leading, spacing: 2) {
                     statValue(saved)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("saved vs. typing at").font(.system(size: label)).foregroundStyle(.lookDim)
+                        // Two lines, never cut: "saved" over "vs. typing at" and the speed.
+                        Text("saved").font(.system(size: label)).foregroundStyle(.lookDim)
+                        Text("vs. typing at").font(.system(size: label)).foregroundStyle(.lookDim)
+                            .lineLimit(1).minimumScaleFactor(0.85)
                         Menu {
                             Picker("Your typing speed", selection: $flow.typingWPM) {
                                 ForEach(Self.typingSpeeds(flow.typingWPM), id: \.self) { w in Text("\(w) wpm").tag(w) }

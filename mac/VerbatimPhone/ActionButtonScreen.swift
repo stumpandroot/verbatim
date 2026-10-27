@@ -20,13 +20,14 @@ struct ActionButtonScreen: View {
     ]
 
     var body: some View {
-        ScrollView {
+        // The Settings page scaffold: the serif compact title on the paper and an empty principal item, so the title
+        // shows once.
+        SettingsPageScaffold(title: "Action button") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Action button").lookSerif(30).foregroundStyle(.lookInk)
-                    .accessibilityAddTraits(.isHeader)
-                Text("Choose what the Action button does when Verbose action is set as its control in Settings › Action Button.")
+                Text(Self.lede)
                     .font(.system(size: 15)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
 
                 PhoneEyebrow(text: "Press the Action button to")
                     .accessibilityAddTraits(.isHeader)
@@ -64,12 +65,10 @@ struct ActionButtonScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
         }
-        .phonePage()
-        .navigationTitle("Action button")
-        .navigationBarTitleDisplayMode(.inline)
     }
+
+    static let lede = "Choose what happens when you press the Action button. First, set it to Verbose in the Settings app (steps below)."
 }
 
 /// Set up the Action button (mockup "Library features", section 3b): the Action button icon, "Set up the *Action
