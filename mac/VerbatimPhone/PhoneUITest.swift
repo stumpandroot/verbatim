@@ -100,7 +100,7 @@ enum PhoneUITest {
         libraryChecks()
         lookChecks()
         // What's new: the bundled notes, their rules, and when Home's note shows (ReleaseNotes.swift).
-        ReleaseNotes.selfTest { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
+        ReleaseNotes.selfTest(app: .phone) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") \(name)") }
         homeChecks()
         homeActionChecks(app)
         recorderChecks(app)
@@ -1266,7 +1266,8 @@ enum PhoneUITest {
 
     /// Home's note for the newest build in the notes (the simulator's own build has no entry), then What's new, which
     /// the note opens; back on Home with the note gone and the last build seen put back. Screens
-    /// <prefix>01c-home-whats-new<suffix> and <prefix>09n-whats-new<suffix>.
+    /// <prefix>01c-home-whats-new<suffix>, <prefix>09n-whats-new<suffix>, and, with a detail and the "Also on Mac" row
+    /// opened, <prefix>09n2-whats-new-detail<suffix> and <prefix>09n3-whats-new-also<suffix>.
     private static func whatsNewTour(_ app: PhoneState, prefix: String, suffix: String) async {
         let d = UserDefaults.standard
         let keepSeen = d.object(forKey: ReleaseNotes.lastSeenKey)
@@ -1281,6 +1282,22 @@ enum PhoneUITest {
         await show("\(prefix)09n-whats-new\(suffix)")
         if prefix == "p" {
             Log.note("UITEST \(app.tab == .settings && WhatsNewScreen.visible ? "PASS" : "FAIL") what's new: Home's note opens What's new\(suffix)")
+        }
+        // iPhone and Apple Watch first; a line's detail opened, then the "Also on Mac" row.
+        WhatsNewScreen.shownForTest = (false, false)
+        let top = ReleaseNotes.byVersion(ReleaseNotes.bundled).first?.notes ?? []
+        let hasDetail = top.contains { ReleaseNotes.summary($0.items, for: .phone).sections.contains { $0.items.contains { $0.detail != nil } } }
+        let hasAlso = top.contains { !ReleaseNotes.summary($0.items, for: .phone).also.isEmpty }
+        NotificationCenter.default.post(name: ReleaseNotes.showForTest, object: "detail")
+        await show("\(prefix)09n2-whats-new-detail\(suffix)")
+        NotificationCenter.default.post(name: ReleaseNotes.showForTest, object: "also")
+        await show("\(prefix)09n3-whats-new-also\(suffix)")
+        if prefix == "p" {
+            if hasDetail { Log.note("UITEST \(WhatsNewScreen.shownForTest.detail ? "PASS" : "FAIL") what's new: a line opens its detail\(suffix)") }
+            if hasAlso { Log.note("UITEST \(WhatsNewScreen.shownForTest.also ? "PASS" : "FAIL") what's new: the Mac's items open under Also on Mac\(suffix)") }
+            if let first = top.first.flatMap({ ReleaseNotes.summary($0.items, for: .phone).sections.first?.platform }) {
+                Log.note("UITEST \(first == .iphone || first == .watch ? "PASS" : "FAIL") what's new: iPhone and Apple Watch items come first\(suffix)")
+            }
         }
         // Back to Settings. The pop can take longer than its animation on a slow runner (build 206's runner: Settings
         // was created by this very step), so the check waits for it, up to 3 s, instead of a fixed 0.8 s.
