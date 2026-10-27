@@ -82,9 +82,12 @@ final class PhoneState: ObservableObject {
     /// Continue recording: the transcript the current recording will be added to.
     @Published var continuing: UUID? = nil
     private var pendingContinue: UUID? = nil
-    /// The kind picked with a long press on Record (Record a meeting, an interview, …): the new transcript takes it as
-    /// yours, so AutoLabel never replaces it and Run automatically uses it (Templates.swift).
-    private(set) var recordKind: RecordingKind? = nil
+    /// The kind picked in the Record as tray (Record a meeting, an interview, …): the new transcript takes it as
+    /// yours, so AutoLabel never replaces it and Run automatically uses it (Templates.swift). The recorder's chip shows it.
+    @Published var recordKind: RecordingKind? = nil
+    /// The next recorder to open was started from the Record as tray: it slides in 12 pt over 150 ms, opaque from its
+    /// first frame, instead of the system's presentation (RecordTray.swift).
+    var recorderSlideIn = false
     /// The recording running is a thought (PhoneThoughts.swift): it lands on today's Thoughts page when you stop.
     @Published var recordingThought = false
     /// When that thought started; it belongs to that day's page.
@@ -236,7 +239,7 @@ final class PhoneState: ObservableObject {
 
     func requestRecord(appendTo target: UUID? = nil, kind: RecordingKind? = nil) {
         // A recording is running behind the bar: Record brings it back instead of starting another.
-        if RecorderPresentation.recordTap(recording: recorder.isRecording || previewRecording, saving: savingRecording) == .reopen { openRecorder(); return }
+        if RecorderPresentation.recordTap(recording: recorder.isRecording || previewRecording, saving: savingRecording) == .reopen { recorderSlideIn = false; openRecorder(); return }
         pendingContinue = target
         // A plain Record leaves the kind to AutoLabel; a picked one (Record a meeting) is yours.
         recordKind = target == nil ? kind : nil
@@ -244,7 +247,7 @@ final class PhoneState: ObservableObject {
         askMicAndRecord()
     }
 
-    func dismissConsentNotice() { pendingContinue = nil; pendingCaptions = false; pendingThought = false }
+    func dismissConsentNotice() { pendingContinue = nil; pendingCaptions = false; pendingThought = false; recorderSlideIn = false }
 
     /// The consent notice's OK: remembered, then recording starts as asked.
     func acknowledgeConsentNotice() {
@@ -256,7 +259,7 @@ final class PhoneState: ObservableObject {
     private func askMicAndRecord() {
         AVAudioApplication.requestRecordPermission { ok in
             Task { @MainActor in
-                if ok { self.startRecording() } else { self.pendingContinue = nil; self.pendingThought = false; self.showMicDenied = true }
+                if ok { self.startRecording() } else { self.pendingContinue = nil; self.pendingThought = false; self.recorderSlideIn = false; self.showMicDenied = true }
             }
         }
     }
@@ -283,16 +286,30 @@ final class PhoneState: ObservableObject {
             if let target = continuing { Store.markContinuation(url, to: target) }
             // A thought: if Verbatim is closed mid-thought, recovery brings it back as a thought on the day it started.
             beginThoughtIfAsked(url)
-            showRecorder = true
+            presentRecorder()
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             warmModel()
             if let warning = Store.lowSpaceWarning() { say(warning) }
         } catch {
             recordingWords.end()
             pendingThought = false
+            recorderSlideIn = false
             if activityFirst { RecordingPresence.shared.cancelActivityBeforeRecording() }
             say("Couldn't start recording: \(error.localizedDescription)")
         }
+    }
+
+    /// Opens the full-screen recorder. Started from the Record as tray, it appears at once with no system transition
+    /// and slides its content up 12 pt over 150 ms (RecordScreen), opaque from its first frame; with Limit animation or
+    /// Reduce Motion it appears at once and doesn't move (DESIGN.md §7).
+    private func presentRecorder() {
+        guard recorderSlideIn else { showRecorder = true; return }
+        recorderSlideIn = false
+        let still = UserDefaults.standard.bool(forKey: MotionPreference.key) || UIAccessibility.isReduceMotionEnabled
+        RecordScreen.slideInNext = !still
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { showRecorder = true }
     }
 
     /// The Action button's Record a voice note, or Record from a widget, with Verbose in the background (iOS 18 and

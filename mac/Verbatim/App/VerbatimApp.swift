@@ -58,17 +58,14 @@ struct VerbatimApp: App {
                     .keyboardShortcut("o", modifiers: [.command, .shift])
                 Button("Record Voice Memo") { app.requestRecord() }
                     .keyboardShortcut("r", modifiers: [.option, .shift])
-                // Record with a picked kind: AutoLabel leaves it, and Run automatically uses it (Templates.swift). Record a
-                // meeting is the meeting capture below, which files its transcript as a Meeting.
-                Menu("Record As") {
-                    ForEach(RecordingKind.recordChoices.filter { $0 != .meeting }) { k in
-                        Button(k.recordTitle) { app.requestRecord(kind: k) }
-                    }
-                }
+                // The six ways to record, as on Record's right-click menu (CaptureBar.swift): a picked kind is yours, so
+                // AutoLabel leaves it and Run automatically uses it (Templates.swift). Meeting… is the meeting capture,
+                // which files its transcript as a Meeting; Stop Meeting and Pause Meeting show below while one runs.
+                Menu("Record As") { RecordKindMenuItems(titles: \.commandTitle).environmentObject(app) }
                 Button("Live Captions") { app.toggleLiveCaptions() }
                     .keyboardShortcut("c", modifiers: [.option, .command])
-                // Meeting capture (App/MeetingCoordinator.swift): every start goes through the consent sheet.
-                Divider()
+                // Meeting capture (App/MeetingCoordinator.swift): every start goes through the consent sheet. Its
+                // section shows only while a meeting records.
                 MeetingCaptureCommands()
             }
             CommandGroup(after: .importExport) {
@@ -150,15 +147,17 @@ final class AppHolder: ObservableObject {
     }
 }
 
-/// Record Meeting… (the consent sheet, then a two-track recording of the call) or Stop Meeting, and Pause or
-/// Resume while recording.
+/// Stop Meeting, and Pause or Resume, while a meeting records. File › Record As › Meeting… starts one (the consent
+/// sheet, then a two-track recording of the call).
 struct MeetingCaptureCommands: View {
     @ObservedObject private var session = MeetingSession.shared
     var body: some View {
-        Button(session.isActive ? "Stop Meeting" : "Record Meeting…") {
-            if session.isActive { MeetingCoordinator.shared.stopFromMenu() } else { MeetingCoordinator.shared.recordFromMenu() }
+        // Starting one is File › Record As › Meeting…, one item for the meeting capture (it was also Record Meeting…).
+        if session.isActive {
+            Divider()
+            Button("Stop Meeting") { MeetingCoordinator.shared.stopFromMenu() }
+                .disabled(session.phase == .starting || session.phase == .stopping)
         }
-        .disabled(session.phase == .starting || session.phase == .stopping)
         if session.canPause {
             Button(session.phase == .paused ? "Resume Meeting" : "Pause Meeting") { session.togglePause() }
         }

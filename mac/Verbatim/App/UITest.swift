@@ -115,6 +115,7 @@ enum UITest {
             await surfaceSteps(app: app)
             window.makeKeyAndOrderFront(nil)
             await meetingSteps(main: window)
+            recordChoiceChecks()
             // Thoughts: today's page, the bubble, the menu bar's group, By day, the rename, and the pad's move.
             await thoughtsSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
@@ -417,6 +418,33 @@ enum UITest {
 
     /// Meeting capture's floating surfaces, clicked through their own panels: a pretend call prompt (nothing is
     /// watched in the self-test) and the consent sheet. Nothing records: the last click is Cancel.
+    /// Record as on the Mac (mockup "Record as", section 6): Record's right-click menu and File › Record As list the
+    /// iPhone tray's six choices in its order, each with Verbose's glyph as a custom symbol the menu can tint. The
+    /// right-click menu and File › Record As are the same view (`RecordKindMenuItems`), so the File menu, which the
+    /// self-test can read, stands in for both.
+    private static func recordChoiceChecks() {
+        check("record as: the right-click menu lists six choices in the tray's order",
+              RecordChoice.all.map(\.menuTitle) == ["Record", "Record a meeting", "Record an interview", "Record a journal entry", "Record a talk", "New thought"])
+        let missing = RecordChoice.all.filter { NSImage(symbolName: $0.symbolName, bundle: .main, variableValue: 1) == nil }.map(\.symbolName)
+        check("record as: each choice's icon is a custom symbol in the app\(missing.isEmpty ? "" : " (missing \(missing.joined(separator: ", ")))")", missing.isEmpty)
+        let template = RecordChoice.all.compactMap { NSImage(symbolName: $0.symbolName, bundle: .main, variableValue: 1) }.allSatisfy(\.isTemplate)
+        check("record as: the icons take the menu's text color (template images)", template)
+        guard let file = NSApp.mainMenu?.items.first(where: { $0.title == "File" })?.submenu else {
+            Log.note("UITEST note: no File menu to read; File › Record As not checked"); return
+        }
+        file.update()
+        guard let recordAs = file.items.first(where: { $0.title == "Record As" })?.submenu else {
+            check("record as: File has Record As", false); return
+        }
+        recordAs.update()
+        let items = recordAs.items.filter { !$0.isSeparatorItem }
+        if items.isEmpty { Log.note("UITEST note: File › Record As builds its items when opened; not counted"); return }
+        check("record as: File › Record As lists the same six (\(items.map(\.title).joined(separator: ", ")))",
+              items.map(\.title) == RecordChoice.all.map(\.commandTitle))
+        check("record as: every File › Record As item has its icon", items.allSatisfy { $0.image != nil })
+        check("record as: File has no separate Record Meeting… beside Record As › Meeting…", !file.items.contains { $0.title == "Record Meeting…" })
+    }
+
     private static func meetingSteps(main: NSWindow) async {
         let coordinator = MeetingCoordinator.shared
         coordinator.showTestPrompt(name: "Zoom")

@@ -234,6 +234,9 @@ I = {
     # Ask your library (mockup "Library features", section 2, October 26, 2026), same grammar: a speech bubble holding a
     # short sound wave, the Thoughts filament's wave laid flat.
     'Ask': [s('M4 5H20V16H11.5L7 20V16H4Z'), s('M7.4 10.5C8.3 10.5 8.5 8.8 9.4 8.8S11.6 12.2 12.6 12.2S13.7 10.5 14.6 10.5H16.6')],
+    # Voice note in Record as (mockup "Record as", October 26, 2026): the website's microphone, so the plain Record has
+    # its own glyph beside the kinds (Talk keeps Voice's rings).
+    'Mic': [s('M9.5 3.5H14.5V12.5A2.5 2.5 0 0 1 9.5 12.5Z'), s('M6 10.5C6 14.3 8.4 16.5 12 16.5S18 14.3 18 10.5'), s('M12 16.5V20'), s('M8.8 20.5H15.2')],
 }
 
 
@@ -256,7 +259,7 @@ WEB = {
     'home': 'Home',
     'library': 'Library',
     'link': 'Links',
-    'mic': [s('M9.5 3.5H14.5V12.5A2.5 2.5 0 0 1 9.5 12.5Z'), s('M6 10.5C6 14.3 8.4 16.5 12 16.5S18 14.3 18 10.5'), s('M12 16.5V20'), s('M8.8 20.5H15.2')],
+    'mic': 'Mic',
     'processing': 'Transcribing',
     'quote': 'Quote',
     'review': 'Attention',

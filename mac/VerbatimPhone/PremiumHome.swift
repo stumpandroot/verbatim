@@ -9,6 +9,8 @@ import SwiftUI
 /// hides the button. Edit Home's button closes the page. Same actions as Verbose style.
 struct PremiumHome: View {
     @EnvironmentObject var app: PhoneState
+    /// The press on the Record card: the system's highlight (a dim) while touched, as a Native button does.
+    @State private var recordPress: RecordPressPhase = .idle
     var now: Date
     var layout: HomeLayout
     var onEdit: () -> Void
@@ -118,32 +120,29 @@ struct PremiumHome: View {
 
     /// The Record section (hidden by default; the floating button stays either way). Compact drops the second line.
     private func recordCard(compact: Bool) -> some View {
-        Button { app.requestRecord() } label: {
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Record").font(compact ? .headline : .title2.bold()).foregroundStyle(NativeInk.label)
-                    Text("Ready · \(HomeScreen.currentMic())").font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1)
-                    if !compact {
-                        Text("Keeps recording with the screen locked").font(.footnote).foregroundStyle(NativeInk.secondary)
-                            .padding(.top, 4)
-                    }
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Record").font(compact ? .headline : .title2.bold()).foregroundStyle(NativeInk.label)
+                Text("Ready · \(HomeScreen.currentMic())").font(.subheadline).foregroundStyle(NativeInk.secondary).lineLimit(1)
+                if !compact {
+                    Text("Keeps recording with the screen locked").font(.footnote).foregroundStyle(NativeInk.secondary)
+                        .padding(.top, 4)
                 }
-                Spacer(minLength: 8)
-                Circle().fill(PremiumStyle.disc).frame(width: compact ? 34 : 48, height: compact ? 34 : 48)
-                    .padding(compact ? 3 : 4).background(PremiumStyle.ring, in: Circle())
-                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, 16).padding(.vertical, compact ? 10 : 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .premiumSoftCard(radius: 26)
-            .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            Spacer(minLength: 8)
+            Circle().fill(PremiumStyle.disc).frame(width: compact ? 34 : 48, height: compact ? 34 : 48)
+                .padding(compact ? 3 : 4).background(PremiumStyle.ring, in: Circle())
+                .accessibilityHidden(true)
         }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityLabel("Record")
-        .accessibilityHint("Starts a voice note. It keeps recording with the screen locked.")
-        .accessibilityIdentifier("home.record.native")
-        // Touch and hold: Record a meeting, an interview, a journal entry, a talk, or a note (Templates.swift).
-        .contextMenu { PhoneRecordKindItems { app.requestRecord(kind: $0) } }
+        .padding(.horizontal, 16).padding(.vertical, compact ? 10 : 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumSoftCard(radius: 26)
+        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .opacity(recordPress != .idle ? 0.6 : 1)
+        .animation(.easeOut(duration: 0.12), value: recordPress != .idle)
+        // Touch and hold: the Record as tray, as a material sheet (RecordTray.swift).
+        .recordTrayPress(.card, onPhase: { recordPress = $0 }) { RecordTray.shared.tap() }
+        .recordCardAccessibility(app, id: "home.record.native")
     }
 
     // MARK: Tiles
