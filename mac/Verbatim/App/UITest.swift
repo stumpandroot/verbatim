@@ -2694,11 +2694,14 @@ extension UITest {
         func rowFrame(_ id: UUID) -> CGRect? {
             native ? (windowFrames["lib-row-\(id.uuidString)"]?() ?? frames["lib-row-\(id.uuidString)"]) : frames["lib-row-\(id.uuidString)"]
         }
-        // The row nearest the window's lower middle, well inside the list.
+        // The row nearest the window's lower middle, well inside the list. Native's scroll area
+        // is shorter than the window (419 of 692 pt in build 232), so its rows are picked from the upper part.
         var picked: (id: UUID, distance: CGFloat)?
+        let aim = native ? h * 0.35 : h * 0.6
+        let bottom = native ? h * 0.55 : h - 60
         for id in ids {
-            guard let f = rowFrame(id), f.minY > 120, f.maxY < h - 60 else { continue }
-            let d = abs(f.midY - h * 0.6)
+            guard let f = rowFrame(id), f.minY > 120, f.maxY < bottom else { continue }
+            let d = abs(f.midY - aim)
             if picked == nil || d < picked!.distance { picked = (id, d) }
         }
         guard let row = picked?.id, let scrolled = ScreenPlaces.shared.liveOffset(key), scrolled > 100 else {
@@ -2724,6 +2727,14 @@ extension UITest {
             try? await Task.sleep(nanoseconds: 900_000_000)
             if app.screen != .transcript(row) {
                 Log.note("UITEST note: \(tag): the double-click on a scrolled Native row didn't open it; opening it directly")
+                if app.screen != .library {
+                    // The click opened another row (build 232): come back first, so Back's trail is Library, then this row.
+                    Log.note("UITEST note: \(tag): the double-click opened \(String(describing: app.screen)); going back to the Library first")
+                    app.go(.library)
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    NativeNav.shared.librarySelection = row
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                }
                 app.go(.transcript(row))
                 try? await Task.sleep(nanoseconds: 900_000_000)
             }
