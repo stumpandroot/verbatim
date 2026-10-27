@@ -1,8 +1,10 @@
 {
   "notes": [
     {
-      "build": "next",
-      "title": "Mac: Back, clearer noisy transcripts, and Thoughts and Journal on Home",
+      "build": "228",
+      "date": "2026-10-27",
+      "version": "1.0 beta",
+      "title": "Templates, Mark a moment, and the Mac catches up: Back, clearer noisy transcripts, and Thoughts and Journal on Home",
       "items": [
         "Mac: a Back button on every transcript returns you to the Library right where you were, with the same row, search, and filters. ⌘[ works too.",
         "Mac: the Library no longer jumps back to the top a moment after Back returns you to it.",
