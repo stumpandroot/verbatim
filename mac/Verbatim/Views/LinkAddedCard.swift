@@ -4,7 +4,7 @@ import SwiftUI
 //
 // Pasting a link shows a centered card over a light scrim: the thumbnail as soon as it's known, the title (a
 // shimmering placeholder until then), and the download as it happens. When the audio is in the queue, or when you
-// choose Done, the card folds in place into a small sage video tile, which then flies to the Queue item (Mac
+// choose Keep in background (Done once it's queued), the card folds in place into a small sage video tile, which then flies to the Queue item (Mac
 // sidebar) or the Library tab (iPhone) and the count there goes up. Downloading keeps going either way.
 //
 // Motion (from the prototype): enter spring(0.38, bounce 0.22) from scale 0.94, y +14, opacity 0; fold
@@ -234,7 +234,7 @@ struct LinkAddedCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(spacing: 8) {
-                Button(action: onCancel) { label("Cancel") }
+                Button(action: onCancel) { label(Self.cancelTitle(imp.phase)) }
                     .buttonStyle(LinkCardButtonStyle(fill: Ink.ink.opacity(0.08), text: Ink.ink))
                 if failed {
                     Button(action: onRetry) { label("Retry") }
@@ -242,7 +242,7 @@ struct LinkAddedCard: View {
                         .keyboardShortcut(.defaultAction)
                 } else {
                     // Escape is Done, not Cancel: closing the card never throws a download away.
-                    Button(action: onDone) { label("Done") }
+                    Button(action: onDone) { label(Self.doneTitle(imp.phase)) }
                         .buttonStyle(LinkCardButtonStyle(fill: Ink.interactive, text: Ink.onInteractive))
                         .keyboardShortcut(.cancelAction)
                         .help("Close this card (Esc). The download keeps going and the link joins the queue.")
@@ -257,8 +257,19 @@ struct LinkAddedCard: View {
 
     private var failed: Bool { if case .failed = imp.phase { return true }; return false }
 
+    /// While the audio is still coming: "Cancel download" and "Keep in background", so neither reads as stop or hide
+    /// by guesswork. Once it's queued or sent: "Cancel" and "Done".
+    static func cancelTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Cancel download" : "Cancel" }
+    static func doneTitle(_ phase: LinkImport.Phase) -> String { downloading(phase) ? "Keep in background" : "Done" }
+    private static func downloading(_ phase: LinkImport.Phase) -> Bool {
+        switch phase {
+        case .resolving, .downloading: return true
+        default: return false
+        }
+    }
+
     private func label(_ s: String) -> some View {
-        Text(s).font(.system(size: 14, weight: .medium))
+        Text(s).font(.system(size: 14, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity, minHeight: metrics.buttonHeight)
             .contentShape(Rectangle())
     }
@@ -349,16 +360,16 @@ struct LinkAddedCard: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(failed ? "Couldn't download" : "\(phaseText.capitalized), \(percentText)")
+        .accessibilityLabel(failed ? "Couldn't download" : "\(phaseText), \(percentText)")
     }
 
     private var phaseText: String {
         switch imp.phase {
-        case .resolving: return "FINDING THE AUDIO"
-        case .downloading: return "DOWNLOADING"
-        case .queued: return "ADDED TO QUEUE"
-        case .waitingForMac: return "SENT TO YOUR MAC"
-        case .failed: return "COULDN'T DOWNLOAD"
+        case .resolving: return "Finding the audio"
+        case .downloading: return "Downloading"
+        case .queued: return "Added to the queue"
+        case .waitingForMac: return "Sent to your Mac"
+        case .failed: return "Couldn't download"
         }
     }
 

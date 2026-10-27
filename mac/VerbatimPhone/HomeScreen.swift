@@ -466,7 +466,7 @@ struct HomeScreen: View {
     private func recentLine(_ t: Transcript) -> some View {
         Button { app.open(t.id) } label: {
             HStack(spacing: 10) {
-                Text(t.title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
+                Text(PhoneRowTitle.title(t)).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(.lookInk).lineLimit(1)
                 Spacer(minLength: 8)
                 LiveStage(t) { t in
                     Text(t.status == .ready ? HomeRecentStyle.length(t.duration) : t.stageText).lookMono(12).foregroundStyle(.lookMute).lineLimit(1)
@@ -975,21 +975,26 @@ struct LinkSheet: View {
     @State private var detent: PresentationDetent = .medium
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone.")
-                    .font(.system(size: 15)).foregroundStyle(.lookDim)
-                HStack(spacing: 8) {
-                    IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)
-                    TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
+            // A scroll view with the field first and the description under it as a footnote: with the keyboard up at
+            // the medium detent, nothing slides under the toolbar.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 8) {
+                        IconGlyph(art: .iconLinks, size: 18, color: Ink.mute)
+                        TextField("https://…", text: $link).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL).focused($focused)
+                    }
+                    .padding(12)
+                    .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(.lookHairline))
+                    Text("Paste a YouTube, Vimeo, or podcast link, or a link to an audio or video file. Verbose downloads the audio and transcribes it on this iPhone.")
+                        .font(.system(size: 13.5)).foregroundStyle(.lookDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                    PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
+                        .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
                 }
-                .padding(12)
-                .background(.lookReader, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(.lookHairline))
-                PasteButton(payloadType: String.self) { strings in link = strings.first ?? link }
-                    .buttonBorderShape(.capsule).labelStyle(.titleAndIcon)
-                Spacer()
+                .padding(20)
             }
-            .padding(20)
+            .scrollBounceBehavior(.basedOnSize)
             .phonePage()
             .navigationTitle("Add a link")
             .navigationBarTitleDisplayMode(.inline)

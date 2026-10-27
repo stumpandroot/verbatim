@@ -28,8 +28,6 @@ struct MomentsScreen: View {
             case .stills: return m.n.frameFile != nil
             }
         }
-        // The drawing goes on the first note card (not a bookmark), as a header strip, when no card has a real still.
-        let artCard = moments.contains { $0.n.frameFile != nil } ? nil : moments.first { !$0.n.isBookmark }?.id
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 PhoneCompactTitle(title: "Moments", count: "\(all.count) saved")
@@ -62,7 +60,7 @@ struct MomentsScreen: View {
                     ForEach(Array(moments.enumerated()), id: \.element.id) { i, m in
                         let t = m.t, n = m.n
                         Button { app.open(t.id, segment: n.segmentId ?? t.segments.last { $0.start <= (n.at ?? 0) }?.id) } label: {
-                            PhoneMomentCard(transcript: t, note: n, art: m.id == artCard)
+                            PhoneMomentCard(transcript: t, note: n)
                         }
                         .buttonStyle(PhoneCardPress())
                         .riseIn(m.id, index: i + 2, seen: seen, epoch: entrance)
@@ -87,13 +85,12 @@ struct MomentsScreen: View {
     }
 }
 
-/// One moment: the still on top (or the circles drawing on sage), the kind's glyph and the mono timecode with a round
-/// play mark, the words (a bookmark's as a quote in the italic serif), and the recording's title in the serif.
+/// One moment: the still on top when there is one, the kind's glyph and the mono timecode with a round play mark, the
+/// words (a bookmark's as a quote in the italic serif), and the recording's title in the serif. Bookmarks sit on butter
+/// (saved); notes are outlined reader cards. No drawing header, so the list keeps two card styles.
 struct PhoneMomentCard: View {
     var transcript: Transcript
     var note: Note
-    /// Show the circles drawing as the header strip (one card per screen).
-    var art = false
     @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 15
     @ScaledMetric(relativeTo: .body) private var quoteSize: CGFloat = 19
     @ScaledMetric(relativeTo: .footnote) private var titleSize: CGFloat = 15
@@ -107,13 +104,6 @@ struct PhoneMomentCard: View {
         return VStack(alignment: .leading, spacing: 0) {
             if let f = note.frameFile {
                 StillImage(file: f).frame(height: 120).frame(maxWidth: .infinity).clipped()
-            } else if art, !look.isNative {
-                PhonePanelFill(color: PhoneInk.sage, shape: Rectangle())
-                    .overlay(alignment: .topTrailing) {
-                        PhonePanelArt(kind: .circles).frame(width: 220, height: 190).offset(x: 20, y: -40)
-                    }
-                .frame(height: 120).frame(maxWidth: .infinity).clipped()
-                .overlay(alignment: .bottom) { Rectangle().fill(Ink.ink).frame(height: 1.5) }
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {

@@ -12,12 +12,15 @@ import UIKit
 /// its groups.
 struct SettingsPageScaffold<Content: View>: View {
     var title: String
+    /// An optional eyebrow ("◇ Scenario template"), above the title as on every other screen.
+    var eyebrow: String? = nil
     @ViewBuilder var content: () -> Content
     @Environment(\.look) private var look
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if let eyebrow { PhoneEyebrow(text: eyebrow).padding(.top, look.isNative ? 6 : 4) }
                 if !look.isNative {
                     PhoneCompactTitle(title: title).padding(.top, 2)
                 }
@@ -72,6 +75,24 @@ struct SettingsPageGroup<Rows: View>: View {
             }
         }
         .padding(.top, first ? (look.isNative ? 8 : 18) : 26)
+    }
+}
+
+/// A section label on a Settings page outside a group (a heading over steps or a paragraph): Verbose style's mono 12
+/// label, as `SettingsPageGroup` draws over its card; Native's footnote header.
+struct SettingsPageLabel: View {
+    var text: String
+    @Environment(\.look) private var look
+    var body: some View {
+        Group {
+            if look.isNative {
+                Text(text).font(.footnote).foregroundStyle(NativeInk.secondary)
+            } else {
+                Text(text).lookMono(12).foregroundStyle(.lookMute)
+            }
+        }
+        .padding(.horizontal, 4)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 

@@ -157,7 +157,7 @@ struct PremiumRecordingItem: View {
                         Text(Self.dateLine(t, now: now)).monospacedDigit()
                     }
                     .font(.system(size: dateSize)).foregroundStyle(NativeInk.secondary)
-                    Text(t.title).font(.system(size: titleSize, weight: .semibold)).foregroundStyle(NativeInk.label)
+                    Text(PhoneRowTitle.title(t, withTime: false)).font(.system(size: titleSize, weight: .semibold)).foregroundStyle(NativeInk.label)
                         .lineLimit(2).multilineTextAlignment(.leading)
                         .padding(.top, 3)
                     let preview = Self.preview(t)

@@ -760,7 +760,7 @@ extension HomeTile {
         case .moments: return "bookmark"
         case .queue: return "list.bullet"
         case .dictations: return "text.bubble"
-        case .dictionary: return "book"
+        case .dictionary: return "character.book.closed"
         case .projects: return "folder"
         case .newThought: return "lightbulb"
         case .journal: return "book"

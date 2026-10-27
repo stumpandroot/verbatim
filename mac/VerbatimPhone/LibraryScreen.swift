@@ -134,33 +134,13 @@ struct LibraryScreen: View {
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
-            if filter == .all, search.isEmpty, typeFilter == .all, !dictations.isEmpty {
-                Section {
-                    NavigationLink(value: DictationsRoute()) { DictationsCard(dictations: dictations) }
-                        .buttonStyle(PhoneCardPress())
-                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 0, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                }
-            }
-            // Thoughts and Journal, a page a day (ThoughtsScreens.swift).
+            // Dictations, By day (Thoughts and Journal), Templates, and Ask: one row of compact tiles, so the first
+            // recording starts near the top. Buttons, not NavigationLinks, so the list never adds its own chevron.
             if filter == .all, search.isEmpty, typeFilter == .all {
                 Section {
-                    NavigationLink(value: ByDayRoute(kind: .idea)) { ByDayCard(todayCount: app.store.todaysThoughts().count) }
-                        .buttonStyle(PhoneCardPress())
-                        .accessibilityIdentifier("library.byDay")
-                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    // Templates: the library and Run automatically (TemplatesScreens.swift).
-                    NavigationLink(value: TemplatesRoute()) { TemplatesCard(count: app.store.allTemplates.count) }
-                        .buttonStyle(PhoneCardPress())
-                        .accessibilityIdentifier("library.templates")
-                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    // Ask: answers from your recordings, and recipes (AskScreens.swift).
-                    NavigationLink(value: AskRoute()) { AskCard(recipes: app.store.recipes.count) }
-                        .buttonStyle(PhoneCardPress())
-                        .accessibilityIdentifier("library.ask")
-                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
+                    LibraryWaysIn(dictations: dictations.count, todayThoughts: app.store.todaysThoughts().count,
+                                  templates: app.store.allTemplates.count, recipes: app.store.recipes.count)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 0, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
@@ -318,9 +298,15 @@ struct LibraryScreen: View {
 
     // MARK: Chips
 
-    /// One row of soft chips. A type and the other filters don't combine: choosing one clears the other.
+    /// Two rows of soft chips. The first is All and the types; the types stay put as you pick (every type the library
+    /// has, counted inside the current chip and search, dimmed at zero). Platforms for Videos and Links sit under it,
+    /// then kinds, Pinned, In progress, and the projects. A type and the other filters don't combine: choosing one
+    /// clears the other.
     private func chips(_ scoped: [Transcript]) -> some View {
-        let sources = typeFilter.sourceCounts(scoped, searching: searching).filter { $0.0 != .all }
+        let inScope = Dictionary(typeFilter.sourceCounts(scoped, searching: searching), uniquingKeysWith: { a, _ in a })
+        let sources = Self.fixedSources(library: app.store.memo("phone.sources-present") {
+            Set(LibraryFilter.all.sourceCounts(app.store.live, searching: false).filter { $0.1 > 0 }.map(\.0))
+        }, selected: typeFilter.source)
         let platforms = typeFilter.platformCounts(scoped, searching: searching)
         let present = app.store.memo("phone.kinds-present") { Set(app.store.live.compactMap(\.kind)) }
         let kinds = RecordingKind.pickable.filter { k in present.contains(k) || filter == .kind(k) }
@@ -328,13 +314,35 @@ struct LibraryScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     PhoneChip(label: "All", selected: filter == .all && typeFilter == .all) { pick(.all); setType(.all) }
-                    ForEach(sources, id: \.0) { s, n in
-                        PhoneChip(label: s.label, selected: typeFilter.source == s, dot: Self.dot(s)) {
+                    ForEach(sources) { s in
+                        let n = inScope[s] ?? 0
+                        let on = typeFilter.source == s
+                        PhoneChip(label: s.label, selected: on, dot: Self.dot(s)) {
                             pick(.all)
-                            setType(typeFilter.source == s ? .all : LibraryFilter(source: s))
+                            setType(on ? .all : LibraryFilter(source: s))
                         }
-                        .accessibilityValue("\(n)")
+                        .opacity(n == 0 && !on ? 0.45 : 1)
+                        .disabled(n == 0 && !on)
+                        .accessibilityValue(n == 0 ? "None here" : "\(n)")
                     }
+                }
+                .padding(.horizontal, 20)
+            }
+            if typeFilter.source.hasPlatforms, !platforms.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(platforms, id: \.0) { p, n in
+                            PhoneChip(label: p, selected: typeFilter.platform == p, count: n) {
+                                setType(LibraryFilter(source: typeFilter.source, platform: typeFilter.platform == p ? nil : p))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
                     ForEach(kinds) { k in chip(k.plural, .kind(k)) }
                     chip("Pinned", .pinned)
                     chip("In progress", .working)
@@ -359,20 +367,13 @@ struct LibraryScreen: View {
                 }
                 .padding(.horizontal, 20)
             }
-            if typeFilter.source.hasPlatforms, !platforms.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(platforms, id: \.0) { p, n in
-                            PhoneChip(label: p, selected: typeFilter.platform == p, count: n) {
-                                setType(LibraryFilter(source: typeFilter.source, platform: typeFilter.platform == p ? nil : p))
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-                .accessibilityElement(children: .contain).accessibilityLabel("Platform")
-            }
         }
+    }
+
+    /// The type chips, in a fixed order: every type the library has, plus the chosen one. Picking a kind or searching
+    /// never adds or removes one, so the row doesn't shift under your finger.
+    static func fixedSources(library present: Set<LibrarySource>, selected: LibrarySource) -> [LibrarySource] {
+        LibrarySource.allCases.filter { $0 != .all && (present.contains($0) || $0 == selected) }
     }
 
     private func chip(_ label: String, _ f: Filter) -> some View {
@@ -497,11 +498,12 @@ extension LibraryScreen {
             .accessibilityAddTraits(.isHeader)
     }
 
-    /// Dictations, Moments, and Projects as three soft cards with their counts.
+    /// Dictations, Moments, and Projects as three soft cards with their counts. These and the rows under them are
+    /// Buttons that push on this stack, not NavigationLinks, so the list never adds a second chevron.
     private var collections: some View {
         let moments = app.store.memo("moments-saved") { HomeCounts.momentsSaved(app.store.live) }
         return HStack(spacing: 10) {
-            NavigationLink(value: DictationsRoute()) { collection("Dictations", symbol: "text.bubble", count: dictations.count) }
+            Button { app.pushHere(DictationsRoute()) } label: { collection("Dictations", symbol: "text.bubble", count: dictations.count) }
                 .buttonStyle(PhoneCardPress())
                 .accessibilityHint("Opens your dictations.")
             Button { app.go(.moments) } label: { collection("Moments", symbol: "bookmark", count: moments) }
@@ -523,7 +525,7 @@ extension LibraryScreen {
     /// By Day: Thoughts and Journal, a page a day (ThoughtsScreens.swift).
     private var byDayRow: some View {
         let today = app.store.todaysThoughts().count
-        return NavigationLink(value: ByDayRoute(kind: .idea)) {
+        return Button { app.pushHere(ByDayRoute(kind: .idea)) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "calendar").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
                 VStack(alignment: .leading, spacing: 1) {
@@ -546,7 +548,7 @@ extension LibraryScreen {
     /// Templates: the library and Run automatically (TemplatesScreens.swift).
     private var templatesRow: some View {
         let auto = TemplateSettingsModel.shared.settings.assignedCount
-        return NavigationLink(value: TemplatesRoute()) {
+        return Button { app.pushHere(TemplatesRoute()) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "doc.text").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
                 VStack(alignment: .leading, spacing: 1) {
@@ -568,7 +570,7 @@ extension LibraryScreen {
 
     /// Ask: answers from your recordings, and recipes (AskScreens.swift).
     private var askRow: some View {
-        NavigationLink(value: AskRoute()) {
+        Button { app.pushHere(AskRoute()) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "questionmark.bubble").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
                 VStack(alignment: .leading, spacing: 1) {
@@ -667,5 +669,66 @@ struct PhonePassageCard: View {
             start = r.upperBound
         }
         return a
+    }
+}
+
+/// Library's ways in (Verbose style): Dictations, By day (Thoughts and Journal), Templates, and Ask as one row of
+/// compact outlined tiles in one style, each the icon, a count in mono, and the name. Each tile is a Button that pushes
+/// on the stack the Library is on (the Library tab, or Home or Projects when it's pushed there), so the list never adds
+/// a disclosure chevron. At accessibility text sizes the tiles wrap two by two.
+struct LibraryWaysIn: View {
+    @EnvironmentObject var app: PhoneState
+    var dictations: Int
+    var todayThoughts: Int
+    var templates: Int
+    var recipes: Int
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .subheadline) private var nameSize: CGFloat = 13.5
+
+    /// The four tiles, in order: name, count (nil shows none), and VoiceOver's label.
+    static func tiles(dictations: Int, todayThoughts: Int, templates: Int, recipes: Int) -> [(name: String, count: Int?, label: String)] {
+        let today: String = todayThoughts == 1 ? "By day, 1 thought today" : todayThoughts > 0 ? "By day, \(todayThoughts) thoughts today" : "By day"
+        let asks: String = recipes == 1 ? "Ask, 1 recipe" : recipes > 0 ? "Ask, \(recipes) recipes" : "Ask"
+        return [(name: "Dictations", count: Optional(dictations), label: "Dictations, \(dictations)"),
+                (name: "By day", count: todayThoughts > 0 ? Optional(todayThoughts) : nil, label: today),
+                (name: "Templates", count: Optional(templates), label: "Templates, \(templates)"),
+                (name: "Ask", count: recipes > 0 ? Optional(recipes) : nil, label: asks)]
+    }
+
+    var body: some View {
+        let t = Self.tiles(dictations: dictations, todayThoughts: todayThoughts, templates: templates, recipes: recipes)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: typeSize.isAccessibilitySize ? 2 : 4)
+        LazyVGrid(columns: columns, spacing: 8) {
+            tile(t[0], art: .iconDictations, id: "library.dictations", hint: "Opens every dictation") { app.pushHere(DictationsRoute()) }
+            tile(t[1], art: .iconCalendar, id: "library.byDay", hint: "Opens Thoughts and Journal by day") { app.pushHere(ByDayRoute(kind: .idea)) }
+            tile(t[2], art: .iconSummaries, id: "library.templates", hint: "Opens your templates and Run automatically") { app.pushHere(TemplatesRoute()) }
+            tile(t[3], art: .iconAsk, id: "library.ask", hint: "Asks a question about your recordings") { app.pushHere(AskRoute()) }
+        }
+    }
+
+    private func tile(_ t: (name: String, count: Int?, label: String), art: BrandArt, id: String, hint: String,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 4) {
+                    IconGlyph(art: art, size: 18, color: Ink.ink)
+                    Spacer(minLength: 0)
+                    if let n = t.count { Text("\(n)").font(Ink.mono(12)).foregroundStyle(.lookMute).lineLimit(1) }
+                }
+                Spacer(minLength: 8)
+                Text(t.name).font(.system(size: nameSize, weight: .semibold)).foregroundStyle(.lookInk)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .phoneOutlined(radius: Radius.tile, line: 1)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(t.label)
+        .accessibilityHint(hint)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier(id)
     }
 }

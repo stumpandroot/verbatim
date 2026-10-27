@@ -5,7 +5,7 @@ import UIKit
 /// A transcript, in the website style: the eyebrow (kind · date · length) over the recording's name as the big serif
 /// title, the Summary on a butter panel with grain and the strands drawing, the Original / Cleaned switch (plus Review
 /// once something was corrected), speaker pills with mono timecodes over the text at a comfortable size, and the dark
-/// player floating above the tab bar. Long-press a line to bookmark it, add a note, copy it, or open the video at
+/// player at the bottom edge (the tab bar hides while you read). Long-press a line to bookmark it, add a note, copy it, or open the video at
 /// that moment. Copy takes the tab you're on.
 struct TranscriptScreen: View {
     @EnvironmentObject var app: PhoneState
@@ -148,6 +148,8 @@ struct TranscriptScreen: View {
                 }
                 .phonePage()
                 .navigationBarTitleDisplayMode(.inline)
+                // Reading: the tab bar goes, and the player sits at the bottom edge instead of floating over it.
+                .toolbar(.hidden, for: .tabBar)
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil {
@@ -291,6 +293,16 @@ struct TranscriptScreen: View {
         return parts.joined(separator: " · ")
     }
 
+    /// The meta line under the title, before the language: what it is ("Voice note", "Audio file") when the eyebrow
+    /// names the kind instead, and "2 speakers". Without a kind the eyebrow already names the source, so it isn't
+    /// repeated ("YouTube" over "youtube.com").
+    static func metaParts(_ t: Transcript) -> [String] {
+        var parts: [String] = []
+        if t.kind != nil { parts.append(HomeRecentStyle(t).source) }
+        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+        return parts
+    }
+
     private func header(_ t: Transcript) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             // Verbose style: the mono eyebrow over the serif title. Native: a bold title, then the same line under it.
@@ -303,23 +315,34 @@ struct TranscriptScreen: View {
                 .padding(.top, 2)
                 .accessibilityLabel("Title")
             if look.isNative { PhoneEyebrow(text: Self.eyebrow(t)) }
-            HStack(spacing: 6) {
-                // The kind, day, and length are in the eyebrow above.
-                Text(t.sourceLabel)
-                if t.speakers.count >= 2 { Text("·"); Text("\(t.speakers.count) speakers") }
-                // The language it was transcribed in, and Transcribe again in… another one.
-                if t.status == .ready, t.audioFileName != nil, t.pendingAppend == nil, t.source != .dictation {
-                    Text("·"); TranscriptLanguageMenu(transcript: t)
-                } else if let l = t.language {
-                    Text("·"); Text(LanguageDetection.name(l))
+            // One meta line: what it is (when the eyebrow shows the kind instead), speakers, and the language. The
+            // kind, day, and length are in the eyebrow above.
+            let meta = Self.metaParts(t)
+            let languageMenu = t.status == .ready && t.audioFileName != nil && t.pendingAppend == nil && t.source != .dictation
+            let language = languageMenu ? nil : t.language.map(LanguageDetection.name)
+            if !meta.isEmpty || languageMenu || language != nil {
+                HStack(spacing: 6) {
+                    ForEach(Array(meta.enumerated()), id: \.offset) { i, part in
+                        if i > 0 { Text("·") }
+                        Text(part)
+                    }
+                    // The language it was transcribed in, and Transcribe again in… another one.
+                    if languageMenu {
+                        if !meta.isEmpty { Text("·") }
+                        TranscriptLanguageMenu(transcript: t)
+                    } else if let language {
+                        if !meta.isEmpty { Text("·") }
+                        Text(language)
+                    }
                 }
+                .font(.system(size: 13)).foregroundStyle(.lookMute)
             }
-            .font(.system(size: 13)).foregroundStyle(.lookMute)
-            // Source, engine, language, date, and where the data went (PhoneTrust.swift).
+            // Where the data went; tap it for the source file, engine, and exact time (PhoneTrust.swift).
             if t.status == .ready { PhoneProvenanceLine(transcript: t) }
             if t.titleIsAuto && t.titleByModel { AITitleNote() }
             if t.status == .ready {
-                KindAndTags(transcript: t,
+                // Mini chips (28 pt, as mini pills), so the add-a-tag button fits inline after the last tag.
+                KindAndTags(transcript: t, compact: true,
                             onPick: { k in app.store.update(t.id) { $0.kind = k; $0.kindIsAuto = false } },
                             onTags: { tags in app.store.update(t.id) { $0.tags = tags } })
                     .padding(.top, 8)
@@ -704,9 +727,9 @@ struct PhoneLines: View {
     }
 }
 
-/// The dark player floating above the tab bar (an opaque ink capsule, never glass): play in the record color, the
-/// time in mono, the waveform (drag or tap it to move through the recording; the played part is butter), Follow, and
-/// a menu with speed, skip 5 seconds, and Bookmark this moment.
+/// The dark player at the foot of a transcript (an opaque ink capsule, never glass): play on a sage disc (sage means
+/// playback; persimmon stays on Record), the time in mono, the waveform (drag or tap it to move through the recording;
+/// the played part is sage), Follow, and a menu with speed, skip 5 seconds, and Bookmark this moment.
 struct PhoneDock: View {
     @EnvironmentObject var app: PhoneState
     var transcript: Transcript
@@ -727,7 +750,7 @@ struct PhoneDock: View {
         let dock = HStack(spacing: 10) {
             Button { app.player.toggle() } label: {
                 ZStack {
-                    Circle().fill(look.isNative ? NativeInk.accent : PhoneInk.record)
+                    Circle().fill(look.isNative ? NativeInk.accent : PhoneInk.sage)
                     if downloading { ProgressView().tint(look.isNative ? Color.white : Ink.inkFixed) }
                     else if look.isNative {
                         Image(systemName: app.player.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.white)   // brand: native
@@ -748,7 +771,7 @@ struct PhoneDock: View {
                     .accessibilityHidden(true)
             }
             PhoneDockWave(levels: transcript.waveform, progress: min(1, clock.time / total),
-                          played: look.isNative ? NativeInk.accent : Ink.butter,
+                          played: look.isNative ? NativeInk.accent : Ink.sage,
                           rest: look.isNative ? NativeInk.gray : Ink.paperFixed.opacity(0.35)) { f in
                 app.player.seek(to: f * total)
             }
@@ -972,6 +995,20 @@ extension View {
 struct PhoneLinkCard: View {
     var info: LinkInfo
     var body: some View {
+        if let u = URL(string: info.url) {
+            // One play target: the whole card opens the video.
+            Link(destination: u) { card }
+                .buttonStyle(PhoneCardPress())
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Open video, \(title)")
+        } else {
+            card
+        }
+    }
+
+    private var title: String { [info.channel, info.site].compactMap { $0 }.joined(separator: " · ") }
+
+    private var card: some View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.button, style: .continuous).fill(Ink.track)
@@ -980,16 +1017,14 @@ struct PhoneLinkCard: View {
             }
             .frame(width: 72, height: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text([info.channel, info.site].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 14, weight: .medium)).foregroundStyle(.lookInk).lineLimit(1)
+                Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.lookInk).lineLimit(1)
                 Text(info.uploadDisplay ?? URL(string: info.url)?.host ?? "").font(.system(size: 12.5)).foregroundStyle(.lookMute).lineLimit(1)
             }
             Spacer(minLength: 4)
-            if let u = URL(string: info.url) {
-                Link(destination: u) { ArtIcon(art: .iconPlay, size: 20) }.foregroundStyle(.lookInk).accessibilityLabel("Open video")
-            }
         }
         .padding(8)
         .cardSurface(radius: Radius.row)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 }
 

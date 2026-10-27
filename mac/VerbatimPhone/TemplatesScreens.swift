@@ -10,27 +10,6 @@ struct TemplatesRoute: Hashable {}
 struct TemplateDetailRoute: Hashable { var id: UUID }
 struct TemplatesAutoRoute: Hashable {}
 
-/// The Library's Templates card (Verbose style), beside By day.
-struct TemplatesCard: View {
-    var count: Int
-    var body: some View {
-        HStack(spacing: 12) {
-            IconGlyph(art: .iconSummaries, size: 20, color: Ink.ink).frame(width: 30, height: 30).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Templates").font(Ink.serif(19)).foregroundStyle(.lookInk)
-                Text("Notes, plans, and drafts from a transcript").font(.system(size: 13)).foregroundStyle(.lookMute)
-            }
-            Spacer(minLength: 8)
-            Text("\(count)").font(Ink.mono(12)).foregroundStyle(.lookMute)
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
-        }
-        .padding(.horizontal, 14).frame(minHeight: 60)
-        .phoneOutlined(radius: Radius.row, line: 1)
-        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens your templates and Run automatically")
-    }
-}
 
 // MARK: - Library
 
@@ -128,9 +107,8 @@ struct TemplateDetailScreen: View {
         let kinds = t.kinds.isEmpty ? AutoRunSettings.kinds : t.kinds
         let recent = app.store.live.filter { $0.status == .ready && !$0.isDictation && !$0.segments.isEmpty }
             .sorted { $0.createdAt > $1.createdAt }.prefix(12)
-        return SettingsPageScaffold(title: t.name) {
+        return SettingsPageScaffold(title: t.name, eyebrow: t.origin.eyebrow) {
             VStack(alignment: .leading, spacing: 6) {
-                PhoneEyebrow(text: t.origin.eyebrow)
                 Text(TemplateLibrary.summaryLine(t)).font(.system(size: 15)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
             }

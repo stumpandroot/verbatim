@@ -12,7 +12,8 @@ extension TranscriptTemplate {
         case TemplateGlyph.draft: return .iconCopy
         case TemplateGlyph.study, TemplateGlyph.lecture: return .iconLibrary
         case TemplateGlyph.keyPoints, TemplateGlyph.interview: return .iconQuote
-        case TemplateGlyph.meeting, TemplateGlyph.oneOnOne: return .iconSpeakers
+        case TemplateGlyph.meeting: return .iconSpeakers
+        case TemplateGlyph.oneOnOne: return .iconOneOnOne
         case TemplateGlyph.client: return .iconProject
         case TemplateGlyph.brainstorm: return .iconThought
         case TemplateGlyph.reflection: return .iconCalendar

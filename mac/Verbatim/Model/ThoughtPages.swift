@@ -30,6 +30,23 @@ enum ThoughtText {
             .replacingOccurrences(of: "a", with: "").trimmingCharacters(in: .whitespaces) ?? "h:mm")
         return f.string(from: date)
     }
+
+    /// The iPhone's Verbose time beside a thought: "10:00a" and "3:00p" in a 12-hour English locale, so a page never
+    /// reads "10:00" then "3:00" with no way to tell morning from afternoon; "15:00" in a 24-hour locale; and the
+    /// locale's own short time ("下午3:00") in other 12-hour languages, where a trailing "a" or "p" means nothing.
+    static func compactTime(_ date: Date, locale: Locale = .current, calendar: Calendar = .current) -> String {
+        let pattern = DateFormatter.dateFormat(fromTemplate: "jmm", options: 0, locale: locale) ?? "h:mm a"
+        guard pattern.contains("a") else { return Formats.pattern(pattern).string(from: date) }
+        guard locale.language.languageCode?.identifier == "en" else { return Formats.style(date: .none, time: .short).string(from: date) }
+        let base = pattern.replacingOccurrences(of: "a", with: "").trimmingCharacters(in: .whitespaces)
+        let f: DateFormatter
+        if locale.identifier == Locale.current.identifier && calendar.timeZone == TimeZone.current {
+            f = Formats.pattern(base)
+        } else {
+            f = DateFormatter(); f.locale = locale; f.timeZone = calendar.timeZone; f.dateFormat = base
+        }
+        return f.string(from: date) + (calendar.component(.hour, from: date) < 12 ? "a" : "p")
+    }
 }
 
 extension Store {

@@ -156,9 +156,10 @@ struct KindChip: View {
             .background(kind.fill, in: Capsule())
             .contentShape(Capsule())
         } else {
+            // "Kind ▾", the same menu control as a set kind ("Meeting ▾"), so it never reads as a second add button.
             HStack(spacing: 5) {
-                Image(systemName: "plus").font(.system(size: compact ? 10 : 12, weight: .semibold))
                 Text("Kind").font(.system(size: compact ? 13 : 15))
+                Image(systemName: "chevron.down").font(.system(size: compact ? 9 : 10, weight: .bold))
             }
             .foregroundStyle(Ink.dim)
             .padding(.horizontal, 12).frame(minHeight: h)
@@ -188,8 +189,8 @@ struct KindChip: View {
             .contentShape(Capsule())
         } else {
             HStack(spacing: 5) {
-                Image(systemName: "plus").font(.system(size: compact ? 10 : 12, weight: .semibold))
                 Text("Kind").font(.system(size: compact ? 13 : 15))
+                Image(systemName: "chevron.down").font(.system(size: compact ? 9 : 10, weight: .bold))
             }
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12).frame(minHeight: h)
@@ -225,12 +226,17 @@ struct TagChips: View {
                 .contextMenu { Button(role: .destructive) { onRemove(tag) } label: { Label("Remove tag", systemImage: "xmark") } }
                 .accessibilityLabel("Tag: \(tag)")
         }
+        // "+ Tag" while there are no tags; after the last tag a bare "+" reads as adding another.
         Button { draft = ""; adding = true } label: {
-            Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold))
-                .foregroundStyle((look == .native) ? Color.secondary : Ink.dim)
-                .frame(width: h, height: h)
-                .modifier(TagSurface(native: look == .native, filled: false))
-                .contentShape(Capsule())
+            HStack(spacing: 4) {
+                Image(systemName: "plus").font(.system(size: compact ? 11 : 13, weight: .semibold))
+                if tags.isEmpty { Text("Tag").font(.system(size: compact ? 13 : 15)) }
+            }
+            .foregroundStyle((look == .native) ? Color.secondary : Ink.dim)
+            .padding(.horizontal, tags.isEmpty ? (compact ? 10 : 12) : 0)
+            .frame(minWidth: h, minHeight: h)
+            .modifier(TagSurface(native: look == .native, filled: false))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add a tag")

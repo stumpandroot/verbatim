@@ -17,6 +17,7 @@ struct VoiceProfileScreen: View {
     @State private var overview: Bool
     @Environment(\.limitMotion) private var limitMotion
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.look) private var look
 
     init(preview: Bool = false) {
         _model = StateObject(wrappedValue: VoiceEnrollment(preview: preview))
@@ -37,6 +38,8 @@ struct VoiceProfileScreen: View {
         .phonePage()
         .navigationTitle("Your voice")
         .navigationBarTitleDisplayMode(.inline)
+        // Verbose style: the eyebrow and serif title sit on the paper, as on every Settings page; the bar stays empty.
+        .toolbar { if !look.isNative { ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) } } }
         .onDisappear { model.cancel() }
         .sensoryFeedback(.success, trigger: isGoodResult)
     }
@@ -50,8 +53,7 @@ struct VoiceProfileScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(overview ? "Your voice" : "Your voice · step \(model.step.number) of 3")
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookMute)
+            PhoneEyebrow(text: overview ? "Your voice" : "Your voice · step \(model.step.number) of 3")
             Text(title).lookSerif(36).foregroundStyle(.lookInk)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

@@ -161,8 +161,8 @@ struct DayPageScreen: View {
         let outlined = t.id == app.lastThought
         Button { tap(t) } label: {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text(ThoughtText.time(t.createdAt, native: false)).font(Ink.mono(13)).foregroundStyle(.lookMute)
-                    .frame(width: 48, alignment: .leading)
+                Text(ThoughtText.compactTime(t.createdAt)).font(Ink.mono(13)).foregroundStyle(.lookMute)
+                    .lineLimit(1).fixedSize().frame(minWidth: 58, alignment: .leading)
                 VStack(alignment: .leading, spacing: 4) {
                     if thoughts { ThoughtWords(transcript: t, native: false) } else { JournalLine(transcript: t, native: false) }
                     Text(thoughts ? ThoughtText.origin(t) : HomeRecentStyle.length(t.duration))
@@ -468,7 +468,14 @@ struct ByDayScreen: View {
     /// For the self-test: the kind on screen and the days with dots in the month shown.
     static var shown: (kind: RecordingKind, dots: Int)?
 
-    init(kind: RecordingKind) { _kind = State(initialValue: kind == .journal ? .journal : .idea) }
+    /// A tab's root for one kind (the Journal tab): no Thoughts and Journal switch, so the tab never turns into the
+    /// other kind's view. Reached from Library, By day keeps the switch.
+    private let fixed: Bool
+
+    init(kind: RecordingKind, fixed: Bool = false) {
+        _kind = State(initialValue: kind == .journal ? .journal : .idea)
+        self.fixed = fixed
+    }
 
     private var hour: Int { app.newPageHour }
     private var pages: [(day: Date, items: [Transcript])] { app.store.dayPages(kind, hour: hour) }
@@ -495,7 +502,11 @@ struct ByDayScreen: View {
 
     private func note(_ pages: [(day: Date, items: [Transcript])]) {
         Self.shown = (kind, inMonth(pages).count)
+        Self.switchShown = !fixed
     }
+
+    /// For the self-test: whether the screen on view shows the Thoughts and Journal switch.
+    static var switchShown: Bool?
 
     private func open(_ day: Date) { app.pushHere(DayPageRoute(kind: kind, day: day)) }
 
@@ -523,7 +534,7 @@ struct ByDayScreen: View {
                 .padding(.top, 6)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
-                kindSwitch.padding(.top, 14)
+                if !fixed { kindSwitch.padding(.top, 14) }
                 VerboseMonthCalendar(month: $month, days: Set(pages.map(\.day)), today: app.todayPage, pick: open)
                     .padding(.top, 16)
                 PhoneDayHeader(text: "This month · \(DayPages.count(days.count, "day", "days"))")
@@ -584,11 +595,13 @@ struct ByDayScreen: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("\(DayPages.count(pages.count, "day", "days")) of \(kind == .journal ? "journal entries" : "thoughts")")
                     .font(.subheadline).foregroundStyle(NativeInk.secondary)
-                Picker("Kind", selection: $kind) {
-                    Text("Thoughts").tag(RecordingKind.idea)
-                    Text("Journal").tag(RecordingKind.journal)
+                if !fixed {
+                    Picker("Kind", selection: $kind) {
+                        Text("Thoughts").tag(RecordingKind.idea)
+                        Text("Journal").tag(RecordingKind.journal)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
                 PremiumMonthCalendar(month: $month, dates: pages.map(\.day), now: Date(), pick: open)
                 Text("This month").font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeInk.secondary)
                     .padding(.top, 8).accessibilityAddTraits(.isHeader)
@@ -713,31 +726,5 @@ struct SerifTitle: View {
         } else {
             Text(plain).lookSerif(size)
         }
-    }
-}
-
-// MARK: - Library's way in
-
-/// Library's By day card (Verbose style): the calendar glyph, "By day", and today's thought count.
-struct ByDayCard: View {
-    var todayCount: Int
-    var body: some View {
-        HStack(spacing: 12) {
-            IconGlyph(art: .iconCalendar, size: 20, color: Ink.ink).frame(width: 30, height: 30).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("By day").font(Ink.serif(19)).foregroundStyle(.lookInk)
-                Text("Thoughts and Journal, a page a day").font(.system(size: 13)).foregroundStyle(.lookMute)
-            }
-            Spacer(minLength: 8)
-            if todayCount > 0 {
-                Text("Today \(todayCount)").font(Ink.mono(12)).foregroundStyle(.lookMute)
-            }
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute)
-        }
-        .padding(.horizontal, 14).frame(minHeight: 60)
-        .phoneOutlined(radius: Radius.row, line: 1)
-        .contentShape(RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens Thoughts and Journal by day")
     }
 }

@@ -9,6 +9,8 @@ struct WhatsNewScreen: View {
     var notes: [ReleaseNote] = ReleaseNotes.bundled
     /// Versions tapped open or closed; the newest starts open and the rest closed.
     @State private var toggled: Set<String> = []
+    /// Builds whose "On your Mac" items are open.
+    @State private var macOpened: Set<String> = []
     @Environment(\.look) private var look
     @AppStorage(ReleaseNotes.lastSeenKey) private var lastSeen = 0
     /// How many What's new screens are on screen, for the UI tour's checks. A count rather than a flag, so a screen
@@ -119,16 +121,46 @@ struct WhatsNewScreen: View {
         }
     }
 
+    /// The items for this iPhone first ("iPhone:", "Mac and iPhone:", then the rest), and the Mac-only ones folded
+    /// under "On your Mac", closed until tapped.
     private func items(_ note: ReleaseNote, size: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(note.items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
-                    Text(item).foregroundStyle(.lookInk)
-                        .fixedSize(horizontal: false, vertical: true)
+        let parts = ReleaseNotes.split(note.items, phone: true)
+        let macOpen = macOpened.contains(note.id)
+        return VStack(alignment: .leading, spacing: 6) {
+            bullets(parts.here, size: size)
+            if !parts.other.isEmpty {
+                Button {
+                    if macOpen { macOpened.remove(note.id) } else { macOpened.insert(note.id) }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                            .rotationEffect(.degrees(macOpen ? 90 : 0))
+                        Text("On your Mac").font(.system(size: size - 1, weight: .semibold))
+                        Text("\(parts.other.count)").font(.system(size: size - 1)).monospacedDigit()
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(.lookDim)
+                    .frame(minHeight: 36)
+                    .contentShape(Rectangle())
                 }
-                .font(.system(size: size))
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("On your Mac, \(parts.other.count) item\(parts.other.count == 1 ? "" : "s")")
+                .accessibilityValue(macOpen ? "Expanded" : "Collapsed")
+                .accessibilityAddTraits(.isButton)
+                if macOpen { bullets(parts.other, size: size) }
             }
+        }
+    }
+
+    private func bullets(_ items: [String], size: CGFloat) -> some View {
+        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•").foregroundStyle(.lookMute).accessibilityHidden(true)
+                Text(item).foregroundStyle(.lookInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.system(size: size))
         }
     }
 }

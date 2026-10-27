@@ -855,9 +855,10 @@ struct AboutMeScreen: View {
     static var visible = false
 
     var body: some View {
-        ScrollView {
+        // The Settings page scaffold: the serif compact title, as Appearance and Templates use, and the shared labels.
+        SettingsPageScaffold(title: "About me") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Your name").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).padding(.horizontal, 4)
+                SettingsPageLabel(text: "Your name")
                 TextField("Your name", text: $name)
                     .textContentType(.name)
                     .font(.system(size: 16)).foregroundStyle(.lookInk)
@@ -865,7 +866,7 @@ struct AboutMeScreen: View {
                     .background(.lookCard, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(.lookHairline))
                     .accessibilityLabel("Your name")
-                Text("About me").font(.system(size: 12, weight: .semibold)).foregroundStyle(.lookMute).padding(.horizontal, 4).padding(.top, 10)
+                SettingsPageLabel(text: "About me").padding(.top, 10)
                 ZStack(alignment: .topLeading) {
                     if aboutMe.isEmpty {
                         Text("For example: I'm a teacher. I record lessons and parent meetings, and often mention Room 12 and the spring fair.")
@@ -896,12 +897,8 @@ struct AboutMeScreen: View {
                 }
                 .padding(.horizontal, 4)
             }
-            .padding(20)
+            .padding(.top, 14)
         }
-        .scrollDismissesKeyboard(.interactively)
-        .phonePage()
-        .navigationTitle("About me")
-        .navigationBarTitleDisplayMode(.inline)
         .onAppear { Self.visible = true; if aboutMe.isEmpty, !PhoneUITest.enabled { focused = true } }
         .onDisappear { Self.visible = false }
     }

@@ -21,7 +21,13 @@
         "iPhone: each row in Record as says what happens when the recording finishes, such as “Runs Meeting notes when it finishes” when Run automatically has a template for that kind. Voice note leaves the kind to Verbose, and Thought adds to today's page, as New thought does. Record a note is gone from the list.",
         "iPhone: the recorder shows the kind you picked in a chip, and the line under the timer names the template that runs when you stop. In the Native look, the floating record button's Dictate, Live captions, and Import sit in a row under the kinds.",
         "iPhone: with VoiceOver, Record has an action for each way to record, each row in the tray is a button, and the escape gesture closes the tray. With larger text, the rows grow and scroll when the tray gets tall.",
-        "Mac: right-click Record, or choose File › Record As, for the same six choices, each with its Verbose icon: Record, Record a meeting, Record an interview, Record a journal entry, Record a talk, and New thought. File › Record As › Meeting… starts a meeting recording, in place of the separate Record Meeting… item."
+        "Mac: right-click Record, or choose File › Record As, for the same six choices, each with its Verbose icon: Record, Record a meeting, Record an interview, Record a journal entry, Record a talk, and New thought. File › Record As › Meeting… starts a meeting recording, in place of the separate Record Meeting… item.",
+        "iPhone: the Library opens with one row of tiles for Dictations, By day, Templates, and Ask, so your recordings start higher up. The type chips stay in place when you pick a kind, and kinds, Pinned, In progress, and projects have a row of their own.",
+        "iPhone: a thought that's still transcribing shows Thought and its time instead of a blank title, and thought times in Verbose style show morning or afternoon, such as 10:00a and 3:00p. The Journal tab no longer switches itself to Thoughts.",
+        "iPhone: a transcript hides the tab bar while you read, and the player's play button and progress are sage. The header has one meta line; tap the data path chip for the source, engine, and time. The Cleaned tab's Clean up chip stays on one line.",
+        "iPhone: Dictations, Add from Library, Moments, You, Settings › Keyboard, About me, Your voice, and the Action button page use the same chips, rows, titles, and colors as the rest of the app. The keyboard session screens make going back to your app the main step.",
+        "Mac and iPhone: a transcript without a kind shows a Kind menu, and Add a tag says Tag until you add one. While a link downloads, its card offers Cancel download and Keep in background.",
+        "Mac and iPhone: the 1:1 template has its own icon, and the Dictionary tile in the Native look no longer shares Journal's symbol. On iPhone, What's new lists what you can use on this iPhone first and folds Mac-only items under On your Mac."
       ]
     },
     {

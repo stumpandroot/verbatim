@@ -237,6 +237,10 @@ I = {
     # Voice note in Record as (mockup "Record as", October 26, 2026): the website's microphone, so the plain Record has
     # its own glyph beside the kinds (Talk keeps Voice's rings).
     'Mic': [s('M9.5 3.5H14.5V12.5A2.5 2.5 0 0 1 9.5 12.5Z'), s('M6 10.5C6 14.3 8.4 16.5 12 16.5S18 14.3 18 10.5'), s('M12 16.5V20'), s('M8.8 20.5H15.2')],
+    # The 1:1 template (build 228 review, October 27, 2026), About me's grammar doubled: two people side by side on one
+    # line, so it never reads as Meeting notes' Speakers.
+    'OneOnOne': [s(C(7.5, 8.5, 2.75)), s(C(16.5, 8.5, 2.75)), s('M3 18C3 15 5 13.3 7.5 13.3S12 15 12 18'),
+                 s('M12 18C12 15 14 13.3 16.5 13.3S21 15 21 18'), s('M2.5 19.5H21.5')],
 }
 
 

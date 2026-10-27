@@ -106,6 +106,7 @@ enum PhoneUITest {
         recorderChecks(app)
         premiumChecks(app)
         markChecks(app)
+        reviewFixesPhoneB(app)        // Build 228 review fixes, group B (PhoneReviewFixesB.swift).
         // No lost recordings: write failures, joins around a corrupt part, discard, and recovery (shared with the Mac).
         RecordingSafetyChecks.run(store: app.store) { name, ok in Log.note("UITEST \(ok ? "PASS" : "FAIL") recording safety: \(name)") }
         // Imports through the bundled FFmpeg (MKV) and files with several audio tracks (shared with the Mac).
@@ -1411,6 +1412,7 @@ enum PhoneUITest {
         app.tab = .journal
         await show("p14b-tab-journal\(suffix)")
         if checks { check("the Journal tab opens Journal By day", ByDayScreen.shown?.kind == .journal && app.journalPath.isEmpty) }
+        if checks { reviewFixesPhoneBJournalTab() }
         if checks {
             app.tab = .library
             await settle()

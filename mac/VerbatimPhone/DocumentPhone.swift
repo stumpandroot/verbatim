@@ -27,7 +27,7 @@ struct PhoneDocument: View {
                     ForEach(Polish.Level.allCases) { l in
                         Button { run(level: l, tone: tone) } label: { Text("\(l.rawValue) · \(l.note)") }
                     }
-                } label: { chip("Clean up · \(level.rawValue)", symbol: "sparkles") }
+                } label: { chip(Self.cleanUpLabel(level), symbol: "sparkles") }
                 Menu {
                     ForEach(Polish.Tone.allCases) { t in Button(t.rawValue) { run(level: level == .none ? .light : level, tone: t) } }
                 } label: { chip("Tone · \(tone.rawValue)", symbol: "text.quote") }
@@ -128,8 +128,15 @@ struct PhoneDocument: View {
         }
     }
 
+    /// "Clean up" while it's off; "Clean up · Light" once a level is set.
+    static func cleanUpLabel(_ level: Polish.Level) -> String {
+        level == .none ? "Clean up" : "Clean up · \(level.rawValue)"
+    }
+
+    /// One line, never wrapped inside its pill, so Clean up and Tone stay the same height.
     private func chip(_ label: String, symbol: String) -> some View {
         Label(label, systemImage: symbol).font(.system(size: 13.5, weight: .medium)).foregroundStyle(.lookInk)
+            .lineLimit(1).fixedSize()
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(.lookCard, in: Capsule()).overlay(Capsule().strokeBorder(.lookHairline))
     }

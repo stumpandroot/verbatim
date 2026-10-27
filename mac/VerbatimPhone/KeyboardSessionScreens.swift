@@ -96,16 +96,18 @@ struct SessionStartScreen: View {
                         .padding(.top, 12)
                 }
 
+                // A status, not a recording: a neutral card with an ink outline, and persimmon only on the voice bars.
                 HStack(spacing: 18) {
-                    VoiceBars(level: session.isOn ? 0.35 : 0, color: Ink.inkFixed, barWidth: 14, maxHeight: 64)
+                    VoiceBars(level: session.isOn ? 0.35 : 0, color: Ink.persimmon, barWidth: 14, maxHeight: 64)
                         .frame(width: 72)
                     Text(session.dictating ? "Listening" : session.isOn ? "Ready" : "Starting…")
-                        .lookSerif(24).foregroundStyle(.lookOnPanel)
+                        .lookSerif(24).foregroundStyle(.lookInk)
                     Spacer(minLength: 0)
                 }
                 .padding(22)
                 .frame(maxWidth: .infinity, minHeight: showsWayBack && session.coach == .full ? 96 : 120, alignment: .leading)
-                .background(Ink.persimmon, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Ink.ink, lineWidth: 1.5))
                 .padding(.top, 22)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(session.dictating ? "Listening" : session.isOn ? "Session ready" : "Starting")
@@ -114,14 +116,16 @@ struct SessionStartScreen: View {
                     FirstDictationNote().padding(.top, 14)
                 }
 
+                // The instruction above is the hero (go back to your app), so neither button is the dark primary:
+                // Stay in Verbose is a line pill and End session a quiet text button, side by side as on Session ended.
                 if session.needsManualReturn {
                     HStack(spacing: 12) {
-                        Button("End session") { session.end(reason: nil) }
-                            .buttonStyle(.phoneSecondaryLarge)
-                            .accessibilityHint("Turns off the microphone")
                         Button("Stay in Verbose") { session.showScreen = false }
-                            .buttonStyle(.phonePrimaryLarge)
+                            .buttonStyle(.phoneSecondaryLarge)
                             .accessibilityHint("Closes this screen. The session stays on.")
+                        Button("End session") { session.end(reason: nil) }
+                            .buttonStyle(SessionQuietButton())
+                            .accessibilityHint("Turns off the microphone")
                     }
                     .padding(.top, 20)
                 }
@@ -316,7 +320,9 @@ struct KeyboardSetupScreen: View {
     ]
 
     var body: some View {
-        ScrollView {
+        // The Settings page scaffold (serif compact title, as Appearance and Templates use) and the shared section
+        // label; the five switches share one card.
+        SettingsPageScaffold(title: "Keyboard") {
             VStack(alignment: .leading, spacing: 16) {
                 Text("The Verbose keyboard puts dictation in every app. You tap the dictate button, talk, and tap the check.")
                     .font(.system(size: 16)).foregroundStyle(.lookInk)
@@ -325,7 +331,7 @@ struct KeyboardSetupScreen: View {
                 DictateButtonSettings()
                     .padding(.top, 6)
 
-                Text("Add the keyboard").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim).accessibilityAddTraits(.isHeader).padding(.top, 6)
+                SettingsPageLabel(text: "Add the keyboard").padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -339,30 +345,28 @@ struct KeyboardSetupScreen: View {
                 .padding(16)
                 .cardSurface(radius: Radius.row)
 
-                Text("Sessions").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim).accessibilityAddTraits(.isHeader).padding(.top, 6)
+                SettingsPageLabel(text: "Sessions").padding(.top, 6)
                 SessionCard(session: app.session)
                 FirstDictationNoteRow(session: app.session)
 
                 // Every build: the keyboard opens Verbose to start a session (App Store builds too, since October 2026).
-                SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
-                                  subtitle: "The first tap opens Verbose and starts listening; no second tap.", isOn: $autoStart)
-                    .cardSurface(radius: Radius.row)
-
-                SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
-                                  subtitle: "Your words appear right away; Verbose swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
-                    .cardSurface(radius: Radius.row)
-
-                SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
-                                  subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
-                    .cardSurface(radius: Radius.row)
-
-                SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words in the Dynamic Island",
-                                  subtitle: "When you touch and hold the Dynamic Island during a take, it shows your last few words. The Lock Screen never shows your words.", isOn: $islandWords)
-                    .cardSurface(radius: Radius.row)
-
-                SettingsToggleRow(icon: "doc.on.clipboard", tint: Ink.persimmonTint, title: "Also copy each dictation",
-                                  subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
-                    .cardSurface(radius: Radius.row)
+                VStack(spacing: 0) {
+                    SettingsToggleRow(icon: "mic", tint: Ink.persimmonTint, title: "Start dictating when you come back",
+                                      subtitle: "The first tap opens Verbose and starts listening; no second tap.", isOn: $autoStart)
+                    SettingsDivider()
+                    SettingsToggleRow(icon: "sparkles", tint: Ink.persimmonTint, title: "Polish after inserting",
+                                      subtitle: "Your words appear right away; Verbose swaps in the cleaned-up version a moment later.", isOn: $polishAfter)
+                    SettingsDivider()
+                    SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words as you speak",
+                                      subtitle: "The keyboard shows your words while you talk, recognized on this iPhone.", isOn: $liveWords)
+                    SettingsDivider()
+                    SettingsToggleRow(icon: "text.bubble", tint: Ink.persimmonTint, title: "Show words in the Dynamic Island",
+                                      subtitle: "When you touch and hold the Dynamic Island during a take, it shows your last few words. The Lock Screen never shows your words.", isOn: $islandWords)
+                    SettingsDivider()
+                    SettingsToggleRow(icon: "doc.on.clipboard", tint: Ink.persimmonTint, title: "Also copy each dictation",
+                                      subtitle: "Each keyboard dictation also goes on the clipboard, so you can paste it somewhere else. The clock button in the keyboard shows your last dictations either way.", isOn: $alwaysCopy)
+                }
+                .cardSurface(radius: Radius.row)
 
                 PhoneLowerAudioRow()
 
@@ -372,7 +376,7 @@ struct KeyboardSetupScreen: View {
                     .font(.system(size: 15)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Start a session from anywhere").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim).accessibilityAddTraits(.isHeader).padding(.top, 6)
+                SettingsPageLabel(text: "Start a session from anywhere").padding(.top, 6)
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(startWays.enumerated()), id: \.offset) { _, way in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -386,12 +390,12 @@ struct KeyboardSetupScreen: View {
                 .padding(16)
                 .cardSurface(radius: Radius.row)
 
-                Text("Privacy").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim).accessibilityAddTraits(.isHeader).padding(.top, 6)
+                SettingsPageLabel(text: "Privacy").padding(.top, 6)
                 Text("While a session is on, Verbose keeps the microphone open so dictation starts instantly, and the orange microphone dot stays on. Audio is only saved while you're dictating, and stays on this iPhone unless iCloud sync is on. Each dictation is saved in Library › Dictations; deleting it also removes it from the keyboard's recent dictations, which keep at most 10 from the last day.")
                     .font(.system(size: 15)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Why Full Access").font(.system(size: 13, weight: .semibold)).foregroundStyle(.lookDim).accessibilityAddTraits(.isHeader).padding(.top, 6)
+                SettingsPageLabel(text: "Why Full Access").padding(.top, 6)
                 Text("Full Access lets the keyboard open Verbose to start a session and receive your words from it." + " Listening and transcription happen in the Verbose app on this iPhone; the keyboard never sends what you type or say anywhere else.")
                     .font(.system(size: 15)).foregroundStyle(.lookDim)
                     .fixedSize(horizontal: false, vertical: true)
@@ -403,10 +407,8 @@ struct KeyboardSetupScreen: View {
                 .padding(.top, 8)
                 .accessibilityHint("Opens Verbose's page in the Settings app")
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
+            .padding(.top, 10)
         }
-        .phonePage()
-        .navigationTitle("Keyboard")
     }
 }
 
@@ -508,22 +510,35 @@ struct SessionEndedScreen: View {
                 .accessibilityLabel("Last take: " + take)
             }
 
-            Button("Restart session") {
-                session.endedNotice = nil
-                session.startFromOutside(.app)
+            // Side by side, the same layout as the session's start screens.
+            HStack(spacing: 12) {
+                Button("Not now") { session.endedNotice = nil }
+                    .buttonStyle(.phoneSecondaryLarge)
+                Button("Restart session") {
+                    session.endedNotice = nil
+                    session.startFromOutside(.app)
+                }
+                .buttonStyle(.phonePrimaryLarge)
+                .accessibilityHint("Turns the microphone back on")
             }
-            .buttonStyle(.phonePrimaryLarge)
             .padding(.top, 20)
-            .accessibilityHint("Turns the microphone back on")
-
-            Button("Not now") { session.endedNotice = nil }
-                .buttonStyle(.phoneSecondaryLarge)
-                .padding(.top, 10)
 
             Spacer(minLength: 20)
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .phonePage()
+    }
+}
+
+/// A quiet text button beside a pill on the session screens ("End session"): semibold dim text, no fill or outline,
+/// a 44 pt target.
+private struct SessionQuietButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold)).foregroundStyle(.lookDim)
+            .padding(.horizontal, 12).frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }

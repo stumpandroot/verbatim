@@ -506,10 +506,11 @@ struct HomeThoughtsSection: View {
                     }
                     ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(ThoughtText.time(t.createdAt, native: look.isNative))
+                            Text(look.isNative ? ThoughtText.time(t.createdAt, native: true) : ThoughtText.compactTime(t.createdAt))
                                 .font(look.isNative ? .system(size: 14).monospacedDigit() : Ink.mono(12))
                                 .foregroundStyle(.lookMute)
-                                .frame(width: look.isNative ? 70 : 42, alignment: .leading)
+                                .lineLimit(1).fixedSize()
+                                .frame(minWidth: look.isNative ? 70 : 52, alignment: .leading)
                             Text(words(t)).font(.system(size: 15)).foregroundStyle(t.status == .ready ? LookStyle.lookInk : LookStyle.lookDim)
                                 .lineLimit(2).multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
