@@ -28,8 +28,8 @@ private struct HomeEditFrame: ViewModifier {
             .allowsHitTesting(!editing)
             .overlay {
                 if editing {
-                    RoundedRectangle(cornerRadius: look == .native ? 26 : Radius.record + 4, style: .continuous)
-                        .strokeBorder(look == .native ? Ink.nativeAccent.opacity(0.55) : Ink.ink, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                    RoundedRectangle(cornerRadius: look == .native ? 14 : Radius.record + 4, style: .continuous)
+                        .strokeBorder(look == .native ? NativeInk.accent.opacity(0.55) : Ink.ink, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                         .padding(-6)
                         .allowsHitTesting(false)
                 }
@@ -44,7 +44,8 @@ private struct HomeEditFrame: ViewModifier {
         if look == .native {
             Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(.primary)   // brand: native
                 .padding(.horizontal, 10).frame(height: 24)
-                .background(Capsule().fill(PremiumInk.card).shadow(color: PremiumInk.shadow, radius: 6, y: 2))   // brand: native
+                .background(Capsule().fill(NativeInk.content))   // brand: native
+                .overlay(Capsule().strokeBorder(NativeInk.separator, lineWidth: 0.5))   // brand: native
         } else {
             HStack(spacing: 6) {
                 ArtIcon(art: .iconNameAndSort, size: 12, lineWidth: 1.4)
@@ -508,7 +509,7 @@ struct HomeWeekDots: View {
 
     var body: some View {
         let native = look == .native
-        let color = native ? Ink.nativeAccent : Ink.ink
+        let color = native ? NativeInk.accent : Ink.ink
         let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
         HStack(spacing: size * 0.9) {
             ForEach(week, id: \.start) { d in

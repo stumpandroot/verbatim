@@ -31,15 +31,15 @@ check("iPhone Native: hidden Record keeps its place between This week and the ti
 check("iPhone Native: This week Large, tiles Compact", pn.size(.week) == .large && pn.size(.tiles) == .compact)
 check("Mac Verbose style: Record and tiles, This week, Recent recordings and Last dictation",
       names(mv.shown) == ["record", "tiles", "week", "recent", "lastDictation"], "\(names(mv.shown))")
-check("Mac Native: This week and Stats, tiles, Recent recordings; Record hidden",
-      names(mn.shown) == ["week", "stats", "tiles", "recent"] && !mn.isVisible(.record), "\(names(mn.shown))")
+check("Mac Native: quick actions, This week, Recent recordings; Stats and Record hidden (the Native redesign)",
+      names(mn.shown) == ["tiles", "week", "recent"] && !mn.isVisible(.record) && !mn.isVisible(.stats), "\(names(mn.shown))")
 check("new sections start hidden on both apps", [pv, pn, mv, mn].allSatisfy { l in
     [HomeSection.projects, .moments, .queue].allSatisfy { !l.isVisible($0) } })
 check("Last dictation is new on iPhone, so it starts hidden there", !pv.isVisible(.lastDictation) && !pn.isVisible(.lastDictation))
 check("every default lists each available section once", [(pv, HomePlatform.phone, HomeLook.verbose), (pn, .phone, .native), (mv, .mac, .verbose), (mn, .mac, .native)].allSatisfy { l, p, look in
     Set(l.items.map(\.section)) == Set(HomeSection.allCases.filter { $0.isAvailable(on: p, look: look) }) && l.items.count == Set(l.items.map(\.section)).count })
 check("Stats is the Mac's, in Native only", !pv.items.contains { $0.section == .stats } && !pn.items.contains { $0.section == .stats }
-      && !mv.items.contains { $0.section == .stats } && mn.isVisible(.stats))
+      && !mv.items.contains { $0.section == .stats } && mn.items.contains { $0.section == .stats })
 check("iPhone tiles: Dictate, Import, What's playing, Live captions", pv.tiles == [.dictate, .importMedia, .whatsPlaying, .captions] && pn.tiles == pv.tiles)
 check("Mac tiles: Dictate, Import, App audio, Live captions", mv.tiles == [.dictate, .importMedia, .appAudio, .captions] && mn.tiles == mv.tiles)
 check("defaults are already normalized", [(pv, HomePlatform.phone, HomeLook.verbose), (pn, .phone, .native), (mv, .mac, .verbose), (mn, .mac, .native)].allSatisfy { l, p, look in l.normalized(p, look) == l })
@@ -171,8 +171,10 @@ check("tile slots keep their place and skip missing picks", HomeTileSlot.slots([
 func rowNames(_ rows: [HomeRow]) -> [[String]] { rows.map { names($0.items) } }
 check("Mac Verbose style: Record beside the tiles, This week across, Recent recordings beside Last dictation",
       rowNames(HomeRows.rows(mv.shown, wide: true)) == [["record", "tiles"], ["week"], ["recent", "lastDictation"]], "\(rowNames(HomeRows.rows(mv.shown, wide: true)))")
-check("Mac Native: This week beside Stats, the tiles across, Recent recordings across",
-      rowNames(HomeRows.rows(mn.shown, wide: true)) == [["week", "stats"], ["tiles"], ["recent"]], "\(rowNames(HomeRows.rows(mn.shown, wide: true)))")
+// Native Home is one column (NativeHome.swift), so it draws its shown sections in order and never pairs them; a
+// narrow pass of the grid gives that order.
+check("Mac Native: the shown sections in order, one per band",
+      rowNames(HomeRows.rows(mn.shown, wide: false)) == [["tiles"], ["week"], ["recent"]], "\(rowNames(HomeRows.rows(mn.shown, wide: false)))")
 check("a narrow window stacks every section", HomeRows.rows(mv.shown, wide: false).allSatisfy { $0.items.count == 1 } && HomeRows.rows(mv.shown, wide: false).count == mv.shown.count)
 var g = mv
 g.setSize(.tiles, .compact)
@@ -189,8 +191,8 @@ check("Today's thoughts and Journal start hidden in every look on both apps", [p
     !l.isVisible(.thoughts) && !l.isVisible(.journal) && l.item(.thoughts) != nil && l.item(.journal) != nil })
 check("they're offered on both apps, in both looks", [HomePlatform.phone, .mac].allSatisfy { p in HomeLook.allCases.allSatisfy { look in
     HomeSection.thoughts.isAvailable(on: p, look: look) && HomeSection.journal.isAvailable(on: p, look: look) } })
-check("the shown sections didn't change on any default", names(pv.shown) == ["record", "tiles", "week", "recent"]
-      && names(mn.shown) == ["week", "stats", "tiles", "recent"])
+check("Today's thoughts and Journal didn't change the shown sections", names(pv.shown) == ["record", "tiles", "week", "recent"]
+      && names(mn.shown) == ["tiles", "week", "recent"])
 check("section names", HomeSection.thoughts.title == "Today's thoughts" && HomeSection.journal.title == "Journal")
 // A layout saved by the build before them, with every section it knew: they're added at the end, hidden.
 let before223 = json(#"{"version":1,"items":[{"section":"record","visible":true,"size":"large"},{"section":"tiles","visible":true,"size":"large"},{"section":"week","visible":true,"size":"compact"},{"section":"recent","visible":true,"size":"large"},{"section":"moments","visible":true,"size":"large"},{"section":"lastDictation","visible":false,"size":"compact"},{"section":"projects","visible":false,"size":"compact"},{"section":"queue","visible":false,"size":"compact"}],"tiles":["dictate","import","whatsPlaying","captions"]}"#)
