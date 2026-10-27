@@ -387,10 +387,11 @@ struct SettingsSearchResultRow: View {
     var entry: SettingsSearchEntry
     var query: String
     var value: String?
+    @Environment(\.look) private var look
 
     var body: some View {
-        let labelHit = Self.highlighted(entry.label, query: query)
-        let descHit = entry.description.map { Self.highlighted($0, query: query) }
+        let labelHit = Self.highlighted(entry.label, query: query, native: look.isNative)
+        let descHit = entry.description.map { Self.highlighted($0, query: query, native: look.isNative) }
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(labelHit.text).font(.body).foregroundStyle(.lookInk)
@@ -422,7 +423,9 @@ struct SettingsSearchResultRow: View {
     }
 
     /// `text` with each occurrence of the whole query (or else of each query word) on a persimmon tint.
-    static func highlighted(_ text: String, query: String) -> (text: AttributedString, matched: Bool) {
+    /// The matches in bold on the persimmon tint (Verbose style), or in bold label color on the system's yellow
+    /// find highlight (Native, as Safari's and Notes' find do).
+    static func highlighted(_ text: String, query: String, native: Bool = false) -> (text: AttributedString, matched: Bool) {
         var out = AttributedString(text)
         let full = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let needles = text.localizedStandardContains(full) ? [full] : full.split(whereSeparator: \.isWhitespace).map(String.init)
@@ -431,8 +434,8 @@ struct SettingsSearchResultRow: View {
             var from = out.startIndex
             while from < out.endIndex,
                   let r = out[from...].range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) {
-                out[r].backgroundColor = Ink.persimmonTint
-                out[r].foregroundColor = Ink.ink
+                out[r].backgroundColor = native ? NativeFind.highlight : Ink.persimmonTint
+                out[r].foregroundColor = native ? NativeInk.label : Ink.ink
                 matched = true
                 from = r.upperBound
             }
@@ -448,7 +451,7 @@ extension View {
     /// counts itself on screen while it's laid out (SettingsRowRegistry), for the self-test.
     func settingsSearchTarget(_ id: String, flash: String?) -> some View {
         self
-            .background(Ink.persimmonTint.opacity(flash == id ? 1 : 0).allowsHitTesting(false))
+            .background(Rectangle().fill(.lookWash).opacity(flash == id ? 1 : 0).allowsHitTesting(false))
             .animation(Motion.fade, value: flash == id)
             .id(id)
             .onAppear { SettingsRowRegistry.appeared(id) }

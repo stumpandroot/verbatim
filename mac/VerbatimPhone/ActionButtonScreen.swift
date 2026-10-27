@@ -151,7 +151,7 @@ private struct IdleTimeoutRow: View {
                 }
             }
             .labelsHidden()
-            .tint(Ink.accentText)
+            .tint(.lookAccentText)
         }
         .padding(.horizontal, 14).padding(.vertical, 6)
         .frame(minHeight: 50)

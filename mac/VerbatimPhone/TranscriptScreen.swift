@@ -416,7 +416,7 @@ struct TranscriptScreen: View {
             }
             if t.pendingAppend != nil {
                 HStack(spacing: 8) {
-                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { IconGlyph(art: .capture, size: 18, color: Ink.accentText) }
+                    if t.processingDevice != nil { ProgressView().controlSize(.small) } else { LookIcon(art: .capture, symbol: "mic.badge.plus", size: 18, color: Ink.accentText, nativeColor: NativeInk.secondary) }
                     LiveStage(t) { t in Text(t.stageText).font(.system(size: 14)).foregroundStyle(.lookDim).lineLimit(2) }
                     Spacer(minLength: 4)
                     if t.processingDevice == nil {
@@ -429,7 +429,7 @@ struct TranscriptScreen: View {
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(Ink.persimmonTint, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                .background(.lookWash, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .padding(.top, 6)
             } else if t.rerunRequest != nil, t.status == .ready {
                 // Transcribe again with Whisper Turbo, waiting for the Mac to pick it up.
@@ -769,6 +769,7 @@ struct PhoneLines: View {
     /// Reading text at a comfortable size and line height (the website's 16.5 / 1.6), scaled with Dynamic Type.
     @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 16.5
     @ScaledMetric(relativeTo: .caption) private var pillSize: CGFloat = 12.5
+    @Environment(\.look) private var look
 
     /// A speaker's pill color, by their place in the list: record, petal, sage, butter, then around again.
     static func speakerColor(_ t: Transcript, _ id: String?) -> Color {
@@ -847,7 +848,8 @@ struct PhoneLines: View {
                     }
                 }
                 .padding(.vertical, 6).padding(.horizontal, 6)
-                .background(playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .background(look.isNative ? (playing ? NativeInk.fill : .clear) : playing ? Ink.playing : saved.contains(s.id) ? Ink.saved : .clear,
+                            in: RoundedRectangle(cornerRadius: look.isNative ? 12 : Radius.button, style: .continuous))
                 .padding(.top, showSpeaker && i > 0 ? 12 : 2)
                 .id(s.id)
                 .scrubRow(scrub, index: i, count: segs.count)
@@ -907,7 +909,7 @@ struct PhoneLines: View {
     @ViewBuilder private func lineText(_ s: Segment, playing: Bool) -> some View {
         // Low-confidence words carry a quiet dotted underline (UnclearStyle), as a best guess.
         if playing, PlaybackSync.timingsFresh(s) {
-            PlayingWordText(segment: s, base: UnclearStyle.marked(AttributedString(s.text), s), clock: clock, tint: Ink.accentText.opacity(0.18))
+            PlayingWordText(segment: s, base: UnclearStyle.marked(AttributedString(s.text), s), clock: clock, tint: look.isNative ? NativeInk.fillStrong : Ink.accentText.opacity(0.18))
         } else {
             Text(UnclearStyle.marked(AttributedString(s.text), s))
         }

@@ -50,7 +50,9 @@
         "iPhone: in the Native look, Home is a list like Apple's own apps, with the date under the large title. Quick actions are rows with blue symbols, This week is one cell with the words, recordings, time saved, and the seven days, and recent recordings show what was said. The Record card setting is gone, because Record is always in the tab bar.",
         "iPhone: in the Native look, the Library is a plain list like Mail's inbox. Dictations, Projects, By day, Templates, and Ask are rows at the top, and each recording shows its title and time, its kind, length, and names, and two lines of what was said. The filter button opens a menu with what to show, Sort by, and Select recordings, and fills while a filter is on. Recently Deleted is in the More menu.",
         "iPhone: in the Native look, a transcript keeps two controls beside Back: Share, and More, a menu built like Apple Books' with Copy, Find, and Mark on top, then Summary, Moments, Speakers, Run a template, Actions, Export, Add to project, Text and display, Details, Rename, and Delete. Find lists the lines that match and plays from the one you tap.",
-        "iPhone: in the Native look, a transcript's player is a glass bar at the bottom with the waveform as its scrubber, the time left, the speed, and Follow."
+        "iPhone: in the Native look, a transcript's player is a glass bar at the bottom with the waveform as its scrubber, the time left, the speed, and Follow.",
+        "iPhone: in the Native look, Settings shows each row's symbol in white on a colored square, like Apple's Settings app, and switches are green.",
+        "iPhone: in the Native look, the keyboard session's screens, search highlights, and the playing line use system colors instead of persimmon."
       ]
     },
     {

@@ -49,6 +49,31 @@ enum NativeInk {
     static let keyboardFunction = Color(uiColor: .systemGray3)
 }
 
+/// Find's highlight in Native: the system's yellow at a third, as Safari's and Notes' find draw it.
+enum NativeFind {
+    static let highlight = Color(uiColor: .systemYellow).opacity(0.35)
+}
+
+extension NativeRules.Square {
+    /// The square's system color (Settings' rows, iPhone and Mac alike).
+    var color: Color {
+        switch self {
+        case .blue: return Color(uiColor: .systemBlue)
+        case .indigo: return Color(uiColor: .systemIndigo)
+        case .purple: return Color(uiColor: .systemPurple)
+        case .pink: return Color(uiColor: .systemPink)
+        case .orange: return Color(uiColor: .systemOrange)
+        case .yellow: return Color(uiColor: .systemYellow)
+        case .green: return Color(uiColor: .systemGreen)
+        case .mint: return Color(uiColor: .systemMint)
+        case .teal: return Color(uiColor: .systemTeal)
+        case .cyan: return Color(uiColor: .systemCyan)
+        case .brown: return Color(uiColor: .systemBrown)
+        case .gray: return Color(uiColor: .systemGray)
+        }
+    }
+}
+
 /// A color that follows the look: the Verbose style token, or its Native stand-in. Resolved from the environment, so a
 /// view using it changes with the look without reading `\.look` itself.
 struct LookStyle: ShapeStyle {
@@ -70,6 +95,13 @@ extension ShapeStyle where Self == LookStyle {
     /// Text on a color panel: always ink in Verbose style (the panels stay bright in dark), the label color on Native's
     /// grouped card.
     static var lookOnPanel: LookStyle { LookStyle(verbose: Ink.inkFixed, native: NativeInk.label) }
+    /// Recording's mark (a live dot): persimmon in Verbose style, system red in Native.
+    static var lookRecord: LookStyle { LookStyle(verbose: Ink.persimmon, native: NativeInk.record) }   // verbose look
+    /// A status mark that isn't a recording (the keyboard session's voice bars, a hint's dot): persimmon in Verbose
+    /// style, the accent in Native.
+    static var lookMark: LookStyle { LookStyle(verbose: Ink.persimmon, native: NativeInk.accent) }   // verbose look
+    /// A soft wash behind a marked strip or a flashed row: the persimmon tint in Verbose style, the system fill in Native.
+    static var lookWash: LookStyle { LookStyle(verbose: Ink.persimmonTint, native: NativeInk.fill) }   // verbose look
 }
 
 extension AppLook {
@@ -103,7 +135,8 @@ extension View {
     /// A screen's background: paper, or the system grouped background in Native (`plain`: the system background, for
     /// plain lists and reading surfaces).
     func phonePage(plain: Bool = false) -> some View { modifier(PhonePage(plain: plain)) }
-    /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or the Native accent). A look
+    /// At the app's root, inside `lookRoot()` and `limitMotionRoot()`: the tint (ink, or none in Native, so the
+    /// system accent and green switches apply). A look
     /// switch has no animation of its own here: the switching card covers the rebuild and fades out over it
     /// (LookSwitch.swift). Animating every changed view in both looks at once was most of what made switching slow.
     func phoneLookRoot() -> some View { modifier(PhoneLookRoot()) }
@@ -124,7 +157,9 @@ private struct PhonePage: ViewModifier {
 private struct PhoneLookRoot: ViewModifier {
     @Environment(\.look) private var look
     func body(content: Content) -> some View {
-        content.tint(look.isNative ? NativeInk.accent : Ink.ink)
+        // Native sets no tint: the default accent is system blue, and switches keep the system's green, as in
+        // Apple's own iPhone apps (a blue tint here would turn every switch blue).
+        content.tint(look.isNative ? nil : Ink.ink)
     }
 }
 

@@ -682,14 +682,16 @@ struct SettingsLabel: View {
     }
 
     // brand: native begin
-    /// Native: the row's SF Symbol tinted (no colored square, so persimmon stays the only color), then the title.
+    /// Native: a white glyph on a colored square in a system color, like Apple's Settings (never red, which means
+    /// recording; a destructive row is gray with a red title; NativeRules.square), then the title.
     private var native: some View {
         HStack(spacing: 14) {
-            Image(systemName: icon).font(.system(size: 17))
-                .foregroundStyle(danger ? NativeInk.danger : NativeInk.accent)
+            Image(systemName: icon).font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.white)
                 .symbolEffect(.bounce, value: bounce)
                 .symbolEffectsRemoved(limitMotion)
-                .frame(width: 26)
+                .frame(width: 29, height: 29)
+                .background(NativeRules.square(for: danger ? "trash" : icon).color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.body).foregroundStyle(danger ? NativeInk.danger : NativeInk.label)
@@ -810,7 +812,7 @@ struct SettingsMenuMark: View {
 struct SettingsDivider: View {
     @Environment(\.look) private var look
     var body: some View {
-        if look.isNative { NativeDivider(leading: 54) } else { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 56) }
+        if look.isNative { NativeDivider(leading: 57) } else { Rectangle().fill(Ink.hairline).frame(height: 1).padding(.leading, 56) }
     }
 }
 

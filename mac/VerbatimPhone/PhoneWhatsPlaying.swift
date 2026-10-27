@@ -39,7 +39,7 @@ struct WhatsPlayingSheet: View {
 
                     Button { picker.start() } label: {
                         HStack(spacing: 10) {
-                            Circle().fill(Ink.persimmon).frame(width: 12, height: 12)
+                            Circle().fill(.lookRecord).frame(width: 12, height: 12)
                             Text("Start").font(.system(size: 17, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity, minHeight: 54)

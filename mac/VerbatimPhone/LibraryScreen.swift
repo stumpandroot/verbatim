@@ -667,6 +667,7 @@ struct PhonePassageCard: View {
     var lines: [Segment]
     var count: Int
     var query: String
+    @Environment(\.look) private var look
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -706,7 +707,7 @@ struct PhonePassageCard: View {
         guard !q.isEmpty else { return a }
         var start = a.startIndex
         while start < a.endIndex, let r = a[start...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
-            a[r].backgroundColor = Ink.persimmonTint; a[r].font = .system(size: 15, weight: .semibold)
+            a[r].backgroundColor = look.isNative ? NativeFind.highlight : Ink.persimmonTint; a[r].font = .system(size: 15, weight: .semibold)
             start = r.upperBound
         }
         return a

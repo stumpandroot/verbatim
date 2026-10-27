@@ -186,7 +186,7 @@ struct YouScreen: View {
                     if editingName {
                         TextField("Your name", text: $nameDraft)
                             .lookSerif(nameSize).foregroundStyle(.lookInk)
-                            .tint(Ink.accentText)
+                            .tint(.lookAccentText)
                             .textContentType(.name)
                             .submitLabel(.done)
                             .focused($nameFocused)

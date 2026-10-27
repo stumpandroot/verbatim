@@ -269,7 +269,7 @@ private extension View {
     /// A tab's stack in its own look: the look, its tint, and a fresh identity when the look changes.
     func tabLook(_ look: AppLook) -> some View {
         environment(\.look, look)
-            .tint(look.isNative ? NativeInk.accent : Ink.ink)
+            .tint(look.isNative ? nil : Ink.ink)   // Native: the system accent (blue), switches green
             .id(look)
     }
 }

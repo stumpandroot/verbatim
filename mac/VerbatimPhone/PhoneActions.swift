@@ -61,7 +61,7 @@ struct PhoneActionSheet: View {
                             }
                             .foregroundStyle(.lookAccentText)
                             .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(Ink.persimmonTint)
+                            .background(Rectangle().fill(.lookWash))
                             .accessibilityElement(children: .combine)
                             if !skipped.isEmpty {
                                 Text(skipped).font(.system(size: 12.5)).foregroundStyle(.lookMute)
