@@ -70,8 +70,9 @@ struct TemplateCardSurface: ViewModifier {
     @Environment(\.look) private var look
     func body(content: Content) -> some View {
         if look == .native {
+            // The selected card takes a neutral outline: the accent stays on the selected filter (review M-34).
             content.premiumCard(radius: 14)
-                .overlay { if selected { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Ink.nativeAccent, lineWidth: 1.5) } }
+                .overlay { if selected { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.32), lineWidth: 1.5) } }
         } else {
             content
                 .background(Ink.card, in: RoundedRectangle(cornerRadius: Radius.record, style: .continuous))
@@ -96,7 +97,7 @@ struct TemplateLibraryPane: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 PageTitle(title: "Templates", count: "\(all.count) templates",
-                          lede: "Turn a transcript into notes, a plan, or a draft. Pick one per kind to run when a recording finishes.") {
+                          lede: "Turn a transcript into notes, a plan, or a draft. Pick one per kind to run when a recording finishes. For text you select in any app, use Actions in Settings.") {
                     HStack(spacing: 8) {
                         PillButton(title: "Run automatically", kind: .line, size: .mini, icon: .iconRecent) { nav.pane = .auto }
                             .uiTarget("templates-auto")
@@ -166,12 +167,13 @@ struct TemplateLibraryPane: View {
                 IconGlyph(art: t.art, size: 17, color: Ink.ink)
                     .frame(width: 34, height: 34)
                     .background(Ink.neutralChip, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                // The auto state goes in the meta line, so the name has the whole row (review M-31).
                 VStack(alignment: .leading, spacing: 2) {
                     WebText.serif(parts.0, italic: parts.1, size: 19).foregroundStyle(Ink.ink).lineLimit(1)
-                    Text(TemplateLibrary.summaryLine(t)).font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
+                    Text(TemplateAutoBadge.metaLine(summary: TemplateLibrary.summaryLine(t), kinds: kinds))
+                        .font(.system(size: 12.5)).foregroundStyle(Ink.dim).lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                if !kinds.isEmpty { TemplateAutoBadge(kinds: kinds) }
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
         }
@@ -225,6 +227,13 @@ struct TemplateLibraryPane: View {
 
 /// "↻ Auto · Meeting": a template that runs automatically for some kinds.
 struct TemplateAutoBadge: View {
+    /// A list row's meta line: "Runs for Meeting · Decisions, next steps" (the kinds first), or the summary alone.
+    static func metaLine(summary: String, kinds: [RecordingKind]) -> String {
+        guard !kinds.isEmpty else { return summary }
+        let runs = "Runs for " + kinds.map(\.label).joined(separator: ", ")
+        return summary.isEmpty ? runs : runs + " · " + summary
+    }
+
     var kinds: [RecordingKind]
     var body: some View {
         HStack(spacing: 5) {
@@ -245,6 +254,7 @@ struct TemplateDetailCard: View {
     @ObservedObject private var nav = TemplatesNav.shared
     @ObservedObject private var auto = TemplateSettingsModel.shared
     @State private var confirmDelete = false
+    @Environment(\.look) private var look
 
     var body: some View {
         let parts = TemplateTitle.split(template.name)
@@ -272,9 +282,11 @@ struct TemplateDetailCard: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 Text("Runs automatically for").font(.system(size: 12, weight: .semibold)).foregroundStyle(Ink.mute)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6, alignment: .leading)], alignment: .leading, spacing: 6) {
+                // Kinds are neutral: in Native a chosen kind is a neutral capsule with a check, so the accent stays on the
+                // selected filter (review M-34).
+                FlowRow(spacing: 6, lineSpacing: 6) {
                     ForEach(kinds) { k in
-                        FilterChip(title: k.label, selected: auto.settings.template(for: k) == template.id, small: true) {
+                        FilterChip(title: k.label, selected: auto.settings.template(for: k) == template.id, small: true, neutral: true) {
                             auto.toggle(template.id, for: k)
                         }
                         .uiTarget("template-kind-\(k.rawValue)")
@@ -285,11 +297,13 @@ struct TemplateDetailCard: View {
             }
             HStack(spacing: 8) {
                 TemplateTryOnMenu(template: template)
+                // Native keeps one prominent button on the screen (New Template); these are bordered there.
+                let main: PillKind = look == .native ? .line : .dark
                 if template.isEditable {
-                    PillButton(title: "Edit", kind: .dark, size: .mini) { nav.edit(template) }.uiTarget("template-edit")
+                    PillButton(title: "Edit", kind: main, size: .mini) { nav.edit(template) }.uiTarget("template-edit")
                     PillButton(title: "Duplicate", kind: .line, size: .mini) { nav.duplicate(template) }
                 } else {
-                    PillButton(title: "Duplicate and edit", kind: .dark, size: .mini) { nav.duplicate(template) }.uiTarget("template-duplicate")
+                    PillButton(title: "Duplicate and edit", kind: main, size: .mini) { nav.duplicate(template) }.uiTarget("template-duplicate")
                 }
             }
             if template.isEditable {
@@ -465,6 +479,49 @@ struct TemplateEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // The fields scroll when the sheet would be taller than the window, so the footer always shows.
+            ViewThatFits(in: .vertical) {
+                fields
+                ScrollView { fields.padding(.trailing, 10) }
+            }
+            Rectangle().fill(Ink.hairline).frame(height: 1)
+            HStack(spacing: 10) {
+                IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
+                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12)).foregroundStyle(Ink.mute)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            // macOS order (review M-32): Try on at the left; Cancel and Save, the default action, at the right.
+            HStack(spacing: 8) {
+                TemplateTryOnMenu(template: draft, title: "Try on", onPick: { tryOn = TemplateTryOn(template: draft, transcript: $0) })
+                Spacer(minLength: 8)
+                if let problem { Text(problem).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger).lineLimit(2) }
+                PillButton(title: "Cancel", kind: .line, size: .regular) { dismiss() }
+                PillButton(title: "Save", kind: .dark, size: .regular) { save() }.uiTarget("editor-save")
+            }
+            .background {
+                // Return saves and Escape cancels, as a sheet's default and cancel buttons do.
+                ZStack {
+                    Button("") { save() }.keyboardShortcut(.defaultAction)
+                    Button("") { dismiss() }.keyboardShortcut(.cancelAction)
+                }
+                .buttonStyle(.plain).opacity(0).frame(width: 0, height: 0).allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 26).padding(.top, 26).padding(.bottom, 20)
+        .frame(width: 660)
+        .frame(maxHeight: TemplateEditorSheet.maxHeight(window: app.mainWindow?.contentLayoutRect.height))
+        .background(Ink.paper)
+        .sheet(item: $tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
+    }
+
+    /// The window's content height less 80, so the sheet never runs past the window (no window: no cap).
+    static func maxHeight(window: CGFloat?) -> CGFloat {
+        guard let window, window > 0 else { return .infinity }
+        return max(360, window - 80)
+    }
+
+    private var fields: some View {
+        VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 Eyebrow(text: "Yours")
                 WebText.serif(isNew ? "New" : "Edit", italic: "template", size: 30).foregroundStyle(Ink.ink)
@@ -479,7 +536,7 @@ struct TemplateEditorSheet: View {
                 .frame(width: 260)
                 VStack(alignment: .leading, spacing: 6) {
                     label("Use it for")
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6, alignment: .leading)], alignment: .leading, spacing: 6) {
+                    FlowRow(spacing: 6, lineSpacing: 6) {
                         ForEach(AutoRunSettings.kinds) { k in
                             FilterChip(title: k.label, selected: draft.kinds.contains(k), small: true) {
                                 if let i = draft.kinds.firstIndex(of: k) { draft.kinds.remove(at: i) } else { draft.kinds.append(k) }
@@ -505,31 +562,15 @@ struct TemplateEditorSheet: View {
                 }
                 .background(Ink.reader, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Ink.hairline))
+                // An ink text link: adding a section has nothing to do with recording, so it's never persimmon.
                 Button { draft.sections.append(TemplateSection("", .bullets)) } label: {
                     HStack(spacing: 6) { Image(systemName: "plus").font(.system(size: 11, weight: .bold)); Text("Add a section") }
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.accentText)
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.ink)
                 }
                 .buttonStyle(.plain)
                 .uiTarget("editor-add-section")
             }
-            Rectangle().fill(Ink.hairline).frame(height: 1)
-            HStack(spacing: 10) {
-                IconGlyph(art: .iconPrivacy, size: 14, color: Ink.mute)
-                Text(TemplateCopy.onDevice("Mac")).font(.system(size: 12)).foregroundStyle(Ink.mute)
-                Spacer(minLength: 8)
-                TemplateTryOnMenu(template: draft, title: "Try on", onPick: { tryOn = TemplateTryOn(template: draft, transcript: $0) })
-            }
-            HStack(spacing: 8) {
-                PillButton(title: "Cancel", kind: .line, size: .mini) { dismiss() }
-                PillButton(title: "Save", kind: .dark, size: .mini) { save() }.uiTarget("editor-save")
-                if let problem { Text(problem).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Ink.danger) }
-                Spacer()
-            }
         }
-        .padding(26)
-        .frame(width: 660)
-        .background(Ink.paper)
-        .sheet(item: $tryOn) { x in TemplateTryOnSheet(template: x.template, transcriptID: x.transcript).environmentObject(app) }
     }
 
     private func label(_ s: String) -> some View {
