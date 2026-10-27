@@ -587,6 +587,8 @@ final class Recorder: ObservableObject {
     private var engine: AVAudioEngine?
     private var writer: RecordingWriter?
     private var url: URL?
+    /// The file this recording started as (moments marked meanwhile are written beside it, Marks.swift); nil when idle.
+    var recordingURL: URL? { isRecording ? url : nil }
     private let sink = TapSink()
     /// Live words: every converted buffer of the current and later recordings goes here too (audio thread).
     /// Set it before `start`; nil stops it. The recording itself never waits on it.

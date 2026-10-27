@@ -996,14 +996,22 @@ final class Store: Observable {
         for (f, dur, when) in probe.orphans where !known.contains(f.lastPathComponent) && !RecordingSegments.isActive(f) {
             guard dur > 1 else {
                 if Self.isStaleTinyOrphan(duration: dur, bytes: Self.fileSize(f), modified: when) {
-                    try? fm.removeItem(at: f); Self.clearContinuation(f); Self.clearThoughtMark(f)
+                    try? fm.removeItem(at: f); Self.clearContinuation(f); Self.clearThoughtMark(f); Marks.clear(f)
                     Log.note("recovery: deleted \(f.lastPathComponent), \(String(format: "%.1f", dur)) s and over a week old")
                 }
                 continue
             }
-            if let id = recoverContinuation(f) { recovered.append(id); continue }
+            // Moments marked before the app closed (Marks.swift) come back with the recording.
+            let marks = Marks.load(for: f)
+            if let id = recoverContinuation(f) {
+                if !marks.isEmpty { update(id) { x in x.notes += RecordingMark.notes(marks, offset: x.duration) } }
+                Marks.clear(f)
+                recovered.append(id); continue
+            }
             guard let name = adoptRecording(f) else { continue }
             var t = Self.recoveredTranscript(audioFileName: name, duration: dur, recordedAt: when, skipped: skipped[f.lastPathComponent] ?? [])
+            t.notes += RecordingMark.notes(marks)
+            Marks.clear(f)
             // A thought the app quit in the middle of: a Thoughts recording on the day it started.
             if let started = Self.thoughtStart(for: f) {
                 t.kind = .idea; t.kindIsAuto = false

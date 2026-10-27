@@ -96,6 +96,8 @@ final class AppAudioCapture: NSObject, ObservableObject, SCStreamOutput, SCStrea
     private var stream: SCStream?
     private var writer: RecordingWriter?
     private var url: URL?
+    /// The file being captured to (moments marked meanwhile are written beside it, Marks.swift); nil when idle.
+    var recordingURL: URL? { isCapturing ? url : nil }
     private var stopTask: Task<StoppedCapture?, Never>?
     /// A capture the stream ended on its own, saved, and not yet handed to anyone.
     private var unclaimed: StoppedCapture?

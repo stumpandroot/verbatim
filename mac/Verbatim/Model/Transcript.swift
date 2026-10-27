@@ -262,8 +262,16 @@ struct Note: Codable, Identifiable, Equatable {
     /// The action that wrote this note with Apple Intelligence ("Make a plan"), so the transcript view and exports
     /// keep it marked as the model's. nil for notes the person wrote. Older files decode without it.
     var aiAction: String? = nil
+    /// Marked while recording (Marks.swift): where the mark came from (`MarkSource`'s raw value, "lockScreen"), kept as
+    /// text so a source a newer build adds (the Apple Watch) still reads. nil for moments made any other way. Older
+    /// files decode without it.
+    var markSource: String? = nil
+    /// The Mac's mark hotkey as it was when you pressed it ("⌃⌥B"), for "Mac, ⌃⌥B". nil for every other source.
+    var markKeys: String? = nil
 
     var byModel: Bool { aiAction != nil }
+    /// A moment marked while recording, from the Dynamic Island, the Lock Screen, the Action button, the Mac, or the app.
+    var isMark: Bool { markSource != nil }
 }
 
 /// A template's result in a transcript (Templates.swift): what Apple Intelligence wrote, which template wrote it, and

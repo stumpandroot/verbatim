@@ -227,6 +227,10 @@ I = {
     # a dot for each tab.
     'TabBar': [s('M7 3H17A2.5 2.5 0 0 1 19.5 5.5V18.5A2.5 2.5 0 0 1 17 21H7A2.5 2.5 0 0 1 4.5 18.5V5.5A2.5 2.5 0 0 1 7 3Z'),
                s('M4.5 15.5H19.5'), fl(C(8.5, 18.3, 1)), fl(C(12, 18.3, 1)), fl(C(15.5, 18.3, 1))],
+    # Mark a moment while recording (mockup "Library features", section 3, October 26, 2026), same grammar: a bookmark
+    # with a plus to mark, and with a check once marked.
+    'Mark': [s('M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z'), s('M12 7.5V12.5'), s('M9.5 10H14.5')],
+    'Marked': [s('M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z'), s('M9.3 10L11.3 12L14.8 8.5')],
 }
 
 

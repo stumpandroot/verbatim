@@ -215,6 +215,8 @@ extension BrandArt {
     static let iconSpeak = BrandArt(box: iconGrid, strokes: [.path("M5.5 20.5 V17 C3.05 15.17 2.22 11.88 3.49 9.1 C4.76 6.32 7.8 4.8 10.78 5.45 C13.77 6.1 15.9 8.74 15.9 11.8 L17.5 15.5 H15.3 V18 C15.46 18.61 15.32 19.26 14.93 19.75 C14.53 20.24 13.93 20.52 13.3 20.5 H11"), .path("M18.8 6.5C20 7.8 20 10.2 18.8 11.5"), .path("M21 4.5C23.2 6.9 23.2 11.6 21 14")], strokeWidth: 1.5)
     static let iconWidgets = BrandArt(box: iconGrid, strokes: [.path("M5 3.5 H9.5 C10.33 3.5 11 4.17 11 5 V9.5 C11 10.33 10.33 11 9.5 11 H5 C4.17 11 3.5 10.33 3.5 9.5 V5 C3.5 4.17 4.17 3.5 5 3.5 Z"), .path("M14.5 3.5 H19 C19.83 3.5 20.5 4.17 20.5 5 V9.5 C20.5 10.33 19.83 11 19 11 H14.5 C13.67 11 13 10.33 13 9.5 V5 C13 4.17 13.67 3.5 14.5 3.5 Z"), .path("M5 13 H19 C19.83 13 20.5 13.67 20.5 14.5 V19 C20.5 19.83 19.83 20.5 19 20.5 H5 C4.17 20.5 3.5 19.83 3.5 19 V14.5 C3.5 13.67 4.17 13 5 13 Z")], strokeWidth: 1.5)
     static let iconTabBar = BrandArt(box: iconGrid, strokes: [.path("M7 3 H17 C18.38 3 19.5 4.12 19.5 5.5 V18.5 C19.5 19.88 18.38 21 17 21 H7 C5.62 21 4.5 19.88 4.5 18.5 V5.5 C4.5 4.12 5.62 3 7 3 Z"), .path("M4.5 15.5H19.5")], fills: [.circle(8.5, 18.3, 1), .circle(12, 18.3, 1), .circle(15.5, 18.3, 1)], strokeWidth: 1.5)
+    static let iconMark = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M12 7.5V12.5"), .path("M9.5 10H14.5")], strokeWidth: 1.5)
+    static let iconMarked = BrandArt(box: iconGrid, strokes: [.path("M6.5 3.5H17.5V20.5L12 16.5L6.5 20.5Z"), .path("M9.3 10L11.3 12L14.8 8.5")], strokeWidth: 1.5)
     // END ICONS
 
     // Kind and feature diagrams (capture-and-archive canvas, October 2026): the same geometric line family as the

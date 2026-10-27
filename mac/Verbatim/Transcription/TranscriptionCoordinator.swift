@@ -317,6 +317,7 @@ final class TranscriptionCoordinator: ObservableObject {
     private func finished(_ id: UUID, token: UUID? = nil) {
         guard runningID == id, token == nil || token == runToken else { return }
         runningID = nil; runningTask = nil
+        snapMarks(id)
         detectSponsors(id)
         labelIfNeeded(id)
         // Names for two or more speakers, as suggestions (after the speaker pass, where it runs on its own).
@@ -325,6 +326,17 @@ final class TranscriptionCoordinator: ObservableObject {
         // Run automatically: once its kind and summary are in, the kind's template runs, once (Templates.swift).
         TemplateCenter.shared.recordingFinished(id, store: store)
         pump()
+    }
+
+    /// Moments marked while recording (Marks.swift) move onto the line that was being said, once the words are in:
+    /// the line's time, and its first sentence unless the moment was named. Marks already on a line stay put.
+    private func snapMarks(_ id: UUID) {
+        guard let t = store.transcript(id), t.status == .ready, !t.segments.isEmpty,
+              t.notes.contains(where: { $0.isMark && $0.segmentId == nil && $0.at != nil }) else { return }
+        let snapped = Marks.snap(t.notes, to: t.segments)
+        guard snapped != t.notes else { return }
+        store.update(id) { $0.notes = Marks.snap($0.notes, to: $0.segments) }
+        Log.note("marks: \(t.notes.filter(\.isMark).count) moment(s) on their lines")
     }
 
     /// Once a recording is transcribed (speakers included): suggests a kind, a title, and tags on this device
