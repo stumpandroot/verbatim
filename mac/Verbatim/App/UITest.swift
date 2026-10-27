@@ -2100,10 +2100,12 @@ extension UITest {
         // The mic on the page starts and stops a thought (simulated audio) that lands on today's page.
         capture.simulate = true
         var before = app.store.page(.idea, day: today, hour: hour).count
+        let beforeIDs = Set(app.store.page(.idea, day: today, hour: hour).map(\.id))
         await panelStep("thoughts: the page's mic starts a thought", panel, target: "page-mic", check: { capture.isRecording })
         await panelStep("thoughts: the page's mic stops it, and it lands on today's page", panel, target: "page-mic",
                         check: { !capture.isRecording && app.store.page(.idea, day: today, hour: hour).count == before + 1 })
-        let added = app.store.page(.idea, day: today, hour: hour).last
+        // The new thought by ID, not position: the seeded thoughts are stamped 2 PM, so before 2 PM the new one sorts first.
+        let added = app.store.page(.idea, day: today, hour: hour).first { !beforeIDs.contains($0.id) }
         check("thoughts: a new thought is saved as audio before it's transcribed",
               added.map { $0.audioFileName != nil && ($0.status == .processing || $0.status == .ready || $0.status == .failed) && $0.kind == .idea } == true)
         check("thoughts: the page never became key", !panel.isKeyWindow)
