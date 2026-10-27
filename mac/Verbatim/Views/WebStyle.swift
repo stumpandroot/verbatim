@@ -172,7 +172,7 @@ struct SectionTitle: View {
                 Spacer(minLength: 12)
                 if let link {
                     Button(NativeText.titleCase(link), action: action)
-                        .buttonStyle(.plain).font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.nativeAccent)
+                        .buttonStyle(.plain).font(.system(size: 12, weight: .medium)).foregroundStyle(NativeInk.accent)
                         .accessibilityLabel(linkLabel ?? link)
                         .accessibilityHint(linkHint)
                 }
@@ -456,7 +456,7 @@ struct StatusText: View {
             Text(text)
         }
         .font(.system(size: 12, weight: tone == .accent || tone == .danger ? .medium : .regular).monospacedDigit())
-        .foregroundStyle(tone == .accent ? AnyShapeStyle(Ink.nativeAccent) : tone == .danger ? AnyShapeStyle(NativeInk.danger) : AnyShapeStyle(.secondary))
+        .foregroundStyle(tone == .accent ? AnyShapeStyle(NativeInk.accent) : tone == .danger ? AnyShapeStyle(NativeInk.danger) : AnyShapeStyle(.secondary))
         .lineLimit(1).fixedSize()
     }
 
@@ -721,7 +721,7 @@ struct TextLinkLabel: View {
     var body: some View {
         Group {
             if look == .native {
-                Text(NativeText.titleCase(title)).font(.system(size: 13)).foregroundStyle(Ink.nativeAccent)
+                Text(NativeText.titleCase(title)).font(.system(size: 13)).foregroundStyle(NativeInk.accent)
             } else {
                 HStack(spacing: 4) {
                     if glyph == .plus { ArtIcon(art: .webPlus, size: 13, lineWidth: 1.5) }

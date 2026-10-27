@@ -247,7 +247,7 @@ struct SettingsVersionFooter: View {
                     if look != .native { ArtIcon(art: .webArrow, size: 12, lineWidth: 1.5) }
                 }
                 .font(.system(size: look == .native ? 11 : 12.5, weight: .semibold))
-                .foregroundStyle(look == .native ? Ink.nativeAccent : Ink.ink)
+                .foregroundStyle(look == .native ? NativeInk.accent : Ink.ink)
             }
             .padding(.horizontal, 12).padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)

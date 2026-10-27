@@ -768,14 +768,26 @@ enum UITest {
         await backSteps(app: app, window: window, native: true)
         app.go(.home); app.captureMode = "voice"
         await show("01-home-native")
+        // Quick actions are rows across Home's column, so a name and a blocking status ("Needs Accessibility") never
+        // truncate (review M-06, now as rows).
+        let dictateRow = frames[HomeView.tileTarget(.dictate)]
+        check("native: Home's quick actions are full-width rows (Dictate \(dictateRow.map { "\(Int($0.width))" } ?? "none") pt)",
+              dictateRow.map { $0.width >= 300 } == true)
         await editHomeSteps(app: app, window: window, look: .native, suffix: "-native")
         await homeThoughtsSteps(app: app, window: window, look: .native, suffix: "-native")
         app.projectFilter = nil; app.libraryKind = nil; app.libraryFilter = .all
         app.go(.library)
-        await show("05-library-native")
+        // The Library opens as a table (mockup section 8): with the inspector, then closed as the mockup draws it, then
+        // the List view with what was said.
+        let inspectorWas = NativeNav.shared.inspector
         NativeNav.shared.libraryTable = true
+        await show("05-library-native")
+        NativeNav.shared.inspector = false
         await show("05b-library-table-native")
+        NativeNav.shared.inspector = inspectorWas
         NativeNav.shared.libraryTable = false
+        await show("05c-library-list-native")
+        NativeNav.shared.libraryTable = true
         if let m = memo { app.go(.transcript(m)) }
         await show("06-transcript-native")
         app.go(.byDay(.idea))
@@ -878,7 +890,9 @@ enum UITest {
         check("edit home\(suffix): Reset puts Home back", store.layout(hl) == HomeLayout.defaults(.mac, hl)
               && Set(HomeProbe.sections.keys) == Set(store.layout(hl).shown.map(\.section)))
         if look == .native {
-            check("edit home\(suffix): Record starts hidden in Native, where the floating record button stands in", !store.layout(hl).isVisible(.record) && HomeProbe.sections[.record] == nil)
+            check("edit home\(suffix): Record starts hidden in Native, where Record is always in the toolbar", !store.layout(hl).isVisible(.record) && HomeProbe.sections[.record] == nil)
+            check("edit home\(suffix): Native Home leads with quick actions, then This week, then Recent recordings, as the iPhone does",
+                  store.layout(hl).shown.map(\.section) == [.tiles, .week, .recent])
         }
     }
 
@@ -949,9 +963,27 @@ enum UITest {
         check("native look: the serif role is SF Pro", Ink.serif(30) == NativeSwap.serif(30, weight: .regular) && Ink.serif(30) != SurfaceFont.serif(30))
         let light = NativeSwap.color(light: Ink.paperHex, dark: false, increased: false)
         let dark = NativeSwap.color(light: Ink.paperHex, dark: true, increased: false)
-        check("native look: the window is the warm off-white in light and near black in dark",
-              light.map { abs($0.redComponent - 0xF6 / 255.0) < 0.01 && abs($0.blueComponent - 0xF1 / 255.0) < 0.01 } == true
-              && dark.map { $0.redComponent < 0.1 } == true)
+        func same(_ a: NSColor?, _ b: NSColor) -> Bool {
+            guard let a = a?.usingColorSpace(.sRGB), let b = b.usingColorSpace(.sRGB) else { return false }
+            return abs(a.redComponent - b.redComponent) < 0.01 && abs(a.greenComponent - b.greenComponent) < 0.01 && abs(a.blueComponent - b.blueComponent) < 0.01
+        }
+        let aqua = NSAppearance(named: .aqua)!, darkAqua = NSAppearance(named: .darkAqua)!
+        check("native look: the window is the system's window background in light and dark (no warm glow)",
+              same(light, NSColor.windowBackgroundColor.resolved(in: aqua)) && same(dark, NSColor.windowBackgroundColor.resolved(in: darkAqua)))
+        // The accent follows System Settings › Appearance: tinted text resolves to the system accent, and Native's
+        // accent is SwiftUI's accent color (no AccentColor asset, so Multicolor is blue).
+        let accentText = NativeSwap.color(light: 0xB23F24, dark: false, increased: false)   // Ink.accentText's light value
+        check("native look: the accent follows the system accent color", NativeRole.accentText.nsColor == .controlAccentColor
+              && same(accentText, NSColor.controlAccentColor.resolved(in: aqua)) && NativeInk.accent == Color.accentColor)   // brand: native
+        // No persimmon in Native's chrome: the accent isn't the old #D5431F, and the record dot is the system red.
+        let persimmon = NSColor(srgbRed: 0xD5 / 255.0, green: 0x43 / 255.0, blue: 0x1F / 255.0, alpha: 1)
+        var record: NSColor?, window: NSColor?
+        aqua.performAsCurrentDrawingAppearance {
+            record = NSColor(NativeInk.record).usingColorSpace(.sRGB)
+            window = NSColor(NativeInk.window).usingColorSpace(.sRGB)
+        }
+        check("native look: no persimmon in the chrome (the accent, the window, and the record dot are system colors)",
+              !same(accentText, persimmon) && same(record, NSColor.systemRed.resolved(in: aqua)) && same(window, NSColor.windowBackgroundColor.resolved(in: aqua)))
         let before = NativeSwap.cachedColorCount
         _ = NativeSwap.color(light: Ink.inkHex, dark: true, increased: false)
         let afterFirst = NativeSwap.cachedColorCount
@@ -979,6 +1011,35 @@ enum UITest {
                    check: { app.screen.transcriptID != nil && app.screen.transcriptID == first })
         await step("native: the toolbar's Back returns to the Library", window, target: "tb-back", check: { app.screen == .library })
         await step("native: Open Transcript in the preview opens it", window, target: "lib-open", check: { app.screen.transcriptID != nil })
+
+        // The Library as a table (mockup section 8): the default, and a click on a row selects it for the inspector.
+        let fresh = UserDefaults(suiteName: "co.stumpandroot.verbatim.uitest.native") ?? .standard
+        fresh.removeObject(forKey: NativeNav.tableKey)
+        check("native: the Library opens as a table until you pick List", NativeNav.storedTable(fresh))
+        nav.libraryTable = true
+        nav.librarySelection = nil
+        app.go(.library)
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        if windowFrames["lib-cell-1"]?() != nil {
+            await step("native: clicking a table row selects it", window, target: "lib-cell-1",
+                       check: { app.screen == .library && nav.librarySelection != nil && nav.librarySelection != first })
+        } else {
+            check("native: the table shows its rows", windowFrames["lib-cell-0"]?() != nil)
+        }
+
+        // Record in the toolbar (decision 8): a click records a voice note (or asks for the mic); its menu has Dictate,
+        // Live captions, and Import, then Record as's six choices.
+        check("native: Record's menu lists Dictate, Live captions, and Import, then the six ways to record",
+              NativeRecordMenu.extras == ["Dictate", "Live Captions", "Import…"] && RecordChoice.all.count == 6
+              && windowFrames["tb-record-menu"]?() != nil)
+        await step("native: the toolbar's Record asks for the mic or records", window, target: "tb-record",
+                   check: { app.showMicSheet || app.recorder.isRecording })
+        if app.showMicSheet {
+            app.showMicSheet = false
+        } else if app.recorder.isRecording {
+            _ = app.recorder.stop()
+        }
+        try? await Task.sleep(nanoseconds: 600_000_000)
         app.go(.home)
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -2740,7 +2801,7 @@ extension UITest {
         check("\(name): previews run a greeting's blank line into one space (M-04)",
               HomeDictationText.oneLine("Hi Jonathan,\n\nI think we should meet  on Friday.") == "Hi Jonathan, I think we should meet on Friday.")
         check("\(name): Edit Home names the tiles row Tiles (M-02)", HomeSection.tiles.title == "Tiles")
-        check("\(name): a compact Native tile row needs 760 pt, else two by two (M-06)", HomeView.nativeTilesRowWidth == 760)
+        check("\(name): Native's quick actions are rows as wide as Home's column, so names never truncate (M-06)", HomeView.nativeColumn >= 560)
         var memo = Transcript(title: "m", source: .voiceMemo, sourceLabel: "Voice memo", duration: 67, audioFileName: "m.m4a", model: "")
         memo.status = .ready
         memo.createdAt = Date()
@@ -2849,8 +2910,8 @@ extension UITest {
               && LiveCaptionsView.waitingLine(.mic, open: true).hasPrefix("Listening to your mic."))
         check("review: Return pastes the selected recent dictation, as its pill says",
               Recall.keyAction(keyCode: 36, modifiers: [], queryEmpty: true) == .pasteSelected)
-        check("review: Premium Native's glow is never cut off by its frame",
-              [600, 900, 1400, 2400].allSatisfy { PremiumGlow.height(width: CGFloat($0)) >= PremiumGlow.radius(width: CGFloat($0)) })
+        check("review: Native draws no glow: its window is the system's window background",
+              NativeRole.window.nsColor == NSColor.windowBackgroundColor)
         check("review: the on-device promise has one phrasing", TemplateCopy.onDevice("Mac") == "On this Mac with Apple Intelligence. Nothing leaves it.")
         check("review: saved actions draw brand glyphs", FlowAction.builtIn.allSatisfy { a in
             a.symbol == "sparkles" || a.symbol == "wand.and.stars" || a.art.strokes.count > 1 })

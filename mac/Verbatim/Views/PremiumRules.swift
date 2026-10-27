@@ -1,94 +1,9 @@
 import Foundation
 
-// Pure rules behind Premium Native on the Mac (DESIGN.md §13.2), Foundation only, so mac/tools/test-premium.sh runs
-// them on Linux: the gradient cards' stop positions and where white text may sit on them, the recordings' date line,
-// speakers' shares, This week's bars, whether the Library's scope fits as a segmented control, and the toolbar's
-// back and forward history.
-
-// MARK: - Gradient cards
-
-/// The three gradient cards. Colors are in Tokens.swift (`PremiumInk.macPersimmon…`, `ink…`, and `macSage…`); positions
-/// and text placement are here.
-enum PremiumCard: String, CaseIterable {
-    case persimmon, ink, sage
-
-    /// Where each color stop sits, top (0) to bottom (1), matching those arrays.
-    var locations: [Double] {
-        switch self {
-        case .persimmon: return [0, 0.4, 1]
-        case .ink: return [0, 0.58, 1]
-        case .sage: return [0, 1]
-        }
-    }
-}
-
-/// A piece of white text on a gradient card: where it sits (a band from the card's top, 0, to its bottom, 1) and
-/// whether it's large text by WCAG (18 pt and up, or 14 pt bold and up), which needs 3:1 instead of 4.5:1.
-struct PremiumCardText: Equatable {
-    var card: PremiumCard
-    var name: String
-    var from: Double
-    var to: Double
-    var large: Bool
-
-    /// Every white text the Mac's gradient cards carry. Small text sits low, where the gradient is deepest.
-    static let all: [PremiumCardText] = [
-        // This week (Home): "This week ›" (15 pt bold) at the top, the big number, "words dictated", the day letters.
-        PremiumCardText(card: .persimmon, name: "This week label", from: 0.06, to: 0.2, large: true),
-        PremiumCardText(card: .persimmon, name: "This week number", from: 0.5, to: 0.82, large: true),
-        PremiumCardText(card: .persimmon, name: "words dictated", from: 0.82, to: 0.93, large: false),
-        PremiumCardText(card: .persimmon, name: "day letters", from: 0.86, to: 0.94, large: false),
-        // Summary (transcript and Library preview): "Summary" (14 pt bold), the overview (17 pt bold), key points,
-        // and "Made by Apple Intelligence" at the foot.
-        PremiumCardText(card: .persimmon, name: "Summary label", from: 0.04, to: 0.16, large: true),
-        PremiumCardText(card: .persimmon, name: "summary overview", from: 0.16, to: 0.42, large: true),
-        PremiumCardText(card: .persimmon, name: "key points", from: 0.42, to: 0.9, large: false),
-        PremiumCardText(card: .persimmon, name: "Apple Intelligence note", from: 0.9, to: 0.97, large: false),
-        // Stat cards (Home): the number (40 pt) and its two-line label (14 pt bold), centered.
-        PremiumCardText(card: .ink, name: "recordings number", from: 0.25, to: 0.75, large: true),
-        PremiumCardText(card: .ink, name: "recordings label", from: 0.3, to: 0.7, large: false),
-        PremiumCardText(card: .sage, name: "saved number", from: 0.25, to: 0.75, large: true),
-        PremiumCardText(card: .sage, name: "saved label", from: 0.3, to: 0.7, large: true),
-    ]
-}
-
-/// WCAG contrast on a gradient, in sRGB.
-enum PremiumContrast {
-    static func luminance(_ hex: UInt32) -> Double {
-        func c(_ v: UInt32) -> Double { let s = Double(v) / 255; return s <= 0.03928 ? s / 12.92 : pow((s + 0.055) / 1.055, 2.4) }
-        return 0.2126 * c((hex >> 16) & 0xFF) + 0.7152 * c((hex >> 8) & 0xFF) + 0.0722 * c(hex & 0xFF)
-    }
-
-    static func ratio(_ a: UInt32, _ b: UInt32) -> Double {
-        let la = luminance(a), lb = luminance(b)
-        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-    }
-
-    /// The gradient's color at `t` (0 at the top, 1 at the bottom), mixed in sRGB between the stops around it.
-    static func color(at t: Double, stops: [UInt32], locations: [Double]) -> UInt32 {
-        guard let first = stops.first, stops.count == locations.count else { return 0 }
-        let x = min(1, max(0, t))
-        guard let i = locations.firstIndex(where: { $0 >= x }) else { return stops[stops.count - 1] }
-        if i == 0 { return first }
-        let a = locations[i - 1], b = locations[i]
-        let f = b > a ? (x - a) / (b - a) : 0
-        func mix(_ shift: UInt32) -> UInt32 {
-            let p = Double((stops[i - 1] >> shift) & 0xFF), q = Double((stops[i] >> shift) & 0xFF)
-            return UInt32((p + (q - p) * f).rounded()) << shift
-        }
-        return mix(16) | mix(8) | mix(0)
-    }
-
-    /// The lowest contrast white text gets anywhere in the band from `from` to `to`.
-    static func worstWhite(from: Double, to: Double, stops: [UInt32], locations: [Double]) -> Double {
-        var worst = Double.infinity
-        for k in 0...20 {
-            let t = from + (to - from) * Double(k) / 20
-            worst = min(worst, ratio(color(at: t, stops: stops, locations: locations), 0xFFFFFF))
-        }
-        return worst
-    }
-}
+// Pure rules behind the Native look on the Mac (DESIGN.md §13.2), Foundation only, so mac/tools/test-premium.sh runs
+// them on Linux: the recordings' date line and the Library table's date cell, a row's meta line, speakers' shares and
+// talk time, This week's bars, the Settings window's colored squares, the Library table's sort, and the toolbar's back
+// and forward history.
 
 // MARK: - Recordings
 
@@ -141,7 +56,7 @@ enum SpeakerShares {
     }
 }
 
-/// This week's mini chart on the gradient card: one bar per day.
+/// This week's mini chart in the stat cell: one bar per day.
 enum WeekBars {
     struct Bar: Equatable { var height: Double; var stub: Bool }
 
@@ -157,20 +72,128 @@ enum WeekBars {
     }
 }
 
-// MARK: - Toolbar
+// MARK: - Library table
 
-enum ScopeBarStyle {
-    /// About how wide a segmented control with these labels draws at 12.5 pt (6.6 pt a character, 24 pt of padding
-    /// per segment, and the track's 4 pt).
-    static func segmentedWidth(_ labels: [String]) -> Double {
-        labels.reduce(4) { $0 + Double($1.count) * 6.6 + 24 }
-    }
-
-    /// The Library's scope shows as a segmented control when it fits in `available` points; otherwise a pop-up menu.
-    static func segmented(_ labels: [String], available: Double) -> Bool {
-        labels.count <= 7 && segmentedWidth(labels) <= available
+/// The Library table's date column (mockup section 8): "Today, 9:00 AM", the weekday for the last week ("Mon, 4:10 PM"),
+/// the month and day for this year ("Oct 12, 2:00 PM"), and the date with its year before that ("Oct 12, 2025").
+enum NativeDateCell {
+    static func text(_ date: Date, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let time = DateFormatter()
+        time.locale = locale; time.timeZone = calendar.timeZone
+        time.dateStyle = .none; time.timeStyle = .short
+        func day(_ template: String) -> String {
+            let f = DateFormatter()
+            f.locale = locale; f.timeZone = calendar.timeZone
+            f.setLocalizedDateFormatFromTemplate(template)
+            return f.string(from: date)
+        }
+        if calendar.isDate(date, inSameDayAs: now) { return "Today, \(time.string(from: date))" }
+        let startOfToday = calendar.startOfDay(for: now)
+        if let weekAgo = calendar.date(byAdding: .day, value: -6, to: startOfToday), date >= weekAgo, date < startOfToday {
+            return "\(day("EEE")), \(time.string(from: date))"
+        }
+        if calendar.isDate(date, equalTo: now, toGranularity: .year) { return "\(day("MMM d")), \(time.string(from: date))" }
+        return day("MMM d yyyy")
     }
 }
+
+/// A row's second line in Native's lists.
+enum NativeRowMeta {
+    /// Library: "Meeting · 38:12 · Anika, Marcus" (a text-only thought has no length; no people, no third part).
+    static func library(kind: String, length: String?, people: String) -> String {
+        ([kind, length ?? ""] + [people]).filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Home: "Meeting · Today, 9:00 AM".
+    static func home(kind: String, when: String) -> String {
+        [kind, when].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+/// The Library table's columns and how each one sorts. Sorting by date keeps the day headers (Today, Yesterday);
+/// any other column lists the recordings flat, as Finder does.
+enum NativeTableSort: String, CaseIterable {
+    case name, kind, people, date, length
+
+    /// Each column's first click: dates and lengths newest and longest first, words A to Z.
+    var startsDescending: Bool { self == .date || self == .length }
+
+    /// The Library's sort (LibrarySort's raw value: newest, oldest, longest, title) for a column and direction, when
+    /// there is one, so the List view and the table agree.
+    static func librarySort(_ column: NativeTableSort, descending: Bool) -> String? {
+        switch (column, descending) {
+        case (.date, true): return "newest"
+        case (.date, false): return "oldest"
+        case (.length, true): return "longest"
+        case (.name, false): return "title"
+        default: return nil
+        }
+    }
+
+    /// The column and direction a stored Library sort starts the table on.
+    static func column(forLibrarySort raw: String) -> (NativeTableSort, Bool) {
+        switch raw {
+        case "oldest": return (.date, false)
+        case "longest": return (.length, true)
+        case "title": return (.name, false)
+        default: return (.date, true)
+        }
+    }
+
+    /// Whether the table shows day headers: only while it's sorted by date.
+    var grouped: Bool { self == .date }
+
+    /// Orders two rows by this column's values; ties keep the newest first.
+    static func ordered(_ a: (name: String, kind: String, people: String, date: Date, length: Double),
+                        _ b: (name: String, kind: String, people: String, date: Date, length: Double),
+                        by column: NativeTableSort, descending: Bool) -> Bool {
+        func cmp(_ x: String, _ y: String) -> ComparisonResult { x.localizedStandardCompare(y) }
+        let r: ComparisonResult
+        switch column {
+        case .name: r = cmp(a.name, b.name)
+        case .kind: r = cmp(a.kind, b.kind)
+        case .people:
+            // Rows with no people sort after the rest either way.
+            if a.people.isEmpty != b.people.isEmpty { return !a.people.isEmpty }
+            r = cmp(a.people, b.people)
+        case .date: r = a.date == b.date ? .orderedSame : (a.date < b.date ? .orderedAscending : .orderedDescending)
+        case .length: r = a.length == b.length ? .orderedSame : (a.length < b.length ? .orderedAscending : .orderedDescending)
+        }
+        if r == .orderedSame { return a.date > b.date }
+        return descending ? r == .orderedDescending : r == .orderedAscending
+    }
+}
+
+// MARK: - Settings
+
+/// The Settings window's colored squares (mockup sections 6 and 10), in system colors by name, as System Settings
+/// draws them: Apple's own meanings where one exists (blue for Personalization and Privacy, gray for the keyboard and
+/// the account) and never red, which stays with recording.
+enum NativeSettingsSquare {
+    enum Tint: String, CaseIterable { case blue, orange, gray, indigo, purple, teal, cyan, green, pink, brown, mint, yellow }
+
+    /// The square's color for a Settings pane, by `SettingsTab` raw value.
+    static func tint(_ raw: String) -> Tint {
+        switch raw {
+        case "general": return .blue
+        case "transcription": return .orange
+        case "dictate": return .gray
+        case "floatingButton": return .indigo
+        case "actions": return .purple
+        case "meetings": return .teal
+        case "watched": return .blue
+        case "storage": return .cyan
+        case "privacy": return .blue
+        case "account": return .gray
+        case "about": return .green
+        case "features": return .pink
+        case "whatsNew": return .yellow
+        default: return .gray
+        }
+    }
+}
+
+// MARK: - Toolbar
 
 /// Back and forward through the screens you visited (both looks' Back and Forward, App/NavTrail.swift), like a
 /// browser's history: going somewhere new starts a new trail from here (Forward clears), and Back and Forward walk it.

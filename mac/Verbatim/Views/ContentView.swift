@@ -105,11 +105,12 @@ struct ContentView: View {
     }
 
     /// Native's screen: swapped in place, with no transition or animation, as Mail and Notes do. The id gives each
-    /// screen (and each transcript) its own identity, so its `onAppear` times the change. Premium Native's warm
-    /// background and glow sit behind every screen, and the record button floats over Home and the Library.
+    /// screen (and each transcript) its own identity, so its `onAppear` times the change. The system's window
+    /// background sits behind every screen; Record lives in the toolbar (NativeChrome.swift), so nothing floats over
+    /// the content.
     private var nativeDetail: some View {
         ZStack {
-            PremiumBackground()
+            NativeInk.window.ignoresSafeArea()
             screenView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear {
@@ -118,11 +119,6 @@ struct ContentView: View {
                 }
                 .screenRootMarker(screenKey)
                 .id(screenKey)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if (app.screen == .home || app.screen == .library) && !app.recorder.isRecording && !app.capture.isCapturing {
-                PremiumRecordButton(label: app.screen == .home).padding(.trailing, 28).padding(.bottom, 26)
-            }
         }
         .overlay(alignment: .bottom) { ToastView() }
     }

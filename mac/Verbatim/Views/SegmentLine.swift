@@ -56,13 +56,24 @@ struct SegmentLine: View {
     @ViewBuilder private var lineText: some View {
         // Low-confidence words carry a quiet dotted underline (UnclearStyle), as a best guess.
         if current, PlaybackSync.timingsFresh(segment) {
-            PlayingWordText(segment: segment, base: UnclearStyle.marked(highlighted(segment.text), segment), clock: app.player.clock, tint: Ink.iris.opacity(0.22))
+            PlayingWordText(segment: segment, base: UnclearStyle.marked(highlighted(segment.text), segment), clock: app.player.clock,
+                            tint: look == .native ? NativeInk.accentSoft : Ink.iris.opacity(0.22))
         } else {
             Text(UnclearStyle.marked(highlighted(segment.text), segment))
         }
     }
 
     private var highlight: Color {
+        if look == .native {
+            // brand: native begin
+            // Native (mockup section 9): the line being played gets a light neutral fill, and marks lose the butter
+            // wash (the chip under the line says it's marked).
+            if current { return Color.primary.opacity(0.07) }
+            if selected { return Ink.wash }
+            if hover { return Color.primary.opacity(0.035) }
+            return .clear
+            // brand: native end
+        }
         if current { return Ink.playing }
         if saved { return Ink.saved }
         if selected { return Ink.wash }
@@ -116,7 +127,7 @@ struct SegmentLine: View {
                     .background(highlight, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     .onHover { hover = $0 }
                     .animation(Motion.touch, value: hover)
-                    .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
+                    .overlay(alignment: .leading) { if selected { RoundedRectangle(cornerRadius: 2).fill(look == .native ? NativeInk.accent : Ink.iris).frame(width: 3).padding(.vertical, 4).offset(x: -10) } }
                     .contentShape(Rectangle())
                     // A click selects the line (for a passage note) and, once the audio is open, plays from it.
                     .onTapGesture {
@@ -189,7 +200,7 @@ struct MarkChip: View {
         let native = look == .native
         HStack(spacing: 6) {
             if native {
-                Image(systemName: "bookmark.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(Ink.nativeAccent)   // brand: native
+                Image(systemName: "bookmark.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(NativeInk.accent)   // brand: native
             } else {
                 ArtIcon(art: .iconMarked, size: 13)
             }

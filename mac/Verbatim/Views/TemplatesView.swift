@@ -71,7 +71,7 @@ struct TemplateCardSurface: ViewModifier {
     func body(content: Content) -> some View {
         if look == .native {
             // The selected card takes a neutral outline: the accent stays on the selected filter (review M-34).
-            content.premiumCard(radius: 14)
+            content.nativeGroup()
                 .overlay { if selected { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.32), lineWidth: 1.5) } }
         } else {
             content
@@ -202,8 +202,9 @@ struct TemplateLibraryPane: View {
         let kinds = s.kinds(for: t.id)
         return Button { nav.selected = t.id } label: {
             VStack(alignment: .leading, spacing: 5) {
-                Image(systemName: t.nativeSymbol).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.nativeAccent)
-                    .frame(width: 28, height: 28).background(Circle().fill(PremiumInk.accentSoft))
+                // The accent symbol sits bare (no tinted circle, DESIGN.md §13.2).
+                Image(systemName: t.nativeSymbol).font(.system(size: 17)).foregroundStyle(NativeInk.accent)
+                    .frame(width: 24, height: 24, alignment: .leading)
                     .padding(.bottom, 4)
                 Text(t.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
                 Text(TemplateLibrary.summaryLine(t)).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
@@ -442,7 +443,7 @@ struct RunAutomaticallyPane: View {
 
     @ViewBuilder private func kindIcon(_ k: RecordingKind) -> some View {
         if look == .native {
-            Image(systemName: k.nativeSymbol).font(.system(size: 13)).foregroundStyle(Ink.nativeAccent).frame(width: 24, height: 24)   // brand: native
+            Image(systemName: k.nativeSymbol).font(.system(size: 13)).foregroundStyle(NativeInk.accent).frame(width: 24, height: 24)   // brand: native
         } else {
             IconGlyph(art: k.art, size: 18, color: Ink.ink)
                 .frame(width: 28, height: 28)

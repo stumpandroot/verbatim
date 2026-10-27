@@ -288,7 +288,12 @@ enum LookSwitchColors {
         #endif
     }
     static func spinner(_ look: AppLook) -> Color {
+        #if os(macOS)
+        // The Mac's Native look takes the system accent color (DESIGN.md §13.2).
+        return look == .native ? Color.accentColor : text(look)   // brand: native
+        #else
         return look == .native ? Ink.nativeAccent : text(look)
+        #endif
     }
     static let edge = Ink.inkVerbose
     static let hard = Ink.hardVerbose

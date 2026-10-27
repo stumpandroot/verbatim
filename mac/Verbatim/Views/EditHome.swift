@@ -95,7 +95,7 @@ struct EditHomeView: View {
     @ViewBuilder private var chrome: some View {
         let shape = RoundedRectangle(cornerRadius: look == .native ? 18 : Radius.record, style: .continuous)
         if look == .native {
-            Color.clear.premiumCard(radius: 18)
+            Color.clear.nativeGroup()
         } else {
             shape.fill(Ink.card).inkEdge(outline: true, shadow: CGSize(width: 6, height: 7), radius: Radius.record)
         }
@@ -210,7 +210,7 @@ struct HomeTilePickerMac: View {
         let on = look == .native ? Color.primary : (slot != nil && fill != nil ? Ink.inkFixed : Ink.ink)
         return VStack(alignment: look == .native ? .center : .leading, spacing: 4) {
             if look == .native {
-                Image(systemName: t.symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(PremiumInk.accentText)   // brand: native
+                Image(systemName: t.symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(NativeInk.accent)   // brand: native
             } else {
                 IconGlyph(art: t.art, size: 16, color: on)
             }
@@ -222,7 +222,7 @@ struct HomeTilePickerMac: View {
         .frame(width: 100, height: 64, alignment: look == .native ? .center : .topLeading)
         .background {
             if look == .native {
-                shape.fill(slot != nil ? PremiumInk.accentSoft : PremiumInk.fill)
+                shape.fill(slot != nil ? NativeInk.accentSoft : PremiumInk.fill)
             } else if slot != nil, let fill {
                 shape.fill(fill)
             } else {
@@ -231,7 +231,7 @@ struct HomeTilePickerMac: View {
         }
         .overlay {
             if look == .native {
-                if slot != nil { shape.strokeBorder(Ink.nativeAccent, lineWidth: 1.5) }
+                if slot != nil { shape.strokeBorder(NativeInk.accent, lineWidth: 1.5) }
             } else {
                 shape.strokeBorder(slot != nil ? Ink.ink : Ink.hairline, lineWidth: slot != nil ? 1.5 : 1)
             }
@@ -241,7 +241,7 @@ struct HomeTilePickerMac: View {
                 Text("\(slot + 1)").font(.system(size: 11, weight: .bold))
                     .foregroundStyle(look == .native ? Color.white : Ink.paper)
                     .frame(width: 18, height: 18)
-                    .background(Circle().fill(look == .native ? Ink.nativeAccent : Ink.ink))
+                    .background(Circle().fill(look == .native ? NativeInk.accent : Ink.ink))
                     .padding(5)
             }
         }

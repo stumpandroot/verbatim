@@ -218,7 +218,9 @@ struct HomeLayout: Equatable, Sendable {
             items = [on(.record, .large), on(.tiles, .large), on(.week, .compact), on(.recent, .large), on(.lastDictation, .large),
                      off(.projects, .compact), off(.moments, .large), off(.queue, .compact), off(.thoughts, .large), off(.journal, .large)]
         case (.mac, .native):
-            items = [on(.week, .large), on(.stats, .large), on(.tiles, .compact), on(.recent, .large),
+            // The Native redesign (October 27, 2026): quick actions, This week as one stat cell, and Recent recordings,
+            // as the iPhone's Home; Stats repeats This week and Record is in the toolbar, so both start hidden.
+            items = [on(.tiles, .large), on(.week, .large), on(.recent, .large), off(.stats, .large),
                      off(.lastDictation, .compact), off(.record, .large), off(.projects, .compact), off(.moments, .large), off(.queue, .compact),
                      off(.thoughts, .large), off(.journal, .large)]
         }

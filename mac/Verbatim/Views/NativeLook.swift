@@ -3,8 +3,9 @@ import AppKit
 
 // brand: native file
 //
-// The Native look on the Mac (mockup "Two looks", sections 03 to 06): a stock macOS 26 app whose only brand element is
-// the persimmon accent (`Ink.nativeAccent`). Shared kit components (WebStyle.swift, SettingsKit.swift) read
+// The Native look on the Mac (approved mockup "Verbose Native Redesign", October 27, 2026, sections 8 to 11): a stock
+// macOS app with no brand color in its chrome. Everything you click takes the system accent color (System Settings ›
+// Appearance, blue by default), and system red marks only recording. Shared kit components (WebStyle.swift, SettingsKit.swift) read
 // `@Environment(\.look)` and draw these pieces instead of their Verbose style ones. Two things can't read the
 // environment, so they read the stored look directly (`NativeSwap`): the Ink tokens, whose neutral surfaces and text
 // turn into system colors (Tokens.swift asks `NativeSwap.color(light:)`), and the serif and mono type roles, which
@@ -90,16 +91,16 @@ enum ContrastSetting {
 }
 
 extension NativeRole {
-    /// The role's color. The window is Premium Native's warm off-white (black in dark, DESIGN.md §13.2), not the
-    /// system's window gray; the rest are system colors.
+    /// The role's color: system colors only. The window is the system's window background, and tinted text is the
+    /// system accent color, so it follows System Settings › Appearance (DESIGN.md §13.2).
     var nsColor: NSColor {
         switch self {
-        case .window: return PremiumInk.windowNS
+        case .window: return .windowBackgroundColor
         case .content: return .controlBackgroundColor
         case .label: return .labelColor
         case .secondaryLabel: return .secondaryLabelColor
         case .tertiaryLabel: return .tertiaryLabelColor
-        case .accentText: return NSColor(Ink.nativeAccent)
+        case .accentText: return .controlAccentColor
         case .selection: return .unemphasizedSelectedContentBackgroundColor
         case .fill: return .quaternaryLabelColor
         }
@@ -126,13 +127,23 @@ extension NSColor {
 
 /// System colors for code that draws Native on purpose (the Native layouts and the kit's Native branches).
 enum NativeInk {
-    /// The window: Premium Native's warm off-white, black in dark (`PremiumInk`).
-    static let window = PremiumInk.window
+    /// The window: the system's window background.
+    static let window = Color(nsColor: .windowBackgroundColor)
     static let content = Color(nsColor: .controlBackgroundColor)
     static let separator = Color(nsColor: .separatorColor)
-    static let accent = Ink.nativeAccent
+    /// Everything you click, links, selection, and switches: the system accent color (System Settings › Appearance,
+    /// blue by default). Never persimmon.
+    static let accent = Color.accentColor   // brand: native
+    /// The accent as a soft wash (a selected chip, a highlighted line).
+    static let accentSoft = Color.accentColor.opacity(0.14)   // brand: native
+    /// Text and glyphs on an accent fill, as macOS draws them on its own prominent buttons.
+    static let onAccent = Color.white
+    /// Recording, and nothing else: the system red, flat (the record dot, the stop square, the recording playhead).
+    static let record = Color(nsColor: .systemRed)
     /// Errors keep their word and a symbol, in the system red.
     static let danger = Color(nsColor: .systemRed)
+    /// A selected row in Native's own lists: the system's unemphasized selection gray (the accent stays on symbols).
+    static let selection = Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
     /// A group box: a faint wash on the window, with a faint edge.
     static let box = Color.primary.opacity(0.045)
     static let boxEdge = Color.primary.opacity(0.07)
@@ -178,8 +189,9 @@ struct LookRebuild: ViewModifier {
 
 extension View {
     func lookRebuild() -> some View { modifier(LookRebuild()) }
-    /// The accent for switches, buttons, and selection: brand sage in Verbose style, persimmon in Native.
-    func lookTint(_ look: AppLook) -> some View { tint(look == .native ? Ink.nativeAccent : Ink.switchOn) }
+    /// The accent for switches, buttons, and selection: brand sage in Verbose style; in Native, no tint at all, so
+    /// controls take the system accent color and follow System Settings › Appearance.
+    func lookTint(_ look: AppLook) -> some View { tint(look == .native ? nil : Ink.switchOn) }
     /// The soft scroll edge effect on these edges (macOS 26), so text that scrolls under the toolbar's glass or beside
     /// the player bar fades instead of colliding with it (DESIGN.md §13.5; review M-05, M-29). Earlier systems
     /// draw no glass there, so nothing changes.
@@ -217,8 +229,8 @@ enum NativeButtonSize {
     var padding: CGFloat { switch self { case .mini: return 10; case .regular: return 14; case .large: return 18 } }
 }
 
-/// The face of a Native button: `.borderedProminent` (the accent, white text in light and black in dark, where white on
-/// #FF6B47 measures 2.8:1) or `.bordered` (a gray wash), title case.
+/// The face of a Native button: `.borderedProminent` (the system accent with white text, as macOS draws it) or
+/// `.bordered` (a gray wash), title case.
 /// Used where the kit keeps its own click handling (PillButton, cards that show a button).
 struct NativeButtonFace: View {
     var title: String
@@ -233,13 +245,13 @@ struct NativeButtonFace: View {
         Text(titleCase ? NativeText.titleCase(title) : title)
             .font(.system(size: size.font, weight: prominent ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(prominent ? PremiumInk.onAccent : Color.primary)
+            .foregroundStyle(prominent ? NativeInk.onAccent : Color.primary)
             .padding(.horizontal, size.padding)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(height: size.height)
             .background {
                 if prominent {
-                    Capsule().fill(Ink.nativeAccent).brightness(pressed ? -0.08 : (hover ? 0.04 : 0))
+                    Capsule().fill(NativeInk.accent).brightness(pressed ? -0.08 : (hover ? 0.04 : 0))
                 } else {
                     Capsule().fill(pressed ? NativeInk.borderedHover : (hover ? NativeInk.borderedHover : NativeInk.bordered))
                 }
@@ -262,12 +274,12 @@ struct NativeButtonStyleFace: View {
         configuration.label
             .font(.system(size: size.font, weight: prominent ? .semibold : .regular))
             .lineLimit(1)
-            .foregroundStyle(prominent ? PremiumInk.onAccent : (tint ?? Color.primary))
+            .foregroundStyle(prominent ? NativeInk.onAccent : (tint ?? Color.primary))
             .padding(.horizontal, size.padding)
             .frame(height: size.height)
             .background {
                 if prominent {
-                    Capsule().fill(Ink.nativeAccent).brightness(configuration.isPressed ? -0.08 : (hover ? 0.04 : 0))
+                    Capsule().fill(NativeInk.accent).brightness(configuration.isPressed ? -0.08 : (hover ? 0.04 : 0))
                 } else {
                     Capsule().fill(configuration.isPressed || hover ? NativeInk.borderedHover : NativeInk.bordered)
                 }
@@ -298,17 +310,18 @@ struct NativeChipFace: View {
         }
         .font(.system(size: small ? 11.5 : 12, weight: selected && neutral ? .semibold : .medium))
         .lineLimit(1)
-        .foregroundStyle(accent ? PremiumInk.onAccent : Color.primary)
+        .foregroundStyle(accent ? NativeInk.onAccent : Color.primary)
         .padding(.horizontal, small ? 9 : 11)
         .frame(height: small ? 22 : 26)
-        .background(Capsule().fill(accent ? Ink.nativeAccent : (selected || hover ? NativeInk.borderedHover : NativeInk.bordered)))
+        .background(Capsule().fill(accent ? NativeInk.accent : (selected || hover ? NativeInk.borderedHover : NativeInk.bordered)))
         .contentShape(Capsule())
     }
 }
 
 // MARK: - Icons, fields, and empty states
 
-/// A transcript's kind as a tinted SF Symbol (in place of the Verbose style's colored dot).
+/// A transcript's kind as an SF Symbol in secondary gray (in place of the Verbose style's colored dot): the kind's word
+/// beside it carries the meaning, so the symbol takes no color.
 struct NativeKindIcon: View {
     var transcript: Transcript
     var size: CGFloat = 34
@@ -322,7 +335,7 @@ struct NativeKindIcon: View {
                 Image(systemName: Self.symbol(transcript)).font(.system(size: max(12, size * 0.44), weight: .regular))
             }
         }
-        .foregroundStyle(Ink.nativeAccent)
+        .foregroundStyle(.secondary)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
@@ -369,7 +382,7 @@ struct NativeEmptyState: View {
             Text(message)
         } actions: {
             if let button, let action {
-                Button(NativeText.titleCase(button), action: action).buttonStyle(PremiumProminentButtonStyle())
+                Button(NativeText.titleCase(button), action: action).buttonStyle(.borderedProminent)
             }
         }
         .frame(maxWidth: .infinity)
@@ -458,7 +471,7 @@ struct LookThumbnail: View {
             VStack(alignment: .leading, spacing: 5 * u) {
                 ForEach(0..<6, id: \.self) { i in
                     HStack(spacing: 3 * u) {
-                        Circle().fill(Ink.nativeAccent).frame(width: 3.5 * u, height: 3.5 * u)
+                        Circle().fill(NativeInk.accent).frame(width: 3.5 * u, height: 3.5 * u)
                         Capsule().fill(Color.primary.opacity(0.25)).frame(width: 14 * u, height: 2.5 * u)
                     }
                 }
@@ -469,7 +482,8 @@ struct LookThumbnail: View {
                 HStack(alignment: .top, spacing: 4 * u) {
                     ZStack(alignment: .topTrailing) {
                         RoundedRectangle(cornerRadius: 4 * u).fill(Color.primary.opacity(0.06))
-                        Circle().fill(Ink.persimmonFixed).frame(width: 10 * u, height: 10 * u).padding(5 * u)
+                        // The record dot: system red, flat, the one color besides the accent.
+                        Circle().fill(NativeInk.record).frame(width: 10 * u, height: 10 * u).padding(5 * u)
                     }
                     .frame(width: 70 * u, height: 36 * u)
                     VStack(spacing: 3 * u) {
@@ -482,7 +496,7 @@ struct LookThumbnail: View {
                 VStack(alignment: .leading, spacing: 4 * u) {
                     ForEach(0..<2, id: \.self) { _ in
                         HStack(spacing: 4 * u) {
-                            Circle().fill(Ink.nativeAccent).frame(width: 4 * u, height: 4 * u)
+                            Circle().fill(NativeInk.accent).frame(width: 4 * u, height: 4 * u)
                             Capsule().fill(Color.primary.opacity(0.3)).frame(width: 56 * u, height: 2.5 * u)
                         }
                     }
@@ -494,7 +508,7 @@ struct LookThumbnail: View {
 
     private func nativeTile(_ u: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 3 * u).fill(Color.primary.opacity(0.06)).frame(height: 16.5 * u)
-            .overlay(alignment: .topLeading) { Circle().fill(Ink.nativeAccent).frame(width: 4 * u, height: 4 * u).padding(3 * u) }
+            .overlay(alignment: .topLeading) { Circle().fill(NativeInk.accent).frame(width: 4 * u, height: 4 * u).padding(3 * u) }
     }
 }
 
@@ -552,13 +566,13 @@ struct LookPicker: View {
         .uiTarget("look-\(l.rawValue)")
     }
 
-    /// Verbose style: an ink outline with a hard shadow and a check. Native: a persimmon ring, as System Settings
-    /// rings the chosen appearance.
+    /// Verbose style: an ink outline with a hard shadow and a check. Native: an accent ring, as System Settings rings
+    /// the chosen appearance.
     @ViewBuilder private func selection(on: Bool, radius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         if current == .native {
             if on {
-                RoundedRectangle(cornerRadius: radius + 3, style: .continuous).strokeBorder(Ink.nativeAccent, lineWidth: 2.5).padding(-4)
+                RoundedRectangle(cornerRadius: radius + 3, style: .continuous).strokeBorder(NativeInk.accent, lineWidth: 2.5).padding(-4)
             } else {
                 shape.strokeBorder(NativeInk.separator, lineWidth: 1)
             }

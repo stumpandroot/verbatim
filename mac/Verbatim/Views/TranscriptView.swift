@@ -7,8 +7,9 @@ import AppKit
 /// title under a mono eyebrow, the Original / Cleaned / Review toggle, the lines on a paper sheet with an ink outline,
 /// the side column (Summary on butter, Moments, Export), and the dark player dock.
 ///
-/// Native (`nativeScreen`): a bold title over plain text on the window background, Original and Cleaned as a segmented
-/// control in the toolbar with the tools beside it, the side column as an inspector, and a standard player bar.
+/// Native (`nativeScreen`): a bold title over plain text in a centered reading column, Original and Cleaned as a
+/// segmented control in the toolbar with Share and More beside it, the side column as an inspector, and the system glass
+/// player bar floating over the column's foot.
 struct TranscriptView: View {
     /// True while any text field or text view in the key window is being edited.
     static var typing: Bool { NSApp.keyWindow?.firstResponder is NSText }
@@ -251,9 +252,10 @@ struct TranscriptView: View {
 
     // MARK: Native
 
-    /// The transcript in Premium Native: a reading column on the warm window with times in a fixed column, and a
-    /// floating player bar. The tabs and tools live in the window's toolbar and the side column in its inspector
-    /// (NativeChrome.swift), so opening a transcript adds nothing to the window.
+    /// The transcript in the Native look (mockup section 9): a centered reading column on the window background with
+    /// times in a fixed column, and the glass player bar floating over its foot. The tabs and tools live in the
+    /// window's toolbar and the side column in its inspector (NativeChrome.swift), so opening a transcript adds nothing
+    /// to the window.
     private func nativeScreen(_ t: Transcript) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -273,9 +275,11 @@ struct TranscriptView: View {
                 }
                 .frame(maxWidth: 720, alignment: .leading)
                 .padding(.horizontal, 32).padding(.top, 8)
-                .padding(.bottom, t.audioFileName != nil && view != .document ? 110 : 32)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, t.audioFileName != nil && view != .document ? 96 : 32)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
+            // Lines fade under the toolbar's glass and the player's, instead of colliding with them (review M-29).
+            .softScrollEdges([.top, .bottom])
             .onReceive(app.player.clock.$time) { now in
                 // Follow playback (while Follow is on), only when the playing passage changes, not on every tick.
                 if nav.follow, app.player.isPlaying, let s = t.segments.first(where: { now >= $0.start && now < $0.end }), s.id != followed {
@@ -296,10 +300,10 @@ struct TranscriptView: View {
         }
         .overlay(alignment: .bottom) {
             if t.audioFileName != nil, t.status == .ready, view != .document {
+                // The system glass bar, over the reading column's foot; the scroll edge effect keeps lines legible
+                // under it.
                 NativePlayerBar(transcript: t, clock: app.player.clock, nav: nav)
-                    .padding(.horizontal, 40).padding(.bottom, 22)
-                    // The bottom edge effect: lines and times fade into the window under the opaque bar (review M-29).
-                    .background(alignment: .bottom) { BottomFade(color: PremiumInk.window, height: Self.dockFade) }
+                    .padding(.horizontal, 32).padding(.bottom, 16)
             }
         }
         .background {
@@ -319,12 +323,14 @@ struct TranscriptView: View {
         .onChange(of: selectedSegment) { _, v in if nav.selectedSegment != v { nav.selectedSegment = v } }
     }
 
-    /// "Podcast · Thursday, October 22 · 1:04:12 · 2 speakers · English".
+    /// "Meeting · Tuesday, October 27, 9:00 AM · 38:12 · Anika, Marcus · English" (mockup section 9).
     private func nativeMeta(_ t: Transcript) -> String {
         var parts = [t.kind?.label ?? Self.sourceName(t)]
-        parts.append(Formats.pattern("EEEE, MMMM d").string(from: t.createdAt))
-        parts.append(NativeLibraryView.length(t.duration))
-        if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
+        parts.append(Formats.pattern("EEEE, MMMM d").string(from: t.createdAt) + ", " + Formats.style(date: .none, time: .short).string(from: t.createdAt))
+        if !WebStatus.isTextOnly(t) { parts.append(NativeLibraryView.length(t.duration)) }
+        let named = t.speakers.map(\.name).filter { !$0.isEmpty && !$0.hasPrefix("Speaker ") }
+        if named.count >= 2 { parts.append(named.prefix(3).joined(separator: ", ")) }
+        else if t.speakers.count >= 2 { parts.append("\(t.speakers.count) speakers") }
         if let lang = t.language { parts.append(LanguageDetection.name(lang)) }
         return parts.joined(separator: " · ")
     }
@@ -439,7 +445,7 @@ struct TranscriptView: View {
     @ViewBuilder private func title(_ t: Transcript) -> some View {
         if editingTitle {
             TextField("Title", text: $titleDraft, axis: .vertical)
-                .textFieldStyle(.plain).font(look == .native ? .system(size: 30, weight: .bold) : Ink.serif(44))
+                .textFieldStyle(.plain).font(look == .native ? .system(size: 26, weight: .bold) : Ink.serif(44))
                 .tracking(look == .native ? 0 : -1).foregroundStyle(Ink.ink).lineLimit(1...3)
                 .focused($titleFocused)
                 .onSubmit { commitTitle(t) }

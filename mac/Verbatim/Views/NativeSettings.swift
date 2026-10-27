@@ -3,10 +3,11 @@ import AppKit
 
 // brand: native file
 //
-// The Settings window in the Native look (premium mockup section 02, "Mac Settings window"): System Settings' layout. A
-// sidebar with the search field on top, the panes of MacSettingsMap, each with its SF Symbol, and the version at the
-// foot, which opens What's new; the pane is the same SettingsPane, which draws as a grouped form under Native
-// (SettingsKit.swift).
+// The Settings window in the Native look (mockup "Verbose Native Redesign", section 10): System Settings' layout. A
+// glass sidebar with the search field on top and the panes of MacSettingsMap, each a white glyph on a colored square in
+// a system color (`NativeSettingsSquare`; never red, which stays with recording), the selected pane in the accent, and
+// the pane's title in the toolbar over a grouped form (SettingsPane draws as one under Native, SettingsKit.swift). The
+// version and What's new live in Support and feedback, as System Settings keeps About in General.
 
 struct NativeSettingsSplit<Detail: View>: View {
     @Binding var tab: SettingsTab
@@ -18,19 +19,12 @@ struct NativeSettingsSplit<Detail: View>: View {
         NavigationSplitView {
             List(selection: selection) {
                 ForEach(SettingsTab.sidebar) { t in
-                    Label(t.sidebarTitle, systemImage: NativeSymbols.settings(t.rawValue))
+                    Label { Text(t.sidebarTitle) } icon: { NativeSettingsIcon(tab: t) }
                         .uiTarget("settings-\(t.rawValue)")
                         .tag(t)
                 }
             }
             .listStyle(.sidebar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                SettingsVersionFooter {
-                    if model.isSearching { model.query = "" }
-                    tab = .whatsNew
-                }
-                .padding(.horizontal, 4).padding(.bottom, 10)
-            }
             .searchable(text: $model.query, placement: .sidebar, prompt: "Search")
             .onSubmit(of: .search) { if let first = SettingsIndex.search(model.query).first { model.open(first) } }
             .navigationSplitViewColumnWidth(min: 230, ideal: 250, max: 290)
@@ -41,6 +35,15 @@ struct NativeSettingsSplit<Detail: View>: View {
             detail()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(NativeInk.window)
+                // The pane's title in the toolbar, as System Settings shows it.
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        Text(model.isSearching ? "Search Results" : tab.title)
+                            .font(.system(size: 15, weight: .bold)).lineLimit(1)
+                            .accessibilityAddTraits(.isHeader)
+                            .uiWindowTarget("settings-title")
+                    }
+                }
         }
         .toolbar(removing: .sidebarToggle)
         .onExitCommand { if model.isSearching { model.query = "" } }
@@ -53,5 +56,41 @@ struct NativeSettingsSplit<Detail: View>: View {
             if model.isSearching { model.query = "" }
             if limitMotion { tab = t } else { withAnimation(Motion.snap) { tab = t } }
         })
+    }
+}
+
+/// A Settings pane's icon: its white SF Symbol on a rounded square in a system color, as System Settings draws its
+/// sidebar.
+struct NativeSettingsIcon: View {
+    var tab: SettingsTab
+    var size: CGFloat = 20
+
+    var body: some View {
+        Image(systemName: NativeSymbols.settings(tab.rawValue))
+            .font(.system(size: size * 0.55, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous).fill(Self.color(NativeSettingsSquare.tint(tab.rawValue))))
+            .accessibilityHidden(true)
+    }
+
+    /// The system color for a square's tint (the system's own, so it follows light, dark, and Increase Contrast).
+    static func color(_ tint: NativeSettingsSquare.Tint) -> Color {
+        let ns: NSColor
+        switch tint {
+        case .blue: ns = .systemBlue
+        case .orange: ns = .systemOrange
+        case .gray: ns = .systemGray
+        case .indigo: ns = .systemIndigo
+        case .purple: ns = .systemPurple
+        case .teal: ns = .systemTeal
+        case .cyan: ns = .systemCyan
+        case .green: ns = .systemGreen
+        case .pink: ns = .systemPink
+        case .brown: ns = .systemBrown
+        case .mint: ns = .systemMint
+        case .yellow: ns = .systemYellow
+        }
+        return Color(nsColor: ns)
     }
 }

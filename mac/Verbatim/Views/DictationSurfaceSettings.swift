@@ -118,7 +118,7 @@ private struct ChoiceDot: View {
         ZStack {
             Circle().fill(Ink.card)
             // Native: the accent radio, as System Settings draws it.
-            Circle().strokeBorder(on ? (look == .native ? Ink.nativeAccent : Ink.ink) : Ink.mute, lineWidth: on ? size * 0.31 : 1.5)
+            Circle().strokeBorder(on ? (look == .native ? NativeInk.accent : Ink.ink) : Ink.mute, lineWidth: on ? size * 0.31 : 1.5)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

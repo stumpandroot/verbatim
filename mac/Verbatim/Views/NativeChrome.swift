@@ -3,8 +3,8 @@ import AppKit
 
 // brand: native file
 //
-// The main window's frame in Native (DESIGN.md §13.1 and §13.2): the split view, one toolbar for every screen, and
-// one inspector, all built once at the window and kept while screens change. Screens used to bring their own toolbars
+// The main window's frame in Native (DESIGN.md §13.2; mockup "Verbose Native Redesign", sections 8 and 9): the split
+// view, one toolbar for every screen, and one inspector, all built once at the window and kept while screens change. Screens used to bring their own toolbars
 // and the transcript its own inspector, so every screen change removed and inserted toolbar items and a split-view
 // column before the first frame (4 to 7 times Verbose style's time on CI). Now the toolbar's items keep their
 // identities and only switch what they show, the inspector stays open across the Library and transcripts (the
@@ -29,9 +29,11 @@ final class NativeNav: ObservableObject {
     @Published var selectedSegment: UUID?
     /// The Library item whose preview the inspector shows.
     @Published var librarySelection: UUID?
-    /// The Library as the first Native look's table (View as Table) instead of the list.
+    /// The Library as a table (the default) or as a list of rows with what was said (the toolbar's Table and List).
     @Published var libraryTable: Bool { didSet { UserDefaults.standard.set(libraryTable, forKey: Self.tableKey) } }
     static let tableKey = "native.libraryTable"
+    /// The Library opens as a table until you pick List.
+    static func storedTable(_ d: UserDefaults = .standard) -> Bool { d.object(forKey: tableKey) as? Bool ?? true }
     /// An action running on the open transcript (its sheet), and why Summarize can't run here.
     @Published var runningAction: FlowAction?
     @Published var summaryUnavailable: String?
@@ -43,7 +45,7 @@ final class NativeNav: ObservableObject {
     init() {
         let d = UserDefaults.standard
         inspector = d.object(forKey: Self.inspectorKey) as? Bool ?? true
-        libraryTable = d.bool(forKey: Self.tableKey)
+        libraryTable = Self.storedTable(d)
     }
 
     // The Library list
@@ -88,6 +90,9 @@ final class NativeNav: ObservableObject {
     }
 
     var copyVersion: Exporter.CopyVersion { mode == .document ? .cleaned : .original }
+
+    /// Review shows each fix side by side; it lives in More, beside Original and Cleaned in the toolbar.
+    func toggleReview() { mode = mode == .review ? .original : .review }
 }
 
 extension Screen {
@@ -111,11 +116,6 @@ struct NativeWindow<Detail: View>: View {
             NativeSidebar()
         } detail: {
             detail()
-                .background(GeometryReader { g in
-                    Color.clear
-                        .onAppear { setWidth(g.size.width) }
-                        .onChange(of: g.size.width) { _, w in setWidth(w) }
-                })
                 .inspector(isPresented: inspectorShown) {
                     NativeInspector(nav: nav)
                         .inspectorColumnWidth(min: 280, ideal: 340, max: 440)
@@ -138,22 +138,6 @@ struct NativeWindow<Detail: View>: View {
             if app.screen.hasNativeInspector { nav.inspector = open }
         })
     }
-
-    private func setWidth(_ w: CGFloat) {
-        let stepped = (w / 20).rounded() * 20
-        let detail = NativeDetailWidth.shared
-        if detail.width != stepped { LookSwitch.mark("detail-width"); detail.width = stepped }
-    }
-}
-
-/// The detail's width in 20 pt steps, for the Library's scope bar (segmented when it fits): its own object, so only that
-/// toolbar item observes it. On NativeNav, which the whole Native window observes, each change (the inspector opening
-/// or closing, a transcript's column settling) re-rendered the window, its split view, and its toolbar a second time
-/// in the same update (build 214: the late `detail-width` mark, 100 to 300 ms before the Library's and a transcript's
-/// first frame, and in the look switch).
-final class NativeDetailWidth: ObservableObject {
-    static let shared = NativeDetailWidth()
-    @Published var width: CGFloat = 800
 }
 
 /// The inspector's content for the screen: the Library's preview or the transcript's side column.
@@ -164,7 +148,6 @@ struct NativeInspector: View {
     var body: some View {
         LookSwitch.mark("inspector")
         return ZStack {
-            PremiumInk.window.ignoresSafeArea()
             switch app.screen {
             case .library:
                 PremiumLibraryPreview(nav: nav)
@@ -179,10 +162,12 @@ struct NativeInspector: View {
 
 // MARK: - The toolbar
 
-/// Every screen's toolbar items, declared once at the window. Items keep their identities as screens change, so
-/// AppKit reuses them: the leading item (Back, Forward, and Import on every screen, then the Library's title), the
-/// center (the Library's scope, a transcript's tabs), the screen's own actions, and the inspector button. Search is
-/// the window's own field. The leading set never changes, so a screen change doesn't reshuffle the bar (review M-10).
+/// Every screen's toolbar items, declared once at the window, each in the system's glass group (macOS 26). Items keep
+/// their identities as screens change, so AppKit reuses them: the leading item (Back and Forward on every screen, then
+/// the Library's title and count), Record with its menu of kinds (everywhere but a transcript), the center (a
+/// transcript's Original and Cleaned), the screen's own items, and the inspector button. Search is the window's one
+/// system field at the trailing end (`.searchable(placement: .toolbar)`). The leading set never changes, so a screen
+/// change doesn't reshuffle the bar (review M-10).
 struct NativeToolbar: ToolbarContent {
     let nav: NativeNav
     var screen: Screen
@@ -190,8 +175,10 @@ struct NativeToolbar: ToolbarContent {
     var body: some ToolbarContent {
         let _ = LookSwitch.mark("toolbar")
         ToolbarItem(id: "native.leading", placement: .navigation) { NativeLeadingItem(nav: nav, screen: screen) }
-        if screen.hasNativeInspector {
-            ToolbarItem(id: "native.center", placement: .principal) { NativeCenterItem(nav: nav, screen: screen) }
+        if screen.transcriptID != nil {
+            ToolbarItem(id: "native.center", placement: .principal) { NativeModePicker(nav: nav) }
+        } else {
+            ToolbarItem(id: "native.record", placement: .primaryAction) { NativeRecordButton() }
         }
         ToolbarItem(id: "native.actions", placement: .primaryAction) { NativeActionsItem(nav: nav, screen: screen) }
         if screen.hasNativeInspector {
@@ -208,7 +195,7 @@ private struct NativeInspectorButton: View {
     }
 }
 
-/// Back, Forward, and Import on every screen, then the Library's title and count on the Library.
+/// Back and Forward on every screen, then the Library's title and count on the Library.
 private struct NativeLeadingItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
@@ -217,29 +204,27 @@ private struct NativeLeadingItem: View {
     var screen: Screen
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 10) {
             // Two plain buttons (hosted as SwiftUI, so they keep their identity as the content changes).
             HStack(spacing: 0) {
-                Button { trail.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 32, height: 28).contentShape(Rectangle()) }
+                Button { trail.goBack(app) } label: { Image(systemName: "chevron.left").frame(width: 30, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
                     .disabled(!trail.canGoBack)
                     .help("Back (⌘[)")
                     .accessibilityLabel("Back")
                     .uiWindowTarget("tb-back")
-                Button { trail.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 32, height: 28).contentShape(Rectangle()) }
+                Button { trail.goForward(app) } label: { Image(systemName: "chevron.right").frame(width: 30, height: 28).contentShape(Rectangle()) }
                     .buttonStyle(.borderless)
                     .disabled(!trail.canGoForward)
                     .help("Forward (⌘])")
                     .accessibilityLabel("Forward")
             }
             .font(.system(size: 14, weight: .medium))
-            Button { app.chooseFiles() } label: { Label("Import", systemImage: "square.and.arrow.down").labelStyle(.titleAndIcon) }
-                .help("Import audio or video files (⌘O)")
             if screen == .library {
                 let count = NativeLibraryScope.list(app).count
                 VStack(alignment: .leading, spacing: 0) {
                     Text(NativeLibraryScope.title(app)).font(.system(size: 15, weight: .bold)).lineLimit(1)
-                    Text(count == 1 ? "1 transcript" : "\(count.formatted()) transcripts").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(HomeCounts.countLabel(count, "recording", "recordings")).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .padding(.horizontal, 4)
                 .fixedSize()
@@ -250,50 +235,92 @@ private struct NativeLeadingItem: View {
     }
 }
 
-/// A transcript's Original, Cleaned, and Review; or the Library's scope (segmented when it fits, else a menu).
-private struct NativeCenterItem: View {
+/// Record in the toolbar (mockup section 8; decision 8): a click records a voice note, and the chevron, or a
+/// right-click, opens the menu: Dictate, Live captions, and Import, then Record as's six choices (`RecordKindMenuItems`,
+/// the same items as File › Record As). The dot is system red, flat: the only red Verbose draws, beside the word.
+/// While you record it turns into Stop with the red stop square. The floating record disc retires in Native.
+struct NativeRecordButton: View {
     @EnvironmentObject var app: AppState
-    @ObservedObject var nav: NativeNav
-    @ObservedObject private var detail = NativeDetailWidth.shared
-    var screen: Screen
 
     var body: some View {
-        if screen.transcriptID != nil {
-            Picker("View", selection: $nav.mode) {
-                ForEach(TranscriptView.visibleModes, id: \.self) { m in Text(m.title).tag(m) }
+        let busy = app.recorder.isRecording || app.capture.isCapturing
+        HStack(spacing: 2) {
+            if busy {
+                Button {
+                    if app.recorder.isRecording { app.stopRecording() } else { app.stopCapture() }
+                } label: {
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(NativeInk.record).frame(width: 10, height: 10)
+                        Text("Stop").font(.system(size: 13, weight: .medium))
+                    }
+                    .padding(.horizontal, 6).frame(height: 28).contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("Stop recording (⌥⇧.)")
+                .accessibilityLabel("Stop")
+                .accessibilityHint("Stops the recording and transcribes it.")
+                .uiWindowTarget("tb-record")
+            } else {
+                Button { app.requestRecord() } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(NativeInk.record).frame(width: 10, height: 10)
+                        Text("Record").font(.system(size: 13, weight: .medium))
+                    }
+                    .padding(.leading, 6).padding(.trailing, 2).frame(height: 28).contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("Record a voice note (⌥⇧R)")
+                .accessibilityLabel("Record")
+                .accessibilityHint("Starts a voice note. The menu beside it has the other kinds.")
+                .contextMenu { NativeRecordMenu() }
+                .uiWindowTarget("tb-record")
+                Menu { NativeRecordMenu() } label: {
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                        .frame(width: 18, height: 28).contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .help("Dictate, live captions, import, and the kinds of recording")
+                .accessibilityLabel("Record as")
+                .uiWindowTarget("tb-record-menu")
             }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            .help("Original keeps every word as said; Cleaned is the tidied text; Review shows each fix")
-        } else {
-            let options = NativeLibraryScope.options(app)
-            let binding = Binding<NativeLibraryScope.Scope>(get: { NativeLibraryScope.current(app) }, set: { s in
-                // Only a real change clears the selection: the picker can write back the scope it already shows as
-                // the toolbar swaps a transcript's tabs for it, which dropped the row Back came back to.
-                guard s != NativeLibraryScope.current(app) else { return }
-                nav.librarySelection = nil
-                NativeLibraryScope.choose(s, app: app)
-            })
-            // One picker, styled from the room the detail has (it used to build both and measure them).
-            let segmented = ScopeBarStyle.segmented(options.map(\.1), available: Double(detail.width) - 520)
-            Picker("Show", selection: binding) {
-                ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
-            }
-            .labelsHidden().fixedSize()
-            .modifier(ScopePickerStyle(segmented: segmented))
-            .help("Show everything, one kind of source, or one kind of recording")
         }
     }
 }
 
-private struct ScopePickerStyle: ViewModifier {
-    var segmented: Bool
-    func body(content: Content) -> some View {
-        if segmented { content.pickerStyle(.segmented) } else { content.pickerStyle(.menu) }
+/// The menu on Record (and its right-click): Dictate, Live captions, and Import, then the six ways to record. The
+/// kinds are `RecordKindMenuItems`, so this menu, File › Record As, and the menu bar's list never drift apart.
+struct NativeRecordMenu: View {
+    @EnvironmentObject var app: AppState
+
+    /// The items above the kinds, in order (the self-test reads them).
+    static let extras = ["Dictate", "Live Captions", "Import…"]
+
+    var body: some View {
+        Button { app.goHome(); app.captureMode = "dictate" } label: { Label(Self.extras[0], systemImage: "text.bubble") }
+        Button { app.toggleLiveCaptions() } label: { Label(Self.extras[1], systemImage: "captions.bubble") }
+        Button { app.chooseFiles() } label: { Label(Self.extras[2], systemImage: "square.and.arrow.down") }
+        Divider()
+        Section("Record As") { RecordKindMenuItems() }
     }
 }
 
-/// The screen's own actions, in one slot: You (labeled) on Home; Sort and More in the Library; Bookmark, Actions,
-/// Share, and Text Size on a transcript. Import lives in the leading set on every screen.
+/// A transcript's Original and Cleaned, as a segmented control in the toolbar. Review is in More; while it's on,
+/// neither segment is chosen.
+private struct NativeModePicker: View {
+    @ObservedObject var nav: NativeNav
+
+    var body: some View {
+        Picker("View", selection: $nav.mode) {
+            Text(TranscriptView.Mode.original.title).tag(TranscriptView.Mode.original)
+            Text(TranscriptView.Mode.document.title).tag(TranscriptView.Mode.document)
+        }
+        .pickerStyle(.segmented).labelsHidden().fixedSize()
+        .help("Original keeps every word as said; Cleaned is the tidied text")
+    }
+}
+
+/// The screen's own items, in one slot: You on Home; the scope, Table and List, and More in the Library; Share and
+/// More on a transcript.
 private struct NativeActionsItem: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var nav: NativeNav
@@ -307,7 +334,7 @@ private struct NativeActionsItem: View {
         case .library:
             libraryActions
         case .home:
-            Button { app.go(.activity) } label: { Label("You", systemImage: "person.crop.circle").labelStyle(.titleAndIcon) }
+            Button { app.go(.activity) } label: { Label("You", systemImage: "person.crop.circle") }
                 .help("You: your week, cleanup, and where you dictate")
         default:
             EmptyView()
@@ -315,47 +342,53 @@ private struct NativeActionsItem: View {
     }
 
     @ViewBuilder private var libraryActions: some View {
-        ControlGroup {
+        HStack(spacing: 8) {
+            scopePicker
+            Picker("View", selection: $nav.libraryTable) {
+                Label("Table", systemImage: "tablecells").labelStyle(.iconOnly).tag(true)
+                Label("List", systemImage: "list.bullet").labelStyle(.iconOnly).tag(false)
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .help("Show the Library as a table or as a list with what was said")
+            .uiWindowTarget("tb-library-view")
             Menu {
-                Picker("Sort By", selection: $sortRaw) {
-                    ForEach(LibrarySort.allCases) { s in Text(s.title).tag(s.rawValue) }
+                if !nav.libraryTable {
+                    Picker("Sort By", selection: $sortRaw) {
+                        ForEach(LibrarySort.allCases) { s in Text(s.title).tag(s.rawValue) }
+                    }
+                    .pickerStyle(.inline)
+                    Divider()
                 }
-                .pickerStyle(.inline)
-            } label: { Label("Sort", systemImage: "arrow.up.arrow.down") }
-                .help("Sort the Library: newest, oldest, longest, or by title")
-            Menu {
                 Button("Import Files…") { app.chooseFiles() }
                 if let p = app.projectFilter { Button("Add from Library…") { app.addFromLibrary = p } }
                 Button("New Project…") { app.newProjectFor = [] }
                 Divider()
-                Toggle("View as Table", isOn: $nav.libraryTable)
-                Divider()
                 Button("Export Library as Markdown…") { MarkdownBulkExport.run(MarkdownBulkExport.all(app), app: app) }
             } label: { Label("More", systemImage: "ellipsis.circle") }
-                .help("Import, add from your library, start a project, or view as a table")
+                .menuIndicator(.hidden)
+                .help("Sort, import, add from your library, start a project, or export")
         }
     }
 
+    /// All recordings, a kind of source, or a kind of recording: one pop-up, as the mockup's "All recordings".
+    private var scopePicker: some View {
+        let options = NativeLibraryScope.options(app)
+        let binding = Binding<NativeLibraryScope.Scope>(get: { NativeLibraryScope.current(app) }, set: { s in
+            // Only a real change clears the selection: the picker can write back the scope it already shows as the
+            // toolbar's items come back, which dropped the row Back came back to.
+            guard s != NativeLibraryScope.current(app) else { return }
+            nav.librarySelection = nil
+            NativeLibraryScope.choose(s, app: app)
+        })
+        return Picker("Show", selection: binding) {
+            ForEach(options, id: \.0) { o in Text(o.1).tag(o.0) }
+        }
+        .pickerStyle(.menu).labelsHidden().fixedSize()
+        .help("Show every recording, one kind of source, or one kind of recording")
+    }
+
     private func transcriptActions(_ t: Transcript) -> some View {
-        ControlGroup {
-            Button { nav.bookmark(t, app: app) } label: { Label("Bookmark", systemImage: "bookmark") }
-                .disabled(t.audioFileName == nil || t.status != .ready)
-                .help("Bookmark this moment (B)")
-            Menu {
-                Button("Continue Recording") { app.continueRecording(t.id) }
-                    .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
-                Divider()
-                ActionsMenuItems { nav.runningAction = $0 }
-                Divider()
-                Button(SummaryAction.title(t)) { nav.summarize(t, app: app) }
-                    .disabled(t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
-                Divider()
-                Button(TurboRerun.title + "…") { app.turboAsk = t.id }
-                    .disabled(TurboRerun.unavailableReason(t) != nil)
-                if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
-            } label: { Label("Actions", systemImage: "sparkles") }
-                .disabled(t.status != .ready)
-                .help("Run a saved action: decisions and next steps, a brief, an email; summarize; or record more")
+        HStack(spacing: 8) {
             Menu {
                 Button("Copy (⇧⌘C)") { ExportMenu.copy(t, nav.copyVersion, app: app) }
                 Button("Copy with Timestamps") { ExportMenu.copy(t, nav.copyVersion, timestamps: true, app: app) }
@@ -366,14 +399,34 @@ private struct NativeActionsItem: View {
                 Divider()
                 Button("Export…") { app.exportRequest = ExportRequest(ids: [t.id]) }
             } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                .menuIndicator(.hidden)
                 .disabled(t.status != .ready)
                 .help("Copy, or export as text, Markdown, Word, subtitles, or JSON")
             Menu {
-                Button("Larger Text") { nav.textSize = min(22, nav.textSize + 1) }
-                Button("Smaller Text") { nav.textSize = max(13, nav.textSize - 1) }
-                Button("Default Size") { nav.textSize = 16 }
-            } label: { Label("Text Size", systemImage: "textformat.size") }
-                .help("Text size (⌘+ and ⌘−)")
+                Button("Mark This Moment") { nav.bookmark(t, app: app) }
+                    .disabled(t.audioFileName == nil || t.status != .ready)
+                Button("Continue Recording") { app.continueRecording(t.id) }
+                    .disabled(t.status != .ready || t.audioFileName == nil || t.pendingAppend != nil || app.recorder.isRecording)
+                Divider()
+                Menu("Run an Action") { ActionsMenuItems { nav.runningAction = $0 } }
+                    .disabled(t.status != .ready)
+                Button(SummaryAction.title(t)) { nav.summarize(t, app: app) }
+                    .disabled(t.status != .ready || t.summaryIsEdited || SummaryCenter.shared.isRunning(t.id))
+                Toggle("Review Changes", isOn: Binding(get: { nav.mode == .review }, set: { on in if on != (nav.mode == .review) { nav.toggleReview() } }))
+                Divider()
+                Button(TurboRerun.title + "…") { app.turboAsk = t.id }
+                    .disabled(t.status != .ready || TurboRerun.unavailableReason(t) != nil)
+                if let other = TurboRerun.switchTitle(t) { Button(other) { app.switchTranscriptVersion(t.id) } }
+                Divider()
+                Menu("Text Size") {
+                    Button("Larger Text") { nav.textSize = min(22, nav.textSize + 1) }
+                    Button("Smaller Text") { nav.textSize = max(13, nav.textSize - 1) }
+                    Button("Default Size") { nav.textSize = 16 }
+                }
+            } label: { Label("More", systemImage: "ellipsis.circle") }
+                .menuIndicator(.hidden)
+                .help("Mark a moment, record more, run an action, summarize, review the fixes, or change the text size")
+                .uiWindowTarget("tb-more")
         }
     }
 }
@@ -417,7 +470,7 @@ enum NativeLibraryScope {
         "\(app.projectFilter?.uuidString ?? "-")|\(app.search.trimmingCharacters(in: .whitespaces).lowercased())"
     }
 
-    /// "All", then the sources and kinds the library has.
+    /// "All recordings", then the sources and kinds the library has.
     static func options(_ app: AppState) -> [(Scope, String)] {
         let base = app.filtered
         let s = searching(app)
@@ -429,7 +482,7 @@ enum NativeLibraryScope {
             return (sources, kindCounts)
         }
         let kinds = RecordingKind.pickable.filter { (kindCounts[$0] ?? 0) > 0 || app.libraryKind == $0 }
-        return [(.all, "All")] + sources.map { (.source($0), $0.label) } + kinds.map { (.kind($0), $0.plural) }
+        return [(.all, "All recordings")] + sources.map { (.source($0), $0.label) } + kinds.map { (.kind($0), $0.plural) }
     }
 
     static func title(_ app: AppState) -> String {
