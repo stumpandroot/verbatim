@@ -288,10 +288,10 @@ enum NativeSubtitle {
 }
 
 extension View {
-    /// The navigation subtitle on iOS 26; nothing before it (the screen shows the line itself).
-    @ViewBuilder func nativeSubtitle(_ text: String) -> some View {
-        if #available(iOS 26, *) {
-            navigationSubtitle(text)
+    /// The navigation subtitle on iOS 26; nothing before it (the screen shows the line itself), or with no text.
+    @ViewBuilder func nativeSubtitle(_ text: String?) -> some View {
+        if let text {
+            if #available(iOS 26, *) { navigationSubtitle(text) } else { self }
         } else {
             self
         }

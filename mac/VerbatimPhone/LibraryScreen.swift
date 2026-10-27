@@ -21,6 +21,11 @@ struct LibraryScreen: View {
     /// Nil for the Library tab itself.
     var route: LibraryRoute? = nil
     @State private var routeApplied = false
+    /// Native: Select recordings, the selection, and the pushes from More and the Projects row.
+    @State var nativeSelecting = false
+    @State var nativeSelection = Set<UUID>()
+    @State var nativeShowTrash = false
+    @State var nativeShowProjects = false
 
     enum Filter: Hashable { case all, pinned, working, project(UUID), kind(RecordingKind) }
 
@@ -202,24 +207,27 @@ struct LibraryScreen: View {
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
         .phoneTopFade()
-        .phonePage()
+        .phonePage(plain: true)
         .navigationTitle("Library")
+        .nativeSubtitle(look.isNative ? nativeSubtitleText(items) : nil)
         .navigationBarTitleDisplayMode(look.isNative ? .large : .inline)
         .toolbar {
-            // Verbose style: the serif title sits on the paper; the bar keeps only Apple's buttons. Native: the large title.
-            if !look.isNative {
+            if look.isNative {
+                nativeToolbar
+            } else {
+                // Verbose style: the serif title sits on the paper; the bar keeps only Apple's buttons.
                 ToolbarItem(placement: .principal) { Text("").accessibilityHidden(true) }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Picker("Sort by", selection: $sortRaw) {
-                        ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
-                    }
-                } label: { Image(systemName: "arrow.up.arrow.down") }
-                .accessibilityLabel("Sort by \(sort.title)")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { TrashScreen() } label: { Image(systemName: "trash") }.accessibilityLabel("Recently Deleted")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Sort by", selection: $sortRaw) {
+                            ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
+                        }
+                    } label: { Image(systemName: "arrow.up.arrow.down") }
+                    .accessibilityLabel("Sort by \(sort.title)")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { TrashScreen() } label: { Image(systemName: "trash") }.accessibilityLabel("Recently Deleted")
+                }
             }
         }
         .onReceive(app.$libraryFilterRequest) { r in
@@ -403,215 +411,251 @@ struct LibraryScreen: View {
 // MARK: - Native look
 // brand: native begin
 
-/// Applies `.searchable` in the Native look, where the search field sits under the large title.
+/// Applies `.searchable` in the Native look, where the search field sits under the large title. The system field keeps
+/// its microphone, which dictates into it.
 private struct NativeSearchable: ViewModifier {
     var enabled: Bool
     @Binding var text: String
     func body(content: Content) -> some View {
         if enabled {
-            content.searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search your library")
+            content.searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search titles and words")
         } else {
             content
         }
     }
 }
 
-/// The Library in Premium Native (mockup "premium", section 01): the count under the large title, the system search
-/// field, filter capsules, three collection cards (Dictations, Moments, Projects), and the recordings as
-/// Voicenotes-style items under plain day headers, with no grouped boxes. Same menus, swipes, and drags. A plain,
-/// lazy `List`; nothing enters with an animation.
+/// The Library in the Native look (mockup "Verbose Native Redesign", section 2): a plain list like Mail's inbox. Rows
+/// for Dictations, Projects, By day, Templates, and Ask at the top, like Mail's mailboxes (and Moments when it isn't a
+/// tab), then the recordings under day headers: the title and time, the kind, length, and names, and two lines of what
+/// was said. The filter is a system menu behind the filter button, which fills while a filter is on; Sort by and
+/// Select recordings sit in it too. Swipe a row to delete or pin it. A plain, lazy `List`; nothing enters with an
+/// animation.
 extension LibraryScreen {
+    /// The filter menu's choices as tags: "all", "source:<raw>", "kind:<raw>", "pinned", "working", "project:<id>".
+    var nativeChoice: String {
+        if typeFilter != .all { return "source:\(typeFilter.source.rawValue)" }
+        switch filter {
+        case .all: return "all"
+        case .pinned: return "pinned"
+        case .working: return "working"
+        case .kind(let k): return "kind:\(k.rawValue)"
+        case .project(let p): return "project:\(p.uuidString)"
+        }
+    }
+
+    func setNativeChoice(_ tag: String) {
+        if tag.hasPrefix("source:"), let s = LibrarySource(rawValue: String(tag.dropFirst("source:".count))) {
+            pick(.all); setType(LibraryFilter(source: s))
+        } else if tag == "pinned" { pick(.pinned); setType(.all) }
+        else if tag == "working" { pick(.working); setType(.all) }
+        else if tag.hasPrefix("kind:"), let k = RecordingKind(rawValue: String(tag.dropFirst("kind:".count))) { pick(.kind(k)); setType(.all) }
+        else if tag.hasPrefix("project:"), let id = UUID(uuidString: String(tag.dropFirst("project:".count))) { pick(.project(id)); setType(.all) }
+        else { pick(.all); setType(.all) }
+    }
+
+    /// The navigation subtitle: "25 recordings", or with a filter on, how many it shows ("8 meetings").
+    func nativeSubtitleText(_ items: [Transcript]) -> String {
+        let n = items.count
+        if typeFilter != .all { return "\(n) \(typeFilter.source.label.lowercased())" }
+        switch filter {
+        case .all: return HomeCounts.countLabel(recordingCount, "recording", "recordings")
+        case .pinned: return "\(n) pinned"
+        case .working: return "\(n) in progress"
+        case .kind(let k): return n == 1 ? "1 \(k.label.lowercased())" : "\(n) \(k.plural.lowercased())"
+        case .project(let p): return "\(HomeCounts.countLabel(n, "recording", "recordings")) in \(app.store.projects.first { $0.id == p }?.name ?? "the project")"
+        }
+    }
+
     func nativeList(scoped: [Transcript], items: [Transcript], passages: [LibrarySearch.PassageHit], project: UUID?) -> some View {
         let now = Date()
-        let clear = EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
-        return List {
-            Section {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(PhoneCompactTitle.nativeCount("Library", "\(recordingCount)"))
-                        .font(.system(size: 15)).foregroundStyle(NativeInk.secondary)
-                        .padding(.horizontal, 20)
-                    chips(scoped).padding(.top, 12)
-                    if filter == .all, search.isEmpty, typeFilter == .all {
-                        collections.padding(.horizontal, 20).padding(.top, 16)
-                        byDayRow.padding(.horizontal, 20).padding(.top, 10)
-                        templatesRow.padding(.horizontal, 20).padding(.top, 10)
-                        askRow.padding(.horizontal, 20).padding(.top, 10)
-                    }
-                    if searching {
-                        AskAboutRow(query: search.trimmingCharacters(in: .whitespaces)).padding(.horizontal, 20).padding(.top, 12)
-                    }
-                }
-                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
+        let days = Self.daySections(lines(items))
+        let browsing = filter == .all && search.isEmpty && typeFilter == .all && !nativeSelecting
+        return List(selection: $nativeSelection) {
+            if !NativeSubtitle.supported {
+                Text(nativeSubtitleText(items)).font(.subheadline).foregroundStyle(NativeInk.secondary)
+                    .listRowSeparator(.hidden)
             }
-            if let p = project {
-                Button { app.addFromLibrary = p } label: {
-                    Label("Add from Library", systemImage: "plus.circle").font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(NativeInk.accent).padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Adds transcripts you already have to this project")
-                .listRowInsets(clear).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            if browsing { mailboxes }
+            if let p = project, !nativeSelecting {
+                Button { app.addFromLibrary = p } label: { Label("Add from Library", systemImage: "plus.circle") }
+                    .accessibilityHint("Adds transcripts you already have to this project")
+            }
+            if searching {
+                AskAboutRow(query: search.trimmingCharacters(in: .whitespaces))
+                    .listRowSeparator(.hidden)
             }
             if !passages.isEmpty {
-                premiumDayHeader("Passages").listRowInsets(clear).listRowBackground(Color.clear).listRowSeparator(.hidden)
-                ForEach(passages) { hit in
-                    PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                }
+                Section {
+                    ForEach(passages) { hit in
+                        PhonePassageCard(transcript: hit.transcript, lines: hit.lines, count: hit.count, query: search)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
+                    }
+                } header: { Text("Passages") }
             }
             if items.isEmpty {
-                Text(!search.isEmpty ? "Nothing matches “\(search)”."
-                     : typeFilter != .all ? "Nothing here matches \(typeFilter.platform ?? typeFilter.source.label)."
-                     : project != nil ? "Nothing in this project yet. Add transcripts from your library."
-                     : "Nothing here yet.")
-                    .font(.subheadline).foregroundStyle(NativeInk.secondary)
-                    .frame(maxWidth: .infinity).padding(.vertical, 24)
-                    .listRowInsets(clear).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                Group {
+                    if !search.isEmpty {
+                        ContentUnavailableView.search(text: search)
+                    } else {
+                        ContentUnavailableView {
+                            Label(project != nil ? "Nothing in this project yet" : "No recordings here", systemImage: "waveform")
+                        } description: {
+                            Text(project != nil ? "Add transcripts from your library." : "Tap Record to start one.")
+                        }
+                    }
+                }
+                .listRowSeparator(.hidden)
             }
-            ForEach(lines(items)) { line in
-                switch line {
-                case .day(_, let label):
-                    premiumDayHeader(PhoneDayHeader.nativeLabel(label))
-                        .listRowInsets(clear).listRowBackground(Color.clear).listRowSeparator(.hidden)
-                case .row(let t, _):
-                    premiumRow(t, now: now)
-                        .listRowInsets(clear).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            ForEach(days, id: \.label) { day in
+                Section {
+                    ForEach(day.items) { t in nativeRow(t, now: now) }
+                } header: {
+                    if !day.label.isEmpty { Text(day.label).font(.headline).foregroundStyle(NativeInk.label).textCase(nil) }
                 }
             }
-            // Room for the record button over the last item: its 86 pt (disc, ring, and margin) plus 16 (review P-13).
-            Color.clear.frame(height: 104).listRowBackground(Color.clear).listRowSeparator(.hidden).accessibilityHidden(true)
         }
         .listStyle(.plain)
-        .environment(\.defaultMinListRowHeight, 1)
+        .environment(\.editMode, .constant(nativeSelecting ? .active : .inactive))
+        .navigationDestination(isPresented: $nativeShowTrash) { TrashScreen() }
+        .navigationDestination(isPresented: $nativeShowProjects) { ProjectsScreen() }
     }
 
-    /// "Today", "Yesterday", "Mon Oct 19": plain, in secondary semibold.
-    private func premiumDayHeader(_ text: String) -> some View {
-        Text(text).font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeInk.secondary)
-            .padding(.top, 22)
-            .accessibilityAddTraits(.isHeader)
+    /// The recordings grouped under their day headers ("Today", "Yesterday", "Mon Oct 19"); one unnamed group when the
+    /// order isn't by date.
+    private static func daySections(_ lines: [Line]) -> [(label: String, items: [Transcript])] {
+        var out: [(label: String, items: [Transcript])] = []
+        for line in lines {
+            switch line {
+            case .day(_, let label): out.append((PhoneDayHeader.nativeLabel(label), []))
+            case .row(let t, _):
+                if out.isEmpty { out.append(("", [])) }
+                out[out.count - 1].items.append(t)
+            }
+        }
+        return out.filter { !$0.items.isEmpty }
     }
 
-    /// Dictations, Moments, and Projects as three soft cards with their counts. These and the rows under them are
-    /// Buttons that push on this stack, not NavigationLinks, so the list never adds a second chevron.
-    private var collections: some View {
+    /// Dictations, Projects, By day, Templates, and Ask, like Mail's mailboxes: a blue symbol, the name, a count, and a
+    /// chevron. Moments joins them when it isn't a tab.
+    @ViewBuilder private var mailboxes: some View {
         let moments = app.store.memo("moments-saved") { HomeCounts.momentsSaved(app.store.live) }
-        return HStack(spacing: 10) {
-            Button { app.pushHere(DictationsRoute()) } label: { collection("Dictations", symbol: "text.bubble", count: dictations.count) }
-                .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Opens your dictations.")
-            Button { app.go(.moments) } label: { collection("Moments", symbol: "bookmark", count: moments) }
-                .buttonStyle(PhoneCardPress())
-                .accessibilityHint("Opens Moments.")
-            Menu {
-                ForEach(app.store.projects) { p in
-                    Button(p.name) { filter = .project(p.id); setType(.all) }
-                }
-                if !app.store.projects.isEmpty { Divider() }
-                Button { newProject = true } label: { Label("New project…", systemImage: "folder.badge.plus") }
-            } label: { collection("Projects", symbol: "folder", count: app.store.projects.count) }
-            .menuStyle(.button)
-            .buttonStyle(PhoneCardPress())
-            .accessibilityHint("Shows one project's transcripts, or makes a new project.")
-        }
-    }
-
-    /// By Day: Thoughts and Journal, a page a day (ThoughtsScreens.swift).
-    private var byDayRow: some View {
         let today = app.store.todaysThoughts().count
-        return Button { app.pushHere(ByDayRoute(kind: .idea)) } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "calendar").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("By day").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
-                    Text("Thoughts and Journal, a page a day").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
-                }
+        mailbox("Dictations", symbol: "text.bubble", value: "\(dictations.count)", id: "library.dictations") { app.pushHere(DictationsRoute()) }
+        if !app.tabBar.contains(.moments) {
+            mailbox("Moments", symbol: "bookmark", value: "\(moments)", id: "library.moments") { app.go(.moments) }
+        }
+        mailbox("Projects", symbol: "folder", value: "\(app.store.projects.count)", id: "library.projects") { nativeShowProjects = true }
+        mailbox("By day", symbol: "calendar", value: today > 0 ? "\(today) today" : nil, id: "library.byDay") { app.pushHere(ByDayRoute(kind: .idea)) }
+        mailbox("Templates", symbol: "doc.text", value: "\(app.store.allTemplates.count)", id: "library.templates") { app.pushHere(TemplatesRoute()) }
+        mailbox("Ask", symbol: "questionmark.bubble", value: app.store.recipes.isEmpty ? nil : "\(app.store.recipes.count) recipes", id: "library.ask") { app.pushHere(AskRoute()) }
+    }
+
+    private func mailbox(_ title: String, symbol: String, value: String?, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: symbol).font(.title3).foregroundStyle(NativeInk.accent).frame(width: 28)
+                Text(title).foregroundStyle(NativeInk.label)
                 Spacer(minLength: 8)
-                if today > 0 { Text("Today \(today)").font(.system(size: 14)).monospacedDigit().foregroundStyle(NativeInk.secondary) }
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
+                if let value { Text(value).monospacedDigit().foregroundStyle(NativeInk.secondary) }
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(NativeInk.tertiary)
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .nativeCell(radius: 18)
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(Rectangle())
         }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityIdentifier("library.byDay")
-        .accessibilityHint("Opens Thoughts and Journal by day")
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(id)
     }
 
-    /// Templates: the library and Run automatically (TemplatesScreens.swift).
-    private var templatesRow: some View {
-        let auto = TemplateSettingsModel.shared.settings.assignedCount
-        return Button { app.pushHere(TemplatesRoute()) } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "doc.text").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Templates").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
-                    Text("Notes, plans, and drafts from a transcript").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
-                }
-                Spacer(minLength: 8)
-                if auto > 0 { Text("\(auto) auto").font(.system(size: 14)).monospacedDigit().foregroundStyle(NativeInk.secondary) }
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .nativeCell(radius: 18)
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityIdentifier("library.templates")
-        .accessibilityHint("Opens your templates and Run automatically")
-    }
-
-    /// Ask: answers from your recordings, and recipes (AskScreens.swift).
-    private var askRow: some View {
-        Button { app.pushHere(AskRoute()) } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "questionmark.bubble").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Ask").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
-                    Text("Answers from your recordings, with sources").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
-                }
-                Spacer(minLength: 8)
-                if !app.store.recipes.isEmpty { Text("\(app.store.recipes.count) recipes").font(.system(size: 14)).monospacedDigit().foregroundStyle(NativeInk.secondary) }
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .nativeCell(radius: 18)
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(PhoneCardPress())
-        .accessibilityIdentifier("library.ask")
-        .accessibilityHint("Asks a question about your recordings")
-    }
-
-    private func collection(_ title: String, symbol: String, count: Int) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: symbol).font(.system(size: 16, weight: .medium)).foregroundStyle(NativeInk.accent)
-            Spacer(minLength: 4)
-            Text(count.formatted()).font(NativeStyle.number(20)).foregroundStyle(NativeInk.label)
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.label).lineLimit(1).minimumScaleFactor(0.8)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-        .nativeCell(radius: 18)
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(count)")
-        .accessibilityAddTraits(.isButton)
-    }
-
-    private func premiumRow(_ t: Transcript, now: Date) -> some View {
-        Button { app.open(t.id) } label: { NativeLibraryRow(transcript: t, now: now) }
-            .buttonStyle(.plain)
+    private func nativeRow(_ t: Transcript, now: Date) -> some View {
+        NavigationLink(value: t.id) { NativeLibraryRow(transcript: t, now: now) }
+            .tag(t.id)
             .contextMenu { RowActions(transcript: t) }
             .draggable(TranscriptDrag.payload([t.id]))
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) { app.delete([t.id]) } label: { Label("Delete", systemImage: "trash") }
             }
             .swipeActions(edge: .leading) {
-                Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: "pin") }.tint(Color(uiColor: .systemOrange))
+                Button { app.togglePin(t.id) } label: { Label(t.pinned ? "Unpin" : "Pin", systemImage: t.pinned ? "pin.slash" : "pin") }
+                    .tint(Color(uiColor: .systemOrange))
             }
+    }
+
+    /// The toolbar: the filter menu (Show, Sort by, Select recordings) and More (Recently Deleted, New project). While
+    /// selecting: Done, and what to do with the selected recordings.
+    @ToolbarContentBuilder var nativeToolbar: some ToolbarContent {
+        if nativeSelecting {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Done") { nativeSelecting = false; nativeSelection = [] }.fontWeight(.semibold)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Menu {
+                        ForEach(app.store.projects) { p in
+                            Button(p.name) { app.addToProject(Array(nativeSelection), p.id); nativeSelecting = false; nativeSelection = [] }
+                        }
+                    } label: { Label("Add to project", systemImage: "folder.badge.plus") }
+                    .disabled(app.store.projects.isEmpty)
+                    Button { app.exportRequest = PhoneExportRequest(ids: Array(nativeSelection)) } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                    Divider()
+                    Button(role: .destructive) {
+                        app.delete(Array(nativeSelection)); nativeSelecting = false; nativeSelection = []
+                    } label: { Label("Delete", systemImage: "trash") }
+                } label: {
+                    Text(nativeSelection.isEmpty ? "Select" : "\(nativeSelection.count) selected")
+                }
+                .disabled(nativeSelection.isEmpty)
+            }
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker(selection: Binding(get: { nativeChoice }, set: { setNativeChoice($0) })) {
+                        Text("All recordings").tag("all")
+                        ForEach(nativeSources) { s in Text(s.label).tag("source:\(s.rawValue)") }
+                        ForEach(nativeKinds) { k in Text(k.plural).tag("kind:\(k.rawValue)") }
+                        Text("Pinned").tag("pinned")
+                        Text("In progress").tag("working")
+                        ForEach(app.store.projects) { p in Text(p.name).tag("project:\(p.id.uuidString)") }
+                    } label: { Text("Show") }
+                    .pickerStyle(.inline)
+                    Section {
+                        Picker(selection: $sortRaw) {
+                            ForEach(LibrarySort.allCases) { s in Label(s.title, systemImage: s.symbol).tag(s.rawValue) }
+                        } label: {
+                            Label("Sort by", systemImage: "arrow.up.arrow.down")
+                            Text(sort.title)
+                        }
+                        .pickerStyle(.menu)
+                        Button { nativeSelecting = true } label: { Label("Select recordings", systemImage: "checkmark.circle") }
+                    }
+                } label: {
+                    Image(systemName: nativeChoice == "all" ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                }
+                .accessibilityLabel("Filter")
+                .accessibilityValue(nativeChoice == "all" ? "All recordings" : nativeSubtitleText([]))
+                .accessibilityIdentifier("library.filter")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button { nativeShowTrash = true } label: { Label("Recently Deleted", systemImage: "trash") }
+                    Button { newProject = true } label: { Label("New project…", systemImage: "folder.badge.plus") }
+                } label: { Image(systemName: "ellipsis.circle") }
+                .accessibilityLabel("More")
+            }
+        }
+    }
+
+    /// The types the library has (and the one chosen), in a fixed order.
+    private var nativeSources: [LibrarySource] {
+        let present = app.store.memo("phone.sources-present") {
+            Set(LibraryFilter.all.sourceCounts(app.store.live, searching: false).filter { $0.1 > 0 }.map(\.0))
+        }
+        return Self.fixedSources(library: present, selected: typeFilter.source).filter { $0 != .dictations }
+    }
+
+    private var nativeKinds: [RecordingKind] {
+        let present = app.store.memo("phone.kinds-present") { Set(app.store.live.compactMap(\.kind)) }
+        return RecordingKind.pickable.filter { k in present.contains(k) || filter == .kind(k) }
     }
 }
 // brand: native end
