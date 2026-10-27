@@ -39,7 +39,9 @@ struct ContentView: View {
         }
         .background(Ink.paper)
         .background(WindowReader { w in if app.mainWindow !== w { app.mainWindow = w } })
-        .searchable(text: $app.search, placement: .toolbar, prompt: "Search transcripts")
+        // Search or ask (⌘K): the panel over the window (Views/AskViews.swift). Verbose style's one search field is the
+        // sidebar's, which opens it; Native keeps the toolbar's search field, and Return there asks.
+        .overlay { AskPanelLayer() }
         .onChange(of: app.search) { _, v in if !v.isEmpty, app.screen != .library { app.go(.library) } }
         .sheet(isPresented: $app.showMicSheet) { MicSheet() }
         .sheet(isPresented: $app.showAppPicker) { AppPickerSheet() }
@@ -84,6 +86,8 @@ struct ContentView: View {
     @ViewBuilder private var main: some View {
         if look == .native {
             NativeWindow(nav: nativeNav, columns: $columns) { nativeDetail }
+                .searchable(text: $app.search, placement: .toolbar, prompt: "Search or ask")
+                .onSubmit(of: .search) { AskNav.shared.open(mode: .ask, query: app.search, askNow: true) }
         } else {
             HStack(spacing: 0) {
                 if sidebarOpen {
@@ -172,6 +176,7 @@ struct ContentView: View {
         case .activity: return "activity"
         case .byDay(let k): return k == .journal ? "byday-journal" : "byday-thoughts"
         case .templates: return "templates"
+        case .ask: return "ask"
         case .transcript(let id): return "t-\(id)"
         }
     }
@@ -194,6 +199,7 @@ struct ContentView: View {
         case .activity: YouView()
         case .byDay(let k): ByDayView(kind: k)
         case .templates: TemplatesView()
+        case .ask: AskView()
         case .transcript(let id): TranscriptView(id: id)
         }
     }

@@ -174,6 +174,16 @@ final class PhoneState: ObservableObject {
         TemplateCenter.shared.automatic = !PhoneUITest.enabled
         TemplateCenter.shared.announce = { [weak self] msg in self?.say(msg) }
         TemplateCenter.shared.resumeWaiting(store: store)
+        // Ask: the passage index catches up in the background, never while something records or transcribes. Recipes
+        // run when iOS gives Verbose background time near their schedule (AskBackgroundRefresh), or at the next open.
+        AskCenter.shared.automatic = !PhoneUITest.enabled
+        AskCenter.shared.attach(store) { [weak self] in
+            guard let self else { return true }
+            return self.recorder.isRecording || self.session.isOn || self.runningID != nil
+        }
+        AskRecipeCenter.shared.automatic = !PhoneUITest.enabled
+        AskRecipeCenter.shared.scheduleBackground = { date in AskBackgroundRefresh.schedule(date) }
+        AskRecipeCenter.shared.attach(store)
         // Picked files the app quit in the middle of importing start again (their placeholders are still "Importing").
         let resumable = store.takeResumableImports().compactMap { pair -> (UUID, ImportSource)? in
             let (id, url) = pair
@@ -957,6 +967,8 @@ final class PhoneState: ObservableObject {
         store.projects = []
         store.dictionary = []
         store.snippets = []
+        // Ask's index, recent questions, recipes, and digests (Transcription/AskEngine.swift).
+        Task { await AskData.eraseAll() }
         UserDefaults.standard.removeObject(forKey: Profile.aboutMeKey)
         // Also files with no transcript in memory, speech models, and local-only copies (Store.removeAllFiles).
         store.removeAllFiles()

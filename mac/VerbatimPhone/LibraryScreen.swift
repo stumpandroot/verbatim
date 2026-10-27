@@ -156,6 +156,20 @@ struct LibraryScreen: View {
                         .accessibilityIdentifier("library.templates")
                         .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    // Ask: answers from your recordings, and recipes (AskScreens.swift).
+                    NavigationLink(value: AskRoute()) { AskCard(recipes: app.store.recipes.count) }
+                        .buttonStyle(PhoneCardPress())
+                        .accessibilityIdentifier("library.ask")
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 0, trailing: 20))
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
+            }
+            // The search field takes questions too: ask about what you typed.
+            if searching {
+                Section {
+                    AskAboutRow(query: search.trimmingCharacters(in: .whitespaces))
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 4, trailing: 20))
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
             if !passages.isEmpty {
@@ -424,6 +438,10 @@ extension LibraryScreen {
                         collections.padding(.horizontal, 20).padding(.top, 16)
                         byDayRow.padding(.horizontal, 20).padding(.top, 10)
                         templatesRow.padding(.horizontal, 20).padding(.top, 10)
+                        askRow.padding(.horizontal, 20).padding(.top, 10)
+                    }
+                    if searching {
+                        AskAboutRow(query: search.trimmingCharacters(in: .whitespaces)).padding(.horizontal, 20).padding(.top, 12)
                     }
                 }
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -546,6 +564,28 @@ extension LibraryScreen {
         .buttonStyle(PhoneCardPress())
         .accessibilityIdentifier("library.templates")
         .accessibilityHint("Opens your templates and Run automatically")
+    }
+
+    /// Ask: answers from your recordings, and recipes (AskScreens.swift).
+    private var askRow: some View {
+        NavigationLink(value: AskRoute()) {
+            HStack(spacing: 12) {
+                Image(systemName: "questionmark.bubble").font(.system(size: 17, weight: .medium)).foregroundStyle(NativeInk.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Ask").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeInk.label)
+                    Text("Answers from your recordings, with sources").font(.system(size: 13)).foregroundStyle(NativeInk.secondary)
+                }
+                Spacer(minLength: 8)
+                if !app.store.recipes.isEmpty { Text("\(app.store.recipes.count) recipes").font(.system(size: 14)).monospacedDigit().foregroundStyle(NativeInk.secondary) }
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(NativeInk.tertiary)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .premiumSoftCard(radius: 18)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(PhoneCardPress())
+        .accessibilityIdentifier("library.ask")
+        .accessibilityHint("Asks a question about your recordings")
     }
 
     private func collection(_ title: String, symbol: String, count: Int) -> some View {

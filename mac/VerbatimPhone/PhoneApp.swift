@@ -132,7 +132,8 @@ struct PhoneRoot: View {
         .overlay { SessionEndedLayer(session: app.session) }
         .onOpenURL { url in if !app.handleRecorderLink(url) { _ = app.session.handle(url) } }
         // Shared files and links, and Transcribe what's playing, come in each time Verbatim is opened (PhoneInbox.swift).
-        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox() } }
+        // Recipes owed a scheduled run since iOS last gave Verbose time run when it opens (AskEngine.swift).
+        .onChange(of: scenePhase) { _, phase in if phase == .active { app.importInbox(); AskRecipeCenter.shared.runDue() } }
         .alert("Before you record others", isPresented: $app.showConsentNotice) {
             Button("Not Now", role: .cancel) { app.dismissConsentNotice() }
             Button("Record") { app.acknowledgeConsentNotice() }
@@ -279,6 +280,8 @@ private struct SessionStartLayer: View {
 final class PhoneAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         LinkDownloads.shared.activate()
+        // Ask's recipes on their schedule: iOS's background refresh, registered before launch finishes.
+        AskBackgroundRefresh.register()
         return true
     }
 

@@ -121,6 +121,9 @@ enum UITest {
             // Templates: the library, Run automatically, the editor, a kind chip, Record a kind, and the result's offer.
             await templatesSteps(app: app, window: window)
             window.makeKeyAndOrderFront(nil)
+            // Ask: the sidebar's Ask, a suggested recipe, the ⌘K panel's switch, an answer, a citation, and no answer.
+            await askSteps(app: app, window: window)
+            window.makeKeyAndOrderFront(nil)
             logicChecks()
             // Dictation polish: timing, pause hints, paste decisions, and cleanup's time limit.
             await DictationPolishChecks.run { name, ok in
@@ -509,6 +512,7 @@ enum UITest {
         app.go(.byDay(.journal))
         await show("05o-by-day-journal")
         await templateShots(app: app, suffix: "")
+        await askShots(app: app, suffix: "")
         app.go(.library)
         // Type and platform chips: Links, broken down by site.
         app.libraryFilter = LibraryFilter(source: .links)
@@ -742,6 +746,7 @@ enum UITest {
         app.go(.byDay(.journal))
         await show("05o-by-day-journal-native")
         await templateShots(app: app, suffix: "-native")
+        await askShots(app: app, suffix: "-native")
         await thoughtShots(suffix: "-native")
         UserDefaults.standard.set(SettingsTab.personalization.rawValue, forKey: "settingsTab")
         openSettingsWindow()
@@ -1240,6 +1245,8 @@ enum UITest {
         // Mark a moment (shared with the iPhone's self-test and mac/tools/test-marks.sh), then the Mac's MarkCenter.
         MarkChecks.run { check("marks: " + $0, $1) }
         markCenterChecks(check)
+        // Ask your library and recipes (shared with the iPhone's self-test and mac/tools/test-ask.sh).
+        AskChecks.run { check("ask: " + $0, $1) }
         let restored = FlowAction.builtIn
         check("actions: the five sit alongside the eight in Settings › Actions", restored.count == 13
               && TranscriptActions.builtIn.allSatisfy { spec in restored.contains { $0.id == spec.id && $0.name == spec.name && $0.instruction.contains(TranscriptActions.noAddRule) } })
@@ -2225,6 +2232,149 @@ extension UITest {
         app.go(.transcript(seedTemplateResult(app)))
         await show("06t-transcript-template\(suffix)")
         TemplateSettingsModel.shared.settings = saved
+    }
+
+    /// The mockup's recordings for Ask in a "Website refresh" project, added for a step and taken out after it, so the
+    /// other screens and screenshots keep the library they always had. Returns the project and the recordings' IDs.
+    private static func seedAsk(_ app: AppState) -> (UUID, [UUID]) {
+        let project = app.store.projects.first { $0.name == "Website refresh" }?.id ?? app.store.addProject("Website refresh").id
+        var ids: [UUID] = []
+        for t in AskChecks.samples(project: project) {
+            if let have = app.store.live.first(where: { $0.title == t.title && $0.projectId == project }) { ids.append(have.id); continue }
+            app.store.add(t)
+            ids.append(t.id)
+        }
+        return (project, ids)
+    }
+
+    private static func unseedAsk(_ app: AppState, _ seeded: (UUID, [UUID])) {
+        for id in seeded.1 { if let t = app.store.transcript(id) { app.store.delete(t) } }
+        app.store.projects.removeAll { $0.id == seeded.0 }
+        if app.projectFilter == seeded.0 { app.projectFilter = nil }
+    }
+
+    /// Make › Ask and the ⌘K panel, clicked. Apple's model never runs here: a stand-in answers from the passages given,
+    /// citing the first. Recipes added here are removed afterward.
+    private static func askSteps(app: AppState, window: NSWindow) async {
+        let nav = AskNav.shared, center = AskCenter.shared
+        let seeded = seedAsk(app)
+        let before = Set(app.store.recipes.map(\.id))
+        center.responder = { _ in "Alex asked for a shorter headline, because on a phone it fills the screen before anything else shows [1]. Something made up [9]." }
+        nav.pane = .questions; nav.close(); center.clear()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        await step("ask: the sidebar's Ask opens Make › Ask", window, target: "side-ask", check: { app.screen == .ask })
+        oneScreen("sidebar Ask", app: app)
+        await step("ask: Recipes shows the recipes", window, target: "ask-pane-recipes", check: { nav.pane == .recipes })
+        if app.store.recipes.isEmpty {
+            await step("ask: a suggestion saves a recipe, with its weekly time on this Mac", window, target: "ask-suggestion-0",
+                       check: { app.store.recipes.count == 1 && app.store.recipes.first.flatMap { AskRecipeCenter.shared.schedule($0.id) }?.label == "Every Friday at 4:00 PM" })
+            check("ask: the recipe's schedule isn't owed until its next time", AskRecipeCenter.shared.device.due(app.store.recipes, now: Date()).isEmpty)
+        }
+        await step("ask: Questions goes back", window, target: "ask-pane-questions", check: { nav.pane == .questions })
+
+        // The panel: the switch, Search's library filter, and an answer with checked citations.
+        nav.scope = AskScope(source: .project(seeded.0))
+        nav.open(mode: .ask, query: "What did Alex want changed on the homepage?")
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        check("ask: ⌘K's panel opens with its field", nav.panelOpen && frames["ask-field"] != nil)
+        if frames["ask-mode-search"] != nil {
+            await step("ask: Search switches the panel to Search", window, target: "ask-mode-search", check: { nav.mode == .search })
+            check("ask: Search filters the Library as the search field does", app.search == nav.query)
+            await step("ask: Ask switches back", window, target: "ask-mode-ask", check: { nav.mode == .ask })
+        } else {
+            nav.mode = .search; try? await Task.sleep(nanoseconds: 300_000_000)
+            check("ask: Search filters the Library as the search field does", app.search == nav.query)
+            nav.mode = .ask
+        }
+        app.search = ""
+        nav.ask()
+        for _ in 0..<20 where center.phase != .done { try? await Task.sleep(nanoseconds: 250_000_000) }
+        let r = center.result
+        check("ask: the answer keeps the cited sentence and drops the made-up citation", r?.state == .answered && r?.answer?.citations.count == 1
+              && r?.answer?.plainText.contains("made up") == false)
+        check("ask: the citation is a seeded passage, with its time", r?.answer?.citations.first.map { seeded.1.contains($0.transcriptId) && $0.start > 0 } == true)
+        check("ask: the footer says how many passages and recordings, on this Mac", r?.footer(native: false).hasSuffix("Verbose found them first, then answered on this Mac.") == true)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        await step("ask: a citation plays from its time, or opens the transcript at its line", window, target: "ask-cite-1",
+                   check: { AskPlayer.shared.playing != nil || { if case .transcript(let id) = app.screen { return seeded.1.contains(id) } else { return false } }() })
+        AskPlayer.shared.stop()
+        // Nothing relevant: no answer, said plainly.
+        nav.open(mode: .ask, query: "What is the wifi password at the cabin?")
+        nav.ask()
+        for _ in 0..<20 where center.phase != .done { try? await Task.sleep(nanoseconds: 250_000_000) }
+        check("ask: nothing relevant says so instead of answering", center.result?.state == .nothingFound && center.result?.answer == nil)
+        // Without Apple Intelligence: the passages only, with the reason.
+        center.responder = nil
+        if let why = AskCenter.unavailableReason {
+            nav.query = "What did Alex want changed on the homepage?"
+            nav.ask()
+            for _ in 0..<20 where center.phase != .done { try? await Task.sleep(nanoseconds: 250_000_000) }
+            check("ask: without Apple Intelligence, the passages with a one-line reason", center.result?.state == .searchOnly && center.result?.reason == why
+                  && center.result?.found.isEmpty == false)
+        }
+        nav.close(); nav.scope = .all; nav.query = ""; center.clear()
+        await askDeleteChecks(app: app, recordings: seeded.1, device: "Mac") { check("ask: " + $0, $1) }
+        for r in app.store.recipes where !before.contains(r.id) { AskRecipeCenter.shared.delete(r.id) }
+        unseedAsk(app, seeded)
+        app.go(.home)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Deleting: a recording moved to Recently Deleted leaves the index and the digests that cited it at once, and
+    /// Delete all data's Ask step (`AskData.eraseAll`) removes the index folder, recent questions, recipes, and digests.
+    static func askDeleteChecks(app: AppState, recordings: [UUID], device: String, _ check: (String, Bool) -> Void) async {
+        guard let gone = recordings.first else { return }
+        await AskIndex.shared.sync(app.store.live.filter { recordings.contains($0.id) }, canWork: { true })
+        let had = await AskIndex.shared.entry(gone) != nil
+        let recipe = AskRecipeCenter.shared.add("Delete check", scope: .all)
+        if let recipe, let sample = AskChecks.sampleResult(app.store.live.filter { recordings.contains($0.id) }, device: device) {
+            AskRecipeCenter.shared.keep(AskDigest(recipeId: recipe.id, ranAt: Date(), scheduled: false, result: sample))
+        }
+        app.delete([gone])
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        let left = await AskIndex.shared.entry(gone)
+        check("a recording moved to Recently Deleted leaves the index at once", had && left == nil
+              && !FileManager.default.fileExists(atPath: AskStorage.indexFile(gone, in: Paths.local).path))
+        let digest = recipe.flatMap { AskRecipeCenter.shared.latest($0.id) }
+        check("digests drop the deleted recording's citations", digest?.result.answer?.citations.contains { $0.transcriptId == gone } == false
+              && digest?.result.answer?.citations.isEmpty == false)
+        await AskData.eraseAll()
+        let fm = FileManager.default
+        check("Delete all data removes the Ask Index folder, recent questions, recipes, and digests",
+              !fm.fileExists(atPath: AskStorage.indexFolder(in: Paths.local).path) && !fm.fileExists(atPath: AskStorage.historyFile(in: Paths.local).path)
+              && AskCenter.shared.history.isEmpty && app.store.recipes.isEmpty && AskRecipeCenter.shared.digests.isEmpty)
+        app.toast = nil
+    }
+
+    /// Ask for the screenshot tour: the ⌘K panel with the mockup's answer, Make › Ask, and Recipes with a digest.
+    private static func askShots(app: AppState, suffix: String) async {
+        let nav = AskNav.shared, center = AskCenter.shared, recipes = AskRecipeCenter.shared
+        let seeded = seedAsk(app)
+        let before = Set(app.store.recipes.map(\.id))
+        let scope = AskScope(range: .thisWeek)
+        nav.scope = scope; nav.mode = .ask
+        nav.query = "What did Alex want changed on the homepage?"
+        center.show(AskChecks.sampleResult(app.store.live, scope: scope, device: "Mac"))
+        let added = RecipeSuggestions.all(projects: [(seeded.0, "Website refresh")]).compactMap { s in
+            recipes.add(s.question, scope: s.scope, schedule: s.schedule.map { RecipeSchedule(weekday: $0.weekday, hour: $0.hour, minute: $0.minute) })
+        }
+        app.projectFilter = nil
+        app.go(.library)
+        nav.open()
+        await show("05s-ask-panel\(suffix)")
+        nav.close()
+        nav.pane = .questions
+        app.go(.ask)
+        await show("05t-ask\(suffix)")
+        if let digestRecipe = added.dropFirst().first, let result = AskChecks.sampleDigest(app.store.live, question: digestRecipe.question, scope: digestRecipe.scope, device: "Mac") {
+            recipes.keep(AskDigest(recipeId: digestRecipe.id, ranAt: Date(), scheduled: true, result: result))
+            nav.selectedRecipe = digestRecipe.id
+        }
+        nav.pane = .recipes
+        await show("05u-ask-recipes\(suffix)")
+        for r in app.store.recipes where !before.contains(r.id) { recipes.delete(r.id) }
+        nav.pane = .questions; nav.query = ""; nav.scope = .all; center.clear()
+        unseedAsk(app, seeded)
     }
 
     /// Thoughts, clicked: today's page in time order with times, its day arrows, the mic and the bubble starting and

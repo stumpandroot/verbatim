@@ -166,6 +166,9 @@ extension View {
             .navigationDestination(for: TemplatesRoute.self) { _ in TemplatesScreen() }
             .navigationDestination(for: TemplateDetailRoute.self) { r in TemplateDetailScreen(id: r.id) }
             .navigationDestination(for: TemplatesAutoRoute.self) { _ in TemplatesAutoScreen() }
+            .navigationDestination(for: AskRoute.self) { r in AskScreen(route: r) }
+            .navigationDestination(for: RecipesRoute.self) { _ in RecipesScreen() }
+            .navigationDestination(for: RecipeRoute.self) { r in RecipeScreen(id: r.id) }
     }
 }
 

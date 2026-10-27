@@ -78,6 +78,12 @@ struct VerbatimApp: App {
             CommandGroup(after: .textEditing) {
                 Button("Find in Transcripts") { app.goHome() }
                     .keyboardShortcut("f", modifiers: .command)
+                // Search or ask: the panel over the main window (Views/AskViews.swift).
+                Button("Search or Ask…") {
+                    app.mainWindow?.makeKeyAndOrderFront(nil)
+                    if AskNav.shared.panelOpen { AskNav.shared.close() } else { AskNav.shared.open() }
+                }
+                .keyboardShortcut("k", modifiers: .command)
             }
             // View › Edit Home: outlines Home's sections and opens Edit Home's inspector (Views/EditHome.swift).
             CommandGroup(after: .sidebar) {
