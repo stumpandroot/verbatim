@@ -269,7 +269,7 @@ enum SettingsIndex {
         .init("about.acknowledgements", .support, "Acknowledgements", "Open-source software in Verbose and its licenses, including FFmpeg (LGPL), which reads MKV, WebM, AVI, and other files.", keywords: "ffmpeg lgpl open source license credits third party"),
 
         // Features
-        .init("features.widgets", .features, "Widgets", "Record and Dictate, Recent recordings, This week, New thought, and Today's thoughts. Click the date in the menu bar, then Edit Widgets, and search for Verbose.", keywords: "widget desktop notification center this week recent recordings quick capture new thought thoughts"),
+        .init("features.widgets", .features, "Widgets", "Record and dictate, Recent recordings, This week, New thought, and Today's thoughts. Click the date in the menu bar, then Edit Widgets, and search for Verbose.", keywords: "widget desktop notification center this week recent recordings quick capture new thought thoughts"),
         .init("features.thoughtsHotkey", .features, "New thought", "Starts a thought from any app; press it again to add it to today's page. It saves as audio first, so a thought is never lost.", keywords: "thoughts thought pad idea hotkey shortcut control option p"),
         .init("features.thoughtsBubble", .features, "Show the bubble", "A small disc above every app. Click it to start a thought, click again to add it to today's page. Drag it anywhere.", keywords: "thoughts floating bubble button disc"),
         .init("features.thoughtsNewPage", .features, "New page each day at", "When a new day's page starts. A thought belongs to the day it started.", keywords: "thoughts journal day boundary midnight morning page"),
